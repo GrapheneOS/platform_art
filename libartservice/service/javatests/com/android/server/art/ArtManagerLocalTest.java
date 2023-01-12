@@ -302,21 +302,22 @@ public class ArtManagerLocalTest {
         assertThat(result.getDexContainerFileOptimizationStatuses())
                 .comparingElementsUsing(
                         TestingUtils.<DexContainerFileOptimizationStatus>deepEquality())
-                .containsExactly(DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
-                                         true /* isPrimaryAbi */, "arm64-v8a", "speed",
-                                         "compilation-reason-0", "location-debug-string-0"),
+                .containsExactly(
                         DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
-                                false /* isPrimaryAbi */, "armeabi-v7a", "speed-profile",
-                                "compilation-reason-1", "location-debug-string-1"),
+                                true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
+                                "speed", "compilation-reason-0", "location-debug-string-0"),
+                        DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
+                                true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
+                                "speed-profile", "compilation-reason-1", "location-debug-string-1"),
                         DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
-                                true /* isPrimaryAbi */, "arm64-v8a", "verify",
-                                "compilation-reason-2", "location-debug-string-2"),
+                                true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
+                                "verify", "compilation-reason-2", "location-debug-string-2"),
                         DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
-                                false /* isPrimaryAbi */, "armeabi-v7a", "extract",
-                                "compilation-reason-3", "location-debug-string-3"),
+                                true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
+                                "extract", "compilation-reason-3", "location-debug-string-3"),
                         DexContainerFileOptimizationStatus.create("/data/user/0/foo/1.apk",
-                                true /* isPrimaryAbi */, "arm64-v8a", "run-from-apk", "unknown",
-                                "unknown"));
+                                false /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
+                                "run-from-apk", "unknown", "unknown"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -349,6 +350,37 @@ public class ArtManagerLocalTest {
             assertThat(status.getCompilationReason()).isEqualTo("error");
             assertThat(status.getLocationDebugString()).isEqualTo("some error message");
         }
+    }
+
+    @Test
+    public void testClearAppProfiles() throws Exception {
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(0 /* userId */, PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(1 /* userId */, PKG_NAME, "primary")));
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk")));
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryCur("/data/user/0/foo/1.apk")));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testClearAppProfilesPackageNotFound() throws Exception {
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
+
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testClearAppProfilesNoPackage() throws Exception {
+        when(mPkgState.getAndroidPackage()).thenReturn(null);
+
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
     }
 
     @Test

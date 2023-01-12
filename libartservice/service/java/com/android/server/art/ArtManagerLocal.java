@@ -22,6 +22,7 @@ import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.ReasonMapping.BatchOptimizeReason;
 import static com.android.server.art.ReasonMapping.BootReason;
 import static com.android.server.art.Utils.Abi;
+import static com.android.server.art.model.ArtFlags.ClearProfileFlags;
 import static com.android.server.art.model.ArtFlags.DeleteFlags;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
 import static com.android.server.art.model.ArtFlags.ScheduleStatus;
@@ -68,6 +69,7 @@ import com.android.server.pm.pkg.PackageState;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -120,19 +122,17 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Handles `cmd package art` sub-command.
-     *
-     * For debugging purposes only. Intentionally enforces root access to limit the usage.
+     * Handles ART Service commands, which is a subset of `cmd package` commands.
      *
      * Note: This method is not an override of {@link Binder#handleShellCommand} because ART
-     * services does not publish a binder. Instead, it handles the `art` sub-command forwarded by
-     * the `package` service. The semantics of the parameters are the same as {@link
+     * services does not publish a binder. Instead, it handles the commands forwarded by the
+     * `package` service. The semantics of the parameters are the same as {@link
      * Binder#handleShellCommand}.
      *
      * @return zero on success, non-zero on internal error (e.g., I/O error)
      * @throws SecurityException if the caller is not root
      * @throws IllegalArgumentException if the arguments are illegal
-     * @see ArtShellCommand#onHelp()
+     * @see ArtShellCommand#printHelp(PrintWriter)
      */
     public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
             @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
@@ -141,6 +141,11 @@ public final class ArtManagerLocal {
                 this, mInjector.getPackageManagerLocal(), mInjector.getDexUseManager())
                 .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
                         err.getFileDescriptor(), args);
+    }
+
+    /** Prints ART Service shell command help. */
+    public void printShellCommandHelp(@NonNull PrintWriter pw) {
+        ArtShellCommand.printHelp(pw);
     }
 
     /**
@@ -255,14 +260,14 @@ public final class ArtManagerLocal {
                             GetOptimizationStatusResult result =
                                     mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
                                             abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(
-                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
-                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
-                                            result.compilationReason, result.locationDebugString));
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), true /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
                         } catch (ServiceSpecificException e) {
                             statuses.add(DexContainerFileOptimizationStatus.create(
-                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
-                                    "error", e.getMessage()));
+                                    dexInfo.dexPath(), true /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), "error", "error", e.getMessage()));
                         }
                     }
                 }
@@ -276,20 +281,84 @@ public final class ArtManagerLocal {
                             GetOptimizationStatusResult result =
                                     mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
                                             abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(
-                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
-                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
-                                            result.compilationReason, result.locationDebugString));
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), false /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
                         } catch (ServiceSpecificException e) {
                             statuses.add(DexContainerFileOptimizationStatus.create(
-                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
-                                    "error", e.getMessage()));
+                                    dexInfo.dexPath(), false /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), "error", "error", e.getMessage()));
                         }
                     }
                 }
             }
 
             return OptimizationStatus.create(statuses);
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
+    }
+
+    /**
+     * Clears the profiles of the given app that are collected locally. More specifically, it clears
+     * reference profiles and current profiles. External profiles (e.g., cloud profiles) will be
+     * kept.
+     *
+     * Uses the default flags ({@link ArtFlags#defaultClearProfileFlags()}).
+     *
+     * @throws IllegalArgumentException if the package is not found or the flags are illegal
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     */
+    @NonNull
+    public void clearAppProfiles(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
+        clearAppProfiles(snapshot, packageName, ArtFlags.defaultClearProfileFlags());
+    }
+
+    /**
+     * Same as above, but allows to specify flags.
+     *
+     * @see #clearAppProfiles(PackageManagerLocal.FilteredSnapshot, String)
+     */
+    @NonNull
+    public void clearAppProfiles(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull String packageName, @ClearProfileFlags int flags) {
+        if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
+                && (flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
+            throw new IllegalArgumentException("Nothing to clear");
+        }
+
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+
+        try {
+            if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
+                for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                    if (!dexInfo.hasCode()) {
+                        continue;
+                    }
+                    mInjector.getArtd().deleteProfile(
+                            PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
+                    for (ProfilePath profile : PrimaryDexUtils.getCurProfiles(
+                                 mInjector.getUserManager(), pkgState, dexInfo)) {
+                        mInjector.getArtd().deleteProfile(profile);
+                    }
+                }
+            }
+
+            if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
+                // This only deletes the profiles of known secondary dex files. If there are unknown
+                // secondary dex files, their profiles will be deleted by `cleanup`.
+                for (SecondaryDexInfo dexInfo :
+                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                    mInjector.getArtd().deleteProfile(
+                            AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath()));
+                    mInjector.getArtd().deleteProfile(
+                            AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
+                }
+            }
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
@@ -341,56 +410,20 @@ public final class ArtManagerLocal {
     public OptimizeResult resetOptimizationStatus(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
             @NonNull CancellationSignal cancellationSignal) {
-        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-
-        try {
-            boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
-            for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
-                if (!dexInfo.hasCode()) {
-                    continue;
-                }
-
-                mInjector.getArtd().deleteProfile(
-                        PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
-                for (ProfilePath profile : PrimaryDexUtils.getCurProfiles(
-                             mInjector.getUserManager(), pkgState, dexInfo)) {
-                    mInjector.getArtd().deleteProfile(profile);
-                }
-
-                // We must delete the artifacts beforehand rather than relying on `optimizePackage`
-                // to replace them because:
-                // - If dexopt is not needed after the deletion, then we shouldn't run dexopt at
-                //   all. For example, when we have a DM file that contains a VDEX file but
-                //   doesn't contain a cloud profile, this happens. Note that this is more about
-                //   correctness rather than performance.
-                // - We don't want the existing artifacts to affect dexopt. For example, the
-                //   existing VDEX file should not be an input VDEX.
-                for (Abi abi : Utils.getAllAbis(pkgState)) {
-                    mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
-                            dexInfo.dexPath(), abi.isa(), isInDalvikCache));
-                }
-            }
-
-            for (SecondaryDexInfo dexInfo :
-                    mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
-                mInjector.getArtd().deleteProfile(
-                        AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath()));
-                mInjector.getArtd().deleteProfile(
-                        AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
-
-                // We delete the artifacts and `optimizePackage` won't re-generate them because
-                // `optimizePackage` for `REASON_INSTALL` is for primary dex only. This is
-                // intentional because secondary dex files are supposed to be unknown at install
-                // time.
-                for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
-                    mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
-                            dexInfo.dexPath(), abi.isa(), false /* isInDalvikCache */));
-                }
-            }
-        } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
-        }
+        // We must delete the artifacts for primary dex files beforehand rather than relying on
+        // `optimizePackage` to replace them because:
+        // - If dexopt is not needed after the deletion, then we shouldn't run dexopt at all. For
+        //   example, when we have a DM file that contains a VDEX file but doesn't contain a cloud
+        //   profile, this happens. Note that this is more about correctness rather than
+        //   performance.
+        // - We don't want the existing artifacts to affect dexopt. For example, the existing VDEX
+        //   file should not be an input VDEX.
+        //
+        // We delete the artifacts for secondary dex files and `optimizePackage` won't re-generate
+        // them because `optimizePackage` for `REASON_INSTALL` is for primary dex only. This is
+        // intentional because secondary dex files are supposed to be unknown at install time.
+        deleteOptimizedArtifacts(snapshot, packageName);
+        clearAppProfiles(snapshot, packageName);
 
         // Re-generate artifacts for primary dex files if needed.
         return optimizePackage(snapshot, packageName,
@@ -765,6 +798,34 @@ public final class ArtManagerLocal {
             optimizePackages(snapshot, bootReason, new CancellationSignal(),
                     progressCallbackExecutor, progressCallback);
         }
+    }
+
+    /**
+     * Dumps the dexopt state of all packages in text format for debugging purposes.
+     *
+     * There are no stability guarantees for the output format.
+     *
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     */
+    public void dump(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        new DumpHelper(this).dump(pw, snapshot);
+    }
+
+    /**
+     * Dumps the dexopt state of the given package in text format for debugging purposes.
+     *
+     * There are no stability guarantees for the output format.
+     *
+     * @throws IllegalArgumentException if the package is not found
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     */
+    public void dumpPackage(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
+        new DumpHelper(this).dumpPackage(
+                pw, snapshot, Utils.getPackageStateOrThrow(snapshot, packageName));
     }
 
     /**

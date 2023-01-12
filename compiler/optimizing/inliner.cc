@@ -2198,8 +2198,8 @@ void HInliner::RunOptimizations(HGraph* callee_graph,
   InstructionSimplifier simplify(callee_graph, codegen_, inline_stats_);
 
   HOptimization* optimizations[] = {
-    &simplify,
     &fold,
+    &simplify,
     &dce,
   };
 

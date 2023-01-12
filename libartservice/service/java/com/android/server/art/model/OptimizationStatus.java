@@ -65,16 +65,23 @@ public abstract class OptimizationStatus {
 
         /** @hide */
         public static @NonNull DexContainerFileOptimizationStatus create(
-                @NonNull String dexContainerFile, boolean isPrimaryAbi, @NonNull String abi,
-                @NonNull String compilerFilter, @NonNull String compilationReason,
-                @NonNull String locationDebugString) {
+                @NonNull String dexContainerFile, boolean isPrimaryDex, boolean isPrimaryAbi,
+                @NonNull String abi, @NonNull String compilerFilter,
+                @NonNull String compilationReason, @NonNull String locationDebugString) {
             return new AutoValue_OptimizationStatus_DexContainerFileOptimizationStatus(
-                    dexContainerFile, isPrimaryAbi, abi, compilerFilter, compilationReason,
-                    locationDebugString);
+                    dexContainerFile, isPrimaryDex, isPrimaryAbi, abi, compilerFilter,
+                    compilationReason, locationDebugString);
         }
 
         /** The absolute path to the dex container file. */
         public abstract @NonNull String getDexContainerFile();
+
+        /**
+         * If true, the dex container file is a primary dex (the base APK or a split APK).
+         * Otherwise, it's a secondary dex (a APK or a JAR that the package sideloaded into its data
+         * directory).
+         */
+        public abstract boolean isPrimaryDex();
 
         /**
          * If true, the optimization is for the primary ABI of the package (the ABI that the

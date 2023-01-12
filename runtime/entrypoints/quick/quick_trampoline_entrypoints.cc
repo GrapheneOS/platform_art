@@ -61,7 +61,7 @@
 namespace art {
 
 extern "C" NO_RETURN void artDeoptimizeFromCompiledCode(DeoptimizationKind kind, Thread* self);
-extern "C" NO_RETURN void artDeoptimize(Thread* self);
+extern "C" NO_RETURN void artDeoptimize(Thread* self, bool skip_method_exit_callbacks);
 
 // Visits the arguments as saved to the stack by a CalleeSaveType::kRefAndArgs callee save frame.
 class QuickArgumentVisitor {
@@ -2652,14 +2652,14 @@ extern "C" void artJniMethodEntryHook(Thread* self)
   instr->MethodEnterEvent(self, method);
 }
 
-extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** sp ATTRIBUTE_UNUSED)
+extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   if (instr->HasMethodEntryListeners()) {
     instr->MethodEnterEvent(self, method);
     // MethodEnter callback could have requested a deopt for ex: by setting a breakpoint, so
     // check if we need a deopt here.
-    if (instr->IsDeoptimized(method)) {
+    if (instr->ShouldDeoptimizeCaller(self, sp) || instr->IsDeoptimized(method)) {
       // Instrumentation can request deoptimizing only a particular method (for ex: when
       // there are break points on the method). In such cases deoptimize only this method.
       // FullFrame deoptimizations are handled on method exits.
@@ -2693,7 +2693,6 @@ extern "C" void artMethodExitHook(Thread* self,
   JValue return_value;
   bool is_ref = false;
   ArtMethod* method = *sp;
-  bool deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size);
   if (instr->HasMethodExitListeners()) {
     StackHandleScope<1> hs(self);
 
@@ -2712,37 +2711,31 @@ extern "C" void artMethodExitHook(Thread* self,
     // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
     // re-executes the return instruction. For native methods we have to process method exit
     // events here since deoptimization just removes the native frame.
-    if (!deoptimize || method->IsNative()) {
-      instr->MethodExitEvent(self,
-                             method,
-                             /* frame= */ {},
-                             return_value);
-    }
+    instr->MethodExitEvent(self, method, /* frame= */ {}, return_value);
 
     if (is_ref) {
       // Restore the return value if it's a reference since it might have moved.
       *reinterpret_cast<mirror::Object**>(gpr_result) = res.Get();
       return_value.SetL(res.Get());
     }
-  } else if (deoptimize) {
-    return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
   }
 
   if (self->IsExceptionPending() || self->ObserveAsyncException()) {
-    // The exception was thrown from the method exit callback. We should not call  method unwind
+    // The exception was thrown from the method exit callback. We should not call method unwind
     // callbacks for this case.
     self->QuickDeliverException(/* is_method_exit_exception= */ true);
     UNREACHABLE();
   }
 
+  bool deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size);
   if (deoptimize) {
+    JValue ret_val = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
     DeoptimizationMethodType deopt_method_type = instr->GetDeoptimizationMethodType(method);
-    self->PushDeoptimizationContext(return_value,
-                                    is_ref,
-                                    self->GetException(),
-                                    false,
-                                    deopt_method_type);
-    artDeoptimize(self);
+    self->PushDeoptimizationContext(
+        ret_val, is_ref, self->GetException(), false, deopt_method_type);
+    // Method exit callback has already been run for this method. So tell the deoptimizer to skip
+    // callbacks for this frame.
+    artDeoptimize(self, /*skip_method_exit_callbacks = */ true);
     UNREACHABLE();
   }
 }
