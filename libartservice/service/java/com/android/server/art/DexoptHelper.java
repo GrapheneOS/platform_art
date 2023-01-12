@@ -37,6 +37,7 @@ import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
+import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -52,7 +53,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -268,7 +268,8 @@ public class DexoptHelper {
             Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
             if (includeDependencies && canDexoptPackage(pkgState)) {
-                for (SharedLibrary library : pkgState.getUsesLibraries()) {
+                for (SharedLibrary library :
+                        PackageStateWrapper.getSharedLibraryDependencies(pkgState)) {
                     maybeEnqueue.accept(library);
                 }
             }

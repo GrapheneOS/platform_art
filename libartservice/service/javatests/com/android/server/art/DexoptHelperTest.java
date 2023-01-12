@@ -26,7 +26,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -49,6 +48,8 @@ import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
+import com.android.server.art.testing.StaticMockitoRule;
+import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
@@ -57,6 +58,7 @@ import com.android.server.pm.pkg.SharedLibrary;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
@@ -81,6 +83,8 @@ public class DexoptHelperTest {
     private static final String PKG_NAME_LIB3 = "com.example.lib3";
     private static final String PKG_NAME_LIB4 = "com.example.lib4";
     private static final String PKG_NAME_LIBBAZ = "com.example.libbaz";
+
+    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(PackageStateWrapper.class);
 
     @Mock private DexoptHelper.Injector mInjector;
     @Mock private PrimaryDexopter mPrimaryDexopter;
@@ -623,7 +627,7 @@ public class DexoptHelperTest {
         PackageState pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         lenient().when(pkgState.getAppId()).thenReturn(12345);
-        lenient().when(pkgState.getUsesLibraries()).thenReturn(deps);
+        lenient().when(PackageStateWrapper.getSharedLibraryDependencies(pkgState)).thenReturn(deps);
         AndroidPackage pkg = createPackage(multiSplit);
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;
