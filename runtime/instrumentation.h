@@ -194,20 +194,19 @@ class Instrumentation {
   };
 
   enum class InstrumentationLevel {
-    kInstrumentNothing,                   // execute without instrumentation
-    kInstrumentWithInstrumentationStubs,  // execute with instrumentation entry/exit stubs
-    kInstrumentWithInterpreter            // execute with interpreter
+    kInstrumentNothing,             // execute without instrumentation
+    kInstrumentWithEntryExitHooks,  // execute with entry/exit hooks
+    kInstrumentWithInterpreter      // execute with interpreter
   };
 
   Instrumentation();
 
-  static constexpr MemberOffset NeedsExitHooksOffset() {
-    // Assert that instrumentation_stubs_installed_ is 8bits wide. If the size changes
+  static constexpr MemberOffset RunExitHooksOffset() {
+    // Assert that run_entry_exit_hooks_ is 8bits wide. If the size changes
     // update the compare instructions in the code generator when generating checks for
     // MethodEntryExitHooks.
-    static_assert(sizeof(instrumentation_stubs_installed_) == 1,
-                  "instrumentation_stubs_installed_ isn't expected size");
-    return MemberOffset(OFFSETOF_MEMBER(Instrumentation, instrumentation_stubs_installed_));
+    static_assert(sizeof(run_exit_hooks_) == 1, "run_exit_hooks_ isn't expected size");
+    return MemberOffset(OFFSETOF_MEMBER(Instrumentation, run_exit_hooks_));
   }
 
   static constexpr MemberOffset HaveMethodEntryListenersOffset() {
@@ -337,7 +336,7 @@ class Instrumentation {
   }
 
   bool EntryExitStubsInstalled() const {
-    return instrumentation_level_ == InstrumentationLevel::kInstrumentWithInstrumentationStubs ||
+    return instrumentation_level_ == InstrumentationLevel::kInstrumentWithEntryExitHooks ||
            instrumentation_level_ == InstrumentationLevel::kInstrumentWithInterpreter;
   }
 
@@ -355,8 +354,8 @@ class Instrumentation {
     return forced_interpret_only_;
   }
 
-  bool AreExitStubsInstalled() const {
-    return instrumentation_stubs_installed_;
+  bool RunExitHooks() const {
+    return run_exit_hooks_;
   }
 
   bool HasMethodEntryListeners() const REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -559,6 +558,8 @@ class Instrumentation {
   //    the stack frame to run entry / exit hooks but we don't need to deoptimize.
   // deopt_all_frames indicates whether the frames need to deoptimize or not.
   void InstrumentThreadStack(Thread* thread, bool deopt_all_frames) REQUIRES(Locks::mutator_lock_);
+  void InstrumentAllThreadStacks(bool deopt_all_frames) REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!Locks::thread_list_lock_);
 
   // Force all currently running frames to be deoptimized back to interpreter. This should only be
   // used in cases where basically all compiled code has been invalidated.
@@ -653,12 +654,30 @@ class Instrumentation {
   void UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
-  bool instrumentation_stubs_installed_;
+  // We need to run method exit hooks for two reasons:
+  // 1. When method exit listeners are installed
+  // 2. When we need to check if the caller of this method needs a deoptimization. This is needed
+  // only for deoptimizing the currently active invocations on stack when we deoptimize a method or
+  // invalidate the JITed code when redefining the classes. So future invocations don't need to do
+  // this check.
+  //
+  // For JITed code of non-native methods we already have a stack slot reserved for deoptimizing
+  // on demand and we use that stack slot to check if the caller needs a deoptimization. JITed code
+  // checks if there are any method exit listeners or if the stack slot is set to determine if
+  // method exit hooks need to be executed.
+  //
+  // For JITed JNI stubs there is no reserved stack slot for this and we just use this variable to
+  // check if we need to run method entry / exit hooks. This variable would be set when either of
+  // the above conditions are true. If we need method exit hooks only for case 2, we would call exit
+  // hooks for any future invocations which aren't necessary.
+  // QuickToInterpreterBridge and GenericJniStub also use this for same reasons.
+  // If calling entry / exit hooks becomes expensive we could do the same optimization we did for
+  // JITed code by having a reserved stack slot.
+  bool run_exit_hooks_;
 
   // The required level of instrumentation. This could be one of the following values:
   // kInstrumentNothing: no instrumentation support is needed
-  // kInstrumentWithInstrumentationStubs: needs support to call method entry/exit stubs.
+  // kInstrumentWithEntryExitHooks: needs support to call method entry/exit stubs.
   // kInstrumentWithInterpreter: only execute with interpreter
   Instrumentation::InstrumentationLevel instrumentation_level_;
 

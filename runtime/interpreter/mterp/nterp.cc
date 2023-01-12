@@ -45,7 +45,7 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
   // interpreter-only runtime to always be in a switch-like interpreter.
   return IsNterpSupported() &&
       !runtime->IsJavaDebuggable() &&
-      !instr->AreExitStubsInstalled() &&
+      !instr->EntryExitStubsInstalled() &&
       !instr->InterpretOnly() &&
       !runtime->IsAotCompiler() &&
       !instr->NeedsSlowInterpreterForListeners() &&
