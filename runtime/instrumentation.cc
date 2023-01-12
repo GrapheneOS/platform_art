@@ -1194,6 +1194,27 @@ void Instrumentation::DisableDeoptimization(const char* key) {
   }
 }
 
+void Instrumentation::MaybeSwitchRuntimeDebugState(Thread* self) {
+  Runtime* runtime = Runtime::Current();
+  // Return early if runtime is shutting down.
+  if (runtime->IsShuttingDown(self)) {
+    return;
+  }
+
+  // Don't switch the state if we started off as JavaDebuggable or if we still need entry / exit
+  // hooks for other reasons.
+  if (EntryExitStubsInstalled() || runtime->IsJavaDebuggableAtInit()) {
+    return;
+  }
+
+  art::jit::Jit* jit = runtime->GetJit();
+  if (jit != nullptr) {
+    jit->GetCodeCache()->InvalidateAllCompiledCode();
+    jit->GetJitCompiler()->SetDebuggableCompilerOption(false);
+  }
+  runtime->SetRuntimeDebugState(art::Runtime::RuntimeDebugState::kNonJavaDebuggable);
+}
+
 // Indicates if instrumentation should notify method enter/exit events to the listeners.
 bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
   if (!HasMethodEntryListeners() && !HasMethodExitListeners()) {
