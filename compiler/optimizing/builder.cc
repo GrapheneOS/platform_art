@@ -103,7 +103,6 @@ GraphAnalysisResult HGraphBuilder::BuildGraph() {
   graph_->SetNumberOfVRegs(code_item_accessor_.RegistersSize());
   graph_->SetNumberOfInVRegs(code_item_accessor_.InsSize());
   graph_->SetMaximumNumberOfOutVRegs(code_item_accessor_.OutsSize());
-  graph_->SetHasTryCatch(code_item_accessor_.TriesSize() != 0);
 
   // Use ScopedArenaAllocator for all local allocations.
   ScopedArenaAllocator local_allocator(graph_->GetArenaStack());
@@ -168,7 +167,6 @@ void HGraphBuilder::BuildIntrinsicGraph(ArtMethod* method) {
   graph_->SetNumberOfVRegs(return_vregs + num_arg_vregs);
   graph_->SetNumberOfInVRegs(num_arg_vregs);
   graph_->SetMaximumNumberOfOutVRegs(num_arg_vregs);
-  graph_->SetHasTryCatch(false);
 
   // Use ScopedArenaAllocator for all local allocations.
   ScopedArenaAllocator local_allocator(graph_->GetArenaStack());
