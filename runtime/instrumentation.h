@@ -243,6 +243,11 @@ class Instrumentation {
   void DisableDeoptimization(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_);
 
+  // Enables entry exit hooks support. This is called in preparation for debug requests that require
+  // calling method entry / exit hooks.
+  void EnableEntryExitHooks(const char* key)
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_);
+
   bool AreAllMethodsDeoptimized() const {
     return InterpreterStubsInstalled();
   }
