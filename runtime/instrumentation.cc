@@ -887,11 +887,6 @@ void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_
   instrumentation_level_ = requested_level;
 }
 
-void Instrumentation::EnableEntryExitHooks(const char* key) {
-  DCHECK(Runtime::Current()->IsJavaDebuggable());
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
-}
-
 void Instrumentation::MaybeRestoreInstrumentationStack() {
   // Restore stack only if there is no method currently deoptimized.
   if (!IsDeoptimizedMethodsEmpty()) {
