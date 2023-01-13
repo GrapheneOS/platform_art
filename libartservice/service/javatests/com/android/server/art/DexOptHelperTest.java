@@ -83,8 +83,8 @@ public class DexOptHelperTest {
     private static final String PKG_NAME_LIBBAZ = "com.example.libbaz";
 
     @Mock private DexoptHelper.Injector mInjector;
-    @Mock private PrimaryDexOptimizer mPrimaryDexOptimizer;
-    @Mock private SecondaryDexOptimizer mSecondaryDexOptimizer;
+    @Mock private PrimaryDexopter mPrimaryDexopter;
+    @Mock private SecondaryDexopter mSecondaryDexopter;
     @Mock private AppHibernationManager mAhm;
     @Mock private PowerManager mPowerManager;
     @Mock private PowerManager.WakeLock mWakeLock;
@@ -133,14 +133,14 @@ public class DexOptHelperTest {
                 DexoptResult.DEXOPT_PERFORMED /* status2 */);
 
         lenient()
-                .when(mInjector.getPrimaryDexOptimizer(any(), any(), any(), any()))
-                .thenReturn(mPrimaryDexOptimizer);
-        lenient().when(mPrimaryDexOptimizer.dexopt()).thenReturn(mPrimaryResults);
+                .when(mInjector.getPrimaryDexopter(any(), any(), any(), any()))
+                .thenReturn(mPrimaryDexopter);
+        lenient().when(mPrimaryDexopter.dexopt()).thenReturn(mPrimaryResults);
 
         lenient()
-                .when(mInjector.getSecondaryDexOptimizer(any(), any(), any(), any()))
-                .thenReturn(mSecondaryDexOptimizer);
-        lenient().when(mSecondaryDexOptimizer.dexopt()).thenReturn(mSecondaryResults);
+                .when(mInjector.getSecondaryDexopter(any(), any(), any(), any()))
+                .thenReturn(mSecondaryDexopter);
+        lenient().when(mSecondaryDexopter.dexopt()).thenReturn(mSecondaryResults);
 
         mParams = new DexoptParams.Builder("install")
                           .setCompilerFilter("speed-profile")
@@ -165,13 +165,13 @@ public class DexOptHelperTest {
     @Test
     public void testDexopt() throws Exception {
         // Only package libbaz fails.
-        var failingPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
+        var failingPrimaryDexopter = mock(PrimaryDexopter.class);
         List<DexContainerFileDexoptResult> partialFailureResults =
                 createResults("/data/app/foo/base.apk", DexoptResult.DEXOPT_PERFORMED /* status1 */,
                         DexoptResult.DEXOPT_FAILED /* status2 */);
-        lenient().when(failingPrimaryDexOptimizer.dexopt()).thenReturn(partialFailureResults);
-        when(mInjector.getPrimaryDexOptimizer(same(mPkgStateLibbaz), any(), any(), any()))
-                .thenReturn(failingPrimaryDexOptimizer);
+        lenient().when(failingPrimaryDexopter.dexopt()).thenReturn(partialFailureResults);
+        when(mInjector.getPrimaryDexopter(same(mPkgStateLibbaz), any(), any(), any()))
+                .thenReturn(failingPrimaryDexopter);
 
         DexoptResult result = mDexOptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
@@ -202,29 +202,29 @@ public class DexOptHelperTest {
         InOrder inOrder = inOrder(mInjector, mWakeLock);
         inOrder.verify(mWakeLock).setWorkSource(any());
         inOrder.verify(mWakeLock).acquire(anyLong());
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateBar), same(mPkgBar), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateBar), same(mPkgBar), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateLib1), same(mPkgLib1), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateLib1), same(mPkgLib1), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateLib2), same(mPkgLib2), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateLib2), same(mPkgLib2), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getPrimaryDexOptimizer(
+        inOrder.verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateLib4), same(mPkgLib4), same(mParams), same(mCancellationSignal));
-        inOrder.verify(mInjector).getSecondaryDexOptimizer(
+        inOrder.verify(mInjector).getSecondaryDexopter(
                 same(mPkgStateLib4), same(mPkgLib4), same(mParams), same(mCancellationSignal));
         inOrder.verify(mWakeLock).release();
 
@@ -310,7 +310,7 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexoptCancelledBetweenDex2oatInvocations() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt()).thenAnswer(invocation -> {
+        when(mPrimaryDexopter.dexopt()).thenAnswer(invocation -> {
             mCancellationSignal.cancel();
             return mPrimaryResults;
         });
@@ -334,7 +334,7 @@ public class DexOptHelperTest {
         checkPackageResult(
                 result, 5 /* index */, PKG_NAME_LIB4, DexoptResult.DEXOPT_CANCELLED, List.of());
 
-        verify(mInjector).getPrimaryDexOptimizer(
+        verify(mInjector).getPrimaryDexopter(
                 same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
 
         verifyNoMoreDexopt(1 /* expectedPrimaryTimes */, 0 /* expectedSecondaryTimes */);
@@ -412,7 +412,7 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexoptAlwaysReleasesWakeLock() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt()).thenThrow(IllegalStateException.class);
+        when(mPrimaryDexopter.dexopt()).thenThrow(IllegalStateException.class);
 
         try {
             mDexOptHelper.dexopt(
@@ -539,19 +539,19 @@ public class DexOptHelperTest {
         List<DexContainerFileDexoptResult> partialFailureResults =
                 createResults("/data/app/foo/base.apk", DexoptResult.DEXOPT_PERFORMED /* status1 */,
                         DexoptResult.DEXOPT_FAILED /* status2 */);
-        var fooPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
-        when(mInjector.getPrimaryDexOptimizer(same(mPkgStateFoo), any(), any(), any()))
-                .thenReturn(fooPrimaryDexOptimizer);
-        when(fooPrimaryDexOptimizer.dexopt()).thenReturn(partialFailureResults);
+        var fooPrimaryDexopter = mock(PrimaryDexopter.class);
+        when(mInjector.getPrimaryDexopter(same(mPkgStateFoo), any(), any(), any()))
+                .thenReturn(fooPrimaryDexopter);
+        when(fooPrimaryDexopter.dexopt()).thenReturn(partialFailureResults);
 
         // Dexopt totally fails on package "bar".
         List<DexContainerFileDexoptResult> totalFailureResults =
                 createResults("/data/app/bar/base.apk", DexoptResult.DEXOPT_FAILED /* status1 */,
                         DexoptResult.DEXOPT_FAILED /* status2 */);
-        var barPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
-        when(mInjector.getPrimaryDexOptimizer(same(mPkgStateBar), any(), any(), any()))
-                .thenReturn(barPrimaryDexOptimizer);
-        when(barPrimaryDexOptimizer.dexopt()).thenReturn(totalFailureResults);
+        var barPrimaryDexopter = mock(PrimaryDexopter.class);
+        when(mInjector.getPrimaryDexopter(same(mPkgStateBar), any(), any(), any()))
+                .thenReturn(barPrimaryDexopter);
+        when(barPrimaryDexopter.dexopt()).thenReturn(totalFailureResults);
 
         DexoptResult resultWithSomeUpdates = mDexOptHelper.dexopt(mSnapshot,
                 List.of(PKG_NAME_FOO, PKG_NAME_BAR), mParams, mCancellationSignal, mExecutor);
@@ -692,15 +692,15 @@ public class DexOptHelperTest {
     }
 
     private void verifyNoDexopt() {
-        verify(mInjector, never()).getPrimaryDexOptimizer(any(), any(), any(), any());
-        verify(mInjector, never()).getSecondaryDexOptimizer(any(), any(), any(), any());
+        verify(mInjector, never()).getPrimaryDexopter(any(), any(), any(), any());
+        verify(mInjector, never()).getSecondaryDexopter(any(), any(), any(), any());
     }
 
     private void verifyNoMoreDexopt(int expectedPrimaryTimes, int expectedSecondaryTimes) {
         verify(mInjector, times(expectedPrimaryTimes))
-                .getPrimaryDexOptimizer(any(), any(), any(), any());
+                .getPrimaryDexopter(any(), any(), any(), any());
         verify(mInjector, times(expectedSecondaryTimes))
-                .getSecondaryDexOptimizer(any(), any(), any(), any());
+                .getSecondaryDexopter(any(), any(), any(), any());
     }
 
     private List<DexContainerFileDexoptResult> createResults(

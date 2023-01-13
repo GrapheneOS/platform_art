@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
+public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
     private final String mDexPath = "/data/app/foo/base.apk";
     private final ProfilePath mRefProfile =
             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary");
@@ -98,7 +98,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     private DexoptParams mDexoptParams =
             new DexoptParams.Builder("install").setCompilerFilter("speed-profile").build();
 
-    private PrimaryDexOptimizer mPrimaryDexOptimizer;
+    private PrimaryDexopter mPrimaryDexopter;
 
     private List<ProfilePath> mUsedProfiles;
 
@@ -126,8 +126,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .when(mArtd.createCancellationSignal())
                 .thenReturn(mock(IArtdCancellationSignal.class));
 
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
         mUsedProfiles = new ArrayList<>();
     }
@@ -174,7 +174,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(), isNull(), any(),
                         anyInt(), any(), any());
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
     }
 
     @Test
@@ -183,7 +183,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .when(mArtd.getDmFileVisibility(deepEq(mDmFile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd, times(2))
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), deepEq(mDmFile),
@@ -208,7 +208,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
@@ -244,7 +244,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64", mRefProfile,
                 true /* isOtherReadable */, true /* generateAppImage */);
@@ -261,7 +261,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -292,7 +292,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -336,7 +336,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         // It should still use "speed-profile", but with the existing reference profile only.
         verify(mArtd).getDexoptNeeded(
@@ -359,7 +359,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -385,7 +385,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      any(), any()))
                 .thenThrow(ServiceSpecificException.class);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd).deleteProfile(
                 deepEq(ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath)));
@@ -410,7 +410,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -450,7 +450,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         // It should use the default dexopt trigger.
         verify(mArtd).getDexoptNeeded(
@@ -465,7 +465,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mSplit0RefProfile)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd).getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), eq("speed-profile"),
                 eq(mDefaultDexoptTrigger));
@@ -495,7 +495,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         // The result should only contain one element: the result of the first file with
         // DEXOPT_CANCELLED.
-        assertThat(mPrimaryDexOptimizer.dexopt()
+        assertThat(mPrimaryDexopter.dexopt()
                            .stream()
                            .map(DexContainerFileDexoptResult::getStatus)
                            .collect(Collectors.toList()))
@@ -533,7 +533,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .cancel();
 
         Future<List<DexContainerFileDexoptResult>> results =
-                ForkJoinPool.commonPool().submit(() -> { return mPrimaryDexOptimizer.dexopt(); });
+                ForkJoinPool.commonPool().submit(() -> { return mPrimaryDexopter.dexopt(); });
 
         assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
@@ -560,10 +560,10 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                         .setSplitName(null)
                         .build();
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd, times(2))
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
@@ -581,10 +581,10 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                         .setSplitName("split_0")
                         .build();
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        mPrimaryDexOptimizer.dexopt();
+        mPrimaryDexopter.dexopt();
 
         verify(mArtd, never())
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
@@ -603,10 +603,10 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         .setCompilerFilter("speed-profile")
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SKIP_IF_STORAGE_LOW)
                         .build();
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        List<DexContainerFileDexoptResult> results = mPrimaryDexOptimizer.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
         assertThat(results.get(0).isSkippedDueToStorageLow()).isFalse();
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);

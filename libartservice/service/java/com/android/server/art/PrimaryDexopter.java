@@ -49,19 +49,19 @@ import java.util.List;
 import java.util.Objects;
 
 /** @hide */
-public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
-    private static final String TAG = "PrimaryDexOptimizer";
+public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
+    private static final String TAG = "PrimaryDexopter";
 
     private final int mSharedGid;
 
-    public PrimaryDexOptimizer(@NonNull Context context, @NonNull PackageState pkgState,
+    public PrimaryDexopter(@NonNull Context context, @NonNull PackageState pkgState,
             @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
         this(new Injector(context), pkgState, pkg, params, cancellationSignal);
     }
 
     @VisibleForTesting
-    public PrimaryDexOptimizer(@NonNull Injector injector, @NonNull PackageState pkgState,
+    public PrimaryDexopter(@NonNull Injector injector, @NonNull PackageState pkgState,
             @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
         super(injector, pkgState, pkg, params, cancellationSignal);

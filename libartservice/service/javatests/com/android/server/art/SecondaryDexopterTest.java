@@ -65,7 +65,7 @@ import java.util.function.Function;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SecondaryDexOptimizerTest {
+public class SecondaryDexopterTest {
     private static final String PKG_NAME = "com.example.foo";
     private static final int APP_ID = 12345;
     private static final UserHandle USER_HANDLE = UserHandle.of(2);
@@ -100,14 +100,14 @@ public class SecondaryDexOptimizerTest {
     public StaticMockitoRule mockitoRule =
             new StaticMockitoRule(SystemProperties.class, Constants.class);
 
-    @Mock private SecondaryDexOptimizer.Injector mInjector;
+    @Mock private SecondaryDexopter.Injector mInjector;
     @Mock private IArtd mArtd;
     @Mock private DexUseManagerLocal mDexUseManager;
     private PackageState mPkgState;
     private AndroidPackage mPkg;
     private CancellationSignal mCancellationSignal;
 
-    private SecondaryDexOptimizer mSecondaryDexOptimizer;
+    private SecondaryDexopter mSecondaryDexopter;
 
     @Before
     public void setUp() throws Exception {
@@ -154,13 +154,13 @@ public class SecondaryDexOptimizerTest {
                 .when(mArtd.createCancellationSignal())
                 .thenReturn(mock(IArtdCancellationSignal.class));
 
-        mSecondaryDexOptimizer = new SecondaryDexOptimizer(
+        mSecondaryDexopter = new SecondaryDexopter(
                 mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
     }
 
     @Test
     public void testDexopt() throws Exception {
-        assertThat(mSecondaryDexOptimizer.dexopt())
+        assertThat(mSecondaryDexopter.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
                         DexContainerFileDexoptResult.create(DEX_1, true /* isPrimaryAbi */,

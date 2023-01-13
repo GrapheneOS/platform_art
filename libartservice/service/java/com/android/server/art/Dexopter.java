@@ -57,8 +57,8 @@ import java.util.List;
 import java.util.Objects;
 
 /** @hide */
-public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
-    private static final String TAG = "DexOptimizer";
+public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
+    private static final String TAG = "Dexopter";
 
     @NonNull protected final Injector mInjector;
     @NonNull protected final PackageState mPkgState;
@@ -67,7 +67,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     @NonNull protected final DexoptParams mParams;
     @NonNull protected final CancellationSignal mCancellationSignal;
 
-    protected DexOptimizer(@NonNull Injector injector, @NonNull PackageState pkgState,
+    protected Dexopter(@NonNull Injector injector, @NonNull PackageState pkgState,
             @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
         mInjector = injector;
@@ -157,17 +157,16 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     boolean isSkippedDueToStorageLow = false;
                     try {
                         var target = DexoptTarget.<DexInfoType>builder()
-                                                      .setDexInfo(dexInfo)
-                                                      .setIsa(abi.isa())
-                                                      .setIsInDalvikCache(isInDalvikCache())
-                                                      .setCompilerFilter(compilerFilter)
-                                                      .build();
-                        var options =
-                                GetDexoptNeededOptions.builder()
-                                        .setProfileMerged(profileMerged)
-                                        .setFlags(mParams.getFlags())
-                                        .setNeedsToBePublic(needsToBeShared)
-                                        .build();
+                                             .setDexInfo(dexInfo)
+                                             .setIsa(abi.isa())
+                                             .setIsInDalvikCache(isInDalvikCache())
+                                             .setCompilerFilter(compilerFilter)
+                                             .build();
+                        var options = GetDexoptNeededOptions.builder()
+                                              .setProfileMerged(profileMerged)
+                                              .setFlags(mParams.getFlags())
+                                              .setNeedsToBePublic(needsToBeShared)
+                                              .build();
 
                         GetDexoptNeededResult getDexoptNeededResult =
                                 getDexoptNeeded(target, options);
@@ -604,7 +603,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         abstract @NonNull String compilerFilter();
 
         static <DexInfoType extends DetailedDexInfo> Builder<DexInfoType> builder() {
-            return new AutoValue_DexOptimizer_DexoptTarget.Builder<DexInfoType>();
+            return new AutoValue_Dexopter_DexoptTarget.Builder<DexInfoType>();
         }
 
         @AutoValue.Builder
@@ -624,7 +623,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         abstract boolean needsToBePublic();
 
         static Builder builder() {
-            return new AutoValue_DexOptimizer_GetDexoptNeededOptions.Builder();
+            return new AutoValue_Dexopter_GetDexoptNeededOptions.Builder();
         }
 
         @AutoValue.Builder
