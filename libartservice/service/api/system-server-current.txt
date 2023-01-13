@@ -7,11 +7,9 @@ package com.android.server.art {
     method public void addDexoptDoneCallback(boolean, @NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.DexoptDoneCallback);
     method public void cancelBackgroundDexoptJob();
     method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
-    method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public void clearBatchDexoptStartCallback();
     method public void clearScheduleBackgroundDexoptJobCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteDexoptArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
-    method @NonNull public com.android.server.art.model.DeleteResult deleteDexoptArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method @NonNull public com.android.server.art.model.DexoptResult dexoptPackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.DexoptParams);
     method @NonNull public com.android.server.art.model.DexoptResult dexoptPackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.DexoptParams, @NonNull android.os.CancellationSignal);
     method public void dump(@NonNull java.io.PrintWriter, @NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot);
@@ -78,8 +76,6 @@ package com.android.server.art {
 package com.android.server.art.model {
 
   public class ArtFlags {
-    method public static int defaultClearProfileFlags();
-    method public static int defaultDeleteFlags();
     method public static int defaultGetStatusFlags();
     field public static final int FLAG_FORCE = 16; // 0x10
     field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1

@@ -22,8 +22,6 @@ import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.ReasonMapping.BatchDexoptReason;
 import static com.android.server.art.ReasonMapping.BootReason;
 import static com.android.server.art.Utils.Abi;
-import static com.android.server.art.model.ArtFlags.ClearProfileFlags;
-import static com.android.server.art.model.ArtFlags.DeleteFlags;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
 import static com.android.server.art.model.ArtFlags.ScheduleStatus;
 import static com.android.server.art.model.Config.Callback;
@@ -149,9 +147,8 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Deletes dexopt artifacts of a package.
-     *
-     * Uses the default flags ({@link ArtFlags#defaultDeleteFlags()}).
+     * Deletes dexopt artifacts of a package, including the artifacts for primary dex files and the
+     * ones for secondary dex files.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen
@@ -160,51 +157,28 @@ public final class ArtManagerLocal {
     @NonNull
     public DeleteResult deleteDexoptArtifacts(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
-        return deleteDexoptArtifacts(snapshot, packageName, ArtFlags.defaultDeleteFlags());
-    }
-
-    /**
-     * Same as above, but allows to specify flags.
-     *
-     * @see #deleteDexoptArtifacts(PackageManagerLocal.FilteredSnapshot, String)
-     */
-    @NonNull
-    public DeleteResult deleteDexoptArtifacts(
-            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
-            @DeleteFlags int flags) {
-        if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
-                && (flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
-            throw new IllegalArgumentException("Nothing to delete");
-        }
-
         PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         try {
             long freedBytes = 0;
 
-            if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
-                boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
-                for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
-                    if (!dexInfo.hasCode()) {
-                        continue;
-                    }
-                    for (Abi abi : Utils.getAllAbis(pkgState)) {
-                        freedBytes +=
-                                mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
-                                        dexInfo.dexPath(), abi.isa(), isInDalvikCache));
-                    }
+            boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
+            for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                if (!dexInfo.hasCode()) {
+                    continue;
+                }
+                for (Abi abi : Utils.getAllAbis(pkgState)) {
+                    freedBytes += mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                            dexInfo.dexPath(), abi.isa(), isInDalvikCache));
                 }
             }
 
-            if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                for (SecondaryDexInfo dexInfo :
-                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
-                    for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
-                        freedBytes +=
-                                mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
-                                        dexInfo.dexPath(), abi.isa(), false /* isInDalvikCache */));
-                    }
+            for (SecondaryDexInfo dexInfo :
+                    mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
+                    freedBytes += mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                            dexInfo.dexPath(), abi.isa(), false /* isInDalvikCache */));
                 }
             }
 
@@ -298,11 +272,10 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Clears the profiles of the given app that are collected locally. More specifically, it clears
+     * Clears the profiles of the given app that are collected locally, including the profiles for
+     * primary dex files and the ones for secondary dex files. More specifically, it clears
      * reference profiles and current profiles. External profiles (e.g., cloud profiles) will be
      * kept.
-     *
-     * Uses the default flags ({@link ArtFlags#defaultClearProfileFlags()}).
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen
@@ -311,50 +284,30 @@ public final class ArtManagerLocal {
     @NonNull
     public void clearAppProfiles(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
-        clearAppProfiles(snapshot, packageName, ArtFlags.defaultClearProfileFlags());
-    }
-
-    /**
-     * Same as above, but allows to specify flags.
-     *
-     * @see #clearAppProfiles(PackageManagerLocal.FilteredSnapshot, String)
-     */
-    @NonNull
-    public void clearAppProfiles(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull String packageName, @ClearProfileFlags int flags) {
-        if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
-                && (flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
-            throw new IllegalArgumentException("Nothing to clear");
-        }
-
         PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         try {
-            if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
-                for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
-                    if (!dexInfo.hasCode()) {
-                        continue;
-                    }
-                    mInjector.getArtd().deleteProfile(
-                            PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
-                    for (ProfilePath profile : PrimaryDexUtils.getCurProfiles(
-                                 mInjector.getUserManager(), pkgState, dexInfo)) {
-                        mInjector.getArtd().deleteProfile(profile);
-                    }
+            for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                if (!dexInfo.hasCode()) {
+                    continue;
+                }
+                mInjector.getArtd().deleteProfile(
+                        PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
+                for (ProfilePath profile : PrimaryDexUtils.getCurProfiles(
+                             mInjector.getUserManager(), pkgState, dexInfo)) {
+                    mInjector.getArtd().deleteProfile(profile);
                 }
             }
 
-            if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                // This only deletes the profiles of known secondary dex files. If there are unknown
-                // secondary dex files, their profiles will be deleted by `cleanup`.
-                for (SecondaryDexInfo dexInfo :
-                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
-                    mInjector.getArtd().deleteProfile(
-                            AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath()));
-                    mInjector.getArtd().deleteProfile(
-                            AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
-                }
+            // This only deletes the profiles of known secondary dex files. If there are unknown
+            // secondary dex files, their profiles will be deleted by `cleanup`.
+            for (SecondaryDexInfo dexInfo :
+                    mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                mInjector.getArtd().deleteProfile(
+                        AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath()));
+                mInjector.getArtd().deleteProfile(
+                        AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
             }
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
