@@ -173,7 +173,7 @@ template <typename T, size_t size> class DexCachePairArray {
     return GetPair(index).GetObjectForIndex(index);
   }
 
-  void Set(uint32_t index, T* value) {
+  void Set(uint32_t index, T* value) REQUIRES_SHARED(Locks::mutator_lock_) {
     SetPair(index, DexCachePair<T>(value, index));
   }
 
