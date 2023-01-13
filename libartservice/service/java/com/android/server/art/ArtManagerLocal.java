@@ -388,7 +388,7 @@ public final class ArtManagerLocal {
     public DexoptResult dexoptPackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String packageName, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
-        return mInjector.getDexOptHelper().dexopt(
+        return mInjector.getDexoptHelper().dexopt(
                 snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
     }
 
@@ -499,7 +499,7 @@ public final class ArtManagerLocal {
                         cancellationSignal, dexoptExecutor);
             }
             Log.i(TAG, "Dexopting packages");
-            return mInjector.getDexOptHelper().dexopt(snapshot, params.getPackages(),
+            return mInjector.getDexoptHelper().dexopt(snapshot, params.getPackages(),
                     params.getDexoptParams(), cancellationSignal, dexoptExecutor,
                     progressCallbackExecutor, progressCallback);
         } finally {
@@ -562,7 +562,7 @@ public final class ArtManagerLocal {
      * reason {@link ReasonMapping#REASON_BG_DEXOPT}.
      */
     public @ScheduleStatus int scheduleBackgroundDexoptJob() {
-        return mInjector.getBackgroundDexOptJob().schedule();
+        return mInjector.getBackgroundDexoptJob().schedule();
     }
 
     /**
@@ -578,7 +578,7 @@ public final class ArtManagerLocal {
      * #startBackgroundDexoptJob()} will not be cancelled by this method.
      */
     public void unscheduleBackgroundDexoptJob() {
-        mInjector.getBackgroundDexOptJob().unschedule();
+        mInjector.getBackgroundDexoptJob().unschedule();
     }
 
     /**
@@ -613,7 +613,7 @@ public final class ArtManagerLocal {
      * reason {@link ReasonMapping#REASON_BG_DEXOPT}.
      */
     public void startBackgroundDexoptJob() {
-        mInjector.getBackgroundDexOptJob().start();
+        mInjector.getBackgroundDexoptJob().start();
     }
 
     /**
@@ -626,7 +626,7 @@ public final class ArtManagerLocal {
      * DexoptResult#DEXOPT_CANCELLED}.
      */
     public void cancelBackgroundDexoptJob() {
-        mInjector.getBackgroundDexOptJob().cancel();
+        mInjector.getBackgroundDexoptJob().cancel();
     }
 
     /**
@@ -827,8 +827,8 @@ public final class ArtManagerLocal {
      * @hide
      */
     @NonNull
-    BackgroundDexoptJob getBackgroundDexOptJob() {
-        return mInjector.getBackgroundDexOptJob();
+    BackgroundDexoptJob getBackgroundDexoptJob() {
+        return mInjector.getBackgroundDexoptJob();
     }
 
     private void maybeDowngradePackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
@@ -841,7 +841,7 @@ public final class ArtManagerLocal {
                                             .collect(Collectors.toList());
             if (!packages.isEmpty()) {
                 Log.i(TAG, "Storage is low. Downgrading inactive packages");
-                mInjector.getDexOptHelper().dexopt(snapshot, packages,
+                mInjector.getDexoptHelper().dexopt(snapshot, packages,
                         new DexoptParams.Builder(ReasonMapping.REASON_INACTIVE).build(),
                         cancellationSignal, executor, null /* processCallbackExecutor */,
                         null /* progressCallback */);
@@ -1025,7 +1025,7 @@ public final class ArtManagerLocal {
         @Nullable private final Context mContext;
         @Nullable private final PackageManagerLocal mPackageManagerLocal;
         @Nullable private final Config mConfig;
-        @Nullable private final BackgroundDexoptJob mBgDexOptJob;
+        @Nullable private final BackgroundDexoptJob mBgDexoptJob;
 
         Injector(@NonNull ArtManagerLocal artManagerLocal, @Nullable Context context) {
             mContext = context;
@@ -1034,11 +1034,11 @@ public final class ArtManagerLocal {
                 mPackageManagerLocal = Objects.requireNonNull(
                         LocalManagerRegistry.getManager(PackageManagerLocal.class));
                 mConfig = new Config();
-                mBgDexOptJob = new BackgroundDexoptJob(context, artManagerLocal, mConfig);
+                mBgDexoptJob = new BackgroundDexoptJob(context, artManagerLocal, mConfig);
 
                 // Call the getters for various dependencies, to ensure correct initialization
                 // order.
-                getDexOptHelper();
+                getDexoptHelper();
                 getAppHibernationManager();
                 getUserManager();
                 getDexUseManager();
@@ -1047,7 +1047,7 @@ public final class ArtManagerLocal {
             } else {
                 mPackageManagerLocal = null;
                 mConfig = null;
-                mBgDexOptJob = null;
+                mBgDexoptJob = null;
             }
         }
 
@@ -1067,7 +1067,7 @@ public final class ArtManagerLocal {
         }
 
         @NonNull
-        public DexoptHelper getDexOptHelper() {
+        public DexoptHelper getDexoptHelper() {
             return new DexoptHelper(getContext(), getConfig());
         }
 
@@ -1082,8 +1082,8 @@ public final class ArtManagerLocal {
         }
 
         @NonNull
-        public BackgroundDexoptJob getBackgroundDexOptJob() {
-            return Objects.requireNonNull(mBgDexOptJob);
+        public BackgroundDexoptJob getBackgroundDexoptJob() {
+            return Objects.requireNonNull(mBgDexoptJob);
         }
 
         @NonNull

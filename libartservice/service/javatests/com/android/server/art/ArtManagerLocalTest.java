@@ -111,7 +111,7 @@ public class ArtManagerLocalTest {
     @Mock private PackageManagerLocal mPackageManagerLocal;
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
     @Mock private IArtd mArtd;
-    @Mock private DexoptHelper mDexOptHelper;
+    @Mock private DexoptHelper mDexoptHelper;
     @Mock private AppHibernationManager mAppHibernationManager;
     @Mock private UserManager mUserManager;
     @Mock private DexUseManagerLocal mDexUseManager;
@@ -139,7 +139,7 @@ public class ArtManagerLocalTest {
         // that each test case examines.
         lenient().when(mInjector.getPackageManagerLocal()).thenReturn(mPackageManagerLocal);
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
-        lenient().when(mInjector.getDexOptHelper()).thenReturn(mDexOptHelper);
+        lenient().when(mInjector.getDexoptHelper()).thenReturn(mDexoptHelper);
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
         lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAppHibernationManager);
         lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
@@ -387,7 +387,7 @@ public class ArtManagerLocalTest {
         var result = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        when(mDexOptHelper.dexopt(any(), deepEq(List.of(PKG_NAME)), same(params),
+        when(mDexoptHelper.dexopt(any(), deepEq(List.of(PKG_NAME)), same(params),
                      same(cancellationSignal), any()))
                 .thenReturn(result);
 
@@ -400,7 +400,7 @@ public class ArtManagerLocalTest {
         var result = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        when(mDexOptHelper.dexopt(
+        when(mDexoptHelper.dexopt(
                      any(), deepEq(List.of(PKG_NAME)), any(), same(cancellationSignal), any()))
                 .thenReturn(result);
 
@@ -442,7 +442,7 @@ public class ArtManagerLocalTest {
         // It should use the default package list and params. The list is sorted by last active
         // time in descending order.
         doReturn(dexoptResult)
-                .when(mDexOptHelper)
+                .when(mDexoptHelper)
                 .dexopt(any(), deepEq(List.of(PKG_NAME_SYS_UI, PKG_NAME)),
                         argThat(params -> params.getReason().equals("bg-dexopt")),
                         same(cancellationSignal), any(), any(), any());
@@ -452,7 +452,7 @@ public class ArtManagerLocalTest {
                 .isSameInstanceAs(dexoptResult);
 
         // Nothing to downgrade.
-        verify(mDexOptHelper, never())
+        verify(mDexoptHelper, never())
                 .dexopt(any(), any(), argThat(params -> params.getReason().equals("inactive")),
                         any(), any(), any(), any());
     }
@@ -470,7 +470,7 @@ public class ArtManagerLocalTest {
 
         // PKG_NAME should be dexopted.
         doReturn(result)
-                .when(mDexOptHelper)
+                .when(mDexoptHelper)
                 .dexopt(any(), inAnyOrder(PKG_NAME, PKG_NAME_SYS_UI),
                         argThat(params -> params.getReason().equals("bg-dexopt")), any(), any(),
                         any(), any());
@@ -479,7 +479,7 @@ public class ArtManagerLocalTest {
                 null /* processCallbackExecutor */, null /* processCallback */);
 
         // PKG_NAME should not be downgraded.
-        verify(mDexOptHelper, never())
+        verify(mDexoptHelper, never())
                 .dexopt(any(), any(), argThat(params -> params.getReason().equals("inactive")),
                         any(), any(), any(), any());
     }
@@ -497,14 +497,14 @@ public class ArtManagerLocalTest {
 
         // PKG_NAME should not be dexopted.
         doReturn(result)
-                .when(mDexOptHelper)
+                .when(mDexoptHelper)
                 .dexopt(any(), deepEq(List.of(PKG_NAME_SYS_UI)),
                         argThat(params -> params.getReason().equals("bg-dexopt")), any(), any(),
                         any(), any());
 
         // PKG_NAME should be downgraded.
         doReturn(result)
-                .when(mDexOptHelper)
+                .when(mDexoptHelper)
                 .dexopt(any(), deepEq(List.of(PKG_NAME)),
                         argThat(params -> params.getReason().equals("inactive")), any(), any(),
                         any(), any());
@@ -520,7 +520,7 @@ public class ArtManagerLocalTest {
         lenient().when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
 
         // It should only dexopt system UI.
-        when(mDexOptHelper.dexopt(
+        when(mDexoptHelper.dexopt(
                      any(), deepEq(List.of(PKG_NAME_SYS_UI)), any(), any(), any(), any(), any()))
                 .thenReturn(result);
 
@@ -530,7 +530,7 @@ public class ArtManagerLocalTest {
                 .isSameInstanceAs(result);
 
         // It should never downgrade apps, even if the storage is low.
-        verify(mDexOptHelper, never())
+        verify(mDexoptHelper, never())
                 .dexopt(any(), any(), argThat(params -> params.getReason().equals("inactive")),
                         any(), any(), any(), any());
     }
@@ -557,7 +557,7 @@ public class ArtManagerLocalTest {
 
         // It should use the overridden package list and params.
         doReturn(result)
-                .when(mDexOptHelper)
+                .when(mDexoptHelper)
                 .dexopt(any(), deepEq(List.of(PKG_NAME)), same(params), any(), any(), any(), any());
 
         mArtManagerLocal.dexoptPackages(mSnapshot, "bg-dexopt", cancellationSignal,
@@ -565,7 +565,7 @@ public class ArtManagerLocalTest {
 
         // It should not downgrade PKG_NAME because it's in the overridden package list. It should
         // not downgrade PKG_NAME_SYS_UI either because it's not an inactive package.
-        verify(mDexOptHelper, never())
+        verify(mDexoptHelper, never())
                 .dexopt(any(), any(), argThat(params2 -> params2.getReason().equals("inactive")),
                         any(), any(), any(), any());
     }
@@ -583,7 +583,7 @@ public class ArtManagerLocalTest {
         mArtManagerLocal.clearBatchDexoptStartCallback();
 
         // It should use the default package list and params.
-        when(mDexOptHelper.dexopt(any(), inAnyOrder(PKG_NAME, PKG_NAME_SYS_UI), not(same(params)),
+        when(mDexoptHelper.dexopt(any(), inAnyOrder(PKG_NAME, PKG_NAME_SYS_UI), not(same(params)),
                      same(cancellationSignal), any(), any(), any()))
                 .thenReturn(result);
 

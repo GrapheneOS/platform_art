@@ -41,6 +41,6 @@ public class BackgroundDexoptJobService extends JobService {
 
     @NonNull
     static BackgroundDexoptJob getJob() {
-        return LocalManagerRegistry.getManager(ArtManagerLocal.class).getBackgroundDexOptJob();
+        return LocalManagerRegistry.getManager(ArtManagerLocal.class).getBackgroundDexoptJob();
     }
 }

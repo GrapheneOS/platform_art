@@ -73,7 +73,7 @@ import java.util.stream.Collectors;
 
 @SmallTest
 @RunWith(MockitoJUnitRunner.StrictStubs.class)
-public class DexOptHelperTest {
+public class DexoptHelperTest {
     private static final String PKG_NAME_FOO = "com.example.foo";
     private static final String PKG_NAME_BAR = "com.example.bar";
     private static final String PKG_NAME_LIB1 = "com.example.lib1";
@@ -108,7 +108,7 @@ public class DexOptHelperTest {
     private Config mConfig;
     private DexoptParams mParams;
     private List<String> mRequestedPackages;
-    private DexoptHelper mDexOptHelper;
+    private DexoptHelper mDexoptHelper;
 
     @Before
     public void setUp() throws Exception {
@@ -154,7 +154,7 @@ public class DexOptHelperTest {
         lenient().when(mInjector.getPowerManager()).thenReturn(mPowerManager);
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
 
-        mDexOptHelper = new DexoptHelper(mInjector);
+        mDexoptHelper = new DexoptHelper(mInjector);
     }
 
     @After
@@ -173,7 +173,7 @@ public class DexOptHelperTest {
         when(mInjector.getPrimaryDexopter(same(mPkgStateLibbaz), any(), any(), any()))
                 .thenReturn(failingPrimaryDexopter);
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getRequestedCompilerFilter()).isEqualTo("speed-profile");
@@ -242,7 +242,7 @@ public class DexOptHelperTest {
                                           | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
                           .build();
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getPackageDexoptResults()).hasSize(3);
@@ -265,7 +265,7 @@ public class DexOptHelperTest {
                                           | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
                           .build();
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getPackageDexoptResults()).hasSize(6);
@@ -294,7 +294,7 @@ public class DexOptHelperTest {
                                           | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
                           .build();
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getPackageDexoptResults()).hasSize(3);
@@ -315,7 +315,7 @@ public class DexOptHelperTest {
             return mPrimaryResults;
         });
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getFinalStatus()).isEqualTo(DexoptResult.DEXOPT_CANCELLED);
@@ -345,7 +345,7 @@ public class DexOptHelperTest {
         when(mPkgFoo.getSplits().get(0).isHasCode()).thenReturn(false);
 
         mRequestedPackages = List.of(PKG_NAME_FOO);
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getFinalStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
@@ -361,7 +361,7 @@ public class DexOptHelperTest {
         when(mPkgLib1.getSplits().get(0).isHasCode()).thenReturn(false);
 
         mRequestedPackages = List.of(PKG_NAME_FOO);
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getFinalStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
@@ -377,7 +377,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME_FOO)).thenReturn(true);
 
         mRequestedPackages = List.of(PKG_NAME_FOO);
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getFinalStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
@@ -392,7 +392,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME_FOO)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(false);
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(result.getPackageDexoptResults()).hasSize(6);
@@ -415,7 +415,7 @@ public class DexOptHelperTest {
         when(mPrimaryDexopter.dexopt()).thenThrow(IllegalStateException.class);
 
         try {
-            mDexOptHelper.dexopt(
+            mDexoptHelper.dexopt(
                     mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
         } catch (Exception ignored) {
         }
@@ -427,7 +427,7 @@ public class DexOptHelperTest {
     public void testDexoptPackageNotFound() throws Exception {
         when(mSnapshot.getPackageState(any())).thenReturn(null);
 
-        mDexOptHelper.dexopt(
+        mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         verifyNoDexopt();
@@ -437,7 +437,7 @@ public class DexOptHelperTest {
     public void testDexoptNoPackage() throws Exception {
         lenient().when(mPkgStateFoo.getAndroidPackage()).thenReturn(null);
 
-        mDexOptHelper.dexopt(
+        mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         verifyNoDexopt();
@@ -452,7 +452,7 @@ public class DexOptHelperTest {
                           .setSplitName("split_0")
                           .build();
 
-        mDexOptHelper.dexopt(
+        mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
     }
 
@@ -466,7 +466,7 @@ public class DexOptHelperTest {
                           .build();
 
         assertThrows(IllegalArgumentException.class, () -> {
-            mDexOptHelper.dexopt(
+            mDexoptHelper.dexopt(
                     mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
         });
     }
@@ -481,7 +481,7 @@ public class DexOptHelperTest {
         mConfig.addDexoptDoneCallback(
                 false /* onlyIncludeUpdates */, Runnable::run, result -> list2.add(result));
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(list1).containsExactly(result);
@@ -500,7 +500,7 @@ public class DexOptHelperTest {
 
         mConfig.removeDexoptDoneCallback(callback1);
 
-        DexoptResult result = mDexOptHelper.dexopt(
+        DexoptResult result = mDexoptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
 
         assertThat(list1).isEmpty();
@@ -553,9 +553,9 @@ public class DexOptHelperTest {
                 .thenReturn(barPrimaryDexopter);
         when(barPrimaryDexopter.dexopt()).thenReturn(totalFailureResults);
 
-        DexoptResult resultWithSomeUpdates = mDexOptHelper.dexopt(mSnapshot,
+        DexoptResult resultWithSomeUpdates = mDexoptHelper.dexopt(mSnapshot,
                 List.of(PKG_NAME_FOO, PKG_NAME_BAR), mParams, mCancellationSignal, mExecutor);
-        DexoptResult resultWithNoUpdates = mDexOptHelper.dexopt(
+        DexoptResult resultWithNoUpdates = mDexoptHelper.dexopt(
                 mSnapshot, List.of(PKG_NAME_BAR), mParams, mCancellationSignal, mExecutor);
 
         assertThat(listAll).containsExactly(resultWithSomeUpdates, resultWithNoUpdates);
@@ -583,7 +583,7 @@ public class DexOptHelperTest {
         var progressCallbackExecutor = new DelayedExecutor();
         Consumer<OperationProgress> progressCallback = mock(Consumer.class);
 
-        mDexOptHelper.dexopt(mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor,
+        mDexoptHelper.dexopt(mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor,
                 progressCallbackExecutor, progressCallback);
 
         progressCallbackExecutor.runAll();
