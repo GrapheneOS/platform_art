@@ -31,8 +31,20 @@ public class Main {
 
     // Test that we update the phis correctly after simplifying an always throwing method, and
     // recomputing dominance.
-    assertEquals(0, $noinline$testUpdatePhisCorrectly(1, 1));
-    assertEquals(0, $noinline$testDeleteAllUsesBeforeDeletingInstruction(1, 1));
+    assertEquals(0, $noinline$testUpdatePhisCorrectly(1));
+    assertEquals(0, $noinline$testDeleteAllUsesBeforeDeletingInstruction(1));
+
+    // SimplifyAlwaysThrows for blocks without a goto at the end
+    assertEquals(0, $noinline$testEndsWithIf(1, 1));
+    assertEquals(0, $noinline$testEndsWithReturn(1));
+    // Since we cannot use `assertEquals`, not throwing would be the success.
+    $noinline$testEndsWithReturnVoid(1);
+    assertEquals(0, $noinline$testEndsWithSwitch(1, 1));
+    assertEquals(0, $noinline$testEndsWithThrow(1));
+    assertEquals(0, $noinline$testEndsWithTryBoundary(1));
+
+    // SimplifyAlwaysThrows for invokes in catch blocks
+    assertEquals(0, $noinline$testInsideCatch(1));
   }
 
   private static void alwaysThrows() throws Error {
@@ -299,7 +311,7 @@ public class Main {
   // Check that when we perform SimplifyAlwaysThrows, that the phi for `phi_value` exists, and that
   // we correctly update it after running DCE.
 
-  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int) dead_code_elimination$after_inlining (before)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   <<Const5:i\d+>> IntConstant 5
   /// CHECK-DAG:   <<ReturnValue:i\d+>> Phi [<<Const0>>,<<Const5>>]
@@ -309,71 +321,51 @@ public class Main {
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
   /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
 
-  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int) dead_code_elimination$after_inlining (after)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   Return [<<Const0>>]
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
 
-  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int) dead_code_elimination$after_inlining (after)
   /// CHECK-NOT:   Phi
-  private static int $noinline$testUpdatePhisCorrectly(int num, int other_num) {
+  private static int $noinline$testUpdatePhisCorrectly(int num) {
     int phi_value = 0;
     if (num == 0) {
       alwaysThrows();
-
-      // This while loop is here so that the `if (num == 0)` will be several blocks instead of
-      // just one. We use `other_num` here because otherwise we propagate the knowledge that `num`
-      // equals zero.
-      while (other_num == 0) {
-        // Assign to phi_value so that the loop is not empty.
-        phi_value = 2;
-      }
-
       phi_value = 5;
     }
     return phi_value;
   }
-
 
   // Test to check that we delete all uses before the instruction.
   private static int $noinline$foo(int num) {
     return num;
   }
 
-  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int) dead_code_elimination$after_inlining (before)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   <<Invoke:i\d+>> InvokeStaticOrDirect method_name:Main.$noinline$foo
   /// CHECK-DAG:   <<ReturnValue:i\d+>> Phi [<<Const0>>,<<Invoke>>]
   /// CHECK-DAG:   Return [<<ReturnValue>>]
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   TryBoundary block:<<InvokeBlock>>
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
-  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
-  /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
 
-  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int) dead_code_elimination$after_inlining (after)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   Return [<<Const0>>]
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
 
-  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int) dead_code_elimination$after_inlining (after)
   /// CHECK-NOT:   Phi
-  private static int $noinline$testDeleteAllUsesBeforeDeletingInstruction(int num, int other_num) {
+  private static int $noinline$testDeleteAllUsesBeforeDeletingInstruction(int num) {
     int phi_value = 0;
     if (num == 0) {
       alwaysThrows();
-
-      // This while loop is here so that we have a Goto after `alwaysThrows` and therefore perform
-      // the `SimplifyAlwaysThrows` optimization. We use `other_num` here because otherwise we
-      // propagate the knowledge that `num` equals zero.
-      while (other_num == 0) {
-        // Assign to phi_value so that the loop is not empty.
-        phi_value = 2;
-      }
-
       try {
         phi_value = $noinline$foo(2);
       } catch (Error e) {
@@ -381,6 +373,187 @@ public class Main {
       }
     }
     return phi_value;
+  }
+
+  /// CHECK-START: int Main.$noinline$testEndsWithIf(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   If block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithIf(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithIf(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testEndsWithIf(int num, int other_num) {
+    if (num == 0) {
+      alwaysThrows();
+      if (other_num == 0) {
+        System.out.println("I am unrechable!");
+      }
+    }
+    return 0;
+  }
+
+  /// CHECK-START: int Main.$noinline$testEndsWithReturn(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Return block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithReturn(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithReturn(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testEndsWithReturn(int num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+      return 1;
+    }
+    return 0;
+  }
+
+  /// CHECK-START: void Main.$noinline$testEndsWithReturnVoid(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   ReturnVoid block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: void Main.$noinline$testEndsWithReturnVoid(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: void Main.$noinline$testEndsWithReturnVoid(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static void $noinline$testEndsWithReturnVoid(int num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+      return;
+    }
+    return;
+  }
+
+  /// CHECK-START: int Main.$noinline$testEndsWithSwitch(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   PackedSwitch block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithSwitch(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithSwitch(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testEndsWithSwitch(int num, int other_num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+      int result = 10;
+      switch (other_num) {
+        case 1:
+          result = 100;
+          break;
+        case 2:
+          result = 300;
+          break;
+        case 3:
+          result = 500;
+          break;
+        case 4:
+          result = 700;
+          break;
+      }
+      return result;
+    }
+    return 0;
+  }
+
+  /// CHECK-START: int Main.$noinline$testEndsWithThrow(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Throw block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithThrow(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithThrow(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testEndsWithThrow(int num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+      throw new Error("Other error");
+    }
+    return 0;
+  }
+
+  /// CHECK-START: int Main.$noinline$testEndsWithTryBoundary(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   TryBoundary block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithTryBoundary(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testEndsWithTryBoundary(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testEndsWithTryBoundary(int num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+      try {
+        alwaysThrows();
+      } catch (Error e) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+
+  // Empty method to forbid the try from disappearing
+  private static void $noinline$emptyMethod() {}
+
+  /// CHECK-START: int Main.$noinline$testInsideCatch(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Return block:<<InvokeBlock>>
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+
+  /// CHECK-START: int Main.$noinline$testInsideCatch(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testInsideCatch(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testInsideCatch(int num) {
+    if (num == 0) {
+      try {
+        $noinline$emptyMethod();
+      } catch (Error e) {
+        alwaysThrows();
+        System.out.println("I am unrechable!");
+        return 1;
+      }
+    }
+    return 0;
   }
 
   static void assertEquals(int expected, int actual) {
