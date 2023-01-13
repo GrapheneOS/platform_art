@@ -629,7 +629,6 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
     }
   }
 
-  const size_t total_tries = tries.size();
   size_t removed_tries = 0;
   bool any_block_in_loop = false;
 
@@ -639,10 +638,6 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
       ++removed_tries;
       RemoveTry(entry.first, entry.second, &any_block_in_loop);
     }
-  }
-
-  if (removed_tries == total_tries) {
-    graph_->SetHasTryCatch(false);
   }
 
   if (removed_tries != 0) {
@@ -741,6 +736,33 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
   }
 }
 
+void HDeadCodeElimination::UpdateGraphFlags() {
+  bool has_monitor_operations = false;
+  bool has_simd = false;
+  bool has_bounds_checks = false;
+  bool has_always_throwing_invokes = false;
+
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      if (instruction->IsMonitorOperation()) {
+        has_monitor_operations = true;
+      } else if (instruction->IsVecOperation()) {
+        has_simd = true;
+      } else if (instruction->IsBoundsCheck()) {
+        has_bounds_checks = true;
+      } else if (instruction->IsInvoke() && instruction->AsInvoke()->AlwaysThrows()) {
+        has_always_throwing_invokes = true;
+      }
+    }
+  }
+
+  graph_->SetHasMonitorOperations(has_monitor_operations);
+  graph_->SetHasSIMD(has_simd);
+  graph_->SetHasBoundsChecks(has_bounds_checks);
+  graph_->SetHasAlwaysThrowingInvokes(has_always_throwing_invokes);
+}
+
 bool HDeadCodeElimination::Run() {
   // Do not eliminate dead blocks if the graph has irreducible loops. We could
   // support it, but that would require changes in our loop representation to handle
@@ -764,6 +786,7 @@ bool HDeadCodeElimination::Run() {
   }
   SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
+  UpdateGraphFlags();
   return true;
 }
 
