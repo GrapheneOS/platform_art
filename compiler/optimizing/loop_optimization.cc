@@ -507,9 +507,8 @@ bool HLoopOptimization::Run() {
     graph_->SetHasLoops(false);  // no more loops
   }
 
-  // Detach.
+  // Detach allocator.
   loop_allocator_ = nullptr;
-  last_loop_ = top_loop_ = nullptr;
 
   return did_loop_opt;
 }
@@ -530,11 +529,7 @@ bool HLoopOptimization::LocalRun() {
       AddLoop(block->GetLoopInformation());
     }
   }
-
-  // TODO(solanes): How can `top_loop_` be null if `graph_->HasLoops()` is true?
-  if (top_loop_ == nullptr) {
-    return false;
-  }
+  DCHECK(top_loop_ != nullptr);
 
   // Traverse the loop hierarchy inner-to-outer and optimize. Traversal can use
   // temporary data structures using the phase-local allocator. All new HIR
