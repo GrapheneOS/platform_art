@@ -56,6 +56,7 @@ import android.os.storage.StorageManager;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.Config;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.DexoptParams;
@@ -104,8 +105,8 @@ public class ArtManagerLocalTest {
             CURRENT_TIME_MS - TimeUnit.DAYS.toMillis(INACTIVE_DAYS) - 1;
 
     @Rule
-    public StaticMockitoRule mockitoRule =
-            new StaticMockitoRule(SystemProperties.class, Constants.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
+            SystemProperties.class, Constants.class, PackageStateModulesUtils.class);
 
     @Mock private ArtManagerLocal.Injector mInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
@@ -806,7 +807,7 @@ public class ArtManagerLocalTest {
     }
 
     private PackageState createPackageState(
-            String packageName, int appId, boolean hasPackage, boolean multiSplit) {
+            String packageName, boolean isDexoptable, boolean multiSplit) {
         PackageState pkgState = mock(PackageState.class);
 
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
@@ -814,52 +815,40 @@ public class ArtManagerLocalTest {
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
         lenient().when(pkgState.isSystem()).thenReturn(mIsInReadonlyPartition);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
-        lenient().when(pkgState.getAppId()).thenReturn(appId);
 
-        if (hasPackage) {
-            AndroidPackage pkg = createPackage(multiSplit);
-            lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
-        } else {
-            lenient().when(pkgState.getAndroidPackage()).thenReturn(null);
-        }
+        AndroidPackage pkg = createPackage(multiSplit);
+        lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
 
         PackageUserState pkgUserState0 = createPackageUserState();
         lenient().when(pkgState.getStateForUser(UserHandle.of(0))).thenReturn(pkgUserState0);
         PackageUserState pkgUserState1 = createPackageUserState();
         lenient().when(pkgState.getStateForUser(UserHandle.of(1))).thenReturn(pkgUserState1);
 
+        lenient().when(PackageStateModulesUtils.isDexoptable(pkgState)).thenReturn(isDexoptable);
+
         return pkgState;
     }
 
     private List<PackageState> createPackageStates() {
-        PackageState pkgState = createPackageState(
-                PKG_NAME, 10001 /* appId */, true /* hasPackage */, true /* multiSplit */);
+        PackageState pkgState =
+                createPackageState(PKG_NAME, true /* isDexoptable */, true /* multiSplit */);
 
         PackageState sysUiPkgState = createPackageState(
-                PKG_NAME_SYS_UI, 1234 /* appId */, true /* hasPackage */, false /* multiSplit */);
+                PKG_NAME_SYS_UI, true /* isDexoptable */, false /* multiSplit */);
 
         // This should not be dexopted because it's hibernating. However, it should be included
         // when snapshotting boot image profile.
-        PackageState pkgHibernatingState = createPackageState(PKG_NAME_HIBERNATING,
-                10002 /* appId */, true /* hasPackage */, false /* multiSplit */);
+        PackageState pkgHibernatingState = createPackageState(
+                PKG_NAME_HIBERNATING, true /* isDexoptable */, false /* multiSplit */);
         lenient()
                 .when(mAppHibernationManager.isHibernatingGlobally(PKG_NAME_HIBERNATING))
                 .thenReturn(true);
 
-        // This should not be dexopted because it does't have AndroidPackage.
-        PackageState nullPkgState = createPackageState("com.example.null", 10003 /* appId */,
-                false /* hasPackage */, false /* multiSplit */);
+        // This should not be dexopted because it's not dexoptable.
+        PackageState nonDexoptablePkgState = createPackageState(
+                "com.example.non-dexoptable", false /* isDexoptable */, false /* multiSplit */);
 
-        // This should not be dexopted because it has a negative app id.
-        PackageState apexPkgState = createPackageState(
-                "com.android.art", -1 /* appId */, true /* hasPackage */, false /* multiSplit */);
-
-        // This should not be dexopted because it's "android".
-        PackageState platformPkgState = createPackageState(Utils.PLATFORM_PACKAGE_NAME,
-                1000 /* appId */, true /* hasPackage */, false /* multiSplit */);
-
-        return List.of(pkgState, sysUiPkgState, pkgHibernatingState, nullPkgState, apexPkgState,
-                platformPkgState);
+        return List.of(pkgState, sysUiPkgState, pkgHibernatingState, nonDexoptablePkgState);
     }
 
     private GetDexoptStatusResult createGetDexoptStatusResult(
