@@ -4734,7 +4734,7 @@ class HInvoke : public HVariableInputSizeInstruction {
 
   void SetAlwaysThrows(bool always_throws) { SetPackedFlag<kFlagAlwaysThrows>(always_throws); }
 
-  bool AlwaysThrows() const override { return GetPackedFlag<kFlagAlwaysThrows>(); }
+  bool AlwaysThrows() const override final { return GetPackedFlag<kFlagAlwaysThrows>(); }
 
   bool CanBeMoved() const override { return IsIntrinsic() && !DoesAnyWrite(); }
 
