@@ -571,9 +571,7 @@ struct SubtypeCheck {
     DCHECK_EQ(depth, klass->Depth());
     SubtypeCheckBitsAndStatus current_bits_and_status = ReadField(klass);
 
-    const SubtypeCheckInfo current =
-        SubtypeCheckInfo::Create(current_bits_and_status.subtype_check_info_, depth);
-    return current;
+    return SubtypeCheckInfo::Create(current_bits_and_status.subtype_check_info_, depth);
   }
 
   static void SetSubtypeCheckInfo(ClassPtr klass, const SubtypeCheckInfo& new_sci)
