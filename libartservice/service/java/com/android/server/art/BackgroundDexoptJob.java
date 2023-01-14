@@ -37,7 +37,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
-import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.pm.PackageManagerLocal;
 
 import com.google.auto.value.AutoValue;
@@ -47,8 +47,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /** @hide */
-public class BackgroundDexOptJob {
-    private static final String TAG = "BackgroundDexOptJob";
+public class BackgroundDexoptJob {
+    private static final String TAG = "BackgroundDexoptJob";
 
     /**
      * "android" is the package name for a <service> declared in
@@ -66,19 +66,19 @@ public class BackgroundDexOptJob {
     @GuardedBy("this") @Nullable private CancellationSignal mCancellationSignal = null;
     @GuardedBy("this") @NonNull private Optional<Integer> mLastStopReason = Optional.empty();
 
-    public BackgroundDexOptJob(@NonNull Context context, @NonNull ArtManagerLocal artManagerLocal,
+    public BackgroundDexoptJob(@NonNull Context context, @NonNull ArtManagerLocal artManagerLocal,
             @NonNull Config config) {
         this(new Injector(context, artManagerLocal, config));
     }
 
     @VisibleForTesting
-    public BackgroundDexOptJob(@NonNull Injector injector) {
+    public BackgroundDexoptJob(@NonNull Injector injector) {
         mInjector = injector;
     }
 
-    /** Handles {@link BackgroundDexOptJobService#onStartJob(JobParameters)}. */
+    /** Handles {@link BackgroundDexoptJobService#onStartJob(JobParameters)}. */
     public boolean onStartJob(
-            @NonNull BackgroundDexOptJobService jobService, @NonNull JobParameters params) {
+            @NonNull BackgroundDexoptJobService jobService, @NonNull JobParameters params) {
         start().thenAcceptAsync(result -> {
             writeStats(result);
             // This is a periodic job, where the interval is specified in the `JobInfo`. "true"
@@ -88,14 +88,14 @@ public class BackgroundDexOptJob {
             // This call will be ignored if `onStopJob` is called.
             boolean wantsReschedule = result instanceof CompletedResult
                     && ((CompletedResult) result).dexoptResult().getFinalStatus()
-                            == OptimizeResult.OPTIMIZE_CANCELLED;
+                            == DexoptResult.DEXOPT_CANCELLED;
             jobService.jobFinished(params, wantsReschedule);
         });
         // "true" means the job will continue running until `jobFinished` is called.
         return true;
     }
 
-    /** Handles {@link BackgroundDexOptJobService#onStopJob(JobParameters)}. */
+    /** Handles {@link BackgroundDexoptJobService#onStopJob(JobParameters)}. */
     public boolean onStopJob(@NonNull JobParameters params) {
         synchronized (this) {
             mLastStopReason = Optional.of(params.getStopReason());
@@ -108,7 +108,7 @@ public class BackgroundDexOptJob {
 
     /** Handles {@link ArtManagerLocal#scheduleBackgroundDexoptJob()}. */
     public @ScheduleStatus int schedule() {
-        if (this != BackgroundDexOptJobService.getJob()) {
+        if (this != BackgroundDexoptJobService.getJob()) {
             throw new IllegalStateException("This job cannot be scheduled");
         }
 
@@ -121,7 +121,7 @@ public class BackgroundDexOptJob {
                 new JobInfo
                         .Builder(JOB_ID,
                                 new ComponentName(
-                                        JOB_PKG_NAME, BackgroundDexOptJobService.class.getName()))
+                                        JOB_PKG_NAME, BackgroundDexoptJobService.class.getName()))
                         .setPeriodic(JOB_INTERVAL_MS)
                         .setRequiresDeviceIdle(true)
                         .setRequiresCharging(true)
@@ -148,7 +148,7 @@ public class BackgroundDexOptJob {
 
     /** Handles {@link ArtManagerLocal#unscheduleBackgroundDexoptJob()}. */
     public void unschedule() {
-        if (this != BackgroundDexOptJobService.getJob()) {
+        if (this != BackgroundDexoptJobService.getJob()) {
             throw new IllegalStateException("This job cannot be unscheduled");
         }
 
@@ -197,9 +197,9 @@ public class BackgroundDexOptJob {
         // TODO(b/254013427): Cleanup dex use info.
         // TODO(b/254013425): Cleanup unused secondary dex file artifacts.
         long startTimeMs = SystemClock.uptimeMillis();
-        OptimizeResult dexoptResult;
+        DexoptResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
-            dexoptResult = mInjector.getArtManagerLocal().optimizePackages(snapshot,
+            dexoptResult = mInjector.getArtManagerLocal().dexoptPackages(snapshot,
                     ReasonMapping.REASON_BG_DEXOPT, cancellationSignal,
                     null /* processCallbackExecutor */, null /* processCallback */);
         }
@@ -225,7 +225,7 @@ public class BackgroundDexOptJob {
     }
 
     private int getStatusForStats(@NonNull CompletedResult result, Optional<Integer> stopReason) {
-        if (result.dexoptResult().getFinalStatus() == OptimizeResult.OPTIMIZE_CANCELLED) {
+        if (result.dexoptResult().getFinalStatus() == DexoptResult.DEXOPT_CANCELLED) {
             if (stopReason.isPresent()) {
                 return ArtStatsLog
                         .BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_CANCELLATION;
@@ -236,10 +236,10 @@ public class BackgroundDexOptJob {
 
         boolean isSkippedDueToStorageLow =
                 result.dexoptResult()
-                        .getPackageOptimizeResults()
+                        .getPackageDexoptResults()
                         .stream()
                         .flatMap(packageResult
-                                -> packageResult.getDexContainerFileOptimizeResults().stream())
+                                -> packageResult.getDexContainerFileDexoptResults().stream())
                         .anyMatch(fileResult -> fileResult.isSkippedDueToStorageLow());
         if (isSkippedDueToStorageLow) {
             return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_NO_SPACE_LEFT;
@@ -253,12 +253,12 @@ public class BackgroundDexOptJob {
 
     @AutoValue
     static abstract class CompletedResult extends Result {
-        abstract @NonNull OptimizeResult dexoptResult();
+        abstract @NonNull DexoptResult dexoptResult();
         abstract long durationMs();
 
         @NonNull
-        static CompletedResult create(@NonNull OptimizeResult dexoptResult, long durationMs) {
-            return new AutoValue_BackgroundDexOptJob_CompletedResult(dexoptResult, durationMs);
+        static CompletedResult create(@NonNull DexoptResult dexoptResult, long durationMs) {
+            return new AutoValue_BackgroundDexoptJob_CompletedResult(dexoptResult, durationMs);
         }
     }
 

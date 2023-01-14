@@ -44,7 +44,7 @@ public abstract class OperationProgress {
     /**
      * The number of processed items. Can be 0, which means the operation was just started.
      *
-     * Currently, this is the number of packages, for which optimization has been done, regardless
+     * Currently, this is the number of packages, for which dexopt has been done, regardless
      * of the results (performed, failed, skipped, etc.).
      *
      * @hide
@@ -54,7 +54,7 @@ public abstract class OperationProgress {
     /**
      * The total number of items. Stays constant during the operation.
      *
-     * Currently, this is the total number of packages to optimize.
+     * Currently, this is the total number of packages to dexopt.
      *
      * @hide
      */

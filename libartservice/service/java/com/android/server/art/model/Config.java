@@ -16,8 +16,8 @@
 
 package com.android.server.art.model;
 
-import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
-import static com.android.server.art.ArtManagerLocal.OptimizePackagesCallback;
+import static com.android.server.art.ArtManagerLocal.BatchDexoptStartCallback;
+import static com.android.server.art.ArtManagerLocal.DexoptDoneCallback;
 import static com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback;
 
 import android.annotation.NonNull;
@@ -40,10 +40,10 @@ import java.util.concurrent.Executor;
  * @hide
  */
 public class Config {
-    /** @see ArtManagerLocal#setOptimizePackagesCallback(Executor, OptimizePackagesCallback) */
+    /** @see ArtManagerLocal#setBatchDexoptStartCallback(Executor, BatchDexoptStartCallback) */
     @GuardedBy("this")
     @Nullable
-    private Callback<OptimizePackagesCallback, Void> mOptimizePackagesCallback = null;
+    private Callback<BatchDexoptStartCallback, Void> mBatchDexoptStartCallback = null;
 
     /**
      * @see ArtManagerLocal#setScheduleBackgroundDexoptJobCallback(Executor,
@@ -55,26 +55,25 @@ public class Config {
             mScheduleBackgroundDexoptJobCallback = null;
 
     /**
-     * @see ArtManagerLocal#addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)
+     * @see ArtManagerLocal#addDexoptDoneCallback(Executor, DexoptDoneCallback)
      */
     @GuardedBy("this")
     @NonNull
-    private LinkedHashMap<OptimizePackageDoneCallback,
-            Callback<OptimizePackageDoneCallback, Boolean>> mOptimizePackageDoneCallbacks =
-            new LinkedHashMap<>();
+    private LinkedHashMap<DexoptDoneCallback, Callback<DexoptDoneCallback, Boolean>>
+            mDexoptDoneCallbacks = new LinkedHashMap<>();
 
-    public synchronized void setOptimizePackagesCallback(
-            @NonNull Executor executor, @NonNull OptimizePackagesCallback callback) {
-        mOptimizePackagesCallback = Callback.create(callback, executor);
+    public synchronized void setBatchDexoptStartCallback(
+            @NonNull Executor executor, @NonNull BatchDexoptStartCallback callback) {
+        mBatchDexoptStartCallback = Callback.create(callback, executor);
     }
 
-    public synchronized void clearOptimizePackagesCallback() {
-        mOptimizePackagesCallback = null;
+    public synchronized void clearBatchDexoptStartCallback() {
+        mBatchDexoptStartCallback = null;
     }
 
     @Nullable
-    public synchronized Callback<OptimizePackagesCallback, Void> getOptimizePackagesCallback() {
-        return mOptimizePackagesCallback;
+    public synchronized Callback<BatchDexoptStartCallback, Void> getBatchDexoptStartCallback() {
+        return mBatchDexoptStartCallback;
     }
 
     public synchronized void setScheduleBackgroundDexoptJobCallback(
@@ -92,24 +91,22 @@ public class Config {
         return mScheduleBackgroundDexoptJobCallback;
     }
 
-    public synchronized void addOptimizePackageDoneCallback(boolean onlyIncludeUpdates,
-            @NonNull Executor executor, @NonNull OptimizePackageDoneCallback callback) {
-        if (mOptimizePackageDoneCallbacks.putIfAbsent(
+    public synchronized void addDexoptDoneCallback(boolean onlyIncludeUpdates,
+            @NonNull Executor executor, @NonNull DexoptDoneCallback callback) {
+        if (mDexoptDoneCallbacks.putIfAbsent(
                     callback, Callback.create(callback, executor, onlyIncludeUpdates))
                 != null) {
             throw new IllegalStateException("callback already added");
         }
     }
 
-    public synchronized void removeOptimizePackageDoneCallback(
-            @NonNull OptimizePackageDoneCallback callback) {
-        mOptimizePackageDoneCallbacks.remove(callback);
+    public synchronized void removeDexoptDoneCallback(@NonNull DexoptDoneCallback callback) {
+        mDexoptDoneCallbacks.remove(callback);
     }
 
     @NonNull
-    public synchronized List<Callback<OptimizePackageDoneCallback, Boolean>>
-    getOptimizePackageDoneCallbacks() {
-        return new ArrayList<>(mOptimizePackageDoneCallbacks.values());
+    public synchronized List<Callback<DexoptDoneCallback, Boolean>> getDexoptDoneCallbacks() {
+        return new ArrayList<>(mDexoptDoneCallbacks.values());
     }
 
     @AutoValue

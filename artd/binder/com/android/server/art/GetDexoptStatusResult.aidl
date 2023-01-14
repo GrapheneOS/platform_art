@@ -17,12 +17,12 @@
 package com.android.server.art;
 
 /**
- * The result of {@code IArtd.getOptimizationStatus}. Each field corresponds to a field in
- * {@code com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus}.
+ * The result of {@code IArtd.getDexoptStatus}. Each field corresponds to a field in
+ * {@code com.android.server.art.model.DexoptStatus.DexFileDexoptStatus}.
  *
  * @hide
  */
-parcelable GetOptimizationStatusResult {
+parcelable GetDexoptStatusResult {
     @utf8InCpp String compilerFilter;
     @utf8InCpp String compilationReason;
     @utf8InCpp String locationDebugString;

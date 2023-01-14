@@ -73,15 +73,15 @@ namespace artd {
 
 namespace {
 
+using ::aidl::com::android::server::art::ArtdDexoptResult;
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
-using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::DexoptTrigger;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::GetDexoptNeededResult;
-using ::aidl::com::android::server::art::GetOptimizationStatusResult;
+using ::aidl::com::android::server::art::GetDexoptStatusResult;
 using ::aidl::com::android::server::art::IArtdCancellationSignal;
 using ::aidl::com::android::server::art::MergeProfileOptions;
 using ::aidl::com::android::server::art::OutputArtifacts;
@@ -378,10 +378,10 @@ ScopedAStatus Artd::deleteArtifacts(const ArtifactsPath& in_artifactsPath, int64
   return ScopedAStatus::ok();
 }
 
-ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
-                                          const std::string& in_instructionSet,
-                                          const std::string& in_classLoaderContext,
-                                          GetOptimizationStatusResult* _aidl_return) {
+ScopedAStatus Artd::getDexoptStatus(const std::string& in_dexFile,
+                                    const std::string& in_instructionSet,
+                                    const std::string& in_classLoaderContext,
+                                    GetDexoptStatusResult* _aidl_return) {
   Result<OatFileAssistantContext*> ofa_context = GetOatFileAssistantContext();
   if (!ofa_context.ok()) {
     return NonFatal("Failed to get runtime options: " + ofa_context.error().message());
@@ -763,7 +763,7 @@ ndk::ScopedAStatus Artd::dexopt(
     PriorityClass in_priorityClass,
     const DexoptOptions& in_dexoptOptions,
     const std::shared_ptr<IArtdCancellationSignal>& in_cancellationSignal,
-    DexoptResult* _aidl_return) {
+    ArtdDexoptResult* _aidl_return) {
   _aidl_return->cancelled = false;
 
   std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_outputArtifacts.artifactsPath));

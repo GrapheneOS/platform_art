@@ -33,34 +33,34 @@ import java.util.List;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 @AutoValue
-public abstract class OptimizeResult {
-    // Possible values of {@link #OptimizeStatus}.
+public abstract class DexoptResult {
+    // Possible values of {@link #DexoptResultStatus}.
     // A larger number means a higher priority. If multiple dex container files are processed, the
     // final status will be the one with the highest priority.
-    public static final int OPTIMIZE_SKIPPED = 10;
-    public static final int OPTIMIZE_PERFORMED = 20;
-    public static final int OPTIMIZE_FAILED = 30;
-    public static final int OPTIMIZE_CANCELLED = 40;
+    public static final int DEXOPT_SKIPPED = 10;
+    public static final int DEXOPT_PERFORMED = 20;
+    public static final int DEXOPT_FAILED = 30;
+    public static final int DEXOPT_CANCELLED = 40;
 
     /** @hide */
     // clang-format off
-    @IntDef(prefix = {"OPTIMIZE_"}, value = {
-        OPTIMIZE_SKIPPED,
-        OPTIMIZE_FAILED,
-        OPTIMIZE_PERFORMED,
-        OPTIMIZE_CANCELLED,
+    @IntDef(prefix = {"DEXOPT_"}, value = {
+        DEXOPT_SKIPPED,
+        DEXOPT_FAILED,
+        DEXOPT_PERFORMED,
+        DEXOPT_CANCELLED,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
-    public @interface OptimizeStatus {}
+    public @interface DexoptResultStatus {}
 
     /** @hide */
-    protected OptimizeResult() {}
+    protected DexoptResult() {}
 
     /** @hide */
-    public static @NonNull OptimizeResult create(@NonNull String requestedCompilerFilter,
-            @NonNull String reason, @NonNull List<PackageOptimizeResult> packageOptimizeResult) {
-        return new AutoValue_OptimizeResult(requestedCompilerFilter, reason, packageOptimizeResult);
+    public static @NonNull DexoptResult create(@NonNull String requestedCompilerFilter,
+            @NonNull String reason, @NonNull List<PackageDexoptResult> packageDexoptResult) {
+        return new AutoValue_DexoptResult(requestedCompilerFilter, reason, packageDexoptResult);
     }
 
     /**
@@ -68,8 +68,8 @@ public abstract class OptimizeResult {
      * execution based on factors like whether the profile is available or whether the app is
      * used by other apps.
      *
-     * @see OptimizeParams.Builder#setCompilerFilter(String)
-     * @see DexContainerFileOptimizeResult#getActualCompilerFilter()
+     * @see DexoptParams.Builder#setCompilerFilter(String)
+     * @see DexContainerFileDexoptResult#getActualCompilerFilter()
      */
     public abstract @NonNull String getRequestedCompilerFilter();
 
@@ -79,26 +79,26 @@ public abstract class OptimizeResult {
     /**
      * The result of each individual package.
      *
-     * If the request is to optimize a single package without optimizing dependencies, the only
+     * If the request is to dexopt a single package without dexopting dependencies, the only
      * element is the result of the requested package.
      *
-     * If the request is to optimize a single package with {@link
+     * If the request is to dexopt a single package with {@link
      * ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES} set, the first element is the result of the
      * requested package, and the rest are the results of the dependency packages.
      *
-     * If the request is to optimize multiple packages, the list contains the results of all the
+     * If the request is to dexopt multiple packages, the list contains the results of all the
      * requested packages. The results of their dependency packages are also included if {@link
      * ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES} is set.
      */
-    public abstract @NonNull List<PackageOptimizeResult> getPackageOptimizeResults();
+    public abstract @NonNull List<PackageDexoptResult> getPackageDexoptResults();
 
     /** The final status. */
-    public @OptimizeStatus int getFinalStatus() {
-        return getPackageOptimizeResults()
+    public @DexoptResultStatus int getFinalStatus() {
+        return getPackageDexoptResults()
                 .stream()
                 .mapToInt(result -> result.getStatus())
                 .max()
-                .orElse(OPTIMIZE_SKIPPED);
+                .orElse(DEXOPT_SKIPPED);
     }
 
     /**
@@ -109,67 +109,67 @@ public abstract class OptimizeResult {
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     @AutoValue
-    public static abstract class PackageOptimizeResult {
+    public static abstract class PackageDexoptResult {
         /** @hide */
-        protected PackageOptimizeResult() {}
+        protected PackageDexoptResult() {}
 
         /** @hide */
-        public static @NonNull PackageOptimizeResult create(@NonNull String packageName,
-                @NonNull List<DexContainerFileOptimizeResult> dexContainerFileOptimizeResults,
+        public static @NonNull PackageDexoptResult create(@NonNull String packageName,
+                @NonNull List<DexContainerFileDexoptResult> dexContainerFileDexoptResults,
                 boolean isCanceled) {
-            return new AutoValue_OptimizeResult_PackageOptimizeResult(
-                    packageName, dexContainerFileOptimizeResults, isCanceled);
+            return new AutoValue_DexoptResult_PackageDexoptResult(
+                    packageName, dexContainerFileDexoptResults, isCanceled);
         }
 
         /** The package name. */
         public abstract @NonNull String getPackageName();
 
         /**
-         * The results of optimizing dex container files. Note that there can be multiple entries
+         * The results of dexopting dex container files. Note that there can be multiple entries
          * for the same dex container file, but for different ABIs.
          */
-        public abstract @NonNull List<DexContainerFileOptimizeResult>
-        getDexContainerFileOptimizeResults();
+        public abstract @NonNull List<DexContainerFileDexoptResult>
+        getDexContainerFileDexoptResults();
 
         /** @hide */
         public abstract boolean isCanceled();
 
         /** The overall status of the package. */
-        public @OptimizeStatus int getStatus() {
-            return isCanceled() ? OPTIMIZE_CANCELLED
-                                : getDexContainerFileOptimizeResults()
+        public @DexoptResultStatus int getStatus() {
+            return isCanceled() ? DEXOPT_CANCELLED
+                                : getDexContainerFileDexoptResults()
                                           .stream()
                                           .mapToInt(result -> result.getStatus())
                                           .max()
-                                          .orElse(OPTIMIZE_SKIPPED);
+                                          .orElse(DEXOPT_SKIPPED);
         }
 
         /** True if the package has any artifacts updated by this operation. */
         public boolean hasUpdatedArtifacts() {
-            return getDexContainerFileOptimizeResults().stream().anyMatch(
-                    result -> result.getStatus() == OPTIMIZE_PERFORMED);
+            return getDexContainerFileDexoptResults().stream().anyMatch(
+                    result -> result.getStatus() == DEXOPT_PERFORMED);
         }
     }
 
     /**
-     * Describes the result of optimizing a dex container file.
+     * Describes the result of dexopting a dex container file.
      *
      * @hide
      */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     @AutoValue
-    public static abstract class DexContainerFileOptimizeResult {
+    public static abstract class DexContainerFileDexoptResult {
         /** @hide */
-        protected DexContainerFileOptimizeResult() {}
+        protected DexContainerFileDexoptResult() {}
 
         /** @hide */
-        public static @NonNull DexContainerFileOptimizeResult create(
-                @NonNull String dexContainerFile, boolean isPrimaryAbi, @NonNull String abi,
-                @NonNull String compilerFilter, @OptimizeStatus int status,
-                long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis, long sizeBytes,
-                long sizeBeforeBytes, boolean isSkippedDueToStorageLow) {
-            return new AutoValue_OptimizeResult_DexContainerFileOptimizeResult(dexContainerFile,
+        public static @NonNull DexContainerFileDexoptResult create(@NonNull String dexContainerFile,
+                boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
+                @DexoptResultStatus int status, long dex2oatWallTimeMillis,
+                long dex2oatCpuTimeMillis, long sizeBytes, long sizeBeforeBytes,
+                boolean isSkippedDueToStorageLow) {
+            return new AutoValue_DexoptResult_DexContainerFileDexoptResult(dexContainerFile,
                     isPrimaryAbi, abi, compilerFilter, status, dex2oatWallTimeMillis,
                     dex2oatCpuTimeMillis, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow);
         }
@@ -178,14 +178,14 @@ public abstract class OptimizeResult {
         public abstract @NonNull String getDexContainerFile();
 
         /**
-         * If true, the optimization is for the primary ABI of the package (the ABI that the
-         * application is launched with). Otherwise, the optimization is for an ABI that other
+         * If true, the dexopt is for the primary ABI of the package (the ABI that the
+         * application is launched with). Otherwise, the dexopt is for an ABI that other
          * applications might be launched with when using this application's code.
          */
         public abstract boolean isPrimaryAbi();
 
         /**
-         * Returns the ABI that the optimization is for. Possible values are documented at
+         * Returns the ABI that the dexopt is for. Possible values are documented at
          * https://developer.android.com/ndk/guides/abis#sa.
          */
         public abstract @NonNull String getAbi();
@@ -193,12 +193,12 @@ public abstract class OptimizeResult {
         /**
          * The actual compiler filter.
          *
-         * @see OptimizeParams.Builder#setCompilerFilter(String)
+         * @see DexoptParams.Builder#setCompilerFilter(String)
          */
         public abstract @NonNull String getActualCompilerFilter();
 
-        /** The status of optimizing this dex container file. */
-        public abstract @OptimizeStatus int getStatus();
+        /** The status of dexopting this dex container file. */
+        public abstract @DexoptResultStatus int getStatus();
 
         /**
          * The wall time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
@@ -213,15 +213,15 @@ public abstract class OptimizeResult {
         public abstract @DurationMillisLong long getDex2oatCpuTimeMillis();
 
         /**
-         * The total size, in bytes, of the optimized artifacts. Returns 0 if {@link #getStatus()}
-         * is not {@link #OPTIMIZE_PERFORMED}.
+         * The total size, in bytes, of the dexopt artifacts. Returns 0 if {@link #getStatus()}
+         * is not {@link #DEXOPT_PERFORMED}.
          */
         public abstract long getSizeBytes();
 
         /**
-         * The total size, in bytes, of the previous optimized artifacts that has been replaced.
-         * Returns 0 if there were no previous optimized artifacts or {@link #getStatus()} is not
-         * {@link #OPTIMIZE_PERFORMED}.
+         * The total size, in bytes, of the previous dexopt artifacts that has been replaced.
+         * Returns 0 if there were no previous dexopt artifacts or {@link #getStatus()} is not
+         * {@link #DEXOPT_PERFORMED}.
          */
         public abstract long getSizeBeforeBytes();
 

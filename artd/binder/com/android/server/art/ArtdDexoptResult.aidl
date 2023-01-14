@@ -21,7 +21,7 @@ package com.android.server.art;
  *
  * @hide
  */
-parcelable DexoptResult {
+parcelable ArtdDexoptResult {
     /** True if the operation is cancelled. */
     boolean cancelled;
     /**
@@ -35,13 +35,13 @@ parcelable DexoptResult {
      */
     long cpuTimeMs;
     /**
-     * The total size, in bytes, of the optimized artifacts, or 0 if dex2oat fails, is cancelled, or
+     * The total size, in bytes, of the dexopt artifacts, or 0 if dex2oat fails, is cancelled, or
      * is not run.
      */
     long sizeBytes;
     /**
-     * The total size, in bytes, of the previous optimized artifacts that have been replaced, or
-     * 0 if there were no previous optimized artifacts or dex2oat fails, is cancelled, or is not
+     * The total size, in bytes, of the previous dexopt artifacts that have been replaced, or
+     * 0 if there were no previous dexopt artifacts or dex2oat fails, is cancelled, or is not
      * run.
      */
     long sizeBeforeBytes;

@@ -17,7 +17,7 @@
 package com.android.server.art;
 
 /**
- * Represents output optimized artifacts of a dex file (i.e., ART, OAT, and VDEX files).
+ * Represents output dexopt artifacts of a dex file (i.e., ART, OAT, and VDEX files).
  *
  * @hide
  */

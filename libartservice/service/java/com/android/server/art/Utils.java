@@ -26,7 +26,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 
-import com.android.server.art.model.OptimizeParams;
+import com.android.server.art.model.DexoptParams;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -166,7 +166,7 @@ public final class Utils {
 
     /** Returns true if the given string is a valid compiler filter. */
     public static boolean isValidArtServiceCompilerFilter(@NonNull String compilerFilter) {
-        if (compilerFilter.equals(OptimizeParams.COMPILER_FILTER_NOOP)) {
+        if (compilerFilter.equals(DexoptParams.COMPILER_FILTER_NOOP)) {
             return true;
         }
         return DexFile.isValidCompilerFilter(compilerFilter);
@@ -241,12 +241,12 @@ public final class Utils {
     }
 
     /**
-     * Returns true if the given package is optimizable.
+     * Returns true if the given package is dexoptable.
      *
      * @param appHibernationManager the {@link AppHibernationManager} instance for checking
      *         hibernation status, or null to skip the check
      */
-    public static boolean canOptimizePackage(
+    public static boolean canDexoptPackage(
             @NonNull PackageState pkgState, @Nullable AppHibernationManager appHibernationManager) {
         // An APEX has a uid of -1.
         // TODO(b/256637152): Consider using `isApex` instead.
