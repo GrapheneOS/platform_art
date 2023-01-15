@@ -80,7 +80,89 @@ size_t GraphChecker::Run(bool pass_change, size_t last_size) {
   // as the latter might visit dead blocks removed by the dominator
   // computation.
   VisitReversePostOrder();
+  CheckGraphFlags();
   return current_size;
+}
+
+void GraphChecker::VisitReversePostOrder() {
+  for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
+    if (block->IsInLoop()) {
+      flag_info_.seen_loop = true;
+      if (block->GetLoopInformation()->IsIrreducible()) {
+        flag_info_.seen_irreducible_loop = true;
+      }
+    }
+
+    VisitBasicBlock(block);
+  }
+}
+
+static const char* StrBool(bool val) {
+  return val ? "true" : "false";
+}
+
+void GraphChecker::CheckGraphFlags() {
+  if (GetGraph()->HasMonitorOperations() != flag_info_.seen_monitor_operation) {
+    AddError(
+        StringPrintf("Flag mismatch: HasMonitorOperations() (%s) should be equal to "
+                     "flag_info_.seen_monitor_operation (%s)",
+                     StrBool(GetGraph()->HasMonitorOperations()),
+                     StrBool(flag_info_.seen_monitor_operation)));
+  }
+
+  if (GetGraph()->HasTryCatch() != flag_info_.seen_try_boundary) {
+    AddError(
+        StringPrintf("Flag mismatch: HasTryCatch() (%s) should be equal to "
+                     "flag_info_.seen_try_boundary (%s)",
+                     StrBool(GetGraph()->HasTryCatch()),
+                     StrBool(flag_info_.seen_try_boundary)));
+  }
+
+  if (GetGraph()->HasLoops() != flag_info_.seen_loop) {
+    AddError(
+        StringPrintf("Flag mismatch: HasLoops() (%s) should be equal to "
+                     "flag_info_.seen_loop (%s)",
+                     StrBool(GetGraph()->HasLoops()),
+                     StrBool(flag_info_.seen_loop)));
+  }
+
+  if (GetGraph()->HasIrreducibleLoops() && !GetGraph()->HasLoops()) {
+    AddError(StringPrintf("Flag mismatch: HasIrreducibleLoops() (%s) implies HasLoops() (%s)",
+                          StrBool(GetGraph()->HasIrreducibleLoops()),
+                          StrBool(GetGraph()->HasLoops())));
+  }
+
+  if (GetGraph()->HasIrreducibleLoops() != flag_info_.seen_irreducible_loop) {
+    AddError(
+        StringPrintf("Flag mismatch: HasIrreducibleLoops() (%s) should be equal to "
+                     "flag_info_.seen_irreducible_loop (%s)",
+                     StrBool(GetGraph()->HasIrreducibleLoops()),
+                     StrBool(flag_info_.seen_irreducible_loop)));
+  }
+
+  if (GetGraph()->HasSIMD() != flag_info_.seen_SIMD) {
+    AddError(
+        StringPrintf("Flag mismatch: HasSIMD() (%s) should be equal to "
+                     "flag_info_.seen_SIMD (%s)",
+                     StrBool(GetGraph()->HasSIMD()),
+                     StrBool(flag_info_.seen_SIMD)));
+  }
+
+  if (GetGraph()->HasBoundsChecks() != flag_info_.seen_bounds_checks) {
+    AddError(
+        StringPrintf("Flag mismatch: HasBoundsChecks() (%s) should be equal to "
+                     "flag_info_.seen_bounds_checks (%s)",
+                     StrBool(GetGraph()->HasBoundsChecks()),
+                     StrBool(flag_info_.seen_bounds_checks)));
+  }
+
+  if (GetGraph()->HasAlwaysThrowingInvokes() != flag_info_.seen_always_throwing_invokes) {
+    AddError(
+        StringPrintf("Flag mismatch: HasAlwaysThrowingInvokes() (%s) should be equal to "
+                     "flag_info_.seen_always_throwing_invokes (%s)",
+                     StrBool(GetGraph()->HasAlwaysThrowingInvokes()),
+                     StrBool(flag_info_.seen_always_throwing_invokes)));
+  }
 }
 
 void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
@@ -310,12 +392,17 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 
 void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
   VisitInstruction(check);
+
   if (!GetGraph()->HasBoundsChecks()) {
-    AddError(StringPrintf("Instruction %s:%d is a HBoundsCheck, "
-                          "but HasBoundsChecks() returns false",
-                          check->DebugName(),
-                          check->GetId()));
+    AddError(
+        StringPrintf("The graph doesn't have the HasBoundsChecks flag set but we saw "
+                     "%s:%d in block %d.",
+                     check->DebugName(),
+                     check->GetId(),
+                     check->GetBlock()->GetBlockId()));
   }
+
+  flag_info_.seen_bounds_checks = true;
 }
 
 void GraphChecker::VisitDeoptimize(HDeoptimize* deopt) {
@@ -356,12 +443,14 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
 
   if (!GetGraph()->HasTryCatch()) {
     AddError(
-        StringPrintf("The graph doesn't have the HasTryCatch bit set but we saw "
+        StringPrintf("The graph doesn't have the HasTryCatch flag set but we saw "
                      "%s:%d in block %d.",
                      try_boundary->DebugName(),
                      try_boundary->GetId(),
                      try_boundary->GetBlock()->GetBlockId()));
   }
+
+  flag_info_.seen_try_boundary = true;
 }
 
 void GraphChecker::VisitLoadException(HLoadException* load) {
@@ -387,12 +476,14 @@ void GraphChecker::VisitMonitorOperation(HMonitorOperation* monitor_op) {
 
   if (!GetGraph()->HasMonitorOperations()) {
     AddError(
-        StringPrintf("The graph doesn't have the HasMonitorOperations bit set but we saw "
+        StringPrintf("The graph doesn't have the HasMonitorOperations flag set but we saw "
                      "%s:%d in block %d.",
                      monitor_op->DebugName(),
                      monitor_op->GetId(),
                      monitor_op->GetBlock()->GetBlockId()));
   }
+
+  flag_info_.seen_monitor_operation = true;
 }
 
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
@@ -573,8 +664,25 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 }
 
-void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+void GraphChecker::VisitInvoke(HInvoke* invoke) {
   VisitInstruction(invoke);
+
+  if (invoke->AlwaysThrows()) {
+    if (!GetGraph()->HasAlwaysThrowingInvokes()) {
+      AddError(
+          StringPrintf("The graph doesn't have the HasAlwaysThrowingInvokes flag set but we saw "
+                       "%s:%d in block %d and it always throws.",
+                       invoke->DebugName(),
+                       invoke->GetId(),
+                       invoke->GetBlock()->GetBlockId()));
+    }
+    flag_info_.seen_always_throwing_invokes = true;
+  }
+}
+
+void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  // We call VisitInvoke and not VisitInstruction to de-duplicate the always throwing code check.
+  VisitInvoke(invoke);
 
   if (invoke->IsStaticWithExplicitClinitCheck()) {
     const HInstruction* last_input = invoke->GetInputs().back();
@@ -1089,13 +1197,13 @@ void GraphChecker::VisitArraySet(HArraySet* instruction) {
 
   if (instruction->NeedsTypeCheck() !=
       instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC())) {
-    AddError(StringPrintf(
-        "%s %d has a flag mismatch. An ArraySet instruction can trigger a GC iff it "
-        "needs a type check. Needs type check: %s, Can trigger GC: %s",
-        instruction->DebugName(),
-        instruction->GetId(),
-        instruction->NeedsTypeCheck() ? "true" : "false",
-        instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ? "true" : "false"));
+    AddError(
+        StringPrintf("%s %d has a flag mismatch. An ArraySet instruction can trigger a GC iff it "
+                     "needs a type check. Needs type check: %s, Can trigger GC: %s",
+                     instruction->DebugName(),
+                     instruction->GetId(),
+                     StrBool(instruction->NeedsTypeCheck()),
+                     StrBool(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()))));
   }
 }
 
@@ -1199,6 +1307,18 @@ void GraphChecker::VisitTypeConversion(HTypeConversion* instruction) {
 
 void GraphChecker::VisitVecOperation(HVecOperation* instruction) {
   VisitInstruction(instruction);
+
+  if (!GetGraph()->HasSIMD()) {
+    AddError(
+        StringPrintf("The graph doesn't have the HasSIMD flag set but we saw "
+                     "%s:%d in block %d.",
+                     instruction->DebugName(),
+                     instruction->GetId(),
+                     instruction->GetBlock()->GetBlockId()));
+  }
+
+  flag_info_.seen_SIMD = true;
+
   if (codegen_ == nullptr) {
     return;
   }

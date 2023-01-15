@@ -236,8 +236,11 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 //         B2  Exit
 //
 // Rationale:
-// Removal of the never taken edge to B2 may expose
-// other optimization opportunities, such as code sinking.
+// Removal of the never taken edge to B2 may expose other optimization opportunities, such as code
+// sinking.
+//
+// Note: The example above is a simple one that uses a `goto` but we could end the block with an If,
+// for example.
 bool HDeadCodeElimination::SimplifyAlwaysThrows() {
   HBasicBlock* exit = graph_->GetExitBlock();
   if (!graph_->HasAlwaysThrowingInvokes() || exit == nullptr) {
@@ -248,69 +251,55 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
 
   // Order does not matter, just pick one.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    if (block->GetTryCatchInformation() != nullptr) {
+    if (block->IsTryBlock()) {
       // We don't want to perform the simplify always throws optimizations for throws inside of
-      // tries since those throws might not go to the exit block. We do that by checking the
-      // TryCatchInformation of the blocks.
-      //
-      // As a special case the `catch_block` is the first block of the catch and it has
-      // TryCatchInformation. Other blocks in the catch don't have try catch information (as long as
-      // they are not part of an outer try). Knowing if a `catch_block` is part of an outer try is
-      // possible by checking its successors, but other restrictions of the simplify always throws
-      // optimization will block `catch_block` nevertheless (e.g. only one predecessor) so it is not
-      // worth the effort.
-
-      // TODO(solanes): Maybe we can do a `goto catch` if inside of a try catch instead of going to
-      // the exit. If we do so, we have to take into account that we should go to the nearest valid
-      // catch i.e. one that would accept our exception type.
+      // tries since those throws might not go to the exit block.
       continue;
     }
 
-    if (block->GetLastInstruction()->IsGoto() &&
-        block->GetPhis().IsEmpty() &&
-        block->GetPredecessors().size() == 1u) {
-      HBasicBlock* pred = block->GetSinglePredecessor();
-      HBasicBlock* succ = block->GetSingleSuccessor();
-      // Ensure no computations are merged through throwing block. This does not prevent the
-      // optimization per se, but would require an elaborate clean up of the SSA graph.
-      if (succ != exit &&
-          !block->Dominates(pred) &&
-          pred->Dominates(succ) &&
-          succ->GetPredecessors().size() > 1u &&
-          succ->GetPhis().IsEmpty()) {
-        // We iterate to find the first instruction that always throws. If two instructions always
-        // throw, the first one will throw and the second one will never be reached.
-        HInstruction* throwing_instruction = nullptr;
-        for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-          if (it.Current()->AlwaysThrows()) {
-            throwing_instruction = it.Current();
-            break;
-          }
-        }
-
-        if (throwing_instruction == nullptr) {
-          // No always-throwing instruction found. Continue with the rest of the blocks.
-          continue;
-        }
-
-        // We split the block at the throwing instruction, and the instructions after the throwing
-        // instructions will be disconnected from the graph after `block` points to the exit.
-        // `RemoveDeadBlocks` will take care of removing this new block and its instructions.
-        // Even though `SplitBefore` doesn't guarantee the graph to remain in SSA form, it is fine
-        // since we do not break it.
-        HBasicBlock* new_block = block->SplitBefore(throwing_instruction->GetNext(),
-                                                    /* require_graph_not_in_ssa_form= */ false);
-        DCHECK_EQ(block->GetSingleSuccessor(), new_block);
-        block->ReplaceSuccessor(new_block, exit);
-
-        rerun_dominance_and_loop_analysis = true;
-        MaybeRecordStat(stats_, MethodCompilationStat::kSimplifyThrowingInvoke);
-        // Perform a quick follow up optimization on object != null control dependences
-        // that is much cheaper to perform now than in a later phase.
-        if (RemoveNonNullControlDependences(pred, block)) {
-          MaybeRecordStat(stats_, MethodCompilationStat::kRemovedNullCheck);
-        }
+    // We iterate to find the first instruction that always throws. If two instructions always
+    // throw, the first one will throw and the second one will never be reached.
+    HInstruction* throwing_invoke = nullptr;
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      if (it.Current()->IsInvoke() && it.Current()->AsInvoke()->AlwaysThrows()) {
+        throwing_invoke = it.Current();
+        break;
       }
+    }
+
+    if (throwing_invoke == nullptr) {
+      // No always-throwing instruction found. Continue with the rest of the blocks.
+      continue;
+    }
+
+    // If we are already pointing at the exit block we could still remove the instructions
+    // between the always throwing instruction, and the exit block. If we have no other
+    // instructions, just continue since there's nothing to do.
+    if (block->GetSuccessors().size() == 1 &&
+        block->GetSingleSuccessor() == exit &&
+        block->GetLastInstruction()->GetPrevious() == throwing_invoke) {
+      continue;
+    }
+
+    // We split the block at the throwing instruction, and the instructions after the throwing
+    // instructions will be disconnected from the graph after `block` points to the exit.
+    // `RemoveDeadBlocks` will take care of removing this new block and its instructions.
+    // Even though `SplitBefore` doesn't guarantee the graph to remain in SSA form, it is fine
+    // since we do not break it.
+    HBasicBlock* new_block = block->SplitBefore(throwing_invoke->GetNext(),
+                                                /* require_graph_not_in_ssa_form= */ false);
+    DCHECK_EQ(block->GetSingleSuccessor(), new_block);
+    block->ReplaceSuccessor(new_block, exit);
+
+    rerun_dominance_and_loop_analysis = true;
+    MaybeRecordStat(stats_, MethodCompilationStat::kSimplifyThrowingInvoke);
+    // Perform a quick follow up optimization on object != null control dependences
+    // that is much cheaper to perform now than in a later phase.
+    // If there are multiple predecessors, none may end with a HIf as required in
+    // RemoveNonNullControlDependences because we split critical edges.
+    if (block->GetPredecessors().size() == 1u &&
+        RemoveNonNullControlDependences(block->GetSinglePredecessor(), block)) {
+      MaybeRecordStat(stats_, MethodCompilationStat::kRemovedNullCheck);
     }
   }
 
@@ -629,7 +618,6 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
     }
   }
 
-  const size_t total_tries = tries.size();
   size_t removed_tries = 0;
   bool any_block_in_loop = false;
 
@@ -639,10 +627,6 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
       ++removed_tries;
       RemoveTry(entry.first, entry.second, &any_block_in_loop);
     }
-  }
-
-  if (removed_tries == total_tries) {
-    graph_->SetHasTryCatch(false);
   }
 
   if (removed_tries != 0) {
@@ -741,6 +725,33 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
   }
 }
 
+void HDeadCodeElimination::UpdateGraphFlags() {
+  bool has_monitor_operations = false;
+  bool has_simd = false;
+  bool has_bounds_checks = false;
+  bool has_always_throwing_invokes = false;
+
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      if (instruction->IsMonitorOperation()) {
+        has_monitor_operations = true;
+      } else if (instruction->IsVecOperation()) {
+        has_simd = true;
+      } else if (instruction->IsBoundsCheck()) {
+        has_bounds_checks = true;
+      } else if (instruction->IsInvoke() && instruction->AsInvoke()->AlwaysThrows()) {
+        has_always_throwing_invokes = true;
+      }
+    }
+  }
+
+  graph_->SetHasMonitorOperations(has_monitor_operations);
+  graph_->SetHasSIMD(has_simd);
+  graph_->SetHasBoundsChecks(has_bounds_checks);
+  graph_->SetHasAlwaysThrowingInvokes(has_always_throwing_invokes);
+}
+
 bool HDeadCodeElimination::Run() {
   // Do not eliminate dead blocks if the graph has irreducible loops. We could
   // support it, but that would require changes in our loop representation to handle
@@ -764,6 +775,7 @@ bool HDeadCodeElimination::Run() {
   }
   SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
+  UpdateGraphFlags();
   return true;
 }
 

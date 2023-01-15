@@ -564,6 +564,19 @@ class BCEVisitor : public HGraphVisitor {
     early_exit_loop_.clear();
     taken_test_loop_.clear();
     finite_loop_.clear();
+
+    // We may have eliminated all bounds checks so we should update the flag.
+    // TODO(solanes): Do this without a linear pass of the graph?
+    GetGraph()->SetHasBoundsChecks(false);
+    for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
+      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+        HInstruction* instruction = it.Current();
+        if (instruction->IsBoundsCheck()) {
+          GetGraph()->SetHasBoundsChecks(true);
+          return;
+        }
+      }
+    }
   }
 
  private:

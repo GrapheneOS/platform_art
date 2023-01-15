@@ -542,6 +542,7 @@ TEST_F(LoadStoreEliminationTest, SameHeapValue2) {
   AddVecStore(entry_block_, array_, j_);
   HInstruction* vstore = AddVecStore(entry_block_, array_, i_);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vstore));
@@ -557,6 +558,7 @@ TEST_F(LoadStoreEliminationTest, SameHeapValue3) {
   AddVecStore(entry_block_, array_, i_add1_);
   HInstruction* vstore = AddVecStore(entry_block_, array_, i_);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vstore));
@@ -601,6 +603,7 @@ TEST_F(LoadStoreEliminationTest, OverlappingLoadStore) {
   AddArraySet(entry_block_, array_, i_, c1);
   HInstruction* vload5 = AddVecLoad(entry_block_, array_, i_);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_TRUE(IsRemoved(load1));
@@ -634,6 +637,7 @@ TEST_F(LoadStoreEliminationTest, StoreAfterLoopWithoutSideEffects) {
   // a[j] = 1;
   HInstruction* array_set = AddArraySet(return_block_, array_, j_, c1);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_TRUE(IsRemoved(array_set));
@@ -671,6 +675,7 @@ TEST_F(LoadStoreEliminationTest, StoreAfterSIMDLoopWithSideEffects) {
   // a[j] = 0;
   HInstruction* a_set = AddArraySet(return_block_, array_, j_, c0);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_TRUE(IsRemoved(vload));
@@ -709,6 +714,7 @@ TEST_F(LoadStoreEliminationTest, LoadAfterSIMDLoopWithSideEffects) {
   // x = a[j];
   HInstruction* load = AddArrayGet(return_block_, array_, j_);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_TRUE(IsRemoved(vload));
@@ -749,6 +755,7 @@ TEST_F(LoadStoreEliminationTest, MergePredecessorVecStores) {
   // down: a[i,... i + 3] = [1,...1]
   HInstruction* vstore4 = AddVecStore(down, array_, i_, vdata);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_TRUE(IsRemoved(vstore2));
@@ -839,6 +846,7 @@ TEST_F(LoadStoreEliminationTest, RedundantVStoreVLoadInLoop) {
   HInstruction* vstore2 = AddVecStore(loop_, array_b, phi_, vload->AsVecLoad());
   HInstruction* vstore3 = AddVecStore(loop_, array_a, phi_, vstore1->InputAt(2));
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vstore1));
@@ -926,6 +934,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueInLoopWithoutWriteSideEffects)
   HInstruction* vload = AddVecLoad(loop_, array_a, phi_);
   HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload));
@@ -949,6 +958,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValue) {
   HInstruction* vload = AddVecLoad(pre_header_, array_a, c0);
   HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload));
@@ -1025,6 +1035,7 @@ TEST_F(LoadStoreEliminationTest, VLoadAndLoadDefaultValueInLoopWithoutWriteSideE
   HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
   HInstruction* store = AddArraySet(return_block_, array_, c0, load);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload));
@@ -1055,6 +1066,7 @@ TEST_F(LoadStoreEliminationTest, VLoadAndLoadDefaultValue) {
   HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
   HInstruction* store = AddArraySet(return_block_, array_, c0, load);
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload));
@@ -1086,6 +1098,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueAndVLoadInLoopWithoutWriteSide
   HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1->AsVecLoad());
   HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2->AsVecLoad());
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload1));
@@ -1116,6 +1129,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueAndVLoad) {
   HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1->AsVecLoad());
   HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2->AsVecLoad());
 
+  graph_->SetHasSIMD(true);
   PerformLSE();
 
   ASSERT_FALSE(IsRemoved(vload1));
