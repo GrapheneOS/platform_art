@@ -59,11 +59,9 @@ AllocRecordObjectMap::~AllocRecordObjectMap() {
 }
 
 void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
-  gc::Heap* const heap = Runtime::Current()->GetHeap();
   // When we are compacting in userfaultfd GC, the class GC-roots are already
   // updated in SweepAllocationRecords()->SweepClassObject().
-  if (heap->CurrentCollectorType() == gc::CollectorType::kCollectorTypeCMC
-      && heap->MarkCompactCollector()->IsCompacting(Thread::Current())) {
+  if (Runtime::Current()->GetHeap()->IsPerformingUffdCompaction()) {
     return;
   }
   CHECK_LE(recent_record_max_, alloc_record_max_);
