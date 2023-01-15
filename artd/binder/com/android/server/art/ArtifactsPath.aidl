@@ -17,15 +17,15 @@
 package com.android.server.art;
 
 /**
- * Represents the path to the optimized artifacts of a dex file (i.e., ART, OAT, and VDEX files).
+ * Represents the path to the dexopt artifacts of a dex file (i.e., ART, OAT, and VDEX files).
  *
  * @hide
  */
 parcelable ArtifactsPath {
     /** The absolute path starting with '/' to the dex file (i.e., APK or JAR file). */
     @utf8InCpp String dexPath;
-    /** The instruction set of the optimized artifacts. */
+    /** The instruction set of the dexopt artifacts. */
     @utf8InCpp String isa;
-    /** Whether the optimized artifacts are in the dalvik-cache folder. */
+    /** Whether the dexopt artifacts are in the dalvik-cache folder. */
     boolean isInDalvikCache;
 }

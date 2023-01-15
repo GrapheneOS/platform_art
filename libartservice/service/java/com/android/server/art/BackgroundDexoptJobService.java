@@ -28,7 +28,7 @@ import com.android.server.LocalManagerRegistry;
  *
  * @hide
  */
-public class BackgroundDexOptJobService extends JobService {
+public class BackgroundDexoptJobService extends JobService {
     @Override
     public boolean onStartJob(@NonNull JobParameters params) {
         return getJob().onStartJob(this, params);
@@ -40,7 +40,7 @@ public class BackgroundDexOptJobService extends JobService {
     }
 
     @NonNull
-    static BackgroundDexOptJob getJob() {
+    static BackgroundDexoptJob getJob() {
         return LocalManagerRegistry.getManager(ArtManagerLocal.class).getBackgroundDexOptJob();
     }
 }

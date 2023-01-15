@@ -27,7 +27,7 @@ import android.content.Context;
 import android.os.CancellationSignal;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.art.model.OptimizeParams;
+import com.android.server.art.model.DexoptParams;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
 
@@ -38,14 +38,14 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
     private static final String TAG = "SecondaryDexOptimizer";
 
     public SecondaryDexOptimizer(@NonNull Context context, @NonNull PackageState pkgState,
-            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+            @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
         this(new Injector(context), pkgState, pkg, params, cancellationSignal);
     }
 
     @VisibleForTesting
     public SecondaryDexOptimizer(@NonNull Injector injector, @NonNull PackageState pkgState,
-            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+            @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
         super(injector, pkgState, pkg, params, cancellationSignal);
     }
@@ -65,7 +65,7 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
     }
 
     @Override
-    protected boolean isOptimizable(@NonNull DetailedSecondaryDexInfo dexInfo) {
+    protected boolean isDexoptable(@NonNull DetailedSecondaryDexInfo dexInfo) {
         return true;
     }
 

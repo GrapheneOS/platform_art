@@ -18,7 +18,7 @@ package com.android.server.art;
 
 import static com.android.server.art.DexUseManagerLocal.DexLoader;
 import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
-import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
+import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import android.annotation.NonNull;
 
@@ -82,10 +82,10 @@ public class DumpHelper {
         String packageName = pkgState.getPackageName();
         ipw.printf("[%s]\n", packageName);
 
-        List<DexContainerFileOptimizationStatus> statuses =
+        List<DexContainerFileDexoptStatus> statuses =
                 mInjector.getArtManagerLocal()
-                        .getOptimizationStatus(snapshot, packageName)
-                        .getDexContainerFileOptimizationStatuses();
+                        .getDexoptStatus(snapshot, packageName)
+                        .getDexContainerFileDexoptStatuses();
         Map<String, SecondaryDexInfo> secondaryDexInfoByDexPath =
                 mInjector.getDexUseManager()
                         .getSecondaryDexInfo(packageName)
@@ -94,17 +94,17 @@ public class DumpHelper {
 
         // Use LinkedHashMap to keep the order.
         var primaryStatusesByDexPath =
-                new LinkedHashMap<String, List<DexContainerFileOptimizationStatus>>();
+                new LinkedHashMap<String, List<DexContainerFileDexoptStatus>>();
         var secondaryStatusesByDexPath =
-                new LinkedHashMap<String, List<DexContainerFileOptimizationStatus>>();
-        for (DexContainerFileOptimizationStatus fileStatus : statuses) {
+                new LinkedHashMap<String, List<DexContainerFileDexoptStatus>>();
+        for (DexContainerFileDexoptStatus fileStatus : statuses) {
             if (fileStatus.isPrimaryDex()) {
                 primaryStatusesByDexPath
                         .computeIfAbsent(fileStatus.getDexContainerFile(), k -> new ArrayList<>())
                         .add(fileStatus);
             } else if (secondaryDexInfoByDexPath.containsKey(fileStatus.getDexContainerFile())) {
                 // The condition above is false only if a change occurs between
-                // `getOptimizationStatus` and `getSecondaryDexInfo`, which is an edge case.
+                // `getDexoptStatus` and `getSecondaryDexInfo`, which is an edge case.
                 secondaryStatusesByDexPath
                         .computeIfAbsent(fileStatus.getDexContainerFile(), k -> new ArrayList<>())
                         .add(fileStatus);
@@ -112,14 +112,13 @@ public class DumpHelper {
         }
 
         ipw.increaseIndent();
-        for (List<DexContainerFileOptimizationStatus> fileStatuses :
-                primaryStatusesByDexPath.values()) {
+        for (List<DexContainerFileDexoptStatus> fileStatuses : primaryStatusesByDexPath.values()) {
             dumpPrimaryDex(ipw, fileStatuses, packageName);
         }
         if (!secondaryStatusesByDexPath.isEmpty()) {
             ipw.println("known secondary dex files:");
             ipw.increaseIndent();
-            for (Map.Entry<String, List<DexContainerFileOptimizationStatus>> entry :
+            for (Map.Entry<String, List<DexContainerFileDexoptStatus>> entry :
                     secondaryStatusesByDexPath.entrySet()) {
                 dumpSecondaryDex(ipw, entry.getValue(), packageName,
                         secondaryDexInfoByDexPath.get(entry.getKey()));
@@ -130,7 +129,7 @@ public class DumpHelper {
     }
 
     private void dumpPrimaryDex(@NonNull IndentingPrintWriter ipw,
-            List<DexContainerFileOptimizationStatus> fileStatuses, @NonNull String packageName) {
+            List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName) {
         String dexPath = fileStatuses.get(0).getDexContainerFile();
         ipw.printf("path: %s\n", dexPath);
         ipw.increaseIndent();
@@ -142,7 +141,7 @@ public class DumpHelper {
     }
 
     private void dumpSecondaryDex(@NonNull IndentingPrintWriter ipw,
-            List<DexContainerFileOptimizationStatus> fileStatuses, @NonNull String packageName,
+            List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName,
             @NonNull SecondaryDexInfo info) {
         String dexPath = fileStatuses.get(0).getDexContainerFile();
         ipw.println(dexPath);
@@ -153,9 +152,9 @@ public class DumpHelper {
         ipw.decreaseIndent();
     }
 
-    private void dumpFileStatuses(@NonNull IndentingPrintWriter ipw,
-            List<DexContainerFileOptimizationStatus> fileStatuses) {
-        for (DexContainerFileOptimizationStatus fileStatus : fileStatuses) {
+    private void dumpFileStatuses(
+            @NonNull IndentingPrintWriter ipw, List<DexContainerFileDexoptStatus> fileStatuses) {
+        for (DexContainerFileDexoptStatus fileStatus : fileStatuses) {
             ipw.printf("%s: [status=%s] [reason=%s]\n",
                     VMRuntime.getInstructionSet(fileStatus.getAbi()),
                     fileStatus.getCompilerFilter(), fileStatus.getCompilationReason());

@@ -16,7 +16,7 @@
 
 package com.android.server.art.model;
 
-import static com.android.server.art.model.ArtFlags.OptimizeFlags;
+import static com.android.server.art.model.ArtFlags.DexoptFlags;
 import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 
 import android.annotation.NonNull;
@@ -30,16 +30,16 @@ import com.android.server.art.Utils;
 /** @hide */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
-public class OptimizeParams {
+public class DexoptParams {
     /** @hide */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static final class Builder {
-        private OptimizeParams mParams = new OptimizeParams();
+        private DexoptParams mParams = new DexoptParams();
 
         /**
          * Creates a builder.
          *
-         * Uses default flags ({@link ArtFlags#defaultOptimizeFlags()}).
+         * Uses default flags ({@link ArtFlags#defaultDexoptFlags()}).
          *
          * @param reason Compilation reason. Can be a string defined in {@link ReasonMapping} or a
          *         custom string. If the value is a string defined in {@link ReasonMapping}, it
@@ -48,27 +48,27 @@ public class OptimizeParams {
          *         compiler filter must be explicitly set.
          */
         public Builder(@NonNull String reason) {
-            this(reason, ArtFlags.defaultOptimizeFlags(reason));
+            this(reason, ArtFlags.defaultDexoptFlags(reason));
         }
 
         /**
          * Same as above, but allows to specify flags.
          */
-        public Builder(@NonNull String reason, @OptimizeFlags int flags) {
+        public Builder(@NonNull String reason, @DexoptFlags int flags) {
             mParams.mReason = reason;
             setFlags(flags);
         }
 
         /** Replaces all flags with the given value. */
         @NonNull
-        public Builder setFlags(@OptimizeFlags int value) {
+        public Builder setFlags(@DexoptFlags int value) {
             mParams.mFlags = value;
             return this;
         }
 
         /** Replaces the flags specified by the mask with the given value. */
         @NonNull
-        public Builder setFlags(@OptimizeFlags int value, @OptimizeFlags int mask) {
+        public Builder setFlags(@DexoptFlags int value, @DexoptFlags int mask) {
             mParams.mFlags = (mParams.mFlags & ~mask) | (value & mask);
             return this;
         }
@@ -101,7 +101,7 @@ public class OptimizeParams {
         }
 
         /**
-         * The name of the split to optimize, or null for the base split. This option is only
+         * The name of the split to dexopt, or null for the base split. This option is only
          * available when {@link ArtFlags#FLAG_FOR_SINGLE_SPLIT} is set.
          */
         @NonNull
@@ -116,7 +116,7 @@ public class OptimizeParams {
          * @throws IllegalArgumentException if the built options would be invalid
          */
         @NonNull
-        public OptimizeParams build() {
+        public DexoptParams build() {
             if (mParams.mReason.isEmpty()) {
                 throw new IllegalArgumentException("Reason must not be empty");
             }
@@ -137,7 +137,7 @@ public class OptimizeParams {
 
             if ((mParams.mFlags & (ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX))
                     == 0) {
-                throw new IllegalArgumentException("Nothing to optimize");
+                throw new IllegalArgumentException("Nothing to dexopt");
             }
 
             if ((mParams.mFlags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
@@ -177,16 +177,16 @@ public class OptimizeParams {
      */
     public static final String COMPILER_FILTER_NOOP = "skip";
 
-    private @OptimizeFlags int mFlags = 0;
+    private @DexoptFlags int mFlags = 0;
     private @NonNull String mCompilerFilter = "";
     private @PriorityClassApi int mPriorityClass = ArtFlags.PRIORITY_NONE;
     private @NonNull String mReason = "";
     private @Nullable String mSplitName = null;
 
-    private OptimizeParams() {}
+    private DexoptParams() {}
 
     /** Returns all flags. */
-    public @OptimizeFlags int getFlags() {
+    public @DexoptFlags int getFlags() {
         return mFlags;
     }
 
@@ -210,7 +210,7 @@ public class OptimizeParams {
         return mReason;
     }
 
-    /** The name of the split to optimize, or null for the base split. */
+    /** The name of the split to dexopt, or null for the base split. */
     public @Nullable String getSplitName() {
         return mSplitName;
     }

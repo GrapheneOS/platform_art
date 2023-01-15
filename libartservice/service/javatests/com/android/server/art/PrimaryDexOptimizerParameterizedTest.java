@@ -20,7 +20,7 @@ import static com.android.server.art.AidlUtils.buildFsPermission;
 import static com.android.server.art.AidlUtils.buildOutputArtifacts;
 import static com.android.server.art.AidlUtils.buildPermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
-import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -44,8 +44,8 @@ import android.os.SystemProperties;
 import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.ArtFlags;
-import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.art.testing.OnSuccessRule;
 import com.android.server.art.testing.TestingUtils;
 
@@ -69,7 +69,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         verifyNoMoreInteractions(mArtd);
     });
 
-    private OptimizeParams mOptimizeParams;
+    private DexoptParams mDexoptParams;
 
     private PrimaryDexOptimizer mPrimaryDexOptimizer;
 
@@ -184,8 +184,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         lenient().when(mPkgState.isSystem()).thenReturn(mParams.mIsSystem);
         lenient().when(mPkgState.isUpdatedSystemApp()).thenReturn(mParams.mIsUpdatedSystemApp);
 
-        mOptimizeParams =
-                new OptimizeParams.Builder("install")
+        mDexoptParams =
+                new DexoptParams.Builder("install")
                         .setCompilerFilter(mParams.mRequestedCompilerFilter)
                         .setPriorityClass(ArtFlags.PRIORITY_INTERACTIVE)
                         .setFlags(mParams.mForce ? ArtFlags.FLAG_FORCE : 0, ArtFlags.FLAG_FORCE)
@@ -196,7 +196,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         .build();
 
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
     }
 
     @Test
@@ -222,7 +222,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/base.apk", "arm64", "PCL[]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(createDexoptResult(false /* cancelled */, 100 /* wallTimeMs */,
+        doReturn(createArtdDexoptResult(false /* cancelled */, 100 /* wallTimeMs */,
                          400 /* cpuTimeMs */, 30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */))
                 .when(mArtd)
                 .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm64",
@@ -257,7 +257,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/split_0.apk", "arm", "PCL[base.apk]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(createDexoptResult(false /* cancelled */, 200 /* wallTimeMs */,
+        doReturn(createArtdDexoptResult(false /* cancelled */, 200 /* wallTimeMs */,
                          200 /* cpuTimeMs */, 10000 /* sizeBytes */, 0 /* sizeBeforeBytes */))
                 .when(mArtd)
                 .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/split_0.apk", "arm",
@@ -268,29 +268,29 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions), any());
 
         assertThat(mPrimaryDexOptimizer.dexopt())
-                .comparingElementsUsing(TestingUtils.<DexContainerFileOptimizeResult>deepEquality())
+                .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
-                        DexContainerFileOptimizeResult.create("/data/app/foo/base.apk",
+                        DexContainerFileDexoptResult.create("/data/app/foo/base.apk",
                                 true /* isPrimaryAbi */, "arm64-v8a",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
                                 30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create("/data/app/foo/base.apk",
+                        DexContainerFileDexoptResult.create("/data/app/foo/base.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED,
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_FAILED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create("/data/app/foo/split_0.apk",
+                        DexContainerFileDexoptResult.create("/data/app/foo/split_0.apk",
                                 true /* isPrimaryAbi */, "arm64-v8a",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED,
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_SKIPPED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create("/data/app/foo/split_0.apk",
+                        DexContainerFileDexoptResult.create("/data/app/foo/split_0.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */,
                                 10000 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */));

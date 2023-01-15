@@ -20,11 +20,11 @@ import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 
 import static com.android.server.art.ArtManagerLocal.SnapshotProfileException;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
-import static com.android.server.art.model.ArtFlags.OptimizeFlags;
-import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
-import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
-import static com.android.server.art.model.OptimizeResult.OptimizeStatus;
-import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
+import static com.android.server.art.model.ArtFlags.DexoptFlags;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
+import static com.android.server.art.model.DexoptResult.DexoptResultStatus;
+import static com.android.server.art.model.DexoptResult.PackageDexoptResult;
+import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import android.annotation.NonNull;
 import android.os.Binder;
@@ -43,10 +43,10 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
+import com.android.server.art.model.DexoptStatus;
 import com.android.server.art.model.OperationProgress;
-import com.android.server.art.model.OptimizationStatus;
-import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -126,22 +126,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         enforceRoot();
         String subcmd = getNextArgRequired();
         switch (subcmd) {
-            case "delete-optimized-artifacts": {
-                DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
+            case "delete-dexopt-artifacts": {
+                DeleteResult result = mArtManagerLocal.deleteDexoptArtifacts(
                         snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
             }
-            case "get-optimization-status": {
-                OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
+            case "get-dexopt-status": {
+                DexoptStatus dexoptStatus = mArtManagerLocal.getDexoptStatus(
                         snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
-                pw.println(optimizationStatus);
+                pw.println(dexoptStatus);
                 return 0;
             }
-            case "optimize-package": {
-                var paramsBuilder = new OptimizeParams.Builder("cmdline");
+            case "dexopt-package": {
+                var paramsBuilder = new DexoptParams.Builder("cmdline");
                 String opt;
-                @OptimizeFlags int scopeFlags = 0;
+                @DexoptFlags int scopeFlags = 0;
                 boolean forSingleSplit = false;
                 boolean reset = false;
                 while ((opt = getNextOption()) != null) {
@@ -192,30 +192,30 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                                     | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
                 }
 
-                OptimizeResult result;
+                DexoptResult result;
                 try (var signal = new WithCancellationSignal(pw)) {
                     if (reset) {
-                        result = mArtManagerLocal.resetOptimizationStatus(
+                        result = mArtManagerLocal.resetDexoptStatus(
                                 snapshot, getNextArgRequired(), signal.get());
                     } else {
-                        result = mArtManagerLocal.optimizePackage(snapshot, getNextArgRequired(),
+                        result = mArtManagerLocal.dexoptPackage(snapshot, getNextArgRequired(),
                                 paramsBuilder.build(), signal.get());
                     }
                 }
-                printOptimizeResult(pw, result);
+                printDexoptResult(pw, result);
                 return 0;
             }
-            case "optimize-packages": {
-                OptimizeResult result;
+            case "dexopt-packages": {
+                DexoptResult result;
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 try (var signal = new WithCancellationSignal(pw)) {
-                    result = mArtManagerLocal.optimizePackages(
+                    result = mArtManagerLocal.dexoptPackages(
                             snapshot, getNextArgRequired(), signal.get(), executor, progress -> {
                                 pw.println(String.format(
-                                        "Optimizing apps: %d%%", progress.getPercentage()));
+                                        "Dexopting apps: %d%%", progress.getPercentage()));
                                 pw.flush();
                             });
-                    Utils.executeAndWait(executor, () -> printOptimizeResult(pw, result));
+                    Utils.executeAndWait(executor, () -> printDexoptResult(pw, result));
                 } finally {
                     executor.shutdown();
                 }
@@ -374,40 +374,40 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  no stability guarantees for them.");
         pw.println();
         pw.println("  Supported sub-commands:");
-        pw.println("  delete-optimized-artifacts PACKAGE_NAME");
-        pw.println("    Delete the optimized artifacts of both primary dex files and secondary");
+        pw.println("  delete-dexopt-artifacts PACKAGE_NAME");
+        pw.println("    Delete the dexopt artifacts of both primary dex files and secondary");
         pw.println("    dex files of a package.");
-        pw.println("  get-optimization-status PACKAGE_NAME");
-        pw.println("    Print the optimization status of both primary dex files and secondary dex");
+        pw.println("  get-dexopt-status PACKAGE_NAME");
+        pw.println("    Print the dexopt status of both primary dex files and secondary dex");
         pw.println("    files of a package.");
-        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] [--primary-dex]");
+        pw.println("  dexopt-package [-m COMPILER_FILTER] [-f] [--primary-dex]");
         pw.println("      [--secondary-dex] [--include-dependencies] [--split SPLIT_NAME]");
         pw.println("      PACKAGE_NAME");
-        pw.println("    Optimize a package.");
+        pw.println("    Dexopt a package.");
         pw.println("    If none of '--primary-dex', '--secondary-dex', and");
-        pw.println("    '--include-dependencies' is set, the command optimizes all of them.");
+        pw.println("    '--include-dependencies' is set, the command dexopts all of them.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using");
         pw.println("    the 'cancel' command.");
         pw.println("    Options:");
         pw.println("      -m Set the compiler filter.");
         pw.println("      -f Force compilation.");
-        pw.println("      --primary-dex Optimize primary dex files.");
-        pw.println("      --secondary-dex Optimize secondary dex files.");
+        pw.println("      --primary-dex Dexopt primary dex files.");
+        pw.println("      --secondary-dex Dexopt secondary dex files.");
         pw.println("      --include-dependencies Include dependencies.");
-        pw.println("      --split SPLIT_NAME Only optimize the given split. If SPLIT_NAME is an");
-        pw.println("        empty string, only optimize the base APK. When this option is set,");
+        pw.println("      --split SPLIT_NAME Only dexopt the given split. If SPLIT_NAME is an");
+        pw.println("        empty string, only dexopt the base APK. When this option is set,");
         pw.println("        '--primary-dex', '--secondary-dex', and '--include-dependencies' must");
         pw.println("        not be set.");
-        pw.println("      --reset Reset the optimization state of the package as if the package");
+        pw.println("      --reset Reset the dexopt state of the package as if the package");
         pw.println("        is newly installed.");
         pw.println("        More specifically, it clears reference profiles, current profiles,");
         pw.println("        and any code compiled from those local profiles. If there is an");
         pw.println("        external profile (e.g., a cloud profile), the code compiled from that");
         pw.println("        profile will be kept.");
-        pw.println("        For secondary dex files, it also clears all optimized artifacts.");
+        pw.println("        For secondary dex files, it also clears all dexopt artifacts.");
         pw.println("        When this flag is set, all the other flags are ignored.");
-        pw.println("  optimize-packages REASON");
-        pw.println("    Run batch optimization for the given reason.");
+        pw.println("  dexopt-packages REASON");
+        pw.println("    Run batch dexopt for the given reason.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using");
         pw.println("    the 'cancel' command.");
         pw.println("  cancel JOB_ID");
@@ -463,26 +463,26 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     }
 
     @NonNull
-    private String optimizeStatusToString(@OptimizeStatus int status) {
+    private String dexoptResultStatusToString(@DexoptResultStatus int status) {
         switch (status) {
-            case OptimizeResult.OPTIMIZE_SKIPPED:
+            case DexoptResult.DEXOPT_SKIPPED:
                 return "SKIPPED";
-            case OptimizeResult.OPTIMIZE_PERFORMED:
+            case DexoptResult.DEXOPT_PERFORMED:
                 return "PERFORMED";
-            case OptimizeResult.OPTIMIZE_FAILED:
+            case DexoptResult.DEXOPT_FAILED:
                 return "FAILED";
-            case OptimizeResult.OPTIMIZE_CANCELLED:
+            case DexoptResult.DEXOPT_CANCELLED:
                 return "CANCELLED";
         }
-        throw new IllegalArgumentException("Unknown optimize status " + status);
+        throw new IllegalArgumentException("Unknown dexopt status " + status);
     }
 
-    private void printOptimizeResult(@NonNull PrintWriter pw, @NonNull OptimizeResult result) {
-        pw.println(optimizeStatusToString(result.getFinalStatus()));
-        for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
+    private void printDexoptResult(@NonNull PrintWriter pw, @NonNull DexoptResult result) {
+        pw.println(dexoptResultStatusToString(result.getFinalStatus()));
+        for (PackageDexoptResult packageResult : result.getPackageDexoptResults()) {
             pw.printf("[%s]\n", packageResult.getPackageName());
-            for (DexContainerFileOptimizeResult fileResult :
-                    packageResult.getDexContainerFileOptimizeResults()) {
+            for (DexContainerFileDexoptResult fileResult :
+                    packageResult.getDexContainerFileDexoptResults()) {
                 pw.println(fileResult);
             }
         }

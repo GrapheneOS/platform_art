@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include "base/common_art_test.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -69,23 +70,27 @@ TEST_F(PaletteClientTest, Ashmem) {
 #endif
 }
 
-TEST_F(PaletteClientTest, JniInvocation) {
-#ifndef ART_TARGET_ANDROID
-  // On host we need to set up a boot classpath and pass it in here. Let's not
-  // bother since this test is only for native API coverage on target.
-  GTEST_SKIP() << "Will only spin up a VM on Android";
-#else
+class PaletteClientJniTest : public art::CommonArtTest {};
+
+TEST_F(PaletteClientJniTest, JniInvocation) {
   bool enabled;
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteShouldReportJniInvocations(&enabled));
 
-  JavaVMInitArgs vm_args;
+  std::string boot_class_path_string =
+      GetClassPathOption("-Xbootclasspath:", GetLibCoreDexFileNames());
+  std::string boot_class_path_locations_string =
+      GetClassPathOption("-Xbootclasspath-locations:", GetLibCoreDexLocations());
+
   JavaVMOption options[] = {
-      {.optionString = "-verbose:jni", .extraInfo = nullptr},
+      {.optionString = boot_class_path_string.c_str(), .extraInfo = nullptr},
+      {.optionString = boot_class_path_locations_string.c_str(), .extraInfo = nullptr},
   };
-  vm_args.version = JNI_VERSION_1_6;
-  vm_args.nOptions = std::size(options);
-  vm_args.options = options;
-  vm_args.ignoreUnrecognized = JNI_TRUE;
+  JavaVMInitArgs vm_args = {
+      .version = JNI_VERSION_1_6,
+      .nOptions = std::size(options),
+      .options = options,
+      .ignoreUnrecognized = JNI_TRUE,
+  };
 
   JavaVM* jvm = nullptr;
   JNIEnv* env = nullptr;
@@ -96,5 +101,4 @@ TEST_F(PaletteClientTest, JniInvocation) {
   PaletteNotifyEndJniInvocation(env);
 
   EXPECT_EQ(JNI_OK, jvm->DestroyJavaVM());
-#endif
 }

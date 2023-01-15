@@ -183,9 +183,9 @@ public class PrimaryDexOptimizerTestBase {
         return result;
     }
 
-    protected DexoptResult createDexoptResult(boolean cancelled, long wallTimeMs, long cpuTimeMs,
-            long sizeBytes, long sizeBeforeBytes) {
-        var result = new DexoptResult();
+    protected ArtdDexoptResult createArtdDexoptResult(boolean cancelled, long wallTimeMs,
+            long cpuTimeMs, long sizeBytes, long sizeBeforeBytes) {
+        var result = new ArtdDexoptResult();
         result.cancelled = cancelled;
         result.wallTimeMs = wallTimeMs;
         result.cpuTimeMs = cpuTimeMs;
@@ -194,8 +194,8 @@ public class PrimaryDexOptimizerTestBase {
         return result;
     }
 
-    protected DexoptResult createDexoptResult(boolean cancelled) {
-        return createDexoptResult(cancelled, 0 /* wallTimeMs */, 0 /* cpuTimeMs */,
+    protected ArtdDexoptResult createArtdDexoptResult(boolean cancelled) {
+        return createArtdDexoptResult(cancelled, 0 /* wallTimeMs */, 0 /* cpuTimeMs */,
                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */);
     }
 }

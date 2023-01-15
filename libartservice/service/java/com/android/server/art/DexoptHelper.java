@@ -16,10 +16,10 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
+import static com.android.server.art.ArtManagerLocal.DexoptDoneCallback;
 import static com.android.server.art.model.Config.Callback;
-import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
-import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
+import static com.android.server.art.model.DexoptResult.PackageDexoptResult;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -34,9 +34,9 @@ import android.os.WorkSource;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
+import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
-import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  *
  * @hide
  */
-public class DexOptHelper {
+public class DexoptHelper {
     private static final String TAG = "DexoptHelper";
 
     /**
@@ -77,34 +77,34 @@ public class DexOptHelper {
 
     @NonNull private final Injector mInjector;
 
-    public DexOptHelper(@NonNull Context context, @NonNull Config config) {
+    public DexoptHelper(@NonNull Context context, @NonNull Config config) {
         this(new Injector(context, config));
     }
 
     @VisibleForTesting
-    public DexOptHelper(@NonNull Injector injector) {
+    public DexoptHelper(@NonNull Injector injector) {
         mInjector = injector;
     }
 
     /**
-     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
-     * ArtManagerLocal#optimizePackages}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#dexoptPackage} or {@link
+     * ArtManagerLocal#dexoptPackages}.
      */
     @NonNull
-    public OptimizeResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull List<String> packageNames, @NonNull OptimizeParams params,
+    public DexoptResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull List<String> packageNames, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor) {
         return dexopt(snapshot, packageNames, params, cancellationSignal, dexoptExecutor,
                 null /* progressCallbackExecutor */, null /* progressCallback */);
     }
 
     /**
-     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
-     * ArtManagerLocal#optimizePackages}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#dexoptPackage} or {@link
+     * ArtManagerLocal#dexoptPackages}.
      */
     @NonNull
-    public OptimizeResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull List<String> packageNames, @NonNull OptimizeParams params,
+    public DexoptResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull List<String> packageNames, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor,
             @Nullable Executor progressCallbackExecutor,
             @Nullable Consumer<OperationProgress> progressCallback) {
@@ -116,12 +116,12 @@ public class DexOptHelper {
     }
 
     /**
-     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
-     * ArtManagerLocal#optimizePackages}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#dexoptPackage} or {@link
+     * ArtManagerLocal#dexoptPackages}.
      */
     @NonNull
-    private OptimizeResult dexoptPackages(@NonNull List<PackageState> pkgStates,
-            @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal,
+    private DexoptResult dexoptPackages(@NonNull List<PackageState> pkgStates,
+            @NonNull DexoptParams params, @NonNull CancellationSignal cancellationSignal,
             @NonNull Executor dexoptExecutor, @Nullable Executor progressCallbackExecutor,
             @Nullable Consumer<OperationProgress> progressCallback) {
         int callingUid = Binder.getCallingUid();
@@ -135,7 +135,7 @@ public class DexOptHelper {
             wakeLock.setWorkSource(new WorkSource(callingUid));
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
-            List<CompletableFuture<PackageOptimizeResult>> futures = new ArrayList<>();
+            List<CompletableFuture<PackageDexoptResult>> futures = new ArrayList<>();
             for (PackageState pkgState : pkgStates) {
                 futures.add(CompletableFuture.supplyAsync(
                         () -> dexoptPackage(pkgState, params, cancellationSignal), dexoptExecutor));
@@ -147,7 +147,7 @@ public class DexOptHelper {
                             OperationProgress.create(0 /* current */, futures.size()));
                 }, progressCallbackExecutor);
                 AtomicInteger current = new AtomicInteger(0);
-                for (CompletableFuture<PackageOptimizeResult> future : futures) {
+                for (CompletableFuture<PackageDexoptResult> future : futures) {
                     future.thenRunAsync(() -> {
                         progressCallback.accept(OperationProgress.create(
                                 current.incrementAndGet(), futures.size()));
@@ -155,30 +155,30 @@ public class DexOptHelper {
                 }
             }
 
-            List<PackageOptimizeResult> results =
+            List<PackageDexoptResult> results =
                     futures.stream().map(Utils::getFuture).collect(Collectors.toList());
 
             var result =
-                    OptimizeResult.create(params.getCompilerFilter(), params.getReason(), results);
+                    DexoptResult.create(params.getCompilerFilter(), params.getReason(), results);
 
-            for (Callback<OptimizePackageDoneCallback, Boolean> doneCallback :
-                    mInjector.getConfig().getOptimizePackageDoneCallbacks()) {
+            for (Callback<DexoptDoneCallback, Boolean> doneCallback :
+                    mInjector.getConfig().getDexoptDoneCallbacks()) {
                 boolean onlyIncludeUpdates = doneCallback.extra();
                 if (onlyIncludeUpdates) {
-                    List<PackageOptimizeResult> filteredResults =
+                    List<PackageDexoptResult> filteredResults =
                             results.stream()
-                                    .filter(PackageOptimizeResult::hasUpdatedArtifacts)
+                                    .filter(PackageDexoptResult::hasUpdatedArtifacts)
                                     .collect(Collectors.toList());
                     if (!filteredResults.isEmpty()) {
-                        var resultForCallback = OptimizeResult.create(
+                        var resultForCallback = DexoptResult.create(
                                 params.getCompilerFilter(), params.getReason(), filteredResults);
                         CompletableFuture.runAsync(() -> {
-                            doneCallback.get().onOptimizePackageDone(resultForCallback);
+                            doneCallback.get().onDexoptDone(resultForCallback);
                         }, doneCallback.executor());
                     }
                 } else {
                     CompletableFuture.runAsync(() -> {
-                        doneCallback.get().onOptimizePackageDone(result);
+                        doneCallback.get().onDexoptDone(result);
                     }, doneCallback.executor());
                 }
             }
@@ -193,20 +193,20 @@ public class DexOptHelper {
     }
 
     /**
-     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
-     * ArtManagerLocal#optimizePackages}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#dexoptPackage} or {@link
+     * ArtManagerLocal#dexoptPackages}.
      */
     @NonNull
-    private PackageOptimizeResult dexoptPackage(@NonNull PackageState pkgState,
-            @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal) {
-        List<DexContainerFileOptimizeResult> results = new ArrayList<>();
-        Supplier<PackageOptimizeResult> createResult = ()
-                -> PackageOptimizeResult.create(
+    private PackageDexoptResult dexoptPackage(@NonNull PackageState pkgState,
+            @NonNull DexoptParams params, @NonNull CancellationSignal cancellationSignal) {
+        List<DexContainerFileDexoptResult> results = new ArrayList<>();
+        Supplier<PackageDexoptResult> createResult = ()
+                -> PackageDexoptResult.create(
                         pkgState.getPackageName(), results, cancellationSignal.isCanceled());
 
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
-        if (!canOptimizePackage(pkgState)) {
+        if (!canDexoptPackage(pkgState)) {
             return createResult.get();
         }
 
@@ -243,8 +243,8 @@ public class DexOptHelper {
         return createResult.get();
     }
 
-    private boolean canOptimizePackage(@NonNull PackageState pkgState) {
-        return Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager());
+    private boolean canDexoptPackage(@NonNull PackageState pkgState) {
+        return Utils.canDexoptPackage(pkgState, mInjector.getAppHibernationManager());
     }
 
     @NonNull
@@ -268,7 +268,7 @@ public class DexOptHelper {
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
             Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
-            if (includeDependencies && canOptimizePackage(pkgState)) {
+            if (includeDependencies && canDexoptPackage(pkgState)) {
                 for (SharedLibrary library : pkgState.getUsesLibraries()) {
                     maybeEnqueue.accept(library);
                 }
@@ -279,7 +279,7 @@ public class DexOptHelper {
         while ((library = queue.poll()) != null) {
             String packageName = library.getPackageName();
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-            if (canOptimizePackage(pkgState)) {
+            if (canDexoptPackage(pkgState)) {
                 pkgStates.put(packageName, pkgState);
 
                 // Note that `library.getDependencies()` is different from
@@ -318,14 +318,14 @@ public class DexOptHelper {
 
         @NonNull
         PrimaryDexOptimizer getPrimaryDexOptimizer(@NonNull PackageState pkgState,
-                @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+                @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
                 @NonNull CancellationSignal cancellationSignal) {
             return new PrimaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
         @NonNull
         SecondaryDexOptimizer getSecondaryDexOptimizer(@NonNull PackageState pkgState,
-                @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+                @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
                 @NonNull CancellationSignal cancellationSignal) {
             return new SecondaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
         }

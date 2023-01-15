@@ -17,7 +17,7 @@
 package com.android.server.art;
 
 import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
-import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -46,8 +46,8 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.model.ArtFlags;
-import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.art.testing.TestingUtils;
 
 import org.junit.Before;
@@ -92,10 +92,11 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     private final MergeProfileOptions mMergeProfileOptions = new MergeProfileOptions();
 
-    private final DexoptResult mDexoptResult = createDexoptResult(false /* cancelled */);
+    private final ArtdDexoptResult mArtdDexoptResult =
+            createArtdDexoptResult(false /* cancelled */);
 
-    private OptimizeParams mOptimizeParams =
-            new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
+    private DexoptParams mDexoptParams =
+            new DexoptParams.Builder("install").setCompilerFilter("speed-profile").build();
 
     private PrimaryDexOptimizer mPrimaryDexOptimizer;
 
@@ -119,14 +120,14 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         lenient()
                 .when(mArtd.dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(),
                         any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mArtdDexoptResult);
 
         lenient()
                 .when(mArtd.createCancellationSignal())
                 .thenReturn(mock(IArtdCancellationSignal.class));
 
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
         mUsedProfiles = new ArrayList<>();
     }
@@ -137,7 +138,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(dexoptIsNeeded(ArtifactsLocation.NONE_OR_ERROR))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(mDexoptResult)
+        doReturn(mArtdDexoptResult)
                 .when(mArtd)
                 .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), any(),
                         anyInt(), any(), any());
@@ -146,7 +147,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(dexoptIsNeeded(ArtifactsLocation.DALVIK_CACHE))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mDexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(mDexoptResult)
+        doReturn(mArtdDexoptResult)
                 .when(mArtd)
                 .dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
@@ -157,7 +158,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(dexoptIsNeeded(ArtifactsLocation.NEXT_TO_DEX))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(mDexoptResult)
+        doReturn(mArtdDexoptResult)
                 .when(mArtd)
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
@@ -168,7 +169,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(dexoptIsNeeded(ArtifactsLocation.DM))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mSplit0DexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(mDexoptResult)
+        doReturn(mArtdDexoptResult)
                 .when(mArtd)
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(), isNull(), any(),
                         anyInt(), any(), any());
@@ -486,19 +487,19 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         doAnswer(invocation -> {
             verify(artdCancellationSignal).cancel();
-            return createDexoptResult(true /* cancelled */);
+            return createArtdDexoptResult(true /* cancelled */);
         })
                 .when(mArtd)
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
                         same(artdCancellationSignal));
 
         // The result should only contain one element: the result of the first file with
-        // OPTIMIZE_CANCELLED.
+        // DEXOPT_CANCELLED.
         assertThat(mPrimaryDexOptimizer.dexopt()
                            .stream()
-                           .map(DexContainerFileOptimizeResult::getStatus)
+                           .map(DexContainerFileDexoptResult::getStatus)
                            .collect(Collectors.toList()))
-                .containsExactly(OptimizeResult.OPTIMIZE_CANCELLED);
+                .containsExactly(DexoptResult.DEXOPT_CANCELLED);
 
         // It shouldn't continue after being cancelled on the first file.
         verify(mArtd, times(1)).createCancellationSignal();
@@ -519,7 +520,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doAnswer(invocation -> {
             dexoptStarted.release();
             assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
-            return createDexoptResult(true /* cancelled */);
+            return createArtdDexoptResult(true /* cancelled */);
         })
                 .when(mArtd)
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
@@ -531,7 +532,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .when(artdCancellationSignal)
                 .cancel();
 
-        Future<List<DexContainerFileOptimizeResult>> results =
+        Future<List<DexContainerFileDexoptResult>> results =
                 ForkJoinPool.commonPool().submit(() -> { return mPrimaryDexOptimizer.dexopt(); });
 
         assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
@@ -540,9 +541,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         assertThat(results.get()
                            .stream()
-                           .map(DexContainerFileOptimizeResult::getStatus)
+                           .map(DexContainerFileDexoptResult::getStatus)
                            .collect(Collectors.toList()))
-                .containsExactly(OptimizeResult.OPTIMIZE_CANCELLED);
+                .containsExactly(DexoptResult.DEXOPT_CANCELLED);
 
         // It shouldn't continue after being cancelled on the first file.
         verify(mArtd, times(1)).createCancellationSignal();
@@ -553,14 +554,14 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     @Test
     public void testDexoptBaseApk() throws Exception {
-        mOptimizeParams =
-                new OptimizeParams.Builder("install")
+        mDexoptParams =
+                new DexoptParams.Builder("install")
                         .setCompilerFilter("speed-profile")
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                         .setSplitName(null)
                         .build();
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
         mPrimaryDexOptimizer.dexopt();
 
@@ -574,14 +575,14 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     @Test
     public void testDexoptSplitApk() throws Exception {
-        mOptimizeParams =
-                new OptimizeParams.Builder("install")
+        mDexoptParams =
+                new DexoptParams.Builder("install")
                         .setCompilerFilter("speed-profile")
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                         .setSplitName("split_0")
                         .build();
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
         mPrimaryDexOptimizer.dexopt();
 
@@ -597,22 +598,22 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     public void testDexoptStorageLow() throws Exception {
         when(mStorageManager.getAllocatableBytes(any())).thenReturn(1l, 0l, 0l, 1l);
 
-        mOptimizeParams =
-                new OptimizeParams.Builder("install")
+        mDexoptParams =
+                new DexoptParams.Builder("install")
                         .setCompilerFilter("speed-profile")
                         .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SKIP_IF_STORAGE_LOW)
                         .build();
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        List<DexContainerFileOptimizeResult> results = mPrimaryDexOptimizer.dexopt();
-        assertThat(results.get(0).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_PERFORMED);
+        List<DexContainerFileDexoptResult> results = mPrimaryDexOptimizer.dexopt();
+        assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
         assertThat(results.get(0).isSkippedDueToStorageLow()).isFalse();
-        assertThat(results.get(1).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
+        assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
         assertThat(results.get(1).isSkippedDueToStorageLow()).isTrue();
-        assertThat(results.get(2).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
+        assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
         assertThat(results.get(2).isSkippedDueToStorageLow()).isTrue();
-        assertThat(results.get(3).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_PERFORMED);
+        assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
         assertThat(results.get(3).isSkippedDueToStorageLow()).isFalse();
 
         verify(mArtd, times(2))
