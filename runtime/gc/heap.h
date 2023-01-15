@@ -34,6 +34,7 @@
 #include "base/time_utils.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector/iteration.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/collector_type.h"
 #include "gc/gc_cause.h"
 #include "gc/space/large_object_space.h"
@@ -87,7 +88,6 @@ class RememberedSet;
 namespace collector {
 class ConcurrentCopying;
 class GarbageCollector;
-class MarkCompact;
 class MarkSweep;
 class SemiSpace;
 }  // namespace collector
@@ -826,10 +826,14 @@ class Heap {
   }
 
   collector::MarkCompact* MarkCompactCollector() {
+    DCHECK(!gUseUserfaultfd || mark_compact_ != nullptr);
     return mark_compact_;
   }
 
+  bool IsPerformingUffdCompaction() { return gUseUserfaultfd && mark_compact_->IsCompacting(); }
+
   CollectorType CurrentCollectorType() {
+    DCHECK(!gUseUserfaultfd || collector_type_ == kCollectorTypeCMC);
     return collector_type_;
   }
 

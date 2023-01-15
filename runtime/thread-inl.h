@@ -428,7 +428,8 @@ inline bool Thread::ModifySuspendCount(Thread* self,
                                        int delta,
                                        AtomicInteger* suspend_barrier,
                                        SuspendReason reason) {
-  if (delta > 0 && ((gUseReadBarrier && this != self) || suspend_barrier != nullptr)) {
+  if (delta > 0 &&
+      (((gUseUserfaultfd || gUseReadBarrier) && this != self) || suspend_barrier != nullptr)) {
     // When delta > 0 (requesting a suspend), ModifySuspendCountInternal() may fail either if
     // active_suspend_barriers is full or we are in the middle of a thread flip. Retry in a loop.
     while (true) {
