@@ -235,7 +235,7 @@ class Instrumentation {
   void AddListener(InstrumentationListener* listener, uint32_t events)
       REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_);
 
-  // Removes a listener possibly removing instrumentation stubs.
+  // Removes listeners for the specified events.
   void RemoveListener(InstrumentationListener* listener, uint32_t events)
       REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_);
 
@@ -536,34 +536,7 @@ class Instrumentation {
   bool NeedsSlowInterpreterForMethod(Thread* self, ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Called when an instrumented method is entered. The intended link register (lr) is saved so
-  // that returning causes a branch to the method exit stub. Generates method enter events.
-  void PushInstrumentationStackFrame(Thread* self,
-                                     ObjPtr<mirror::Object> this_object,
-                                     ArtMethod* method,
-                                     uintptr_t stack_pointer,
-                                     uintptr_t lr,
-                                     bool interpreter_entry)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   DeoptimizationMethodType GetDeoptimizationMethodType(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Called when an instrumented method is exited. Removes the pushed instrumentation frame
-  // returning the intended link register. Generates method exit events. The gpr_result and
-  // fpr_result pointers are pointers to the locations where the integer/pointer and floating point
-  // result values of the function are stored. Both pointers must always be valid but the values
-  // held there will only be meaningful if interpreted as the appropriate type given the function
-  // being returned from.
-  TwoWordReturn PopInstrumentationStackFrame(Thread* self,
-                                             uintptr_t* return_pc_addr,
-                                             uint64_t* gpr_result,
-                                             uint64_t* fpr_result)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Pops instrumentation frames until the specified stack_pointer from the current thread. Returns
-  // the return pc for the last instrumentation frame that's popped.
-  uintptr_t PopInstrumentationStackUntil(Thread* self, uintptr_t stack_pointer) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Call back for configure stubs.
@@ -675,11 +648,6 @@ class Instrumentation {
   void UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // A counter that's incremented every time a DeoptimizeAllFrames. We check each
-  // InstrumentationStackFrames creation id against this number and if they differ we deopt even if
-  // we could otherwise continue running.
-  uint64_t current_force_deopt_id_ GUARDED_BY(Locks::mutator_lock_);
-
   // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;
 
@@ -778,29 +746,6 @@ class Instrumentation {
 };
 std::ostream& operator<<(std::ostream& os, Instrumentation::InstrumentationEvent rhs);
 std::ostream& operator<<(std::ostream& os, Instrumentation::InstrumentationLevel rhs);
-
-// An element in the instrumentation side stack maintained in art::Thread.
-struct InstrumentationStackFrame {
-  InstrumentationStackFrame(mirror::Object* this_object,
-                            ArtMethod* method,
-                            uintptr_t return_pc,
-                            bool interpreter_entry,
-                            uint64_t force_deopt_id)
-      : this_object_(this_object),
-        method_(method),
-        return_pc_(return_pc),
-        interpreter_entry_(interpreter_entry),
-        force_deopt_id_(force_deopt_id) {
-  }
-
-  std::string Dump() const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  mirror::Object* this_object_;
-  ArtMethod* method_;
-  uintptr_t return_pc_;
-  bool interpreter_entry_;
-  uint64_t force_deopt_id_;
-};
 
 }  // namespace instrumentation
 }  // namespace art
