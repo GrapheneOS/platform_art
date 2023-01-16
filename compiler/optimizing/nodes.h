@@ -811,14 +811,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   size_t temporaries_vreg_slots_;
 
   // Flag whether there are bounds checks in the graph. We can skip
-  // BCE if it's false. It's only best effort to keep it up to date in
-  // the presence of code elimination so there might be false positives.
+  // BCE if it's false.
   bool has_bounds_checks_;
 
   // Flag whether there are try/catch blocks in the graph. We will skip
-  // try/catch-related passes if it's false. It's only best effort to keep
-  // it up to date in the presence of code elimination so there might be
-  // false positives.
+  // try/catch-related passes if it's false.
   bool has_try_catch_;
 
   // Flag whether there are any HMonitorOperation in the graph. If yes this will mandate
@@ -831,14 +828,10 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool has_simd_;
 
   // Flag whether there are any loops in the graph. We can skip loop
-  // optimization if it's false. It's only best effort to keep it up
-  // to date in the presence of code elimination so there might be false
-  // positives.
+  // optimization if it's false.
   bool has_loops_;
 
-  // Flag whether there are any irreducible loops in the graph. It's only
-  // best effort to keep it up to date in the presence of code elimination
-  // so there might be false positives.
+  // Flag whether there are any irreducible loops in the graph.
   bool has_irreducible_loops_;
 
   // Flag whether there are any direct calls to native code registered
@@ -4741,7 +4734,7 @@ class HInvoke : public HVariableInputSizeInstruction {
 
   void SetAlwaysThrows(bool always_throws) { SetPackedFlag<kFlagAlwaysThrows>(always_throws); }
 
-  bool AlwaysThrows() const override { return GetPackedFlag<kFlagAlwaysThrows>(); }
+  bool AlwaysThrows() const override final { return GetPackedFlag<kFlagAlwaysThrows>(); }
 
   bool CanBeMoved() const override { return IsIntrinsic() && !DoesAnyWrite(); }
 

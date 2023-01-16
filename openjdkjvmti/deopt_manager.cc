@@ -496,15 +496,6 @@ void DeoptManager::AddDeoptimizationRequester() {
   art::ScopedThreadStateChange stsc(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   deopter_count_++;
-  if (deopter_count_ == 1) {
-    // When we add a deoptimization requester, we should enable entry / exit hooks. We only call
-    // this in debuggable runtimes and hence it won't be necessary to update entrypoints but we
-    // still need to inform instrumentation that we need to actually run entry / exit hooks. Though
-    // entrypoints are capable of running entry / exit hooks they won't run them unless enabled.
-    ScopedDeoptimizationContext sdc(self, this);
-    art::Runtime::Current()->GetInstrumentation()->EnableEntryExitHooks(kInstrumentationKey);
-    return;
-  }
   deoptimization_status_lock_.ExclusiveUnlock(self);
 }
 
