@@ -1195,11 +1195,6 @@ void ClassLinker::RunRootClinits(Thread* self) {
   for (ArtField* field : static_fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
-
-  // This invariant is important since otherwise we will have the entire proxy invoke system
-  // confused.
-  DCHECK_NE(WellKnownClasses::java_lang_reflect_Proxy_init->GetEntryPointFromQuickCompiledCode(),
-            GetQuickInstrumentationEntryPoint());
 }
 
 ALWAYS_INLINE

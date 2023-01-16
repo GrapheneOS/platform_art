@@ -53,8 +53,6 @@ QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimizatio
     : self_(self),
       context_(self->GetLongJumpContext()),
       is_deoptimization_(is_deoptimization),
-      method_tracing_active_(is_deoptimization ||
-                             Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
       handler_quick_frame_(nullptr),
       handler_quick_frame_pc_(0),
       handler_method_header_(nullptr),
@@ -253,8 +251,6 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception,
                                                         exception_ref);
   } while (!popped_to_top);
 
-  // Pop off frames on instrumentation stack to keep it in sync with what is on the stack.
-  instr->PopInstrumentationStackUntil(self_, reinterpret_cast<uintptr_t>(handler_quick_frame_));
   if (!clear_exception_) {
     // Put exception back in root set with clear throw location.
     self_->SetException(exception_ref.Get());
@@ -722,21 +718,8 @@ void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
   PrepareForLongJumpToInvokeStubOrInterpreterBridge();
 }
 
-void QuickExceptionHandler::DeoptimizePartialFragmentFixup(uintptr_t return_pc) {
-  // At this point, the instrumentation stack has been updated. We need to install
-  // the real return pc on stack, in case instrumentation stub is stored there,
-  // so that the interpreter bridge code can return to the right place. JITed
-  // frames in Java debuggable runtimes may not have an instrumentation stub, so
-  // update the PC only when required.
-  uintptr_t* pc_addr = reinterpret_cast<uintptr_t*>(handler_quick_frame_);
-  CHECK(pc_addr != nullptr);
-  pc_addr--;
-  if (return_pc != 0 &&
-      (*reinterpret_cast<uintptr_t*>(pc_addr)) ==
-          reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
-    *reinterpret_cast<uintptr_t*>(pc_addr) = return_pc;
-  }
-
+void QuickExceptionHandler::DeoptimizePartialFragmentFixup() {
+  CHECK(handler_quick_frame_ != nullptr);
   // Architecture-dependent work. This is to get the LR right for x86 and x86-64.
   if (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64) {
     // On x86, the return address is on the stack, so just reuse it. Otherwise we would have to
@@ -744,17 +727,6 @@ void QuickExceptionHandler::DeoptimizePartialFragmentFixup(uintptr_t return_pc) 
     handler_quick_frame_ = reinterpret_cast<ArtMethod**>(
         reinterpret_cast<uintptr_t>(handler_quick_frame_) - sizeof(void*));
   }
-}
-
-uintptr_t QuickExceptionHandler::UpdateInstrumentationStack() {
-  DCHECK(is_deoptimization_) << "Non-deoptimization handlers should use FindCatch";
-  uintptr_t return_pc = 0;
-  if (method_tracing_active_) {
-    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-    return_pc = instrumentation->PopInstrumentationStackUntil(
-        self_, reinterpret_cast<uintptr_t>(handler_quick_frame_));
-  }
-  return return_pc;
 }
 
 void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
