@@ -21,6 +21,7 @@
 #include <string_view>
 
 #include "base/atomic.h"
+#include "base/casts.h"
 #include "base/locks.h"  // For Locks::mutator_lock_.
 #include "heap_poisoning.h"
 #include "obj_ptr.h"
@@ -95,14 +96,14 @@ class PtrCompression {
  public:
   // Compress reference to its bit representation.
   static uint32_t Compress(MirrorType* mirror_ptr) {
-    uintptr_t as_bits = reinterpret_cast<uintptr_t>(mirror_ptr);
-    return static_cast<uint32_t>(kPoisonReferences ? -as_bits : as_bits);
+    uint32_t as_bits = reinterpret_cast32<uint32_t>(mirror_ptr);
+    return kPoisonReferences ? -as_bits : as_bits;
   }
 
   // Uncompress an encoded reference from its bit representation.
   static MirrorType* Decompress(uint32_t ref) {
-    uintptr_t as_bits = kPoisonReferences ? -ref : ref;
-    return reinterpret_cast<MirrorType*>(as_bits);
+    uint32_t as_bits = kPoisonReferences ? -ref : ref;
+    return reinterpret_cast32<MirrorType*>(as_bits);
   }
 
   // Convert an ObjPtr to a compressed reference.
@@ -142,10 +143,6 @@ class MANAGED ObjectReference {
 
   bool IsNull() const {
     return reference_ == 0;
-  }
-
-  uint32_t AsVRegValue() const {
-    return reference_;
   }
 
   static ObjectReference<kPoisonReferences, MirrorType> FromMirrorPtr(MirrorType* mirror_ptr)
@@ -230,9 +227,19 @@ class MANAGED CompressedReference : public mirror::ObjectReference<false, Mirror
     return CompressedReference<MirrorType>(p);
   }
 
+  static CompressedReference<MirrorType> FromVRegValue(uint32_t vreg_value) {
+    CompressedReference<MirrorType> result(nullptr);
+    result.reference_ = vreg_value;
+    return result;
+  }
+
+  uint32_t AsVRegValue() const {
+    return this->reference_;
+  }
+
  private:
   explicit CompressedReference(MirrorType* p) REQUIRES_SHARED(Locks::mutator_lock_)
-      : mirror::ObjectReference<false, MirrorType>(p) {}
+      : ObjectReference<false, MirrorType>(p) {}
 };
 
 }  // namespace mirror
