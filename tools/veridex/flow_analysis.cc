@@ -540,7 +540,7 @@ void VeriFlowAnalysis::ProcessDexInstruction(const Instruction& instruction) {
     case Instruction::FILLED_NEW_ARRAY: {
       dex::TypeIndex type_index(instruction.VRegB_35c());
       VeriClass* cls = resolver_->GetVeriClass(type_index);
-      UpdateRegister(instruction.VRegA_22c(), cls);
+      UpdateRegister(instruction.VRegA_35c(), cls);
       break;
     }
 
@@ -602,7 +602,7 @@ void VeriFlowAnalysis::ProcessDexInstruction(const Instruction& instruction) {
       if (VeriClass::sdkInt_ != nullptr && resolver_->GetField(field_index) == VeriClass::sdkInt_) {
         UpdateRegister(dest_reg, gTargetSdkVersion, VeriClass::integer_);
       } else {
-        UpdateRegister(dest_reg, GetFieldType(instruction.VRegC_22c()));
+        UpdateRegister(dest_reg, GetFieldType(field_index));
       }
       break;
     }
