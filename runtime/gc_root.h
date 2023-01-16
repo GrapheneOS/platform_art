@@ -215,6 +215,8 @@ class GcRoot {
   }
 
   ALWAYS_INLINE GcRoot() {}
+  explicit ALWAYS_INLINE GcRoot(mirror::CompressedReference<mirror::Object> ref)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   explicit ALWAYS_INLINE GcRoot(MirrorType* ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
   explicit ALWAYS_INLINE GcRoot(ObjPtr<MirrorType> ref)
