@@ -223,8 +223,11 @@ static bool CodeSupportsEntryExitHooks(const void* entry_point, ArtMethod* metho
     return false;
   }
 
-  // Code running in the interpreter doesn't need entry/exit stubs.
-  if (Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(entry_point)) {
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  // Interpreter supports entry / exit hooks. Resolution stubs fetch code that supports entry / exit
+  // hooks when required. So return true for both cases.
+  if (linker->IsQuickToInterpreterBridge(entry_point) ||
+      linker->IsQuickResolutionStub(entry_point)) {
     return true;
   }
 
@@ -238,7 +241,7 @@ static bool CodeSupportsEntryExitHooks(const void* entry_point, ArtMethod* metho
   }
 
   // GenericJni trampoline can handle entry / exit hooks.
-  if (Runtime::Current()->GetClassLinker()->IsQuickGenericJniStub(entry_point)) {
+  if (linker->IsQuickGenericJniStub(entry_point)) {
     return true;
   }
 
@@ -879,6 +882,11 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
 
 void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_level) {
   instrumentation_level_ = requested_level;
+}
+
+void Instrumentation::EnableEntryExitHooks(const char* key) {
+  DCHECK(Runtime::Current()->IsJavaDebuggable());
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
 }
 
 void Instrumentation::MaybeRestoreInstrumentationStack() {
