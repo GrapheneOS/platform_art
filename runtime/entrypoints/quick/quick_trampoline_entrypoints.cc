@@ -2079,68 +2079,6 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
   return GenericJniMethodEnd(self, cookie, result, result_f, called);
 }
 
-// Fast path method resolution that can't throw exceptions.
-template <InvokeType type>
-inline ArtMethod* FindMethodFast(uint32_t method_idx,
-                                 ObjPtr<mirror::Object> this_object,
-                                 ArtMethod* referrer)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  if (UNLIKELY(this_object == nullptr && type != kStatic)) {
-    return nullptr;
-  }
-  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
-  constexpr ClassLinker::ResolveMode resolve_mode = ClassLinker::ResolveMode::kCheckICCEAndIAE;
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  ArtMethod* resolved_method = linker->GetResolvedMethod<type, resolve_mode>(method_idx, referrer);
-  if (UNLIKELY(resolved_method == nullptr)) {
-    return nullptr;
-  }
-  if (type == kInterface) {  // Most common form of slow path dispatch.
-    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method,
-                                                                  kRuntimePointerSize);
-  }
-  if (type == kStatic || type == kDirect) {
-    return resolved_method;
-  }
-
-  if (type == kSuper) {
-    // TODO This lookup is rather slow.
-    dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    ObjPtr<mirror::Class> method_reference_class = linker->LookupResolvedType(
-        method_type_idx, dex_cache, referrer->GetClassLoader());
-    if (method_reference_class == nullptr) {
-      // Need to do full type resolution...
-      return nullptr;
-    }
-
-    // If the referring class is in the class hierarchy of the
-    // referenced class in the bytecode, we use its super class. Otherwise, we cannot
-    // resolve the method.
-    if (!method_reference_class->IsAssignableFrom(referring_class)) {
-      return nullptr;
-    }
-
-    if (method_reference_class->IsInterface()) {
-      return method_reference_class->FindVirtualMethodForInterfaceSuper(
-          resolved_method, kRuntimePointerSize);
-    }
-
-    ObjPtr<mirror::Class> super_class = referring_class->GetSuperClass();
-    if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
-      // The super class does not have the method.
-      return nullptr;
-    }
-    return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), kRuntimePointerSize);
-  }
-
-  DCHECK(type == kVirtual);
-  return this_object->GetClass()->GetVTableEntry(
-      resolved_method->GetMethodIndex(), kRuntimePointerSize);
-}
-
 // We use TwoWordReturn to optimize scalar returns. We use the hi value for code, and the lo value
 // for the method pointer.
 //
@@ -2155,8 +2093,19 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs));
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
-  ArtMethod* method = FindMethodFast<type>(method_idx, this_object, caller_method);
+  uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
+  CodeItemInstructionAccessor accessor(caller_method->DexInstructions());
+  DCHECK_LT(dex_pc, accessor.InsnsSizeInCodeUnits());
+  const Instruction& instr = accessor.InstructionAt(dex_pc);
+  bool string_init = false;
+  ArtMethod* method = FindMethodToCall<type>(
+      self, caller_method, &this_object, instr, /* only_lookup_tls_cache= */ true, &string_init);
+
   if (UNLIKELY(method == nullptr)) {
+    if (self->IsExceptionPending()) {
+      // Return a failure if the first lookup threw an exception.
+      return GetTwoWordFailureValue();  // Failure.
+    }
     const DexFile* dex_file = caller_method->GetDexFile();
     uint32_t shorty_len;
     const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
@@ -2166,12 +2115,12 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
 
-      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-      CodeItemInstructionAccessor accessor(caller_method->DexInstructions());
-      CHECK_LT(dex_pc, accessor.InsnsSizeInCodeUnits());
-      const Instruction& instr = accessor.InstructionAt(dex_pc);
-      bool string_init = false;
-      method = FindMethodToCall<type>(self, caller_method, &this_object, instr, &string_init);
+      method = FindMethodToCall<type>(self,
+                                      caller_method,
+                                      &this_object,
+                                      instr,
+                                      /* only_lookup_tls_cache= */ false,
+                                      &string_init);
 
       visitor.FixupReferences();
     }

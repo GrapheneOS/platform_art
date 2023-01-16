@@ -239,7 +239,8 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
   ObjPtr<mirror::Object> obj = type == kStatic ? nullptr : shadow_frame.GetVRegReference(vregC);
   ArtMethod* sf_method = shadow_frame.GetMethod();
   bool string_init = false;
-  ArtMethod* called_method = FindMethodToCall<type>(self, sf_method, &obj, *inst, &string_init);
+  ArtMethod* called_method = FindMethodToCall<type>(
+      self, sf_method, &obj, *inst, /* only_lookup_tls_cache= */ false, &string_init);
   if (called_method == nullptr) {
     DCHECK(self->IsExceptionPending());
     result->SetJ(0);

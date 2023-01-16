@@ -148,6 +148,7 @@ inline ArtMethod* FindMethodToCall(Thread* self,
                                    ArtMethod* referrer,
                                    ObjPtr<mirror::Object>* this_object,
                                    const Instruction& inst,
+                                   bool only_lookup_tls_cache,
                                    /*out*/ bool* string_init)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);

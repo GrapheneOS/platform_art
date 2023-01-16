@@ -519,6 +519,7 @@ ArtMethod* FindMethodToCall(Thread* self,
                             ArtMethod* caller,
                             ObjPtr<mirror::Object>* this_object,
                             const Instruction& inst,
+                            bool only_lookup_tls_cache,
                             /*out*/ bool* string_init)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
@@ -526,6 +527,9 @@ ArtMethod* FindMethodToCall(Thread* self,
   // Try to find the method in thread-local cache.
   size_t tls_value = 0u;
   if (!self->GetInterpreterCache()->Get(self, &inst, &tls_value)) {
+    if (only_lookup_tls_cache) {
+      return nullptr;
+    }
     DCHECK(!self->IsExceptionPending());
     // NterpGetMethod can suspend, so save this_object.
     StackHandleScope<1> hs(self);
