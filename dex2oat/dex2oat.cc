@@ -788,9 +788,12 @@ class Dex2Oat final {
       compiler_options_->multi_image_ = IsBootImage() || IsBootImageExtension();
     }
     // On target we support generating a single image for the primary boot image.
-    if (!kIsTargetBuild) {
+    if (!kIsTargetBuild && !force_allow_oj_inlines_) {
       if (IsBootImage() && !compiler_options_->multi_image_) {
-        Usage("--single-image specified for primary boot image on host");
+        Usage(
+            "--single-image specified for primary boot image on host. Please "
+            "use the flag --force-allow-oj-inlines and do not distribute "
+            "binaries.");
       }
     }
     if (IsAppImage() && compiler_options_->multi_image_) {
