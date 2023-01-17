@@ -3911,8 +3911,14 @@ void Thread::QuickDeliverException(bool skip_method_exit_callbacks) {
   // Note: we do this *after* reporting the exception to instrumentation in case it now requires
   // deoptimization. It may happen if a debugger is attached and requests new events (single-step,
   // breakpoint, ...) when the exception is reported.
-  //
-    if (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter()) {
+  // Frame pop can be requested on a method unwind callback which requires a deopt. We could
+  // potentially check after each unwind callback to see if a frame pop was requested and deopt if
+  // needed. Since this is a debug only feature and this path is only taken when an exception is
+  // thrown, it is not performance critical and we keep it simple by just deopting if method exit
+  // listeners are installed and frame pop feature is supported.
+  bool needs_deopt =
+      instrumentation->HasMethodExitListeners() && Runtime::Current()->AreNonStandardExitsEnabled();
+  if (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter() || needs_deopt) {
     NthCallerVisitor visitor(this, 0, false);
     visitor.WalkStack();
     if (visitor.GetCurrentQuickFrame() != nullptr) {
