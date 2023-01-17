@@ -913,7 +913,6 @@ void ForkAndRun(art::Thread* self,
   std::optional<art::gc::ScopedGCCriticalSection> gcs(std::in_place, self, art::gc::kGcCauseHprof,
                                                       art::gc::kCollectorTypeHprof);
 
-  DCHECK(self->IsSuspended());
   std::optional<art::ScopedSuspendAll> ssa(std::in_place, __FUNCTION__, /* long_suspend=*/ true);
 
   pid_t pid = fork();
