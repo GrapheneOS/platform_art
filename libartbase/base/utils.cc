@@ -42,8 +42,6 @@
 #endif
 
 #if defined(__BIONIC__)
-// membarrier(2) is only supported for target builds (b/111199492).
-#include <linux/membarrier.h>
 #include <sys/syscall.h>
 #endif
 
