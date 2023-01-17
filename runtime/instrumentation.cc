@@ -108,7 +108,7 @@ class InstallStubsClassVisitor : public ClassVisitor {
 };
 
 Instrumentation::Instrumentation()
-    : instrumentation_stubs_installed_(false),
+    : run_exit_hooks_(false),
       instrumentation_level_(InstrumentationLevel::kInstrumentNothing),
       forced_interpret_only_(false),
       have_method_entry_listeners_(false),
@@ -122,8 +122,7 @@ Instrumentation::Instrumentation()
       have_branch_listeners_(false),
       have_exception_handled_listeners_(false),
       quick_alloc_entry_points_instrumentation_counter_(0),
-      alloc_entrypoints_instrumented_(false) {
-}
+      alloc_entrypoints_instrumented_(false) {}
 
 bool Instrumentation::ProcessMethodUnwindCallbacks(Thread* self,
                                                    std::queue<ArtMethod*>& methods,
@@ -617,8 +616,16 @@ void UpdateNeedsDexPcEventsOnStack(Thread* thread) REQUIRES(Locks::mutator_lock_
 }
 
 void Instrumentation::InstrumentThreadStack(Thread* thread, bool force_deopt) {
-  instrumentation_stubs_installed_ = true;
+  run_exit_hooks_ = true;
   InstrumentationInstallStack(thread, this, force_deopt);
+}
+
+void Instrumentation::InstrumentAllThreadStacks(bool force_deopt) {
+  run_exit_hooks_ = true;
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
+    InstrumentThreadStack(thread, force_deopt);
+  }
 }
 
 // Removes the instrumentation exit pc as the return PC for every quick frame.
@@ -677,13 +684,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
 }
 
 void Instrumentation::DeoptimizeAllThreadFrames() {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, *Locks::thread_list_lock_);
-  ThreadList* tl = Runtime::Current()->GetThreadList();
-  tl->ForEach([&](Thread* t) {
-    Locks::mutator_lock_->AssertExclusiveHeld(self);
-    InstrumentThreadStack(t, /* deopt_all_frames= */ true);
-  });
+  InstrumentAllThreadStacks(/* force_deopt= */ true);
 }
 
 static bool HasEvent(Instrumentation::InstrumentationEvent expected, uint32_t events) {
@@ -886,7 +887,7 @@ void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_
 
 void Instrumentation::EnableEntryExitHooks(const char* key) {
   DCHECK(Runtime::Current()->IsJavaDebuggable());
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithEntryExitHooks);
 }
 
 void Instrumentation::MaybeRestoreInstrumentationStack() {
@@ -912,9 +913,7 @@ void Instrumentation::MaybeRestoreInstrumentationStack() {
   });
   if (no_remaining_deopts) {
     Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
-    // Only do this after restoring, as walking the stack when restoring will see
-    // the instrumentation exit pc.
-    instrumentation_stubs_installed_ = false;
+    run_exit_hooks_ = false;
   }
 }
 
@@ -937,11 +936,7 @@ void Instrumentation::UpdateStubs() {
   InstallStubsClassVisitor visitor(this);
   runtime->GetClassLinker()->VisitClasses(&visitor);
   if (requested_level > InstrumentationLevel::kInstrumentNothing) {
-    instrumentation_stubs_installed_ = true;
-    MutexLock mu(self, *Locks::thread_list_lock_);
-    for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
-      InstrumentThreadStack(thread, /* deopt_all_frames= */ false);
-    }
+    InstrumentAllThreadStacks(/* force_deopt= */ false);
   } else {
     MaybeRestoreInstrumentationStack();
   }
@@ -1037,7 +1032,7 @@ std::string Instrumentation::EntryPointString(const void* code) {
 }
 
 void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code) {
-  if (!AreExitStubsInstalled()) {
+  if (!EntryExitStubsInstalled()) {
     // Fast path: no instrumentation.
     DCHECK(!IsDeoptimized(method));
     UpdateEntryPoints(method, new_code);
@@ -1115,7 +1110,6 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
   CHECK(!method->IsProxyMethod());
   CHECK(method->IsInvokable());
 
-  Thread* self = Thread::Current();
   {
     Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
     bool has_not_been_deoptimized = AddDeoptimizedMethod(method);
@@ -1125,16 +1119,10 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
   if (!InterpreterStubsInstalled()) {
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
 
-    // Install instrumentation exit stub and instrumentation frames. We may already have installed
-    // these previously so it will only cover the newly created frames.
-    instrumentation_stubs_installed_ = true;
-    MutexLock mu(self, *Locks::thread_list_lock_);
-    for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
-      // This isn't a strong deopt. We deopt this method if it is still in the
-      // deopt methods list. If by the time we hit this frame we no longer need
-      // a deopt it is safe to continue. So we don't mark the frame.
-      InstrumentThreadStack(thread, /* deopt_all_frames= */ false);
-    }
+    // Instrument thread stacks to request a check if the caller needs a deoptimization.
+    // This isn't a strong deopt. We deopt this method if it is still in the deopt methods list.
+    // If by the time we hit this frame we no longer need a deopt it is safe to continue.
+    InstrumentAllThreadStacks(/* force_deopt= */ false);
   }
 }
 
@@ -1228,7 +1216,7 @@ void Instrumentation::EnableMethodTracing(const char* key, bool needs_interprete
   if (needs_interpreter) {
     level = InstrumentationLevel::kInstrumentWithInterpreter;
   } else {
-    level = InstrumentationLevel::kInstrumentWithInstrumentationStubs;
+    level = InstrumentationLevel::kInstrumentWithEntryExitHooks;
   }
   ConfigureStubs(key, level);
 }
@@ -1533,12 +1521,9 @@ bool Instrumentation::NeedsSlowInterpreterForMethod(Thread* self, ArtMethod* met
 }
 
 bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp) {
-  // When exit stubs aren't installed we don't need to check for any instrumentation related
+  // When exit stubs aren't called we don't need to check for any instrumentation related
   // deoptimizations.
-  // TODO(mythria): Once we remove instrumentation stubs rename AreExitStubsInstalled. This is
-  // used to check if any instrumentation related work needs to be done. For ex: calling method
-  // entry / exit hooks, checking for instrumentation related deopts in suspend points
-  if (!AreExitStubsInstalled()) {
+  if (!RunExitHooks()) {
     return false;
   }
 

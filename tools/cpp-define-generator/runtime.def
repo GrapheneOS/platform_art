@@ -31,6 +31,6 @@ ASM_DEFINE(RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET,
 ASM_DEFINE(RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET,
            art::Runtime::GetCalleeSaveMethodOffset(art::CalleeSaveType::kSaveRefsOnly))
 ASM_DEFINE(RUNTIME_INSTRUMENTATION_OFFSET, art::Runtime::GetInstrumentationOffset().Int32Value())
-ASM_DEFINE(INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE,
+ASM_DEFINE(RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE,
            art::Runtime::GetInstrumentationOffset().Int32Value() +
-           art::instrumentation::Instrumentation::NeedsExitHooksOffset().Int32Value())
+           art::instrumentation::Instrumentation::RunExitHooksOffset().Int32Value())

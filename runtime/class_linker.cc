@@ -3387,7 +3387,7 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
   // classes. However it could not update methods of this class while we
   // were loading it. Now the class is resolved, we can update entrypoints
   // as required by instrumentation.
-  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+  if (Runtime::Current()->GetInstrumentation()->EntryExitStubsInstalled()) {
     // We must be in the kRunnable state to prevent instrumentation from
     // suspending all threads to update entrypoints while we are doing it
     // for this class.
