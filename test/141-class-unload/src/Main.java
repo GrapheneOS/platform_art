@@ -20,6 +20,8 @@ import java.io.FileReader;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.function.Consumer;
 
 public class Main {
     static final String DEX_FILE = System.getenv("DEX_LOCATION") + "/141-class-unload-ex.jar";
@@ -49,6 +51,14 @@ public class Main {
             testOatFilesUnloaded(getPid());
             // Test that objects keep class loader live for sticky GC.
             testStickyUnload(constructor);
+            // Test that copied methods recorded in a stack trace prevents unloading.
+            testCopiedMethodInStackTrace(constructor);
+            // Test that code preventing unloading holder classes of copied methods recorded in
+            // a stack trace does not crash when processing a copied method in the boot class path.
+            testCopiedBcpMethodInStackTrace();
+            // Test that code preventing unloading holder classes of copied methods recorded in
+            // a stack trace does not crash when processing a copied method in an app image.
+            testCopiedAppImageMethodInStackTrace();
         } catch (Exception e) {
             e.printStackTrace(System.out);
         }
@@ -103,13 +113,12 @@ public class Main {
         System.out.println(klass2.get());
     }
 
-    private static void testUnloadLoader(Constructor<?> constructor)
-        throws Exception {
-      WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
-      // No strong references to class loader, should get unloaded.
-      doUnloading();
-      // If the weak reference is cleared, then it was unloaded.
-      System.out.println(loader.get());
+    private static void testUnloadLoader(Constructor<?> constructor) throws Exception {
+        WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
+        // No strong references to class loader, should get unloaded.
+        doUnloading();
+        // If the weak reference is cleared, then it was unloaded.
+        System.out.println(loader.get());
     }
 
     private static void testStackTrace(Constructor<?> constructor) throws Exception {
@@ -138,20 +147,20 @@ public class Main {
     }
 
     static class Pair {
-      public Pair(Object o, ClassLoader l) {
-        object = o;
-        classLoader = new WeakReference<ClassLoader>(l);
-      }
+        public Pair(Object o, ClassLoader l) {
+            object = o;
+            classLoader = new WeakReference<ClassLoader>(l);
+        }
 
-      public Object object;
-      public WeakReference<ClassLoader> classLoader;
+        public Object object;
+        public WeakReference<ClassLoader> classLoader;
     }
 
     // Make the method not inline-able to prevent the compiler optimizing away the allocation.
     private static Pair $noinline$testNoUnloadInstanceHelper(Constructor<?> constructor)
             throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
-            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
+                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Object o = testNoUnloadHelper(loader);
         return new Pair(o, loader);
     }
@@ -165,7 +174,7 @@ public class Main {
 
     private static Class<?> setUpUnloadClass(Constructor<?> constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
-            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
+                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Class<?> intHolder = loader.loadClass("IntHolder");
         Method getValue = intHolder.getDeclaredMethod("getValue");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
@@ -200,6 +209,75 @@ public class Main {
             o = null;
         }
         System.out.println("Too small " + (s.length() < 1000));
+    }
+
+    private static void assertStackTraceContains(Throwable t, String className, String methodName) {
+        boolean found = false;
+        for (StackTraceElement e : t.getStackTrace()) {
+            if (className.equals(e.getClassName()) && methodName.equals(e.getMethodName())) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            throw new Error("Did not find " + className + "." + methodName);
+        }
+    }
+
+    private static void testCopiedMethodInStackTrace(Constructor<?> constructor) throws Exception {
+        Throwable t = $noinline$createStackTraceWithCopiedMethod(constructor);
+        doUnloading();
+        assertStackTraceContains(t, "Iface", "invokeRun");
+    }
+
+    private static Throwable $noinline$createStackTraceWithCopiedMethod(Constructor<?> constructor)
+            throws Exception {
+      ClassLoader loader = (ClassLoader) constructor.newInstance(
+              DEX_FILE, LIBRARY_SEARCH_PATH, Main.class.getClassLoader());
+      Iface impl = (Iface) loader.loadClass("Impl").newInstance();
+      Runnable throwingRunnable = new Runnable() {
+          public void run() {
+              throw new Error();
+          }
+      };
+      try {
+          impl.invokeRun(throwingRunnable);
+          System.out.println("UNREACHABLE");
+          return null;
+      } catch (Error expected) {
+          return expected;
+      }
+    }
+
+    private static void testCopiedBcpMethodInStackTrace() {
+        Consumer<Object> consumer = new Consumer<Object>() {
+            public void accept(Object o) {
+                throw new Error();
+            }
+        };
+        Error err = null;
+        try {
+            Arrays.asList(new Object[] { new Object() }).iterator().forEachRemaining(consumer);
+        } catch (Error expected) {
+            err = expected;
+        }
+        assertStackTraceContains(err, "Main", "testCopiedBcpMethodInStackTrace");
+    }
+
+    private static void testCopiedAppImageMethodInStackTrace() throws Exception {
+        Iface limpl = (Iface) Class.forName("Impl2").newInstance();
+        Runnable throwingRunnable = new Runnable() {
+            public void run() {
+                throw new Error();
+            }
+        };
+        Error err = null;
+        try {
+            limpl.invokeRun(throwingRunnable);
+        } catch (Error expected) {
+            err = expected;
+        }
+        assertStackTraceContains(err, "Main", "testCopiedAppImageMethodInStackTrace");
     }
 
     private static WeakReference<Class> setUpUnloadClassWeak(Constructor<?> constructor)
@@ -242,7 +320,7 @@ public class Main {
     }
 
     private static int getPid() throws Exception {
-      return Integer.parseInt(new File("/proc/self").getCanonicalFile().getName());
+        return Integer.parseInt(new File("/proc/self").getCanonicalFile().getName());
     }
 
     public static native void stopJit();
