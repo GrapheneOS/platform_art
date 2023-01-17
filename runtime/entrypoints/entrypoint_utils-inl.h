@@ -289,7 +289,6 @@ inline ObjPtr<mirror::Object> AllocObjectFromCodeInitialized(ObjPtr<mirror::Clas
 }
 
 
-template <bool kAccessCheck>
 ALWAYS_INLINE
 inline ObjPtr<mirror::Class> CheckArrayAlloc(dex::TypeIndex type_idx,
                                              int32_t component_count,
@@ -311,7 +310,7 @@ inline ObjPtr<mirror::Class> CheckArrayAlloc(dex::TypeIndex type_idx,
     }
     CHECK(klass->IsArrayClass()) << klass->PrettyClass();
   }
-  if (kAccessCheck) {
+  if (!method->SkipAccessChecks()) {
     ObjPtr<mirror::Class> referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
@@ -326,7 +325,7 @@ inline ObjPtr<mirror::Class> CheckArrayAlloc(dex::TypeIndex type_idx,
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-template <bool kAccessCheck, bool kInstrumented>
+template <bool kInstrumented>
 ALWAYS_INLINE
 inline ObjPtr<mirror::Array> AllocArrayFromCode(dex::TypeIndex type_idx,
                                                 int32_t component_count,
@@ -334,8 +333,7 @@ inline ObjPtr<mirror::Array> AllocArrayFromCode(dex::TypeIndex type_idx,
                                                 Thread* self,
                                                 gc::AllocatorType allocator_type) {
   bool slow_path = false;
-  ObjPtr<mirror::Class> klass =
-      CheckArrayAlloc<kAccessCheck>(type_idx, component_count, method, &slow_path);
+  ObjPtr<mirror::Class> klass = CheckArrayAlloc(type_idx, component_count, method, &slow_path);
   if (UNLIKELY(slow_path)) {
     if (klass == nullptr) {
       return nullptr;

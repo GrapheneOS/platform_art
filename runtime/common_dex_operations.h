@@ -175,7 +175,7 @@ static ALWAYS_INLINE bool DoFieldGetCommon(Thread* self,
   return true;
 }
 
-template<Primitive::Type field_type, bool do_assignability_check, bool transaction_active>
+template<Primitive::Type field_type, bool transaction_active>
 ALWAYS_INLINE bool DoFieldPutCommon(Thread* self,
                                     const ShadowFrame& shadow_frame,
                                     ObjPtr<mirror::Object> obj,
@@ -236,7 +236,7 @@ ALWAYS_INLINE bool DoFieldPutCommon(Thread* self,
       break;
     case Primitive::kPrimNot: {
       ObjPtr<mirror::Object> reg = value.GetL();
-      if (do_assignability_check && reg != nullptr) {
+      if (reg != nullptr && !shadow_frame.GetMethod()->SkipAccessChecks()) {
         // FieldHelper::GetType can resolve classes, use a handle wrapper which will restore the
         // object in the destructor.
         ObjPtr<mirror::Class> field_class;

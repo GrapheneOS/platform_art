@@ -24,7 +24,7 @@ namespace interpreter {
 
 // Explicit definition of ExecuteSwitchImplCpp.
 template HOT_ATTR
-void ExecuteSwitchImplCpp<false, false>(SwitchImplContext* ctx);
+void ExecuteSwitchImplCpp<false>(SwitchImplContext* ctx);
 
 }  // namespace interpreter
 }  // namespace art
