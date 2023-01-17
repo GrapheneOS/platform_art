@@ -127,8 +127,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         String subcmd = getNextArgRequired();
         switch (subcmd) {
             case "delete-dexopt-artifacts": {
-                DeleteResult result = mArtManagerLocal.deleteDexoptArtifacts(
-                        snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
+                DeleteResult result =
+                        mArtManagerLocal.deleteDexoptArtifacts(snapshot, getNextArgRequired());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
             }

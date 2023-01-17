@@ -638,21 +638,6 @@ class MANAGED Class final : public Object {
                                 uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Can this class access a resolved method?
-  // Note that access to methods's class is checked and this may require looking up the class
-  // referenced by the MethodId in the DexFile in case the declaring class is inaccessible.
-  bool CanAccessResolvedMethod(ObjPtr<Class> access_to,
-                               ArtMethod* resolved_method,
-                               ObjPtr<DexCache> dex_cache,
-                               uint32_t method_idx)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool CheckResolvedMethodAccess(ObjPtr<Class> access_to,
-                                 ArtMethod* resolved_method,
-                                 ObjPtr<DexCache> dex_cache,
-                                 uint32_t method_idx,
-                                 InvokeType throw_invoke_type)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   bool IsSubClass(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can src be assigned to this class? For example, String can be assigned to Object (by an
@@ -1389,14 +1374,6 @@ class MANAGED Class final : public Object {
                                ArtField* field,
                                ObjPtr<DexCache> dex_cache,
                                uint32_t field_idx)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <bool throw_on_failure>
-  bool ResolvedMethodAccessTest(ObjPtr<Class> access_to,
-                                ArtMethod* resolved_method,
-                                ObjPtr<DexCache> dex_cache,
-                                uint32_t method_idx,
-                                InvokeType throw_invoke_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsArrayAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);

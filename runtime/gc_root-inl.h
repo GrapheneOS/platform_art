@@ -34,8 +34,12 @@ inline MirrorType* GcRoot<MirrorType>::Read(GcRootSource* gc_root_source) const 
 }
 
 template<class MirrorType>
+inline GcRoot<MirrorType>::GcRoot(mirror::CompressedReference<mirror::Object> ref)
+    : root_(ref) { }
+
+template<class MirrorType>
 inline GcRoot<MirrorType>::GcRoot(MirrorType* ref)
-    : root_(mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref)) { }
+    : GcRoot(mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref)) { }
 
 template<class MirrorType>
 inline GcRoot<MirrorType>::GcRoot(ObjPtr<MirrorType> ref)

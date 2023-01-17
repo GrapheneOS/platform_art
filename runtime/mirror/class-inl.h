@@ -498,47 +498,6 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
   return false;
 }
 
-template <bool throw_on_failure>
-inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
-                                            ArtMethod* method,
-                                            ObjPtr<DexCache> dex_cache,
-                                            uint32_t method_idx,
-                                            InvokeType throw_invoke_type) {
-  DCHECK(throw_on_failure || throw_invoke_type == kStatic);
-  DCHECK(dex_cache != nullptr);
-  if (UNLIKELY(!this->CanAccess(access_to))) {
-    // The referrer class can't access the method's declaring class but may still be able
-    // to access the method if the MethodId specifies an accessible subclass of the declaring
-    // class rather than the declaring class itself.
-    dex::TypeIndex class_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    // The referenced class has already been resolved with the method, but may not be in the dex
-    // cache.
-    ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-        class_idx,
-        dex_cache,
-        GetClassLoader());
-    DCHECK(dex_access_to != nullptr)
-        << " Could not resolve " << dex_cache->GetDexFile()->StringByTypeIdx(class_idx)
-        << " when checking access to " << method->PrettyMethod() << " from " << PrettyDescriptor();
-    if (UNLIKELY(!this->CanAccess(dex_access_to))) {
-      if (throw_on_failure) {
-        ThrowIllegalAccessErrorClassForMethodDispatch(this,
-                                                      dex_access_to,
-                                                      method,
-                                                      throw_invoke_type);
-      }
-      return false;
-    }
-  }
-  if (LIKELY(this->CanAccessMember(access_to, method->GetAccessFlags()))) {
-    return true;
-  }
-  if (throw_on_failure) {
-    ThrowIllegalAccessErrorMethod(this, method);
-  }
-  return false;
-}
-
 inline bool Class::CanAccessResolvedField(ObjPtr<Class> access_to,
                                           ArtField* field,
                                           ObjPtr<DexCache> dex_cache,
@@ -551,22 +510,6 @@ inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
                                             ObjPtr<DexCache> dex_cache,
                                             uint32_t field_idx) {
   return ResolvedFieldAccessTest<true>(access_to, field, dex_cache, field_idx);
-}
-
-inline bool Class::CanAccessResolvedMethod(ObjPtr<Class> access_to,
-                                           ArtMethod* method,
-                                           ObjPtr<DexCache> dex_cache,
-                                           uint32_t method_idx) {
-  return ResolvedMethodAccessTest<false>(access_to, method, dex_cache, method_idx, kStatic);
-}
-
-inline bool Class::CheckResolvedMethodAccess(ObjPtr<Class> access_to,
-                                             ArtMethod* method,
-                                             ObjPtr<DexCache> dex_cache,
-                                             uint32_t method_idx,
-                                             InvokeType throw_invoke_type) {
-  return ResolvedMethodAccessTest<true>(
-      access_to, method, dex_cache, method_idx, throw_invoke_type);
 }
 
 inline bool Class::IsObsoleteVersionOf(ObjPtr<Class> klass) {

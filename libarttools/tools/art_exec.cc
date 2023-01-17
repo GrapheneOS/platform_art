@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <stdlib.h>
 #include <sys/capability.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -25,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -66,6 +68,8 @@ Supported options:
   --drop-capabilities: Drop all root capabilities. Note that this has effect only if `art_exec` runs
       with some root capabilities but not as the root user.
   --keep-fds=FILE_DESCRIPTORS: A semicolon-separated list of file descriptors to keep open.
+  --env=KEY=VALUE: Set an environment variable. This flag can be passed multiple times to set
+      multiple environment variables.
 )";
 
 constexpr int kErrorUsage = 100;
@@ -77,6 +81,7 @@ struct Options {
   std::optional<int> priority = std::nullopt;
   bool drop_capabilities = false;
   std::unordered_set<int> keep_fds{fileno(stdin), fileno(stdout), fileno(stderr)};
+  std::unordered_map<std::string, std::string> envs;
 };
 
 [[noreturn]] void Usage(const std::string& error_msg) {
@@ -113,6 +118,13 @@ Options ParseOptions(int argc, char** argv) {
         }
         options.keep_fds.insert(fd);
       }
+    } else if (ConsumePrefix(&arg, "--env=")) {
+      size_t pos = arg.find('=');
+      if (pos == std::string_view::npos) {
+        Usage("Malformed environment variable. Must contain '='");
+      }
+      options.envs[std::string(arg.substr(/*pos=*/0, /*n=*/pos))] =
+          std::string(arg.substr(pos + 1));
     } else if (arg == "--") {
       if (i + 1 >= argc) {
         Usage("Missing command after '--'");
@@ -198,6 +210,10 @@ int main(int argc, char** argv) {
       LOG(ERROR) << "Failed to drop inheritable capabilities: " << result.error();
       return kErrorOther;
     }
+  }
+
+  for (const auto& [key, value] : options.envs) {
+    setenv(key.c_str(), value.c_str(), /*overwrite=*/1);
   }
 
   execv(argv[options.command_pos], argv + options.command_pos);
