@@ -1578,7 +1578,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rax, %xmm0
 
     LOAD_RUNTIME_INSTANCE rcx
-    cmpb MACRO_LITERAL(0), INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE(%rcx)
+    cmpb MACRO_LITERAL(0), RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE(%rcx)
     jne .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 
