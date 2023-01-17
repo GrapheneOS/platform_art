@@ -334,4 +334,25 @@ std::vector<pid_t> GetPidByName(const std::string& process_name);
     return; \
   }
 
+#define TEST_DISABLED_FOR_RISCV64() \
+  if (kRuntimeISA == InstructionSet::kRiscv64) { \
+    printf("WARNING: TEST DISABLED FOR RISCV64\n"); \
+    return; \
+  }
+
+// Don't print messages on setup to avoid getting multiple "test disabled" messages for one test.
+// Setup phase may need to be disabled as some test rely on having boot image / compiler / other
+// things that are not implemented for RISC-V.
+#define TEST_SETUP_DISABLED_FOR_RISCV64() \
+  if (kRuntimeISA == InstructionSet::kRiscv64) { \
+    return; \
+  }
+
+// Don't print messages on teardown to avoid getting multiple "test disabled" messages for one test.
+// Teardown phase may need to be disabled to match the disabled setup phase for some tests.
+#define TEST_TEARDOWN_DISABLED_FOR_RISCV64() \
+  if (kRuntimeISA == InstructionSet::kRiscv64) { \
+    return; \
+  }
+
 #endif  // ART_LIBARTBASE_BASE_COMMON_ART_TEST_H_

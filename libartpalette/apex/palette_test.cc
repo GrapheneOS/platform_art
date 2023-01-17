@@ -54,10 +54,15 @@ bool PaletteSetTaskProfilesIsSupported(palette_status_t res) {
 
 }  // namespace
 
+namespace art {
+
 class PaletteClientTest : public testing::Test {};
 
 TEST_F(PaletteClientTest, SchedPriority) {
-  int32_t tid = GetTid();
+  // On RISC-V tests run in Android-like chroot on a Linux VM => some syscalls work differently.
+  TEST_DISABLED_FOR_RISCV64();
+
+  int32_t tid = ::GetTid();
   int32_t saved_priority;
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteSchedGetPriority(tid, &saved_priority));
 
@@ -81,6 +86,9 @@ TEST_F(PaletteClientTest, Ashmem) {
 #ifndef ART_TARGET_ANDROID
   GTEST_SKIP() << "ashmem is only supported on Android";
 #else
+  // On RISC-V tests run in Android-like chroot on a Linux VM => some syscalls work differently.
+  TEST_DISABLED_FOR_RISCV64();
+
   int fd;
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteAshmemCreateRegion("ashmem-test", 4096, &fd));
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteAshmemSetProtRegion(fd, PROT_READ | PROT_EXEC));
@@ -166,3 +174,5 @@ TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
   }
 #endif
 }
+
+}  // namespace art
