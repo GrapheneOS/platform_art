@@ -237,21 +237,11 @@ static JValue ExecuteSwitch(Thread* self,
                             JValue result_register,
                             bool interpret_one_instruction) REQUIRES_SHARED(Locks::mutator_lock_) {
   if (Runtime::Current()->IsActiveTransaction()) {
-    if (shadow_frame.GetMethod()->SkipAccessChecks()) {
-      return ExecuteSwitchImpl<false, true>(
-          self, accessor, shadow_frame, result_register, interpret_one_instruction);
-    } else {
-      return ExecuteSwitchImpl<true, true>(
-          self, accessor, shadow_frame, result_register, interpret_one_instruction);
-    }
+    return ExecuteSwitchImpl<true>(
+        self, accessor, shadow_frame, result_register, interpret_one_instruction);
   } else {
-    if (shadow_frame.GetMethod()->SkipAccessChecks()) {
-      return ExecuteSwitchImpl<false, false>(
-          self, accessor, shadow_frame, result_register, interpret_one_instruction);
-    } else {
-      return ExecuteSwitchImpl<true, false>(
-          self, accessor, shadow_frame, result_register, interpret_one_instruction);
-    }
+    return ExecuteSwitchImpl<false>(
+        self, accessor, shadow_frame, result_register, interpret_one_instruction);
   }
 }
 
@@ -311,8 +301,12 @@ static inline JValue Execute(
         // any value.
         DCHECK(Runtime::Current()->AreNonStandardExitsEnabled());
         JValue ret = JValue();
-        PerformNonStandardReturn<MonitorState::kNoMonitorsLocked>(
-            self, shadow_frame, ret, instrumentation, accessor.InsSize());
+        PerformNonStandardReturn(self,
+                                 shadow_frame,
+                                 ret,
+                                 instrumentation,
+                                 accessor.InsSize(),
+                                 /* unlock_monitors= */ false);
         return ret;
       }
       if (UNLIKELY(self->IsExceptionPending())) {
@@ -322,8 +316,12 @@ static inline JValue Execute(
         JValue ret = JValue();
         if (UNLIKELY(shadow_frame.GetForcePopFrame())) {
           DCHECK(Runtime::Current()->AreNonStandardExitsEnabled());
-          PerformNonStandardReturn<MonitorState::kNoMonitorsLocked>(
-              self, shadow_frame, ret, instrumentation, accessor.InsSize());
+          PerformNonStandardReturn(self,
+                                   shadow_frame,
+                                   ret,
+                                   instrumentation,
+                                   accessor.InsSize(),
+                                   /* unlock_monitors= */ false);
         }
         return ret;
       }

@@ -70,7 +70,6 @@ namespace interpreter {
 void ThrowNullPointerExceptionFromInterpreter()
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-template <bool kMonitorCounting>
 static inline void DoMonitorEnter(Thread* self, ShadowFrame* frame, ObjPtr<mirror::Object> ref)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_) {
@@ -84,28 +83,29 @@ static inline void DoMonitorEnter(Thread* self, ShadowFrame* frame, ObjPtr<mirro
     DCHECK(unlocked);
     return;
   }
-  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+  if (frame->GetMethod()->MustCountLocks()) {
+    DCHECK(!frame->GetMethod()->SkipAccessChecks());
     frame->GetLockCountData().AddMonitor(self, h_ref.Get());
   }
 }
 
-template <bool kMonitorCounting>
 static inline void DoMonitorExit(Thread* self, ShadowFrame* frame, ObjPtr<mirror::Object> ref)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_) {
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> h_ref(hs.NewHandle(ref));
   h_ref->MonitorExit(self);
-  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+  if (frame->GetMethod()->MustCountLocks()) {
+    DCHECK(!frame->GetMethod()->SkipAccessChecks());
     frame->GetLockCountData().RemoveMonitorOrThrow(self, h_ref.Get());
   }
 }
 
-template <bool kMonitorCounting>
 static inline bool DoMonitorCheckOnExit(Thread* self, ShadowFrame* frame)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_) {
-  if (kMonitorCounting && frame->GetMethod()->MustCountLocks()) {
+  if (frame->GetMethod()->MustCountLocks()) {
+    DCHECK(!frame->GetMethod()->SkipAccessChecks());
     return frame->GetLockCountData().CheckAllMonitorsReleasedOrThrow(self);
   }
   return true;
@@ -124,7 +124,7 @@ void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count
 // Invokes the given method. This is part of the invocation support and is used by DoInvoke,
 // DoFastInvoke and DoInvokeVirtualQuick functions.
 // Returns true on success, otherwise throws an exception and returns false.
-template<bool is_range, bool do_assignability_check>
+template<bool is_range>
 bool DoCall(ArtMethod* called_method,
             Thread* self,
             ShadowFrame& shadow_frame,
@@ -157,54 +157,16 @@ NeedsMethodExitEvent(const instrumentation::Instrumentation* ins)
   return ins->HasMethodExitListeners() || ins->HasWatchedFramePopListeners();
 }
 
-// NO_INLINE so we won't bloat the interpreter with this very cold lock-release code.
-template <bool kMonitorCounting>
-static NO_INLINE void UnlockHeldMonitors(Thread* self, ShadowFrame* shadow_frame)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(shadow_frame->GetForcePopFrame() ||
-         Runtime::Current()->IsTransactionAborted());
-  // Unlock all monitors.
-  if (kMonitorCounting && shadow_frame->GetMethod()->MustCountLocks()) {
-    // Get the monitors from the shadow-frame monitor-count data.
-    shadow_frame->GetLockCountData().VisitMonitors(
-      [&](mirror::Object** obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-        // Since we don't use the 'obj' pointer after the DoMonitorExit everything should be fine
-        // WRT suspension.
-        DoMonitorExit<kMonitorCounting>(self, shadow_frame, *obj);
-      });
-  } else {
-    std::vector<verifier::MethodVerifier::DexLockInfo> locks;
-    verifier::MethodVerifier::FindLocksAtDexPc(shadow_frame->GetMethod(),
-                                                shadow_frame->GetDexPC(),
-                                                &locks,
-                                                Runtime::Current()->GetTargetSdkVersion());
-    for (const auto& reg : locks) {
-      if (UNLIKELY(reg.dex_registers.empty())) {
-        LOG(ERROR) << "Unable to determine reference locked by "
-                    << shadow_frame->GetMethod()->PrettyMethod() << " at pc "
-                    << shadow_frame->GetDexPC();
-      } else {
-        DoMonitorExit<kMonitorCounting>(
-            self, shadow_frame, shadow_frame->GetVRegReference(*reg.dex_registers.begin()));
-      }
-    }
-  }
-}
+COLD_ATTR void UnlockHeldMonitors(Thread* self, ShadowFrame* shadow_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
-enum class MonitorState {
-  kNoMonitorsLocked,
-  kCountingMonitors,
-  kNormalMonitors,
-};
-
-template<MonitorState kMonitorState>
 static inline ALWAYS_INLINE void PerformNonStandardReturn(
       Thread* self,
       ShadowFrame& frame,
       JValue& result,
       const instrumentation::Instrumentation* instrumentation,
-      uint16_t num_dex_inst) REQUIRES_SHARED(Locks::mutator_lock_) {
-  static constexpr bool kMonitorCounting = (kMonitorState == MonitorState::kCountingMonitors);
+      uint16_t num_dex_inst,
+      bool unlock_monitors = true) REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Object> thiz(frame.GetThisObject(num_dex_inst));
   StackHandleScope<1u> hs(self);
   if (UNLIKELY(self->IsExceptionPending())) {
@@ -212,10 +174,10 @@ static inline ALWAYS_INLINE void PerformNonStandardReturn(
                  << self->GetException()->Dump();
     self->ClearException();
   }
-  if (kMonitorState != MonitorState::kNoMonitorsLocked) {
-    UnlockHeldMonitors<kMonitorCounting>(self, &frame);
+  if (unlock_monitors) {
+    UnlockHeldMonitors(self, &frame);
+    DoMonitorCheckOnExit(self, &frame);
   }
-  DoMonitorCheckOnExit<kMonitorCounting>(self, &frame);
   result = JValue();
   if (UNLIKELY(NeedsMethodExitEvent(instrumentation))) {
     SendMethodExitEvents(self, instrumentation, frame, frame.GetMethod(), result);
@@ -224,7 +186,7 @@ static inline ALWAYS_INLINE void PerformNonStandardReturn(
 
 // Handles all invoke-XXX/range instructions except for invoke-polymorphic[/range].
 // Returns true on success, otherwise throws an exception and returns false.
-template<InvokeType type, bool is_range, bool do_access_check>
+template<InvokeType type, bool is_range>
 static ALWAYS_INLINE bool DoInvoke(Thread* self,
                                    ShadowFrame& shadow_frame,
                                    const Instruction* inst,
@@ -247,7 +209,7 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
     return false;
   }
 
-  return DoCall<is_range, do_access_check>(
+  return DoCall<is_range>(
       called_method, self, shadow_frame, inst, inst_data, string_init, result);
 }
 
@@ -393,7 +355,6 @@ static inline void GetFieldInfo(Thread* self,
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type,
          Primitive::Type field_type,
-         bool do_access_check,
          bool transaction_active = false>
 ALWAYS_INLINE bool DoFieldGet(Thread* self,
                               ShadowFrame& shadow_frame,
@@ -517,15 +478,13 @@ static inline bool CheckWriteValueConstraint(Thread* self, ObjPtr<mirror::Object
 
 // Handles iput-XXX and sput-XXX instructions.
 // Returns true on success, otherwise throws an exception and returns false.
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check,
-         bool transaction_active>
+template<FindFieldType find_type, Primitive::Type field_type, bool transaction_active>
 ALWAYS_INLINE bool DoFieldPut(Thread* self,
                               const ShadowFrame& shadow_frame,
                               const Instruction* inst,
                               uint16_t inst_data)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   bool should_report = Runtime::Current()->GetInstrumentation()->HasFieldWriteListeners();
-  const bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   bool resolve_field_type = (shadow_frame.GetVRegReference(vregA) != nullptr);
@@ -578,11 +537,11 @@ ALWAYS_INLINE bool DoFieldPut(Thread* self,
     return false;
   }
   if (should_report) {
-    return DoFieldPutCommon<field_type, do_assignability_check, transaction_active>(self,
-                                                                                    shadow_frame,
-                                                                                    obj,
-                                                                                    field,
-                                                                                    value);
+    return DoFieldPutCommon<field_type, transaction_active>(self,
+                                                            shadow_frame,
+                                                            obj,
+                                                            field,
+                                                            value);
   }
 #define FIELD_SET(prim, type, jtype) \
   case Primitive::kPrim ## prim: \
@@ -717,13 +676,16 @@ static inline bool DoLongRemainder(ShadowFrame& shadow_frame,
 
 // Handles filled-new-array and filled-new-array-range instructions.
 // Returns true on success, otherwise throws an exception and returns false.
-template <bool is_range, bool do_access_check, bool transaction_active>
-bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
-                      Thread* self, JValue* result);
+template <bool is_range, bool transaction_active>
+bool DoFilledNewArray(const Instruction* inst,
+                      const ShadowFrame& shadow_frame,
+                      Thread* self,
+                      JValue* result);
 
 // Handles packed-switch instruction.
 // Returns the branch offset to the next instruction to execute.
-static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
+static inline int32_t DoPackedSwitch(const Instruction* inst,
+                                     const ShadowFrame& shadow_frame,
                                      uint16_t inst_data)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(inst->Opcode() == Instruction::PACKED_SWITCH);
