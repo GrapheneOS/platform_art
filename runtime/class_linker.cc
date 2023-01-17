@@ -1195,11 +1195,6 @@ void ClassLinker::RunRootClinits(Thread* self) {
   for (ArtField* field : static_fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
-
-  // This invariant is important since otherwise we will have the entire proxy invoke system
-  // confused.
-  DCHECK_NE(WellKnownClasses::java_lang_reflect_Proxy_init->GetEntryPointFromQuickCompiledCode(),
-            GetQuickInstrumentationEntryPoint());
 }
 
 ALWAYS_INLINE
@@ -9476,19 +9471,7 @@ ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(uint32_t method_idx,
     Thread::Current()->AssertPendingException();
     return nullptr;
   }
-  if (klass->IsInterface()) {
-    resolved = klass->FindInterfaceMethod(dex_cache.Get(), method_idx, image_pointer_size_);
-  } else {
-    resolved = klass->FindClassMethod(dex_cache.Get(), method_idx, image_pointer_size_);
-  }
-  if (resolved != nullptr &&
-      hiddenapi::ShouldDenyAccessToMember(
-          resolved,
-          hiddenapi::AccessContext(class_loader.Get(), dex_cache.Get()),
-          hiddenapi::AccessMethod::kLinking)) {
-    resolved = nullptr;
-  }
-  return resolved;
+  return FindResolvedMethod(klass, dex_cache.Get(), class_loader.Get(), method_idx);
 }
 
 ArtField* ClassLinker::LookupResolvedField(uint32_t field_idx,

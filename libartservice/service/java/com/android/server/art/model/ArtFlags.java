@@ -72,31 +72,6 @@ public class ArtFlags {
 
     /**
      * Flags for {@link
-     * ArtManagerLocal#deleteDexoptArtifacts(PackageManagerLocal.FilteredSnapshot, String, int)}.
-     *
-     * @hide
-     */
-    // clang-format off
-    @IntDef(flag = true, prefix = "FLAG_", value = {
-        FLAG_FOR_PRIMARY_DEX,
-        FLAG_FOR_SECONDARY_DEX,
-    })
-    // clang-format on
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface DeleteFlags {}
-
-    /**
-     * Default flags that are used when {@link
-     * ArtManagerLocal#deleteDexoptArtifacts(PackageManagerLocal.FilteredSnapshot, String)} is
-     * called.
-     * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
-     */
-    public static @DeleteFlags int defaultDeleteFlags() {
-        return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
-    }
-
-    /**
-     * Flags for {@link
      * ArtManagerLocal#getDexoptStatus(PackageManagerLocal.FilteredSnapshot, String, int)}.
      *
      * @hide
@@ -117,31 +92,6 @@ public class ArtFlags {
      * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
      */
     public static @GetStatusFlags int defaultGetStatusFlags() {
-        return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
-    }
-
-    /**
-     * Flags for {@link
-     * ArtManagerLocal#clearAppProfiles(PackageManagerLocal.FilteredSnapshot, String, int)}.
-     *
-     * @hide
-     */
-    // clang-format off
-    @IntDef(flag = true, prefix = "FLAG_", value = {
-        FLAG_FOR_PRIMARY_DEX,
-        FLAG_FOR_SECONDARY_DEX,
-    })
-    // clang-format on
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface ClearProfileFlags {}
-
-    /**
-     * Default flags that are used when {@link
-     * ArtManagerLocal#getDexoptStatus(PackageManagerLocal.FilteredSnapshot, String)} is
-     * called.
-     * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
-     */
-    public static @ClearProfileFlags int defaultClearProfileFlags() {
         return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
     }
 

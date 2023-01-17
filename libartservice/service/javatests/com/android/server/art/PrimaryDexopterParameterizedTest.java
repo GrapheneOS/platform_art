@@ -62,7 +62,7 @@ import java.util.List;
 
 @SmallTest
 @RunWith(Parameterized.class)
-public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTestBase {
+public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
     @Rule
     public OnSuccessRule onSuccessRule = new OnSuccessRule(() -> {
         // Don't do this on failure because it will make the failure hard to understand.
@@ -71,7 +71,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
 
     private DexoptParams mDexoptParams;
 
-    private PrimaryDexOptimizer mPrimaryDexOptimizer;
+    private PrimaryDexopter mPrimaryDexopter;
 
     @Parameter(0) public Params mParams;
 
@@ -195,8 +195,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                                 ArtFlags.FLAG_SKIP_IF_STORAGE_LOW)
                         .build();
 
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
     }
 
     @Test
@@ -267,7 +267,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         isNull() /* inputVdex */, isNull() /* dmFile */,
                         eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions), any());
 
-        assertThat(mPrimaryDexOptimizer.dexopt())
+        assertThat(mPrimaryDexopter.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
                         DexContainerFileDexoptResult.create("/data/app/foo/base.apk",

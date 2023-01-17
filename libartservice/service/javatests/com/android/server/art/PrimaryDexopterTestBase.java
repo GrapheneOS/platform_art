@@ -47,7 +47,7 @@ import org.mockito.Mock;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PrimaryDexOptimizerTestBase {
+public class PrimaryDexopterTestBase {
     protected static final String PKG_NAME = "com.example.foo";
     protected static final int UID = 12345;
     protected static final int SHARED_GID = UserHandle.getSharedAppGid(UID);
@@ -56,7 +56,7 @@ public class PrimaryDexOptimizerTestBase {
     public StaticMockitoRule mockitoRule =
             new StaticMockitoRule(SystemProperties.class, Constants.class);
 
-    @Mock protected PrimaryDexOptimizer.Injector mInjector;
+    @Mock protected PrimaryDexopter.Injector mInjector;
     @Mock protected IArtd mArtd;
     @Mock protected UserManager mUserManager;
     @Mock protected DexUseManagerLocal mDexUseManager;
@@ -149,9 +149,7 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
         lenient().when(pkgState.getAppId()).thenReturn(UID);
         lenient().when(pkgState.getUsesLibraries()).thenReturn(new ArrayList<>());
-        lenient()
-                .when(pkgState.getStateForUser(any()))
-                .thenReturn(mPkgUserStateNotInstalled);
+        lenient().when(pkgState.getStateForUser(any())).thenReturn(mPkgUserStateNotInstalled);
         AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;

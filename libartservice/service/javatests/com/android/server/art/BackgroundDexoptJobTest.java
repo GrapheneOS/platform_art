@@ -78,7 +78,7 @@ public class BackgroundDexoptJobTest {
     @Mock private BackgroundDexoptJobService mJobService;
     @Mock private JobParameters mJobParameters;
     private Config mConfig;
-    private BackgroundDexoptJob mBackgroundDexOptJob;
+    private BackgroundDexoptJob mBackgroundDexoptJob;
     private Semaphore mJobFinishedCalled = new Semaphore(0);
 
     @Before
@@ -96,8 +96,8 @@ public class BackgroundDexoptJobTest {
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
         lenient().when(mInjector.getJobScheduler()).thenReturn(mJobScheduler);
 
-        mBackgroundDexOptJob = new BackgroundDexoptJob(mInjector);
-        lenient().when(BackgroundDexoptJobService.getJob()).thenReturn(mBackgroundDexOptJob);
+        mBackgroundDexoptJob = new BackgroundDexoptJob(mInjector);
+        lenient().when(BackgroundDexoptJobService.getJob()).thenReturn(mBackgroundDexoptJob);
 
         lenient()
                 .doAnswer(invocation -> {
@@ -118,7 +118,7 @@ public class BackgroundDexoptJobTest {
                      same(mSnapshot), eq(ReasonMapping.REASON_BG_DEXOPT), any(), any(), any()))
                 .thenReturn(mDexoptResult);
 
-        Result result = Utils.getFuture(mBackgroundDexOptJob.start());
+        Result result = Utils.getFuture(mBackgroundDexoptJob.start());
         assertThat(result).isInstanceOf(CompletedResult.class);
         assertThat(((CompletedResult) result).dexoptResult()).isSameInstanceAs(mDexoptResult);
     }
@@ -132,8 +132,8 @@ public class BackgroundDexoptJobTest {
                     return mDexoptResult;
                 });
 
-        Future<Result> future1 = mBackgroundDexOptJob.start();
-        Future<Result> future2 = mBackgroundDexOptJob.start();
+        Future<Result> future1 = mBackgroundDexoptJob.start();
+        Future<Result> future2 = mBackgroundDexoptJob.start();
         assertThat(future1).isSameInstanceAs(future2);
 
         dexoptDone.release();
@@ -147,9 +147,9 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenReturn(mDexoptResult);
 
-        Future<Result> future1 = mBackgroundDexOptJob.start();
+        Future<Result> future1 = mBackgroundDexoptJob.start();
         Utils.getFuture(future1);
-        Future<Result> future2 = mBackgroundDexOptJob.start();
+        Future<Result> future2 = mBackgroundDexoptJob.start();
         Utils.getFuture(future2);
         assertThat(future1).isNotSameInstanceAs(future2);
     }
@@ -159,7 +159,7 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenThrow(IllegalStateException.class);
 
-        Result result = Utils.getFuture(mBackgroundDexOptJob.start());
+        Result result = Utils.getFuture(mBackgroundDexoptJob.start());
         assertThat(result).isInstanceOf(FatalErrorResult.class);
     }
 
@@ -174,7 +174,7 @@ public class BackgroundDexoptJobTest {
 
         // The `start` method should ignore the system property. The system property is for
         // `schedule`.
-        Utils.getFuture(mBackgroundDexOptJob.start());
+        Utils.getFuture(mBackgroundDexoptJob.start());
     }
 
     @Test
@@ -188,8 +188,8 @@ public class BackgroundDexoptJobTest {
                     return mDexoptResult;
                 });
 
-        Future<Result> future = mBackgroundDexOptJob.start();
-        mBackgroundDexOptJob.cancel();
+        Future<Result> future = mBackgroundDexoptJob.start();
+        mBackgroundDexoptJob.cancel();
         dexoptCancelled.release();
         Utils.getFuture(future);
     }
@@ -199,7 +199,7 @@ public class BackgroundDexoptJobTest {
         var captor = ArgumentCaptor.forClass(JobInfo.class);
         when(mJobScheduler.schedule(captor.capture())).thenReturn(JobScheduler.RESULT_SUCCESS);
 
-        assertThat(mBackgroundDexOptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
+        assertThat(mBackgroundDexoptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
 
         JobInfo jobInfo = captor.getValue();
         assertThat(jobInfo.getIntervalMillis()).isEqualTo(BackgroundDexoptJob.JOB_INTERVAL_MS);
@@ -214,7 +214,7 @@ public class BackgroundDexoptJobTest {
         when(SystemProperties.getBoolean(eq("pm.dexopt.disable_bg_dexopt"), anyBoolean()))
                 .thenReturn(true);
 
-        assertThat(mBackgroundDexOptJob.schedule())
+        assertThat(mBackgroundDexoptJob.schedule())
                 .isEqualTo(ArtFlags.SCHEDULE_DISABLED_BY_SYSPROP);
 
         verify(mJobScheduler, never()).schedule(any());
@@ -230,7 +230,7 @@ public class BackgroundDexoptJobTest {
         var captor = ArgumentCaptor.forClass(JobInfo.class);
         when(mJobScheduler.schedule(captor.capture())).thenReturn(JobScheduler.RESULT_SUCCESS);
 
-        assertThat(mBackgroundDexOptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
+        assertThat(mBackgroundDexoptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
 
         JobInfo jobInfo = captor.getValue();
         assertThat(jobInfo.getIntervalMillis()).isEqualTo(BackgroundDexoptJob.JOB_INTERVAL_MS);
@@ -249,7 +249,7 @@ public class BackgroundDexoptJobTest {
         var captor = ArgumentCaptor.forClass(JobInfo.class);
         when(mJobScheduler.schedule(captor.capture())).thenReturn(JobScheduler.RESULT_SUCCESS);
 
-        assertThat(mBackgroundDexOptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
+        assertThat(mBackgroundDexoptJob.schedule()).isEqualTo(ArtFlags.SCHEDULE_SUCCESS);
 
         JobInfo jobInfo = captor.getValue();
         assertThat(jobInfo.isRequireBatteryNotLow()).isTrue();
@@ -260,12 +260,12 @@ public class BackgroundDexoptJobTest {
         mConfig.setScheduleBackgroundDexoptJobCallback(
                 Runnable::run, builder -> { builder.setRequiresStorageNotLow(true); });
 
-        mBackgroundDexOptJob.schedule();
+        mBackgroundDexoptJob.schedule();
     }
 
     @Test
     public void testUnschedule() {
-        mBackgroundDexOptJob.unschedule();
+        mBackgroundDexoptJob.unschedule();
         verify(mJobScheduler).cancel(anyInt());
     }
 
@@ -275,7 +275,7 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenReturn(mDexoptResult);
 
-        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        mBackgroundDexoptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
         verify(mJobService).jobFinished(any(), eq(false) /* wantsReschedule */);
@@ -286,7 +286,7 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenThrow(RuntimeException.class);
 
-        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        mBackgroundDexoptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
         verify(mJobService).jobFinished(any(), eq(false) /* wantsReschedule */);
@@ -298,7 +298,7 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenReturn(mDexoptResult);
 
-        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        mBackgroundDexoptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
         verify(mJobService).jobFinished(any(), eq(true) /* wantsReschedule */);

@@ -996,96 +996,6 @@ void RememberForGcArgumentVisitor::FixupReferences() {
   }
 }
 
-extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
-                                                             mirror::Object* this_object,
-                                                             Thread* self,
-                                                             ArtMethod** sp)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  const void* result;
-  // Instrumentation changes the stack. Thus, when exiting, the stack cannot be verified, so skip
-  // that part.
-  ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  DCHECK(!method->IsProxyMethod())
-      << "Proxy method " << method->PrettyMethod()
-      << " (declaring class: " << method->GetDeclaringClass()->PrettyClass() << ")"
-      << " should not hit instrumentation entrypoint.";
-  DCHECK(!instrumentation->IsDeoptimized(method)) << method->PrettyMethod();
-  // This will get the entry point either from the oat file, the JIT or the appropriate bridge
-  // method if none of those can be found.
-  result = instrumentation->GetCodeForInvoke(method);
-  DCHECK_NE(result, GetQuickInstrumentationEntryPoint()) << method->PrettyMethod();
-  bool interpreter_entry = Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result);
-  bool is_static = method->IsStatic();
-  uint32_t shorty_len;
-  const char* shorty =
-      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
-
-  ScopedObjectAccessUnchecked soa(self);
-  RememberForGcArgumentVisitor visitor(sp, is_static, shorty, shorty_len, &soa);
-  visitor.VisitArguments();
-
-  StackHandleScope<2> hs(self);
-  Handle<mirror::Object> h_object(hs.NewHandle(is_static ? nullptr : this_object));
-
-  // Ensure that the called method's class is initialized.
-  if (method->StillNeedsClinitCheck()) {
-    Handle<mirror::Class> h_class = hs.NewHandle(method->GetDeclaringClass());
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-      visitor.FixupReferences();
-      DCHECK(self->IsExceptionPending());
-      return nullptr;
-    }
-  }
-
-  DCHECK(!method->IsRuntimeMethod());
-  instrumentation->PushInstrumentationStackFrame(self,
-                                                 is_static ? nullptr : h_object.Get(),
-                                                 method,
-                                                 reinterpret_cast<uintptr_t>(
-                                                     QuickArgumentVisitor::GetCallingPcAddr(sp)),
-                                                 QuickArgumentVisitor::GetCallingPc(sp),
-                                                 interpreter_entry);
-
-  visitor.FixupReferences();
-  if (UNLIKELY(self->IsExceptionPending())) {
-    return nullptr;
-  }
-  CHECK(result != nullptr) << method->PrettyMethod();
-  return result;
-}
-
-extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
-                                                              ArtMethod** sp,
-                                                              uint64_t* gpr_result,
-                                                              uint64_t* fpr_result)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK_EQ(reinterpret_cast<uintptr_t>(self), reinterpret_cast<uintptr_t>(Thread::Current()));
-  CHECK(gpr_result != nullptr);
-  CHECK(fpr_result != nullptr);
-  // Instrumentation exit stub must not be entered with a pending exception.
-  CHECK(!self->IsExceptionPending()) << "Enter instrumentation exit stub with pending exception "
-                                     << self->GetException()->Dump();
-  // Compute address of return PC and check that it currently holds 0.
-  constexpr size_t return_pc_offset =
-      RuntimeCalleeSaveFrame::GetReturnPcOffset(CalleeSaveType::kSaveEverything);
-  uintptr_t* return_pc_addr = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +
-                                                           return_pc_offset);
-  CHECK_EQ(*return_pc_addr, 0U);
-
-  // Pop the frame filling in the return pc. The low half of the return value is 0 when
-  // deoptimization shouldn't be performed with the high-half having the return address. When
-  // deoptimization should be performed the low half is zero and the high-half the address of the
-  // deoptimization entry point.
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  TwoWordReturn return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(
-      self, return_pc_addr, gpr_result, fpr_result);
-  if (self->IsExceptionPending() || self->ObserveAsyncException()) {
-    return GetTwoWordFailureValue();
-  }
-  return return_or_deoptimize_pc;
-}
-
 static std::string DumpInstruction(ArtMethod* method, uint32_t dex_pc)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_pc == static_cast<uint32_t>(-1)) {
@@ -1127,12 +1037,6 @@ static void DumpB74410240DebugData(ArtMethod** sp) REQUIRES_SHARED(Locks::mutato
   uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(
       (reinterpret_cast<uint8_t*>(sp) + callee_return_pc_offset));
   ArtMethod* outer_method = *caller_sp;
-
-  if (UNLIKELY(caller_pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
-    LOG(FATAL_WITHOUT_ABORT) << "Method: " << outer_method->PrettyMethod()
-        << " native pc: " << caller_pc << " Instrumented!";
-    return;
-  }
 
   const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
   CHECK(current_code != nullptr);
@@ -2175,68 +2079,6 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
   return GenericJniMethodEnd(self, cookie, result, result_f, called);
 }
 
-// Fast path method resolution that can't throw exceptions.
-template <InvokeType type>
-inline ArtMethod* FindMethodFast(uint32_t method_idx,
-                                 ObjPtr<mirror::Object> this_object,
-                                 ArtMethod* referrer)
-    REQUIRES_SHARED(Locks::mutator_lock_)
-    REQUIRES(!Roles::uninterruptible_) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  if (UNLIKELY(this_object == nullptr && type != kStatic)) {
-    return nullptr;
-  }
-  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
-  constexpr ClassLinker::ResolveMode resolve_mode = ClassLinker::ResolveMode::kCheckICCEAndIAE;
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  ArtMethod* resolved_method = linker->GetResolvedMethod<type, resolve_mode>(method_idx, referrer);
-  if (UNLIKELY(resolved_method == nullptr)) {
-    return nullptr;
-  }
-  if (type == kInterface) {  // Most common form of slow path dispatch.
-    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method,
-                                                                  kRuntimePointerSize);
-  }
-  if (type == kStatic || type == kDirect) {
-    return resolved_method;
-  }
-
-  if (type == kSuper) {
-    // TODO This lookup is rather slow.
-    dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    ObjPtr<mirror::Class> method_reference_class = linker->LookupResolvedType(
-        method_type_idx, dex_cache, referrer->GetClassLoader());
-    if (method_reference_class == nullptr) {
-      // Need to do full type resolution...
-      return nullptr;
-    }
-
-    // If the referring class is in the class hierarchy of the
-    // referenced class in the bytecode, we use its super class. Otherwise, we cannot
-    // resolve the method.
-    if (!method_reference_class->IsAssignableFrom(referring_class)) {
-      return nullptr;
-    }
-
-    if (method_reference_class->IsInterface()) {
-      return method_reference_class->FindVirtualMethodForInterfaceSuper(
-          resolved_method, kRuntimePointerSize);
-    }
-
-    ObjPtr<mirror::Class> super_class = referring_class->GetSuperClass();
-    if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
-      // The super class does not have the method.
-      return nullptr;
-    }
-    return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), kRuntimePointerSize);
-  }
-
-  DCHECK(type == kVirtual);
-  return this_object->GetClass()->GetVTableEntry(
-      resolved_method->GetMethodIndex(), kRuntimePointerSize);
-}
-
 // We use TwoWordReturn to optimize scalar returns. We use the hi value for code, and the lo value
 // for the method pointer.
 //
@@ -2251,8 +2093,19 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs));
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
-  ArtMethod* method = FindMethodFast<type>(method_idx, this_object, caller_method);
+  uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
+  CodeItemInstructionAccessor accessor(caller_method->DexInstructions());
+  DCHECK_LT(dex_pc, accessor.InsnsSizeInCodeUnits());
+  const Instruction& instr = accessor.InstructionAt(dex_pc);
+  bool string_init = false;
+  ArtMethod* method = FindMethodToCall<type>(
+      self, caller_method, &this_object, instr, /* only_lookup_tls_cache= */ true, &string_init);
+
   if (UNLIKELY(method == nullptr)) {
+    if (self->IsExceptionPending()) {
+      // Return a failure if the first lookup threw an exception.
+      return GetTwoWordFailureValue();  // Failure.
+    }
     const DexFile* dex_file = caller_method->GetDexFile();
     uint32_t shorty_len;
     const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
@@ -2262,12 +2115,12 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
 
-      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-      CodeItemInstructionAccessor accessor(caller_method->DexInstructions());
-      CHECK_LT(dex_pc, accessor.InsnsSizeInCodeUnits());
-      const Instruction& instr = accessor.InstructionAt(dex_pc);
-      bool string_init = false;
-      method = FindMethodToCall<type>(self, caller_method, &this_object, instr, &string_init);
+      method = FindMethodToCall<type>(self,
+                                      caller_method,
+                                      &this_object,
+                                      instr,
+                                      /* only_lookup_tls_cache= */ false,
+                                      &string_init);
 
       visitor.FixupReferences();
     }

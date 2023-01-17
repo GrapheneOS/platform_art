@@ -62,7 +62,7 @@ import java.util.stream.Collectors;
 /**
  * A helper class to handle dexopt.
  *
- * It talks to other components (e.g., PowerManager) and dispatches tasks to dex optimizers.
+ * It talks to other components (e.g., PowerManager) and dispatches tasks to dexopters.
  *
  * @hide
  */
@@ -222,7 +222,7 @@ public class DexoptHelper {
                 }
 
                 results.addAll(
-                        mInjector.getPrimaryDexOptimizer(pkgState, pkg, params, cancellationSignal)
+                        mInjector.getPrimaryDexopter(pkgState, pkg, params, cancellationSignal)
                                 .dexopt());
             }
 
@@ -232,8 +232,7 @@ public class DexoptHelper {
                 }
 
                 results.addAll(
-                        mInjector
-                                .getSecondaryDexOptimizer(pkgState, pkg, params, cancellationSignal)
+                        mInjector.getSecondaryDexopter(pkgState, pkg, params, cancellationSignal)
                                 .dexopt());
             }
         } catch (RemoteException e) {
@@ -317,17 +316,17 @@ public class DexoptHelper {
         }
 
         @NonNull
-        PrimaryDexOptimizer getPrimaryDexOptimizer(@NonNull PackageState pkgState,
+        PrimaryDexopter getPrimaryDexopter(@NonNull PackageState pkgState,
                 @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
                 @NonNull CancellationSignal cancellationSignal) {
-            return new PrimaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
+            return new PrimaryDexopter(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
         @NonNull
-        SecondaryDexOptimizer getSecondaryDexOptimizer(@NonNull PackageState pkgState,
+        SecondaryDexopter getSecondaryDexopter(@NonNull PackageState pkgState,
                 @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
                 @NonNull CancellationSignal cancellationSignal) {
-            return new SecondaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
+            return new SecondaryDexopter(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
         @NonNull

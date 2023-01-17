@@ -37,9 +37,13 @@ public abstract class DexoptResult {
     // Possible values of {@link #DexoptResultStatus}.
     // A larger number means a higher priority. If multiple dex container files are processed, the
     // final status will be the one with the highest priority.
+    /** Dexopt is skipped because there is no need to do it. */
     public static final int DEXOPT_SKIPPED = 10;
+    /** Dexopt is performed successfully. */
     public static final int DEXOPT_PERFORMED = 20;
+    /** Dexopt is failed. */
     public static final int DEXOPT_FAILED = 30;
+    /** Dexopt is cancelled. */
     public static final int DEXOPT_CANCELLED = 40;
 
     /** @hide */
