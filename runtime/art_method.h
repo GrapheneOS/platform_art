@@ -565,8 +565,8 @@ class ArtMethod final {
   }
 
   void SetMustCountLocks() REQUIRES_SHARED(Locks::mutator_lock_) {
-    AddAccessFlags(kAccMustCountLocks);
     ClearAccessFlags(kAccSkipAccessChecks);
+    AddAccessFlags(kAccMustCountLocks);
   }
 
   // Returns true if the method is using the nterp entrypoint fast path.

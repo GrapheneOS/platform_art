@@ -45,7 +45,7 @@ struct SwitchImplContext {
 };
 
 // The actual internal implementation of the switch interpreter.
-template<bool do_access_check, bool transaction_active>
+template<bool transaction_active>
 void ExecuteSwitchImplCpp(SwitchImplContext* ctx)
   REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -55,9 +55,11 @@ extern "C" void ExecuteSwitchImplAsm(SwitchImplContext* ctx, void* impl, const u
   REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Wrapper around the switch interpreter which ensures we can unwind through it.
-template<bool do_access_check, bool transaction_active>
-ALWAYS_INLINE JValue ExecuteSwitchImpl(Thread* self, const CodeItemDataAccessor& accessor,
-                                       ShadowFrame& shadow_frame, JValue result_register,
+template<bool transaction_active>
+ALWAYS_INLINE JValue ExecuteSwitchImpl(Thread* self,
+                                       const CodeItemDataAccessor& accessor,
+                                       ShadowFrame& shadow_frame,
+                                       JValue result_register,
                                        bool interpret_one_instruction)
   REQUIRES_SHARED(Locks::mutator_lock_) {
   SwitchImplContext ctx {
@@ -68,7 +70,7 @@ ALWAYS_INLINE JValue ExecuteSwitchImpl(Thread* self, const CodeItemDataAccessor&
     .interpret_one_instruction = interpret_one_instruction,
     .result = JValue(),
   };
-  void* impl = reinterpret_cast<void*>(&ExecuteSwitchImplCpp<do_access_check, transaction_active>);
+  void* impl = reinterpret_cast<void*>(&ExecuteSwitchImplCpp<transaction_active>);
   const uint16_t* dex_pc = ctx.accessor.Insns();
   ExecuteSwitchImplAsm(&ctx, impl, dex_pc);
   return ctx.result;
