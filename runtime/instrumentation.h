@@ -247,6 +247,11 @@ class Instrumentation {
   void EnableEntryExitHooks(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_);
 
+  // Switches the runtime state to non-java debuggable if entry / exit hooks are no longer required
+  // and the runtime did not start off as java debuggable.
+  void MaybeSwitchRuntimeDebugState(Thread* self)
+      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_);
+
   bool AreAllMethodsDeoptimized() const {
     return InterpreterStubsInstalled();
   }

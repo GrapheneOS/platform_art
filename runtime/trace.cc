@@ -493,14 +493,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
                 instrumentation::Instrumentation::kMethodExited |
                 instrumentation::Instrumentation::kMethodUnwind);
         runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
-        if (!runtime->IsJavaDebuggableAtInit() && !runtime->IsShuttingDown(self)) {
-          art::jit::Jit* jit = runtime->GetJit();
-          if (jit != nullptr) {
-            jit->GetCodeCache()->InvalidateAllCompiledCode();
-            jit->GetJitCompiler()->SetDebuggableCompilerOption(false);
-          }
-          runtime->SetRuntimeDebugState(art::Runtime::RuntimeDebugState::kNonJavaDebuggable);
-        }
+        runtime->GetInstrumentation()->MaybeSwitchRuntimeDebugState(self);
       }
     }
     // At this point, code may read buf_ as it's writers are shutdown
