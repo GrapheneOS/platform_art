@@ -251,7 +251,7 @@ MarkCompact::MarkCompact(Heap* heap)
       compaction_in_progress_count_(0),
       compacting_(false),
       uffd_initialized_(false),
-      uffd_minor_fault_supported_(GetUffdAndMinorFault().second),
+      uffd_minor_fault_supported_(false),
       minor_fault_initialized_(false),
       map_linear_alloc_shared_(false) {
   // TODO: Depending on how the bump-pointer space move is implemented. If we
