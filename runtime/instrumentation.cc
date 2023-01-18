@@ -507,8 +507,14 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         return true;  // Ignore upcalls and runtime methods.
       }
 
+      bool is_shadow_frame = GetCurrentQuickFrame() == nullptr;
+      if (kVerboseInstrumentation) {
+        LOG(INFO) << "Processing frame: method: " << m->PrettyMethod()
+                  << " is_shadow_frame: " << is_shadow_frame;
+      }
+
       // Handle interpreter frame.
-      if (GetCurrentQuickFrame() == nullptr) {
+      if (is_shadow_frame) {
         // Since we are updating the instrumentation related information we have to recalculate
         // NeedsDexPcEvents. For example, when a new method or thread is deoptimized / interpreter
         // stubs are installed the NeedsDexPcEvents could change for the shadow frames on the stack.
@@ -517,18 +523,11 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         DCHECK(shadow_frame != nullptr);
         shadow_frame->SetNotifyDexPcMoveEvents(
             Runtime::Current()->GetInstrumentation()->NeedsDexPcEvents(GetMethod(), GetThread()));
-        if (kVerboseInstrumentation) {
-          LOG(INFO) << "Pushing shadow frame method " << m->PrettyMethod();
-        }
         stack_methods_.push_back(m);
         return true;  // Continue.
       }
 
       DCHECK(!m->IsRuntimeMethod());
-      if (kVerboseInstrumentation) {
-        LOG(INFO) << " Processing quick frame for updating exit hooks " << DescribeLocation();
-      }
-
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       if (Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(m, method_header)) {
         // It is unexpected to see a method enter event but not a method exit event so record stack
@@ -628,59 +627,75 @@ void Instrumentation::InstrumentAllThreadStacks(bool force_deopt) {
   }
 }
 
-// Removes the instrumentation exit pc as the return PC for every quick frame.
-static void InstrumentationRestoreStack(Thread* thread, void* arg)
-    REQUIRES(Locks::mutator_lock_) {
+static void InstrumentationRestoreStack(Thread* thread) REQUIRES(Locks::mutator_lock_) {
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
 
   struct RestoreStackVisitor final : public StackVisitor {
-    RestoreStackVisitor(Thread* thread_in,
-                        Instrumentation* instrumentation)
-        : StackVisitor(thread_in, nullptr, kInstrumentationStackWalk),
-          thread_(thread_in),
-          instrumentation_(instrumentation),
-          runtime_methods_need_deopt_check_(false) {}
+    RestoreStackVisitor(Thread* thread)
+        : StackVisitor(thread, nullptr, kInstrumentationStackWalk), thread_(thread) {}
 
     bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
-      ArtMethod* m = GetMethod();
       if (GetCurrentQuickFrame() == nullptr) {
-        if (kVerboseInstrumentation) {
-          LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
-              << " Method=" << ArtMethod::PrettyMethod(m);
-        }
-        return true;  // Ignore shadow frames.
+        return true;
       }
-      if (m == nullptr) {
-        if (kVerboseInstrumentation) {
-          LOG(INFO) << "  Skipping upcall. Frame " << GetFrameId();
-        }
-        return true;  // Ignore upcalls and runtime methods.
-      }
+
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
-        if (ShouldForceDeoptForRedefinition()) {
-          runtime_methods_need_deopt_check_ = true;
-        }
+        // We shouldn't restore stack if any of the frames need a force deopt
+        DCHECK(!ShouldForceDeoptForRedefinition());
         UnsetShouldDeoptimizeFlag(DeoptimizeFlagValue::kCheckCallerForDeopt);
       }
       return true;  // Continue.
     }
     Thread* const thread_;
-    Instrumentation* const instrumentation_;
-    bool runtime_methods_need_deopt_check_;
   };
+
   if (kVerboseInstrumentation) {
     std::string thread_name;
     thread->GetThreadName(thread_name);
-    LOG(INFO) << "Removing exit stubs in " << thread_name;
+    LOG(INFO) << "Restoring stack for " << thread_name;
   }
-  Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-  RestoreStackVisitor visitor(thread, instrumentation);
+  DCHECK(!thread->IsDeoptCheckRequired());
+  RestoreStackVisitor visitor(thread);
   visitor.WalkStack(true);
-  DCHECK_IMPLIES(visitor.runtime_methods_need_deopt_check_, thread->IsDeoptCheckRequired());
-  if (!visitor.runtime_methods_need_deopt_check_) {
-    thread->SetDeoptCheckRequired(false);
-  }
+}
+
+static bool HasFramesNeedingForceDeopt(Thread* thread) REQUIRES(Locks::mutator_lock_) {
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+
+  struct CheckForForceDeoptStackVisitor final : public StackVisitor {
+    CheckForForceDeoptStackVisitor(Thread* thread)
+        : StackVisitor(thread, nullptr, kInstrumentationStackWalk),
+          thread_(thread),
+          force_deopt_check_needed_(false) {}
+
+    bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (GetCurrentQuickFrame() == nullptr) {
+        return true;
+      }
+
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
+        if (ShouldForceDeoptForRedefinition()) {
+          force_deopt_check_needed_ = true;
+          return false;
+        }
+      }
+      return true;  // Continue.
+    }
+    Thread* const thread_;
+    bool force_deopt_check_needed_;
+  };
+
+  CheckForForceDeoptStackVisitor visitor(thread);
+  visitor.WalkStack(true);
+  // If there is a frame that requires a force deopt we should have set the IsDeoptCheckRequired
+  // bit. We don't check if the bit needs to be reset on every method exit / deoptimization. We
+  // only check when we no longer need instrumentation support. So it is possible that the bit is
+  // set but we don't find any frames that need a force deopt on the stack so reverse implication
+  // doesn't hold.
+  DCHECK_IMPLIES(visitor.force_deopt_check_needed_, thread->IsDeoptCheckRequired());
+  return visitor.force_deopt_check_needed_;
 }
 
 void Instrumentation::DeoptimizeAllThreadFrames() {
@@ -906,13 +921,20 @@ void Instrumentation::MaybeRestoreInstrumentationStack() {
   // exclusively at this point.
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Runtime::Current()->GetThreadList()->ForEach([&](Thread* t) NO_THREAD_SAFETY_ANALYSIS {
+    bool has_force_deopt_frames = HasFramesNeedingForceDeopt(t);
+    if (!has_force_deopt_frames) {
+      // We no longer have any frames that require a force deopt check. If the bit was true then we
+      // had some frames earlier but they already got deoptimized and are no longer on stack.
+      t->SetDeoptCheckRequired(false);
+    }
     no_remaining_deopts =
         no_remaining_deopts &&
         !t->IsForceInterpreter() &&
-        !t->HasDebuggerShadowFrames();
+        !t->HasDebuggerShadowFrames() &&
+        !has_force_deopt_frames;
   });
   if (no_remaining_deopts) {
-    Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
+    Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack);
     run_exit_hooks_ = false;
   }
 }
