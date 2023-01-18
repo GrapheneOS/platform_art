@@ -26,8 +26,6 @@ import static org.mockito.Mockito.mock;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -38,7 +36,6 @@ import dalvik.system.DexClassLoader;
 import dalvik.system.PathClassLoader;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -49,8 +46,6 @@ import java.util.List;
 @SmallTest
 @RunWith(MockitoJUnitRunner.StrictStubs.class)
 public class PrimaryDexUtilsTest {
-    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(PackageStateWrapper.class);
-
     @Before
     public void setUp() {}
 
@@ -223,9 +218,7 @@ public class PrimaryDexUtilsTest {
         lenient().when(library4.getDependencies()).thenReturn(List.of(library1));
         usesLibraryInfos.add(library4);
 
-        lenient()
-                .when(PackageStateWrapper.getSharedLibraryDependencies(pkgState))
-                .thenReturn(usesLibraryInfos);
+        lenient().when(pkgState.getSharedLibraryDependencies()).thenReturn(usesLibraryInfos);
 
         return pkgState;
     }
