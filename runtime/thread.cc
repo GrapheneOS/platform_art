@@ -2980,9 +2980,19 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     methods_and_pcs->SetElementPtrSize</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
         static_cast<uint32_t>(methods_and_pcs->GetLength()) / 2 + count_, dex_pc, pointer_size_);
     // Save the declaring class of the method to ensure that the declaring classes of the methods
-    // do not get unloaded while the stack trace is live.
+    // do not get unloaded while the stack trace is live. However, this does not work for copied
+    // methods because the declaring class of a copied method points to an interface class which
+    // may be in a different class loader. Instead, retrieve the class loader associated with the
+    // allocator that holds the copied method. This is much cheaper than finding the actual class.
+    ObjPtr<mirror::Object> keep_alive;
+    if (UNLIKELY(method->IsCopied())) {
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      keep_alive = class_linker->GetHoldingClassLoaderOfCopiedMethod(self_, method);
+    } else {
+      keep_alive = method->GetDeclaringClass();
+    }
     trace_->Set</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-        static_cast<int32_t>(count_) + 1, method->GetDeclaringClass());
+        static_cast<int32_t>(count_) + 1, keep_alive);
     ++count_;
   }
 
@@ -3000,11 +3010,14 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   uint32_t skip_depth_;
   // Current position down stack trace.
   uint32_t count_ = 0;
-  // An object array where the first element is a pointer array that contains the ArtMethod
-  // pointers on the stack and dex PCs. The rest of the elements are the declaring class of
-  // the ArtMethod pointers. trace_[i+1] contains the declaring class of the ArtMethod of the
-  // i'th frame. We're initializing a newly allocated trace, so we do not need to record that
-  // under a transaction. If the transaction is aborted, the whole trace shall be unreachable.
+  // An object array where the first element is a pointer array that contains the `ArtMethod`
+  // pointers on the stack and dex PCs. The rest of the elements are referencing objects
+  // that shall keep the methods alive, namely the declaring class of the `ArtMethod` for
+  // declared methods and the class loader for copied methods (because it's faster to find
+  // the class loader than the actual class that holds the copied method). The `trace_[i+1]`
+  // contains the declaring class or class loader of the `ArtMethod` of the i'th frame.
+  // We're initializing a newly allocated trace, so we do not need to record that under
+  // a transaction. If the transaction is aborted, the whole trace shall be unreachable.
   mirror::ObjectArray<mirror::Object>* trace_ = nullptr;
   // For cross compilation.
   const PointerSize pointer_size_;
@@ -3898,8 +3911,14 @@ void Thread::QuickDeliverException(bool skip_method_exit_callbacks) {
   // Note: we do this *after* reporting the exception to instrumentation in case it now requires
   // deoptimization. It may happen if a debugger is attached and requests new events (single-step,
   // breakpoint, ...) when the exception is reported.
-  //
-    if (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter()) {
+  // Frame pop can be requested on a method unwind callback which requires a deopt. We could
+  // potentially check after each unwind callback to see if a frame pop was requested and deopt if
+  // needed. Since this is a debug only feature and this path is only taken when an exception is
+  // thrown, it is not performance critical and we keep it simple by just deopting if method exit
+  // listeners are installed and frame pop feature is supported.
+  bool needs_deopt =
+      instrumentation->HasMethodExitListeners() && Runtime::Current()->AreNonStandardExitsEnabled();
+  if (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter() || needs_deopt) {
     NthCallerVisitor visitor(this, 0, false);
     visitor.WalkStack();
     if (visitor.GetCurrentQuickFrame() != nullptr) {

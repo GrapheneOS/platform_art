@@ -121,9 +121,12 @@ void CommonRuntimeTestImpl::SetUp() {
   }
 
   PreRuntimeCreate();
-  if (!Runtime::Create(options, false)) {
-    LOG(FATAL) << "Failed to create runtime";
-    UNREACHABLE();
+  {
+    ScopedLogSeverity sls(LogSeverity::WARNING);
+    if (!Runtime::Create(options, false)) {
+      LOG(FATAL) << "Failed to create runtime";
+      UNREACHABLE();
+    }
   }
   PostRuntimeCreate();
   runtime_.reset(Runtime::Current());

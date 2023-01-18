@@ -93,6 +93,9 @@ public abstract class DexoptResult {
      * If the request is to dexopt multiple packages, the list contains the results of all the
      * requested packages. The results of their dependency packages are also included if {@link
      * ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES} is set.
+     *
+     * If the request is a batch dexopt operation that got cancelled, the list still has an entry
+     * for every package that was requested to be optimized.
      */
     public abstract @NonNull List<PackageDexoptResult> getPackageDexoptResults();
 

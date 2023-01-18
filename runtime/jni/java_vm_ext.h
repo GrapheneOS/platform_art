@@ -184,6 +184,11 @@ class JavaVMExt : public JavaVM {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::jni_weak_globals_lock_);
 
+  // Decode weak global as strong. Use only if the target object is known to be alive.
+  ObjPtr<mirror::Object> DecodeWeakGlobalAsStrong(IndirectRef ref)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::jni_weak_globals_lock_);
+
   // Like DecodeWeakGlobal() but to be used only during a runtime shutdown where self may be
   // null.
   ObjPtr<mirror::Object> DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref)

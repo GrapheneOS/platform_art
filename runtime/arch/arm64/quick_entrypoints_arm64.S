@@ -1901,7 +1901,7 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_def_cfa_register sp
 
     LOAD_RUNTIME_INSTANCE x1
-    ldrb w1, [x1, #INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE]
+    ldrb w1, [x1, #RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE]
     cbnz w1, .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 

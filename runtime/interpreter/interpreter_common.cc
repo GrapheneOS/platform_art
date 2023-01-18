@@ -231,7 +231,7 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 // about ALWAYS_INLINE (-Werror, -Wgcc-compat) in definitions.
 //
 
-template <bool is_range, bool do_assignability_check>
+template <bool is_range>
 static ALWAYS_INLINE bool DoCallCommon(ArtMethod* called_method,
                                        Thread* self,
                                        ShadowFrame& shadow_frame,
@@ -1181,8 +1181,7 @@ inline void CopyRegisters(ShadowFrame& caller_frame,
   }
 }
 
-template <bool is_range,
-          bool do_assignability_check>
+template <bool is_range>
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
@@ -1261,7 +1260,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
 
   // Initialize new shadow frame by copying the registers from the callee shadow frame.
-  if (do_assignability_check) {
+  if (!shadow_frame.GetMethod()->SkipAccessChecks()) {
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
     // register the shadow frame as under construction and allow suspension again.
@@ -1304,7 +1303,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         // Handle Object references. 1 virtual register slot.
         case 'L': {
           ObjPtr<mirror::Object> o = shadow_frame.GetVRegReference(src_reg);
-          if (do_assignability_check && o != nullptr) {
+          if (o != nullptr) {
             const dex::TypeIndex type_idx = params->GetTypeItem(shorty_pos).type_idx_;
             ObjPtr<mirror::Class> arg_type = method->GetDexCache()->GetResolvedType(type_idx);
             if (arg_type == nullptr) {
@@ -1378,7 +1377,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   return !self->IsExceptionPending();
 }
 
-template<bool is_range, bool do_assignability_check>
+template<bool is_range>
 NO_STACK_PROTECTOR
 bool DoCall(ArtMethod* called_method,
             Thread* self,
@@ -1402,7 +1401,7 @@ bool DoCall(ArtMethod* called_method,
     inst->GetVarArgs(arg, inst_data);
   }
 
-  return DoCallCommon<is_range, do_assignability_check>(
+  return DoCallCommon<is_range>(
       called_method,
       self,
       shadow_frame,
@@ -1413,7 +1412,7 @@ bool DoCall(ArtMethod* called_method,
       is_string_init);
 }
 
-template <bool is_range, bool do_access_check, bool transaction_active>
+template <bool is_range, bool transaction_active>
 bool DoFilledNewArray(const Instruction* inst,
                       const ShadowFrame& shadow_frame,
                       Thread* self,
@@ -1430,6 +1429,7 @@ bool DoFilledNewArray(const Instruction* inst,
     return false;
   }
   uint16_t type_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
+  bool do_access_check = !shadow_frame.GetMethod()->SkipAccessChecks();
   ObjPtr<mirror::Class> array_class = ResolveVerifyAndClinit(dex::TypeIndex(type_idx),
                                                              shadow_frame.GetMethod(),
                                                              self,
@@ -1534,20 +1534,50 @@ void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count
   }
 }
 
+void UnlockHeldMonitors(Thread* self, ShadowFrame* shadow_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(shadow_frame->GetForcePopFrame() || Runtime::Current()->IsTransactionAborted());
+  // Unlock all monitors.
+  if (shadow_frame->GetMethod()->MustCountLocks()) {
+    DCHECK(!shadow_frame->GetMethod()->SkipAccessChecks());
+    // Get the monitors from the shadow-frame monitor-count data.
+    shadow_frame->GetLockCountData().VisitMonitors(
+      [&](mirror::Object** obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+        // Since we don't use the 'obj' pointer after the DoMonitorExit everything should be fine
+        // WRT suspension.
+        DoMonitorExit(self, shadow_frame, *obj);
+      });
+  } else {
+    std::vector<verifier::MethodVerifier::DexLockInfo> locks;
+    verifier::MethodVerifier::FindLocksAtDexPc(shadow_frame->GetMethod(),
+                                               shadow_frame->GetDexPC(),
+                                               &locks,
+                                               Runtime::Current()->GetTargetSdkVersion());
+    for (const auto& reg : locks) {
+      if (UNLIKELY(reg.dex_registers.empty())) {
+        LOG(ERROR) << "Unable to determine reference locked by "
+                   << shadow_frame->GetMethod()->PrettyMethod() << " at pc "
+                   << shadow_frame->GetDexPC();
+      } else {
+        DoMonitorExit(
+            self, shadow_frame, shadow_frame->GetVRegReference(*reg.dex_registers.begin()));
+      }
+    }
+  }
+}
+
 // Explicit DoCall template function declarations.
-#define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
-  template REQUIRES_SHARED(Locks::mutator_lock_)                                                \
-  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method,                            \
-                                                  Thread* self,                                 \
-                                                  ShadowFrame& shadow_frame,                    \
-                                                  const Instruction* inst,                      \
-                                                  uint16_t inst_data,                           \
-                                                  bool string_init,                             \
-                                                  JValue* result)
-EXPLICIT_DO_CALL_TEMPLATE_DECL(false, false);
-EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
-EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
-EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
+#define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range)                      \
+  template REQUIRES_SHARED(Locks::mutator_lock_)                       \
+  bool DoCall<_is_range>(ArtMethod* method,                            \
+                         Thread* self,                                 \
+                         ShadowFrame& shadow_frame,                    \
+                         const Instruction* inst,                      \
+                         uint16_t inst_data,                           \
+                         bool string_init,                             \
+                         JValue* result)
+EXPLICIT_DO_CALL_TEMPLATE_DECL(false);
+EXPLICIT_DO_CALL_TEMPLATE_DECL(true);
 #undef EXPLICIT_DO_CALL_TEMPLATE_DECL
 
 // Explicit DoInvokePolymorphic template function declarations.
@@ -1561,16 +1591,15 @@ EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(true);
 #undef EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
-#define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
+#define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _transaction_active)               \
   template REQUIRES_SHARED(Locks::mutator_lock_)                                                  \
-  bool DoFilledNewArray<_is_range_, _check, _transaction_active>(const Instruction* inst,         \
-                                                                 const ShadowFrame& shadow_frame, \
-                                                                 Thread* self, JValue* result)
-#define EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(_transaction_active)       \
-  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, false, _transaction_active);  \
-  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, true, _transaction_active);   \
-  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, false, _transaction_active);   \
-  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, true, _transaction_active)
+  bool DoFilledNewArray<_is_range_, _transaction_active>(const Instruction* inst,                 \
+                                                         const ShadowFrame& shadow_frame,         \
+                                                         Thread* self,                            \
+                                                         JValue* result)
+#define EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(_transaction_active)                       \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, _transaction_active);                         \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, _transaction_active)
 EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(false);
 EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(true);
 #undef EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL

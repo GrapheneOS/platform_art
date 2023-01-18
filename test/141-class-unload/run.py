@@ -17,4 +17,4 @@
 
 def run(ctx, args):
   # Currently app images aren't unloaded when dex files are unloaded.
-  ctx.default_run(args, secondary_app_image=False)
+  ctx.default_run(args, profile=True, secondary_app_image=False)

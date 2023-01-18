@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,5 @@
  * limitations under the License.
  */
 
-// The interpreter function takes considerable time to compile and link.
-// We compile the explicit definitions separately to speed up the build.
-
-#include "interpreter_switch_impl-inl.h"
-
-namespace art {
-namespace interpreter {
-
-// Explicit definition of ExecuteSwitchImplCpp.
-template HOT_ATTR
-void ExecuteSwitchImplCpp<true, false>(SwitchImplContext* ctx);
-
-}  // namespace interpreter
-}  // namespace art
+public class Impl2 implements Iface {
+}

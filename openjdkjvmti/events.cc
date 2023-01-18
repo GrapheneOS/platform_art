@@ -1130,13 +1130,11 @@ static DeoptRequirement GetDeoptRequirement(ArtJvmtiEvent event, jthread thread)
   switch (event) {
     case ArtJvmtiEvent::kBreakpoint:
     case ArtJvmtiEvent::kException:
-      return DeoptRequirement::kLimited;
-    // TODO MethodEntry is needed due to inconsistencies between the interpreter and the trampoline
-    // in how to handle exceptions.
     case ArtJvmtiEvent::kMethodEntry:
+    case ArtJvmtiEvent::kMethodExit:
+      return DeoptRequirement::kLimited;
     case ArtJvmtiEvent::kExceptionCatch:
       return DeoptRequirement::kFull;
-    case ArtJvmtiEvent::kMethodExit:
     case ArtJvmtiEvent::kFieldModification:
     case ArtJvmtiEvent::kFieldAccess:
     case ArtJvmtiEvent::kSingleStep:
