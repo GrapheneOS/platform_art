@@ -1356,6 +1356,13 @@ class MANAGED Class final : public Object {
   size_t GetMethodIdOffset(ArtMethod* method, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns whether the class should be visible to an app.
+  // Notorious example is java.lang.ClassValue, which was added in Android U and proguarding tools
+  // used that as justification to remove computeValue method implementation. Such an app running
+  // on U+ will fail with AbstractMethodError as computeValue is not implemented.
+  // See b/259501764.
+  bool CheckIsVisibleWithTargetSdk(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   template <typename T, VerifyObjectFlags kVerifyFlags, typename Visitor>
   void FixupNativePointer(
