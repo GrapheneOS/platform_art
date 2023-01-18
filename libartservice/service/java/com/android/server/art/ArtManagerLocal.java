@@ -101,7 +101,9 @@ public final class ArtManagerLocal {
     private static final String TAG = "ArtService";
     private static final String[] CLASSPATHS_FOR_BOOT_IMAGE_PROFILE = {
             "BOOTCLASSPATH", "SYSTEMSERVERCLASSPATH", "STANDALONE_SYSTEMSERVER_JARS"};
-    private static final long DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES = 500_000_000;
+
+    /** @hide */
+    @VisibleForTesting public static final long DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES = 500_000_000;
 
     @NonNull private final Injector mInjector;
 
@@ -407,7 +409,7 @@ public final class ArtManagerLocal {
      * pm.dexopt.downgrade_after_inactive_days} is set. The space threshold to trigger this feature
      * is the Storage Manager's low space threshold plus {@link
      * #DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES}. The concurrency can be configured by system property
-     * {@code pm.dexopt.inactive.concurrency}. The packages in the list provided by
+     * {@code pm.dexopt.bg-dexopt.concurrency}. The packages in the list provided by
      * {@link BatchDexoptStartCallback} for {@link ReasonMapping#REASON_BG_DEXOPT} are never
      * downgraded.
      *
