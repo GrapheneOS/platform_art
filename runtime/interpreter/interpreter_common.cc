@@ -232,6 +232,7 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 //
 
 template <bool is_range>
+NO_STACK_PROTECTOR
 static ALWAYS_INLINE bool DoCallCommon(ArtMethod* called_method,
                                        Thread* self,
                                        ShadowFrame& shadow_frame,
