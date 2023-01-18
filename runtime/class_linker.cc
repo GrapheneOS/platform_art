@@ -2056,7 +2056,7 @@ bool ClassLinker::AddImageSpace(
     } else if (special_root->IsIntArray()) {
       size_t count = special_root->AsIntArray()->GetLength();
       if (oat_file->GetVdexFile()->GetNumberOfDexFiles() != count) {
-        *error_msg = "Cheksums count does not match";
+        *error_msg = "Checksums count does not match";
         return false;
       }
       static_assert(sizeof(VdexFile::VdexChecksum) == sizeof(int32_t));
@@ -2065,7 +2065,7 @@ bool ClassLinker::AddImageSpace(
       const VdexFile::VdexChecksum* vdex_checksums =
           oat_file->GetVdexFile()->GetDexChecksumsArray();
       if (memcmp(art_checksums, vdex_checksums, sizeof(VdexFile::VdexChecksum) * count) != 0) {
-        *error_msg = "Image and vdex cheksums did not match";
+        *error_msg = "Image and vdex checksums did not match";
         return false;
       }
     } else if (IsBootClassLoader(special_root.Get())) {
@@ -3387,7 +3387,7 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
   // classes. However it could not update methods of this class while we
   // were loading it. Now the class is resolved, we can update entrypoints
   // as required by instrumentation.
-  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+  if (Runtime::Current()->GetInstrumentation()->EntryExitStubsInstalled()) {
     // We must be in the kRunnable state to prevent instrumentation from
     // suspending all threads to update entrypoints while we are doing it
     // for this class.
@@ -10399,7 +10399,71 @@ ObjPtr<mirror::Class> ClassLinker::GetHoldingClassOfCopiedMethod(ArtMethod* meth
   CHECK(method->IsCopied());
   FindVirtualMethodHolderVisitor visitor(method, image_pointer_size_);
   VisitClasses(&visitor);
+  DCHECK(visitor.holder_ != nullptr);
   return visitor.holder_;
+}
+
+ObjPtr<mirror::ClassLoader> ClassLinker::GetHoldingClassLoaderOfCopiedMethod(Thread* self,
+                                                                             ArtMethod* method) {
+  // Note: `GetHoldingClassOfCopiedMethod(method)` is a lot more expensive than finding
+  // the class loader, so we're using it only to verify the result in debug mode.
+  CHECK(method->IsCopied());
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // Check if the copied method is in the boot class path.
+  if (heap->IsBootImageAddress(method) || GetAllocatorForClassLoader(nullptr)->Contains(method)) {
+    DCHECK(GetHoldingClassOfCopiedMethod(method)->GetClassLoader() == nullptr);
+    return nullptr;
+  }
+  // Check if the copied method is in an app image.
+  // Note: Continuous spaces contain boot image spaces and app image spaces.
+  // However, they are sorted by address, so boot images are not trivial to skip.
+  ArrayRef<gc::space::ContinuousSpace* const> spaces(heap->GetContinuousSpaces());
+  DCHECK_GE(spaces.size(), heap->GetBootImageSpaces().size());
+  for (gc::space::ContinuousSpace* space : spaces) {
+    if (space->IsImageSpace()) {
+      gc::space::ImageSpace* image_space = space->AsImageSpace();
+      size_t offset = reinterpret_cast<const uint8_t*>(method) - image_space->Begin();
+      const ImageSection& methods_section = image_space->GetImageHeader().GetMethodsSection();
+      if (offset - methods_section.Offset() < methods_section.Size()) {
+        // Grab the class loader from the first non-BCP class in the app image class table.
+        // Note: If we allow classes from arbitrary parent or library class loaders in app
+        // images, this shall need to be updated to actually search for the exact class.
+        const ImageSection& class_table_section =
+            image_space->GetImageHeader().GetClassTableSection();
+        CHECK_NE(class_table_section.Size(), 0u);
+        const uint8_t* ptr = image_space->Begin() + class_table_section.Offset();
+        size_t read_count = 0;
+        ClassTable::ClassSet class_set(ptr, /*make_copy_of_data=*/ false, &read_count);
+        CHECK(!class_set.empty());
+        auto it = class_set.begin();
+        // No read barrier needed for references to non-movable image classes.
+        while ((*it).Read<kWithoutReadBarrier>()->IsBootStrapClassLoaded()) {
+          ++it;
+          CHECK(it != class_set.end());
+        }
+        ObjPtr<mirror::ClassLoader> class_loader =
+            (*it).Read<kWithoutReadBarrier>()->GetClassLoader();
+        DCHECK(GetHoldingClassOfCopiedMethod(method)->GetClassLoader() == class_loader);
+        return class_loader;
+      }
+    }
+  }
+  // Otherwise, the method must be in one of the `LinearAlloc` memory areas.
+  jweak result = nullptr;
+  {
+    ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
+    for (const ClassLoaderData& data : class_loaders_) {
+      if (data.allocator->Contains(method)) {
+        result = data.weak_root;
+        break;
+      }
+    }
+  }
+  CHECK(result != nullptr) << "Did not find allocator holding the copied method: " << method
+      << " " << method->PrettyMethod();
+  // The `method` is alive, so the class loader must also be alive.
+  return ObjPtr<mirror::ClassLoader>::DownCast(
+      Runtime::Current()->GetJavaVM()->DecodeWeakGlobalAsStrong(result));
 }
 
 bool ClassLinker::DenyAccessBasedOnPublicSdk(ArtMethod* art_method ATTRIBUTE_UNUSED) const

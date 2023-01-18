@@ -1530,7 +1530,7 @@ ENTRY art_quick_generic_jni_trampoline
     vmov d0, r0, r1
 
     LOAD_RUNTIME_INSTANCE r2
-    ldr r2, [r2,  #INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE]
+    ldr r2, [r2,  #RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE]
     cbnz r2, .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 

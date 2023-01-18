@@ -1997,7 +1997,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
   }
 
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-  if (UNLIKELY(instr->AreExitStubsInstalled() && Runtime::Current()->IsJavaDebuggable())) {
+  if (UNLIKELY(instr->HasMethodEntryListeners())) {
     instr->MethodEnterEvent(self, called);
     if (self->IsExceptionPending()) {
       return nullptr;
@@ -2543,7 +2543,8 @@ extern "C" void artMethodExitHook(Thread* self,
       << "Enter instrumentation exit stub with pending exception " << self->GetException()->Dump();
 
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-  JValue return_value;
+  DCHECK(instr->RunExitHooks());
+
   bool is_ref = false;
   ArtMethod* method = *sp;
   if (instr->HasMethodExitListeners()) {
@@ -2551,9 +2552,8 @@ extern "C" void artMethodExitHook(Thread* self,
 
     CHECK(gpr_result != nullptr);
     CHECK(fpr_result != nullptr);
-    DCHECK(instr->AreExitStubsInstalled());
 
-    return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
+    JValue return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
     MutableHandle<mirror::Object> res(hs.NewHandle<mirror::Object>(nullptr));
     if (is_ref) {
       // Take a handle to the return value so we won't lose it if we suspend.

@@ -415,13 +415,13 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
   shadow_frame->SetVRegReference(1, string_arg.Get());
 
   ArtMethod* factory = WellKnownClasses::StringInitToStringFactory(method);
-  interpreter::DoCall<false, false>(factory,
-                                    self,
-                                    *shadow_frame,
-                                    Instruction::At(inst_data),
-                                    inst_data[0],
-                                    /* string_init= */ true,
-                                    &result);
+  interpreter::DoCall<false>(factory,
+                             self,
+                             *shadow_frame,
+                             Instruction::At(inst_data),
+                             inst_data[0],
+                             /* string_init= */ true,
+                             &result);
   ObjPtr<mirror::String> string_result = down_cast<mirror::String*>(result.GetL());
   EXPECT_EQ(string_arg->GetLength(), string_result->GetLength());
 
@@ -1015,13 +1015,13 @@ TEST_F(UnstartedRuntimeTest, FloatConversion) {
   UniqueDeoptShadowFramePtr shadow_frame = CreateShadowFrame(10, method, 0);
 
   shadow_frame->SetVRegDouble(0, 1.23);
-  interpreter::DoCall<false, false>(method,
-                                    self,
-                                    *shadow_frame,
-                                    Instruction::At(inst_data),
-                                    inst_data[0],
-                                    /* string_init= */ false,
-                                    &result);
+  interpreter::DoCall<false>(method,
+                             self,
+                             *shadow_frame,
+                             Instruction::At(inst_data),
+                             inst_data[0],
+                             /* string_init= */ false,
+                             &result);
   ObjPtr<mirror::String> string_result = down_cast<mirror::String*>(result.GetL());
   ASSERT_TRUE(string_result != nullptr);
 
@@ -1173,13 +1173,13 @@ class UnstartedClassForNameTest : public UnstartedRuntimeTest {
       // create instruction data for invoke-direct {v0} of method with fake index
       uint16_t inst_data[3] = { 0x1070, 0x0000, 0x0010 };
 
-      interpreter::DoCall<false, false>(boot_cp_init,
-                                        self,
-                                        *shadow_frame,
-                                        Instruction::At(inst_data),
-                                        inst_data[0],
-                                        /* string_init= */ false,
-                                        &result);
+      interpreter::DoCall<false>(boot_cp_init,
+                                 self,
+                                 *shadow_frame,
+                                 Instruction::At(inst_data),
+                                 inst_data[0],
+                                 /* string_init= */ false,
+                                 &result);
       CHECK(!self->IsExceptionPending());
     }
 
