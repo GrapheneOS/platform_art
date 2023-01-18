@@ -212,6 +212,7 @@ struct TraceConfig {
   Trace::TraceOutputMode trace_output_mode;
   std::string trace_file;
   size_t trace_file_size;
+  TraceClockSource clock_source;
 };
 
 namespace {
@@ -1060,9 +1061,20 @@ bool Runtime::Start() {
 
   if (trace_config_.get() != nullptr && trace_config_->trace_file != "") {
     ScopedThreadStateChange tsc(self, ThreadState::kWaitingForMethodTracingStart);
+    int flags = 0;
+    if (trace_config_->clock_source == TraceClockSource::kDual) {
+      flags = Trace::TraceFlag::kTraceClockSourceWallClock |
+              Trace::TraceFlag::kTraceClockSourceThreadCpu;
+    } else if (trace_config_->clock_source == TraceClockSource::kWall) {
+      flags = Trace::TraceFlag::kTraceClockSourceWallClock;
+    } else if (TraceClockSource::kThreadCpu == trace_config_->clock_source) {
+      flags = Trace::TraceFlag::kTraceClockSourceThreadCpu;
+    } else {
+      LOG(ERROR) << "Unexpected clock source";
+    }
     Trace::Start(trace_config_->trace_file.c_str(),
                  static_cast<int>(trace_config_->trace_file_size),
-                 0,
+                 flags,
                  trace_config_->trace_output_mode,
                  trace_config_->trace_mode,
                  0);
@@ -1928,9 +1940,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     trace_config_->trace_output_mode = runtime_options.Exists(Opt::MethodTraceStreaming) ?
         Trace::TraceOutputMode::kStreaming :
         Trace::TraceOutputMode::kFile;
+    trace_config_->clock_source = runtime_options.GetOrDefault(Opt::MethodTraceClock);
   }
 
-  // TODO: move this to just be an Trace::Start argument
+  // TODO: Remove this in a follow up CL. This isn't used anywhere.
   Trace::SetDefaultClockSource(runtime_options.GetOrDefault(Opt::ProfileClock));
 
   if (GetHeap()->HasBootImageSpace()) {

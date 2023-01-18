@@ -356,6 +356,12 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::MethodTraceFileSize)
       .Define("-Xmethod-trace-stream")
           .IntoKey(M::MethodTraceStreaming)
+      .Define("-Xmethod-trace-clock:_")
+          .WithType<TraceClockSource>()
+          .WithValueMap({{"threadcpuclock", TraceClockSource::kThreadCpu},
+                         {"wallclock",      TraceClockSource::kWall},
+                         {"dualclock",      TraceClockSource::kDual}})
+          .IntoKey(M::MethodTraceClock)
       .Define("-Xcompiler:_")
           .WithType<std::string>()
           .IntoKey(M::Compiler)
