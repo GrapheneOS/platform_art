@@ -21,12 +21,14 @@ import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import static com.android.server.art.ArtManagerLocal.SnapshotProfileException;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.model.ArtFlags.DexoptFlags;
+import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 import static com.android.server.art.model.DexoptResult.DexoptResultStatus;
 import static com.android.server.art.model.DexoptResult.PackageDexoptResult;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.os.Binder;
 import android.os.Build;
 import android.os.CancellationSignal;
@@ -53,6 +55,7 @@ import com.android.server.pm.pkg.PackageState;
 
 import libcore.io.Streams;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +64,7 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -97,10 +101,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Override
     public int onCommand(String cmd) {
+        // TODO(b/269283633): Restrict apps from calling ART Service shell commands.
         PrintWriter pw = getOutPrintWriter();
         try (var snapshot = mPackageManagerLocal.withFilteredSnapshot()) {
             switch (cmd) {
                 case "compile":
+                    return handleCompile(pw, snapshot);
                 case "reconcile-secondary-dex-files":
                 case "force-dex-opt":
                 case "bg-dexopt-job":
@@ -123,89 +129,24 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private int handleArtCommand(
             @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
-        enforceRoot();
         String subcmd = getNextArgRequired();
         switch (subcmd) {
             case "delete-dexopt-artifacts": {
+                enforceRoot();
                 DeleteResult result =
                         mArtManagerLocal.deleteDexoptArtifacts(snapshot, getNextArgRequired());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
             }
             case "get-dexopt-status": {
+                enforceRoot();
                 DexoptStatus dexoptStatus = mArtManagerLocal.getDexoptStatus(
                         snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
                 pw.println(dexoptStatus);
                 return 0;
             }
-            case "dexopt-package": {
-                var paramsBuilder = new DexoptParams.Builder("cmdline");
-                String opt;
-                @DexoptFlags int scopeFlags = 0;
-                boolean forSingleSplit = false;
-                boolean reset = false;
-                while ((opt = getNextOption()) != null) {
-                    switch (opt) {
-                        case "-m":
-                            paramsBuilder.setCompilerFilter(getNextArgRequired());
-                            break;
-                        case "-f":
-                            paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
-                            break;
-                        case "--primary-dex":
-                            scopeFlags |= ArtFlags.FLAG_FOR_PRIMARY_DEX;
-                            break;
-                        case "--secondary-dex":
-                            scopeFlags |= ArtFlags.FLAG_FOR_SECONDARY_DEX;
-                            break;
-                        case "--include-dependencies":
-                            scopeFlags |= ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES;
-                            break;
-                        case "--split":
-                            String splitName = getNextArgRequired();
-                            forSingleSplit = true;
-                            paramsBuilder
-                                    .setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT,
-                                            ArtFlags.FLAG_FOR_SINGLE_SPLIT)
-                                    .setSplitName(!splitName.isEmpty() ? splitName : null);
-                            break;
-                        case "--reset":
-                            reset = true;
-                            break;
-                        default:
-                            pw.println("Error: Unknown option: " + opt);
-                            return 1;
-                    }
-                }
-                if (forSingleSplit) {
-                    if (scopeFlags != 0) {
-                        pw.println("'--primary-dex', '--secondary-dex', and "
-                                + "'--include-dependencies' must not be set when '--split' is "
-                                + "set.");
-                        return 1;
-                    }
-                    scopeFlags = ArtFlags.FLAG_FOR_PRIMARY_DEX;
-                }
-                if (scopeFlags != 0) {
-                    paramsBuilder.setFlags(scopeFlags,
-                            ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
-                                    | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
-                }
-
-                DexoptResult result;
-                try (var signal = new WithCancellationSignal(pw)) {
-                    if (reset) {
-                        result = mArtManagerLocal.resetDexoptStatus(
-                                snapshot, getNextArgRequired(), signal.get());
-                    } else {
-                        result = mArtManagerLocal.dexoptPackage(snapshot, getNextArgRequired(),
-                                paramsBuilder.build(), signal.get());
-                    }
-                }
-                printDexoptResult(pw, result);
-                return 0;
-            }
             case "dexopt-packages": {
+                enforceRoot();
                 DexoptResult result;
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 try (var signal = new WithCancellationSignal(pw)) {
@@ -236,11 +177,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dex-use-notify": {
+                enforceRoot();
                 mDexUseManager.notifyDexContainersLoaded(snapshot, getNextArgRequired(),
                         Map.of(getNextArgRequired(), getNextArgRequired()));
                 return 0;
             }
             case "dump": {
+                enforceRoot();
                 String packageName = getNextArg();
                 if (packageName != null) {
                     mArtManagerLocal.dumpPackage(pw, snapshot, packageName);
@@ -250,10 +193,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dex-use-dump": {
+                enforceRoot();
                 pw.println(mDexUseManager.dump());
                 return 0;
             }
             case "bg-dexopt-job": {
+                enforceRoot();
                 String opt = getNextOption();
                 if (opt == null) {
                     mArtManagerLocal.startBackgroundDexoptJob();
@@ -290,6 +235,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 }
             }
             case "snapshot-app-profile": {
+                enforceRoot();
                 String packageName = getNextArgRequired();
                 String splitName = getNextArg();
                 String outputRelativePath = String.format("%s%s.prof", packageName,
@@ -304,6 +250,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "snapshot-boot-image-profile": {
+                enforceRoot();
                 String outputRelativePath = "android.prof";
                 ParcelFileDescriptor fd;
                 try {
@@ -315,6 +262,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dump-profiles": {
+                enforceRoot();
                 boolean dumpClassesAndMethods = false;
                 String opt;
                 while ((opt = getNextOption()) != null) {
@@ -353,13 +301,175 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "cleanup": {
+                enforceRoot();
                 mArtManagerLocal.cleanup(snapshot);
                 return 0;
             }
+            case "clear-app-profiles": {
+                mArtManagerLocal.clearAppProfiles(snapshot, getNextArgRequired());
+                pw.println("Profiles cleared");
+                return 0;
+            }
             default:
-                pw.println(String.format("Unknown 'art' sub-command '%s'", subcmd));
-                pw.println("See 'cmd package help' for help");
+                pw.printf("Error: Unknown 'art' sub-command '%s'\n", subcmd);
+                pw.println("See 'pm help' for help");
                 return 1;
+        }
+    }
+
+    private int handleCompile(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        @DexoptFlags int scopeFlags = 0;
+        String reason = null;
+        String compilerFilter = null;
+        @PriorityClassApi int priorityClass = ArtFlags.PRIORITY_NONE;
+        String splitArg = null;
+        boolean force = false;
+        boolean reset = false;
+        boolean forAllPackages = false;
+        boolean legacyClearProfile = false;
+
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            switch (opt) {
+                case "-a":
+                    forAllPackages = true;
+                    break;
+                case "-r":
+                    reason = getNextArgRequired();
+                    break;
+                case "-m":
+                    compilerFilter = getNextArgRequired();
+                    break;
+                case "-p":
+                    priorityClass = parsePriorityClass(getNextArgRequired());
+                    break;
+                case "-f":
+                    force = true;
+                    break;
+                case "--primary-dex":
+                    scopeFlags |= ArtFlags.FLAG_FOR_PRIMARY_DEX;
+                    break;
+                case "--secondary-dex":
+                    scopeFlags |= ArtFlags.FLAG_FOR_SECONDARY_DEX;
+                    break;
+                case "--include-dependencies":
+                    scopeFlags |= ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES;
+                    break;
+                case "--full":
+                    scopeFlags |= ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
+                            | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES;
+                    break;
+                case "--split":
+                    splitArg = getNextArgRequired();
+                    break;
+                case "--reset":
+                    reset = true;
+                    break;
+                case "-c":
+                    pw.println("Warning: Flag '-c' is deprecated and usually produces undesired "
+                            + "results. Please use one of the following commands instead.");
+                    pw.println("- To clear the local profiles only, use "
+                            + "'pm art clear-app-profiles PACKAGE_NAME'. (The existing dexopt "
+                            + "artifacts will be kept, even if they are derived from the "
+                            + "profiles.)");
+                    pw.println("- To clear the local profiles and also clear the dexopt artifacts "
+                            + "that are derived from them, use 'pm compile --reset PACKAGE_NAME'. "
+                            + "(The package will be reset to the initial state as if it's newly "
+                            + "installed, which means the package will be re-dexopted if "
+                            + "necessary, and cloud profiles will be used if exist.)");
+                    pw.println("- To re-dexopt the package with no profile, use "
+                            + "'pm compile -m verify -f PACKAGE_NAME'. (The local profiles "
+                            + "will be kept but not used during the dexopt. The dexopt artifacts "
+                            + "are guaranteed to have no compiled code.)");
+                    legacyClearProfile = true;
+                    break;
+                case "--check-prof":
+                    getNextArgRequired();
+                    pw.println("Warning: Ignoring obsolete flag '--check-prof'. It is "
+                            + "unconditionally enabled now");
+                    break;
+                default:
+                    pw.println("Error: Unknown option: " + opt);
+                    return 1;
+            }
+        }
+
+        List<String> packageNames = forAllPackages
+                ? List.copyOf(snapshot.getPackageStates().keySet())
+                : List.of(getNextArgRequired());
+
+        var paramsBuilder = new DexoptParams.Builder(ReasonMapping.REASON_CMDLINE);
+        if (reason != null) {
+            if (reason.equals(ReasonMapping.REASON_INACTIVE)) {
+                pw.println("Warning: '-r inactive' produces undesired results.");
+            }
+            if (compilerFilter == null) {
+                paramsBuilder.setCompilerFilter(ReasonMapping.getCompilerFilterForReason(reason));
+            }
+            if (priorityClass == ArtFlags.PRIORITY_NONE) {
+                paramsBuilder.setPriorityClass(ReasonMapping.getPriorityClassForReason(reason));
+            }
+        }
+        if (compilerFilter != null) {
+            paramsBuilder.setCompilerFilter(compilerFilter);
+        }
+        if (priorityClass != ArtFlags.PRIORITY_NONE) {
+            paramsBuilder.setPriorityClass(priorityClass);
+        }
+        if (force) {
+            paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
+        }
+        if (splitArg != null) {
+            if (scopeFlags != 0) {
+                pw.println("Error: '--primary-dex', '--secondary-dex', "
+                        + "'--include-dependencies', or '--full' must not be set when '--split' "
+                        + "is set.");
+                return 1;
+            }
+            if (forAllPackages) {
+                pw.println("Error:  '-a' cannot be specified together with '--split'");
+                return 1;
+            }
+            scopeFlags = ArtFlags.FLAG_FOR_PRIMARY_DEX;
+            paramsBuilder.setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT, ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                    .setSplitName(getSplitName(pw, snapshot, packageNames.get(0), splitArg));
+        }
+        if (scopeFlags != 0) {
+            paramsBuilder.setFlags(scopeFlags,
+                    ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
+                            | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
+        } else {
+            if (!reset && !legacyClearProfile) {
+                pw.println("Warning: No scope options specified. By default, this operation does "
+                        + "not dexopt secondary dex files.");
+                pw.println("- To perform a full dexopt that includes secondary dex files, add "
+                        + "'--full'.");
+                pw.println("- To keep the current behavior and suppress this warning, add "
+                        + "'--primary-dex --include-dependencies'.");
+                pw.println("See 'pm help' for details.");
+            }
+            paramsBuilder.setFlags(
+                    ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
+                    ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
+                            | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
+        }
+        if (forAllPackages) {
+            // We'll iterate over all packages anyway.
+            paramsBuilder.setFlags(0, ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
+        }
+
+        if (reset) {
+            return resetPackages(pw, snapshot, packageNames);
+        } else {
+            if (legacyClearProfile) {
+                // For compat only. Combining this with dexopt usually produces in undesired
+                // results.
+                for (String packageName : packageNames) {
+                    mArtManagerLocal.clearAppProfiles(snapshot, packageName);
+                }
+            }
+            return dexoptPackages(pw, snapshot, packageNames, paramsBuilder.build());
         }
     }
 
@@ -372,59 +482,89 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     public static void printHelp(@NonNull PrintWriter pw) {
         // TODO(b/263247832): Write help text about root-level commands.
+        pw.println("compile [-r COMPILATION_REASON] [-m COMPILER_FILTER] [-p PRIORITY] [-f]");
+        pw.println("    [--primary-dex] [--secondary-dex] [--include-dependencies] [--full]");
+        pw.println("    [--split SPLIT_NAME] [--reset] [-a | PACKAGE_NAME]");
+        pw.println("  Dexopt a package or all packages.");
+        pw.println("  Options:");
+        pw.println("    -a Dexopt all packages");
+        pw.println("    -r Set the compiler filter and the priority based on the given");
+        pw.println("       compilation reason.");
+        pw.println("       Available options: 'first-boot', 'boot-after-ota',");
+        pw.println("       'boot-after-mainline-update', 'install', 'bg-dexopt', 'cmdline'.");
+        pw.println("    -m Set the compiler filter. If not specified, this defaults to the");
+        pw.println("       value of the system property 'pm.dexopt.cmdline'.");
+        pw.println("       Available options: 'extract', 'verify', 'speed-profile', 'speed'.");
+        pw.println("    -p Set the priority of the operation, which determines the resource usage");
+        pw.println("       and the process priority. If not specified, this defaults to");
+        pw.println("       'PRIORITY_INTERACTIVE'.");
+        pw.println("       Available options (in descending order): 'PRIORITY_BOOT',");
+        pw.println("       'PRIORITY_INTERACTIVE_FAST', 'PRIORITY_INTERACTIVE',");
+        pw.println("       'PRIORITY_BACKGROUND'.");
+        pw.println("    -f Force compilation.");
+        pw.println("    --reset Reset the dexopt state of the package as if the package");
+        pw.println("      is newly installed.");
+        pw.println("      More specifically, it clears reference profiles, current profiles, and");
+        pw.println("      any code compiled from those local profiles. If there is an external");
+        pw.println("      profile (e.g., a cloud profile), the code compiled from that profile");
+        pw.println("      will be kept.");
+        pw.println("      For secondary dex files, it also clears all dexopt artifacts.");
+        pw.println("      When this flag is set, all the other flags are ignored.");
+        pw.println("  Scope options:");
+        pw.println("    --primary-dex Dexopt primary dex files only.");
+        pw.println("    --secondary-dex Dexopt secondary dex files only.");
+        pw.println("    --include-dependencies Include dependency packages. This option can only");
+        pw.println("      be used together with '--primary-dex' or '--secondary-dex'.");
+        pw.println("    --full Dexopt all above. (Recommended)");
+        pw.println("    --split SPLIT_NAME Only dexopt the given split. If SPLIT_NAME is an empty");
+        pw.println("      string, only dexopt the base APK.");
+        pw.println("      Tip: To pass an empty string, use a pair of quotes (\"\").");
+        pw.println("      When this option is set, '--primary-dex', '--secondary-dex',");
+        pw.println("      '--include-dependencies', '--full', and '-a' must not be set.");
+        pw.println("    Note: If none of the scope options above are set, the scope defaults to");
+        pw.println("    '--primary-dex --include-dependencies'.");
+        pw.println();
         pw.println("art SUB_COMMAND [ARGS]...");
         pw.println("  Run ART Service commands");
-        pw.println("  Note: The commands are used for internal debugging purposes only. There are");
-        pw.println("  no stability guarantees for them.");
         pw.println();
         pw.println("  Supported sub-commands:");
+        pw.println();
+        pw.println("  cancel JOB_ID");
+        pw.println("    Cancel a job started by a shell command. This doesn't apply to background");
+        pw.println("    jobs.");
+        pw.println();
+        pw.println("  clear-app-profiles PACKAGE_NAME");
+        pw.println("    Clear the profiles that are collected locally for the given package,");
+        pw.println("    including the profiles for primary and secondary dex files. More");
+        pw.println("    specifically, this command clears reference profiles and current");
+        pw.println("    profiles. External profiles (e.g., cloud profiles) will be kept.");
+        pw.println();
+        pw.println("  Note: The sub-commands below are used for internal debugging purposes only.");
+        pw.println("  There are no stability guarantees for them.");
+        pw.println();
         pw.println("  delete-dexopt-artifacts PACKAGE_NAME");
         pw.println("    Delete the dexopt artifacts of both primary dex files and secondary");
         pw.println("    dex files of a package.");
+        pw.println();
         pw.println("  get-dexopt-status PACKAGE_NAME");
         pw.println("    Print the dexopt status of both primary dex files and secondary dex");
         pw.println("    files of a package.");
-        pw.println("  dexopt-package [-m COMPILER_FILTER] [-f] [--primary-dex]");
-        pw.println("      [--secondary-dex] [--include-dependencies] [--split SPLIT_NAME]");
-        pw.println("      PACKAGE_NAME");
-        pw.println("    Dexopt a package.");
-        pw.println("    If none of '--primary-dex', '--secondary-dex', and");
-        pw.println("    '--include-dependencies' is set, the command dexopts all of them.");
-        pw.println("    The command prints a job ID, which can be used to cancel the job using");
-        pw.println("    the 'cancel' command.");
-        pw.println("    Options:");
-        pw.println("      -m Set the compiler filter.");
-        pw.println("      -f Force compilation.");
-        pw.println("      --primary-dex Dexopt primary dex files.");
-        pw.println("      --secondary-dex Dexopt secondary dex files.");
-        pw.println("      --include-dependencies Include dependencies.");
-        pw.println("      --split SPLIT_NAME Only dexopt the given split. If SPLIT_NAME is an");
-        pw.println("        empty string, only dexopt the base APK. When this option is set,");
-        pw.println("        '--primary-dex', '--secondary-dex', and '--include-dependencies' must");
-        pw.println("        not be set.");
-        pw.println("      --reset Reset the dexopt state of the package as if the package");
-        pw.println("        is newly installed.");
-        pw.println("        More specifically, it clears reference profiles, current profiles,");
-        pw.println("        and any code compiled from those local profiles. If there is an");
-        pw.println("        external profile (e.g., a cloud profile), the code compiled from that");
-        pw.println("        profile will be kept.");
-        pw.println("        For secondary dex files, it also clears all dexopt artifacts.");
-        pw.println("        When this flag is set, all the other flags are ignored.");
+        pw.println();
         pw.println("  dexopt-packages REASON");
         pw.println("    Run batch dexopt for the given reason.");
-        pw.println("    The command prints a job ID, which can be used to cancel the job using");
-        pw.println("    the 'cancel' command.");
-        pw.println("  cancel JOB_ID");
-        pw.println("    Cancel a job.");
+        pw.println();
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
         pw.println("    Notify that a dex file is loaded with the given class loader context by");
         pw.println("    the given package.");
+        pw.println();
         pw.println("  dump [PACKAGE_NAME]");
         pw.println("    Dumps the dexopt state in text format to stdout.");
         pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
         pw.println("    is for the given package.");
+        pw.println();
         pw.println("  dex-use-dump");
         pw.println("    Print all dex use information in textproto format.");
+        pw.println();
         pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");
         pw.println("    Control the background dexopt job.");
         pw.println("    Without flags, it starts a background dexopt job immediately. It does");
@@ -441,6 +581,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("        This state will be lost when the system_server process exits.");
         pw.println("      --enable: Enable the background dexopt job to be started by the job");
         pw.println("        scheduler again, if previously disabled by --disable.");
+        pw.println();
         pw.println("  snapshot-app-profile PACKAGE_NAME [SPLIT_NAME]");
         pw.println("    Snapshot the profile of the given app and save it to");
         pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
@@ -448,15 +589,18 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    filename is 'PACKAGE_NAME.prof'. Otherwise, the command is for the given");
         pw.println("    split, and the output filename is");
         pw.println("    'PACKAGE_NAME-split_SPLIT_NAME.apk.prof'.");
+        pw.println();
         pw.println("  snapshot-boot-image-profile");
         pw.println("    Snapshot the boot image profile and save it to");
         pw.println("    '" + PROFILE_DEBUG_LOCATION + "/android.prof'.");
+        pw.println();
         pw.println("  dump-profiles [--dump-classes-and-methods] PACKAGE_NAME");
         pw.println("    Dump the profiles of the given app in text format and save the outputs to");
         pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
         pw.println("    The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
         pw.println("    The profile of a split APK is dumped to");
         pw.println("    'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
+        pw.println();
         pw.println("  cleanup");
         pw.println("    Cleanup obsolete files.");
     }
@@ -464,8 +608,79 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     private void enforceRoot() {
         final int uid = Binder.getCallingUid();
         if (uid != Process.ROOT_UID) {
-            throw new SecurityException("ART service shell commands need root access");
+            throw new SecurityException("This ART service shell command needs root access");
         }
+    }
+
+    @PriorityClassApi
+    int parsePriorityClass(@NonNull String priorityClass) {
+        switch (priorityClass) {
+            case "PRIORITY_BOOT":
+                return ArtFlags.PRIORITY_BOOT;
+            case "PRIORITY_INTERACTIVE_FAST":
+                return ArtFlags.PRIORITY_INTERACTIVE_FAST;
+            case "PRIORITY_INTERACTIVE":
+                return ArtFlags.PRIORITY_INTERACTIVE;
+            case "PRIORITY_BACKGROUND":
+                return ArtFlags.PRIORITY_BACKGROUND;
+            default:
+                throw new IllegalArgumentException("Unknown priority " + priorityClass);
+        }
+    }
+
+    @Nullable
+    private String getSplitName(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @NonNull String splitArg) {
+        if (splitArg.isEmpty()) {
+            return null; // Base APK.
+        }
+
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        List<PrimaryDexInfo> dexInfoList = PrimaryDexUtils.getDexInfo(pkg);
+
+        for (PrimaryDexInfo dexInfo : dexInfoList) {
+            if (splitArg.equals(dexInfo.splitName())) {
+                return splitArg;
+            }
+        }
+
+        for (PrimaryDexInfo dexInfo : dexInfoList) {
+            if (splitArg.equals(new File(dexInfo.dexPath()).getName())) {
+                pw.println("Warning: Specifying a split using a filename is deprecated. Please "
+                        + "use a split name (or an empty string for the base APK) instead");
+                return dexInfo.splitName();
+            }
+        }
+
+        throw new IllegalArgumentException(String.format("Split '%s' not found", splitArg));
+    }
+
+    private int resetPackages(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull List<String> packageNames) {
+        try (var signal = new WithCancellationSignal(pw)) {
+            for (String packageName : packageNames) {
+                DexoptResult result =
+                        mArtManagerLocal.resetDexoptStatus(snapshot, packageName, signal.get());
+                printDexoptResult(pw, result);
+            }
+        }
+        return 0;
+    }
+
+    private int dexoptPackages(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull List<String> packageNames, @NonNull DexoptParams params) {
+        try (var signal = new WithCancellationSignal(pw)) {
+            for (String packageName : packageNames) {
+                DexoptResult result =
+                        mArtManagerLocal.dexoptPackage(snapshot, packageName, params, signal.get());
+                printDexoptResult(pw, result);
+            }
+        }
+        return 0;
     }
 
     @NonNull
@@ -492,6 +707,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 pw.println(fileResult);
             }
         }
+        pw.flush();
     }
 
     private void writeProfileFdContentsToFile(
@@ -528,7 +744,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
         public WithCancellationSignal(@NonNull PrintWriter pw) {
             mJobId = UUID.randomUUID().toString();
-            pw.printf("Job ID: %s\n", mJobId);
+            pw.printf("Job running. To cancel it, run 'pm art cancel %s' in a separate shell.\n",
+                    mJobId);
             pw.flush();
 
             synchronized (sCancellationSignalMap) {

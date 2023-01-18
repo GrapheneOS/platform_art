@@ -289,10 +289,9 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Clears the profiles of the given app that are collected locally, including the profiles for
-     * primary dex files and the ones for secondary dex files. More specifically, it clears
-     * reference profiles and current profiles. External profiles (e.g., cloud profiles) will be
-     * kept.
+     * Clear the profiles that are collected locally for the given package, including the profiles
+     * for primary and secondary dex files. More specifically, it clears reference profiles and
+     * current profiles. External profiles (e.g., cloud profiles) will be kept.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen

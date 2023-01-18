@@ -42,6 +42,8 @@ import java.lang.annotation.RetentionPolicy;
 public class ReasonMapping {
     private ReasonMapping() {}
 
+    // Keep this in sync with `ArtShellCommand.printHelp` except for 'inactive'.
+
     /** Dexopting apps on the first boot after flashing or factory resetting the device. */
     public static final String REASON_FIRST_BOOT = "first-boot";
     /** Dexopting apps on the next boot after an OTA. */
