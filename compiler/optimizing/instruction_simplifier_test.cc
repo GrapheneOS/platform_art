@@ -33,6 +33,8 @@ class ClassExt;
 class Throwable;
 }  // namespace mirror
 
+static constexpr bool kDebugSimplifierTests = false;
+
 template<typename SuperClass>
 class InstructionSimplifierTestBase : public SuperClass, public OptimizingUnitTestHelper {
  public:
@@ -48,6 +50,19 @@ class InstructionSimplifierTestBase : public SuperClass, public OptimizingUnitTe
   void TearDown() override {
     SuperClass::TearDown();
     gLogVerbosity.compiler = false;
+  }
+
+  void PerformSimplification(const AdjacencyListGraph& blks) {
+    if (kDebugSimplifierTests) {
+      LOG(INFO) << "Pre simplification " << blks;
+    }
+    graph_->ClearDominanceInformation();
+    graph_->BuildDominatorTree();
+    InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
+    simp.Run();
+    if (kDebugSimplifierTests) {
+      LOG(INFO) << "Post simplify " << blks;
+    }
   }
 };
 
@@ -197,13 +212,7 @@ TEST_F(InstructionSimplifierTest, SimplifyPredicatedFieldGetNoMerge) {
 
   SetupExit(exit);
 
-  LOG(INFO) << "Pre simplification " << blks;
-  graph_->ClearDominanceInformation();
-  graph_->BuildDominatorTree();
-  InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
-  simp.Run();
-
-  LOG(INFO) << "Post simplify " << blks;
+  PerformSimplification(blks);
 
   EXPECT_INS_RETAINED(read_end);
 
@@ -289,13 +298,7 @@ TEST_F(InstructionSimplifierTest, SimplifyPredicatedFieldGetMerge) {
 
   SetupExit(exit);
 
-  LOG(INFO) << "Pre simplification " << blks;
-  graph_->ClearDominanceInformation();
-  graph_->BuildDominatorTree();
-  InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
-  simp.Run();
-
-  LOG(INFO) << "Post simplify " << blks;
+  PerformSimplification(blks);
 
   EXPECT_FALSE(obj3->CanBeNull());
   EXPECT_INS_RETAINED(read_end);
@@ -373,13 +376,7 @@ TEST_F(InstructionSimplifierTest, SimplifyPredicatedFieldGetNoNull) {
 
   SetupExit(exit);
 
-  LOG(INFO) << "Pre simplification " << blks;
-  graph_->ClearDominanceInformation();
-  graph_->BuildDominatorTree();
-  InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
-  simp.Run();
-
-  LOG(INFO) << "Post simplify " << blks;
+  PerformSimplification(blks);
 
   EXPECT_FALSE(obj1->CanBeNull());
   EXPECT_FALSE(obj2->CanBeNull());
@@ -464,16 +461,7 @@ TEST_P(InstanceOfInstructionSimplifierTestGroup, ExactClassInstanceOfOther) {
 
   SetupExit(exit);
 
-  // PerformLSE expects this to be empty.
-  graph_->ClearDominanceInformation();
-
-  LOG(INFO) << "Pre simplification " << blks;
-  graph_->ClearDominanceInformation();
-  graph_->BuildDominatorTree();
-  InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
-  simp.Run();
-
-  LOG(INFO) << "Post simplify " << blks;
+  PerformSimplification(blks);
 
   if (!GetConstantResult() || GetParam() == InstanceOfKind::kSelf) {
     EXPECT_INS_RETAINED(target_klass);
@@ -532,16 +520,7 @@ TEST_P(InstanceOfInstructionSimplifierTestGroup, ExactClassCheckCastOther) {
 
   SetupExit(exit);
 
-  // PerformLSE expects this to be empty.
-  graph_->ClearDominanceInformation();
-
-  LOG(INFO) << "Pre simplification " << blks;
-  graph_->ClearDominanceInformation();
-  graph_->BuildDominatorTree();
-  InstructionSimplifier simp(graph_, /*codegen=*/nullptr);
-  simp.Run();
-
-  LOG(INFO) << "Post simplify " << blks;
+  PerformSimplification(blks);
 
   if (!GetConstantResult() || GetParam() == InstanceOfKind::kSelf) {
     EXPECT_INS_RETAINED(target_klass);
