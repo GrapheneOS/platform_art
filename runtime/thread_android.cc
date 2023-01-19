@@ -42,7 +42,7 @@ void Thread::MadviseAwayAlternateSignalStack() {
       IsAligned<kPageSize>(old_ss.ss_sp) &&
       IsAligned<kPageSize>(old_ss.ss_size)) {
     CHECK_EQ(old_ss.ss_flags & SS_ONSTACK, 0);
-    result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_DONTNEED);
+    result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_FREE);
     CHECK_EQ(result, 0);
   }
 }
