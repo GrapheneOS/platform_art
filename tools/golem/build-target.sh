@@ -269,6 +269,8 @@ if [[ $mode == "golem" ]]; then
   execute lunch "$lunch_target"
   # Golem uses master-art repository which is missing a lot of other libraries.
   setenv SOONG_ALLOW_MISSING_DEPENDENCIES true
+  # master-art cannot build with Bazel.
+  setenv BUILD_BROKEN_DISABLE_BAZEL true
   # Let the build system know we're not aiming to do a full platform build.
   if [ ! -d frameworks/base ]; then
     setenv TARGET_BUILD_UNBUNDLED true
