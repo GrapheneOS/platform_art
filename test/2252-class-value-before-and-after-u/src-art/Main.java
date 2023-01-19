@@ -18,6 +18,14 @@ import dalvik.system.VMRuntime;
 
 public class Main {
     public static void main(String[] args) {
+        VMRuntime.getRuntime().setTargetSdkVersion(0);
+        try {
+            Class classValueClass = Class.forName("java.lang.ClassValue");
+        } catch (ClassNotFoundException ignored) {
+            throw new Error(
+                    "java.lang.ClassValue should be available when targetSdkLevel is not set");
+        }
+
         VMRuntime.getRuntime().setTargetSdkVersion(34);
 
         try {
@@ -30,6 +38,10 @@ public class Main {
         try {
             Class classValueClass = Class.forName("java.lang.ClassValue");
             throw new Error("Was able to find " + classValueClass + " on targetSdkLevel 33");
-        } catch (ClassNotFoundException expected) {}
+        } catch (ClassNotFoundException expected) {
+            if (!expected.getMessage().contains("java.lang.ClassValue")) {
+                throw new Error("Thrown exception should contain class name, but was: " + expected);
+            }
+        }
     }
 }

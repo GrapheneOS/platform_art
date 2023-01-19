@@ -47,6 +47,7 @@
 #include "mirror/array-alloc-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-alloc-inl.h"
+#include "mirror/class.h"
 #include "mirror/executable-inl.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
@@ -138,6 +139,10 @@ static void UnstartedRuntimeFindClass(Thread* self,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   ObjPtr<mirror::Class> found = class_linker->FindClass(self, descriptor.c_str(), class_loader);
+  if (found != nullptr && !found->CheckIsVisibleWithTargetSdk(self)) {
+    CHECK(self->IsExceptionPending());
+    return;
+  }
   if (found != nullptr && initialize_class) {
     StackHandleScope<1> hs(self);
     HandleWrapperObjPtr<mirror::Class> h_class = hs.NewHandleWrapper(&found);
