@@ -146,3 +146,6 @@ DIST_DIR = _get_build_var('DIST_DIR')
 SOONG_OUT_DIR = _get_build_var('SOONG_OUT_DIR')
 
 ART_TEST_RUN_ON_ARM_FVP = _getEnvBoolean('ART_TEST_RUN_ON_ARM_FVP', False)
+
+ART_TEST_ON_VM = _env.get('ART_TEST_ON_VM')
+ART_SSH_CMD = _env.get('ART_SSH_CMD')

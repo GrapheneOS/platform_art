@@ -53,7 +53,43 @@ function msgerror() {
   echo -e "${boldred}Error: ${nc}${message}"
 }
 
+function msgfatal() {
+  local message="$*"
+  echo -e "${boldred}Fatal: ${nc}${message}"
+  exit 1
+}
+
 function msgnote() {
   local message="$*"
   echo -e "${boldcyan}Note: ${nc}${message}"
 }
+
+export TARGET_ARCH=$(build/soong/soong_ui.bash --dumpvar-mode TARGET_ARCH)
+
+# Do some checks and prepare environment for tests that run on Linux (not on Android).
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  if [[ -z $ANDROID_BUILD_TOP ]]; then
+    msgfatal "ANDROID_BUILD_TOP is not set"
+  elif [[ -z "$ART_TEST_SSH_USER" ]]; then
+    msgfatal "ART_TEST_SSH_USER not set"
+  elif [[ -z "$ART_TEST_SSH_HOST" ]]; then
+    msgfatal "ART_TEST_SSH_HOST not set"
+  elif [[ -z "$ART_TEST_SSH_PORT" ]]; then
+    msgfatal "ART_TEST_SSH_PORT not set"
+  fi
+
+  export ART_TEST_CHROOT="/home/$ART_TEST_SSH_USER/art-test-chroot"
+  export ART_CHROOT_CMD="unshare --user --map-root-user chroot art-test-chroot"
+  export ART_SSH_CMD="ssh -q -p $ART_TEST_SSH_PORT $ART_TEST_SSH_USER@$ART_TEST_SSH_HOST"
+  export ART_SCP_CMD="scp -P $ART_TEST_SSH_PORT -p -r"
+  export ART_RSYNC_CMD="rsync -az"
+  export RSYNC_RSH="ssh -p $ART_TEST_SSH_PORT" # don't prefix with "ART_", rsync expects this name
+
+  if [[ "$TARGET_ARCH" =~ ^(arm64|riscv64)$ ]]; then
+    export ART_TEST_VM_IMG="ubuntu-22.04-server-cloudimg-$TARGET_ARCH.img"
+    export ART_TEST_VM_DIR="$ANDROID_BUILD_TOP/vm/$TARGET_ARCH"
+    export ART_TEST_VM="$ART_TEST_VM_DIR/$ART_TEST_VM_IMG"
+  else
+    msgfatal "unexpected TARGET_ARCH=$TARGET_ARCH; expected one of {arm64,riscv64}"
+  fi
+fi

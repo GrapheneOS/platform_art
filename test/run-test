@@ -113,6 +113,15 @@ if True:
     tmp_dir = f"{TMPDIR}/{test_dir}"
   checker = f"{progdir}/../tools/checker/checker.py"
 
+  ON_VM = os.environ.get("ART_TEST_ON_VM")
+  SSH_USER = os.environ.get("ART_TEST_SSH_USER")
+  SSH_HOST = os.environ.get("ART_TEST_SSH_HOST")
+  SSH_PORT = os.environ.get("ART_TEST_SSH_PORT")
+  SSH_CMD = os.environ.get("ART_SSH_CMD")
+  SCP_CMD = os.environ.get("ART_SCP_CMD")
+  CHROOT = os.environ.get("ART_TEST_CHROOT")
+  CHROOT_CMD = os.environ.get("ART_CHROOT_CMD")
+
   def fail(message: str, caller:Optional[FrameInfo]=None):
     caller = caller or getframeinfo(currentframe().f_back)  # type: ignore
     assert caller
@@ -939,7 +948,10 @@ if True:
       os.chdir(oldwd)
       shutil.rmtree(tmp_dir)
       if target_mode == "yes":
-        run(f"adb shell rm -rf {chroot_dex_location}")
+        if ON_VM:
+          run(f"{SSH_CMD} \"rm -rf {chroot_dex_location}\"")
+        else:
+          run(f"adb shell rm -rf {chroot_dex_location}")
       print(f"{TEST_NAME} files deleted from host" +
             (" and from target" if target_mode == "yes" else ""))
     else:
@@ -994,22 +1006,37 @@ if True:
   print(f"{test_dir}: Run...")
   if target_mode == "yes":
     # Prepare the on-device test directory
-    run("adb root")
-    run("adb wait-for-device")
-    run(f"adb shell 'rm -rf {chroot_dex_location} && mkdir -p {chroot_dex_location}'")
+    if ON_VM:
+      run(f"{SSH_CMD} 'rm -rf {chroot_dex_location} && mkdir -p {chroot_dex_location}'")
+    else:
+      run("adb root")
+      run("adb wait-for-device")
+      run(f"adb shell 'rm -rf {chroot_dex_location} && mkdir -p {chroot_dex_location}'")
     push_files = [Path(runner.name)]
     push_files += list(Path(".").glob(f"{TEST_NAME}*.jar"))
     push_files += list(Path(".").glob(f"expected-*.txt"))
     push_files += [p for p in [Path("profile"), Path("res")] if p.exists()]
-    run("adb push {} {}".format(" ".join(map(str, push_files)), chroot_dex_location))
+    push_files = " ".join(map(str, push_files))
+    if ON_VM:
+      run(f"{SCP_CMD} {push_files} {SSH_USER}@{SSH_HOST}:{chroot_dex_location}")
+    else:
+      run("adb push {} {}".format(push_files, chroot_dex_location))
 
-    chroot_prefix = f"chroot {chroot}" if chroot else ""
-    run(f"adb shell {chroot_prefix} sh {DEX_LOCATION}/run.sh",
-        fail_message=f"Runner {chroot_dex_location}/run.sh failed")
+    if ON_VM:
+      run(f"{SSH_CMD} {CHROOT_CMD} bash {DEX_LOCATION}/run.sh",
+          fail_message=f"Runner {chroot_dex_location}/run.sh failed")
+    else:
+      chroot_prefix = f"chroot {chroot}" if chroot else ""
+      run(f"adb shell {chroot_prefix} sh {DEX_LOCATION}/run.sh",
+          fail_message=f"Runner {chroot_dex_location}/run.sh failed")
 
     # Copy the on-device stdout/stderr to host.
     pull_files = [test_stdout, test_stderr, "expected-stdout.txt", "expected-stderr.txt"]
-    run("adb pull {} .".format(" ".join(f"{chroot_dex_location}/{f}" for f in pull_files)))
+    if ON_VM:
+      srcs = " ".join(f"{SSH_USER}@{SSH_HOST}:{chroot_dex_location}/{f}" for f in pull_files)
+      run(f"{SCP_CMD} {srcs} .")
+    else:
+      run("adb pull {} .".format(" ".join(f"{chroot_dex_location}/{f}" for f in pull_files)))
   else:
     run(str(runner), fail_message=f"Runner {str(runner)} failed")
 
@@ -1049,7 +1076,10 @@ if True:
 
   if run_checker == "yes":
     if target_mode == "yes":
-      run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+      if ON_VM:
+        run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/{cfg_output}"')
+      else:
+        run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
     run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}"',
         fail_message="CFG checker failed")
 
@@ -1057,7 +1087,10 @@ if True:
   if dump_cfg == "true":
     assert run_optimizing == "true", "The CFG can be dumped only in optimizing mode"
     if target_mode == "yes":
-      run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+      if ON_VM:
+        run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/{cfg_output} {dump_cfg_output}"')
+      else:
+        run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
     else:
       run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
 
