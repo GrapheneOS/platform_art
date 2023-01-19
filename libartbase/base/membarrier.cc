@@ -24,6 +24,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 #endif
+#include "arch/instruction_set.h"
 #include "macros.h"
 
 #if defined(__BIONIC__)
@@ -45,9 +46,21 @@ CHECK_MEMBARRIER_CMD(art::MembarrierCommand::kPrivateExpedited, MEMBARRIER_CMD_P
 
 namespace art {
 
-#if defined(__NR_membarrier)
-
 int membarrier(MembarrierCommand command) {
+  if (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64) {
+    // On x86, the `kPrivateExpedited` command is unnecessary thanks to the memory model.
+    // The corresponding `kRegisterPrivateExpedited` command is also unnecessary.
+    if (command == MembarrierCommand::kPrivateExpedited) {
+      // We still want to prevent instruction reordering in case of whole program optimization.
+      std::atomic_signal_fence(std::memory_order_seq_cst);
+      return 0;
+    }
+    if (command == MembarrierCommand::kRegisterPrivateExpedited) {
+      return 0;
+    }
+  }
+
+#if defined(__NR_membarrier)
   // Check kernel version supports membarrier(2).
   static constexpr int kRequiredMajor = 4;
   static constexpr int kRequiredMinor = 16;
@@ -71,17 +84,13 @@ int membarrier(MembarrierCommand command) {
   }
 #endif  // __BIONIC__
   return syscall(__NR_membarrier, static_cast<int>(command), 0);
-}
-
 #else  // __NR_membarrier
-
-int membarrier(MembarrierCommand command ATTRIBUTE_UNUSED) {
   // In principle this could be supported on linux, but Android's prebuilt glibc does not include
   // the system call number defintions (b/111199492).
+  UNUSED(command);
   errno = ENOSYS;
   return -1;
-}
-
 #endif  // __NR_membarrier
+}
 
 }  // namespace art

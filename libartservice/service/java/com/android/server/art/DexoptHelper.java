@@ -37,6 +37,7 @@ import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
+import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -52,7 +53,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -243,6 +243,9 @@ public class DexoptHelper {
     }
 
     private boolean canDexoptPackage(@NonNull PackageState pkgState) {
+        // getAppHibernationManager may return null here during boot time compilation, which will
+        // make this function return true incorrectly for packages that shouldn't be dexopted due to
+        // hibernation. Further discussion in comments in ArtManagerLocal.getDefaultPackages.
         return Utils.canDexoptPackage(pkgState, mInjector.getAppHibernationManager());
     }
 
@@ -268,7 +271,8 @@ public class DexoptHelper {
             Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
             if (includeDependencies && canDexoptPackage(pkgState)) {
-                for (SharedLibrary library : pkgState.getUsesLibraries()) {
+                for (SharedLibrary library :
+                        PackageStateWrapper.getSharedLibraryDependencies(pkgState)) {
                     maybeEnqueue.accept(library);
                 }
             }
@@ -310,8 +314,8 @@ public class DexoptHelper {
             mContext = context;
             mConfig = config;
 
-            // Call the getters for various dependencies, to ensure correct initialization order.
-            getAppHibernationManager();
+            // Call the getters for the dependencies that aren't optional, to ensure correct
+            // initialization order.
             getPowerManager();
         }
 
@@ -329,9 +333,16 @@ public class DexoptHelper {
             return new SecondaryDexopter(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
-        @NonNull
+        /**
+         * Returns the registered AppHibernationManager instance.
+         *
+         * It may be null because ArtManagerLocal needs to be available early to compile packages at
+         * boot with {@link onBoot}, before the hibernation manager has been initialized. It should
+         * not be null for other dexopt calls.
+         */
+        @Nullable
         public AppHibernationManager getAppHibernationManager() {
-            return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
+            return mContext.getSystemService(AppHibernationManager.class);
         }
 
         @NonNull

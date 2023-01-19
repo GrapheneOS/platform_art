@@ -23,10 +23,11 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.server.art.testing.StaticMockitoRule;
+import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -37,6 +38,7 @@ import dalvik.system.DexClassLoader;
 import dalvik.system.PathClassLoader;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -47,6 +49,8 @@ import java.util.List;
 @SmallTest
 @RunWith(MockitoJUnitRunner.StrictStubs.class)
 public class PrimaryDexUtilsTest {
+    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(PackageStateWrapper.class);
+
     @Before
     public void setUp() {}
 
@@ -162,7 +166,7 @@ public class PrimaryDexUtilsTest {
         lenient().when(split4.isHasCode()).thenReturn(true);
 
         var splits = List.of(baseSplit, split0, split1, split2, split3, split4);
-        when(pkg.getSplits()).thenReturn(splits);
+        lenient().when(pkg.getSplits()).thenReturn(splits);
 
         if (isIsolatedSplitLoading) {
             // split_0: PCL(PathClassLoader), depends on split_2.
@@ -170,18 +174,20 @@ public class PrimaryDexUtilsTest {
             // split_2: DLC(DelegateLastClassLoader), depends on base.
             // split_3: PCL(DexClassLoader), no dependency.
             // split_4: PCL(null), depends on split_3.
-            when(split0.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
-            when(split1.getClassLoaderName()).thenReturn(null);
-            when(split2.getClassLoaderName()).thenReturn(DelegateLastClassLoader.class.getName());
-            when(split3.getClassLoaderName()).thenReturn(DexClassLoader.class.getName());
-            when(split4.getClassLoaderName()).thenReturn(null);
+            lenient().when(split0.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
+            lenient().when(split1.getClassLoaderName()).thenReturn(null);
+            lenient()
+                    .when(split2.getClassLoaderName())
+                    .thenReturn(DelegateLastClassLoader.class.getName());
+            lenient().when(split3.getClassLoaderName()).thenReturn(DexClassLoader.class.getName());
+            lenient().when(split4.getClassLoaderName()).thenReturn(null);
 
-            when(split0.getDependencies()).thenReturn(List.of(split2));
-            when(split2.getDependencies()).thenReturn(List.of(baseSplit));
-            when(split4.getDependencies()).thenReturn(List.of(split3));
-            when(pkg.isIsolatedSplitLoading()).thenReturn(true);
+            lenient().when(split0.getDependencies()).thenReturn(List.of(split2));
+            lenient().when(split2.getDependencies()).thenReturn(List.of(baseSplit));
+            lenient().when(split4.getDependencies()).thenReturn(List.of(split3));
+            lenient().when(pkg.isIsolatedSplitLoading()).thenReturn(true);
         } else {
-            when(pkg.isIsolatedSplitLoading()).thenReturn(false);
+            lenient().when(pkg.isIsolatedSplitLoading()).thenReturn(false);
         }
 
         return pkg;
@@ -190,33 +196,36 @@ public class PrimaryDexUtilsTest {
     private PackageState createPackageState() {
         PackageState pkgState = mock(PackageState.class);
 
-        when(pkgState.getPackageName()).thenReturn("com.example.foo");
+        lenient().when(pkgState.getPackageName()).thenReturn("com.example.foo");
 
         // Base depends on library 2, 3, 4.
         // Library 2, 4 depends on library 1.
         List<SharedLibrary> usesLibraryInfos = new ArrayList<>();
 
         SharedLibrary library1 = mock(SharedLibrary.class);
-        when(library1.getAllCodePaths())
+        lenient()
+                .when(library1.getAllCodePaths())
                 .thenReturn(List.of("library_1_dex_1.jar", "library_1_dex_2.jar"));
-        when(library1.getDependencies()).thenReturn(null);
+        lenient().when(library1.getDependencies()).thenReturn(null);
 
         SharedLibrary library2 = mock(SharedLibrary.class);
-        when(library2.getAllCodePaths()).thenReturn(List.of("library_2.jar"));
-        when(library2.getDependencies()).thenReturn(List.of(library1));
+        lenient().when(library2.getAllCodePaths()).thenReturn(List.of("library_2.jar"));
+        lenient().when(library2.getDependencies()).thenReturn(List.of(library1));
         usesLibraryInfos.add(library2);
 
         SharedLibrary library3 = mock(SharedLibrary.class);
-        when(library3.getAllCodePaths()).thenReturn(List.of("library_3.jar"));
-        when(library3.getDependencies()).thenReturn(null);
+        lenient().when(library3.getAllCodePaths()).thenReturn(List.of("library_3.jar"));
+        lenient().when(library3.getDependencies()).thenReturn(null);
         usesLibraryInfos.add(library3);
 
         SharedLibrary library4 = mock(SharedLibrary.class);
-        when(library4.getAllCodePaths()).thenReturn(List.of("library_4.jar"));
-        when(library4.getDependencies()).thenReturn(List.of(library1));
+        lenient().when(library4.getAllCodePaths()).thenReturn(List.of("library_4.jar"));
+        lenient().when(library4.getDependencies()).thenReturn(List.of(library1));
         usesLibraryInfos.add(library4);
 
-        when(pkgState.getUsesLibraries()).thenReturn(usesLibraryInfos);
+        lenient()
+                .when(PackageStateWrapper.getSharedLibraryDependencies(pkgState))
+                .thenReturn(usesLibraryInfos);
 
         return pkgState;
     }

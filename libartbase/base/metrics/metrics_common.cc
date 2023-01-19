@@ -321,6 +321,11 @@ static_assert(CompilationReasonFromName(CompilationReasonName(CompilationReason:
               CompilationReason::kPrebuilt);
 static_assert(CompilationReasonFromName(CompilationReasonName(CompilationReason::kCmdLine)) ==
               CompilationReason::kCmdLine);
+static_assert(CompilationReasonFromName(CompilationReasonName(CompilationReason::kVdex)) ==
+              CompilationReason::kVdex);
+static_assert(
+    CompilationReasonFromName(CompilationReasonName(CompilationReason::kBootAfterMainlineUpdate)) ==
+    CompilationReason::kBootAfterMainlineUpdate);
 
 }  // namespace metrics
 }  // namespace art
