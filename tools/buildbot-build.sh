@@ -87,7 +87,7 @@ if [[ $build_host == "no" ]] && [[ $build_target == "no" ]]; then
 fi
 
 # Allow to build successfully in master-art.
-extra_args="SOONG_ALLOW_MISSING_DEPENDENCIES=true"
+extra_args="SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true"
 
 # Switch the build system to unbundled mode in the reduced manifest branch.
 if [ ! -d frameworks/base ]; then

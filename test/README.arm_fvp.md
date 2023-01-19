@@ -148,6 +148,7 @@ target ("armv8" and other targets, not "fvp-eng").
 export ART_TEST_CHROOT=/data/local/art-test-chroot
 export OVERRIDE_TARGET_FLATTEN_APEX=true
 export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+export BUILD_BROKEN_DISABLE_BAZEL=true
 export TARGET_BUILD_UNBUNDLED=true
 export ART_TEST_RUN_ON_ARM_FVP=true
 

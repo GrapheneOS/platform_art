@@ -53,6 +53,7 @@ Note that using this chroot-based approach requires root access to the device
         1. Initialize the environment:
             ```bash
             export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+            export BUILD_BROKEN_DISABLE_BAZEL=true
             . ./build/envsetup.sh
             ```
         2. Select a lunch target corresponding to the architecture you want to
