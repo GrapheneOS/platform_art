@@ -1285,12 +1285,16 @@ class ClinitImageUpdate {
           data_->image_class_descriptors_->erase(it);
         }
       } else if (can_include_in_image) {
-        // Check whether it is initialized and has a clinit. They must be kept, too.
-        if (klass->IsInitialized() && klass->FindClassInitializer(
-            Runtime::Current()->GetClassLinker()->GetImagePointerSize()) != nullptr) {
-          DCHECK(!Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass->GetDexCache()))
-              << klass->PrettyDescriptor();
-          data_->image_classes_.push_back(data_->hs_.NewHandle(klass));
+        // Check whether the class is initialized and has a clinit or static fields.
+        // Such classes must be kept too.
+        if (klass->IsInitialized()) {
+          PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+          if (klass->FindClassInitializer(pointer_size) != nullptr ||
+              klass->NumStaticFields() != 0) {
+            DCHECK(!Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass->GetDexCache()))
+                << klass->PrettyDescriptor();
+            data_->image_classes_.push_back(data_->hs_.NewHandle(klass));
+          }
         }
       }
       return true;
