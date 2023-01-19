@@ -1549,5 +1549,11 @@
         "description": ["Change of behavior when used with JDK 17."],
         "bug": "b/242985234",
         "variant": "jvm"
+    },
+    {
+        "tests": ["2246-trace-stream"],
+        "env_vars": {"ART_TEST_DEBUG_GC": "true"},
+        "bug": "b/264844668",
+        "description": ["Test timing out on debug gc."]
     }
 ]
