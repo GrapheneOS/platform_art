@@ -27,6 +27,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/logging.h"  // For VLOG.
+#include "base/sdk_version.h"
 #include "base/utils.h"
 #include "class-inl.h"
 #include "class_ext-inl.h"
@@ -2126,6 +2127,19 @@ size_t Class::GetMethodIdOffset(ArtMethod* method, PointerSize pointer_size) {
       << "Incorrect method computation expected: " << method->PrettyMethod()
       << " got: " << GetMethodsPtr()->At(res, art_method_size, art_method_align).PrettyMethod();
   return res;
+}
+
+bool Class::CheckIsVisibleWithTargetSdk(Thread* self) {
+  uint32_t targetSdkVersion = Runtime::Current()->GetTargetSdkVersion();
+  if (IsSdkVersionSetAndAtMost(targetSdkVersion, SdkVersion::kT)) {
+    ObjPtr<mirror::Class> java_lang_ClassValue =
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_ClassValue);
+    if (this == java_lang_ClassValue.Ptr()) {
+      self->ThrowNewException("Ljava/lang/ClassNotFoundException;", "java.lang.ClassValue");
+      return false;
+    }
+  }
+  return true;
 }
 
 ArtMethod* Class::FindAccessibleInterfaceMethod(ArtMethod* implementation_method,
