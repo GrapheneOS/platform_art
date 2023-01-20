@@ -21,7 +21,6 @@
 #include "art_field-inl.h"
 #include "art_method-alloc-inl.h"
 #include "base/enums.h"
-#include "base/sdk_version.h"
 #include "class_linker-inl.h"
 #include "class_root-inl.h"
 #include "common_throws.h"
@@ -45,7 +44,6 @@
 #include "mirror/proxy.h"
 #include "mirror/string-alloc-inl.h"
 #include "mirror/string-inl.h"
-#include "mirror/string.h"
 #include "native_util.h"
 #include "nativehelper/jni_macros.h"
 #include "nativehelper/scoped_local_ref.h"
@@ -140,14 +138,9 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   // So far ClassValue is the only class with such a problem and hence this
   // ad-hoc check.
   // See b/259501764.
-  uint32_t targetSdkVersion = Runtime::Current()->GetTargetSdkVersion();
-  if (IsSdkVersionSetAndAtMost(targetSdkVersion, SdkVersion::kT)) {
-    ObjPtr<mirror::Class> java_lang_ClassValue =
-        WellKnownClasses::ToClass(WellKnownClasses::java_lang_ClassValue);
-    if (c.Get() == java_lang_ClassValue.Ptr()) {
-      soa.Self()->ThrowNewException("Ljava/lang/ClassNotFoundException;", "java.lang.ClassValue");
-      return nullptr;
-    }
+  if (!c->CheckIsVisibleWithTargetSdk(soa.Self())) {
+    DCHECK(soa.Self()->IsExceptionPending());
+    return nullptr;
   }
 
   return soa.AddLocalReference<jclass>(c.Get());

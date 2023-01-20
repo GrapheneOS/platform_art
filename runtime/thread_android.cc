@@ -42,8 +42,10 @@ void Thread::MadviseAwayAlternateSignalStack() {
       IsAligned<kPageSize>(old_ss.ss_sp) &&
       IsAligned<kPageSize>(old_ss.ss_size)) {
     CHECK_EQ(old_ss.ss_flags & SS_ONSTACK, 0);
-    result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_DONTNEED);
-    CHECK_EQ(result, 0);
+    // Note: We're testing and benchmarking ART on devices with old kernels
+    // which may not support `MADV_FREE`, so we do not check the result.
+    // It should succeed on devices with Android 12+.
+    madvise(old_ss.ss_sp, old_ss.ss_size, MADV_FREE);
   }
 }
 
