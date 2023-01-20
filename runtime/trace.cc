@@ -566,6 +566,24 @@ static constexpr size_t kMinBufSize = 18U;  // Trace header is up to 18B.
 static constexpr size_t kPerThreadBufSize = 512 * 1024;
 static_assert(kPerThreadBufSize > kMinBufSize);
 
+namespace {
+
+TraceClockSource GetClockSourceFromFlags(int flags) {
+  bool need_wall = flags & Trace::TraceFlag::kTraceClockSourceWallClock;
+  bool need_thread_cpu = flags & Trace::TraceFlag::kTraceClockSourceThreadCpu;
+  if (need_wall && need_thread_cpu) {
+    return TraceClockSource::kDual;
+  } else if (need_wall) {
+    return TraceClockSource::kWall;
+  } else if (need_thread_cpu) {
+    return TraceClockSource::kThreadCpu;
+  } else {
+    return kDefaultTraceClockSource;
+  }
+}
+
+}  // namespace
+
 Trace::Trace(File* trace_file,
              size_t buffer_size,
              int flags,
@@ -576,7 +594,7 @@ Trace::Trace(File* trace_file,
       flags_(flags),
       trace_output_mode_(output_mode),
       trace_mode_(trace_mode),
-      clock_source_(default_clock_source_),
+      clock_source_(GetClockSourceFromFlags(flags)),
       buffer_size_(std::max(kMinBufSize, buffer_size)),
       start_time_(MicroTime()),
       clock_overhead_ns_(GetClockOverheadNanoSeconds()),
@@ -1172,6 +1190,18 @@ Trace::TraceMode Trace::GetMode() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
   CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
   return the_trace_->trace_mode_;
+}
+
+int Trace::GetFlags() {
+  MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  return the_trace_->flags_;
+}
+
+int Trace::GetIntervalInMillis() {
+  MutexLock mu(Thread::Current(), *Locks::trace_lock_);
+  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  return the_trace_->interval_us_;
 }
 
 size_t Trace::GetBufferSize() {
