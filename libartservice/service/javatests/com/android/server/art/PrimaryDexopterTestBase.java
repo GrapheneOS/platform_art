@@ -20,7 +20,6 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
@@ -33,6 +32,7 @@ import android.os.UserManager;
 import android.os.storage.StorageManager;
 
 import com.android.server.art.testing.StaticMockitoRule;
+import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -53,8 +53,8 @@ public class PrimaryDexopterTestBase {
     protected static final int SHARED_GID = UserHandle.getSharedAppGid(UID);
 
     @Rule
-    public StaticMockitoRule mockitoRule =
-            new StaticMockitoRule(SystemProperties.class, Constants.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
+            SystemProperties.class, Constants.class, PackageStateWrapper.class);
 
     @Mock protected PrimaryDexopter.Injector mInjector;
     @Mock protected IArtd mArtd;
@@ -148,7 +148,9 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkgState.isSystem()).thenReturn(false);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
         lenient().when(pkgState.getAppId()).thenReturn(UID);
-        lenient().when(pkgState.getUsesLibraries()).thenReturn(new ArrayList<>());
+        lenient()
+                .when(PackageStateWrapper.getSharedLibraryDependencies(pkgState))
+                .thenReturn(new ArrayList<>());
         lenient().when(pkgState.getStateForUser(any())).thenReturn(mPkgUserStateNotInstalled);
         AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);

@@ -117,26 +117,27 @@ enum class DatumId {
 };
 
 // Names come from PackageManagerServiceCompilerMapping.java
-#define REASON_NAME_LIST(V) \
-  V(kError, "error") \
-  V(kUnknown, "unknown") \
-  V(kFirstBoot, "first-boot") \
-  V(kBootAfterOTA, "boot-after-ota") \
-  V(kPostBoot, "post-boot") \
-  V(kInstall, "install") \
-  V(kInstallFast, "install-fast") \
-  V(kInstallBulk, "install-bulk") \
-  V(kInstallBulkSecondary, "install-bulk-secondary") \
-  V(kInstallBulkDowngraded, "install-bulk-downgraded") \
+#define REASON_NAME_LIST(V)                                               \
+  V(kError, "error")                                                      \
+  V(kUnknown, "unknown")                                                  \
+  V(kFirstBoot, "first-boot")                                             \
+  V(kBootAfterOTA, "boot-after-ota")                                      \
+  V(kPostBoot, "post-boot")                                               \
+  V(kInstall, "install")                                                  \
+  V(kInstallFast, "install-fast")                                         \
+  V(kInstallBulk, "install-bulk")                                         \
+  V(kInstallBulkSecondary, "install-bulk-secondary")                      \
+  V(kInstallBulkDowngraded, "install-bulk-downgraded")                    \
   V(kInstallBulkSecondaryDowngraded, "install-bulk-secondary-downgraded") \
-  V(kBgDexopt, "bg-dexopt") \
-  V(kABOTA, "ab-ota") \
-  V(kInactive, "inactive") \
-  V(kShared, "shared") \
-  V(kInstallWithDexMetadata, "install-with-dex-metadata") \
-  V(kPrebuilt, "prebuilt") \
-  V(kCmdLine, "cmdline") \
-  V(kVdex, "vdex")
+  V(kBgDexopt, "bg-dexopt")                                               \
+  V(kABOTA, "ab-ota")                                                     \
+  V(kInactive, "inactive")                                                \
+  V(kShared, "shared")                                                    \
+  V(kInstallWithDexMetadata, "install-with-dex-metadata")                 \
+  V(kPrebuilt, "prebuilt")                                                \
+  V(kCmdLine, "cmdline")                                                  \
+  V(kVdex, "vdex")                                                        \
+  V(kBootAfterMainlineUpdate, "boot-after-mainline-update")
 
 // We log compilation reasons as part of the metadata we report. Since elsewhere compilation reasons
 // are specified as a string, we define them as an enum here which indicates the reasons that we

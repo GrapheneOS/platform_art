@@ -148,7 +148,7 @@ public final class ArtManagerLocal {
 
     /**
      * Deletes dexopt artifacts of a package, including the artifacts for primary dex files and the
-     * ones for secondary dex files.
+     * ones for secondary dex files. This includes VDEX, ODEX, and ART files.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen
@@ -820,10 +820,28 @@ public final class ArtManagerLocal {
     @NonNull
     private List<String> getDefaultPackages(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String reason) {
+        // We probably won't have an app hibernation manager in the boot time compilation, because
+        // ArtManagerLocal.onBoot needs to run early to ensure apps are compiled before the system
+        // server fires them up. This means the boot time compilation will ignore the hibernation
+        // states of the packages.
+        //
+        // TODO(b/265782156): When hibernated packages get compiled this way, the file GC will
+        // delete them again in the next background dexopt run. That means they are likely to get
+        // recreated again in the next boot dexopt (i.e. for OTA or Mainline update).
+        var appHibernationManager = mInjector.getAppHibernationManager();
+        if (reason != ReasonMapping.REASON_FIRST_BOOT
+                && reason != ReasonMapping.REASON_BOOT_AFTER_OTA
+                && reason != ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE) {
+            // Check that it's present for other compilation reasons, to ensure we don't regress
+            // silently.
+            Objects.requireNonNull(appHibernationManager);
+        }
+
         // Filter out hibernating packages even if the reason is REASON_INACTIVE. This is because
         // artifacts for hibernating packages are already deleted.
         Stream<PackageState> packages = snapshot.getPackageStates().values().stream().filter(
-                pkgState -> Utils.canDexoptPackage(pkgState, mInjector.getAppHibernationManager()));
+                pkgState -> Utils.canDexoptPackage(pkgState, appHibernationManager));
+
         switch (reason) {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
                 packages = packages.filter(
@@ -839,6 +857,7 @@ public final class ArtManagerLocal {
                 packages = filterAndSortByLastActiveTime(
                         packages, true /* keepRecent */, true /* descending */);
         }
+
         return packages.map(PackageState::getPackageName).collect(Collectors.toList());
     }
 
@@ -989,10 +1008,9 @@ public final class ArtManagerLocal {
                 mConfig = new Config();
                 mBgDexoptJob = new BackgroundDexoptJob(context, artManagerLocal, mConfig);
 
-                // Call the getters for various dependencies, to ensure correct initialization
-                // order.
+                // Call the getters for the dependencies that aren't optional, to ensure correct
+                // initialization order.
                 getDexoptHelper();
-                getAppHibernationManager();
                 getUserManager();
                 getDexUseManager();
                 getStorageManager();
@@ -1029,9 +1047,16 @@ public final class ArtManagerLocal {
             return mConfig;
         }
 
-        @NonNull
+        /**
+         * Returns the registered AppHibernationManager instance.
+         *
+         * It may be null because ArtManagerLocal needs to be available early to compile packages at
+         * boot with {@link onBoot}, before the hibernation manager has been initialized. It should
+         * not be null for other dexopt calls.
+         */
+        @Nullable
         public AppHibernationManager getAppHibernationManager() {
-            return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
+            return mContext.getSystemService(AppHibernationManager.class);
         }
 
         @NonNull
