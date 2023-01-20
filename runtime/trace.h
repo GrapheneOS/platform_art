@@ -104,7 +104,9 @@ enum TraceAction {
 class Trace final : public instrumentation::InstrumentationListener {
  public:
   enum TraceFlag {
-    kTraceCountAllocs = 1,
+    kTraceCountAllocs = 0x001,
+    kTraceClockSourceWallClock = 0x010,
+    kTraceClockSourceThreadCpu = 0x100,
   };
 
   enum class TraceOutputMode {
@@ -230,6 +232,8 @@ class Trace final : public instrumentation::InstrumentationListener {
   static TraceOutputMode GetOutputMode() REQUIRES(!Locks::trace_lock_);
   static TraceMode GetMode() REQUIRES(!Locks::trace_lock_);
   static size_t GetBufferSize() REQUIRES(!Locks::trace_lock_);
+  static int GetFlags() REQUIRES(!Locks::trace_lock_);
+  static int GetIntervalInMillis() REQUIRES(!Locks::trace_lock_);
 
   // Used by class linker to prevent class unloading.
   static bool IsTracingEnabled() REQUIRES(!Locks::trace_lock_);
