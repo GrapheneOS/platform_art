@@ -510,6 +510,9 @@ class MarkCompact final : public GarbageCollector {
   // the lowest-address obj is compacted.
   void UpdateClassAfterObjMap();
 
+  void MarkZygoteLargeObjects() REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_);
+
   // Buffers, one per worker thread + gc-thread, to be used when
   // kObjPtrPoisoning == true as in that case we can't have the buffer on the
   // stack. The first page of the buffer is assigned to
@@ -536,7 +539,7 @@ class MarkCompact final : public GarbageCollector {
   // GC-root is updated twice.
   // TODO: Must be replaced with an efficient mechanism eventually. Or ensure
   // that double updation doesn't happen in the first place.
-  std::unordered_set<void*> updated_roots_;
+  std::unique_ptr<std::unordered_set<void*>> updated_roots_;
   MemMap from_space_map_;
   MemMap shadow_to_space_map_;
   // Any array of live-bytes in logical chunks of kOffsetChunkSize size
