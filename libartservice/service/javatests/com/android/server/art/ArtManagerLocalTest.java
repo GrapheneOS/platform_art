@@ -56,6 +56,7 @@ import android.os.storage.StorageManager;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.Config;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.DexoptParams;
@@ -104,8 +105,8 @@ public class ArtManagerLocalTest {
             CURRENT_TIME_MS - TimeUnit.DAYS.toMillis(INACTIVE_DAYS) - 1;
 
     @Rule
-    public StaticMockitoRule mockitoRule =
-            new StaticMockitoRule(SystemProperties.class, Constants.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
+            SystemProperties.class, Constants.class, PackageStateModulesUtils.class);
 
     @Mock private ArtManagerLocal.Injector mInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
@@ -170,10 +171,6 @@ public class ArtManagerLocalTest {
                 .when(SystemProperties.getInt(
                         eq("pm.dexopt.downgrade_after_inactive_days"), anyInt()))
                 .thenReturn(INACTIVE_DAYS);
-        lenient()
-                .when(SystemProperties.getLong(
-                        eq("pm.dexopt.storage_threshold_above_low_bytes"), anyLong()))
-                .thenReturn(1000l);
 
         // No ISA translation.
         lenient()
@@ -196,7 +193,7 @@ public class ArtManagerLocalTest {
         List<? extends SecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
         lenient().doReturn(secondaryDexInfo).when(mDexUseManager).getSecondaryDexInfo(eq(PKG_NAME));
 
-        lenient().when(mStorageManager.getAllocatableBytes(any())).thenReturn(1000l);
+        simulateStorageNotLow();
 
         lenient().when(mPackageManagerLocal.withFilteredSnapshot()).thenReturn(mSnapshot);
         List<PackageState> pkgStates = createPackageStates();
@@ -437,7 +434,7 @@ public class ArtManagerLocalTest {
         var dexoptResult = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME_SYS_UI)).thenReturn(CURRENT_TIME_MS);
-        when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
+        simulateStorageLow();
 
         // It should use the default package list and params. The list is sorted by last active
         // time in descending order.
@@ -463,7 +460,7 @@ public class ArtManagerLocalTest {
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
         when(userState.getFirstInstallTimeMillis()).thenReturn(RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(0l);
-        when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
+        simulateStorageLow();
 
         var result = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
@@ -490,7 +487,7 @@ public class ArtManagerLocalTest {
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
         when(userState.getFirstInstallTimeMillis()).thenReturn(NOT_RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(NOT_RECENT_TIME_MS);
-        when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
+        simulateStorageLow();
 
         var result = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
@@ -514,10 +511,36 @@ public class ArtManagerLocalTest {
     }
 
     @Test
+    public void testDexoptPackagesInactiveStorageNotLow() throws Exception {
+        // PKG_NAME is neither recently installed nor recently used.
+        PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
+        when(userState.getFirstInstallTimeMillis()).thenReturn(NOT_RECENT_TIME_MS);
+        when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(NOT_RECENT_TIME_MS);
+
+        var result = mock(DexoptResult.class);
+        var cancellationSignal = new CancellationSignal();
+
+        // PKG_NAME should not be dexopted.
+        doReturn(result)
+                .when(mDexoptHelper)
+                .dexopt(any(), deepEq(List.of(PKG_NAME_SYS_UI)),
+                        argThat(params -> params.getReason().equals("bg-dexopt")), any(), any(),
+                        any(), any());
+
+        mArtManagerLocal.dexoptPackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                null /* processCallbackExecutor */, null /* processCallback */);
+
+        // PKG_NAME should not be downgraded because the storage is not low.
+        verify(mDexoptHelper, never())
+                .dexopt(any(), any(), argThat(params -> params.getReason().equals("inactive")),
+                        any(), any(), any(), any());
+    }
+
+    @Test
     public void testDexoptPackagesBootAfterMainlineUpdate() throws Exception {
         var result = mock(DexoptResult.class);
         var cancellationSignal = new CancellationSignal();
-        lenient().when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
+        simulateStorageLow();
 
         // It should only dexopt system UI.
         when(mDexoptHelper.dexopt(
@@ -541,7 +564,7 @@ public class ArtManagerLocalTest {
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
         when(userState.getFirstInstallTimeMillis()).thenReturn(NOT_RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(NOT_RECENT_TIME_MS);
-        when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
+        simulateStorageLow();
 
         var params = new DexoptParams.Builder("bg-dexopt").build();
         var result = mock(DexoptResult.class);
@@ -806,7 +829,7 @@ public class ArtManagerLocalTest {
     }
 
     private PackageState createPackageState(
-            String packageName, int appId, boolean hasPackage, boolean multiSplit) {
+            String packageName, boolean isDexoptable, boolean multiSplit) {
         PackageState pkgState = mock(PackageState.class);
 
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
@@ -814,52 +837,40 @@ public class ArtManagerLocalTest {
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
         lenient().when(pkgState.isSystem()).thenReturn(mIsInReadonlyPartition);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
-        lenient().when(pkgState.getAppId()).thenReturn(appId);
 
-        if (hasPackage) {
-            AndroidPackage pkg = createPackage(multiSplit);
-            lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
-        } else {
-            lenient().when(pkgState.getAndroidPackage()).thenReturn(null);
-        }
+        AndroidPackage pkg = createPackage(multiSplit);
+        lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
 
         PackageUserState pkgUserState0 = createPackageUserState();
         lenient().when(pkgState.getStateForUser(UserHandle.of(0))).thenReturn(pkgUserState0);
         PackageUserState pkgUserState1 = createPackageUserState();
         lenient().when(pkgState.getStateForUser(UserHandle.of(1))).thenReturn(pkgUserState1);
 
+        lenient().when(PackageStateModulesUtils.isDexoptable(pkgState)).thenReturn(isDexoptable);
+
         return pkgState;
     }
 
     private List<PackageState> createPackageStates() {
-        PackageState pkgState = createPackageState(
-                PKG_NAME, 10001 /* appId */, true /* hasPackage */, true /* multiSplit */);
+        PackageState pkgState =
+                createPackageState(PKG_NAME, true /* isDexoptable */, true /* multiSplit */);
 
         PackageState sysUiPkgState = createPackageState(
-                PKG_NAME_SYS_UI, 1234 /* appId */, true /* hasPackage */, false /* multiSplit */);
+                PKG_NAME_SYS_UI, true /* isDexoptable */, false /* multiSplit */);
 
         // This should not be dexopted because it's hibernating. However, it should be included
         // when snapshotting boot image profile.
-        PackageState pkgHibernatingState = createPackageState(PKG_NAME_HIBERNATING,
-                10002 /* appId */, true /* hasPackage */, false /* multiSplit */);
+        PackageState pkgHibernatingState = createPackageState(
+                PKG_NAME_HIBERNATING, true /* isDexoptable */, false /* multiSplit */);
         lenient()
                 .when(mAppHibernationManager.isHibernatingGlobally(PKG_NAME_HIBERNATING))
                 .thenReturn(true);
 
-        // This should not be dexopted because it does't have AndroidPackage.
-        PackageState nullPkgState = createPackageState("com.example.null", 10003 /* appId */,
-                false /* hasPackage */, false /* multiSplit */);
+        // This should not be dexopted because it's not dexoptable.
+        PackageState nonDexoptablePkgState = createPackageState(
+                "com.example.non-dexoptable", false /* isDexoptable */, false /* multiSplit */);
 
-        // This should not be dexopted because it has a negative app id.
-        PackageState apexPkgState = createPackageState(
-                "com.android.art", -1 /* appId */, true /* hasPackage */, false /* multiSplit */);
-
-        // This should not be dexopted because it's "android".
-        PackageState platformPkgState = createPackageState(Utils.PLATFORM_PACKAGE_NAME,
-                1000 /* appId */, true /* hasPackage */, false /* multiSplit */);
-
-        return List.of(pkgState, sysUiPkgState, pkgHibernatingState, nullPkgState, apexPkgState,
-                platformPkgState);
+        return List.of(pkgState, sysUiPkgState, pkgHibernatingState, nonDexoptablePkgState);
     }
 
     private GetDexoptStatusResult createGetDexoptStatusResult(
@@ -877,5 +888,17 @@ public class ArtManagerLocalTest {
         lenient().when(dexInfo.abiNames()).thenReturn(Set.of("arm64-v8a"));
         lenient().when(dexInfo.classLoaderContext()).thenReturn("CLC");
         return List.of(dexInfo);
+    }
+
+    private void simulateStorageLow() throws Exception {
+        lenient()
+                .when(mStorageManager.getAllocatableBytes(any()))
+                .thenReturn(ArtManagerLocal.DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES - 1);
+    }
+
+    private void simulateStorageNotLow() throws Exception {
+        lenient()
+                .when(mStorageManager.getAllocatableBytes(any()))
+                .thenReturn(ArtManagerLocal.DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES);
     }
 }

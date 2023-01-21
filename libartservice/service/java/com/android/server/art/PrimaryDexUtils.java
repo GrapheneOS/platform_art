@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 
 /** @hide */
 public class PrimaryDexUtils {
+    public static final String PROFILE_PRIMARY = "primary";
     private static final String SHARED_LIBRARY_LOADER_TYPE = PathClassLoader.class.getName();
 
     /**
@@ -327,7 +328,7 @@ public class PrimaryDexUtils {
 
     @NonNull
     public static String getProfileName(@Nullable String splitName) {
-        return splitName == null ? "primary" : splitName + ".split";
+        return splitName == null ? PROFILE_PRIMARY : splitName + ".split";
     }
 
     /** Basic information about a primary dex file (either the base APK or a split APK). */

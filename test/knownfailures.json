@@ -1217,7 +1217,8 @@
                   "2040-huge-native-alloc",
                   "2238-checker-polymorphic-recursive-inlining",
                   "2240-tracing-non-invokable-method",
-	          "2246-trace-stream"],
+                  "2246-trace-stream",
+                  "2254-class-value-before-and-after-u"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },

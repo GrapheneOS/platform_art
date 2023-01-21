@@ -42,7 +42,9 @@ import android.os.CancellationSignal;
 import android.os.PowerManager;
 
 import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
+import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
@@ -63,7 +65,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +75,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @SmallTest
-@RunWith(MockitoJUnitRunner.StrictStubs.class)
+@RunWith(AndroidJUnit4.class)
 public class DexoptHelperTest {
     private static final String PKG_NAME_FOO = "com.example.foo";
     private static final String PKG_NAME_BAR = "com.example.bar";
@@ -84,7 +85,8 @@ public class DexoptHelperTest {
     private static final String PKG_NAME_LIB4 = "com.example.lib4";
     private static final String PKG_NAME_LIBBAZ = "com.example.libbaz";
 
-    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(PackageStateWrapper.class);
+    @Rule
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(PackageStateModulesUtils.class);
 
     @Mock private DexoptHelper.Injector mInjector;
     @Mock private PrimaryDexopter mPrimaryDexopter;
@@ -345,8 +347,8 @@ public class DexoptHelperTest {
     }
 
     @Test
-    public void testDexoptNoCode() throws Exception {
-        when(mPkgFoo.getSplits().get(0).isHasCode()).thenReturn(false);
+    public void testDexoptNotDexoptable() throws Exception {
+        when(PackageStateModulesUtils.isDexoptable(mPkgStateFoo)).thenReturn(false);
 
         mRequestedPackages = List.of(PKG_NAME_FOO);
         DexoptResult result = mDexoptHelper.dexopt(
@@ -361,8 +363,8 @@ public class DexoptHelperTest {
     }
 
     @Test
-    public void testDexoptLibraryNoCode() throws Exception {
-        when(mPkgLib1.getSplits().get(0).isHasCode()).thenReturn(false);
+    public void testDexoptLibraryNotDexoptable() throws Exception {
+        when(PackageStateModulesUtils.isDexoptable(mPkgStateLib1)).thenReturn(false);
 
         mRequestedPackages = List.of(PKG_NAME_FOO);
         DexoptResult result = mDexoptHelper.dexopt(
@@ -607,12 +609,10 @@ public class DexoptHelperTest {
         AndroidPackage pkg = mock(AndroidPackage.class);
 
         var baseSplit = mock(AndroidPackageSplit.class);
-        lenient().when(baseSplit.isHasCode()).thenReturn(true);
 
         if (multiSplit) {
             var split0 = mock(AndroidPackageSplit.class);
             lenient().when(split0.getName()).thenReturn("split_0");
-            lenient().when(split0.isHasCode()).thenReturn(true);
 
             lenient().when(pkg.getSplits()).thenReturn(List.of(baseSplit, split0));
         } else {
@@ -630,6 +630,7 @@ public class DexoptHelperTest {
         lenient().when(PackageStateWrapper.getSharedLibraryDependencies(pkgState)).thenReturn(deps);
         AndroidPackage pkg = createPackage(multiSplit);
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
+        lenient().when(PackageStateModulesUtils.isDexoptable(pkgState)).thenReturn(true);
         return pkgState;
     }
 
