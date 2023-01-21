@@ -23,6 +23,7 @@ import static com.android.server.art.Utils.Abi;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.Process;
@@ -33,6 +34,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
@@ -209,10 +211,8 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
         return AidlUtils.buildDexMetadataPath(dexInfo.dexPath());
     }
 
+    @SuppressLint("NewApi")
     private boolean isSharedLibrary() {
-        // TODO(b/242688548): Package manager should provide a better API for this.
-        return !TextUtils.isEmpty(mPkg.getSdkLibraryName())
-                || !TextUtils.isEmpty(mPkg.getStaticSharedLibraryName())
-                || !mPkg.getLibraryNames().isEmpty();
+        return PackageStateModulesUtils.isLoadableInOtherProcesses(mPkgState, true /* codeOnly */);
     }
 }

@@ -43,6 +43,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.storage.StorageManager;
 import android.text.TextUtils;
@@ -100,7 +101,9 @@ public final class ArtManagerLocal {
     private static final String TAG = "ArtService";
     private static final String[] CLASSPATHS_FOR_BOOT_IMAGE_PROFILE = {
             "BOOTCLASSPATH", "SYSTEMSERVERCLASSPATH", "STANDALONE_SYSTEMSERVER_JARS"};
-    private static final long DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES = 500_000_000;
+
+    /** @hide */
+    @VisibleForTesting public static final long DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES = 500_000_000;
 
     @NonNull private final Injector mInjector;
 
@@ -406,7 +409,7 @@ public final class ArtManagerLocal {
      * pm.dexopt.downgrade_after_inactive_days} is set. The space threshold to trigger this feature
      * is the Storage Manager's low space threshold plus {@link
      * #DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES}. The concurrency can be configured by system property
-     * {@code pm.dexopt.inactive.concurrency}. The packages in the list provided by
+     * {@code pm.dexopt.bg-dexopt.concurrency}. The packages in the list provided by
      * {@link BatchDexoptStartCallback} for {@link ReasonMapping#REASON_BG_DEXOPT} are never
      * downgraded.
      *
@@ -688,12 +691,13 @@ public final class ArtManagerLocal {
         List<ProfilePath> profiles = new ArrayList<>();
 
         // System server profiles.
-        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, Utils.PLATFORM_PACKAGE_NAME);
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-        PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfo(pkg).get(0);
-        profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
-        profiles.addAll(
-                PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+        profiles.add(AidlUtils.buildProfilePathForPrimaryRef(
+                Utils.PLATFORM_PACKAGE_NAME, PrimaryDexUtils.PROFILE_PRIMARY));
+        for (UserHandle handle :
+                mInjector.getUserManager().getUserHandles(true /* excludeDying */)) {
+            profiles.add(AidlUtils.buildProfilePathForPrimaryCur(handle.getIdentifier(),
+                    Utils.PLATFORM_PACKAGE_NAME, PrimaryDexUtils.PROFILE_PRIMARY));
+        }
 
         // App profiles.
         snapshot.getPackageStates().forEach((packageName, appPkgState) -> {
@@ -713,7 +717,8 @@ public final class ArtManagerLocal {
         });
 
         OutputProfile output = AidlUtils.buildOutputProfileForPrimary(Utils.PLATFORM_PACKAGE_NAME,
-                "primary", Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+                PrimaryDexUtils.PROFILE_PRIMARY, Process.SYSTEM_UID, Process.SYSTEM_UID,
+                false /* isPublic */);
 
         List<String> dexPaths = Arrays.stream(CLASSPATHS_FOR_BOOT_IMAGE_PROFILE)
                                         .map(envVar -> Constants.getenv(envVar))

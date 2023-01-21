@@ -60,24 +60,10 @@ cc_library {
     ],
 }
 
-// Provides the API and implementation of the ART Service class that will be
-// loaded by the System Server.
-java_sdk_library {
-    // This target is named 'service-art' to conform to the naming conventions
-    // for JAR files in the System Server.
-    name: "service-art",
+java_defaults {
+    name: "service-art-defaults",
     defaults: [
         "framework-system-server-module-defaults",
-        "framework-system-server-module-optimize-defaults",
-    ],
-    permitted_packages: ["com.android.server.art"],
-    visibility: [
-        "//art:__subpackages__",
-        "//frameworks/base/services/core",
-    ],
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
     ],
     sdk_version: "system_server_current",
     min_sdk_version: "31",
@@ -98,11 +84,44 @@ java_sdk_library {
     static_libs: [
         "art-statslog-art-java",
         "artd-aidl-java",
+        "modules-utils-package-state",
         "modules-utils-shell-command-handler",
         "service-art-proto-java",
     ],
     plugins: [
         "auto_value_plugin",
+    ],
+}
+
+// Used by tests to allow tests to mock the right classes.
+java_library {
+    name: "service-art-pre-jarjar",
+    defaults: ["service-art-defaults"],
+    installable: false,
+    visibility: [
+        "//visibility:override",
+        "//visibility:private",
+    ],
+}
+
+// Provides the API and implementation of the ART Service class that will be
+// loaded by the System Server.
+java_sdk_library {
+    // This target is named 'service-art' to conform to the naming conventions
+    // for JAR files in the System Server.
+    name: "service-art",
+    defaults: [
+        "service-art-defaults",
+        "framework-system-server-module-optimize-defaults",
+    ],
+    permitted_packages: ["com.android.server.art"],
+    visibility: [
+        "//art:__subpackages__",
+        "//frameworks/base/services/core",
+    ],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
     ],
     jarjar_rules: "jarjar-rules.txt",
     optimize: {
@@ -193,7 +212,8 @@ android_test {
         "framework-annotations-lib",
         // We need ExtendedMockito to mock static methods.
         "mockito-target-extended-minus-junit4",
-        "service-art.impl",
+        "modules-utils-package-state",
+        "service-art-pre-jarjar",
         // Statically link against system server to allow us to mock system
         // server APIs. This won't work on master-art, but it's fine because we
         // don't run this test on master-art.

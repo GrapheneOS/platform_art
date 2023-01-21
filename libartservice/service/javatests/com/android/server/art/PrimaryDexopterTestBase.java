@@ -24,6 +24,7 @@ import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
 
 import android.os.CancellationSignal;
 import android.os.SystemProperties;
@@ -31,6 +32,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.storage.StorageManager;
 
+import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -54,7 +56,7 @@ public class PrimaryDexopterTestBase {
 
     @Rule
     public StaticMockitoRule mockitoRule = new StaticMockitoRule(
-            SystemProperties.class, Constants.class, PackageStateWrapper.class);
+            SystemProperties.class, Constants.class, PackageStateModulesUtils.class);
 
     @Mock protected PrimaryDexopter.Injector mInjector;
     @Mock protected IArtd mArtd;
@@ -134,9 +136,6 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkg.getTargetSdkVersion()).thenReturn(123);
         lenient().when(pkg.isSignedWithPlatformKey()).thenReturn(false);
         lenient().when(pkg.isUsesNonSdkApi()).thenReturn(false);
-        lenient().when(pkg.getSdkLibraryName()).thenReturn(null);
-        lenient().when(pkg.getStaticSharedLibraryName()).thenReturn(null);
-        lenient().when(pkg.getLibraryNames()).thenReturn(new ArrayList<>());
         return pkg;
     }
 
@@ -154,6 +153,10 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkgState.getStateForUser(any())).thenReturn(mPkgUserStateNotInstalled);
         AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
+        lenient()
+                .when(PackageStateModulesUtils.isLoadableInOtherProcesses(
+                        same(pkgState), anyBoolean()))
+                .thenReturn(false);
         return pkgState;
     }
 
