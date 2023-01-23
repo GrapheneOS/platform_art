@@ -1046,7 +1046,7 @@ void dumpTrace() {
   for (int32_t i = 0; i < MAX_THREADS; i++)
     traceData.depth[i] = 2;  // adjust for return from start function
 
-  FILE* dataFp = fopen(gOptions.traceFileName, "rb");
+  FILE* dataFp = fopen(gOptions.traceFileName, "rbe");
   if (dataFp == nullptr) return;
 
   DataKeys* pKeys = parseKeys(dataFp, 1);
@@ -1465,7 +1465,7 @@ void createInclusiveProfileGraphNew(DataKeys* dataKeys) {
     snprintf(path, FILENAME_MAX, "dot-%d-%d.dot", (int32_t)time(nullptr), rand());
   }
 
-  FILE* file = fopen(path, "w+");
+  FILE* file = fopen(path, "we+");
 
   fprintf(file, "digraph g {\nnode [shape = record,height=.1];\n");
 
@@ -2033,7 +2033,7 @@ void printMethodProfiles(TraceData* traceData, uint64_t sumThreadTime) {
 DataKeys* parseDataKeys(TraceData* traceData, const char* traceFileName, uint64_t* threadTime) {
   MethodEntry* caller;
 
-  FILE* dataFp = fopen(traceFileName, "rb");
+  FILE* dataFp = fopen(traceFileName, "rbe");
   if (dataFp == nullptr) return nullptr;
 
   DataKeys* dataKeys = parseKeys(dataFp, 0);
