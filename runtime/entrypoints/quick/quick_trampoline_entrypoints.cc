@@ -2580,7 +2580,11 @@ extern "C" void artMethodExitHook(Thread* self,
     UNREACHABLE();
   }
 
-  bool deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size);
+  // We should deoptimize here if the caller requires a deoptimization or if the current method
+  // needs a deoptimization. We may need deoptimization for the current method if method exit
+  // hooks requested this frame to be popped. IsForcedInterpreterNeededForUpcall checks for that.
+  const bool deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size) ||
+                          Dbg::IsForcedInterpreterNeededForUpcall(self, method);
   if (deoptimize) {
     JValue ret_val = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
     DeoptimizationMethodType deopt_method_type = instr->GetDeoptimizationMethodType(method);
