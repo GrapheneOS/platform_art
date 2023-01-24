@@ -1581,23 +1581,7 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp, size_
   ArtMethod* caller = *(reinterpret_cast<ArtMethod**>(caller_sp));
   uintptr_t caller_pc_addr = reinterpret_cast<uintptr_t>(sp) + (frame_size - sizeof(void*));
   uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(caller_pc_addr);
-  return ShouldDeoptimizeCaller(self, caller, caller_pc, caller_sp);
-}
 
-
-bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, const NthCallerVisitor& visitor) {
-  uintptr_t caller_sp = reinterpret_cast<uintptr_t>(visitor.GetCurrentQuickFrame());
-  // When the caller isn't executing quick code there is no need to deoptimize.
-  if (visitor.GetCurrentOatQuickMethodHeader() == nullptr) {
-    return false;
-  }
-  return ShouldDeoptimizeCaller(self, visitor.GetOuterMethod(), visitor.caller_pc, caller_sp);
-}
-
-bool Instrumentation::ShouldDeoptimizeCaller(Thread* self,
-                                             ArtMethod* caller,
-                                             uintptr_t caller_pc,
-                                             uintptr_t caller_sp) {
   if (caller == nullptr ||
       caller->IsNative() ||
       caller->IsRuntimeMethod()) {
