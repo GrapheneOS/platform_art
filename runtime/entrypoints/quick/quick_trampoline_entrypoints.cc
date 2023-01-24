@@ -704,9 +704,6 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
   // Check if caller needs to be deoptimized for instrumentation reasons.
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-  // If caller_pc is the instrumentation exit stub, the stub will check to see if deoptimization
-  // should be done and it knows the real return pc. NB If the upcall is null we don't need to do
-  // anything. This can happen during shutdown or early startup.
   if (UNLIKELY(instr->ShouldDeoptimizeCaller(self, sp))) {
     ArtMethod* caller = QuickArgumentVisitor::GetOuterMethod(sp);
     uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
@@ -2529,14 +2526,6 @@ extern "C" void artMethodExitHook(Thread* self,
                                   uint64_t* fpr_result,
                                   uint32_t frame_size)
   REQUIRES_SHARED(Locks::mutator_lock_) {
-  // For GenericJniTrampolines we call artMethodExitHook even for non debuggable runtimes though we
-  // still install instrumentation stubs. So just return early here so we don't call method exit
-  // twice. In all other cases (JITed JNI stubs / JITed code) we only call this for debuggable
-  // runtimes.
-  if (!Runtime::Current()->IsJavaDebuggable()) {
-    return;
-  }
-
   DCHECK_EQ(reinterpret_cast<uintptr_t>(self), reinterpret_cast<uintptr_t>(Thread::Current()));
   // Instrumentation exit stub must not be entered with a pending exception.
   CHECK(!self->IsExceptionPending())
