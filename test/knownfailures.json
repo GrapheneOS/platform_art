@@ -1556,11 +1556,5 @@
         "env_vars": {"ART_TEST_DEBUG_GC": "true"},
         "bug": "b/264844668",
         "description": ["Test timing out on debug gc."]
-    },
-    {
-        "tests": ["1955-pop-frame-jit-called"],
-        "description": ["Temporarily disable while investigating the failure"],
-        "bug": "b/266175266",
-        "variant": "target"
     }
 ]
