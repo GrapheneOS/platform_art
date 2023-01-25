@@ -140,7 +140,7 @@ public class ArtManagerLocalTest {
         // that each test case examines.
         lenient().when(mInjector.getPackageManagerLocal()).thenReturn(mPackageManagerLocal);
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
-        lenient().when(mInjector.getDexoptHelper()).thenReturn(mDexoptHelper);
+        lenient().when(mInjector.getDexoptHelper(any())).thenReturn(mDexoptHelper);
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
         lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAppHibernationManager);
         lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
