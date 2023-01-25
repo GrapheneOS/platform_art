@@ -149,6 +149,7 @@ Result<void> NewFile::CommitAllOrAbandon(const std::vector<NewFile*>& files_to_c
 
   // Move old files to temporary locations.
   std::vector<std::string_view> all_files_to_remove;
+  all_files_to_remove.reserve(files_to_commit.size() + files_to_remove.size());
   for (NewFile* file : files_to_commit) {
     all_files_to_remove.push_back(file->FinalPath());
   }

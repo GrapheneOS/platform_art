@@ -51,7 +51,6 @@ import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
@@ -627,7 +626,7 @@ public class DexoptHelperTest {
         PackageState pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         lenient().when(pkgState.getAppId()).thenReturn(12345);
-        lenient().when(PackageStateWrapper.getSharedLibraryDependencies(pkgState)).thenReturn(deps);
+        lenient().when(pkgState.getSharedLibraryDependencies()).thenReturn(deps);
         AndroidPackage pkg = createPackage(multiSplit);
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         lenient().when(PackageStateModulesUtils.isDexoptable(pkgState)).thenReturn(true);

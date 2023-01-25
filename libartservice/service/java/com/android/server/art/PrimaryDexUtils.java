@@ -24,7 +24,6 @@ import android.text.TextUtils;
 
 import com.android.internal.annotations.Immutable;
 import com.android.server.art.model.DetailedDexInfo;
-import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -113,7 +112,7 @@ public class PrimaryDexUtils {
 
         // Shared libraries are the dependencies of the base APK.
         baseApk.mSharedLibrariesContext =
-                encodeSharedLibraries(PackageStateWrapper.getSharedLibraryDependencies(pkgState));
+                encodeSharedLibraries(pkgState.getSharedLibraryDependencies());
 
         boolean isIsolatedSplitLoading = isIsolatedSplitLoading(pkg);
 

@@ -37,7 +37,6 @@ import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.model.OperationProgress;
-import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -271,8 +270,7 @@ public class DexoptHelper {
             Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
             if (includeDependencies && canDexoptPackage(pkgState)) {
-                for (SharedLibrary library :
-                        PackageStateWrapper.getSharedLibraryDependencies(pkgState)) {
+                for (SharedLibrary library : pkgState.getSharedLibraryDependencies()) {
                     maybeEnqueue.accept(library);
                 }
             }

@@ -66,6 +66,7 @@ TEST_F(ProfileBootInfoTest, ManyDexFiles) {
   ScratchFile profile;
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles("MultiDex");
   std::vector<const DexFile*> dex_files2;
+  dex_files2.reserve(dex_files.size());
   for (const std::unique_ptr<const DexFile>& file : dex_files) {
     dex_files2.push_back(file.get());
   }
@@ -104,6 +105,7 @@ TEST_F(ProfileBootInfoTest, LoadWrongDexFile) {
   ProfileBootInfo loaded_info;
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles("MultiDex");
   std::vector<const DexFile*> dex_files2;
+  dex_files2.reserve(dex_files.size());
   for (const std::unique_ptr<const DexFile>& file : dex_files) {
     dex_files2.push_back(file.get());
   }

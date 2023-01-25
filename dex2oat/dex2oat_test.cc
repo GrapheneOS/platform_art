@@ -74,6 +74,7 @@ class Dex2oatTest : public Dex2oatEnvironmentTest {
                                     bool use_fd = false) {
     std::unique_ptr<File> oat_file;
     std::vector<std::string> args;
+    args.reserve(dex_locations.size() + extra_args.size() + 6);
     // Add dex file args.
     for (const std::string& dex_location : dex_locations) {
       args.push_back("--dex-file=" + dex_location);

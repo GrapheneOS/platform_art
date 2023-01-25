@@ -20,7 +20,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
 import android.apphibernation.AppHibernationManager;
-import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserManager;
 import android.text.TextUtils;
