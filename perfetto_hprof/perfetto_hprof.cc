@@ -19,6 +19,7 @@
 #include "perfetto_hprof.h"
 
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <inttypes.h>
 #include <sched.h>
 #include <signal.h>
@@ -34,6 +35,7 @@
 #include <optional>
 #include <type_traits>
 
+#include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/properties.h"
 #include "base/fast_exit.h"
@@ -167,10 +169,11 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
   constexpr static perfetto::BufferExhaustedPolicy kBufferExhaustedPolicy =
     perfetto::BufferExhaustedPolicy::kStall;
 
-  explicit JavaHprofDataSource(bool verify_session_id) : verify_session_id_(verify_session_id) {}
+  explicit JavaHprofDataSource(bool dispatched_from_heapprofd)
+      : dispatched_from_heapprofd_(dispatched_from_heapprofd) {}
 
   void OnSetup(const SetupArgs& args) override {
-    if (verify_session_id_) {
+    if (dispatched_from_heapprofd_) {
       uint64_t normalized_tracing_session_id =
         args.config->tracing_session_id() % std::numeric_limits<int32_t>::max();
       if (requested_tracing_session_id < 0) {
@@ -194,7 +197,7 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
     }
     // This tracing session ID matches the requesting tracing session ID, so we know heapprofd
     // has verified it targets this process.
-    enabled_ = true;
+    enabled_ = dispatched_from_heapprofd_ || IsDumpEnabled(*cfg.get());
   }
 
   bool dump_smaps() { return dump_smaps_; }
@@ -248,7 +251,23 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
   }
 
  private:
-  bool verify_session_id_ = false;
+  static bool IsDumpEnabled(const perfetto::protos::pbzero::JavaHprofConfig::Decoder& cfg) {
+    std::string cmdline;
+    if (!android::base::ReadFileToString("/proc/self/cmdline", &cmdline)) {
+      return false;
+    }
+    const char* argv0 = cmdline.c_str();
+
+    for (auto it = cfg.process_cmdline(); it; ++it) {
+      std::string pattern = (*it).ToStdString();
+      if (fnmatch(pattern.c_str(), argv0, FNM_NOESCAPE) == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool dispatched_from_heapprofd_ = false;
   bool enabled_ = false;
   bool dump_smaps_ = false;
   std::vector<std::string> ignored_types_;
@@ -259,7 +278,7 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
   std::function<void()> async_stop_;
 };
 
-void SetupDataSource(const std::string& ds_name, bool verify_session_id) {
+void SetupDataSource(const std::string& ds_name, bool dispatched_from_heapprofd) {
   perfetto::TracingInitArgs args;
   args.backends = perfetto::BackendType::kSystemBackend;
   perfetto::Tracing::Initialize(args);
@@ -267,7 +286,7 @@ void SetupDataSource(const std::string& ds_name, bool verify_session_id) {
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name(ds_name);
   dsd.set_will_notify_on_stop(true);
-  JavaHprofDataSource::Register(dsd, verify_session_id);
+  JavaHprofDataSource::Register(dsd, dispatched_from_heapprofd);
   LOG(INFO) << "registered data source " << ds_name;
 }
 
