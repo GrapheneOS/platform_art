@@ -1194,19 +1194,19 @@ Trace::TraceMode Trace::GetMode() {
 
 int Trace::GetFlags() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
-  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  CHECK(the_trace_ != nullptr) << "Trace flags requested, but no trace currently running";
   return the_trace_->flags_;
 }
 
 int Trace::GetIntervalInMillis() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
-  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  CHECK(the_trace_ != nullptr) << "Trace interval requested, but no trace currently running";
   return the_trace_->interval_us_;
 }
 
 size_t Trace::GetBufferSize() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
-  CHECK(the_trace_ != nullptr) << "Trace mode requested, but no trace currently running";
+  CHECK(the_trace_ != nullptr) << "Trace buffer size requested, but no trace currently running";
   return the_trace_->buffer_size_;
 }
 

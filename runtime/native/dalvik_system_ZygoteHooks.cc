@@ -359,6 +359,8 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
     Trace::TraceOutputMode output_mode = Trace::GetOutputMode();
     Trace::TraceMode trace_mode = Trace::GetMode();
     size_t buffer_size = Trace::GetBufferSize();
+    int flags = Trace::GetFlags();
+    int interval = Trace::GetIntervalInMillis();
 
     // Just drop it.
     Trace::Abort();
@@ -386,10 +388,10 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
       std::string trace_file = StringPrintf("%s/%s.trace.bin", path, proc_name.c_str());
       Trace::Start(trace_file.c_str(),
                    buffer_size,
-                   Trace::GetFlags(),
+                   flags,
                    output_mode,
                    trace_mode,
-                   Trace::GetIntervalInMillis());
+                   interval);
       if (thread->IsExceptionPending()) {
         ScopedObjectAccess soa(env);
         thread->ClearException();
