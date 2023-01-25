@@ -17,16 +17,17 @@
 #ifndef ART_LIBDEXFILE_DEX_DEX_FILE_H_
 #define ART_LIBDEXFILE_DEX_DEX_FILE_H_
 
+#include <android-base/logging.h>
+
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include <android-base/logging.h>
-
 #include "base/globals.h"
 #include "base/macros.h"
+#include "base/mman.h"  // For the PROT_* and MAP_* constants.
 #include "base/value_object.h"
 #include "dex_file_structs.h"
 #include "dex_file_types.h"
@@ -56,14 +57,36 @@ enum class Domain : char;
 class DexFileContainer {
  public:
   DexFileContainer() { }
-  virtual ~DexFileContainer() { }
-  virtual int GetPermissions() = 0;
-  virtual bool IsReadOnly() = 0;
+  virtual ~DexFileContainer() {}
+  virtual bool IsReadOnly() const = 0;
   virtual bool EnableWrite() = 0;
   virtual bool DisableWrite() = 0;
+  virtual const uint8_t* Begin() const = 0;
+  virtual const uint8_t* End() const = 0;
+  size_t Size() const { return End() - Begin(); }
+
+  // TODO: Remove. This is only used by dexlayout to override the data section of the dex header,
+  //       and redirect it to intermediate memory buffer at completely unrelated memory location.
+  virtual const uint8_t* DataBegin() const { return nullptr; }
+  virtual const uint8_t* DataEnd() const { return nullptr; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DexFileContainer);
+};
+
+class MemoryDexFileContainer : public DexFileContainer {
+ public:
+  MemoryDexFileContainer(const uint8_t* begin, const uint8_t* end) : begin_(begin), end_(end) {}
+  bool IsReadOnly() const override { return true; }
+  bool EnableWrite() override { return false; }
+  bool DisableWrite() override { return false; }
+  const uint8_t* Begin() const override { return begin_; }
+  const uint8_t* End() const override { return end_; }
+
+ private:
+  const uint8_t* const begin_;
+  const uint8_t* const end_;
+  DISALLOW_COPY_AND_ASSIGN(MemoryDexFileContainer);
 };
 
 // Dex file is the API that exposes native dex files (ordinary dex files) and CompactDex.
@@ -708,8 +731,6 @@ class DexFile {
       return StringDataByIdx(class_def.source_file_idx_);
     }
   }
-
-  int GetPermissions() const;
 
   bool IsReadOnly() const;
 
