@@ -34,7 +34,6 @@ import android.os.storage.StorageManager;
 
 import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.PackageStateWrapper;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -147,9 +146,7 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkgState.isSystem()).thenReturn(false);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
         lenient().when(pkgState.getAppId()).thenReturn(UID);
-        lenient()
-                .when(PackageStateWrapper.getSharedLibraryDependencies(pkgState))
-                .thenReturn(new ArrayList<>());
+        lenient().when(pkgState.getSharedLibraryDependencies()).thenReturn(new ArrayList<>());
         lenient().when(pkgState.getStateForUser(any())).thenReturn(mPkgUserStateNotInstalled);
         AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);

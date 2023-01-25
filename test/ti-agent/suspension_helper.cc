@@ -37,6 +37,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Suspension_isSuspended(
 static std::vector<jthread> CopyToVector(JNIEnv* env, jobjectArray thrs) {
   jsize len = env->GetArrayLength(thrs);
   std::vector<jthread> ret;
+  ret.reserve(len);
   for (jsize i = 0; i < len; i++) {
     ret.push_back(reinterpret_cast<jthread>(env->GetObjectArrayElement(thrs, i)));
   }

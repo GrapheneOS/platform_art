@@ -72,6 +72,7 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
       Hotness::Flag flags) {
     ProfileCompilationInfo info;
     std::vector<ProfileMethodInfo> profile_methods;
+    profile_methods.reserve(methods.size());
     ScopedObjectAccess soa(Thread::Current());
     for (ArtMethod* method : methods) {
       profile_methods.emplace_back(

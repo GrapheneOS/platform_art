@@ -169,7 +169,7 @@ static std::vector<std::pair<V, K>> SortByValueDesc(
   // Store value->key so that we can use the default sort from pair which
   // sorts by value first and then key
   std::vector<std::pair<V, K>> value_key_vector;
-
+  value_key_vector.reserve(map.size());
   for (const auto& kv_pair : map) {
     value_key_vector.push_back(std::make_pair(value_mapper(kv_pair.second), kv_pair.first));
   }

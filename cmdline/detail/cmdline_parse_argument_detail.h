@@ -485,6 +485,7 @@ struct CmdlineParseArgument : CmdlineParseArgumentAny {
 
       // Error case: Fail, telling the user what the allowed values were.
       std::vector<std::string> allowed_values;
+      allowed_values.reserve(argument_info_.names_.size());
       for (auto&& arg_name : argument_info_.names_) {
         allowed_values.push_back(arg_name);
       }

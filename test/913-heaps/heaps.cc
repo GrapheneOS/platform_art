@@ -266,6 +266,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
 
     std::vector<std::string> GetLines() const {
       std::vector<std::string> ret;
+      ret.reserve(lines_.size());
       for (const std::unique_ptr<Elem>& e : lines_) {
         ret.push_back(e->Print());
       }
