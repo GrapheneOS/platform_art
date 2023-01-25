@@ -28,6 +28,9 @@
 #elif defined(__aarch64__)
 #include "arm64/context_arm64.h"
 #define RUNTIME_CONTEXT_TYPE arm64::Arm64Context
+#elif defined(__riscv)
+#include "riscv64/context_riscv64.h"
+#define RUNTIME_CONTEXT_TYPE riscv64::Riscv64Context
 #elif defined(__i386__)
 #include "x86/context_x86.h"
 #define RUNTIME_CONTEXT_TYPE x86::X86Context
