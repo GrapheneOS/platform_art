@@ -7903,7 +7903,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
       LengthPrefixedArray<ArtMethod>* const new_methods = klass->GetMethodsPtr();
       if (new_methods != nullptr) {
         DCHECK_NE(new_methods->size(), 0u);
-        imt_methods_begin = reinterpret_cast<uintptr_t>(&new_methods->At(0));
+        imt_methods_begin =
+            reinterpret_cast<uintptr_t>(&new_methods->At(0, kMethodSize, kMethodAlignment));
         imt_methods_size = new_methods->size() * kMethodSize;
       }
     }
