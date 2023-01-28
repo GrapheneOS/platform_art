@@ -419,7 +419,18 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+
   LOG(INFO) << "Using " << foreground_collector_type_ << " GC.";
+  if (!gUseUserfaultfd) {
+    // This ensures that userfaultfd syscall is done before any seccomp filter is installed.
+    // TODO(b/266731037): Remove this when we no longer need to collect metric on userfaultfd
+    // support.
+    auto [uffd_supported, minor_fault_supported] = collector::MarkCompact::GetUffdAndMinorFault();
+    // The check is just to ensure that compiler doesn't eliminate the function call above.
+    // Userfaultfd support is certain to be there if its minor-fault feature is supported.
+    CHECK_IMPLIES(minor_fault_supported, uffd_supported);
+  }
+
   if (gUseReadBarrier) {
     CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
     CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
