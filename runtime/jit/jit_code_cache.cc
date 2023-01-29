@@ -335,7 +335,7 @@ const void* JitCodeCache::GetSavedEntryPointOfPreCompiledMethod(ArtMethod* metho
   ScopedDebugDisallowReadBarriers sddrb(self);
   if (method->IsPreCompiled()) {
     const void* code_ptr = nullptr;
-    if (method->GetDeclaringClass()->IsBootStrapClassLoaded()) {
+    if (method->GetDeclaringClass<kWithoutReadBarrier>()->IsBootStrapClassLoaded()) {
       code_ptr = zygote_map_.GetCodeFor(method);
     } else {
       MutexLock mu(self, *Locks::jit_lock_);

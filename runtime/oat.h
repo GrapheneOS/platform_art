@@ -29,6 +29,18 @@ namespace art {
 enum class InstructionSet;
 class InstructionSetFeatures;
 
+enum class StubType {
+  kJNIDlsymLookupTrampoline,
+  kJNIDlsymLookupCriticalTrampoline,
+  kQuickGenericJNITrampoline,
+  kQuickIMTConflictTrampoline,
+  kQuickResolutionTrampoline,
+  kQuickToInterpreterBridge,
+  kNterpTrampoline,
+  kLast = kNterpTrampoline,
+};
+std::ostream& operator<<(std::ostream& stream, StubType stub_type);
+
 class PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
@@ -110,6 +122,8 @@ class PACKED(4) OatHeader {
   CompilerFilter::Filter GetCompilerFilter() const;
   bool IsConcurrentCopying() const;
   bool RequiresImage() const;
+
+  const uint8_t* GetOatAddress(StubType type) const;
 
  private:
   bool KeyHasValue(const char* key, const char* value, size_t value_size) const;
