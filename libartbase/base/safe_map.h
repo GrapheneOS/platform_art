@@ -49,9 +49,8 @@ class SafeMap {
   SafeMap() = default;
   SafeMap(const SafeMap&) = default;
   SafeMap(SafeMap&&) noexcept = default;
-  explicit SafeMap(const allocator_type& allocator) : map_(allocator) {}
   explicit SafeMap(const key_compare& cmp, const allocator_type& allocator = allocator_type())
-      : map_(cmp, allocator) {
+    : map_(cmp, allocator) {
   }
 
   Self& operator=(const Self& rhs) {
