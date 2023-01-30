@@ -2774,11 +2774,6 @@ void Runtime::RegisterAppInfo(const std::string& package_name,
     LOG(WARNING) << "JIT profile information will not be recorded: profile filename is empty.";
     return;
   }
-  if (!OS::FileExists(profile_output_filename.c_str(), /*check_file_type=*/ false)) {
-    LOG(WARNING) << "JIT profile information will not be recorded: profile file does not exist: "
-                 << profile_output_filename;
-    return;
-  }
   if (code_paths.empty()) {
     LOG(WARNING) << "JIT profile information will not be recorded: code paths is empty.";
     return;
