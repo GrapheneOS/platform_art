@@ -20,26 +20,20 @@ set -e
 
 . "$(dirname $0)/buildbot-utils.sh"
 
-# Setup as root, as some actions performed here require it.
-adb root
-adb wait-for-device
+if [[ -z "$ART_TEST_ON_VM" ]]; then
+  # Setup as root, as some actions performed here require it.
+  adb root
+  adb wait-for-device
+fi
 
 if [[ -z "$ANDROID_BUILD_TOP" ]]; then
-  msgerror 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
-  exit 1
-fi
-
-if [[ -z "$ANDROID_PRODUCT_OUT" ]]; then
-  msgerror 'ANDROID_PRODUCT_OUT environment variable is empty; did you forget to run `lunch`?'
-  exit 1
-fi
-
-if [[ -z "$ART_TEST_CHROOT" ]]; then
-  msgerror 'ART_TEST_CHROOT environment variable is empty; ' \
+  msgfatal 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
+elif [[ -z "$ANDROID_PRODUCT_OUT" ]]; then
+  msgfatal 'ANDROID_PRODUCT_OUT environment variable is empty; did you forget to run `lunch`?'
+elif [[ -z "$ART_TEST_CHROOT" ]]; then
+  msgfatal 'ART_TEST_CHROOT environment variable is empty; ' \
       'please set it before running this script.'
-  exit 1
 fi
-
 
 # Sync relevant product directories
 # ---------------------------------
@@ -53,23 +47,40 @@ fi
       continue
     fi
     msginfo "Syncing $dir directory..."
-    adb shell mkdir -p "$ART_TEST_CHROOT/$dir"
-    adb push $dir "$ART_TEST_CHROOT/$(dirname $dir)"
+    if [[ -n "$ART_TEST_ON_VM" ]]; then
+      $ART_RSYNC_CMD -R $dir "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST:$ART_TEST_CHROOT"
+    else
+      adb shell mkdir -p "$ART_TEST_CHROOT/$dir"
+      adb push $dir "$ART_TEST_CHROOT/$(dirname $dir)"
+    fi
   done
 )
 
 # Overwrite the default public.libraries.txt file with a smaller one that
 # contains only the public libraries pushed to the chroot directory.
-adb push "$ANDROID_BUILD_TOP/art/tools/public.libraries.buildbot.txt" \
-  "$ART_TEST_CHROOT/system/etc/public.libraries.txt"
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  $ART_RSYNC_CMD "$ANDROID_BUILD_TOP/art/tools/public.libraries.buildbot.txt" \
+    "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST:$ART_TEST_CHROOT/system/etc/public.libraries.txt"
+else
+  adb push "$ANDROID_BUILD_TOP/art/tools/public.libraries.buildbot.txt" \
+    "$ART_TEST_CHROOT/system/etc/public.libraries.txt"
+fi
 
 # Create the framework directory if it doesn't exist. Some gtests need it.
-adb shell mkdir -p "$ART_TEST_CHROOT/system/framework"
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  $ART_SSH_CMD "$ART_CHROOT_CMD mkdir -p $ART_TEST_CHROOT/system/framework"
+else
+  adb shell mkdir -p "$ART_TEST_CHROOT/system/framework"
+fi
 
 # APEX packages activation.
 # -------------------------
 
-adb shell mkdir -p "$ART_TEST_CHROOT/apex"
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  $ART_SSH_CMD "$ART_CHROOT_CMD mkdir -p $ART_TEST_CHROOT/apex"
+else
+  adb shell mkdir -p "$ART_TEST_CHROOT/apex"
+fi
 
 # Manually "activate" the flattened APEX $1 by syncing it to /apex/$2 in the
 # chroot. $2 defaults to $1.
@@ -101,8 +112,13 @@ activate_apex() {
   fi
 
   msginfo "Activating APEX ${src_apex} as ${dst_apex}..."
-  adb shell rm -rf "$ART_TEST_CHROOT/apex/${dst_apex}"
-  adb push $src_apex_path "$ART_TEST_CHROOT/apex/${dst_apex}"
+  if [[ -n "$ART_TEST_ON_VM" ]]; then
+    $ART_RSYNC_CMD $src_apex_path/* \
+      "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST:$ART_TEST_CHROOT/apex/${dst_apex}"
+  else
+    adb shell rm -rf "$ART_TEST_CHROOT/apex/${dst_apex}"
+    adb push $src_apex_path "$ART_TEST_CHROOT/apex/${dst_apex}"
+  fi
 }
 
 # "Activate" the required APEX modules.
@@ -113,19 +129,34 @@ activate_apex com.android.tzdata
 activate_apex com.android.conscrypt
 activate_apex com.android.os.statsd
 
-# Generate primary boot images on device for testing.
-for b in {32,64}; do
-  basename="generate-boot-image$b"
-  bin_on_host="$ANDROID_PRODUCT_OUT/system/bin/$basename"
-  bin_on_device="/data/local/tmp/$basename"
-  output_dir="/system/framework/art_boot_images"
-  if [ -f $bin_on_host ]; then
-    msginfo "Generating the primary boot image ($b-bit)..."
-    adb push "$bin_on_host" "$ART_TEST_CHROOT$bin_on_device"
-    adb shell mkdir -p "$ART_TEST_CHROOT$output_dir"
-    # `compiler-filter=speed-profile` is required because OatDumpTest checks the compiled code in
-    # the boot image.
-    adb shell chroot "$ART_TEST_CHROOT" \
-      "$bin_on_device" --output-dir=$output_dir --compiler-filter=speed-profile
-  fi
-done
+if [[ "$TARGET_ARCH" = "riscv64" ]]; then
+  true # Skip boot image generation for RISC-V; it's not supported.
+else
+  # Generate primary boot images on device for testing.
+  for b in {32,64}; do
+    basename="generate-boot-image$b"
+    bin_on_host="$ANDROID_PRODUCT_OUT/system/bin/$basename"
+    bin_on_device="/data/local/tmp/$basename"
+    output_dir="/system/framework/art_boot_images"
+    if [ -f $bin_on_host ]; then
+      msginfo "Generating the primary boot image ($b-bit)..."
+      if [[ -n "$ART_TEST_ON_VM" ]]; then
+        $ART_RSYNC_CMD "$bin_on_host" \
+          "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST:$ART_TEST_CHROOT$bin_on_device"
+        $ART_SSH_CMD "mkdir -p $ART_TEST_CHROOT$output_dir"
+      else
+        adb push "$bin_on_host" "$ART_TEST_CHROOT$bin_on_device"
+        adb shell mkdir -p "$ART_TEST_CHROOT$output_dir"
+      fi
+      # `compiler-filter=speed-profile` is required because OatDumpTest checks the compiled code in
+      # the boot image.
+      if [[ -n "$ART_TEST_ON_VM" ]]; then
+        $ART_SSH_CMD \
+          "$ART_CHROOT_CMD $bin_on_device --output-dir=$output_dir --compiler-filter=speed-profile"
+      else
+        adb shell chroot "$ART_TEST_CHROOT" \
+          "$bin_on_device" --output-dir=$output_dir --compiler-filter=speed-profile
+      fi
+    fi
+  done
+fi
