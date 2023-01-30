@@ -84,6 +84,7 @@ art_cc_binary {
         "libartd",
         "libartbased",
         "libartd-compiler",
+        "libdexfiled",
     ],
     apex_available: [
         "com.android.art.debug",
