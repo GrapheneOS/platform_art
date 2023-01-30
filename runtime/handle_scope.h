@@ -56,9 +56,6 @@ class PACKED(4) BaseHandleScope {
   template <typename Visitor>
   ALWAYS_INLINE void VisitRoots(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <typename Visitor>
-  ALWAYS_INLINE void VisitHandles(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Link to previous BaseHandleScope or null.
   BaseHandleScope* GetLink() const {
     return link_;
@@ -150,9 +147,6 @@ class PACKED(4) HandleScope : public BaseHandleScope {
 
   template <typename Visitor>
   ALWAYS_INLINE void VisitRoots(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <typename Visitor>
-  ALWAYS_INLINE void VisitHandles(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
  protected:
   // Return backing storage used for references.
@@ -266,9 +260,6 @@ class VariableSizedHandleScope : public BaseHandleScope {
 
   template <typename Visitor>
   void VisitRoots(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <typename Visitor>
-  ALWAYS_INLINE void VisitHandles(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static constexpr size_t kLocalScopeSize = 64u;
