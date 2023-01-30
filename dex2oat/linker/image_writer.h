@@ -45,6 +45,7 @@
 #include "intern_table.h"
 #include "lock_word.h"
 #include "mirror/dex_cache.h"
+#include "oat.h"
 #include "oat_file.h"
 #include "obj_ptr.h"
 
@@ -228,18 +229,6 @@ class ImageWriter final {
     kIMTConflictTable,
   };
   friend std::ostream& operator<<(std::ostream& stream, NativeObjectRelocationType type);
-
-  enum class StubType {
-    kJNIDlsymLookupTrampoline,
-    kJNIDlsymLookupCriticalTrampoline,
-    kQuickGenericJNITrampoline,
-    kQuickIMTConflictTrampoline,
-    kQuickResolutionTrampoline,
-    kQuickToInterpreterBridge,
-    kNterpTrampoline,
-    kLast = kNterpTrampoline,
-  };
-  friend std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 
   static constexpr size_t kBinBits =
       MinimumBitsToStore<uint32_t>(static_cast<size_t>(Bin::kMirrorCount) - 1);
@@ -712,7 +701,6 @@ class ImageWriter final {
 
 std::ostream& operator<<(std::ostream& stream, ImageWriter::Bin bin);
 std::ostream& operator<<(std::ostream& stream, ImageWriter::NativeObjectRelocationType type);
-std::ostream& operator<<(std::ostream& stream, ImageWriter::StubType stub_type);
 
 }  // namespace linker
 }  // namespace art

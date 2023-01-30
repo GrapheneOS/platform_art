@@ -3294,25 +3294,7 @@ const uint8_t* ImageWriter::GetOatAddress(StubType type) const {
     const OatFile* oat_file = image_spaces[0]->GetOatFile();
     CHECK(oat_file != nullptr);
     const OatHeader& header = oat_file->GetOatHeader();
-    switch (type) {
-      // TODO: We could maybe clean this up if we stored them in an array in the oat header.
-      case StubType::kQuickGenericJNITrampoline:
-        return static_cast<const uint8_t*>(header.GetQuickGenericJniTrampoline());
-      case StubType::kJNIDlsymLookupTrampoline:
-        return static_cast<const uint8_t*>(header.GetJniDlsymLookupTrampoline());
-      case StubType::kJNIDlsymLookupCriticalTrampoline:
-        return static_cast<const uint8_t*>(header.GetJniDlsymLookupCriticalTrampoline());
-      case StubType::kQuickIMTConflictTrampoline:
-        return static_cast<const uint8_t*>(header.GetQuickImtConflictTrampoline());
-      case StubType::kQuickResolutionTrampoline:
-        return static_cast<const uint8_t*>(header.GetQuickResolutionTrampoline());
-      case StubType::kQuickToInterpreterBridge:
-        return static_cast<const uint8_t*>(header.GetQuickToInterpreterBridge());
-      case StubType::kNterpTrampoline:
-        return static_cast<const uint8_t*>(header.GetNterpTrampoline());
-      default:
-        UNREACHABLE();
-    }
+    return header.GetOatAddress(type);
   }
   const ImageInfo& primary_image_info = GetImageInfo(0);
   return GetOatAddressForOffset(primary_image_info.GetStubOffset(type), primary_image_info);
