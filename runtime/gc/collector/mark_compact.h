@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_H_
 
+#include <signal.h>
+
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -52,20 +54,25 @@ class BumpPointerSpace;
 namespace collector {
 class MarkCompact final : public GarbageCollector {
  public:
+  using SigbusCounterType = uint32_t;
+
   static constexpr size_t kAlignment = kObjectAlignment;
   static constexpr int kCopyMode = -1;
   static constexpr int kMinorFaultMode = -2;
   // Fake file descriptor for fall back mode (when uffd isn't available)
   static constexpr int kFallbackMode = -3;
-
   static constexpr int kFdSharedAnon = -1;
   static constexpr int kFdUnused = -2;
+
+  // Bitmask for the compaction-done bit in the sigbus_in_progress_count_.
+  static constexpr SigbusCounterType kSigbusCounterCompactionDoneMask =
+      1u << (BitSizeOf<SigbusCounterType>() - 1);
 
   explicit MarkCompact(Heap* heap);
 
   ~MarkCompact() {}
 
-  void RunPhases() override REQUIRES(!Locks::mutator_lock_);
+  void RunPhases() override REQUIRES(!Locks::mutator_lock_, !lock_);
 
   // Updated before (or in) pre-compaction pause and is accessed only in the
   // pause or during concurrent compaction. The flag is reset after compaction
@@ -74,6 +81,12 @@ class MarkCompact final : public GarbageCollector {
   bool IsCompacting(Thread* self) const {
     return compacting_ && self == thread_running_gc_;
   }
+
+  bool IsUsingSigbusFeature() const { return use_uffd_sigbus_; }
+
+  // Called by SIGBUS handler. NO_THREAD_SAFETY_ANALYSIS for mutator-lock, which
+  // is asserted in the function.
+  bool SigbusHandler(siginfo_t* info) REQUIRES(!lock_) NO_THREAD_SAFETY_ANALYSIS;
 
   GcType GetGcType() const override {
     return kGcTypeFull;
@@ -155,7 +168,8 @@ class MarkCompact final : public GarbageCollector {
     kProcessed = 2,             // Processed but not mapped
     kProcessingAndMapping = 3,  // Being processed by GC or mutator and will be mapped
     kMutatorProcessing = 4,     // Being processed by mutator thread
-    kProcessedAndMapping = 5    // Processed and will be mapped
+    kProcessedAndMapping = 5,   // Processed and will be mapped
+    kProcessedAndMapped = 6     // Processed and mapped. For SIGBUS.
   };
 
  private:
@@ -241,7 +255,7 @@ class MarkCompact final : public GarbageCollector {
   // mirror::Class.
   bool IsValidObject(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
   void InitializePhase();
-  void FinishPhase() REQUIRES(!Locks::mutator_lock_, !Locks::heap_bitmap_lock_);
+  void FinishPhase() REQUIRES(!Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !lock_);
   void MarkingPhase() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);
   void CompactionPhase() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -462,20 +476,15 @@ class MarkCompact final : public GarbageCollector {
   void ConcurrentCompaction(uint8_t* buf) REQUIRES_SHARED(Locks::mutator_lock_);
   // Called by thread-pool workers to compact and copy/map the fault page in
   // moving space.
-  template <int kMode, typename ZeropageType, typename CopyType>
-  void ConcurrentlyProcessMovingPage(ZeropageType& zeropage_ioctl,
-                                     CopyType& copy_ioctl,
-                                     uint8_t* fault_page,
+  template <int kMode>
+  void ConcurrentlyProcessMovingPage(uint8_t* fault_page,
                                      uint8_t* buf,
                                      size_t nr_moving_space_used_pages)
       REQUIRES_SHARED(Locks::mutator_lock_);
   // Called by thread-pool workers to process and copy/map the fault page in
   // linear-alloc.
-  template <int kMode, typename ZeropageType, typename CopyType>
-  void ConcurrentlyProcessLinearAllocPage(ZeropageType& zeropage_ioctl,
-                                          CopyType& copy_ioctl,
-                                          uint8_t* fault_page,
-                                          bool is_minor_fault)
+  template <int kMode>
+  void ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool is_minor_fault)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Process concurrently all the pages in linear-alloc. Called by gc-thread.
@@ -513,20 +522,16 @@ class MarkCompact final : public GarbageCollector {
   void MarkZygoteLargeObjects() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
-  // Buffers, one per worker thread + gc-thread, to be used when
-  // kObjPtrPoisoning == true as in that case we can't have the buffer on the
-  // stack. The first page of the buffer is assigned to
-  // conc_compaction_termination_page_. A read access to this page signals
-  // termination of concurrent compaction by making worker threads terminate the
-  // userfaultfd read loop.
-  MemMap compaction_buffers_map_;
+  void ZeropageIoctl(void* addr, bool tolerate_eexist, bool tolerate_enoent);
+  void CopyIoctl(void* dst, void* buffer);
+
   // For checkpoints
   Barrier gc_barrier_;
   // Every object inside the immune spaces is assumed to be marked.
   ImmuneSpaces immune_spaces_;
   // Required only when mark-stack is accessed in shared mode, which happens
   // when collecting thread-stack roots using checkpoint.
-  Mutex mark_stack_lock_;
+  Mutex lock_;
   accounting::ObjectStack* mark_stack_;
   // Special bitmap wherein all the bits corresponding to an object are set.
   // TODO: make LiveWordsBitmap encapsulated in this class rather than a
@@ -545,6 +550,12 @@ class MarkCompact final : public GarbageCollector {
   // Any array of live-bytes in logical chunks of kOffsetChunkSize size
   // in the 'to-be-compacted' space.
   MemMap info_map_;
+  // Set of page-sized buffers used for compaction. The first page is used by
+  // the GC thread. Subdequent pages are used by mutator threads in case of
+  // SIGBUS feature, and by uffd-worker threads otherwise. In the latter case
+  // the first page is also used for termination of concurrent compaction by
+  // making worker threads terminate the userfaultfd read loop.
+  MemMap compaction_buffers_map_;
 
   class LessByArenaAddr {
    public:
@@ -637,7 +648,7 @@ class MarkCompact final : public GarbageCollector {
   accounting::ContinuousSpaceBitmap* const moving_space_bitmap_;
   accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
   Thread* thread_running_gc_;
-  // Array of pages' compaction status.
+  // Array of moving-space's pages' compaction status.
   Atomic<PageState>* moving_pages_status_;
   size_t vector_length_;
   size_t live_stack_freeze_size_;
@@ -709,9 +720,20 @@ class MarkCompact final : public GarbageCollector {
   // Userfault file descriptor, accessed only by the GC itself.
   // kFallbackMode value indicates that we are in the fallback mode.
   int uffd_;
+  // Number of mutator-threads currently executing SIGBUS handler. When the
+  // GC-thread is done with compaction, it set the most significant bit to
+  // indicate that. Mutator threads check for the flag when incrementing in the
+  // handler.
+  std::atomic<SigbusCounterType> sigbus_in_progress_count_;
+  // Number of mutator-threads/uffd-workers working on moving-space page. It
+  // must be 0 before gc-thread can unregister the space after it's done
+  // sequentially compacting all pages of the space.
+  std::atomic<uint16_t> compaction_in_progress_count_;
+  // When using SIGBUS feature, this counter is used by mutators to claim a page
+  // out of compaction buffers to be used for the entire compaction cycle.
+  std::atomic<uint16_t> compaction_buffer_counter_;
   // Used to exit from compaction loop at the end of concurrent compaction
   uint8_t thread_pool_counter_;
-  std::atomic<uint8_t> compaction_in_progress_count_;
   // True while compacting.
   bool compacting_;
   // Flag indicating whether one-time uffd initialization has been done. It will
@@ -723,6 +745,9 @@ class MarkCompact final : public GarbageCollector {
   // Flag indicating if userfaultfd supports minor-faults. Set appropriately in
   // CreateUserfaultfd(), where we get this information from the kernel.
   const bool uffd_minor_fault_supported_;
+  // Flag indicating if we should use sigbus signals instead of threads to
+  // handle userfaults.
+  const bool use_uffd_sigbus_;
   // For non-zygote processes this flag indicates if the spaces are ready to
   // start using userfaultfd's minor-fault feature. This initialization involves
   // starting to use shmem (memfd_create) for the userfaultfd protected spaces.
