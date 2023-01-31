@@ -45,7 +45,6 @@
 #include "intern_table.h"
 #include "lock_word.h"
 #include "mirror/dex_cache.h"
-#include "oat.h"
 #include "oat_file.h"
 #include "obj_ptr.h"
 
@@ -229,6 +228,18 @@ class ImageWriter final {
     kIMTConflictTable,
   };
   friend std::ostream& operator<<(std::ostream& stream, NativeObjectRelocationType type);
+
+  enum class StubType {
+    kJNIDlsymLookupTrampoline,
+    kJNIDlsymLookupCriticalTrampoline,
+    kQuickGenericJNITrampoline,
+    kQuickIMTConflictTrampoline,
+    kQuickResolutionTrampoline,
+    kQuickToInterpreterBridge,
+    kNterpTrampoline,
+    kLast = kNterpTrampoline,
+  };
+  friend std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 
   static constexpr size_t kBinBits =
       MinimumBitsToStore<uint32_t>(static_cast<size_t>(Bin::kMirrorCount) - 1);
@@ -451,6 +462,23 @@ class ImageWriter final {
       REQUIRES_SHARED(Locks::mutator_lock_);
   void CalculateObjectBinSlots(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  // Undo the changes of CalculateNewObjectOffsets.
+  void ResetObjectOffsets() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Reset and calculate new offsets with dirty objects optimization.
+  // Does nothing if dirty object offsets don't match with current offsets.
+  void TryRecalculateOffsetsWithDirtyObjects() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Dirty object data from dirty-image-objects.
+  struct DirtyEntry {
+    uint32_t descriptor_hash = 0;
+    bool is_class = false;
+  };
+  // Parse dirty-image-objects into (offset->entry) map. Returns nullopt on parse error.
+  static std::optional<HashMap<uint32_t, DirtyEntry>> ParseDirtyObjectOffsets(
+      const HashSet<std::string>& dirty_image_objects) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Get all objects that match dirty_entries by offset. Returns nullopt if there is a mismatch.
+  std::optional<HashSet<mirror::Object*>> MatchDirtyObjectOffsets(
+      const HashMap<uint32_t, DirtyEntry>& dirty_entries) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
   void CopyAndFixupNativeData(size_t oat_index) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -674,8 +702,13 @@ class ImageWriter final {
   // Map of dex files to the indexes of oat files that they were compiled into.
   const HashMap<const DexFile*, size_t>& dex_file_oat_index_map_;
 
-  // Set of objects known to be dirty in the image. Can be nullptr if there are none.
+  // Set of classes/objects known to be dirty in the image. Can be nullptr if there are none.
+  // For old dirty-image-objects format this set contains descriptors of dirty classes.
+  // For new format -- a set of dirty object offsets and descriptor hashes.
   const HashSet<std::string>* dirty_image_objects_;
+
+  // Dirty object instances parsed from dirty_image_object_
+  HashSet<mirror::Object*> dirty_objects_;
 
   // Objects are guaranteed to not cross the region size boundary.
   size_t region_size_ = 0u;
@@ -701,6 +734,7 @@ class ImageWriter final {
 
 std::ostream& operator<<(std::ostream& stream, ImageWriter::Bin bin);
 std::ostream& operator<<(std::ostream& stream, ImageWriter::NativeObjectRelocationType type);
+std::ostream& operator<<(std::ostream& stream, ImageWriter::StubType stub_type);
 
 }  // namespace linker
 }  // namespace art

@@ -25,7 +25,38 @@ else
   verbose=false
 fi
 
-# Setup as root, as some actions performed here require it.
+# Testing on a Linux VM requires special setup.
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  [[ -d "$ART_TEST_VM_DIR" ]] || { msgfatal "no VM found in $ART_TEST_VM_DIR"; }
+  $ART_SSH_CMD "true" || { msgerror "no VM (tried \"$ART_SSH_CMD true\""; }
+  $ART_SSH_CMD "
+    mkdir $ART_TEST_CHROOT
+
+    mkdir $ART_TEST_CHROOT/apex
+    mkdir $ART_TEST_CHROOT/bin
+    mkdir $ART_TEST_CHROOT/data
+    mkdir $ART_TEST_CHROOT/data/local
+    mkdir $ART_TEST_CHROOT/data/local/tmp
+    mkdir $ART_TEST_CHROOT/dev
+    mkdir $ART_TEST_CHROOT/etc
+    mkdir $ART_TEST_CHROOT/lib
+    mkdir $ART_TEST_CHROOT/linkerconfig
+    mkdir $ART_TEST_CHROOT/proc
+    mkdir $ART_TEST_CHROOT/sys
+    mkdir $ART_TEST_CHROOT/system
+    mkdir $ART_TEST_CHROOT/tmp
+
+    sudo mount -t proc /proc art-test-chroot/proc
+    sudo mount -t sysfs /sys art-test-chroot/sys
+    sudo mount --bind /dev art-test-chroot/dev
+    sudo mount --bind /bin art-test-chroot/bin
+    sudo mount --bind /lib art-test-chroot/lib
+    $ART_CHROOT_CMD echo \"Hello from chroot! I am \$(uname -a).\"
+  "
+  exit 0
+fi
+
+# Regular Android device. Setup as root, as some actions performed here require it.
 adb version
 adb root
 adb wait-for-device

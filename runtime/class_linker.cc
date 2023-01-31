@@ -2180,11 +2180,9 @@ bool ClassLinker::AddImageSpace(
         ObjPtr<mirror::Class> klass(root.Read());
         // Do not update class loader for boot image classes where the app image
         // class loader is only the initiating loader but not the defining loader.
-        if (space->HasAddress(klass.Ptr())) {
+        // Avoid read barrier since we are comparing against null.
+        if (klass->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
           klass->SetClassLoader(loader);
-        } else {
-          DCHECK(klass->IsBootStrapClassLoaded());
-          DCHECK(Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass.Ptr()));
         }
       }
     }
@@ -7905,7 +7903,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
       LengthPrefixedArray<ArtMethod>* const new_methods = klass->GetMethodsPtr();
       if (new_methods != nullptr) {
         DCHECK_NE(new_methods->size(), 0u);
-        imt_methods_begin = reinterpret_cast<uintptr_t>(&new_methods->At(0));
+        imt_methods_begin =
+            reinterpret_cast<uintptr_t>(&new_methods->At(0, kMethodSize, kMethodAlignment));
         imt_methods_size = new_methods->size() * kMethodSize;
       }
     }

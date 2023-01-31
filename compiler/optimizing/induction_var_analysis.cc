@@ -16,6 +16,7 @@
 
 #include "induction_var_analysis.h"
 
+#include "base/scoped_arena_containers.h"
 #include "induction_var_range.h"
 
 namespace art HIDDEN {
@@ -214,18 +215,25 @@ struct HInductionVarAnalysis::StackEntry {
   size_t low_depth;
 };
 
-HInductionVarAnalysis::HInductionVarAnalysis(HGraph* graph, const char* name)
-    : HOptimization(graph, name),
+HInductionVarAnalysis::HInductionVarAnalysis(HGraph* graph,
+                                             OptimizingCompilerStats* stats,
+                                             const char* name)
+    : HOptimization(graph, name, stats),
       induction_(std::less<const HLoopInformation*>(),
                  graph->GetAllocator()->Adapter(kArenaAllocInductionVarAnalysis)),
-      cycles_(std::less<HPhi*>(),
-              graph->GetAllocator()->Adapter(kArenaAllocInductionVarAnalysis)) {
+      cycles_(std::less<HPhi*>(), graph->GetAllocator()->Adapter(kArenaAllocInductionVarAnalysis)) {
 }
 
 bool HInductionVarAnalysis::Run() {
   // Detects sequence variables (generalized induction variables) during an outer to inner
   // traversal of all loops using Gerlek's algorithm. The order is important to enable
   // range analysis on outer loop while visiting inner loops.
+
+  if (IsPathologicalCase()) {
+    MaybeRecordStat(stats_, MethodCompilationStat::kNotVarAnalyzedPathological);
+    return false;
+  }
+
   for (HBasicBlock* graph_block : graph_->GetReversePostOrder()) {
     // Don't analyze irreducible loops.
     if (graph_block->IsLoopHeader() && !graph_block->GetLoopInformation()->IsIrreducible()) {
@@ -1574,6 +1582,86 @@ std::string HInductionVarAnalysis::InductionToString(InductionInfo* info) {
     }
   }
   return "";
+}
+
+void HInductionVarAnalysis::CalculateLoopHeaderPhisInARow(
+    HPhi* initial_phi,
+    ScopedArenaSafeMap<HPhi*, int>& cached_values,
+    ScopedArenaAllocator& allocator) {
+  DCHECK(initial_phi->IsLoopHeaderPhi());
+  ScopedArenaQueue<HPhi*> worklist(allocator.Adapter(kArenaAllocInductionVarAnalysis));
+  worklist.push(initial_phi);
+  // Used to check which phis are in the current chain we are checking.
+  ScopedArenaSet<HPhi*> phis_in_chain(allocator.Adapter(kArenaAllocInductionVarAnalysis));
+  while (!worklist.empty()) {
+    HPhi* current_phi = worklist.front();
+    DCHECK(current_phi->IsLoopHeaderPhi());
+    if (cached_values.find(current_phi) != cached_values.end()) {
+      // Already processed.
+      worklist.pop();
+      continue;
+    }
+
+    phis_in_chain.insert(current_phi);
+    int max_value = 0;
+    bool pushed_other_phis = false;
+    for (size_t index = 0; index < current_phi->InputCount(); index++) {
+      // If the input is not a loop header phi, we only have 1 (current_phi).
+      int current_value = 1;
+      if (current_phi->InputAt(index)->IsLoopHeaderPhi()) {
+        HPhi* loop_header_phi = current_phi->InputAt(index)->AsPhi();
+        auto it = cached_values.find(loop_header_phi);
+        if (it != cached_values.end()) {
+          current_value += it->second;
+        } else if (phis_in_chain.find(current_phi) == phis_in_chain.end()) {
+          // Push phis which aren't in the chain already to be processed.
+          pushed_other_phis = true;
+          worklist.push(loop_header_phi);
+        }
+        // Phis in the chain will get processed later. We keep `current_value` as 1 to avoid
+        // double counting `loop_header_phi`.
+      }
+      max_value = std::max(max_value, current_value);
+    }
+
+    if (!pushed_other_phis) {
+      // Only finish processing after all inputs were processed.
+      worklist.pop();
+      phis_in_chain.erase(current_phi);
+      cached_values.FindOrAdd(current_phi, max_value);
+    }
+  }
+}
+
+bool HInductionVarAnalysis::IsPathologicalCase() {
+  ScopedArenaAllocator local_allocator(graph_->GetArenaStack());
+  ScopedArenaSafeMap<HPhi*, int> cached_values(
+      std::less<HPhi*>(), local_allocator.Adapter(kArenaAllocInductionVarAnalysis));
+
+  // Due to how our induction passes work, we will take a lot of time compiling if we have several
+  // loop header phis in a row. If we have more than 15 different loop header phis in a row, we
+  // don't perform the analysis.
+  constexpr int kMaximumLoopHeaderPhisInARow = 15;
+
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    if (!block->IsLoopHeader()) {
+      continue;
+    }
+
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      DCHECK(it.Current()->IsLoopHeaderPhi());
+      HPhi* phi = it.Current()->AsPhi();
+      CalculateLoopHeaderPhisInARow(phi, cached_values, local_allocator);
+      DCHECK(cached_values.find(phi) != cached_values.end())
+          << " we should have a value for Phi " << phi->GetId()
+          << " in block " << phi->GetBlock()->GetBlockId();
+      if (cached_values.find(phi)->second > kMaximumLoopHeaderPhisInARow) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 }  // namespace art

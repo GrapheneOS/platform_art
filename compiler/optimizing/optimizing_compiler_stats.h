@@ -112,6 +112,7 @@ enum class MethodCompilationStat {
   kNotInlinedUnresolved,
   kNotInlinedPolymorphic,
   kNotInlinedCustom,
+  kNotVarAnalyzedPathological,
   kTryInline,
   kConstructorFenceGeneratedNew,
   kConstructorFenceGeneratedFinal,

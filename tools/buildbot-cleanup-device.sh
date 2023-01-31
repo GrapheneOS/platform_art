@@ -16,7 +16,22 @@
 
 . "$(dirname $0)/buildbot-utils.sh"
 
-# Setup as root, as device cleanup requires it.
+# Testing on a Linux VM requires special cleanup.
+if [[ -n "$ART_TEST_ON_VM" ]]; then
+  [[ -d "$ART_TEST_VM_DIR" ]] || { msgfatal "no VM found in $ART_TEST_VM_DIR"; }
+  $ART_SSH_CMD "true" || { msgfatal "VM not responding (tried \"$ART_SSH_CMD true\""; }
+  $ART_SSH_CMD "
+    sudo umount $ART_TEST_CHROOT/proc
+    sudo umount $ART_TEST_CHROOT/sys
+    sudo umount $ART_TEST_CHROOT/dev
+    sudo umount $ART_TEST_CHROOT/bin
+    sudo umount $ART_TEST_CHROOT/lib
+    rm -rf $ART_TEST_CHROOT
+  "
+  exit 0
+fi
+
+# Regular Android device. Setup as root, as device cleanup requires it.
 adb root
 adb wait-for-device
 
