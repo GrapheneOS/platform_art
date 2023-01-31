@@ -230,8 +230,8 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
 
   std::unique_ptr<ClassLoaderContext> default_context_ = InitializeDefaultContext();
   bool with_runtime_;
-  const OatFileAssistant::DexOptTrigger default_trigger_{.targetFilterIsBetter = true,
-                                                         .primaryBootImageBecomesUsable = true};
+  const OatFileAssistant::DexOptTrigger default_trigger_{
+      .targetFilterIsBetter = true, .primaryBootImageBecomesUsable = true, .needExtraction = true};
   std::unique_ptr<OatFileAssistantContext> ofa_context_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 };
@@ -810,8 +810,8 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithInvalidOdexVdexFd) {
   EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
 }
 
-// Case: We have a DEX file and up-to-date VDEX file for it, but no
-// ODEX file.
+// Case: We have a DEX file and up-to-date VDEX file for it, but no ODEX file, and the DEX file is
+// compressed.
 TEST_P(OatFileAssistantTest, VdexUpToDateNoOdex) {
   std::string dex_location = GetScratchDir() + "/VdexUpToDateNoOdex.jar";
   std::string odex_location = GetOdexDir() + "/VdexUpToDateNoOdex.oat";
@@ -2102,18 +2102,18 @@ TEST_P(OatFileAssistantTest, ForceNoOdex) {
                         /*expected_location=*/OatFileAssistant::kLocationNoneOrError);
 }
 
-// Case: We have a DEX file and a DM file for it.
+// Case: We have a DEX file and a DM file for it, and the DEX file is uncompressed.
 // Expect: Dexopt should be performed if the compiler filter is better than "verify". The location
 // should be kLocationDm.
 //
 // The legacy version should return kDex2OatFromScratch if the target compiler filter is better than
 // "verify".
-TEST_P(OatFileAssistantTest, DmUpToDate) {
+TEST_P(OatFileAssistantTest, DmUpToDateDexUncompressed) {
   std::string dex_location = GetScratchDir() + "/TestDex.jar";
   std::string dm_location = GetScratchDir() + "/TestDex.dm";
   std::string odex_location = GetOdexDir() + "/TestDex.odex";
   std::string vdex_location = GetOdexDir() + "/TestDex.vdex";
-  Copy(GetDexSrc1(), dex_location);
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
 
   // Generate temporary ODEX and VDEX files in order to create the DM file from.
   GenerateOdexForTest(
@@ -2154,6 +2154,58 @@ TEST_P(OatFileAssistantTest, DmUpToDate) {
                         /*expected_is_vdex_usable=*/true,
                         /*expected_location=*/OatFileAssistant::kLocationDm);
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
+// Case: We have a DEX file and a DM file for it, and the DEX file is compressed.
+// Expect: Dexopt should be performed regardless of the compiler filter. The location
+// should be kLocationDm.
+TEST_P(OatFileAssistantTest, DmUpToDateDexCompressed) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  std::string vdex_location = GetOdexDir() + "/TestDex.vdex";
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  // Generate temporary ODEX and VDEX files in order to create the DM file from.
+  GenerateOdexForTest(
+      dex_location, odex_location, CompilerFilter::kVerify, "install", {"--copy-dex-files=false"});
+
+  CreateDexMetadata(vdex_location, dm_location);
+
+  // Cleanup the temporary files.
+  ASSERT_EQ(0, unlink(odex_location.c_str()));
+  ASSERT_EQ(0, unlink(vdex_location.c_str()));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeed,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationDm);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationDm);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationDm);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
             oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
 }
 
