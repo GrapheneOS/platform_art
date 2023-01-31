@@ -290,7 +290,8 @@ bool ArtDexFileLoader::OpenWithMagic(uint32_t magic,
   ScopedTrace trace(std::string("Open dex file ") + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
   if (IsZipMagic(magic)) {
-    return OpenZip(fd, location, verify, verify_checksum, error_msg, dex_files);
+    return OpenZip(
+        fd, location, verify, verify_checksum, /*allow_no_dex_files=*/false, error_msg, dex_files);
   }
   if (IsMagicValid(magic)) {
     std::unique_ptr<const DexFile> dex_file(OpenFile(fd,
@@ -324,6 +325,7 @@ bool ArtDexFileLoader::OpenZip(int fd,
                                const std::string& location,
                                bool verify,
                                bool verify_checksum,
+                               bool allow_no_dex_files,
                                std::string* error_msg,
                                std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   ScopedTrace trace("Dex file open Zip " + std::string(location));
@@ -331,6 +333,7 @@ bool ArtDexFileLoader::OpenZip(int fd,
                          location,
                          verify,
                          verify_checksum,
+                         allow_no_dex_files,
                          error_msg,
                          dex_files);
 }
@@ -340,6 +343,7 @@ bool ArtDexFileLoader::OpenZipFromOwnedFd(
     const std::string& location,
     bool verify,
     bool verify_checksum,
+    bool allow_no_dex_files,
     std::string* error_msg,
     std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   ScopedTrace trace("Dex file open Zip " + std::string(location) + " (owned fd)");
@@ -347,6 +351,7 @@ bool ArtDexFileLoader::OpenZipFromOwnedFd(
                          location,
                          verify,
                          verify_checksum,
+                         allow_no_dex_files,
                          error_msg,
                          dex_files);
 }
@@ -356,6 +361,7 @@ bool ArtDexFileLoader::OpenZipInternal(
     const std::string& location,
     bool verify,
     bool verify_checksum,
+    bool allow_no_dex_files,
     std::string* error_msg,
     std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   DCHECK(dex_files != nullptr) << "DexFile::OpenZip: out-param is nullptr";
@@ -365,7 +371,7 @@ bool ArtDexFileLoader::OpenZipInternal(
     return false;
   }
   return OpenAllDexFilesFromZip(
-      *zip_archive, location, verify, verify_checksum, error_msg, dex_files);
+      *zip_archive, location, verify, verify_checksum, allow_no_dex_files, error_msg, dex_files);
 }
 
 std::unique_ptr<const DexFile> ArtDexFileLoader::OpenFile(int fd,
@@ -537,19 +543,20 @@ bool ArtDexFileLoader::OpenAllDexFilesFromZip(
     const std::string& location,
     bool verify,
     bool verify_checksum,
+    bool allow_no_dex_files,
     std::string* error_msg,
     std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   ScopedTrace trace("Dex file open from Zip " + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::OpenFromZip: out-param is nullptr";
   DexFileLoaderErrorCode error_code;
-  std::unique_ptr<const DexFile> dex_file(OpenOneDexFileFromZip(zip_archive,
-                                                                kClassesDex,
-                                                                location,
-                                                                verify,
-                                                                verify_checksum,
-                                                                error_msg,
-                                                                &error_code));
+  std::string local_error_msg;
+  std::unique_ptr<const DexFile> dex_file(OpenOneDexFileFromZip(
+      zip_archive, kClassesDex, location, verify, verify_checksum, &local_error_msg, &error_code));
   if (dex_file.get() == nullptr) {
+    if (allow_no_dex_files && error_code == DexFileLoaderErrorCode::kEntryNotFound) {
+      return true;
+    }
+    *error_msg = std::move(local_error_msg);
     return false;
   } else {
     // Had at least classes.dex.
@@ -560,7 +567,7 @@ bool ArtDexFileLoader::OpenAllDexFilesFromZip(
     // We could try to avoid std::string allocations by working on a char array directly. As we
     // do not expect a lot of iterations, this seems too involved and brittle.
 
-    for (size_t i = 1; ; ++i) {
+    for (size_t i = 1;; ++i) {
       std::string name = GetMultiDexClassesDexName(i);
       std::string fake_location = GetMultiDexLocation(i, location.c_str());
       std::unique_ptr<const DexFile> next_dex_file(OpenOneDexFileFromZip(zip_archive,
