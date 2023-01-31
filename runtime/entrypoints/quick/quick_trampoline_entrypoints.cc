@@ -2293,7 +2293,6 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
       interface_method,
       method);
   if (new_conflict_method != conflict_method) {
-    DCHECK_NE(imt, cls->FindSuperImt(kRuntimePointerSize));
     // Update the IMT if we create a new conflict method. No fence needed here, as the
     // data is consistent.
     imt->Set(imt_index,
