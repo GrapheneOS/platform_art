@@ -5973,17 +5973,6 @@ ClassTable* ClassLinker::ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> cl
   return class_loader == nullptr ? boot_class_table_.get() : class_loader->GetClassTable();
 }
 
-static ImTable* FindSuperImt(ObjPtr<mirror::Class> klass, PointerSize pointer_size)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  while (klass->HasSuperClass()) {
-    klass = klass->GetSuperClass();
-    if (klass->ShouldHaveImt()) {
-      return klass->GetImt(pointer_size);
-    }
-  }
-  return nullptr;
-}
-
 bool ClassLinker::LinkClass(Thread* self,
                             const char* descriptor,
                             Handle<mirror::Class> klass,
@@ -6019,7 +6008,7 @@ bool ClassLinker::LinkClass(Thread* self,
     // will possibly create a table that is incorrect for either of the classes.
     // Same IMT with new_conflict does not happen very often.
     if (!new_conflict) {
-      ImTable* super_imt = FindSuperImt(klass.Get(), image_pointer_size_);
+      ImTable* super_imt = klass->FindSuperImt(image_pointer_size_);
       if (super_imt != nullptr) {
         bool imt_equals = true;
         for (size_t i = 0; i < ImTable::kSize && imt_equals; ++i) {
@@ -6393,9 +6382,8 @@ void ClassLinker::FillIMTAndConflictTables(ObjPtr<mirror::Class> klass) {
   // Compare the IMT with the super class including the conflict methods. If they are equivalent,
   // we can just use the same pointer.
   ImTable* imt = nullptr;
-  ObjPtr<mirror::Class> super_class = klass->GetSuperClass();
-  if (super_class != nullptr && super_class->ShouldHaveImt()) {
-    ImTable* super_imt = super_class->GetImt(image_pointer_size_);
+  ImTable* super_imt = klass->FindSuperImt(image_pointer_size_);
+  if (super_imt != nullptr) {
     bool same = true;
     for (size_t i = 0; same && i < ImTable::kSize; ++i) {
       ArtMethod* method = imt_data[i];
@@ -6424,6 +6412,7 @@ void ClassLinker::FillIMTAndConflictTables(ObjPtr<mirror::Class> klass) {
   if (imt == nullptr) {
     imt = klass->GetImt(image_pointer_size_);
     DCHECK(imt != nullptr);
+    DCHECK_NE(imt, super_imt);
     imt->Populate(imt_data, image_pointer_size_);
   } else {
     klass->SetImt(imt, image_pointer_size_);
