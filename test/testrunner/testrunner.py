@@ -354,8 +354,13 @@ def find_extra_device_arguments(target):
 
 def get_device_name():
   """
-  Gets the value of ro.product.name from remote device.
+  Gets the value of ro.product.name from remote device (unless running on a VM).
   """
+  if env.ART_TEST_ON_VM:
+    return subprocess.Popen(f"{env.ART_SSH_CMD} uname -a".split(),
+                            stdout = subprocess.PIPE,
+                            universal_newlines=True).stdout.read().strip()
+
   proc = subprocess.Popen(['adb', 'shell', 'getprop', 'ro.product.name'],
                           stderr=subprocess.STDOUT,
                           stdout = subprocess.PIPE,
@@ -710,7 +715,7 @@ def run_test(command, test, test_variant, test_name):
     failed_tests.append((test_name, 'Timed out in %d seconds' % timeout))
 
     # HACK(b/142039427): Print extra backtraces on timeout.
-    if "-target-" in test_name:
+    if "-target-" in test_name and not env.ART_TEST_ON_VM:
       for i in range(8):
         proc_name = "dalvikvm" + test_name[-2:]
         pidof = subprocess.run(["adb", "shell", "pidof", proc_name], stdout=subprocess.PIPE)
@@ -1070,8 +1075,11 @@ def parse_test_name(test_name):
 
 
 def get_target_cpu_count():
-  adb_command = 'adb shell cat /sys/devices/system/cpu/present'
-  cpu_info_proc = subprocess.Popen(adb_command.split(), stdout=subprocess.PIPE)
+  if env.ART_TEST_ON_VM:
+    command = f"{env.ART_SSH_CMD} cat /sys/devices/system/cpu/present"
+  else:
+    command = 'adb shell cat /sys/devices/system/cpu/present'
+  cpu_info_proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
   cpu_info = cpu_info_proc.stdout.read()
   if type(cpu_info) is bytes:
     cpu_info = cpu_info.decode('utf-8')

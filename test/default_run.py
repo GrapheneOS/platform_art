@@ -213,6 +213,8 @@ def default_run(ctx, args, **kwargs):
     else:
       setattr(args, name, new_value)
 
+  ON_VM = os.environ.get("ART_TEST_ON_VM")
+
   # Store copy of stdout&stderr of command in files so that we can diff them later.
   # This may run under 'adb shell' so we are limited only to 'sh' shell feature set.
   def tee(cmd: str):
@@ -244,7 +246,7 @@ def default_run(ctx, args, **kwargs):
   ANDROID_I18N_ROOT = args.android_i18n_root
   ANDROID_TZDATA_ROOT = args.android_tzdata_root
   ARCHITECTURES_32 = "(arm|x86|none)"
-  ARCHITECTURES_64 = "(arm64|x86_64|none)"
+  ARCHITECTURES_64 = "(arm64|x86_64|riscv64|none)"
   ARCHITECTURES_PATTERN = ARCHITECTURES_32
   GET_DEVICE_ISA_BITNESS_FLAG = "--32"
   BOOT_IMAGE = args.boot
@@ -455,7 +457,7 @@ def default_run(ctx, args, **kwargs):
     VDEX_ARGS += f" {arg}"
 
 # HACK: Force the use of `signal_dumper` on host.
-  if HOST:
+  if HOST or ON_VM:
     TIME_OUT = "timeout"
 
 # If you change this, update the timeout in testrunner.py as well.
@@ -683,7 +685,7 @@ def default_run(ctx, args, **kwargs):
   else:
     FLAGS += " -Xnorelocate"
 
-  if BIONIC:
+  if BIONIC and not ON_VM:
     # This is the location that soong drops linux_bionic builds. Despite being
     # called linux_bionic-x86 the build is actually amd64 (x86_64) only.
     assert path.exists(f"{OUT_DIR}/soong/host/linux_bionic-x86"), (
@@ -961,6 +963,10 @@ def default_run(ctx, args, **kwargs):
   # b/27185632
   # b/24664297
 
+  dalvikvm_logger = ""
+  if ON_VM:
+    dalvikvm_logger = "-Xuse-stderr-logger"
+
   dalvikvm_cmdline = f"{INVOKE_WITH} {GDB} {ANDROID_ART_BIN_DIR}/{DALVIKVM} \
                        {GDB_ARGS} \
                        {FLAGS} \
@@ -974,6 +980,7 @@ def default_run(ctx, args, **kwargs):
                        {DEBUGGER_OPTS} \
                        {QUOTED_DALVIKVM_BOOT_OPT} \
                        {TMP_DIR_OPTION} \
+                       {dalvikvm_logger} \
                        -XX:DumpNativeStackOnSigQuit:false \
                        -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS}"
 
@@ -1008,6 +1015,26 @@ def default_run(ctx, args, **kwargs):
 
   ANDROID_LOG_TAGS = args.android_log_tags
 
+  def filter_output():
+    # Remove unwanted log messages from stderr before diffing with the expected output.
+    # NB: The unwanted log line can be interleaved in the middle of wanted stderr printf.
+    #     In particular, unhandled exception is printed using several unterminated printfs.
+    ALL_LOG_TAGS = ["V", "D", "I", "W", "E", "F", "S"]
+    skip_tag_set = "|".join(ALL_LOG_TAGS[:ALL_LOG_TAGS.index(args.diff_min_log_tag.upper())])
+    skip_reg_exp = fr'[[:alnum:]]+ ({skip_tag_set}) #-# #:#:# [^\n]*\n'.replace('#', '[0-9]+')
+    ctx.run(fr"sed -i -z -E 's/{skip_reg_exp}//g' '{args.stderr_file}'")
+    if not HAVE_IMAGE:
+      message = "(Unable to open file|Could not create image space)"
+      ctx.run(fr"sed -i -E '/^dalvikvm(|32|64) E .* {message}/d' '{args.stderr_file}'")
+    if ANDROID_LOG_TAGS != "*:i" and "D" in skip_tag_set:
+      ctx.run(fr"sed -i -E '/^(Time zone|I18n) APEX ICU file found/d' '{args.stderr_file}'")
+    if ON_VM:
+      messages = "|".join([
+        "failed to connect to tombstoned",
+        "Failed to write stack traces to tombstoned",
+        "Failed to setpriority to :0"])
+      ctx.run(fr"sed -i -E '/({messages})/d' '{args.stderr_file}'")
+
   if not HOST:
     # Populate LD_LIBRARY_PATH.
     LD_LIBRARY_PATH = ""
@@ -1033,8 +1060,9 @@ def default_run(ctx, args, **kwargs):
     dlib = ""
     art_test_internal_libraries = []
 
-    # Needed to access the test's Odex files.
-    LD_LIBRARY_PATH = f"{DEX_LOCATION}/oat/{ISA}:{LD_LIBRARY_PATH}"
+    if not ON_VM:
+      # Needed to access the test's Odex files.
+      LD_LIBRARY_PATH = f"{DEX_LOCATION}/oat/{ISA}:{LD_LIBRARY_PATH}"
     # Needed to access the test's native libraries (see e.g. 674-hiddenapi,
     # which generates `libhiddenapitest_*.so` libraries in `{DEX_LOCATION}`).
     LD_LIBRARY_PATH = f"{DEX_LOCATION}:{LD_LIBRARY_PATH}"
@@ -1060,7 +1088,10 @@ def default_run(ctx, args, **kwargs):
       #       dumping do not lead to a deadlock, we also use the "-k" option to definitely kill the
       #       child.
       # Note: Using "--foreground" to not propagate the signal to children, i.e., the runtime.
-      timeout_prefix = f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {timeout_dumper_cmd}"
+      if ON_VM:
+        timeout_prefix = f"timeout -k 120s {TIME_OUT_VALUE}s"
+      else:
+        timeout_prefix = f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {timeout_dumper_cmd}"
 
     ctx.export(
       ASAN_OPTIONS = RUN_TEST_ASAN_OPTIONS,
@@ -1088,6 +1119,10 @@ def default_run(ctx, args, **kwargs):
     ctx.run(f"{sync_cmdline}")
     ctx.run(tee(f"{timeout_prefix} {dalvikvm_cmdline}"),
             expected_exit_code=args.expected_exit_code, desc="DalvikVM")
+
+    if ON_VM:
+      filter_output()
+
   else:
     # Host run.
     if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
@@ -1168,16 +1203,4 @@ def default_run(ctx, args, **kwargs):
       ctx.run(cmdline)
     else:
       ctx.run(tee(cmdline), expected_exit_code=args.expected_exit_code, desc="DalvikVM")
-
-      # Remove unwanted log messages from stderr before diffing with the expected output.
-      # NB: The unwanted log line can be interleaved in the middle of wanted stderr printf.
-      #     In particular, unhandled exception is printed using several unterminated printfs.
-      ALL_LOG_TAGS = ["V", "D", "I", "W", "E", "F", "S"]
-      skip_tag_set = "|".join(ALL_LOG_TAGS[:ALL_LOG_TAGS.index(args.diff_min_log_tag.upper())])
-      skip_reg_exp = fr'[[:alnum:]]+ ({skip_tag_set}) #-# #:#:# [^\n]*\n'.replace('#', '[0-9]+')
-      ctx.run(fr"sed -i -z -E 's/{skip_reg_exp}//g' '{args.stderr_file}'")
-      if not HAVE_IMAGE:
-        message = "(Unable to open file|Could not create image space)"
-        ctx.run(fr"sed -i -E '/^dalvikvm(|32|64) E .* {message}/d' '{args.stderr_file}'")
-      if ANDROID_LOG_TAGS != "*:i" and "D" in skip_tag_set:
-        ctx.run(fr"sed -i -E '/^(Time zone|I18n) APEX ICU file found/d' '{args.stderr_file}'")
+      filter_output()

@@ -124,7 +124,9 @@ public class DexUseManagerLocal {
      * PackageManagerService} starts because {@code PackageManagerService} needs it as soon as it
      * starts. It's safe to create an instance early because it doesn't depend on anything else.
      *
+     * @param context the system server context
      * @throws IllegalStateException if the instance is already created
+     * @throws NullPointerException if required dependencies are missing
      */
     @NonNull
     public static DexUseManagerLocal createInstance(@NonNull Context context) {

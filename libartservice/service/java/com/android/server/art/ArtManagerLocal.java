@@ -112,6 +112,16 @@ public final class ArtManagerLocal {
         mInjector = new Injector(this, null /* context */);
     }
 
+    /**
+     * Creates an instance.
+     *
+     * Only {@code SystemServer} should create an instance and register it in {@link
+     * LocalManagerRegistry}. Other API users should obtain the instance from {@link
+     * LocalManagerRegistry}.
+     *
+     * @param context the system server context
+     * @throws NullPointerException if required dependencies are missing
+     */
     public ArtManagerLocal(@NonNull Context context) {
         mInjector = new Injector(this, context);
     }

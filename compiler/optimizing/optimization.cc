@@ -197,7 +197,8 @@ ArenaVector<HOptimization*> ConstructOptimizations(
         opt = most_recent_side_effects = new (allocator) SideEffectsAnalysis(graph, pass_name);
         break;
       case OptimizationPass::kInductionVarAnalysis:
-        opt = most_recent_induction = new (allocator) HInductionVarAnalysis(graph, pass_name);
+        opt = most_recent_induction =
+            new (allocator) HInductionVarAnalysis(graph, stats, pass_name);
         break;
       //
       // Passes that need prior analysis.

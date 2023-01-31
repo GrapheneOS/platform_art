@@ -450,17 +450,22 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
   void DiffEntryContents(mirror::Object* entry,
                          uint8_t* remote_bytes,
                          const uint8_t* base_ptr,
-                         bool log_dirty_objects)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+                         bool log_dirty_objects,
+                         size_t entry_offset) REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     // Attempt to find fields for all dirty bytes.
     mirror::Class* klass = entry->GetClass();
+    std::string temp;
     if (entry->IsClass()) {
       os_ << tabs
           << "Class " << mirror::Class::PrettyClass(entry->AsClass()) << " " << entry << "\n";
+      os_ << tabs << "dirty_obj: " << entry_offset << " class "
+          << entry->AsClass()->DescriptorHash() << "\n";
     } else {
       os_ << tabs
           << "Instance of " << mirror::Class::PrettyClass(klass) << " " << entry << "\n";
+      os_ << tabs << "dirty_obj: " << entry_offset << " instance " << klass->DescriptorHash()
+          << "\n";
     }
     PrintEntryPages(reinterpret_cast<uintptr_t>(entry), EntrySize(entry), os_);
 
@@ -776,7 +781,8 @@ class RegionSpecializedBase<ArtMethod> : public RegionCommon<ArtMethod> {
   void DiffEntryContents(ArtMethod* method,
                          uint8_t* remote_bytes,
                          const uint8_t* base_ptr,
-                         bool log_dirty_objects ATTRIBUTE_UNUSED)
+                         bool log_dirty_objects ATTRIBUTE_UNUSED,
+                         size_t entry_offset ATTRIBUTE_UNUSED)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     os_ << tabs << "ArtMethod " << ArtMethod::PrettyMethod(method) << "\n";
@@ -1047,10 +1053,8 @@ class RegionData : public RegionSpecializedBase<T> {
       uint8_t* entry_bytes = reinterpret_cast<uint8_t*>(entry);
       ptrdiff_t offset = entry_bytes - begin_image_ptr;
       uint8_t* remote_bytes = &contents[offset];
-      RegionSpecializedBase<T>::DiffEntryContents(entry,
-                                                  remote_bytes,
-                                                  &base_ptr[offset],
-                                                  log_dirty_objects);
+      RegionSpecializedBase<T>::DiffEntryContents(
+          entry, remote_bytes, &base_ptr[offset], log_dirty_objects, static_cast<size_t>(offset));
     }
   }
 

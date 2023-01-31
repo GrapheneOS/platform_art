@@ -213,11 +213,6 @@ inline ClassTable::TableSlot::TableSlot(ObjPtr<mirror::Class> klass, uint32_t de
   DCHECK_EQ(descriptor_hash, klass->DescriptorHash());
 }
 
-inline ClassTable::TableSlot::TableSlot(uint32_t ptr, uint32_t descriptor_hash)
-    : data_(ptr | MaskHash(descriptor_hash)) {
-  DCHECK_ALIGNED(ptr, kObjectAlignment);
-}
-
 template <typename Filter>
 inline void ClassTable::RemoveStrongRoots(const Filter& filter) {
   WriterMutexLock mu(Thread::Current(), lock_);
@@ -230,11 +225,6 @@ inline ObjPtr<mirror::Class> ClassTable::LookupByDescriptor(ObjPtr<mirror::Class
   std::string temp;
   const char* descriptor = klass->GetDescriptor(&temp);
   return Lookup(descriptor, hash);
-}
-
-inline size_t ClassTable::Size() const {
-  ReaderMutexLock mu(Thread::Current(), lock_);
-  return classes_.size();
 }
 
 }  // namespace art
