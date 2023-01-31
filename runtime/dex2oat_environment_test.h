@@ -177,6 +177,10 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     return GetTestDexFileName("MultiDex");
   }
 
+  std::string GetMultiDexUncompressedAlignedSrc1() const {
+    return GetTestDexFileName("MultiDexUncompressedAligned");
+  }
+
   // Returns the path to a multidex file equivalent to GetMultiDexSrc2, but
   // with the contents of the secondary dex file changed.
   std::string GetMultiDexSrc2() const {
