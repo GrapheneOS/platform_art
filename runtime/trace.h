@@ -263,18 +263,9 @@ class Trace final : public instrumentation::InstrumentationListener {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   // Methods to output traced methods and threads.
-  void GetVisitedMethods(size_t end_offset, std::set<ArtMethod*>* visited_methods)
-      REQUIRES(!tracing_lock_);
-  void DumpMethodList(std::ostream& os, const std::set<ArtMethod*>& visited_methods)
+  void DumpMethodList(std::ostream& os)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
   void DumpThreadList(std::ostream& os) REQUIRES(!Locks::thread_list_lock_);
-
-  // Methods to register seen entitites in streaming mode. The methods return true if the entity
-  // is newly discovered.
-  bool RegisterMethod(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(tracing_lock_);
-  bool RegisterThread(Thread* thread)
-      REQUIRES(tracing_lock_);
 
   void RecordMethodEvent(Thread* thread,
                          ArtMethod* method,
@@ -286,7 +277,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // encode the entry.
   void EncodeEventEntry(uint8_t* ptr,
                         Thread* thread,
-                        ArtMethod* method,
+                        uint32_t method_index,
                         TraceAction action,
                         uint32_t thread_clock_diff,
                         uint32_t wall_clock_diff) REQUIRES(tracing_lock_);
@@ -328,7 +319,7 @@ class Trace final : public instrumentation::InstrumentationListener {
 
   uint32_t EncodeTraceMethod(ArtMethod* method) REQUIRES(tracing_lock_);
   ArtMethod* DecodeTraceMethod(uint32_t tmid) REQUIRES(tracing_lock_);
-  std::string GetMethodLine(ArtMethod* method) REQUIRES(tracing_lock_)
+  std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
@@ -410,10 +401,9 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Streaming mode data.
   Mutex tracing_lock_;
 
-  // Bijective map from ArtMethod* to index.
-  // Map from ArtMethod* to index in unique_methods_;
+  // Map from ArtMethod* to index.
   std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(tracing_lock_);
-  std::vector<ArtMethod*> unique_methods_ GUARDED_BY(tracing_lock_);
+  uint32_t current_method_index_ = 0;
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };
