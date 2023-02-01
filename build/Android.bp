@@ -203,6 +203,12 @@ art_module_art_global_defaults {
             // TODO(b/172480617): Clean up with that.
             enabled: false,
         },
+        not_windows: {
+            // Don't export symbols of statically linked libziparchive.
+            // Workaround to fix ODR violations (b/264235288) in gtests.
+            // `--exclude-libs` flags is not supported on windows.
+            ldflags: ["-Wl,--exclude-libs=libziparchive.a"],
+        },
         host: {
             cflags: [
                 // Bug: 15446488. We don't omit the frame pointer to work around
