@@ -39,6 +39,7 @@ cc_defaults {
                 "libz",
             ],
             static_libs: [
+                "libmodules-utils-build",
                 // ZipArchive support, the order matters here to get all symbols.
                 "libziparchive",
             ],

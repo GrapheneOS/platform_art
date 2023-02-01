@@ -189,7 +189,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
 
   // Check that what we saved is in the profile.
   ProfileCompilationInfo info1;
-  ASSERT_TRUE(info1.Load(GetFd(profile)));
+  ASSERT_TRUE(info1.Load(profile.GetFilename(), /*clear_if_invalid=*/false));
   ASSERT_EQ(info1.GetNumberOfMethods(), main_methods.size());
   {
     ScopedObjectAccess soa(self);
@@ -209,7 +209,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethods) {
 
   // Check that what we saved is in the profile (methods form Main and Second).
   ProfileCompilationInfo info2;
-  ASSERT_TRUE(info2.Load(GetFd(profile)));
+  ASSERT_TRUE(info2.Load(profile.GetFilename(), /*clear_if_invalid=*/false));
   ASSERT_EQ(info2.GetNumberOfMethods(), main_methods.size() + second_methods.size());
   {
     ScopedObjectAccess soa(self);
@@ -249,7 +249,7 @@ TEST_F(ProfileCompilationInfoTest, SaveArtMethodsWithInlineCaches) {
 
   // Check that what we saved is in the profile.
   ProfileCompilationInfo info;
-  ASSERT_TRUE(info.Load(GetFd(profile)));
+  ASSERT_TRUE(info.Load(profile.GetFilename(), /*clear_if_invalid=*/false));
   ASSERT_EQ(info.GetNumberOfMethods(), main_methods.size());
   {
     ScopedObjectAccess soa(self);
