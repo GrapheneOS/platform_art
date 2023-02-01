@@ -592,6 +592,7 @@ gensrcs {
         "jni_id_type.h",
         "linear_alloc.h",
         "lock_word.h",
+        "oat.h",
         "oat_file.h",
         "process_state.h",
         "reflective_value_visitor.h",
