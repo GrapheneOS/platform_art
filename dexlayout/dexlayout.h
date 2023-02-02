@@ -199,6 +199,21 @@ class DexLayout {
   DISALLOW_COPY_AND_ASSIGN(DexLayout);
 };
 
+class DexLoaderContainer : public MemoryDexFileContainer {
+ public:
+  DexLoaderContainer(const uint8_t* begin,
+                     const uint8_t* end,
+                     const uint8_t* data_begin,
+                     const uint8_t* data_end)
+      : MemoryDexFileContainer(begin, end), data_begin_(data_begin), data_end_(data_end) {}
+  const uint8_t* DataBegin() const override { return data_begin_; }
+  const uint8_t* DataEnd() const override { return data_end_; }
+
+ private:
+  const uint8_t* data_begin_;
+  const uint8_t* data_end_;
+};
+
 }  // namespace art
 
 #endif  // ART_DEXLAYOUT_DEXLAYOUT_H_

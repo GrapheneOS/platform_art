@@ -74,11 +74,6 @@ uint32_t DexFile::ChecksumMemoryRange(const uint8_t* begin, size_t size) {
   return adler32(adler32(0L, Z_NULL, 0), begin, size);
 }
 
-int DexFile::GetPermissions() const {
-  CHECK(container_.get() != nullptr);
-  return container_->GetPermissions();
-}
-
 bool DexFile::IsReadOnly() const {
   CHECK(container_.get() != nullptr);
   return container_->IsReadOnly();

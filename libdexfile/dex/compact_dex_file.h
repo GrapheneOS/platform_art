@@ -17,9 +17,11 @@
 #ifndef ART_LIBDEXFILE_DEX_COMPACT_DEX_FILE_H_
 #define ART_LIBDEXFILE_DEX_COMPACT_DEX_FILE_H_
 
+#include <memory>
+
 #include "base/casts.h"
-#include "dex_file.h"
 #include "dex/compact_offset_table.h"
+#include "dex_file.h"
 
 namespace art {
 
