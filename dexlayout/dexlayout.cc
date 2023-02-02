@@ -2014,18 +2014,16 @@ bool DexLayout::ProcessDexFile(const char* file_name,
       DexContainer::Section* const data_section = (*dex_container)->GetDataSection();
       DCHECK_EQ(file_size, main_section->Size())
           << main_section->Size() << " " << data_section->Size();
+      auto container = std::make_unique<DexLoaderContainer>(
+          main_section->Begin(), main_section->End(), data_section->Begin(), data_section->End());
       std::unique_ptr<const DexFile> output_dex_file(
-          dex_file_loader.OpenWithDataSection(
-              main_section->Begin(),
-              main_section->Size(),
-              data_section->Begin(),
-              data_section->Size(),
-              location,
-              /* location_checksum= */ 0,
-              /*oat_dex_file=*/ nullptr,
-              verify,
-              /*verify_checksum=*/ false,
-              error_msg));
+          dex_file_loader.Open(std::move(container),
+                               location,
+                               /* location_checksum= */ 0,
+                               /*oat_dex_file=*/nullptr,
+                               verify,
+                               /*verify_checksum=*/false,
+                               error_msg));
       CHECK(output_dex_file != nullptr) << "Failed to re-open output file:" << *error_msg;
 
       // Do IR-level comparison between input and output. This check ignores potential differences
