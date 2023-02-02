@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#include <sstream>
-#include <string>
-#include <vector>
+#include "dexlayout.h"
 
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "base/common_art_test.h"
 #include "base/unix_file/fd_file.h"
@@ -30,7 +33,6 @@
 #include "dex/code_item_accessors-inl.h"
 #include "dex/dex_file-inl.h"
 #include "dex/dex_file_loader.h"
-#include "dexlayout.h"
 #include "exec_utils.h"
 #include "profile/profile_compilation_info.h"
 
@@ -802,18 +804,18 @@ TEST_F(DexLayoutTest, ClassFilter) {
         &out,
         &error_msg);
     ASSERT_TRUE(result) << "Failed to run dexlayout " << error_msg;
+    auto container = std::make_unique<DexLoaderContainer>(out->GetMainSection()->Begin(),
+                                                          out->GetMainSection()->End(),
+                                                          out->GetDataSection()->Begin(),
+                                                          out->GetDataSection()->End());
     std::unique_ptr<const DexFile> output_dex_file(
-        dex_file_loader.OpenWithDataSection(
-            out->GetMainSection()->Begin(),
-            out->GetMainSection()->Size(),
-            out->GetDataSection()->Begin(),
-            out->GetDataSection()->Size(),
-            dex_file->GetLocation().c_str(),
-            /* location_checksum= */ 0,
-            /*oat_dex_file=*/ nullptr,
-            /* verify= */ true,
-            /*verify_checksum=*/ false,
-            &error_msg));
+        dex_file_loader.Open(std::move(container),
+                             dex_file->GetLocation().c_str(),
+                             /* location_checksum= */ 0,
+                             /*oat_dex_file=*/nullptr,
+                             /* verify= */ true,
+                             /*verify_checksum=*/false,
+                             &error_msg));
     ASSERT_TRUE(output_dex_file != nullptr);
 
     ASSERT_EQ(output_dex_file->NumClassDefs(), options.class_filter_.size());
