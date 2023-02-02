@@ -121,6 +121,15 @@ inline void HandleScope::VisitRoots(Visitor& visitor) {
   }
 }
 
+template <typename Visitor>
+inline void HandleScope::VisitHandles(Visitor& visitor) {
+  for (size_t i = 0, count = NumberOfReferences(); i < count; ++i) {
+    if (GetHandle(i) != nullptr) {
+      visitor.Visit(GetHandle(i));
+    }
+  }
+}
+
 template<size_t kNumReferences> template<class T>
 inline MutableHandle<T> FixedSizeHandleScope<kNumReferences>::NewHandle(T* object) {
   return NewHandle(ObjPtr<T>(object));
@@ -176,6 +185,15 @@ inline void BaseHandleScope::VisitRoots(Visitor& visitor) {
     AsHandleScope()->VisitRoots(visitor);
   } else {
     AsVariableSized()->VisitRoots(visitor);
+  }
+}
+
+template <typename Visitor>
+inline void BaseHandleScope::VisitHandles(Visitor& visitor) {
+  if (LIKELY(!IsVariableSized())) {
+    AsHandleScope()->VisitHandles(visitor);
+  } else {
+    AsVariableSized()->VisitHandles(visitor);
   }
 }
 
@@ -265,6 +283,15 @@ inline void VariableSizedHandleScope::VisitRoots(Visitor& visitor) {
   LocalScopeType* cur = current_scope_;
   while (cur != nullptr) {
     cur->VisitRoots(visitor);
+    cur = reinterpret_cast<LocalScopeType*>(cur->GetLink());
+  }
+}
+
+template <typename Visitor>
+inline void VariableSizedHandleScope::VisitHandles(Visitor& visitor) {
+  LocalScopeType* cur = current_scope_;
+  while (cur != nullptr) {
+    cur->VisitHandles(visitor);
     cur = reinterpret_cast<LocalScopeType*>(cur->GetLink());
   }
 }
