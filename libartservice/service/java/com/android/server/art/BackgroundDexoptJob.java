@@ -193,6 +193,11 @@ public class BackgroundDexoptJob {
         Log.i(TAG, "Job cancelled");
     }
 
+    @Nullable
+    public synchronized CompletableFuture<Result> get() {
+        return mRunningJob;
+    }
+
     @NonNull
     private CompletedResult run(@NonNull CancellationSignal cancellationSignal) {
         // TODO(b/254013427): Cleanup dex use info.

@@ -81,6 +81,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -608,6 +609,26 @@ public final class ArtManagerLocal {
      */
     public void startBackgroundDexoptJob() {
         mInjector.getBackgroundDexoptJob().start();
+    }
+
+    /**
+     * Same as above, but also returns a {@link CompletableFuture}.
+     *
+     * @hide
+     */
+    @NonNull
+    public CompletableFuture<BackgroundDexoptJob.Result> startBackgroundDexoptJobAndReturnFuture() {
+        return mInjector.getBackgroundDexoptJob().start();
+    }
+
+    /**
+     * Returns the running background dexopt job, or null of no background dexopt job is running.
+     *
+     * @hide
+     */
+    @Nullable
+    public CompletableFuture<BackgroundDexoptJob.Result> getRunningBackgroundDexoptJob() {
+        return mInjector.getBackgroundDexoptJob().get();
     }
 
     /**

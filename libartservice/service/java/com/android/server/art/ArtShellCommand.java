@@ -63,10 +63,12 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -108,9 +110,16 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 case "compile":
                     return handleCompile(pw, snapshot);
                 case "reconcile-secondary-dex-files":
+                    // TODO(b/263247832): Implement this.
+                    throw new UnsupportedOperationException();
                 case "force-dex-opt":
+                    return handleForceDexopt(pw, snapshot);
                 case "bg-dexopt-job":
+                    return handleBgDexoptJob(pw, snapshot);
                 case "cancel-bg-dexopt-job":
+                    pw.println("Warning: 'pm cancel-bg-dexopt-job' is deprecated. It is now an "
+                            + "alias of 'pm bg-dexopt-job --cancel'");
+                    return handleCancelBgDexoptJob(pw);
                 case "delete-dexopt":
                 case "dump-profiles":
                 case "snapshot-profile":
@@ -196,43 +205,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 enforceRoot();
                 pw.println(mDexUseManager.dump());
                 return 0;
-            }
-            case "bg-dexopt-job": {
-                enforceRoot();
-                String opt = getNextOption();
-                if (opt == null) {
-                    mArtManagerLocal.startBackgroundDexoptJob();
-                    return 0;
-                }
-                switch (opt) {
-                    case "--cancel": {
-                        mArtManagerLocal.cancelBackgroundDexoptJob();
-                        return 0;
-                    }
-                    case "--enable": {
-                        // This operation requires the uid to be "system" (1000).
-                        long identityToken = Binder.clearCallingIdentity();
-                        try {
-                            mArtManagerLocal.scheduleBackgroundDexoptJob();
-                        } finally {
-                            Binder.restoreCallingIdentity(identityToken);
-                        }
-                        return 0;
-                    }
-                    case "--disable": {
-                        // This operation requires the uid to be "system" (1000).
-                        long identityToken = Binder.clearCallingIdentity();
-                        try {
-                            mArtManagerLocal.unscheduleBackgroundDexoptJob();
-                        } finally {
-                            Binder.restoreCallingIdentity(identityToken);
-                        }
-                        return 0;
-                    }
-                    default:
-                        pw.println("Error: Unknown option: " + opt);
-                        return 1;
-                }
             }
             case "snapshot-app-profile": {
                 enforceRoot();
@@ -473,6 +445,102 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
     }
 
+    private int handleForceDexopt(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        pw.println("Warning: 'pm force-dex-opt' is deprecated. Please use 'pm compile "
+                + "-f PACKAGE_NAME' instead");
+        return dexoptPackages(pw, snapshot, List.of(getNextArgRequired()),
+                new DexoptParams.Builder(ReasonMapping.REASON_CMDLINE)
+                        .setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE)
+                        .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX
+                                        | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
+                                ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
+                                        | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
+                        .build());
+    }
+
+    private int handleBgDexoptJob(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        String opt = getNextOption();
+        if (opt == null) {
+            List<String> packageNames = new ArrayList<>();
+            String arg;
+            while ((arg = getNextArg()) != null) {
+                packageNames.add(arg);
+            }
+            if (!packageNames.isEmpty()) {
+                pw.println("Warning: Running 'pm bg-dexopt-job' with package names is deprecated. "
+                        + "Please use 'pm compile -r bg-dexopt PACKAGE_NAME' instead");
+                return dexoptPackages(pw, snapshot, packageNames,
+                        new DexoptParams.Builder(ReasonMapping.REASON_BG_DEXOPT).build());
+            }
+
+            CompletableFuture<BackgroundDexoptJob.Result> runningJob =
+                    mArtManagerLocal.getRunningBackgroundDexoptJob();
+            if (runningJob != null) {
+                pw.println("Another job already running. Waiting for it to finish... To cancel it, "
+                        + "run 'pm bg-dexopt-job --cancel'. in a separate shell.");
+                pw.flush();
+                Utils.getFuture(runningJob);
+            }
+            CompletableFuture<BackgroundDexoptJob.Result> future =
+                    mArtManagerLocal.startBackgroundDexoptJobAndReturnFuture();
+            pw.println("Job running...  To cancel it, run 'pm bg-dexopt-job --cancel'. in a "
+                    + "separate shell.");
+            pw.flush();
+            BackgroundDexoptJob.Result result = Utils.getFuture(future);
+            if (result instanceof BackgroundDexoptJob.CompletedResult) {
+                var completedResult = (BackgroundDexoptJob.CompletedResult) result;
+                if (completedResult.dexoptResult().getFinalStatus()
+                        == DexoptResult.DEXOPT_CANCELLED) {
+                    pw.println("Job cancelled. See logs for details");
+                } else {
+                    pw.println("Job finished. See logs for details");
+                }
+            } else if (result instanceof BackgroundDexoptJob.FatalErrorResult) {
+                // Never expected.
+                pw.println("Job encountered a fatal error");
+            }
+            return 0;
+        }
+        switch (opt) {
+            case "--cancel": {
+                return handleCancelBgDexoptJob(pw);
+            }
+            case "--enable": {
+                // This operation requires the uid to be "system" (1000).
+                long identityToken = Binder.clearCallingIdentity();
+                try {
+                    mArtManagerLocal.scheduleBackgroundDexoptJob();
+                } finally {
+                    Binder.restoreCallingIdentity(identityToken);
+                }
+                pw.println("Background dexopt job enabled");
+                return 0;
+            }
+            case "--disable": {
+                // This operation requires the uid to be "system" (1000).
+                long identityToken = Binder.clearCallingIdentity();
+                try {
+                    mArtManagerLocal.unscheduleBackgroundDexoptJob();
+                } finally {
+                    Binder.restoreCallingIdentity(identityToken);
+                }
+                pw.println("Background dexopt job disabled");
+                return 0;
+            }
+            default:
+                pw.println("Error: Unknown option: " + opt);
+                return 1;
+        }
+    }
+
+    private int handleCancelBgDexoptJob(@NonNull PrintWriter pw) {
+        mArtManagerLocal.cancelBackgroundDexoptJob();
+        pw.println("Background dexopt job cancelled");
+        return 0;
+    }
+
     @Override
     public void onHelp() {
         // No one should call this. The help text should be printed by the `onHelp` handler of `cmd
@@ -524,6 +592,37 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Note: If none of the scope options above are set, the scope defaults to");
         pw.println("    '--primary-dex --include-dependencies'.");
         pw.println();
+        pw.println("bg-dexopt-job [--cancel | --disable | --enable]");
+        pw.println("  Control the background dexopt job.");
+        pw.println("  Without flags, it starts a background dexopt job immediately and waits for");
+        pw.println("    it to finish. If a job is already started either automatically by the");
+        pw.println("    system or through this command, it will wait for the running job to");
+        pw.println("    finish and then start a new one.");
+        pw.println("  Different from 'pm compile -r bg-dexopt -a', the behavior of this command");
+        pw.println("  is the same as a real background dexopt job. Specifically,");
+        pw.println("    - It only dexopts a subset of apps determined by either the system's");
+        pw.println("      default logic based on app usage data or the custom logic specified by");
+        pw.println("      the 'ArtManagerLocal.setBatchDexoptStartCallback' Java API.");
+        pw.println("    - It runs dexopt in parallel, where the concurrency setting is specified");
+        pw.println("      by the system property 'pm.dexopt.bg-dexopt.concurrency'.");
+        pw.println("    - If the storage is low, it also downgrades unused apps.");
+        pw.println("    - It also cleans up obsolete files.");
+        pw.println("  Options:");
+        pw.println("    --cancel Cancel any currently running background dexopt job immediately.");
+        pw.println("      This cancels jobs started either automatically by the system or through");
+        pw.println("      this command. This command is not blocking.");
+        pw.println("    --disable: Disable the background dexopt job from being started by the");
+        pw.println("      job scheduler. If a job is already started by the job scheduler and is");
+        pw.println("      running, it will be cancelled immediately. Does not affect jobs started");
+        pw.println("      through this command or by the system in other ways.");
+        pw.println("      This state will be lost when the system_server process exits.");
+        pw.println("    --enable: Enable the background dexopt job to be started by the job");
+        pw.println("      scheduler again, if previously disabled by --disable.");
+        pw.println("  When a list of package names is passed, this command does NOT start a real");
+        pw.println("  background dexopt job. Instead, it dexopts the given packages sequentially.");
+        pw.println("  This usage is deprecated. Please use 'pm compile -r bg-dexopt PACKAGE_NAME'");
+        pw.println("  instead.");
+        pw.println();
         pw.println("art SUB_COMMAND [ARGS]...");
         pw.println("  Run ART Service commands");
         pw.println();
@@ -564,23 +663,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println();
         pw.println("  dex-use-dump");
         pw.println("    Print all dex use information in textproto format.");
-        pw.println();
-        pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");
-        pw.println("    Control the background dexopt job.");
-        pw.println("    Without flags, it starts a background dexopt job immediately. It does");
-        pw.println("      nothing if a job is already started either automatically by the system");
-        pw.println("      or through this command. This command is not blocking.");
-        pw.println("    Options:");
-        pw.println("      --cancel Cancel any currently running background dexopt job");
-        pw.println("        immediately. This cancels jobs started either automatically by the");
-        pw.println("        system or through this command. This command is not blocking.");
-        pw.println("      --disable: Disable the background dexopt job from being started by the");
-        pw.println("        job scheduler. If a job is already started by the job scheduler and");
-        pw.println("        is running, it will be cancelled immediately. Does not affect");
-        pw.println("        jobs started through this command or by the system in other ways.");
-        pw.println("        This state will be lost when the system_server process exits.");
-        pw.println("      --enable: Enable the background dexopt job to be started by the job");
-        pw.println("        scheduler again, if previously disabled by --disable.");
         pw.println();
         pw.println("  snapshot-app-profile PACKAGE_NAME [SPLIT_NAME]");
         pw.println("    Snapshot the profile of the given app and save it to");
