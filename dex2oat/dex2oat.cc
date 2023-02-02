@@ -1033,7 +1033,13 @@ class Dex2Oat final {
     original_argv = argv;
 
     Locks::Init();
-    InitLogging(argv, Runtime::Abort);
+
+    // Microdroid doesn't support logd logging, so don't override there.
+    if (android::base::GetProperty("ro.hardware", "") == "microdroid") {
+      android::base::SetAborter(Runtime::Abort);
+    } else {
+      InitLogging(argv, Runtime::Abort);
+    }
 
     compiler_options_.reset(new CompilerOptions());
 
