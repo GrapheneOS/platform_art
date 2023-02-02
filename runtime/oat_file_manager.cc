@@ -301,6 +301,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             ScopedTrace image_space_timing("Adding image space");
             added_image_space = runtime->GetClassLinker()->AddImageSpace(image_space.get(),
                                                                          h_loader,
+                                                                         context.get(),
                                                                          /*out*/&dex_files,
                                                                          /*out*/&temp_error_msg);
           }
@@ -590,7 +591,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat_
   // Initialize an OatFile instance backed by the loaded vdex.
   std::unique_ptr<OatFile> oat_file(OatFile::OpenFromVdex(MakeNonOwningPointerVector(dex_files),
                                                           std::move(vdex_file),
-                                                          dex_location));
+                                                          dex_location,
+                                                          context.get()));
   if (oat_file != nullptr) {
     VLOG(class_linker) << "Registering " << oat_file->GetLocation();
     *out_oat_file = RegisterOatFile(std::move(oat_file));

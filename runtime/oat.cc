@@ -467,4 +467,27 @@ void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store
   key_value_store_size_ = data_ptr - reinterpret_cast<char*>(&key_value_store_);
 }
 
+const uint8_t* OatHeader::GetOatAddress(StubType type) const {
+  DCHECK_LE(type, StubType::kLast);
+  switch (type) {
+    // TODO: We could maybe clean this up if we stored them in an array in the oat header.
+    case StubType::kQuickGenericJNITrampoline:
+      return static_cast<const uint8_t*>(GetQuickGenericJniTrampoline());
+    case StubType::kJNIDlsymLookupTrampoline:
+      return static_cast<const uint8_t*>(GetJniDlsymLookupTrampoline());
+    case StubType::kJNIDlsymLookupCriticalTrampoline:
+      return static_cast<const uint8_t*>(GetJniDlsymLookupCriticalTrampoline());
+    case StubType::kQuickIMTConflictTrampoline:
+      return static_cast<const uint8_t*>(GetQuickImtConflictTrampoline());
+    case StubType::kQuickResolutionTrampoline:
+      return static_cast<const uint8_t*>(GetQuickResolutionTrampoline());
+    case StubType::kQuickToInterpreterBridge:
+      return static_cast<const uint8_t*>(GetQuickToInterpreterBridge());
+    case StubType::kNterpTrampoline:
+      return static_cast<const uint8_t*>(GetNterpTrampoline());
+    default:
+      UNREACHABLE();
+  }
+}
+
 }  // namespace art

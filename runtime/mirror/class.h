@@ -65,6 +65,7 @@ template<typename T> class StrideIterator;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 class Thread;
 class DexCacheVisitor;
+class RuntimeImageHelper;
 
 namespace mirror {
 
@@ -866,8 +867,6 @@ class MANAGED Class final : public Object {
 
   void SetImt(ImTable* imt, PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ImTable* FindSuperImt(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
-
   ArtMethod* GetEmbeddedVTableEntry(uint32_t i, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1581,6 +1580,7 @@ class MANAGED Class final : public Object {
   friend struct art::ClassOffsets;  // for verifying offset information
   friend class Object;  // For VisitReferences
   friend class linker::ImageWriter;  // For SetStatusInternal
+  friend class art::RuntimeImageHelper;  // For SetStatusInternal
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);
 };
 

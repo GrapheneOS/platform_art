@@ -240,13 +240,16 @@ inline T PointerArray::GetElementPtrSizeUnchecked(uint32_t idx) {
   // C style casts here since we sometimes have T be a pointer, or sometimes an integer
   // (for stack traces).
   using ConversionType = typename std::conditional_t<std::is_pointer_v<T>, uintptr_t, T>;
+  // Note: we cast the array directly when unchecked as this code gets called by
+  // runtime_image, which can pass a 64bit pointer and therefore cannot be held
+  // by an ObjPtr.
   if (kPointerSize == PointerSize::k64) {
     uint64_t value =
-        static_cast<uint64_t>(AsLongArrayUnchecked<kVerifyFlags>()->GetWithoutChecks(idx));
+        static_cast<uint64_t>(reinterpret_cast<LongArray*>(this)->GetWithoutChecks(idx));
     return (T) dchecked_integral_cast<ConversionType>(value);
   } else {
     uint32_t value =
-        static_cast<uint32_t>(AsIntArrayUnchecked<kVerifyFlags>()->GetWithoutChecks(idx));
+        static_cast<uint32_t>(reinterpret_cast<IntArray*>(this)->GetWithoutChecks(idx));
     return (T) dchecked_integral_cast<ConversionType>(value);
   }
 }
@@ -261,12 +264,15 @@ inline T PointerArray::GetElementPtrSize(uint32_t idx, PointerSize ptr_size) {
 
 template<bool kTransactionActive, bool kCheckTransaction, bool kUnchecked>
 inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, PointerSize ptr_size) {
+  // Note: we cast the array directly when unchecked as this code gets called by
+  // runtime_image, which can pass a 64bit pointer and therefore cannot be held
+  // by an ObjPtr.
   if (ptr_size == PointerSize::k64) {
-    (kUnchecked ? ObjPtr<LongArray>::DownCast(ObjPtr<Object>(this)) : AsLongArray())->
+    (kUnchecked ? reinterpret_cast<LongArray*>(this) : AsLongArray().Ptr())->
         SetWithoutChecks<kTransactionActive, kCheckTransaction>(idx, element);
   } else {
     uint32_t element32 = dchecked_integral_cast<uint32_t>(element);
-    (kUnchecked ? ObjPtr<IntArray>::DownCast(ObjPtr<Object>(this)) : AsIntArray())
+    (kUnchecked ? reinterpret_cast<IntArray*>(this) : AsIntArray().Ptr())
         ->SetWithoutChecks<kTransactionActive, kCheckTransaction>(idx, element32);
   }
 }
@@ -278,7 +284,7 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, PointerSiz
 }
 
 template <VerifyObjectFlags kVerifyFlags, typename Visitor>
-inline void PointerArray::Fixup(ObjPtr<mirror::PointerArray> dest,
+inline void PointerArray::Fixup(mirror::PointerArray* dest,
                                 PointerSize pointer_size,
                                 const Visitor& visitor) {
   for (size_t i = 0, count = GetLength(); i < count; ++i) {
