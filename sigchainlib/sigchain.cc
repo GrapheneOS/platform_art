@@ -27,8 +27,6 @@
 #endif
 
 #include <algorithm>
-#include <atomic>
-#include <bitset>
 #include <initializer_list>
 #include <mutex>
 #include <type_traits>
@@ -153,17 +151,11 @@ __attribute__((constructor)) static void InitializeSignalChain() {
   });
 }
 
-// Use a bitmap to indicate which signal is being handled so that other
-// non-blocked signals are allowed to be handled, if raised.
-static constexpr size_t kSignalSetLength = _NSIG - 1;
-using KeyValueType = std::bitset<kSignalSetLength>;
 static pthread_key_t GetHandlingSignalKey() {
   static pthread_key_t key;
   static std::once_flag once;
   std::call_once(once, []() {
-    int rc = pthread_key_create(&key, [](void* ptr) {
-      delete reinterpret_cast<KeyValueType*>(ptr);
-    });
+    int rc = pthread_key_create(&key, nullptr);
     if (rc != 0) {
       fatal("failed to create sigchain pthread key: %s", strerror(rc));
     }
@@ -172,59 +164,25 @@ static pthread_key_t GetHandlingSignalKey() {
 }
 
 static bool GetHandlingSignal() {
-  pthread_key_t key = GetHandlingSignalKey();
-  void* result = pthread_getspecific(key);
-  if (result == nullptr) {
-    result = new KeyValueType();
-    pthread_setspecific(key, result);
-    return false;
-  }
-  return reinterpret_cast<KeyValueType*>(result)->any();
+  void* result = pthread_getspecific(GetHandlingSignalKey());
+  return reinterpret_cast<uintptr_t>(result);
 }
 
-static bool GetHandlingSignal(int signo) {
-  pthread_key_t key = GetHandlingSignalKey();
-  void* result = pthread_getspecific(key);
-  if (result == nullptr) {
-    result = new KeyValueType();
-    pthread_setspecific(key, result);
-    return false;
-  }
-  return reinterpret_cast<KeyValueType*>(result)->test(signo - 1);
-}
-
-static bool SetHandlingSignal(int signo, bool value) {
-  // Use signe-fence to ensure that compiler doesn't reorder generated code
-  // across signal handlers.
-  pthread_key_t key = GetHandlingSignalKey();
-  std::atomic_signal_fence(std::memory_order_seq_cst);
-  void* result = pthread_getspecific(key);
-  size_t idx = signo - 1;
-  bool old;
-  if (result == nullptr) {
-    result = new KeyValueType();
-    pthread_setspecific(key, result);
-    old = false;
-  } else {
-    old = reinterpret_cast<KeyValueType*>(result)->test(idx);
-  }
-  reinterpret_cast<KeyValueType*>(result)->set(idx, value);
-  std::atomic_signal_fence(std::memory_order_seq_cst);
-  return old;
+static void SetHandlingSignal(bool value) {
+  pthread_setspecific(GetHandlingSignalKey(),
+                      reinterpret_cast<void*>(static_cast<uintptr_t>(value)));
 }
 
 class ScopedHandlingSignal {
  public:
-  ScopedHandlingSignal(int signo, bool set)
-      : signo_(signo),
-        original_value_(set ? SetHandlingSignal(signo, true) : GetHandlingSignal(signo)) {}
+  ScopedHandlingSignal() : original_value_(GetHandlingSignal()) {
+  }
 
   ~ScopedHandlingSignal() {
-    SetHandlingSignal(signo_, original_value_);
+    SetHandlingSignal(original_value_);
   }
 
  private:
-  int signo_;
   bool original_value_;
 };
 
@@ -378,7 +336,7 @@ class SignalChain {
 
 // _NSIG is 1 greater than the highest valued signal, but signals start from 1.
 // Leave an empty element at index 0 for convenience.
-static SignalChain chains[_NSIG];
+static SignalChain chains[_NSIG + 1];
 
 static bool is_signal_hook_debuggable = false;
 
@@ -391,7 +349,7 @@ __attribute__((weak)) extern "C" bool android_handle_signal(int signal_number,
 void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
   // Try the special handlers first.
   // If one of them crashes, we'll reenter this handler and pass that crash onto the user handler.
-  if (!GetHandlingSignal(signo)) {
+  if (!GetHandlingSignal()) {
     for (const auto& handler : chains[signo].special_handlers_) {
       if (handler.sc_sigaction == nullptr) {
         break;
@@ -404,7 +362,10 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
       sigset_t previous_mask;
       linked_sigprocmask(SIG_SETMASK, &handler.sc_mask, &previous_mask);
 
-      ScopedHandlingSignal restorer(signo, !handler_noreturn);
+      ScopedHandlingSignal restorer;
+      if (!handler_noreturn) {
+        SetHandlingSignal(true);
+      }
 
       if (handler.sc_sigaction(signo, siginfo, ucontext_raw)) {
         return;
