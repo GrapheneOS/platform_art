@@ -62,6 +62,7 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerO
       return new x86::DisassemblerX86(options, /* supports_rex= */ true);
 #endif
     default:
+      UNUSED(options);
       UNIMPLEMENTED(FATAL) << static_cast<uint32_t>(instruction_set);
       UNREACHABLE();
   }

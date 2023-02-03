@@ -208,6 +208,8 @@ std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(InstructionSet is
       return x86::CreateTrampoline(&allocator, offset);
 #endif
     default:
+      UNUSED(abi);
+      UNUSED(offset);
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;
       UNREACHABLE();
   }

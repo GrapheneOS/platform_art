@@ -1037,6 +1037,9 @@ std::unique_ptr<CodeGenerator> CodeGenerator::Create(HGraph* graph,
     }
 #endif
     default:
+      UNUSED(allocator);
+      UNUSED(graph);
+      UNUSED(stats);
       return nullptr;
   }
 }
