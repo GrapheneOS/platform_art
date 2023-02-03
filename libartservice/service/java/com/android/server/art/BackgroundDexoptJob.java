@@ -215,7 +215,8 @@ public class BackgroundDexoptJob {
                 // field in the result that we send to callbacks. Admittedly, this will cause us to
                 // lose some chance to dexopt when the storage is very low, but it's fine because we
                 // can still dexopt in the next run.
-                mInjector.getArtManagerLocal().cleanup(snapshot);
+                long freedBytes = mInjector.getArtManagerLocal().cleanup(snapshot);
+                Log.i(TAG, String.format("Freed %d bytes", freedBytes));
             }
         }
         return CompletedResult.create(dexoptResult, SystemClock.uptimeMillis() - startTimeMs);

@@ -110,8 +110,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 case "compile":
                     return handleCompile(pw, snapshot);
                 case "reconcile-secondary-dex-files":
-                    // TODO(b/263247832): Implement this.
-                    throw new UnsupportedOperationException();
+                    pw.println("Warning: 'pm reconcile-secondary-dex-files' is deprecated. It is "
+                            + "now doing nothing");
+                    return 0;
                 case "force-dex-opt":
                     return handleForceDexopt(pw, snapshot);
                 case "bg-dexopt-job":
@@ -121,6 +122,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                             + "alias of 'pm bg-dexopt-job --cancel'");
                     return handleCancelBgDexoptJob(pw);
                 case "delete-dexopt":
+                    return handleDeleteDexopt(pw, snapshot);
                 case "dump-profiles":
                 case "snapshot-profile":
                     // TODO(b/263247832): Implement this.
@@ -140,13 +142,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         String subcmd = getNextArgRequired();
         switch (subcmd) {
-            case "delete-dexopt-artifacts": {
-                enforceRoot();
-                DeleteResult result =
-                        mArtManagerLocal.deleteDexoptArtifacts(snapshot, getNextArgRequired());
-                pw.printf("Freed %d bytes\n", result.getFreedBytes());
-                return 0;
-            }
             case "get-dexopt-status": {
                 enforceRoot();
                 DexoptStatus dexoptStatus = mArtManagerLocal.getDexoptStatus(
@@ -273,9 +268,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "cleanup": {
-                enforceRoot();
-                mArtManagerLocal.cleanup(snapshot);
-                return 0;
+                return handleCleanup(pw, snapshot);
             }
             case "clear-app-profiles": {
                 mArtManagerLocal.clearAppProfiles(snapshot, getNextArgRequired());
@@ -541,6 +534,21 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         return 0;
     }
 
+    private int handleCleanup(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        long freedBytes = mArtManagerLocal.cleanup(snapshot);
+        pw.printf("Freed %d bytes\n", freedBytes);
+        return 0;
+    }
+
+    private int handleDeleteDexopt(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        DeleteResult result =
+                mArtManagerLocal.deleteDexoptArtifacts(snapshot, getNextArgRequired());
+        pw.printf("Freed %d bytes\n", result.getFreedBytes());
+        return 0;
+    }
+
     @Override
     public void onHelp() {
         // No one should call this. The help text should be printed by the `onHelp` handler of `cmd
@@ -592,6 +600,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Note: If none of the scope options above are set, the scope defaults to");
         pw.println("    '--primary-dex --include-dependencies'.");
         pw.println();
+        pw.println("delete-dexopt PACKAGE_NAME");
+        pw.println("  Delete the dexopt artifacts of both primary dex files and secondary dex");
+        pw.println("  files of a package.");
+        pw.println();
         pw.println("bg-dexopt-job [--cancel | --disable | --enable]");
         pw.println("  Control the background dexopt job.");
         pw.println("  Without flags, it starts a background dexopt job immediately and waits for");
@@ -638,12 +650,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    specifically, this command clears reference profiles and current");
         pw.println("    profiles. External profiles (e.g., cloud profiles) will be kept.");
         pw.println();
+        pw.println("  cleanup");
+        pw.println("    Cleanup obsolete files, such as dexopt artifacts that are outdated or");
+        pw.println("    correspond to dex container files that no longer exist.");
+        pw.println();
         pw.println("  Note: The sub-commands below are used for internal debugging purposes only.");
         pw.println("  There are no stability guarantees for them.");
-        pw.println();
-        pw.println("  delete-dexopt-artifacts PACKAGE_NAME");
-        pw.println("    Delete the dexopt artifacts of both primary dex files and secondary");
-        pw.println("    dex files of a package.");
         pw.println();
         pw.println("  get-dexopt-status PACKAGE_NAME");
         pw.println("    Print the dexopt status of both primary dex files and secondary dex");
@@ -682,9 +694,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
         pw.println("    The profile of a split APK is dumped to");
         pw.println("    'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
-        pw.println();
-        pw.println("  cleanup");
-        pw.println("    Cleanup obsolete files.");
     }
 
     private void enforceRoot() {

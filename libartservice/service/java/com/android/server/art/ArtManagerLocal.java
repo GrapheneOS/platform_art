@@ -845,7 +845,7 @@ public final class ArtManagerLocal {
      *
      * @hide
      */
-    public void cleanup(@NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+    public long cleanup(@NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         try {
             // For every primary dex container file or secondary dex container file of every app, if
             // it has code, we keep the following types of files:
@@ -896,9 +896,7 @@ public final class ArtManagerLocal {
                     }
                 }
             }
-            long freedBytes =
-                    mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
-            Log.i(TAG, String.format("Freed %d bytes", freedBytes));
+            return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
