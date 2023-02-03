@@ -40,13 +40,13 @@ public class TestCompare {
   /// CHECK-START: int TestCompare.compareBooleans(boolean, boolean) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int TestCompare.compareBooleans(boolean, boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestCompare.compareBooleans(boolean, boolean) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<ArgX:z\d+>>   ParameterValue
   /// CHECK:         <<ArgY:z\d+>>   ParameterValue
   /// CHECK-DAG:     <<Result:i\d+>> Compare [<<ArgX>>,<<ArgY>>]
   /// CHECK-DAG:                     Return [<<Result>>]
 
-  /// CHECK-START: int TestCompare.compareBooleans(boolean, boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestCompare.compareBooleans(boolean, boolean) instruction_simplifier$before_codegen (after)
   /// CHECK-NOT:                     Select
 
   private static int compareBooleans(boolean x, boolean y) {
@@ -77,13 +77,13 @@ public class TestCompare {
   ///  CHECK-START: int TestCompare.compareBooleans2(boolean, boolean) select_generator (after)
   ///  CHECK-NOT:                     Phi
 
-  ///  CHECK-START: int TestCompare.compareBooleans2(boolean, boolean) instruction_simplifier$after_bce (after)
+  ///  CHECK-START: int TestCompare.compareBooleans2(boolean, boolean) instruction_simplifier$before_codegen (after)
   ///  CHECK:         <<ArgX:z\d+>>   ParameterValue
   ///  CHECK:         <<ArgY:z\d+>>   ParameterValue
   ///  CHECK-DAG:     <<Result:i\d+>> Compare [<<ArgX>>,<<ArgY>>]
   ///  CHECK-DAG:                     Return [<<Result>>]
 
-  ///  CHECK-START: int TestCompare.compareBooleans2(boolean, boolean) instruction_simplifier$after_bce (after)
+  ///  CHECK-START: int TestCompare.compareBooleans2(boolean, boolean) instruction_simplifier$before_codegen (after)
   ///  CHECK-NOT:                     Select
 
   private static int compareBooleans2(boolean x, boolean y) {

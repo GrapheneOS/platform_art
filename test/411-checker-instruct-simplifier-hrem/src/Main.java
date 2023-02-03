@@ -381,11 +381,11 @@ public class Main {
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Rem loop:B{{\d+}}
   //
-  /// CHECK-START: int Main.$noinline$IntRemBy18InLoop(int) instruction_simplifier$after_bce (before)
+  /// CHECK-START: int Main.$noinline$IntRemBy18InLoop(int) instruction_simplifier$after_loop_opt (before)
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Rem loop:B{{\d+}}
   //
-  /// CHECK-START: int Main.$noinline$IntRemBy18InLoop(int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.$noinline$IntRemBy18InLoop(int) instruction_simplifier$after_loop_opt (after)
   /// CHECK-NOT:       Rem
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Mul loop:B{{\d+}}
@@ -799,11 +799,11 @@ public class Main {
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Rem loop:B{{\d+}}
   //
-  /// CHECK-START: long Main.$noinline$LongRemBy18InLoop(long) instruction_simplifier$after_bce (before)
+  /// CHECK-START: long Main.$noinline$LongRemBy18InLoop(long) instruction_simplifier$after_loop_opt (before)
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Rem loop:B{{\d+}}
   //
-  /// CHECK-START: long Main.$noinline$LongRemBy18InLoop(long) instruction_simplifier$after_bce (after)
+  /// CHECK-START: long Main.$noinline$LongRemBy18InLoop(long) instruction_simplifier$after_loop_opt (after)
   /// CHECK-NOT:       Rem
   /// CHECK:           Div loop:B{{\d+}}
   /// CHECK-NEXT:      Mul loop:B{{\d+}}
