@@ -115,7 +115,7 @@ char* strndup(const char* src, size_t len) {
  * 2 and increments by 2 for each line.
  */
 void parseInputFile(const char* inputFileName) {
-  FILE* inputFp = fopen(inputFileName, "r");
+  FILE* inputFp = fopen(inputFileName, "re");
   if (inputFp == nullptr) {
     perror(inputFileName);
     exit(1);
@@ -396,7 +396,7 @@ void writeDataRecords(FILE* dataFp) {
 }
 
 void writeTrace(const char* traceFileName) {
-  FILE* fp = fopen(traceFileName, "w");
+  FILE* fp = fopen(traceFileName, "we");
   if (fp == nullptr) {
     perror(traceFileName);
     exit(1);

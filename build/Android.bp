@@ -29,6 +29,7 @@ bootstrap_go_package {
 
 art_clang_tidy_errors = [
     "android-cloexec-dup",
+    "android-cloexec-fopen",
     "android-cloexec-open",
     "bugprone-argument-comment",
     "bugprone-lambda-function-name",
