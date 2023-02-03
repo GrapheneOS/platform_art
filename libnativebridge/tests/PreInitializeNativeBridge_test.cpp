@@ -39,7 +39,7 @@ TEST_F(NativeBridgeTest, PreInitializeNativeBridge) {
     // Try to create our mount namespace.
     if (unshare(CLONE_NEWNS) != -1) {
         // Create a placeholder file.
-        FILE* cpuinfo = fopen("./cpuinfo", "w");
+        FILE* cpuinfo = fopen("./cpuinfo", "we");
         ASSERT_NE(nullptr, cpuinfo) << strerror(errno);
         fprintf(cpuinfo, kTestData);
         fclose(cpuinfo);
@@ -47,7 +47,7 @@ TEST_F(NativeBridgeTest, PreInitializeNativeBridge) {
         ASSERT_TRUE(PreInitializeNativeBridge("does not matter 1", "short 2"));
 
         // Read /proc/cpuinfo
-        FILE* proc_cpuinfo = fopen("/proc/cpuinfo", "r");
+        FILE* proc_cpuinfo = fopen("/proc/cpuinfo", "re");
         ASSERT_NE(nullptr, proc_cpuinfo) << strerror(errno);
         char buf[1024];
         EXPECT_NE(nullptr, fgets(buf, sizeof(buf), proc_cpuinfo)) << "Error reading.";
