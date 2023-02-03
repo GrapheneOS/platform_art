@@ -41,10 +41,12 @@ Java_art_Test2005_UpdateFieldValuesAndResumeThreads(JNIEnv* env,
                                                     jobjectArray new_fields,
                                                     jstring default_val) {
   std::vector<jthread> threads;
+  threads.reserve(env->GetArrayLength(threads_arr));
   for (jint i = 0; i < env->GetArrayLength(threads_arr); i++) {
     threads.push_back(env->GetObjectArrayElement(threads_arr, i));
   }
   std::vector<jfieldID> fields;
+  fields.reserve(env->GetArrayLength(new_fields));
   for (jint i = 0; i < env->GetArrayLength(new_fields); i++) {
     fields.push_back(env->FromReflectedField(env->GetObjectArrayElement(new_fields, i)));
   }

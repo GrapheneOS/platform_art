@@ -502,6 +502,7 @@ TEST_F(VerifierDepsTest, EncodeDecodeMulti) {
   std::vector<std::unique_ptr<const DexFile>> first_dex_files = OpenTestDexFiles("VerifierDeps");
   std::vector<std::unique_ptr<const DexFile>> second_dex_files = OpenTestDexFiles("MultiDex");
   std::vector<const DexFile*> dex_files;
+  dex_files.reserve(first_dex_files.size() + second_dex_files.size());
   for (auto& dex_file : first_dex_files) {
     dex_files.push_back(dex_file.get());
   }
