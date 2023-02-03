@@ -171,16 +171,14 @@ class HeapLocation : public ArenaObject<kArenaAllocLSA> {
                size_t offset,
                HInstruction* index,
                size_t vector_length,
-               int16_t declaring_class_def_index,
-               bool is_vec_op)
+               int16_t declaring_class_def_index)
       : ref_info_(ref_info),
         type_(DataType::ToSigned(type)),
         offset_(offset),
         index_(index),
         vector_length_(vector_length),
         declaring_class_def_index_(declaring_class_def_index),
-        has_aliased_locations_(false),
-        is_vec_op_(is_vec_op) {
+        has_aliased_locations_(false) {
     DCHECK(ref_info != nullptr);
     DCHECK((offset == kInvalidFieldOffset && index != nullptr) ||
            (offset != kInvalidFieldOffset && index == nullptr));
@@ -191,7 +189,6 @@ class HeapLocation : public ArenaObject<kArenaAllocLSA> {
   size_t GetOffset() const { return offset_; }
   HInstruction* GetIndex() const { return index_; }
   size_t GetVectorLength() const { return vector_length_; }
-  bool IsVecOp() const { return is_vec_op_; }
 
   // Returns the definition of declaring class' dex index.
   // It's kDeclaringClassDefIndexForArrays for an array element.
@@ -230,12 +227,11 @@ class HeapLocation : public ArenaObject<kArenaAllocLSA> {
   // Declaring class's def's dex index.
   // Invalid when this HeapLocation is not field access.
   const int16_t declaring_class_def_index_;
+
   // Has aliased heap locations in the method, due to either the
   // reference is aliased or the array element is aliased via different
   // index names.
   bool has_aliased_locations_;
-  // Whether this HeapLocation represents a vector operation.
-  bool is_vec_op_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapLocation);
 };
@@ -322,8 +318,7 @@ class HeapLocationCollector : public HGraphVisitor {
                                  field->GetFieldOffset().SizeValue(),
                                  nullptr,
                                  HeapLocation::kScalar,
-                                 field->GetDeclaringClassDefIndex(),
-                                 /*is_vec_op=*/false);
+                                 field->GetDeclaringClassDefIndex());
   }
 
   size_t GetArrayHeapLocation(HInstruction* instruction) const {
@@ -332,10 +327,10 @@ class HeapLocationCollector : public HGraphVisitor {
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetType();
     size_t vector_length = HeapLocation::kScalar;
-    const bool is_vec_op = instruction->IsVecStore() || instruction->IsVecLoad();
     if (instruction->IsArraySet()) {
       type = instruction->AsArraySet()->GetComponentType();
-    } else if (is_vec_op) {
+    } else if (instruction->IsVecStore() ||
+               instruction->IsVecLoad()) {
       HVecOperation* vec_op = instruction->AsVecOperation();
       type = vec_op->GetPackedType();
       vector_length = vec_op->GetVectorLength();
@@ -347,8 +342,7 @@ class HeapLocationCollector : public HGraphVisitor {
                                  HeapLocation::kInvalidFieldOffset,
                                  index,
                                  vector_length,
-                                 HeapLocation::kDeclaringClassDefIndexForArrays,
-                                 is_vec_op);
+                                 HeapLocation::kDeclaringClassDefIndexForArrays);
   }
 
   bool HasHeapStores() const {
@@ -370,8 +364,7 @@ class HeapLocationCollector : public HGraphVisitor {
                                size_t offset,
                                HInstruction* index,
                                size_t vector_length,
-                               int16_t declaring_class_def_index,
-                               bool is_vec_op) const {
+                               int16_t declaring_class_def_index) const {
     DataType::Type lookup_type = DataType::ToSigned(type);
     for (size_t i = 0; i < heap_locations_.size(); i++) {
       HeapLocation* loc = heap_locations_[i];
@@ -380,8 +373,7 @@ class HeapLocationCollector : public HGraphVisitor {
           loc->GetOffset() == offset &&
           loc->GetIndex() == index &&
           loc->GetVectorLength() == vector_length &&
-          loc->GetDeclaringClassDefIndex() == declaring_class_def_index &&
-          loc->IsVecOp() == is_vec_op) {
+          loc->GetDeclaringClassDefIndex() == declaring_class_def_index) {
         return i;
       }
     }
@@ -526,15 +518,14 @@ class HeapLocationCollector : public HGraphVisitor {
                                size_t offset,
                                HInstruction* index,
                                size_t vector_length,
-                               int16_t declaring_class_def_index,
-                               bool is_vec_op) {
+                               int16_t declaring_class_def_index) {
     HInstruction* original_ref = HuntForOriginalReference(ref);
     ReferenceInfo* ref_info = GetOrCreateReferenceInfo(original_ref);
     size_t heap_location_idx = FindHeapLocationIndex(
-        ref_info, type, offset, index, vector_length, declaring_class_def_index, is_vec_op);
+        ref_info, type, offset, index, vector_length, declaring_class_def_index);
     if (heap_location_idx == kHeapLocationNotFound) {
-      HeapLocation* heap_loc = new (allocator_) HeapLocation(
-          ref_info, type, offset, index, vector_length, declaring_class_def_index, is_vec_op);
+      HeapLocation* heap_loc = new (allocator_)
+          HeapLocation(ref_info, type, offset, index, vector_length, declaring_class_def_index);
       heap_locations_.push_back(heap_loc);
     }
   }
@@ -548,22 +539,19 @@ class HeapLocationCollector : public HGraphVisitor {
                             offset,
                             nullptr,
                             HeapLocation::kScalar,
-                            declaring_class_def_index,
-                            /*is_vec_op=*/false);
+                            declaring_class_def_index);
   }
 
   void VisitArrayAccess(HInstruction* array,
                         HInstruction* index,
                         DataType::Type type,
-                        size_t vector_length,
-                        bool is_vec_op) {
+                        size_t vector_length) {
     MaybeCreateHeapLocation(array,
                             type,
                             HeapLocation::kInvalidFieldOffset,
                             index,
                             vector_length,
-                            HeapLocation::kDeclaringClassDefIndexForArrays,
-                            is_vec_op);
+                            HeapLocation::kDeclaringClassDefIndexForArrays);
   }
 
   void VisitPredicatedInstanceFieldGet(HPredicatedInstanceFieldGet* instruction) override {
@@ -597,7 +585,7 @@ class HeapLocationCollector : public HGraphVisitor {
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetType();
-    VisitArrayAccess(array, index, type, HeapLocation::kScalar, /*is_vec_op=*/false);
+    VisitArrayAccess(array, index, type, HeapLocation::kScalar);
     CreateReferenceInfoForReferenceType(instruction);
   }
 
@@ -605,7 +593,7 @@ class HeapLocationCollector : public HGraphVisitor {
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetComponentType();
-    VisitArrayAccess(array, index, type, HeapLocation::kScalar, /*is_vec_op=*/false);
+    VisitArrayAccess(array, index, type, HeapLocation::kScalar);
     has_heap_stores_ = true;
   }
 
@@ -613,7 +601,7 @@ class HeapLocationCollector : public HGraphVisitor {
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetPackedType();
-    VisitArrayAccess(array, index, type, instruction->GetVectorLength(), /*is_vec_op=*/true);
+    VisitArrayAccess(array, index, type, instruction->GetVectorLength());
     CreateReferenceInfoForReferenceType(instruction);
   }
 
@@ -621,7 +609,7 @@ class HeapLocationCollector : public HGraphVisitor {
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetPackedType();
-    VisitArrayAccess(array, index, type, instruction->GetVectorLength(), /*is_vec_op=*/true);
+    VisitArrayAccess(array, index, type, instruction->GetVectorLength());
     has_heap_stores_ = true;
   }
 
