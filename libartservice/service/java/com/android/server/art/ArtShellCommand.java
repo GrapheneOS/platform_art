@@ -187,7 +187,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dump": {
-                enforceRoot();
                 String packageName = getNextArg();
                 if (packageName != null) {
                     mArtManagerLocal.dumpPackage(pw, snapshot, packageName);
@@ -654,6 +653,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Cleanup obsolete files, such as dexopt artifacts that are outdated or");
         pw.println("    correspond to dex container files that no longer exist.");
         pw.println();
+        pw.println("  dump [PACKAGE_NAME]");
+        pw.println("    Dumps the dexopt state in text format to stdout.");
+        pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
+        pw.println("    is for the given package.");
+        pw.println();
         pw.println("  Note: The sub-commands below are used for internal debugging purposes only.");
         pw.println("  There are no stability guarantees for them.");
         pw.println();
@@ -667,11 +671,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
         pw.println("    Notify that a dex file is loaded with the given class loader context by");
         pw.println("    the given package.");
-        pw.println();
-        pw.println("  dump [PACKAGE_NAME]");
-        pw.println("    Dumps the dexopt state in text format to stdout.");
-        pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
-        pw.println("    is for the given package.");
         pw.println();
         pw.println("  dex-use-dump");
         pw.println("    Print all dex use information in textproto format.");
