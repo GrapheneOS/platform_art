@@ -110,7 +110,7 @@ class QuickExceptionHandler {
   }
 
   void SetHandlerDexPcList(std::vector<uint32_t>&& handler_dex_pc_list) {
-    handler_dex_pc_list_ = handler_dex_pc_list;
+    handler_dex_pc_list_ = std::move(handler_dex_pc_list);
   }
 
   uint32_t GetCatchStackMapRow() const {
