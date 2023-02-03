@@ -59,6 +59,8 @@ public class Main {
             // Test that code preventing unloading holder classes of copied methods recorded in
             // a stack trace does not crash when processing a copied method in an app image.
             testCopiedAppImageMethodInStackTrace();
+            // Test that the runtime uses the right allocator when creating conflict methods.
+            testConflictMethod(constructor);
         } catch (Exception e) {
             e.printStackTrace(System.out);
         }
@@ -222,6 +224,110 @@ public class Main {
         if (!found) {
             throw new Error("Did not find " + className + "." + methodName);
         }
+    }
+
+    private static void $noinline$callAllMethods(ConflictIface iface) {
+        // Call all methods in the interface to make sure we hit conflicts in the IMT.
+        iface.method1();
+        iface.method2();
+        iface.method3();
+        iface.method4();
+        iface.method5();
+        iface.method6();
+        iface.method7();
+        iface.method8();
+        iface.method9();
+        iface.method10();
+        iface.method11();
+        iface.method12();
+        iface.method13();
+        iface.method14();
+        iface.method15();
+        iface.method16();
+        iface.method17();
+        iface.method18();
+        iface.method19();
+        iface.method20();
+        iface.method21();
+        iface.method22();
+        iface.method23();
+        iface.method24();
+        iface.method25();
+        iface.method26();
+        iface.method27();
+        iface.method28();
+        iface.method29();
+        iface.method30();
+        iface.method31();
+        iface.method32();
+        iface.method33();
+        iface.method34();
+        iface.method35();
+        iface.method36();
+        iface.method37();
+        iface.method38();
+        iface.method39();
+        iface.method40();
+        iface.method41();
+        iface.method42();
+        iface.method43();
+        iface.method44();
+        iface.method45();
+        iface.method46();
+        iface.method47();
+        iface.method48();
+        iface.method49();
+        iface.method50();
+        iface.method51();
+        iface.method52();
+        iface.method53();
+        iface.method54();
+        iface.method55();
+        iface.method56();
+        iface.method57();
+        iface.method58();
+        iface.method59();
+        iface.method60();
+        iface.method61();
+        iface.method62();
+        iface.method63();
+        iface.method64();
+        iface.method65();
+        iface.method66();
+        iface.method67();
+        iface.method68();
+        iface.method69();
+        iface.method70();
+        iface.method71();
+        iface.method72();
+        iface.method73();
+        iface.method74();
+        iface.method75();
+        iface.method76();
+        iface.method77();
+        iface.method78();
+        iface.method79();
+    }
+
+    private static void $noinline$invokeConflictMethod(Constructor<?> constructor)
+            throws Exception {
+        ClassLoader loader = (ClassLoader) constructor.newInstance(
+                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
+        Class<?> impl = loader.loadClass("ConflictImpl");
+        ConflictIface iface = (ConflictIface) impl.newInstance();
+        $noinline$callAllMethods(iface);
+    }
+
+    private static void testConflictMethod(Constructor<?> constructor) throws Exception {
+        // Load and unload a few class loaders to force re-use of the native memory where we
+        // used to allocate the conflict table.
+        for (int i = 0; i < 2; i++) {
+            $noinline$invokeConflictMethod(constructor);
+            doUnloading();
+        }
+        Class<?> impl = Class.forName("ConflictSuper");
+        ConflictIface iface = (ConflictIface) impl.newInstance();
+        $noinline$callAllMethods(iface);
     }
 
     private static void testCopiedMethodInStackTrace(Constructor<?> constructor) throws Exception {

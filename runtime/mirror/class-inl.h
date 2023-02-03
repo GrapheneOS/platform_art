@@ -1195,6 +1195,17 @@ inline void Class::SetHasDefaultMethods() {
   SetAccessFlagsDuringLinking(flags | kAccHasDefaultMethod);
 }
 
+inline ImTable* Class::FindSuperImt(PointerSize pointer_size) {
+  ObjPtr<mirror::Class> klass = this;
+  while (klass->HasSuperClass()) {
+    klass = klass->GetSuperClass();
+    if (klass->ShouldHaveImt()) {
+      return klass->GetImt(pointer_size);
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace mirror
 }  // namespace art
 
