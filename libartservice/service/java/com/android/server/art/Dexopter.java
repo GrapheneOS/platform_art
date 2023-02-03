@@ -398,7 +398,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         if ((options.flags() & ArtFlags.FLAG_FORCE) != 0) {
             return DexoptTrigger.COMPILER_FILTER_IS_BETTER | DexoptTrigger.COMPILER_FILTER_IS_SAME
                     | DexoptTrigger.COMPILER_FILTER_IS_WORSE
-                    | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+                    | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE
+                    | DexoptTrigger.NEED_EXTRACTION;
         }
 
         if ((options.flags() & ArtFlags.FLAG_SHOULD_DOWNGRADE) != 0) {
@@ -406,7 +407,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         }
 
         int dexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
-                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE | DexoptTrigger.NEED_EXTRACTION;
         if (options.profileMerged()) {
             dexoptTrigger |= DexoptTrigger.COMPILER_FILTER_IS_SAME;
         }

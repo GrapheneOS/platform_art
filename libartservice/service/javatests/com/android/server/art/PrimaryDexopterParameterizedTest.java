@@ -140,7 +140,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         params.mShouldDowngrade = false;
         params.mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
                 | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE
-                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE | DexoptTrigger.NEED_EXTRACTION;
         list.add(params);
 
         params = new Params();
@@ -148,7 +148,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         params.mShouldDowngrade = true;
         params.mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
                 | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE
-                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE | DexoptTrigger.NEED_EXTRACTION;
         list.add(params);
 
         params = new Params();
@@ -318,7 +318,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         // Expectations.
         public String mExpectedCompilerFilter = "verify";
         public int mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
-                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE | DexoptTrigger.NEED_EXTRACTION;
         public boolean mExpectedIsInDalvikCache = false;
         public boolean mExpectedIsDebuggable = false;
         public boolean mExpectedIsHiddenApiPolicyEnabled = true;

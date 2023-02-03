@@ -193,6 +193,9 @@ OatFileAssistant::DexOptTrigger DexOptTriggerFromAidl(int32_t aidl_value) {
   if ((aidl_value & static_cast<int32_t>(DexoptTrigger::PRIMARY_BOOT_IMAGE_BECOMES_USABLE)) != 0) {
     trigger.primaryBootImageBecomesUsable = true;
   }
+  if ((aidl_value & static_cast<int32_t>(DexoptTrigger::NEED_EXTRACTION)) != 0) {
+    trigger.needExtraction = true;
+  }
   return trigger;
 }
 
