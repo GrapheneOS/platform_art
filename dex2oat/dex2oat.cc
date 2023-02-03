@@ -2805,7 +2805,7 @@ class Dex2Oat final {
   template <typename T>
   static bool ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process, T* output) {
-    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "re"), fclose};
     if (!input_file) {
       LOG(ERROR) << "Failed to open input file " << input_filename;
       return false;

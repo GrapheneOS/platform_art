@@ -180,7 +180,7 @@ int DexlayoutDriver(int argc, char** argv) {
   // Open alternative output file.
   FILE* out_file = stdout;
   if (options.output_file_name_) {
-    out_file = fopen(options.output_file_name_, "w");
+    out_file = fopen(options.output_file_name_, "we");
     if (!out_file) {
       PLOG(ERROR) << "Can't open " << options.output_file_name_;
       return 1;

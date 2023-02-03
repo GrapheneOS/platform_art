@@ -148,7 +148,7 @@ class ProfileCompilationInfoTest : public CommonArtTest, public ProfileTestHelpe
 
     // Zip the profile content.
     ScratchFile zip;
-    FILE* file = fopen(zip.GetFile()->GetPath().c_str(), "wb");
+    FILE* file = fopen(zip.GetFile()->GetPath().c_str(), "wbe");
     ZipWriter writer(file);
     writer.StartEntry(zip_entry, zip_flags);
     writer.WriteBytes(data.data(), data.size());
@@ -932,7 +932,7 @@ TEST_F(ProfileCompilationInfoTest, LoadFromZipFailBadProfile) {
 
   // Zip the profile content.
   ScratchFile zip;
-  FILE* file = fopen(zip.GetFile()->GetPath().c_str(), "wb");
+  FILE* file = fopen(zip.GetFile()->GetPath().c_str(), "wbe");
   ZipWriter writer(file);
   writer.StartEntry("primary.prof", ZipWriter::kAlign32);
   writer.WriteBytes(data.data(), data.size());
