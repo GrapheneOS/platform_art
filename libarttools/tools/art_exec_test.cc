@@ -48,8 +48,8 @@ namespace {
 using ::android::base::make_scope_guard;
 using ::android::base::ScopeGuard;
 using ::android::base::Split;
-using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
@@ -211,17 +211,19 @@ TEST_F(ArtExecTest, CloseFds) {
                                 "--",
                                 GetBin("sh"),
                                 "-c",
-                                "ls /proc/self/fd > " + filename};
+                                "("
+                                "readlink /proc/self/fd/{} || echo;"
+                                "readlink /proc/self/fd/{} || echo;"
+                                "readlink /proc/self/fd/{} || echo;"
+                                ") > {}"_format(file1->Fd(), file2->Fd(), file3->Fd(), filename)};
 
   ScopedExecAndWait(args);
 
   std::string open_fds;
   ASSERT_TRUE(android::base::ReadFileToString(filename, &open_fds));
 
-  EXPECT_THAT(Split(open_fds, "\n"),
-              AllOf(Not(Contains(std::to_string(file1->Fd()))),
-                    Contains(std::to_string(file2->Fd())),
-                    Contains(std::to_string(file3->Fd()))));
+  // `file1` should be closed, while the other two should be open. There's a blank line at the end.
+  EXPECT_THAT(Split(open_fds, "\n"), ElementsAre(Not("/dev/zero"), "/dev/zero", "/dev/zero", ""));
 }
 
 TEST_F(ArtExecTest, Env) {

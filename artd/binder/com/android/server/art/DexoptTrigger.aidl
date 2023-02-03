@@ -31,4 +31,5 @@ enum DexoptTrigger {
     COMPILER_FILTER_IS_SAME = 1 << 1,
     COMPILER_FILTER_IS_WORSE = 1 << 2,
     PRIMARY_BOOT_IMAGE_BECOMES_USABLE = 1 << 3,
+    NEED_EXTRACTION = 1 << 4,
 }
