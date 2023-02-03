@@ -392,6 +392,7 @@ static void throwRetransformationError(jvmtiEnv* jvmti,
 static void DoClassRetransformation(jvmtiEnv* jvmti_env, JNIEnv* env, jobjectArray targets) {
   std::vector<jclass> classes;
   jint len = env->GetArrayLength(targets);
+  classes.reserve(len);
   for (jint i = 0; i < len; i++) {
     classes.push_back(static_cast<jclass>(env->GetObjectArrayElement(targets, i)));
   }

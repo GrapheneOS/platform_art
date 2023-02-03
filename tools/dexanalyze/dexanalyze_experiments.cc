@@ -459,6 +459,7 @@ void CountDexIndices::ProcessDexFile(const DexFile& dex_file) {
     }
     // Count uses of top 16n.
     std::vector<size_t> uses;
+    uses.reserve(types_accessed.size());
     for (auto&& p : types_accessed) {
       uses.push_back(p.second);
     }
