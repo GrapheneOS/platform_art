@@ -1033,7 +1033,13 @@ class Dex2Oat final {
     original_argv = argv;
 
     Locks::Init();
-    InitLogging(argv, Runtime::Abort);
+
+    // Microdroid doesn't support logd logging, so don't override there.
+    if (android::base::GetProperty("ro.hardware", "") == "microdroid") {
+      android::base::SetAborter(Runtime::Abort);
+    } else {
+      InitLogging(argv, Runtime::Abort);
+    }
 
     compiler_options_.reset(new CompilerOptions());
 
@@ -2799,7 +2805,7 @@ class Dex2Oat final {
   template <typename T>
   static bool ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process, T* output) {
-    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "re"), fclose};
     if (!input_file) {
       LOG(ERROR) << "Failed to open input file " << input_filename;
       return false;

@@ -568,6 +568,9 @@ bool OptimizingCompiler::RunArchOptimizations(HGraph* graph,
     }
 #endif
     default:
+      UNUSED(graph);
+      UNUSED(dex_compilation_unit);
+      UNUSED(pass_observer);
       return false;
   }
 }

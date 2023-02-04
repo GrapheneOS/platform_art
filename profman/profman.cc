@@ -613,8 +613,9 @@ class ProfMan final {
       if (use_apk_fd_list) {
         if (dex_file_loader.OpenZip(apks_fd_[i],
                                     dex_locations_[i],
-                                    /* verify= */ false,
+                                    /*verify=*/false,
                                     kVerifyChecksum,
+                                    /*allow_no_dex_files=*/true,
                                     &error_msg,
                                     &dex_files_for_location)) {
         } else {
@@ -622,12 +623,18 @@ class ProfMan final {
           return false;
         }
       } else {
-        if (dex_file_loader.Open(apk_files_[i].c_str(),
-                                 dex_locations_[i],
-                                 /* verify= */ false,
-                                 kVerifyChecksum,
-                                 &error_msg,
-                                 &dex_files_for_location)) {
+        File file(apk_files_[i], O_RDONLY, /*check_usage=*/false);
+        if (file.Fd() < 0) {
+          PLOG(ERROR) << "Unable to open '" << apk_files_[i] << "'";
+          return false;
+        }
+        if (dex_file_loader.OpenZip(file.Release(),
+                                    dex_locations_[i],
+                                    /*verify=*/false,
+                                    kVerifyChecksum,
+                                    /*allow_no_dex_files=*/true,
+                                    &error_msg,
+                                    &dex_files_for_location)) {
         } else {
           LOG(ERROR) << "Open failed for '" << dex_locations_[i] << "' " << error_msg;
           return false;

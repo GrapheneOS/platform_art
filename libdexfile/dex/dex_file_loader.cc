@@ -16,8 +16,9 @@
 
 #include "dex_file_loader.h"
 
-#include "android-base/stringprintf.h"
+#include <memory>
 
+#include "android-base/stringprintf.h"
 #include "base/stl_util.h"
 #include "compact_dex_file.h"
 #include "dex_file.h"
@@ -34,13 +35,7 @@ class VectorContainer : public DexFileContainer {
   explicit VectorContainer(std::vector<uint8_t>&& vector) : vector_(std::move(vector)) { }
   ~VectorContainer() override { }
 
-  int GetPermissions() override {
-    return 0;
-  }
-
-  bool IsReadOnly() override {
-    return true;
-  }
+  bool IsReadOnly() const override { return true; }
 
   bool EnableWrite() override {
     return false;
@@ -49,6 +44,10 @@ class VectorContainer : public DexFileContainer {
   bool DisableWrite() override {
     return false;
   }
+
+  const uint8_t* Begin() const override { return vector_.data(); }
+
+  const uint8_t* End() const override { return vector_.data() + vector_.size(); }
 
  private:
   std::vector<uint8_t> vector_;
@@ -227,69 +226,33 @@ std::unique_ptr<const DexFile> DexFileLoader::Open(
     bool verify,
     bool verify_checksum,
     std::string* error_msg) {
-  auto memory_data = memory.data();
-  auto memory_size = memory.size();
-  return OpenCommon(memory_data,
-                    memory_size,
-                    /*data_base=*/ nullptr,
-                    /*data_size=*/ 0,
-                    location,
+  return OpenCommon(location,
                     location_checksum,
                     oat_dex_file,
                     verify,
                     verify_checksum,
                     error_msg,
                     std::make_unique<VectorContainer>(std::move(memory)),
-                    /*verify_result=*/ nullptr);
+                    /*verify_result=*/nullptr);
 }
 
-std::unique_ptr<const DexFile> DexFileLoader::Open(
-    const uint8_t* base,
-    size_t size,
-    const std::string& location,
-    uint32_t location_checksum,
-    const OatDexFile* oat_dex_file,
-    bool verify,
-    bool verify_checksum,
-    std::string* error_msg,
-    std::unique_ptr<DexFileContainer> container) const {
-  return OpenCommon(base,
-                    size,
-                    /*data_base=*/ nullptr,
-                    /*data_size=*/ 0,
-                    location,
+std::unique_ptr<const DexFile> DexFileLoader::Open(const uint8_t* base,
+                                                   size_t size,
+                                                   const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   const OatDexFile* oat_dex_file,
+                                                   bool verify,
+                                                   bool verify_checksum,
+                                                   std::string* error_msg) const {
+  auto container = std::make_unique<MemoryDexFileContainer>(base, base + size);
+  return OpenCommon(location,
                     location_checksum,
                     oat_dex_file,
                     verify,
                     verify_checksum,
                     error_msg,
                     std::move(container),
-                    /*verify_result=*/ nullptr);
-}
-
-std::unique_ptr<const DexFile> DexFileLoader::OpenWithDataSection(
-    const uint8_t* base,
-    size_t size,
-    const uint8_t* data_base,
-    size_t data_size,
-    const std::string& location,
-    uint32_t location_checksum,
-    const OatDexFile* oat_dex_file,
-    bool verify,
-    bool verify_checksum,
-    std::string* error_msg) const {
-  return OpenCommon(base,
-                    size,
-                    data_base,
-                    data_size,
-                    location,
-                    location_checksum,
-                    oat_dex_file,
-                    verify,
-                    verify_checksum,
-                    error_msg,
-                    /*container=*/ nullptr,
-                    /*verify_result=*/ nullptr);
+                    /*verify_result=*/nullptr);
 }
 
 bool DexFileLoader::OpenAll(
@@ -338,11 +301,7 @@ bool DexFileLoader::OpenAll(
   return false;
 }
 
-std::unique_ptr<DexFile> DexFileLoader::OpenCommon(const uint8_t* base,
-                                                   size_t size,
-                                                   const uint8_t* data_base,
-                                                   size_t data_size,
-                                                   const std::string& location,
+std::unique_ptr<DexFile> DexFileLoader::OpenCommon(const std::string& location,
                                                    uint32_t location_checksum,
                                                    const OatDexFile* oat_dex_file,
                                                    bool verify,
@@ -350,6 +309,11 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(const uint8_t* base,
                                                    std::string* error_msg,
                                                    std::unique_ptr<DexFileContainer> container,
                                                    VerifyResult* verify_result) {
+  CHECK(container != nullptr);
+  const uint8_t* base = container->Begin();
+  size_t size = container->Size();
+  const uint8_t* data_base = container->DataBegin();
+  size_t data_size = container->DataEnd() - container->DataBegin();
   if (verify_result != nullptr) {
     *verify_result = VerifyResult::kVerifyNotAttempted;
   }
@@ -440,21 +404,15 @@ std::unique_ptr<const DexFile> DexFileLoader::OpenOneDexFileFromZip(
     return nullptr;
   }
   VerifyResult verify_result;
-  auto map_data = map.data();
-  auto map_size = map.size();
-  std::unique_ptr<const DexFile> dex_file = OpenCommon(
-      map_data,
-      map_size,
-      /*data_base=*/ nullptr,
-      /*data_size=*/ 0u,
-      location,
-      zip_entry->GetCrc32(),
-      /*oat_dex_file=*/ nullptr,
-      verify,
-      verify_checksum,
-      error_msg,
-      std::make_unique<VectorContainer>(std::move(map)),
-      &verify_result);
+  std::unique_ptr<const DexFile> dex_file =
+      OpenCommon(location,
+                 zip_entry->GetCrc32(),
+                 /*oat_dex_file=*/nullptr,
+                 verify,
+                 verify_checksum,
+                 error_msg,
+                 std::make_unique<VectorContainer>(std::move(map)),
+                 &verify_result);
   if (verify_result != VerifyResult::kVerifySucceeded) {
     if (verify_result == VerifyResult::kVerifyNotAttempted) {
       *error_code = DexFileLoaderErrorCode::kDexFileError;

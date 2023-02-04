@@ -509,7 +509,7 @@ std::string PrettyType(art::mirror::Class* klass) NO_THREAD_SAFETY_ANALYSIS {
 }
 
 void DumpSmaps(JavaHprofDataSource::TraceContext* ctx) {
-  FILE* smaps = fopen("/proc/self/smaps", "r");
+  FILE* smaps = fopen("/proc/self/smaps", "re");
   if (smaps != nullptr) {
     auto trace_packet = ctx->NewTracePacket();
     auto* smaps_packet = trace_packet->set_smaps_packet();

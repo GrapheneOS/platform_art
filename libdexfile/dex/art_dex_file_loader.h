@@ -59,16 +59,23 @@ class ArtDexFileLoader : public DexFileLoader {
                             bool* only_contains_uncompressed_dex = nullptr) const override;
 
   // Opens .dex file, backed by existing memory
-  std::unique_ptr<const DexFile> Open(
-      const uint8_t* base,
-      size_t size,
-      const std::string& location,
-      uint32_t location_checksum,
-      const OatDexFile* oat_dex_file,
-      bool verify,
-      bool verify_checksum,
-      std::string* error_msg,
-      std::unique_ptr<DexFileContainer> container = nullptr) const override;
+  std::unique_ptr<const DexFile> Open(const uint8_t* base,
+                                      size_t size,
+                                      const std::string& location,
+                                      uint32_t location_checksum,
+                                      const OatDexFile* oat_dex_file,
+                                      bool verify,
+                                      bool verify_checksum,
+                                      std::string* error_msg) const override;
+
+  // Opens .dex file, backed by existing memory
+  std::unique_ptr<const DexFile> Open(std::unique_ptr<DexFileContainer> container,
+                                      const std::string& location,
+                                      uint32_t location_checksum,
+                                      const OatDexFile* oat_dex_file,
+                                      bool verify,
+                                      bool verify_checksum,
+                                      std::string* error_msg) const;
 
   // Opens .dex file that has been memory-mapped by the caller.
   std::unique_ptr<const DexFile> Open(const std::string& location,
@@ -112,19 +119,27 @@ class ArtDexFileLoader : public DexFileLoader {
 
   // Opens dex files from within a .jar, .zip, or .apk file using its file descriptor. The file
   // descriptor ownership is taken over, i.e. will be closed by this class.
+  // If the zip file doesn't contain any dex code and `allow_no_dex_files` is true, returns true and
+  // keeps `dex_files` to be an empty vector; if the zip file doesn't contain any dex code and
+  // `allow_no_dex_files` is false, returns false and sets the error message.
   bool OpenZip(int fd,
                const std::string& location,
                bool verify,
                bool verify_checksum,
+               bool allow_no_dex_files,
                std::string* error_msg,
                std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
   // Opens dex files from within a .jar, .zip, or .apk file using its file descriptor. The file
   // descriptor is assumed owned by the caller.
+  // If the zip file doesn't contain any dex code and `allow_no_dex_files` is true, returns true and
+  // keeps `dex_files` to be an empty vector; if the zip file doesn't contain any dex code and
+  // `allow_no_dex_files` is false, returns false and sets the error message.
   bool OpenZipFromOwnedFd(int fd,
                           const std::string& location,
                           bool verify,
                           bool verify_checksum,
+                          bool allow_no_dex_files,
                           std::string* error_msg,
                           std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
@@ -149,6 +164,7 @@ class ArtDexFileLoader : public DexFileLoader {
                               const std::string& location,
                               bool verify,
                               bool verify_checksum,
+                              bool allow_no_dex_files,
                               std::string* error_msg,
                               std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
@@ -166,21 +182,9 @@ class ArtDexFileLoader : public DexFileLoader {
                        const std::string& location,
                        bool verify,
                        bool verify_checksum,
+                       bool allow_no_dex_files,
                        std::string* error_msg,
                        std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
-
-  static std::unique_ptr<DexFile> OpenCommon(const uint8_t* base,
-                                             size_t size,
-                                             const uint8_t* data_base,
-                                             size_t data_size,
-                                             const std::string& location,
-                                             uint32_t location_checksum,
-                                             const OatDexFile* oat_dex_file,
-                                             bool verify,
-                                             bool verify_checksum,
-                                             std::string* error_msg,
-                                             std::unique_ptr<DexFileContainer> container,
-                                             VerifyResult* verify_result);
 };
 
 }  // namespace art
