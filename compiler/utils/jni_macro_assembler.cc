@@ -58,6 +58,7 @@ MacroAsm32UniquePtr JNIMacroAssembler<PointerSize::k32>::Create(
       return MacroAsm32UniquePtr(new (allocator) x86::X86JNIMacroAssembler(allocator));
 #endif
     default:
+      UNUSED(allocator);
       LOG(FATAL) << "Unknown/unsupported 4B InstructionSet: " << instruction_set;
       UNREACHABLE();
   }

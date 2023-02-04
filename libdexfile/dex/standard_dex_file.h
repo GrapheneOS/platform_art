@@ -18,6 +18,7 @@
 #define ART_LIBDEXFILE_DEX_STANDARD_DEX_FILE_H_
 
 #include <iosfwd>
+#include <memory>
 
 #include "dex_file.h"
 
