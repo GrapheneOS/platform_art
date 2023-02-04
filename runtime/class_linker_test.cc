@@ -283,9 +283,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
                                                klass->GetDescriptor(&temp2)));
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
-      // Check that all direct methods are static (either <clinit> or a regular static method).
+      // Check that all methods are direct and either static (<clinit> or a regular static method),
+      // or private.
       for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
-        EXPECT_TRUE(m.IsStatic());
+        EXPECT_TRUE(m.IsStatic() || m.IsPrivate());
         EXPECT_TRUE(m.IsDirect());
       }
     } else {
