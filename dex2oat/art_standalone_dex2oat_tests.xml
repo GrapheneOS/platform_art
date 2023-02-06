@@ -41,6 +41,7 @@
         <option name="push" value="art-gtest-jars-ManyMethods.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-ManyMethods.jar" />
         <option name="push" value="art-gtest-jars-MultiDex.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-MultiDex.jar" />
         <option name="push" value="art-gtest-jars-MultiDexModifiedSecondary.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-MultiDexModifiedSecondary.jar" />
+        <option name="push" value="art-gtest-jars-MultiDexUncompressedAligned.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-MultiDexUncompressedAligned.jar" />
         <option name="push" value="art-gtest-jars-MyClassNatives.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-MyClassNatives.jar" />
         <option name="push" value="art-gtest-jars-Nested.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Nested.jar" />
         <option name="push" value="art-gtest-jars-ProfileTestMultiDex.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-ProfileTestMultiDex.jar" />
