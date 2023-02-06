@@ -186,6 +186,10 @@ art_module_art_global_defaults {
                 // Apple, it's a pain.
                 "-Wmissing-noreturn",
             ],
+            // Don't export symbols of statically linked libziparchive.
+            // Workaround to fix ODR violations (b/264235288) in gtests.
+            // `--exclude-libs` flag is not supported on windows/darwin.
+            ldflags: ["-Wl,--exclude-libs=libziparchive.a"],
         },
         linux_bionic: {
             strip: {
@@ -203,12 +207,6 @@ art_module_art_global_defaults {
             // types. Hence we need to disable it explicitly.
             // TODO(b/172480617): Clean up with that.
             enabled: false,
-        },
-        not_windows: {
-            // Don't export symbols of statically linked libziparchive.
-            // Workaround to fix ODR violations (b/264235288) in gtests.
-            // `--exclude-libs` flags is not supported on windows.
-            ldflags: ["-Wl,--exclude-libs=libziparchive.a"],
         },
         host: {
             cflags: [
