@@ -281,6 +281,15 @@ MarkCompact::MarkCompact(Heap* heap)
   if (kIsDebugBuild) {
     updated_roots_.reset(new std::unordered_set<void*>());
   }
+  // TODO: When using minor-fault feature, the first GC after zygote-fork
+  // requires mapping the linear-alloc again with MAP_SHARED. This leaves a
+  // gap for suspended threads to access linear-alloc when it's empty (after
+  // mremap) and not yet userfaultfd registered. This cannot be fixed by merely
+  // doing uffd registration first. For now, just assert that we are not using
+  // minor-fault. Eventually, a cleanup of linear-alloc update logic to only
+  // use private anonymous would be ideal.
+  CHECK(!uffd_minor_fault_supported_);
+
   // TODO: Depending on how the bump-pointer space move is implemented. If we
   // switch between two virtual memories each time, then we will have to
   // initialize live_words_bitmap_ accordingly.
@@ -2338,7 +2347,7 @@ class MarkCompact::LinearAllocPageUpdater {
  public:
   explicit LinearAllocPageUpdater(MarkCompact* collector) : collector_(collector) {}
 
-  void operator()(uint8_t* page_begin, uint8_t* first_obj) const ALWAYS_INLINE
+  void operator()(uint8_t* page_begin, uint8_t* first_obj) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_ALIGNED(page_begin, kPageSize);
     uint8_t* page_end = page_begin + kPageSize;
@@ -2348,7 +2357,8 @@ class MarkCompact::LinearAllocPageUpdater {
       obj_size = header->GetSize();
       if (UNLIKELY(obj_size == 0)) {
         // No more objects in this page to visit.
-        break;
+        last_page_touched_ = byte >= page_begin;
+        return;
       }
       uint8_t* obj = byte + sizeof(TrackingHeader);
       uint8_t* obj_end = byte + obj_size;
@@ -2365,7 +2375,10 @@ class MarkCompact::LinearAllocPageUpdater {
       }
       byte += RoundUp(obj_size, LinearAlloc::kAlignment);
     }
+    last_page_touched_ = true;
   }
+
+  bool WasLastPageTouched() const { return last_page_touched_; }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -2447,6 +2460,8 @@ class MarkCompact::LinearAllocPageUpdater {
   }
 
   MarkCompact* const collector_;
+  // Whether the last page was touched or not.
+  bool last_page_touched_;
 };
 
 void MarkCompact::PreCompactionPhase() {
@@ -2627,13 +2642,11 @@ void MarkCompact::PreCompactionPhase() {
   stack_low_addr_ = nullptr;
 }
 
-void MarkCompact::KernelPrepareRange(uint8_t* to_addr,
-                                     uint8_t* from_addr,
-                                     size_t map_size,
-                                     size_t uffd_size,
-                                     int fd,
-                                     int uffd_mode,
-                                     uint8_t* shadow_addr) {
+void MarkCompact::KernelPrepareRangeForUffd(uint8_t* to_addr,
+                                            uint8_t* from_addr,
+                                            size_t map_size,
+                                            int fd,
+                                            uint8_t* shadow_addr) {
   int mremap_flags = MREMAP_MAYMOVE | MREMAP_FIXED;
   if (gHaveMremapDontunmap) {
     mremap_flags |= MREMAP_DONTUNMAP;
@@ -2671,19 +2684,6 @@ void MarkCompact::KernelPrepareRange(uint8_t* to_addr,
     ret = mmap(to_addr, map_size, PROT_READ | PROT_WRITE, mmap_flags, fd, 0);
     CHECK_EQ(ret, static_cast<void*>(to_addr))
         << "mmap for moving space failed: " << strerror(errno);
-  }
-  if (IsValidFd(uffd_)) {
-    // Userfaultfd registration
-    struct uffdio_register uffd_register;
-    uffd_register.range.start = reinterpret_cast<uintptr_t>(to_addr);
-    uffd_register.range.len = uffd_size;
-    uffd_register.mode = UFFDIO_REGISTER_MODE_MISSING;
-    if (uffd_mode == kMinorFaultMode) {
-      uffd_register.mode |= UFFDIO_REGISTER_MODE_MINOR;
-    }
-    CHECK_EQ(ioctl(uffd_, UFFDIO_REGISTER, &uffd_register), 0)
-        << "ioctl_userfaultfd: register failed: " << strerror(errno)
-        << ". start:" << static_cast<void*>(to_addr) << " len:" << PrettySize(uffd_size);
   }
 }
 
@@ -2736,24 +2736,37 @@ void MarkCompact::KernelPreparation() {
     shadow_addr = shadow_to_space_map_.Begin();
   }
 
-  KernelPrepareRange(moving_space_begin,
-                     from_space_begin_,
-                     moving_space_size,
-                     moving_space_register_sz,
-                     moving_to_space_fd_,
-                     mode,
-                     shadow_addr);
+  KernelPrepareRangeForUffd(moving_space_begin,
+                            from_space_begin_,
+                            moving_space_size,
+                            moving_to_space_fd_,
+                            shadow_addr);
 
   if (IsValidFd(uffd_)) {
+    // Register the moving space with userfaultfd.
+    RegisterUffd(moving_space_begin, moving_space_register_sz, mode);
+    // Prepare linear-alloc for concurrent compaction.
     for (auto& data : linear_alloc_spaces_data_) {
-      KernelPrepareRange(data.begin_,
-                         data.shadow_.Begin(),
-                         data.shadow_.Size(),
-                         data.shadow_.Size(),
-                         map_shared && !data.already_shared_ ? kFdSharedAnon : kFdUnused,
-                         minor_fault_initialized_ ? kMinorFaultMode : kCopyMode);
-      if (map_shared) {
+      bool mmap_again = map_shared && !data.already_shared_;
+      DCHECK_EQ(static_cast<ssize_t>(data.shadow_.Size()), data.end_ - data.begin_);
+      // There could be threads running in suspended mode when the compaction
+      // pause is being executed. In order to make the userfaultfd setup atomic,
+      // the registration has to be done *before* moving the pages to shadow map.
+      if (!mmap_again) {
+        // See the comment in the constructor as to why it's conditionally done.
+        RegisterUffd(data.begin_,
+                     data.shadow_.Size(),
+                     minor_fault_initialized_ ? kMinorFaultMode : kCopyMode);
+      }
+      KernelPrepareRangeForUffd(data.begin_,
+                                data.shadow_.Begin(),
+                                data.shadow_.Size(),
+                                mmap_again ? kFdSharedAnon : kFdUnused);
+      if (mmap_again) {
         data.already_shared_ = true;
+        RegisterUffd(data.begin_,
+                     data.shadow_.Size(),
+                     minor_fault_initialized_ ? kMinorFaultMode : kCopyMode);
       }
     }
   }
@@ -3057,6 +3070,30 @@ void MarkCompact::ConcurrentlyProcessMovingPage(uint8_t* fault_page,
   }
 }
 
+void MarkCompact::MapUpdatedLinearAllocPage(uint8_t* page,
+                                            uint8_t* shadow_page,
+                                            Atomic<PageState>& state,
+                                            bool page_touched) {
+  DCHECK(!minor_fault_initialized_);
+  if (page_touched) {
+    CopyIoctl(page, shadow_page);
+  } else {
+    // If the page wasn't touched, then it means it is empty and
+    // is most likely not present on the shadow-side. Furthermore,
+    // since the shadow is also userfaultfd registered doing copy
+    // ioctl fail as the copy-from-user in the kernel will cause
+    // userfault. Instead, just map a zeropage, which is not only
+    // correct but also efficient as it avoids unnecessary memcpy
+    // in the kernel.
+    ZeropageIoctl(page, /*tolerate_eexist=*/false, /*tolerate_enoent=*/false);
+  }
+  if (use_uffd_sigbus_) {
+    // Store is sufficient as no other thread can modify the
+    // status of this page at this point.
+    state.store(PageState::kProcessedAndMapped, std::memory_order_release);
+  }
+}
+
 template <int kMode>
 void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool is_minor_fault) {
   DCHECK(!is_minor_fault || kMode == kMinorFaultMode);
@@ -3104,13 +3141,10 @@ void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool i
               LinearAllocPageUpdater updater(this);
               updater(fault_page + diff, first_obj + diff);
               if (kMode == kCopyMode) {
-                CopyIoctl(fault_page, fault_page + diff);
-                if (use_uffd_sigbus_) {
-                  // Store is sufficient as no other thread can modify the
-                  // status of this page at this point.
-                  state_arr[page_idx].store(PageState::kProcessedAndMapped,
-                                            std::memory_order_release);
-                }
+                MapUpdatedLinearAllocPage(fault_page,
+                                          fault_page + diff,
+                                          state_arr[page_idx],
+                                          updater.WasLastPageTouched());
                 return;
               }
             } else {
@@ -3211,12 +3245,8 @@ void MarkCompact::ProcessLinearAlloc() {
         updater(page_begin + diff, first_obj + diff);
         expected_state = PageState::kProcessing;
         if (!minor_fault_initialized_) {
-          CopyIoctl(page_begin, page_begin + diff);
-          if (use_uffd_sigbus_) {
-            // Store is sufficient as no other thread could be modifying this page's
-            // status at this point.
-            state_arr[page_idx].store(PageState::kProcessedAndMapped, std::memory_order_release);
-          }
+          MapUpdatedLinearAllocPage(
+              page_begin, page_begin + diff, state_arr[page_idx], updater.WasLastPageTouched());
         } else if (!state_arr[page_idx].compare_exchange_strong(
                        expected_state, PageState::kProcessed, std::memory_order_release)) {
           DCHECK_EQ(expected_state, PageState::kProcessingAndMapping);
@@ -3242,7 +3272,22 @@ void MarkCompact::ProcessLinearAlloc() {
   }
 }
 
+void MarkCompact::RegisterUffd(void* addr, size_t size, int mode) {
+  DCHECK(IsValidFd(uffd_));
+  struct uffdio_register uffd_register;
+  uffd_register.range.start = reinterpret_cast<uintptr_t>(addr);
+  uffd_register.range.len = size;
+  uffd_register.mode = UFFDIO_REGISTER_MODE_MISSING;
+  if (mode == kMinorFaultMode) {
+    uffd_register.mode |= UFFDIO_REGISTER_MODE_MINOR;
+  }
+  CHECK_EQ(ioctl(uffd_, UFFDIO_REGISTER, &uffd_register), 0)
+      << "ioctl_userfaultfd: register failed: " << strerror(errno)
+      << ". start:" << static_cast<void*>(addr) << " len:" << PrettySize(size);
+}
+
 void MarkCompact::UnregisterUffd(uint8_t* start, size_t len) {
+  DCHECK(IsValidFd(uffd_));
   struct uffdio_range range;
   range.start = reinterpret_cast<uintptr_t>(start);
   range.len = len;

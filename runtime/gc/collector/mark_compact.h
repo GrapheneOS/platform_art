@@ -460,15 +460,15 @@ class MarkCompact final : public GarbageCollector {
   // mremap to move pre-compact pages to from-space, followed by userfaultfd
   // registration on the moving space and linear-alloc.
   void KernelPreparation();
-  // Called by KernelPreparation() for every memory range being prepared.
-  void KernelPrepareRange(uint8_t* to_addr,
-                          uint8_t* from_addr,
-                          size_t map_size,
-                          size_t uffd_size,
-                          int fd,
-                          int uffd_mode,
-                          uint8_t* shadow_addr = nullptr);
-  // Unregister given range from userfaultfd.
+  // Called by KernelPreparation() for every memory range being prepared for
+  // userfaultfd registration.
+  void KernelPrepareRangeForUffd(uint8_t* to_addr,
+                                 uint8_t* from_addr,
+                                 size_t map_size,
+                                 int fd,
+                                 uint8_t* shadow_addr = nullptr);
+
+  void RegisterUffd(void* addr, size_t size, int mode);
   void UnregisterUffd(uint8_t* start, size_t len);
 
   // Called by thread-pool workers to read uffd_ and process fault events.
@@ -524,6 +524,13 @@ class MarkCompact final : public GarbageCollector {
 
   void ZeropageIoctl(void* addr, bool tolerate_eexist, bool tolerate_enoent);
   void CopyIoctl(void* dst, void* buffer);
+  // Called after updating a linear-alloc page to either map a zero-page if the
+  // page wasn't touched during updation, or map the page via copy-ioctl. And
+  // then updates the page's state to indicate the page is mapped.
+  void MapUpdatedLinearAllocPage(uint8_t* page,
+                                 uint8_t* shadow_page,
+                                 Atomic<PageState>& state,
+                                 bool page_touched);
 
   // For checkpoints
   Barrier gc_barrier_;
