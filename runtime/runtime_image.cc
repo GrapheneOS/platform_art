@@ -740,12 +740,12 @@ class RuntimeImageHelper {
       StubType stub;
       if (method->IsNative()) {
         stub = StubType::kQuickGenericJNITrampoline;
-      } else if (cls->IsVerified() &&
-                 method->SkipAccessChecks() &&
-                 !method->NeedsClinitCheckBeforeCall()) {
-        stub = StubType::kNterpTrampoline;
-      } else {
+      } else if (!cls->IsVerified()) {
         stub = StubType::kQuickToInterpreterBridge;
+      } else if (method->NeedsClinitCheckBeforeCall()) {
+        stub = StubType::kQuickResolutionTrampoline;
+      } else {
+        stub = StubType::kNterpTrampoline;
       }
       const std::vector<gc::space::ImageSpace*>& image_spaces =
           Runtime::Current()->GetHeap()->GetBootImageSpaces();
