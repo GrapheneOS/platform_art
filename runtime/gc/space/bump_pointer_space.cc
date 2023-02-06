@@ -45,15 +45,12 @@ BumpPointerSpace* BumpPointerSpace::CreateFromMemMap(const std::string& name, Me
 }
 
 BumpPointerSpace::BumpPointerSpace(const std::string& name, uint8_t* begin, uint8_t* limit)
-    : ContinuousMemMapAllocSpace(name,
-                                 MemMap::Invalid(),
-                                 begin,
-                                 begin,
-                                 limit,
-                                 kGcRetentionPolicyAlwaysCollect),
+    : ContinuousMemMapAllocSpace(
+          name, MemMap::Invalid(), begin, begin, limit, kGcRetentionPolicyAlwaysCollect),
       growth_end_(limit),
-      objects_allocated_(0), bytes_allocated_(0),
-      block_lock_("Block lock"),
+      objects_allocated_(0),
+      bytes_allocated_(0),
+      lock_("Bump-pointer space lock"),
       main_block_size_(0) {
   // This constructor gets called only from Heap::PreZygoteFork(), which
   // doesn't require a mark_bitmap.
@@ -67,8 +64,9 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap&& mem_map)
                                  mem_map.End(),
                                  kGcRetentionPolicyAlwaysCollect),
       growth_end_(mem_map_.End()),
-      objects_allocated_(0), bytes_allocated_(0),
-      block_lock_("Block lock", kBumpPointerSpaceBlockLock),
+      objects_allocated_(0),
+      bytes_allocated_(0),
+      lock_("Bump-pointer space lock", kBumpPointerSpaceBlockLock),
       main_block_size_(0) {
   mark_bitmap_ =
       accounting::ContinuousSpaceBitmap::Create("bump-pointer space live bitmap",
@@ -87,12 +85,32 @@ void BumpPointerSpace::Clear() {
   SetEnd(Begin());
   objects_allocated_.store(0, std::memory_order_relaxed);
   bytes_allocated_.store(0, std::memory_order_relaxed);
-  growth_end_ = Limit();
   {
-    MutexLock mu(Thread::Current(), block_lock_);
+    MutexLock mu(Thread::Current(), lock_);
+    growth_end_ = Limit();
     block_sizes_.clear();
     main_block_size_ = 0;
   }
+}
+
+size_t BumpPointerSpace::ClampGrowthLimit(size_t new_capacity) {
+  CHECK(gUseUserfaultfd);
+  MutexLock mu(Thread::Current(), lock_);
+  CHECK_EQ(growth_end_, Limit());
+  uint8_t* end = End();
+  CHECK_LE(end, growth_end_);
+  size_t free_capacity = growth_end_ - end;
+  size_t clamp_size = Capacity() - new_capacity;
+  if (clamp_size > free_capacity) {
+    new_capacity += clamp_size - free_capacity;
+  }
+  SetLimit(Begin() + new_capacity);
+  growth_end_ = Limit();
+  GetMemMap()->SetSize(new_capacity);
+  if (GetMarkBitmap()->HeapBegin() != 0) {
+    GetMarkBitmap()->SetHeapSize(new_capacity);
+  }
+  return new_capacity;
 }
 
 void BumpPointerSpace::Dump(std::ostream& os) const {
@@ -102,7 +120,7 @@ void BumpPointerSpace::Dump(std::ostream& os) const {
 }
 
 size_t BumpPointerSpace::RevokeThreadLocalBuffers(Thread* thread) {
-  MutexLock mu(Thread::Current(), block_lock_);
+  MutexLock mu(Thread::Current(), lock_);
   RevokeThreadLocalBuffersLocked(thread);
   return 0U;
 }
@@ -121,7 +139,7 @@ size_t BumpPointerSpace::RevokeAllThreadLocalBuffers() {
 
 void BumpPointerSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {
   if (kIsDebugBuild) {
-    MutexLock mu(Thread::Current(), block_lock_);
+    MutexLock mu(Thread::Current(), lock_);
     DCHECK(!thread->HasTlab());
   }
 }
@@ -169,7 +187,7 @@ uint64_t BumpPointerSpace::GetBytesAllocated() {
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
   std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
-  MutexLock mu3(Thread::Current(), block_lock_);
+  MutexLock mu3(Thread::Current(), lock_);
   // If we don't have any blocks, we don't have any thread local buffers. This check is required
   // since there can exist multiple bump pointer spaces which exist at the same time.
   if (!block_sizes_.empty()) {
@@ -187,7 +205,7 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
   std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
-  MutexLock mu3(Thread::Current(), block_lock_);
+  MutexLock mu3(Thread::Current(), lock_);
   // If we don't have any blocks, we don't have any thread local buffers. This check is required
   // since there can exist multiple bump pointer spaces which exist at the same time.
   if (!block_sizes_.empty()) {
@@ -205,7 +223,7 @@ void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
 }
 
 bool BumpPointerSpace::AllocNewTlab(Thread* self, size_t bytes) {
-  MutexLock mu(Thread::Current(), block_lock_);
+  MutexLock mu(Thread::Current(), lock_);
   RevokeThreadLocalBuffersLocked(self);
   uint8_t* start = AllocBlock(bytes);
   if (start == nullptr) {
@@ -245,7 +263,7 @@ uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment) {
     end_.store(aligned_end, std::memory_order_relaxed);
     // If we have blocks after the main one. Then just add the diff to the last
     // block.
-    MutexLock mu(self, block_lock_);
+    MutexLock mu(self, lock_);
     if (!block_sizes_.empty()) {
       block_sizes_.back() += diff;
     }
@@ -255,7 +273,7 @@ uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment) {
 
 std::vector<size_t>* BumpPointerSpace::GetBlockSizes(Thread* self, size_t* main_block_size) {
   std::vector<size_t>* block_sizes = nullptr;
-  MutexLock mu(self, block_lock_);
+  MutexLock mu(self, lock_);
   if (!block_sizes_.empty()) {
     block_sizes = new std::vector<size_t>(block_sizes_.begin(), block_sizes_.end());
   } else {
@@ -268,7 +286,7 @@ std::vector<size_t>* BumpPointerSpace::GetBlockSizes(Thread* self, size_t* main_
 void BumpPointerSpace::SetBlockSizes(Thread* self,
                                      const size_t main_block_size,
                                      const size_t first_valid_idx) {
-  MutexLock mu(self, block_lock_);
+  MutexLock mu(self, lock_);
   main_block_size_ = main_block_size;
   if (!block_sizes_.empty()) {
     block_sizes_.erase(block_sizes_.begin(), block_sizes_.begin() + first_valid_idx);
