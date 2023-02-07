@@ -2113,9 +2113,15 @@ bool LSEVisitor::TryReplacingLoopPhiPlaceholderWithDefault(
   HInstruction* replacement = GetDefaultValue(type);
   for (uint32_t phi_placeholder_index : visited.Indexes()) {
     DCHECK(phi_placeholder_replacements_[phi_placeholder_index].IsInvalid());
-    phi_placeholder_replacements_[phi_placeholder_index] = Value::ForInstruction(replacement);
+    PhiPlaceholder curr = GetPhiPlaceholderAt(phi_placeholder_index);
+    HeapLocation* hl = heap_location_collector_.GetHeapLocation(curr.GetHeapLocation());
+    // We use both vector and non vector operations to analyze the information. However, we replace
+    // only non vector operations in this code path.
+    if (!hl->IsVecOp()) {
+      phi_placeholder_replacements_[phi_placeholder_index] = Value::ForInstruction(replacement);
+      phi_placeholders_to_materialize->ClearBit(phi_placeholder_index);
+    }
   }
-  phi_placeholders_to_materialize->Subtract(&visited);
   return true;
 }
 
@@ -2170,9 +2176,15 @@ bool LSEVisitor::TryReplacingLoopPhiPlaceholderWithSingleInput(
   DCHECK(replacement != nullptr);
   for (uint32_t phi_placeholder_index : visited.Indexes()) {
     DCHECK(phi_placeholder_replacements_[phi_placeholder_index].IsInvalid());
-    phi_placeholder_replacements_[phi_placeholder_index] = Value::ForInstruction(replacement);
+    PhiPlaceholder curr = GetPhiPlaceholderAt(phi_placeholder_index);
+    HeapLocation* hl = heap_location_collector_.GetHeapLocation(curr.GetHeapLocation());
+    // We use both vector and non vector operations to analyze the information. However, we replace
+    // only vector operations in this code path.
+    if (hl->IsVecOp()) {
+      phi_placeholder_replacements_[phi_placeholder_index] = Value::ForInstruction(replacement);
+      phi_placeholders_to_materialize->ClearBit(phi_placeholder_index);
+    }
   }
-  phi_placeholders_to_materialize->Subtract(&visited);
   return true;
 }
 

@@ -118,12 +118,13 @@ TEST_F(LoadStoreAnalysisTest, ArrayHeapLocations) {
   size_t field = HeapLocation::kInvalidFieldOffset;
   size_t vec = HeapLocation::kScalar;
   size_t class_def = HeapLocation::kDeclaringClassDefIndexForArrays;
+  const bool is_vec_op = false;
   size_t loc1 = heap_location_collector.FindHeapLocationIndex(
-      ref, type, field, c1, vec, class_def);
+      ref, type, field, c1, vec, class_def, is_vec_op);
   size_t loc2 = heap_location_collector.FindHeapLocationIndex(
-      ref, type, field, c2, vec, class_def);
+      ref, type, field, c2, vec, class_def, is_vec_op);
   size_t loc3 = heap_location_collector.FindHeapLocationIndex(
-      ref, type, field, index, vec, class_def);
+      ref, type, field, index, vec, class_def, is_vec_op);
   // must find this reference info for array in HeapLocationCollector.
   ASSERT_TRUE(ref != nullptr);
   // must find these heap locations;
