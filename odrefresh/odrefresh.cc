@@ -390,21 +390,38 @@ bool IsCpuSetSpecValid(const std::string& cpu_set) {
   return true;
 }
 
-bool AddDex2OatConcurrencyArguments(/*inout*/ std::vector<std::string>& args) {
-  std::string threads = android::base::GetProperty("dalvik.vm.boot-dex2oat-threads", "");
+bool AddDex2OatConcurrencyArguments(/*inout*/ std::vector<std::string>& args,
+                                    bool is_compilation_os) {
+  std::string threads;
+  if (is_compilation_os) {
+    threads = android::base::GetProperty("dalvik.vm.background-dex2oat-threads", "");
+    if (threads.empty()) {
+      threads = android::base::GetProperty("dalvik.vm.dex2oat-threads", "");
+    }
+  } else {
+    threads = android::base::GetProperty("dalvik.vm.boot-dex2oat-threads", "");
+  }
   if (!threads.empty()) {
     args.push_back("-j" + threads);
   }
 
-  std::string cpu_set = android::base::GetProperty("dalvik.vm.boot-dex2oat-cpu-set", "");
-  if (cpu_set.empty()) {
-    return true;
+  std::string cpu_set;
+  if (is_compilation_os) {
+    cpu_set = android::base::GetProperty("dalvik.vm.background-dex2oat-cpu-set", "");
+    if (cpu_set.empty()) {
+      cpu_set = android::base::GetProperty("dalvik.vm.dex2oat-cpu-set", "");
+    }
+  } else {
+    cpu_set = android::base::GetProperty("dalvik.vm.boot-dex2oat-cpu-set", "");
   }
-  if (!IsCpuSetSpecValid(cpu_set)) {
-    LOG(ERROR) << "Invalid CPU set spec: " << cpu_set;
-    return false;
+  if (!cpu_set.empty()) {
+    if (!IsCpuSetSpecValid(cpu_set)) {
+      LOG(ERROR) << "Invalid CPU set spec: " << cpu_set;
+      return false;
+    }
+    args.push_back("--cpu-set=" + cpu_set);
   }
-  args.push_back("--cpu-set=" + cpu_set);
+
   return true;
 }
 
@@ -1480,7 +1497,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   AddDex2OatCommonOptions(args);
   AddDex2OatDebugInfo(args);
   AddDex2OatInstructionSet(args, isa);
-  if (!AddDex2OatConcurrencyArguments(args)) {
+  if (!AddDex2OatConcurrencyArguments(args, config_.GetCompilationOsMode())) {
     return false;
   }
 
@@ -1650,7 +1667,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     AddDex2OatCommonOptions(args);
     AddDex2OatDebugInfo(args);
     AddDex2OatInstructionSet(args, isa);
-    if (!AddDex2OatConcurrencyArguments(args)) {
+    if (!AddDex2OatConcurrencyArguments(args, config_.GetCompilationOsMode())) {
       return false;
     }
 
