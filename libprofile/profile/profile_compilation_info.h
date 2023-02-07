@@ -480,8 +480,11 @@ class ProfileCompilationInfo {
   // Save the profile data to the given file descriptor.
   bool Save(int fd);
 
-  // Save the current profile into the given file. The file will be cleared before saving.
+  // Save the current profile into the given file. Overwrites any existing data.
   bool Save(const std::string& filename, uint64_t* bytes_written);
+
+  // A fallback implementation of `Save` that uses a flock.
+  bool SaveFallback(const std::string& filename, uint64_t* bytes_written);
 
   // Return the number of dex files referenced in the profile.
   size_t GetNumberOfDexFiles() const {

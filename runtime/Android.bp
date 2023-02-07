@@ -311,6 +311,7 @@ libart_cc_defaults {
         "arch/arm64/instruction_set_features_arm64.cc",
         "arch/arm64/registers_arm64.cc",
         "arch/x86/instruction_set_features_x86.cc",
+        "arch/riscv64/registers_riscv64.cc",
         "arch/x86/registers_x86.cc",
         "arch/x86_64/registers_x86_64.cc",
         "entrypoints/entrypoint_utils.cc",
