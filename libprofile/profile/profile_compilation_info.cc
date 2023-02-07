@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <climits>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <numeric>
@@ -33,11 +34,13 @@
 #include <vector>
 
 #include "android-base/file.h"
-
+#include "android-base/scopeguard.h"
+#include "android-base/unique_fd.h"
 #include "base/arena_allocator.h"
 #include "base/bit_utils.h"
 #include "base/dumpable.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/logging.h"  // For VLOG.
 #include "base/malloc_arena_pool.h"
 #include "base/os.h"
@@ -51,6 +54,10 @@
 #include "base/zip_archive.h"
 #include "dex/descriptors_names.h"
 #include "dex/dex_file_loader.h"
+
+#ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
+#endif
 
 namespace art {
 
@@ -806,6 +813,63 @@ bool ProfileCompilationInfo::Load(const std::string& filename, bool clear_if_inv
 
 bool ProfileCompilationInfo::Save(const std::string& filename, uint64_t* bytes_written) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
+
+#ifndef ART_TARGET_ANDROID
+  return SaveFallback(filename, bytes_written);
+#else
+  // Prior to U, SELinux policy doesn't allow apps to create profile files.
+  if (!android::modules::sdklevel::IsAtLeastU()) {
+    return SaveFallback(filename, bytes_written);
+  }
+
+  std::string tmp_filename = filename + ".XXXXXX.tmp";
+  // mkstemps creates the file with permissions 0600, which is the desired permissions, so there's
+  // no need to chmod.
+  android::base::unique_fd fd(mkostemps(tmp_filename.data(), /*suffixlen=*/4, O_CLOEXEC));
+  if (fd.get() < 0) {
+    PLOG(WARNING) << "Failed to create temp profile file for " << filename;
+    return false;
+  }
+
+  // In case anything goes wrong.
+  auto remove_tmp_file = android::base::make_scope_guard([&]() {
+    if (unlink(tmp_filename.c_str()) != 0) {
+      PLOG(WARNING) << "Failed to remove temp profile file " << tmp_filename;
+    }
+  });
+
+  bool result = Save(fd.get());
+  if (!result) {
+    VLOG(profiler) << "Failed to save profile info to temp profile file " << tmp_filename;
+    return false;
+  }
+
+  fd.reset();
+
+  // Move the temp profile file to the final location.
+  if (rename(tmp_filename.c_str(), filename.c_str()) != 0) {
+    PLOG(WARNING) << "Failed to commit profile file " << filename;
+    return false;
+  }
+
+  remove_tmp_file.Disable();
+
+  int64_t size = OS::GetFileSizeBytes(filename.c_str());
+  if (size != -1) {
+    VLOG(profiler) << "Successfully saved profile info to " << filename << " Size: " << size;
+    if (bytes_written != nullptr) {
+      *bytes_written = static_cast<uint64_t>(size);
+    }
+  } else {
+    VLOG(profiler) << "Saved profile info to " << filename
+                   << " but failed to get size: " << strerror(errno);
+  }
+
+  return true;
+#endif
+}
+
+bool ProfileCompilationInfo::SaveFallback(const std::string& filename, uint64_t* bytes_written) {
   std::string error;
 #ifdef _WIN32
   int flags = O_WRONLY;
@@ -842,6 +906,9 @@ bool ProfileCompilationInfo::Save(const std::string& filename, uint64_t* bytes_w
       if (bytes_written != nullptr) {
         *bytes_written = static_cast<uint64_t>(size);
       }
+    } else {
+      VLOG(profiler) << "Saved profile info to " << filename
+                     << " but failed to get size: " << strerror(errno);
     }
   } else {
     VLOG(profiler) << "Failed to save profile info to " << filename;

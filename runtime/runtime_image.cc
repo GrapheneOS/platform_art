@@ -29,6 +29,7 @@
 #include "base/file_utils.h"
 #include "base/length_prefixed_array.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "base/utils.h"
 #include "class_loader_context.h"
@@ -47,6 +48,8 @@
 #include "vdex_file.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 /**
  * The native data structures that we store in the image.
@@ -737,12 +740,12 @@ class RuntimeImageHelper {
       StubType stub;
       if (method->IsNative()) {
         stub = StubType::kQuickGenericJNITrampoline;
-      } else if (cls->IsVerified() &&
-                 method->SkipAccessChecks() &&
-                 !method->NeedsClinitCheckBeforeCall()) {
-        stub = StubType::kNterpTrampoline;
-      } else {
+      } else if (!cls->IsVerified()) {
         stub = StubType::kQuickToInterpreterBridge;
+      } else if (method->NeedsClinitCheckBeforeCall()) {
+        stub = StubType::kQuickResolutionTrampoline;
+      } else {
+        stub = StubType::kNterpTrampoline;
       }
       const std::vector<gc::space::ImageSpace*>& image_spaces =
           Runtime::Current()->GetHeap()->GetBootImageSpaces();
@@ -1166,19 +1169,37 @@ class RuntimeImageHelper {
   friend class NativePointerVisitor;
 };
 
+static const char* GetImageExtension() {
+  return kRuntimePointerSize == PointerSize::k32 ? "art32" : "art64";
+}
+
 std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
   const std::string& data_dir = Runtime::Current()->GetProcessDataDirectory();
 
-  std::string new_location = ReplaceFileExtension(
-      dex_location, (kRuntimePointerSize == PointerSize::k32 ? "art32" : "art64"));
+  std::string new_location = ReplaceFileExtension(dex_location, GetImageExtension());
 
   if (data_dir.empty()) {
     // The data ditectory is empty for tests.
     return new_location;
   } else {
     std::replace(new_location.begin(), new_location.end(), '/', '@');
-    return data_dir + "/" + new_location;
+    return data_dir + "/oat/" + new_location;
   }
+}
+
+static bool EnsureDirectoryExists(const std::string& path, std::string* error_msg) {
+  size_t last_slash_pos = path.find_last_of('/');
+  CHECK_NE(last_slash_pos, std::string::npos) << "Invalid path: " << path;
+  std::string directory = path.substr(0, last_slash_pos);
+  if (!OS::DirectoryExists(directory.c_str())) {
+    static constexpr mode_t kDirectoryMode = S_IRWXU | S_IRGRP | S_IXGRP| S_IROTH | S_IXOTH;
+    if (mkdir(directory.c_str(), kDirectoryMode) != 0) {
+      *error_msg =
+          StringPrintf("Could not create directory %s: %s", directory.c_str(), strerror(errno));
+      return false;
+    }
+  }
+  return true;
 }
 
 bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
@@ -1187,15 +1208,21 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
     *error_msg = "Cannot generate an app image without a boot image";
     return false;
   }
+  ScopedTrace generate_image_trace("Generating runtime image");
   RuntimeImageHelper image(heap);
   if (!image.Generate(error_msg)) {
     return false;
   }
 
+  ScopedTrace write_image_trace("Writing runtime image to disk");
   const std::string path = GetRuntimeImagePath(image.GetDexLocation());
+  if (!EnsureDirectoryExists(path, error_msg)) {
+    return false;
+  }
   // We first generate the app image in a temporary file, which we will then
   // move to `path`.
-  const std::string temp_path = path + std::to_string(getpid());
+  const std::string temp_path =
+      ReplaceFileExtension(path, std::to_string(getpid()) + GetImageExtension());
   std::unique_ptr<File> out(OS::CreateEmptyFileWriteOnly(temp_path.c_str()));
   if (out == nullptr) {
     *error_msg = "Could not open " + temp_path + " for writing";
