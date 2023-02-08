@@ -1063,7 +1063,7 @@ class Thread {
   }
 
   bool GetIsGcMarking() const {
-    CHECK(gUseReadBarrier);
+    DCHECK(gUseReadBarrier);
     return tls32_.is_gc_marking;
   }
 
