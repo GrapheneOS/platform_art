@@ -76,11 +76,11 @@
 ## CHECK-DAG:       <<BooleanNot:z\d+>>  BooleanNot [<<Or>>]
 ## CHECK-DAG:                            Return [<<BooleanNot>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:                            BooleanNot
 ## CHECK-NOT:                            BooleanNot
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            And
 .method public static $opt$noinline$booleanAndToOr(ZZ)Z
     .registers 4
@@ -153,11 +153,11 @@
 ## CHECK-DAG:       <<BooleanNot:z\d+>>  BooleanNot [<<And>>]
 ## CHECK-DAG:                            Return [<<BooleanNot>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:                            BooleanNot
 ## CHECK-NOT:                            BooleanNot
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            Or
 .method public static $opt$noinline$booleanOrToAnd(ZZ)Z
     .registers 4
@@ -277,7 +277,7 @@
 ## CHECK-DAG:       <<Xor:i\d+>>         Xor [<<Cond1>>,<<Cond2>>]
 ## CHECK-DAG:                            Return [<<Xor>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            BooleanNot
 .method public static $opt$noinline$booleanNotXorToXor(ZZ)Z
     .registers 4
@@ -408,11 +408,11 @@
 ## CHECK-DAG:       <<BooleanNot:z\d+>>  BooleanNot [<<Or>>]
 ## CHECK-DAG:                            Return [<<BooleanNot>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOrV2(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOrV2(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:                            BooleanNot
 ## CHECK-NOT:                            BooleanNot
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOrV2(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanAndToOrV2(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            And
 
 # Original java source:
@@ -530,11 +530,11 @@
 ## CHECK-DAG:       <<BooleanNot:z\d+>>  BooleanNot [<<And>>]
 ## CHECK-DAG:                            Return [<<BooleanNot>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAndV2(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAndV2(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:                            BooleanNot
 ## CHECK-NOT:                            BooleanNot
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAndV2(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanOrToAndV2(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            Or
 
 # Original java source:
@@ -717,7 +717,7 @@
 ## CHECK-DAG:       <<Xor:i\d+>>         Xor [<<Cond1>>,<<Cond2>>]
 ## CHECK-DAG:                            Return [<<Xor>>]
 
-## CHECK-START: boolean SmaliTests.$opt$noinline$booleanNotXorToXorV2(boolean, boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: boolean SmaliTests.$opt$noinline$booleanNotXorToXorV2(boolean, boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-NOT:                            BooleanNot
 
 # Original java source:

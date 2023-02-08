@@ -227,7 +227,7 @@ public class Main {
     /// CHECK-START: int Main.closedFormInductionUp() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedFormInductionUp() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFormInductionUp() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 12395 loop:none
     /// CHECK-DAG:               Return [<<Int>>]  loop:none
     static int closedFormInductionUp() {
@@ -246,7 +246,7 @@ public class Main {
     /// CHECK-START: int Main.closedFormInductionInAndDown(int) loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedFormInductionInAndDown(int) instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFormInductionInAndDown(int) instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Par:i\d+>>  ParameterValue        loop:none
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant -50       loop:none
     /// CHECK-DAG: <<Add:i\d+>>  Add [<<Int>>,<<Par>>] loop:none
@@ -268,7 +268,7 @@ public class Main {
     /// CHECK-NOT:               Phi
     /// CHECK-NOT:               Select
     //
-    /// CHECK-START: int Main.closedFormInductionTrivialIf() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFormInductionTrivialIf() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 81    loop:none
     /// CHECK-DAG:               Return [<<Int>>]  loop:none
     static int closedFormInductionTrivialIf() {
@@ -295,7 +295,7 @@ public class Main {
     /// CHECK-START: int Main.closedFormNested() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedFormNested() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFormNested() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 100  loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     static int closedFormNested() {
@@ -318,7 +318,7 @@ public class Main {
     /// CHECK-START: int Main.closedFormNestedAlt() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedFormNestedAlt() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFormNestedAlt() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 15082 loop:none
     /// CHECK-DAG:               Return [<<Int>>]  loop:none
     static int closedFormNestedAlt() {
@@ -399,7 +399,7 @@ public class Main {
     /// CHECK-START: int Main.mainIndexReturned() loop_optimization (after)
     /// CHECK-NOT:              Phi
     //
-    /// CHECK-START: int Main.mainIndexReturned() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.mainIndexReturned() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 10   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     static int mainIndexReturned() {
@@ -416,7 +416,7 @@ public class Main {
     /// CHECK-START: int Main.periodicReturned9() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.periodicReturned9() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.periodicReturned9() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 1    loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     static int periodicReturned9() {
@@ -435,7 +435,7 @@ public class Main {
     /// CHECK-START: int Main.periodicReturned10() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.periodicReturned10() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.periodicReturned10() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0    loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     static int periodicReturned10() {
@@ -455,7 +455,7 @@ public class Main {
     /// CHECK-START: int Main.getSum21() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.getSum21() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.getSum21() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 21   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int getSum21() {
@@ -553,7 +553,7 @@ public class Main {
     /// CHECK-START: int Main.closedFeed() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedFeed() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedFeed() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 20   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int closedFeed() {
@@ -577,7 +577,7 @@ public class Main {
     /// CHECK-START: int Main.closedLargeUp() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedLargeUp() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedLargeUp() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant -10  loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int closedLargeUp() {
@@ -596,7 +596,7 @@ public class Main {
     /// CHECK-START: int Main.closedLargeDown() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedLargeDown() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedLargeDown() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 10   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int closedLargeDown() {
@@ -656,7 +656,7 @@ public class Main {
     /// CHECK-START: int Main.closedByParametersWithInline() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.closedByParametersWithInline() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.closedByParametersWithInline() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 10   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int closedByParametersWithInline() {
@@ -674,7 +674,7 @@ public class Main {
     /// CHECK-START: int Main.waterFall() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: int Main.waterFall() instruction_simplifier$after_bce (after)
+    /// CHECK-START: int Main.waterFall() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 50   loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static int waterFall() {
@@ -695,7 +695,7 @@ public class Main {
     /// CHECK-START: boolean Main.periodicBoolIdiom1() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: boolean Main.periodicBoolIdiom1() instruction_simplifier$after_bce (after)
+    /// CHECK-START: boolean Main.periodicBoolIdiom1() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0    loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static boolean periodicBoolIdiom1() {
@@ -714,7 +714,7 @@ public class Main {
     /// CHECK-START: boolean Main.periodicBoolIdiom2() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: boolean Main.periodicBoolIdiom2() instruction_simplifier$after_bce (after)
+    /// CHECK-START: boolean Main.periodicBoolIdiom2() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0    loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static boolean periodicBoolIdiom2() {
@@ -733,7 +733,7 @@ public class Main {
     /// CHECK-START: boolean Main.periodicBoolIdiom3() loop_optimization (after)
     /// CHECK-NOT:               Phi
     //
-    /// CHECK-START: boolean Main.periodicBoolIdiom3() instruction_simplifier$after_bce (after)
+    /// CHECK-START: boolean Main.periodicBoolIdiom3() instruction_simplifier$before_codegen (after)
     /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0    loop:none
     /// CHECK-DAG:               Return [<<Int>>] loop:none
     private static boolean periodicBoolIdiom3() {
