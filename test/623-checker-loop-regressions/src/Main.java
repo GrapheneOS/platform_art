@@ -155,7 +155,7 @@ public class Main {
   /// CHECK-START: int Main.polynomialInt() loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: int Main.polynomialInt() instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.polynomialInt() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>>  IntConstant -45  loop:none
   /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int polynomialInt() {
@@ -176,7 +176,7 @@ public class Main {
   /// CHECK-START: int Main.geoIntDivLastValue(int) loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: int Main.geoIntDivLastValue(int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.geoIntDivLastValue(int) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>> IntConstant 0    loop:none
   /// CHECK-DAG:              Return [<<Int>>] loop:none
   static int geoIntDivLastValue(int x) {
@@ -193,7 +193,7 @@ public class Main {
   /// CHECK-START: int Main.geoIntMulLastValue(int) loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: int Main.geoIntMulLastValue(int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.geoIntMulLastValue(int) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Par:i\d+>> ParameterValue         loop:none
   /// CHECK-DAG: <<Int:i\d+>> IntConstant -194211840 loop:none
   /// CHECK-DAG: <<Mul:i\d+>> Mul [<<Par>>,<<Int>>]  loop:none
@@ -212,7 +212,7 @@ public class Main {
   /// CHECK-START: long Main.geoLongDivLastValue(long) loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: long Main.geoLongDivLastValue(long) instruction_simplifier$after_bce (after)
+  /// CHECK-START: long Main.geoLongDivLastValue(long) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Long:j\d+>> LongConstant 0    loop:none
   /// CHECK-DAG:               Return [<<Long>>] loop:none
   //
@@ -231,7 +231,7 @@ public class Main {
   /// CHECK-START: long Main.geoLongDivLastValue() loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: long Main.geoLongDivLastValue() instruction_simplifier$after_bce (after)
+  /// CHECK-START: long Main.geoLongDivLastValue() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Long:j\d+>> LongConstant 0    loop:none
   /// CHECK-DAG:               Return [<<Long>>] loop:none
   //
@@ -251,7 +251,7 @@ public class Main {
   /// CHECK-START: long Main.geoLongMulLastValue(long) loop_optimization (after)
   /// CHECK-NOT: Phi
   //
-  /// CHECK-START: long Main.geoLongMulLastValue(long) instruction_simplifier$after_bce (after)
+  /// CHECK-START: long Main.geoLongMulLastValue(long) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Par:j\d+>>  ParameterValue                    loop:none
   /// CHECK-DAG: <<Long:j\d+>> LongConstant -8070450532247928832 loop:none
   /// CHECK-DAG: <<Mul:j\d+>>  Mul [<<Par>>,<<Long>>]            loop:none

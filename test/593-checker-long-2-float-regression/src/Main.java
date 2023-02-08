@@ -25,24 +25,34 @@ public class Main {
   }
 
   public static void main(String[] args) {
-    assertEquals(1.0F, $noinline$longToFloat());
+    assertEquals(1.0F, $noinline$longToFloat(true));
+    assertEquals(2.0F, $noinline$longToFloat(false));
   }
 
-  /// CHECK-START: float Main.$noinline$longToFloat() register (after)
-  /// CHECK-DAG:     <<Const1:j\d+>>   LongConstant 1
-  /// CHECK-DAG:     <<Convert:f\d+>>  TypeConversion [<<Const1>>]
-  /// CHECK-DAG:                       Return [<<Convert>>]
+  /// CHECK-START: float Main.$noinline$longToFloat(boolean) register (after)
+  /// CHECK:     <<Get:j\d+>>      StaticFieldGet field_name:Main.longValue
+  /// CHECK:     <<Convert:f\d+>>  TypeConversion [<<Get>>]
+  /// CHECK:                       Return [<<Convert>>]
 
-  static float $noinline$longToFloat() {
-    longValue = $inline$returnConst();
+  static float $noinline$longToFloat(boolean param) {
+    // This if else is to avoid constant folding the long constant into a float constant.
+    if (param) {
+      longValue = $inline$returnConstOne();
+    } else {
+      longValue = $inline$returnConstTwo();
+    }
     // This call prevents D8 from replacing the result of the sget instruction
-    // in line 41 by the result of the call to $inline$returnConst() in line 39.
+    // in the return below by the result of the call to $inline$returnConstOne/Two() above.
     $inline$preventRedundantFieldLoadEliminationInD8();
     return (float) longValue;
   }
 
-  static long $inline$returnConst() {
+  static long $inline$returnConstOne() {
     return 1L;
+  }
+
+  static long $inline$returnConstTwo() {
+    return 2L;
   }
 
   static void $inline$preventRedundantFieldLoadEliminationInD8() {}

@@ -32,7 +32,7 @@ public class Main {
     System.out.println("passed");
   }
 
-  /// CHECK-START: byte Main.booleanToByte(boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: byte Main.booleanToByte(boolean) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -40,7 +40,7 @@ public class Main {
     return (byte)(b ? 1 : 0);
   }
 
-  /// CHECK-START: short Main.booleanToShort(boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: short Main.booleanToShort(boolean) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -48,7 +48,7 @@ public class Main {
     return (short)(b ? 1 : 0);
   }
 
-  /// CHECK-START: char Main.booleanToChar(boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: char Main.booleanToChar(boolean) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -56,7 +56,7 @@ public class Main {
     return (char)(b ? 1 : 0);
   }
 
-  /// CHECK-START: int Main.booleanToInt(boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.booleanToInt(boolean) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -90,7 +90,7 @@ public class Main {
   // As of now, the code is not optimized any further than the above.
   // TODO: Re-enable checks below after simplifier is updated to handle this pattern: b/63064517
 
-  // CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier$after_bce (after)
+  // CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier$before_codegen (after)
   // CHECK:         <<Arg:z\d+>>           ParameterValue
   // CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
   // CHECK-DAG:                            Return [<<ZToJ>>]
@@ -131,7 +131,7 @@ public class Main {
   // As of now, the code is not optimized any further than the above.
   // TODO: Re-enable checks below after simplifier is updated to handle this pattern: b/63064517
 
-  // CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier$after_bce (after)
+  // CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier$before_codegen (after)
   // CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
   // CHECK-DAG:                            Return [<<Sget>>]
 
