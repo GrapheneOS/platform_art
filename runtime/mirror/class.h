@@ -867,6 +867,8 @@ class MANAGED Class final : public Object {
 
   void SetImt(ImTable* imt, PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  ImTable* FindSuperImt(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
+
   ArtMethod* GetEmbeddedVTableEntry(uint32_t i, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
