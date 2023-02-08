@@ -393,7 +393,7 @@ public class Main {
   /// CHECK-DAG: <<Add:i\d+>> Add [<<Int>>,<<Zer>>] loop:none
   /// CHECK-DAG:              Return [<<Add>>]      loop:none
 
-  /// CHECK-START: int Main.$noinline$poly1() instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.$noinline$poly1() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>>  IntConstant 55 loop:none
   /// CHECK-DAG:               Return [<<Int>>]  loop:none
 
@@ -541,7 +541,7 @@ public class Main {
   /// CHECK-DAG: <<Add:i\d+>> Add [<<Int>>,<<Ini>>]   loop:none
   /// CHECK-DAG:              Return [<<Add>>]        loop:none
 
-  /// CHECK-START: int Main.$noinline$poly3() instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.$noinline$poly3() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>>  IntConstant -2146724623 loop:none
   /// CHECK-DAG:               Return [<<Int>>]        loop:none
 

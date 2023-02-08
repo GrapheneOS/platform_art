@@ -1576,7 +1576,7 @@ public class Main {
   /// CHECK-NOT: BoundsCheck
   /// CHECK: ArrayGet
 
-  /// CHECK-START: void Main.foo9(int[], boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: void Main.foo9(int[], boolean) instruction_simplifier$before_codegen (after)
   //  Simplification removes the redundant check
   /// CHECK: Deoptimize
   /// CHECK: Deoptimize
