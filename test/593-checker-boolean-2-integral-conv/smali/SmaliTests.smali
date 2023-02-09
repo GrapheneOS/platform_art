@@ -48,7 +48,7 @@
 ##  CHECK-DAG:     <<IToS:b\d+>>          TypeConversion [<<Sel>>]
 ##  CHECK-DAG:                            Return [<<IToS>>]
 
-##  CHECK-START: byte SmaliTests.booleanToByte(boolean) instruction_simplifier$after_bce (after)
+##  CHECK-START: byte SmaliTests.booleanToByte(boolean) instruction_simplifier$before_codegen (after)
 ##  CHECK:         <<Arg:z\d+>>           ParameterValue
 ##  CHECK-DAG:                            Return [<<Arg>>]
 .method static booleanToByte(Z)B
@@ -83,7 +83,7 @@
 ##  CHECK-DAG:     <<IToS:s\d+>>          TypeConversion [<<Sel>>]
 ##  CHECK-DAG:                            Return [<<IToS>>]
 
-##  CHECK-START: short SmaliTests.booleanToShort(boolean) instruction_simplifier$after_bce (after)
+##  CHECK-START: short SmaliTests.booleanToShort(boolean) instruction_simplifier$before_codegen (after)
 ##  CHECK:         <<Arg:z\d+>>           ParameterValue
 ##  CHECK-DAG:                            Return [<<Arg>>]
 .method static booleanToShort(Z)S
@@ -118,7 +118,7 @@
 ##  CHECK-DAG:     <<IToC:c\d+>>          TypeConversion [<<Sel>>]
 ##  CHECK-DAG:                            Return [<<IToC>>]
 
-##  CHECK-START: char SmaliTests.booleanToChar(boolean) instruction_simplifier$after_bce (after)
+##  CHECK-START: char SmaliTests.booleanToChar(boolean) instruction_simplifier$before_codegen (after)
 ##  CHECK:         <<Arg:z\d+>>           ParameterValue
 ##  CHECK-DAG:                            Return [<<Arg>>]
 .method static booleanToChar(Z)C
@@ -151,7 +151,7 @@
 ##  CHECK-DAG:     <<Sel:i\d+>>           Select [<<Zero>>,<<One>>,<<Arg>>]
 ##  CHECK-DAG:                            Return [<<Sel>>]
 
-##  CHECK-START: int SmaliTests.booleanToInt(boolean) instruction_simplifier$after_bce (after)
+##  CHECK-START: int SmaliTests.booleanToInt(boolean) instruction_simplifier$before_codegen (after)
 ##  CHECK:         <<Arg:z\d+>>           ParameterValue
 ##  CHECK-DAG:                            Return [<<Arg>>]
 .method static booleanToInt(Z)I
@@ -185,7 +185,7 @@
 ## CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Sel>>]
 ## CHECK-DAG:                            Return [<<IToJ>>]
 
-## CHECK-START: long SmaliTests.booleanToLong(boolean) instruction_simplifier$after_bce (after)
+## CHECK-START: long SmaliTests.booleanToLong(boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:     <<Arg:z\d+>>           ParameterValue
 ## CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
 ## CHECK-DAG:                            Return [<<ZToJ>>]
@@ -232,7 +232,7 @@
 ## CHECK-DAG:     <<Sel:i\d+>>           Select [<<Zero>>,<<One>>,<<Sget>>]
 ## CHECK-DAG:                            Return [<<Sel>>]
 
-## CHECK-START: int SmaliTests.longToIntOfBoolean() instruction_simplifier$after_bce (after)
+## CHECK-START: int SmaliTests.longToIntOfBoolean() instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
 ## CHECK-DAG:                            Return [<<Sget>>]
 .method public static longToIntOfBoolean()I

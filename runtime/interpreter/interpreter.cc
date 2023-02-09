@@ -231,6 +231,7 @@ static void InterpreterJni(Thread* self,
   }
 }
 
+NO_STACK_PROTECTOR
 static JValue ExecuteSwitch(Thread* self,
                             const CodeItemDataAccessor& accessor,
                             ShadowFrame& shadow_frame,
