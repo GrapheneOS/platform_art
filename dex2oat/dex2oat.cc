@@ -1492,16 +1492,12 @@ class Dex2Oat final {
           return dex2oat::ReturnCode::kOther;
         }
         dex_files_per_oat_file_.push_back(MakeNonOwningPointerVector(opened_dex_files));
-        if (opened_dex_files_map.empty()) {
-          DCHECK(opened_dex_files.empty());
-        } else {
-          for (MemMap& map : opened_dex_files_map) {
-            opened_dex_files_maps_.push_back(std::move(map));
-          }
-          for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
-            dex_file_oat_index_map_.insert(std::make_pair(dex_file.get(), i));
-            opened_dex_files_.push_back(std::move(dex_file));
-          }
+        for (MemMap& map : opened_dex_files_map) {
+          opened_dex_files_maps_.push_back(std::move(map));
+        }
+        for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
+          dex_file_oat_index_map_.insert(std::make_pair(dex_file.get(), i));
+          opened_dex_files_.push_back(std::move(dex_file));
         }
       }
     }
