@@ -29,7 +29,7 @@ public class Main {
   /// CHECK-START: void Main.unroll() loop_optimization (after)
   /// CHECK-DAG: StaticFieldSet loop:none
   //
-  /// CHECK-START: void Main.unroll() instruction_simplifier$after_bce (after)
+  /// CHECK-START: void Main.unroll() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>> IntConstant    68                  loop:none
   /// CHECK-DAG:              StaticFieldSet [{{l\d+}},<<Int>>]  loop:none
   //
@@ -49,7 +49,7 @@ public class Main {
   /// CHECK-START: int Main.unrollLV() loop_optimization (after)
   /// CHECK-DAG: StaticFieldSet loop:none
   //
-  /// CHECK-START: int Main.unrollLV() instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.unrollLV() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int1:i\d+>> IntConstant    187                 loop:none
   /// CHECK-DAG: <<Int2:i\d+>> IntConstant    12                  loop:none
   /// CHECK-DAG:               StaticFieldSet [{{l\d+}},<<Int1>>] loop:none
@@ -80,7 +80,7 @@ public class Main {
   /// CHECK-DAG: SuspendCheck   loop:none
   /// CHECK-NOT: SuspendCheck
   //
-  /// CHECK-START: void Main.unrollNest() instruction_simplifier$after_bce (after)
+  /// CHECK-START: void Main.unrollNest() instruction_simplifier$before_codegen (after)
   /// CHECK-DAG: <<Int:i\d+>> IntConstant    6                   loop:none
   /// CHECK-DAG:              StaticFieldSet [{{l\d+}},<<Int>>]  loop:none
   //

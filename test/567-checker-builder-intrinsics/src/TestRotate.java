@@ -205,14 +205,14 @@ public class TestRotate {
   /// CHECK-START: int TestRotate.rotateLeftBoolean(boolean, int) select_generator (after)
   /// CHECK-NOT:                      Phi
 
-  /// CHECK-START: int TestRotate.rotateLeftBoolean(boolean, int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestRotate.rotateLeftBoolean(boolean, int) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<ArgVal:z\d+>>  ParameterValue
   /// CHECK:         <<ArgDist:i\d+>> ParameterValue
   /// CHECK-DAG:     <<NegDist:i\d+>> Neg [<<ArgDist>>]
   /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<NegDist>>]
   /// CHECK-DAG:                      Return [<<Result>>]
 
-  /// CHECK-START: int TestRotate.rotateLeftBoolean(boolean, int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestRotate.rotateLeftBoolean(boolean, int) instruction_simplifier$before_codegen (after)
   /// CHECK-NOT:                      Select
 
   private static int rotateLeftBoolean(boolean value, int distance) {
@@ -350,13 +350,13 @@ public class TestRotate {
   /// CHECK-START: int TestRotate.rotateRightBoolean(boolean, int) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int TestRotate.rotateRightBoolean(boolean, int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestRotate.rotateRightBoolean(boolean, int) instruction_simplifier$before_codegen (after)
   /// CHECK:         <<ArgVal:z\d+>>  ParameterValue
   /// CHECK:         <<ArgDist:i\d+>> ParameterValue
   /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<ArgDist>>]
   /// CHECK-DAG:                      Return [<<Result>>]
 
-  /// CHECK-START: int TestRotate.rotateRightBoolean(boolean, int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int TestRotate.rotateRightBoolean(boolean, int) instruction_simplifier$before_codegen (after)
   /// CHECK-NOT:                     Select
 
   private static int rotateRightBoolean(boolean value, int distance) {
