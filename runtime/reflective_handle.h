@@ -81,14 +81,12 @@ class MutableReflectiveHandle : public ReflectiveHandle<T> {
  public:
   MutableReflectiveHandle() {}
 
-  ALWAYS_INLINE MutableReflectiveHandle(const MutableReflectiveHandle<T>& handle)
-      REQUIRES_SHARED(Locks::mutator_lock_) = default;
+  ALWAYS_INLINE MutableReflectiveHandle(const MutableReflectiveHandle<T>& handle) = default;
 
   ALWAYS_INLINE MutableReflectiveHandle<T>& operator=(const MutableReflectiveHandle<T>& handle)
-      REQUIRES_SHARED(Locks::mutator_lock_) = default;
+      = default;
 
   ALWAYS_INLINE explicit MutableReflectiveHandle(ReflectiveReference<T>* reference)
-      REQUIRES_SHARED(Locks::mutator_lock_)
       : ReflectiveHandle<T>(reference) {}
 
   ALWAYS_INLINE T* Assign(T* reference) REQUIRES_SHARED(Locks::mutator_lock_) {

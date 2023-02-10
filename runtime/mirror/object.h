@@ -736,7 +736,7 @@ class MANAGED LOCKABLE Object {
   }
 
   template<VerifyObjectFlags kVerifyFlags>
-  ALWAYS_INLINE void Verify() {
+  ALWAYS_INLINE void Verify() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kVerifyFlags & kVerifyThis) {
       VerifyObject(this);
     }
@@ -744,21 +744,23 @@ class MANAGED LOCKABLE Object {
 
   // Not ObjPtr since the values may be unaligned for logic in verification.cc.
   template<VerifyObjectFlags kVerifyFlags, typename Reference>
-  ALWAYS_INLINE static void VerifyRead(Reference value) {
+  ALWAYS_INLINE static void VerifyRead(Reference value) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kVerifyFlags & kVerifyReads) {
       VerifyObject(value);
     }
   }
 
   template<VerifyObjectFlags kVerifyFlags>
-  ALWAYS_INLINE static void VerifyWrite(ObjPtr<mirror::Object> value) {
+  ALWAYS_INLINE static void VerifyWrite(ObjPtr<mirror::Object> value)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kVerifyFlags & kVerifyWrites) {
       VerifyObject(value);
     }
   }
 
   template<VerifyObjectFlags kVerifyFlags>
-  ALWAYS_INLINE void VerifyCAS(ObjPtr<mirror::Object> new_value, ObjPtr<mirror::Object> old_value) {
+  ALWAYS_INLINE void VerifyCAS(ObjPtr<mirror::Object> new_value, ObjPtr<mirror::Object> old_value)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Verify<kVerifyFlags>();
     VerifyRead<kVerifyFlags>(old_value);
     VerifyWrite<kVerifyFlags>(new_value);
