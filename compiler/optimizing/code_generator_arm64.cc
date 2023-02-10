@@ -7083,6 +7083,7 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
                                      vixl::aarch64::MemOperand& lock_word,
                                      vixl::aarch64::Label* slow_path,
                                      vixl::aarch64::Label* throw_npe = nullptr) {
+  vixl::aarch64::Label throw_npe_cont;
   // Load the lock word containing the rb_state.
   __ Ldr(ip0.W(), lock_word);
   // Given the numeric representation, it's enough to check the low bit of the rb_state.
@@ -7094,7 +7095,7 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
       "Field and array LDR offsets must be the same to reuse the same code.");
   // To throw NPE, we return to the fast path; the artificial dependence below does not matter.
   if (throw_npe != nullptr) {
-    __ Bind(throw_npe);
+    __ Bind(&throw_npe_cont);
   }
   // Adjust the return address back to the LDR (1 instruction; 2 for heap poisoning).
   static_assert(BAKER_MARK_INTROSPECTION_FIELD_LDR_OFFSET == (kPoisonHeapReferences ? -8 : -4),
@@ -7106,6 +7107,12 @@ static void EmitGrayCheckAndFastPath(arm64::Arm64Assembler& assembler,
   // a memory barrier (which would be more expensive).
   __ Add(base_reg, base_reg, Operand(ip0, LSR, 32));
   __ Br(lr);          // And return back to the function.
+  if (throw_npe != nullptr) {
+    // Clear IP0 before returning to the fast path.
+    __ Bind(throw_npe);
+    __ Mov(ip0.X(), xzr);
+    __ B(&throw_npe_cont);
+  }
   // Note: The fake dependency is unnecessary for the slow path.
 }
 
