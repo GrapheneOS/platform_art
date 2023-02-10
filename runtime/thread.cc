@@ -4452,10 +4452,8 @@ void Thread::VisitRoots(RootVisitor* visitor) {
 }
 #pragma GCC diagnostic pop
 
-static void SweepCacheEntry(IsMarkedVisitor* visitor,
-                            const Instruction* inst,
-                            size_t* value,
-                            bool only_update_class) REQUIRES_SHARED(Locks::mutator_lock_) {
+static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, size_t* value)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (inst == nullptr) {
     return;
   }
@@ -4467,23 +4465,17 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor,
     case Opcode::INSTANCE_OF:
     case Opcode::NEW_ARRAY:
     case Opcode::CONST_CLASS: {
-      // TODO: There is no reason to process weak-class differently from strings
-      // (below). Streamline the logic here and jit-code-cache.
-      if (!only_update_class) {
-        mirror::Class* cls = reinterpret_cast<mirror::Class*>(*value);
-        if (cls == nullptr || cls == Runtime::GetWeakClassSentinel()) {
-          // Entry got deleted in a previous sweep.
-          return;
-        }
-        // Need to fetch from-space pointer for class in case of userfaultfd GC.
-        Runtime::ProcessWeakClass(reinterpret_cast<GcRoot<mirror::Class>*>(value),
-                                  visitor,
-                                  Runtime::GetWeakClassSentinel());
-        return;
-      } else if (reinterpret_cast<mirror::Class*>(*value) == Runtime::GetWeakClassSentinel()) {
+      mirror::Class* klass = reinterpret_cast<mirror::Class*>(*value);
+      if (klass == nullptr || klass == Runtime::GetWeakClassSentinel()) {
         return;
       }
-      FALLTHROUGH_INTENDED;
+      mirror::Class* new_klass = down_cast<mirror::Class*>(visitor->IsMarked(klass));
+      if (new_klass == nullptr) {
+        *value = reinterpret_cast<size_t>(Runtime::GetWeakClassSentinel());
+      } else if (new_klass != klass) {
+        *value = reinterpret_cast<size_t>(new_klass);
+      }
+      return;
     }
     case Opcode::CONST_STRING:
     case Opcode::CONST_STRING_JUMBO: {
@@ -4494,10 +4486,8 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor,
       mirror::Object* new_object = visitor->IsMarked(object);
       // We know the string is marked because it's a strongly-interned string that
       // is always alive (see b/117621117 for trying to make those strings weak).
-      // The IsMarked implementation of the CMS collector returns
-      // null for newly allocated objects, but we know those haven't moved. Therefore,
-      // only update the entry if we get a different non-null string.
-      if (new_object != nullptr && new_object != object) {
+      DCHECK_NE(new_object, nullptr);
+      if (new_object != object) {
         *value = reinterpret_cast<size_t>(new_object);
       }
       return;
@@ -4514,12 +4504,8 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor,
 }
 
 void Thread::SweepInterpreterCache(IsMarkedVisitor* visitor) {
-  bool only_update_class = Runtime::Current()->GetHeap()->IsPerformingUffdCompaction();
   for (InterpreterCache::Entry& entry : GetInterpreterCache()->GetArray()) {
-    SweepCacheEntry(visitor,
-                    reinterpret_cast<const Instruction*>(entry.first),
-                    &entry.second,
-                    only_update_class);
+    SweepCacheEntry(visitor, reinterpret_cast<const Instruction*>(entry.first), &entry.second);
   }
 }
 

@@ -906,12 +906,6 @@ class Runtime {
     return reinterpret_cast<mirror::Class*>(0xebadbeef);
   }
 
-  // Helper for the GC to process a weak class in a table.
-  static void ProcessWeakClass(GcRoot<mirror::Class>* root_ptr,
-                               IsMarkedVisitor* visitor,
-                               mirror::Class* update)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Create a normal LinearAlloc or low 4gb version if we are 64 bit AOT compiler.
   LinearAlloc* CreateLinearAlloc();
   // Setup linear-alloc allocators to stop using the current arena so that the
