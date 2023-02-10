@@ -248,7 +248,6 @@ class OatWriter {
  private:
   struct BssMappingInfo;
   class ChecksumUpdatingOutputStream;
-  class DexFileSource;
   class OatClassHeader;
   class OatClass;
   class OatDexFile;
@@ -279,22 +278,11 @@ class OatWriter {
   // If `update_input_vdex` is true, then this method won't actually write the dex files,
   // and the compiler will just re-use the existing vdex file.
   bool WriteDexFiles(File* file,
+                     bool verify,
                      bool use_existing_vdex,
                      CopyOption copy_dex_files,
                      /*out*/ std::vector<MemMap>* opened_dex_files_map);
-  bool WriteDexFile(File* file,
-                    OatDexFile* oat_dex_file,
-                    bool use_existing_vdex);
   bool LayoutDexFile(OatDexFile* oat_dex_file);
-  bool WriteDexFile(File* file,
-                    OatDexFile* oat_dex_file,
-                    ZipEntry* dex_file);
-  bool WriteDexFile(File* file,
-                    OatDexFile* oat_dex_file,
-                    File* dex_file);
-  bool WriteDexFile(OatDexFile* oat_dex_file,
-                    const uint8_t* dex_file,
-                    bool use_existing_vdex);
   bool OpenDexFiles(File* file,
                     bool verify,
                     /*inout*/ std::vector<MemMap>* opened_dex_files_map,
@@ -378,14 +366,6 @@ class OatWriter {
 
   WriteState write_state_;
   TimingLogger* timings_;
-
-  std::vector<std::unique_ptr<File>> raw_dex_files_;
-  std::vector<std::unique_ptr<ZipArchive>> zip_archives_;
-  std::vector<std::unique_ptr<ZipEntry>> zipped_dex_files_;
-
-  // Using std::list<> which doesn't move elements around on push/emplace_back().
-  // We need this because we keep plain pointers to the strings' c_str().
-  std::list<std::string> zipped_dex_file_locations_;
 
   dchecked_vector<debug::MethodDebugInfo> method_info_;
 

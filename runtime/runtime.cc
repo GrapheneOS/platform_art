@@ -3455,11 +3455,13 @@ class Runtime::NotifyStartupCompletedTask : public gc::HeapTask {
       runtime->DeleteThreadPool();
     }
 
-    {
+    if (startup_linear_alloc != nullptr) {
       // We know that after the checkpoint, there is no thread that can hold
       // the startup linear alloc, so it's safe to delete it now.
       ScopedTrace trace2("Delete startup linear alloc");
+      ArenaPool* arena_pool = startup_linear_alloc->GetArenaPool();
       startup_linear_alloc.reset();
+      arena_pool->TrimMaps();
     }
   }
 };

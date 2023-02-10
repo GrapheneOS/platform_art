@@ -214,7 +214,10 @@ class GcRoot {
     return root_.IsNull();
   }
 
-  ALWAYS_INLINE GcRoot() {}
+  ALWAYS_INLINE GcRoot() : GcRoot(nullptr) {}
+  ALWAYS_INLINE GcRoot(std::nullptr_t) : root_() {
+    DCHECK(IsNull());
+  }
   explicit ALWAYS_INLINE GcRoot(mirror::CompressedReference<mirror::Object> ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
   explicit ALWAYS_INLINE GcRoot(MirrorType* ref)

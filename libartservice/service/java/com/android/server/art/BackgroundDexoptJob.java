@@ -42,6 +42,7 @@ import com.android.server.pm.PackageManagerLocal;
 
 import com.google.auto.value.AutoValue;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -291,7 +292,8 @@ public class BackgroundDexoptJob {
 
         @NonNull
         public PackageManagerLocal getPackageManagerLocal() {
-            return LocalManagerRegistry.getManager(PackageManagerLocal.class);
+            return Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(PackageManagerLocal.class));
         }
 
         @NonNull
@@ -301,7 +303,7 @@ public class BackgroundDexoptJob {
 
         @NonNull
         public JobScheduler getJobScheduler() {
-            return mContext.getSystemService(JobScheduler.class);
+            return Objects.requireNonNull(mContext.getSystemService(JobScheduler.class));
         }
     }
 }

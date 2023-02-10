@@ -70,6 +70,8 @@ class DexFileContainer {
   virtual const uint8_t* DataBegin() const { return nullptr; }
   virtual const uint8_t* DataEnd() const { return nullptr; }
 
+  virtual bool IsDirectMmap() { return false; }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(DexFileContainer);
 };
