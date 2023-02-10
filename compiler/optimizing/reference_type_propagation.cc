@@ -123,8 +123,8 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
     : HOptimization(graph, name), hint_dex_cache_(hint_dex_cache), is_first_run_(is_first_run) {}
 
 void ReferenceTypePropagation::ValidateTypes() {
-  // TODO: move this to the graph checker. Note: There may be no Thread for gtests.
-  if (kIsDebugBuild && Thread::Current() != nullptr) {
+  // TODO: move this to the graph checker.
+  if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
     for (HBasicBlock* block : graph_->GetReversePostOrder()) {
       for (HInstructionIterator iti(block->GetInstructions()); !iti.Done(); iti.Advance()) {
@@ -333,6 +333,9 @@ static void BoundTypeForClassCheck(HInstruction* check) {
 }
 
 bool ReferenceTypePropagation::Run() {
+  DCHECK(Thread::Current() != nullptr)
+      << "ReferenceTypePropagation requires the use of Thread::Current(). Make sure you have a "
+      << "Runtime initialized before calling this optimization pass";
   RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
 
   // To properly propagate type info we need to visit in the dominator-based order.

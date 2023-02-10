@@ -25,7 +25,7 @@
 
 namespace art HIDDEN {
 
-class OptimizerTest : public OptimizingUnitTest {
+class OptimizerTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   void TestCode(const std::vector<uint16_t>& data, const uint32_t* blocks, size_t blocks_length);
 };

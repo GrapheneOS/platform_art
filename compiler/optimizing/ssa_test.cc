@@ -30,7 +30,7 @@
 
 namespace art HIDDEN {
 
-class SsaTest : public OptimizingUnitTest {
+class SsaTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   void TestCode(const std::vector<uint16_t>& data, const char* expected);
 };
