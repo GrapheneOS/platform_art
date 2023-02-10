@@ -41,7 +41,8 @@ namespace {
 
 class MemMapContainer : public DexFileContainer {
  public:
-  explicit MemMapContainer(MemMap&& mem_map) : mem_map_(std::move(mem_map)) { }
+  explicit MemMapContainer(MemMap&& mem_map, bool direct_mmap = false)
+      : mem_map_(std::move(mem_map)), direct_mmap_(direct_mmap) {}
   ~MemMapContainer() override { }
 
   int GetPermissions() const {
@@ -76,8 +77,11 @@ class MemMapContainer : public DexFileContainer {
 
   const uint8_t* End() const override { return mem_map_.End(); }
 
+  bool IsDirectMmap() override { return direct_mmap_; }
+
  private:
   MemMap mem_map_;
+  bool direct_mmap_;
   DISALLOW_COPY_AND_ASSIGN(MemMapContainer);
 };
 
@@ -462,6 +466,7 @@ std::unique_ptr<const DexFile> ArtDexFileLoader::OpenOneDexFileFromZip(
   }
 
   MemMap map;
+  bool direct_mmap = false;
   if (zip_entry->IsUncompressed()) {
     if (!zip_entry->IsAlignedTo(alignof(DexFile::Header))) {
       // Do not mmap unaligned ZIP entries because
@@ -477,6 +482,7 @@ std::unique_ptr<const DexFile> ArtDexFileLoader::OpenOneDexFileFromZip(
                      << "is your ZIP file corrupted? Falling back to extraction.";
         // Try again with Extraction which still has a chance of recovery.
       }
+      direct_mmap = true;
     }
   }
 
@@ -497,13 +503,14 @@ std::unique_ptr<const DexFile> ArtDexFileLoader::OpenOneDexFileFromZip(
     return nullptr;
   }
   VerifyResult verify_result;
+  auto container = std::make_unique<MemMapContainer>(std::move(map), direct_mmap);
   std::unique_ptr<DexFile> dex_file = OpenCommon(location,
                                                  zip_entry->GetCrc32(),
                                                  kNoOatDexFile,
                                                  verify,
                                                  verify_checksum,
                                                  error_msg,
-                                                 std::make_unique<MemMapContainer>(std::move(map)),
+                                                 std::move(container),
                                                  &verify_result);
   if (dex_file != nullptr && dex_file->IsCompactDexFile()) {
     *error_msg = StringPrintf("Opening CompactDex file '%s' is only supported from vdex files",
