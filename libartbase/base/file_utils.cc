@@ -73,6 +73,8 @@ static constexpr const char* kAndroidSystemExtRootEnvVar = "SYSTEM_EXT_ROOT";
 static constexpr const char* kAndroidSystemExtRootDefaultPath = "/system_ext";
 static constexpr const char* kAndroidDataEnvVar = "ANDROID_DATA";
 static constexpr const char* kAndroidDataDefaultPath = "/data";
+static constexpr const char* kAndroidExpandEnvVar = "ANDROID_EXPAND";
+static constexpr const char* kAndroidExpandDefaultPath = "/mnt/expand";
 static constexpr const char* kAndroidArtRootEnvVar = "ANDROID_ART_ROOT";
 static constexpr const char* kAndroidConscryptRootEnvVar = "ANDROID_CONSCRYPT_ROOT";
 static constexpr const char* kAndroidI18nRootEnvVar = "ANDROID_I18N_ROOT";
@@ -281,6 +283,18 @@ std::string GetAndroidDataSafe(std::string* error_msg) {
 }
 
 std::string GetAndroidData() { return GetAndroidDir(kAndroidDataEnvVar, kAndroidDataDefaultPath); }
+
+std::string GetAndroidExpandSafe(std::string* error_msg) {
+  const char* android_dir = GetAndroidDirSafe(kAndroidExpandEnvVar,
+                                              kAndroidExpandDefaultPath,
+                                              /*must_exist=*/true,
+                                              error_msg);
+  return (android_dir != nullptr) ? android_dir : "";
+}
+
+std::string GetAndroidExpand() {
+  return GetAndroidDir(kAndroidExpandEnvVar, kAndroidExpandDefaultPath);
+}
 
 std::string GetArtApexData() {
   return GetAndroidDir(kArtApexDataEnvVar, kArtApexDataDefaultPath, /*must_exist=*/false);
