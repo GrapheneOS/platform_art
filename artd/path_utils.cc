@@ -17,6 +17,8 @@
 #include "path_utils.h"
 
 #include <filesystem>
+#include <string>
+#include <vector>
 
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/errors.h"
@@ -27,6 +29,7 @@
 #include "file_utils.h"
 #include "fmt/format.h"
 #include "oat_file_assistant.h"
+#include "tools/tools.h"
 
 namespace art {
 namespace artd {
@@ -99,6 +102,15 @@ Result<std::string> GetAndroidDataOrError() {
   return result;
 }
 
+Result<std::string> GetAndroidExpandOrError() {
+  std::string error_msg;
+  std::string result = GetAndroidExpandSafe(&error_msg);
+  if (!error_msg.empty()) {
+    return Error() << error_msg;
+  }
+  return result;
+}
+
 Result<std::string> GetArtRootOrError() {
   std::string error_msg;
   std::string result = GetArtRootSafe(&error_msg);
@@ -109,6 +121,37 @@ Result<std::string> GetArtRootOrError() {
 }
 
 }  // namespace
+
+Result<std::vector<std::string>> ListManagedFiles() {
+  std::string android_data = OR_RETURN(GetAndroidDataOrError());
+  std::string android_expand = OR_RETURN(GetAndroidExpandOrError());
+
+  // See `art::tools::Glob` for the syntax.
+  std::vector<std::string> patterns = {
+      // Profiles for primary dex files.
+      android_data + "/misc/profiles/**",
+      // Artifacts for primary dex files.
+      android_data + "/dalvik-cache/**",
+  };
+
+  for (const std::string& data_root : {android_data, android_expand + "/*"}) {
+    // Artifacts for primary dex files.
+    patterns.push_back(data_root + "/app/*/*/oat/**");
+    // Profiles and artifacts for secondary dex files. Those files are in app data directories, so
+    // we use more granular patterns to avoid accidentally deleting apps' files.
+    for (const char* user_dir : {"/user", "/user_de"}) {
+      std::string secondary_oat_dir = data_root + user_dir + "/*/*/**/oat";
+      for (const char* maybe_tmp_suffix : {"", ".*.tmp"}) {
+        patterns.push_back(secondary_oat_dir + "/*.prof" + maybe_tmp_suffix);
+        patterns.push_back(secondary_oat_dir + "/*/*.odex" + maybe_tmp_suffix);
+        patterns.push_back(secondary_oat_dir + "/*/*.vdex" + maybe_tmp_suffix);
+        patterns.push_back(secondary_oat_dir + "/*/*.art" + maybe_tmp_suffix);
+      }
+    }
+  }
+
+  return tools::Glob(patterns);
+}
 
 Result<void> ValidateDexPath(const std::string& dex_path) {
   OR_RETURN(ValidateAbsoluteNormalPath(dex_path));

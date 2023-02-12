@@ -17,12 +17,18 @@
 #ifndef ART_ARTD_PATH_UTILS_H_
 #define ART_ARTD_PATH_UTILS_H_
 
+#include <string>
+#include <vector>
+
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/result.h"
 #include "base/file_utils.h"
 
 namespace art {
 namespace artd {
+
+// Returns all existing files that are managed by artd.
+android::base::Result<std::vector<std::string>> ListManagedFiles();
 
 android::base::Result<void> ValidateDexPath(const std::string& dex_path);
 
