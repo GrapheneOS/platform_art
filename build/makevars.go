@@ -35,7 +35,6 @@ var (
 		"bin/llvm-dwarfdump",
 		"bin/llvm-objdump",
 		"lib/libc++.so.1",
-		"lib64/libc++.so.1",
 	}
 )
 
