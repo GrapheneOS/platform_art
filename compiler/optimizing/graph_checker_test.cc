@@ -20,7 +20,7 @@
 
 namespace art HIDDEN {
 
-class GraphCheckerTest : public OptimizingUnitTest {
+class GraphCheckerTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   HGraph* CreateSimpleCFG();
   void TestCode(const std::vector<uint16_t>& data);
