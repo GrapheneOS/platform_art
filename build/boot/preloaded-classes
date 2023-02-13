@@ -433,6 +433,7 @@ com.android.org.bouncycastle.jcajce.provider.symmetric.util.BaseWrapCipher$Inval
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.BaseWrapCipher
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.BlockCipherProvider
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.ClassUtil
+com.android.org.bouncycastle.jcajce.provider.symmetric.util.GcmSpecUtil$2
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.GcmSpecUtil
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.PBE$Util
 com.android.org.bouncycastle.jcajce.provider.symmetric.util.PBE
@@ -449,6 +450,7 @@ com.android.org.bouncycastle.jce.X509Principal
 com.android.org.bouncycastle.jce.interfaces.BCKeyStore
 com.android.org.bouncycastle.jce.interfaces.PKCS12BagAttributeCarrier
 com.android.org.bouncycastle.jce.provider.BouncyCastleProvider$1
+com.android.org.bouncycastle.jce.provider.BouncyCastleProvider$PrivateProvider
 com.android.org.bouncycastle.jce.provider.BouncyCastleProvider
 com.android.org.bouncycastle.jce.provider.BouncyCastleProviderConfiguration
 com.android.org.bouncycastle.jce.provider.CertStoreCollectionSpi
@@ -673,6 +675,8 @@ java.lang.ClassFormatError
 java.lang.ClassLoader$SystemClassLoader
 java.lang.ClassLoader
 java.lang.ClassNotFoundException
+java.lang.ClassValue$Entry
+java.lang.ClassValue
 java.lang.CloneNotSupportedException
 java.lang.Cloneable
 java.lang.Comparable
@@ -753,6 +757,7 @@ java.lang.StackOverflowError
 java.lang.StackStreamFactory$AbstractStackWalker
 java.lang.StackStreamFactory
 java.lang.StackTraceElement
+java.lang.StackWalker$Option
 java.lang.StackWalker$StackFrame
 java.lang.StackWalker
 java.lang.StrictMath
@@ -787,6 +792,7 @@ java.lang.ThreadDeath
 java.lang.ThreadGroup
 java.lang.ThreadLocal$SuppliedThreadLocal
 java.lang.ThreadLocal$ThreadLocalMap$Entry
+java.lang.ThreadLocal$ThreadLocalMap-IA
 java.lang.ThreadLocal$ThreadLocalMap
 java.lang.ThreadLocal
 java.lang.Throwable$PrintStreamOrWriter
@@ -804,6 +810,7 @@ java.lang.UNIXProcess$ProcessReaperThreadFactory$1
 java.lang.UNIXProcess$ProcessReaperThreadFactory
 java.lang.UNIXProcess
 java.lang.UnsatisfiedLinkError
+java.lang.UnsupportedClassVersionError
 java.lang.UnsupportedOperationException
 java.lang.VMClassLoader
 java.lang.VerifyError
@@ -1019,6 +1026,7 @@ java.net.Proxy$Type
 java.net.Proxy
 java.net.ProxySelector
 java.net.ResponseCache
+java.net.ServerSocket$1
 java.net.ServerSocket
 java.net.Socket$1
 java.net.Socket$2
@@ -1052,6 +1060,7 @@ java.net.UnknownHostException
 java.net.UnknownServiceException
 java.nio.Bits
 java.nio.Buffer
+java.nio.BufferMismatch
 java.nio.BufferOverflowException
 java.nio.BufferUnderflowException
 java.nio.ByteBuffer
@@ -1125,6 +1134,7 @@ java.nio.channels.spi.AbstractSelectableChannel
 java.nio.channels.spi.AbstractSelectionKey
 java.nio.channels.spi.AbstractSelector$1
 java.nio.channels.spi.AbstractSelector
+java.nio.channels.spi.AsynchronousChannelProvider
 java.nio.channels.spi.SelectorProvider$1
 java.nio.channels.spi.SelectorProvider
 java.nio.charset.CharacterCodingException
@@ -1384,6 +1394,7 @@ java.time.DayOfWeek
 java.time.Duration
 java.time.Instant$1
 java.time.Instant
+java.time.InstantSource
 java.time.LocalDate$1
 java.time.LocalDate
 java.time.LocalDateTime
@@ -1416,6 +1427,7 @@ java.time.format.DateTimeFormatterBuilder$2
 java.time.format.DateTimeFormatterBuilder$CharLiteralPrinterParser
 java.time.format.DateTimeFormatterBuilder$CompositePrinterParser
 java.time.format.DateTimeFormatterBuilder$DateTimePrinterParser
+java.time.format.DateTimeFormatterBuilder$DayPeriod
 java.time.format.DateTimeFormatterBuilder$FractionPrinterParser
 java.time.format.DateTimeFormatterBuilder$InstantPrinterParser
 java.time.format.DateTimeFormatterBuilder$NumberPrinterParser
@@ -1500,6 +1512,7 @@ java.util.AbstractMap
 java.util.AbstractQueue
 java.util.AbstractSequentialList
 java.util.AbstractSet
+java.util.ArrayDeque$$ExternalSyntheticLambda1
 java.util.ArrayDeque$DeqIterator
 java.util.ArrayDeque$DescendingIterator
 java.util.ArrayDeque
@@ -1527,6 +1540,7 @@ java.util.Base64$Decoder
 java.util.Base64$Encoder
 java.util.Base64
 java.util.BitSet
+java.util.Calendar$$ExternalSyntheticLambda0
 java.util.Calendar$Builder
 java.util.Calendar
 java.util.Collection
@@ -1601,6 +1615,7 @@ java.util.Currency
 java.util.Date
 java.util.Deque
 java.util.Dictionary
+java.util.DualPivotQuicksort$Sorter
 java.util.DualPivotQuicksort
 java.util.DuplicateFormatFlagsException
 java.util.EmptyStackException
@@ -1681,6 +1696,7 @@ java.util.ImmutableCollections$MapN$MapNIterator
 java.util.ImmutableCollections$MapN
 java.util.ImmutableCollections$Set12
 java.util.ImmutableCollections$SetN
+java.util.ImmutableCollections$SubList
 java.util.ImmutableCollections
 java.util.InputMismatchException
 java.util.Iterator
@@ -1749,12 +1765,16 @@ java.util.ResourceBundle$1
 java.util.ResourceBundle$BundleReference
 java.util.ResourceBundle$CacheKey
 java.util.ResourceBundle$CacheKeyReference
+java.util.ResourceBundle$Control$$ExternalSyntheticLambda0
 java.util.ResourceBundle$Control$1
 java.util.ResourceBundle$Control$CandidateListCache
 java.util.ResourceBundle$Control
+java.util.ResourceBundle$KeyElementReference
+java.util.ResourceBundle$RBClassLoader$1
 java.util.ResourceBundle$RBClassLoader
 java.util.ResourceBundle$SingleFormatControl
 java.util.ResourceBundle
+java.util.Scanner$PatternLRUCache
 java.util.Scanner
 java.util.ServiceConfigurationError
 java.util.ServiceLoader$1
@@ -1936,11 +1956,13 @@ java.util.concurrent.Executors$FinalizableDelegatedExecutorService
 java.util.concurrent.Executors$RunnableAdapter
 java.util.concurrent.Executors
 java.util.concurrent.ForkJoinPool$1
+java.util.concurrent.ForkJoinPool$DefaultCommonPoolForkJoinWorkerThreadFactory
 java.util.concurrent.ForkJoinPool$DefaultForkJoinWorkerThreadFactory
 java.util.concurrent.ForkJoinPool$ForkJoinWorkerThreadFactory
 java.util.concurrent.ForkJoinPool$ManagedBlocker
 java.util.concurrent.ForkJoinPool$WorkQueue
 java.util.concurrent.ForkJoinPool
+java.util.concurrent.ForkJoinTask$Aux
 java.util.concurrent.ForkJoinTask
 java.util.concurrent.ForkJoinWorkerThread
 java.util.concurrent.Future
@@ -2001,8 +2023,11 @@ java.util.concurrent.atomic.Striped64$1
 java.util.concurrent.atomic.Striped64$Cell
 java.util.concurrent.atomic.Striped64
 java.util.concurrent.locks.AbstractOwnableSynchronizer
+java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionNode
 java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject
+java.util.concurrent.locks.AbstractQueuedSynchronizer$ExclusiveNode
 java.util.concurrent.locks.AbstractQueuedSynchronizer$Node
+java.util.concurrent.locks.AbstractQueuedSynchronizer$SharedNode
 java.util.concurrent.locks.AbstractQueuedSynchronizer
 java.util.concurrent.locks.Condition
 java.util.concurrent.locks.Lock
@@ -2049,9 +2074,13 @@ java.util.function.IntToLongFunction
 java.util.function.IntUnaryOperator
 java.util.function.LongBinaryOperator
 java.util.function.LongConsumer
+java.util.function.LongFunction
 java.util.function.LongPredicate
 java.util.function.LongSupplier
 java.util.function.LongUnaryOperator
+java.util.function.ObjDoubleConsumer
+java.util.function.ObjIntConsumer
+java.util.function.ObjLongConsumer
 java.util.function.Predicate
 java.util.function.Supplier
 java.util.function.ToDoubleBiFunction
@@ -2128,6 +2157,7 @@ java.util.stream.BaseStream
 java.util.stream.Collector$Characteristics
 java.util.stream.Collector
 java.util.stream.Collectors$$ExternalSyntheticLambda0
+java.util.stream.Collectors$$ExternalSyntheticLambda13
 java.util.stream.Collectors$$ExternalSyntheticLambda15
 java.util.stream.Collectors$$ExternalSyntheticLambda1
 java.util.stream.Collectors$$ExternalSyntheticLambda20
@@ -2427,6 +2457,7 @@ javax.net.ssl.SSLSessionContext
 javax.net.ssl.SSLSocket
 javax.net.ssl.SSLSocketFactory$1
 javax.net.ssl.SSLSocketFactory
+javax.net.ssl.StandardConstants
 javax.net.ssl.TrustManager
 javax.net.ssl.TrustManagerFactory$1
 javax.net.ssl.TrustManagerFactory
@@ -2462,6 +2493,7 @@ jdk.internal.math.FloatingDecimal$ASCIIToBinaryConverter
 jdk.internal.math.FloatingDecimal$BinaryToASCIIBuffer
 jdk.internal.math.FloatingDecimal$BinaryToASCIIConverter
 jdk.internal.math.FloatingDecimal$ExceptionalBinaryToASCIIBuffer
+jdk.internal.math.FloatingDecimal$HexFloatPattern
 jdk.internal.math.FloatingDecimal$PreparedASCIIToBinaryBuffer
 jdk.internal.math.FloatingDecimal
 jdk.internal.math.FormattedFloatingDecimal$1
@@ -2470,12 +2502,15 @@ jdk.internal.math.FormattedFloatingDecimal$Form
 jdk.internal.math.FormattedFloatingDecimal
 jdk.internal.misc.JavaObjectInputStreamAccess
 jdk.internal.misc.SharedSecrets
+jdk.internal.misc.TerminatingThreadLocal$1
 jdk.internal.misc.TerminatingThreadLocal
 jdk.internal.misc.Unsafe
+jdk.internal.misc.UnsafeConstants
 jdk.internal.misc.VM
 jdk.internal.reflect.Reflection
 jdk.internal.util.ArraysSupport
 jdk.internal.util.Preconditions
+jdk.internal.util.StaticProperty
 libcore.content.type.MimeMap$$ExternalSyntheticLambda0
 libcore.content.type.MimeMap$Builder$Element
 libcore.content.type.MimeMap$Builder
@@ -2684,6 +2719,7 @@ sun.nio.ch.FileLockTable
 sun.nio.ch.IOStatus
 sun.nio.ch.IOUtil
 sun.nio.ch.Interruptible
+sun.nio.ch.LinuxAsynchronousChannelProvider
 sun.nio.ch.NativeDispatcher
 sun.nio.ch.NativeObject
 sun.nio.ch.NativeThread
@@ -2774,6 +2810,7 @@ sun.security.jca.ProviderList
 sun.security.jca.Providers
 sun.security.jca.ServiceId
 sun.security.pkcs.ContentInfo
+sun.security.pkcs.ESSCertId
 sun.security.pkcs.PKCS7$VerbatimX509Certificate
 sun.security.pkcs.PKCS7$WrappedX509Certificate
 sun.security.pkcs.PKCS7
@@ -2845,6 +2882,7 @@ sun.security.util.MemoryCache$HardCacheEntry
 sun.security.util.MemoryCache$SoftCacheEntry
 sun.security.util.MemoryCache
 sun.security.util.ObjectIdentifier
+sun.security.util.PropertyExpander
 sun.security.util.Resources
 sun.security.util.ResourcesMgr$1
 sun.security.util.ResourcesMgr
@@ -3002,6 +3040,7 @@ sun.util.logging.PlatformLogger
 [Ljava.lang.Character;
 [Ljava.lang.Class;
 [Ljava.lang.ClassLoader;
+[Ljava.lang.ClassValue$Entry;
 [Ljava.lang.Comparable;
 [Ljava.lang.Daemons$Daemon;
 [Ljava.lang.Double;
@@ -3015,6 +3054,7 @@ sun.util.logging.PlatformLogger
 [Ljava.lang.Runnable;
 [Ljava.lang.Short;
 [Ljava.lang.StackTraceElement;
+[Ljava.lang.StackWalker$Option;
 [Ljava.lang.String;
 [Ljava.lang.StringBuilder;
 [Ljava.lang.Thread$State;
@@ -3048,8 +3088,10 @@ sun.util.logging.PlatformLogger
 [Ljava.net.StandardProtocolFamily;
 [Ljava.nio.ByteBuffer;
 [Ljava.nio.channels.SelectionKey;
+[Ljava.nio.charset.CoderResult;
 [Ljava.nio.file.AccessMode;
 [Ljava.nio.file.CopyOption;
+[Ljava.nio.file.FileVisitResult;
 [Ljava.nio.file.LinkOption;
 [Ljava.nio.file.OpenOption;
 [Ljava.nio.file.StandardCopyOption;
