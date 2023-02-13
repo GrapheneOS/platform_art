@@ -230,10 +230,9 @@ class PACKED(8) ImageHeader {
     // Aliases.
     kAppImageClassLoader = kSpecialRoots,   // The class loader used to build the app image.
     kBootImageLiveObjects = kSpecialRoots,  // Array of boot image objects that must be kept live.
-    kAppImageContextAndDexChecksums = kSpecialRoots,  // Array of size 2, containing the class
-                                                      // loader context in first entry, and an array
-                                                      // of dex checksums for app images generated
-                                                      // by the runtime.
+    kAppImageOatHeader = kSpecialRoots,     // A byte array containing 1) a fake OatHeader to check
+                                            // if the image can be loaded against the current
+                                            // runtime, and 2) the dex checksums.
   };
 
   enum BootImageLiveObjects {

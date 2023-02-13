@@ -19,6 +19,10 @@ import sys
 # Run the test twice: one run for generating the image, a second run for using
 # the image.
 def run(ctx, args):
-  ctx.default_run(args, app_image=False, relocate=True)
+  ctx.default_run(args, Xcompiler_option=["--compact-dex-level=fast"], app_image=False, relocate=True)
   # Pass another argument to let the test know it should now expect an image.
-  ctx.default_run(args, app_image=False, relocate=True, test_args=["--second-run"])
+  ctx.default_run(args, Xcompiler_option=["--compact-dex-level=fast"], app_image=False, relocate=True, test_args=["--second-run"])
+  # Repeat the test with a different compact dex level, to make sure we don't
+  # pick up the existing image.
+  ctx.default_run(args, Xcompiler_option=["--compact-dex-level=none"], app_image=False, relocate=True)
+  ctx.default_run(args, Xcompiler_option=["--compact-dex-level=none"], app_image=False, relocate=True, test_args=["--second-run"])
