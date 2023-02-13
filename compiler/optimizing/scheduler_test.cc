@@ -66,7 +66,7 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
   return v;
 }
 
-class SchedulerTest : public OptimizingUnitTest {
+class SchedulerTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  public:
   SchedulerTest() : graph_(CreateGraph()) { }
 

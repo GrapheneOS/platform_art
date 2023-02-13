@@ -28,7 +28,7 @@
 
 namespace art HIDDEN {
 
-class LivenessTest : public OptimizingUnitTest {
+class LivenessTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   void TestCode(const std::vector<uint16_t>& data, const char* expected);
 };

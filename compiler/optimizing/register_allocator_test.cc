@@ -39,10 +39,10 @@ using Strategy = RegisterAllocator::Strategy;
 // Note: the register allocator tests rely on the fact that constants have live
 // intervals and registers get allocated to them.
 
-class RegisterAllocatorTest : public OptimizingUnitTest {
+class RegisterAllocatorTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   void SetUp() override {
-    OptimizingUnitTest::SetUp();
+    CommonCompilerTest::SetUp();
     // This test is using the x86 ISA.
     compiler_options_ = CommonCompilerTest::CreateCompilerOptions(InstructionSet::kX86, "default");
   }
