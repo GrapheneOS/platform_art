@@ -301,6 +301,7 @@ flaky_tests_excluded_from_mts = {
 # tests.
 failing_tests_excluded_from_mts_and_mainline_presubmits = {
     "art_standalone_compiler_tests": ["JniCompilerTest*"],
+    "art_standalone_libartpalette_tests": ["PaletteClientJniTest*"],
 }
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
