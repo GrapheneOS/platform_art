@@ -14,27 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [[ ${#@} != 1 ]] && [[ ${#@} != 2 ]]; then
+if [[ ${#@} != 1 ]]; then
   cat <<EOF
 Usage
-  host_bcp <image> [--use-first-dir] | xargs <art-host-tool> ...
+  host_bcp <image> | xargs <art-host-tool> ...
 Extracts boot class path locations from <image> and outputs the appropriate
   --runtime-arg -Xbootclasspath:...
   --runtime-arg -Xbootclasspath-locations:...
 arguments for many ART host tools based on the \$ANDROID_PRODUCT_OUT variable
-and existing \$ANDROID_PRODUCT_OUT/apex/com.android.art* paths.
-If --use-first-dir is specified, the script will use the first apex dir instead
-of resulting in an error.
+and existing \$ANDROID_PRODUCT_OUT/apex/* paths.
 EOF
   exit 1
 fi
 
 IMAGE=$1
-USE_FIRST_DIR=false
-
-if [[ $2 == "--use-first-dir" ]]; then
-  USE_FIRST_DIR=true
-fi
 
 if [[ ! -e ${IMAGE} ]]; then
   IMAGE=${ANDROID_PRODUCT_OUT}/$1
@@ -50,34 +43,33 @@ if [[ "x${BCPL}" == "x" ]]; then
   exit 1
 fi
 
-MANIFEST=/apex_manifest.pb
-ART_APEX=/apex/com.android.art
-ART_APEX_SELECTED=
-for m in `ls -1 -d ${ANDROID_PRODUCT_OUT}{,/system}${ART_APEX}*${MANIFEST} 2>/dev/null`; do
-  d=${m:0:-${#MANIFEST}}
-  if [[ "x${ART_APEX_SELECTED}" != "x" ]]; then
-    if [[ $USE_FIRST_DIR == true ]]; then
-      break
-    fi
-    echo "Multiple ART APEX dirs: ${ART_APEX_SELECTED}, ${d}."
-    exit 1
-  fi
-  ART_APEX_SELECTED=${d}
-done
-if [[ "x${ART_APEX_SELECTED}" == "x" ]]; then
-  echo "No ART APEX dir."
+APEX_INFO_LIST=${ANDROID_PRODUCT_OUT}/apex/apex-info-list.xml
+if [[ ! -e ${APEX_INFO_LIST} ]]; then
+  echo "Failed to locate apex info at ${APEX_INFO_LIST}."
   exit 1
 fi
 
 BCP=
 OLD_IFS=${IFS}
 IFS=:
+APEX_PREFIX=/apex/
 for COMPONENT in ${BCPL}; do
   HEAD=${ANDROID_PRODUCT_OUT}
   TAIL=${COMPONENT}
-  if [[ ${COMPONENT:0:${#ART_APEX}} = ${ART_APEX} ]]; then
-    HEAD=${ART_APEX_SELECTED}
-    TAIL=${COMPONENT:${#ART_APEX}}
+  # Apex module paths aren't symlinked on the host, so map from the symbolic
+  # device path to the prebuilt (host) module path using the apex info table.
+  if [[ ${COMPONENT:0:${#APEX_PREFIX}} = ${APEX_PREFIX} ]]; then
+    # First extract the symbolic module name and its (internal) jar path.
+    COMPONENT=${COMPONENT#${APEX_PREFIX}}
+    MODULE_NAME=${COMPONENT%%/*}
+    MODULE_JAR=${COMPONENT#*/}
+    # Use the module name to look up the preinstalled module path..
+    HOST_MODULE=`xmllint --xpath "string(//apex-info[@moduleName=\"${MODULE_NAME}\"]/@preinstalledModulePath)" ${APEX_INFO_LIST}`
+    # Extract the preinstalled module name from the full path (strip prefix/suffix).
+    HOST_MODULE_NAME=${HOST_MODULE#*${APEX_PREFIX}}
+    HOST_MODULE_NAME=${HOST_MODULE_NAME%.*apex}
+    # Rebuild the host path using the preinstalled module name.
+    TAIL="${APEX_PREFIX}${HOST_MODULE_NAME}/${MODULE_JAR}"
   fi
   if [[ ! -e $HEAD$TAIL ]]; then
     echo "File does not exist: $HEAD$TAIL"
