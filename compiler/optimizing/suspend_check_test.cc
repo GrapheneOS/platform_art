@@ -29,7 +29,7 @@ namespace art HIDDEN {
  * Check that the HGraphBuilder adds suspend checks to backward branches.
  */
 
-class SuspendCheckTest : public OptimizingUnitTest {
+class SuspendCheckTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
   void TestCode(const std::vector<uint16_t>& data);
 };

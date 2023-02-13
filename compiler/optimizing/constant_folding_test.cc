@@ -32,7 +32,7 @@ namespace art HIDDEN {
 /**
  * Fixture class for the constant folding and dce tests.
  */
-class ConstantFoldingTest : public OptimizingUnitTest {
+class ConstantFoldingTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  public:
   ConstantFoldingTest() : graph_(nullptr) { }
 
