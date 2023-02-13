@@ -42,11 +42,9 @@ namespace {
 
 bool LoadDexFile(const std::string& dex_filename,
                  std::vector<std::unique_ptr<const DexFile>>* dex_files) {
-  const ArtDexFileLoader dex_file_loader;
+  ArtDexFileLoader dex_file_loader(dex_filename);
   std::string error_msg;
-  if (!dex_file_loader.Open(dex_filename.c_str(),
-                            dex_filename.c_str(),
-                            /* verify= */ true,
+  if (!dex_file_loader.Open(/* verify= */ true,
                             /* verify_checksum= */ true,
                             &error_msg,
                             dex_files)) {

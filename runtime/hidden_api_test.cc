@@ -63,12 +63,11 @@ static bool LoadDexFiles(const std::string& path,
                          /* out */ std::vector<std::unique_ptr<const DexFile>>* dex_files,
                          /* out */ ObjPtr<mirror::ClassLoader>* class_loader,
                          /* out */ std::string* error_msg) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!ArtDexFileLoader().Open(path.c_str(),
-                               path,
-                               /* verify= */ true,
-                               /* verify_checksum= */ true,
-                               error_msg,
-                               dex_files)) {
+  ArtDexFileLoader dex_file_loader(path);
+  if (!dex_file_loader.Open(/* verify= */ true,
+                            /* verify_checksum= */ true,
+                            error_msg,
+                            dex_files)) {
     return false;
   }
 

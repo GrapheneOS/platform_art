@@ -60,6 +60,7 @@ class ScopedTrace {
   }
 
   explicit ScopedTrace(const std::string& name) : ScopedTrace(name.c_str()) {}
+  ScopedTrace(ScopedTrace&&) = default;
 
   ~ScopedTrace() {
     ATraceEnd();

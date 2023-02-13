@@ -462,11 +462,9 @@ bool OatWriter::AddDexFileSource(const char* filename, const char* location) {
 bool OatWriter::AddDexFileSource(File&& dex_file_fd, const char* location) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   std::string error_msg;
-  const ArtDexFileLoader loader;
+  ArtDexFileLoader loader(dex_file_fd.Release(), location);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!loader.Open(dex_file_fd.Release(),
-                   location,
-                   /*verify=*/false,
+  if (!loader.Open(/*verify=*/false,
                    /*verify_checksum=*/false,
                    &error_msg,
                    &dex_files)) {
@@ -524,11 +522,8 @@ bool OatWriter::AddRawDexFileSource(const ArrayRef<const uint8_t>& data,
                                     uint32_t location_checksum) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   std::string error_msg;
-  const ArtDexFileLoader loader;
-  auto dex_file = loader.Open(data.data(),
-                              data.size(),
-                              location,
-                              location_checksum,
+  ArtDexFileLoader loader(data.data(), data.size(), location);
+  auto dex_file = loader.Open(location_checksum,
                               nullptr,
                               /*verify=*/false,
                               /*verify_checksum=*/false,
@@ -3187,7 +3182,8 @@ bool OatWriter::WriteDexFiles(File* file,
   if (copy_dex_files == CopyOption::kOnlyIfCompressed) {
     extract_dex_files_into_vdex_ = false;
     for (OatDexFile& oat_dex_file : oat_dex_files_) {
-      if (!oat_dex_file.GetDexFile()->GetContainer()->IsDirectMmap()) {
+      const DexFileContainer* container = oat_dex_file.GetDexFile()->GetContainer();
+      if (!(container->IsZip() && container->IsFileMap())) {
         extract_dex_files_into_vdex_ = true;
         break;
       }
@@ -3468,7 +3464,6 @@ bool OatWriter::OpenDexFiles(
 
   DCHECK_EQ(opened_dex_files_map->size(), 1u);
   DCHECK(vdex_begin_ == opened_dex_files_map->front().Begin());
-  const ArtDexFileLoader dex_file_loader;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   for (OatDexFile& oat_dex_file : oat_dex_files_) {
     const uint8_t* raw_dex_file = vdex_begin_ + oat_dex_file.dex_file_offset_;
@@ -3490,10 +3485,9 @@ bool OatWriter::OpenDexFiles(
 
     // Now, open the dex file.
     std::string error_msg;
-    dex_files.emplace_back(dex_file_loader.Open(raw_dex_file,
-                                                oat_dex_file.dex_file_size_,
-                                                oat_dex_file.GetLocation(),
-                                                oat_dex_file.dex_file_location_checksum_,
+    ArtDexFileLoader dex_file_loader(
+        raw_dex_file, oat_dex_file.dex_file_size_, oat_dex_file.GetLocation());
+    dex_files.emplace_back(dex_file_loader.Open(oat_dex_file.dex_file_location_checksum_,
                                                 /* oat_dex_file */ nullptr,
                                                 verify,
                                                 verify,
