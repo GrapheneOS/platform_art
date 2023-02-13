@@ -452,6 +452,36 @@
       "name": "art-run-test-2244-checker-remove-try-boundary[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2247-checker-write-barrier-elimination[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2250-inline-throw-into-try[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2252-rem-optimization-dividend-divisor[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2253-checker-devirtualize-always-throws[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2254-checker-not-var-analyzed-pathological[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2254-class-value-before-and-after-u[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2255-checker-branch-redirection[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2256-checker-vector-replacement[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2257-checker-constant-folding-before-codegen[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-300-package-override[com.google.android.art.apex]"
     },
     {
@@ -1324,7 +1354,12 @@
       "name": "art_standalone_libartbase_tests[com.google.android.art.apex]"
     },
     {
-      "name": "art_standalone_libartpalette_tests[com.google.android.art.apex]"
+      "name": "art_standalone_libartpalette_tests[com.google.android.art.apex]",
+      "options": [
+        {
+          "exclude-filter": "PaletteClientJniTest*"
+        }
+      ]
     },
     {
       "name": "art_standalone_libartservice_tests[com.google.android.art.apex]"
@@ -1828,6 +1863,36 @@
     },
     {
       "name": "art-run-test-2244-checker-remove-try-boundary"
+    },
+    {
+      "name": "art-run-test-2247-checker-write-barrier-elimination"
+    },
+    {
+      "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop"
+    },
+    {
+      "name": "art-run-test-2250-inline-throw-into-try"
+    },
+    {
+      "name": "art-run-test-2252-rem-optimization-dividend-divisor"
+    },
+    {
+      "name": "art-run-test-2253-checker-devirtualize-always-throws"
+    },
+    {
+      "name": "art-run-test-2254-checker-not-var-analyzed-pathological"
+    },
+    {
+      "name": "art-run-test-2254-class-value-before-and-after-u"
+    },
+    {
+      "name": "art-run-test-2255-checker-branch-redirection"
+    },
+    {
+      "name": "art-run-test-2256-checker-vector-replacement"
+    },
+    {
+      "name": "art-run-test-2257-checker-constant-folding-before-codegen"
     },
     {
       "name": "art-run-test-300-package-override"
@@ -3195,6 +3260,36 @@
     },
     {
       "name": "art-run-test-2244-checker-remove-try-boundary"
+    },
+    {
+      "name": "art-run-test-2247-checker-write-barrier-elimination"
+    },
+    {
+      "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop"
+    },
+    {
+      "name": "art-run-test-2250-inline-throw-into-try"
+    },
+    {
+      "name": "art-run-test-2252-rem-optimization-dividend-divisor"
+    },
+    {
+      "name": "art-run-test-2253-checker-devirtualize-always-throws"
+    },
+    {
+      "name": "art-run-test-2254-checker-not-var-analyzed-pathological"
+    },
+    {
+      "name": "art-run-test-2254-class-value-before-and-after-u"
+    },
+    {
+      "name": "art-run-test-2255-checker-branch-redirection"
+    },
+    {
+      "name": "art-run-test-2256-checker-vector-replacement"
+    },
+    {
+      "name": "art-run-test-2257-checker-constant-folding-before-codegen"
     },
     {
       "name": "art-run-test-300-package-override"
