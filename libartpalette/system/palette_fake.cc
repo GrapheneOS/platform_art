@@ -145,3 +145,11 @@ palette_status_t PaletteReportLockContention(JNIEnv* env ATTRIBUTE_UNUSED,
                                              const char* thread_name ATTRIBUTE_UNUSED) {
   return PALETTE_STATUS_OK;
 }
+
+// Methods in version 3 API, corresponding to SDK level 34.
+
+palette_status_t PaletteSetTaskProfiles(int32_t tid ATTRIBUTE_UNUSED,
+                                        const char* const profiles[] ATTRIBUTE_UNUSED,
+                                        size_t profiles_len ATTRIBUTE_UNUSED) {
+  return PALETTE_STATUS_OK;
+}
