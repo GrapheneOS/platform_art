@@ -201,14 +201,15 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
   }
 
   bool dump_smaps() { return dump_smaps_; }
+
+  // Per-DS enable bit. Invoked by the ::Trace method.
   bool enabled() { return enabled_; }
 
   void OnStart(const StartArgs&) override {
-    if (!enabled()) {
-      return;
-    }
     art::MutexLock lk(art_thread(), GetStateMutex());
     if (g_state == State::kWaitForStart) {
+      // WriteHeapPackets is responsible for checking whether the DS is actually
+      // enabled.
       g_state = State::kStart;
       GetStateCV().Broadcast(art_thread());
     }
@@ -918,7 +919,7 @@ void ForkAndRun(
     std::function<void(pid_t child)> parent_runnable,
     std::function<void(pid_t parent, uint64_t timestamp)> child_runnable) {
   pid_t parent_pid = getpid();
-  LOG(INFO) << "preparing to dump heap for " << parent_pid;
+  LOG(INFO) << "forking for " << parent_pid;
   // Need to take a heap dump while GC isn't running. See the comment in
   // Heap::VisitObjects(). Also we need the critical section to avoid visiting
   // the same object twice. See b/34967844.
@@ -1101,11 +1102,11 @@ void DumpPerfettoOutOfMemory() REQUIRES_SHARED(art::Locks::mutator_lock_) {
       // A pre-armed tracing session might not exist, so we should wait for a
       // limited amount of time before we decide to let the execution continue.
       if (!TimedWaitForDataSource(self, 500)) {
-        LOG(INFO) << "timeout waiting for data source start (no active session?)";
+        LOG(INFO) << "OOME hprof timeout (state " << g_state << ")";
         return;
       }
       WriteHeapPackets(dumped_pid, timestamp);
-      LOG(INFO) << "finished dumping heap for OOME " << dumped_pid;
+      LOG(INFO) << "OOME hprof complete for " << dumped_pid;
     });
 }
 
