@@ -2071,8 +2071,13 @@ bool ClassLinker::AddImageSpace(
       uint32_t* checksums = reinterpret_cast<uint32_t*>(
           reinterpret_cast<uint8_t*>(oat_header) + oat_header->GetHeaderSize());
       for (uint32_t i = 0; i  < oat_header->GetDexFileCount(); ++i) {
-        if (checksums[i] != out_dex_files->at(i)->GetHeader().checksum_) {
-          *error_msg = "Image and vdex checksums did not match";
+        uint32_t dex_checksum = out_dex_files->at(i)->GetHeader().checksum_;
+        if (checksums[i] != dex_checksum) {
+          *error_msg = StringPrintf(
+              "Image and dex file checksums did not match for %s: image has %d, dex file has %d",
+              out_dex_files->at(i)->GetLocation().c_str(),
+              checksums[i],
+              dex_checksum);
           return false;
         }
       }
