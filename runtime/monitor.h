@@ -134,7 +134,7 @@ class Monitor {
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ObjPtr<mirror::Object> GetObject() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetObject(ObjPtr<mirror::Object> object);
+  void SetObject(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Provides no memory ordering guarantees.
   Thread* GetOwner() const {
