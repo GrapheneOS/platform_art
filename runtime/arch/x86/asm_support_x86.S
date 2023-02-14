@@ -168,6 +168,7 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
     // Prefix the assembly code with 0xFFs, which means there is no method header.
     .byte 0xFF, 0xFF, 0xFF, 0xFF
     // Cache alignment for function entry.
+    // Use 0xFF as the last 4 bytes of alignment stand for OatQuickMethodHeader.
     .balign 16, 0xFF
 END_MACRO
 
