@@ -1141,7 +1141,8 @@ class ImageWriter::PruneClassesVisitor : public ClassVisitor {
       last_class_set.erase(it);
       DCHECK(std::none_of(class_table->classes_.begin(),
                           class_table->classes_.end(),
-                          [klass, hash](ClassTable::ClassSet& class_set) {
+                          [klass, hash](ClassTable::ClassSet& class_set)
+                              REQUIRES_SHARED(Locks::mutator_lock_) {
                             ClassTable::TableSlot slot(klass, hash);
                             return class_set.FindWithHash(slot, hash) != class_set.end();
                           }));

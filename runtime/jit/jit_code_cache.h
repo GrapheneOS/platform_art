@@ -230,10 +230,12 @@ class JitCodeCache {
   bool PrivateRegionContainsPc(const void* pc) const;
 
   // Return true if the code cache contains this method.
-  bool ContainsMethod(ArtMethod* method) REQUIRES(!Locks::jit_lock_);
+  bool ContainsMethod(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::jit_lock_);
 
   // Return the code pointer for a JNI-compiled stub if the method is in the cache, null otherwise.
-  const void* GetJniStubCode(ArtMethod* method) REQUIRES(!Locks::jit_lock_);
+  const void* GetJniStubCode(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::jit_lock_);
 
   // Allocate a region for both code and data in the JIT code cache.
   // The reserved memory is left completely uninitialized.

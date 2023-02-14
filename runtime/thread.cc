@@ -214,7 +214,9 @@ class DeoptimizationContextRecord {
   JValue GetReturnValue() const { return ret_val_; }
   bool IsReference() const { return is_reference_; }
   bool GetFromCode() const { return from_code_; }
-  ObjPtr<mirror::Throwable> GetPendingException() const { return pending_exception_; }
+  ObjPtr<mirror::Throwable> GetPendingException() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return pending_exception_;
+  }
   DeoptimizationContextRecord* GetLink() const { return link_; }
   mirror::Object** GetReturnValueAsGCRoot() {
     DCHECK(is_reference_);
