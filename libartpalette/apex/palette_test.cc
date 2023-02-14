@@ -21,6 +21,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <filesystem>
+
 #include "base/common_art_test.h"
 #include "gtest/gtest.h"
 
@@ -101,4 +103,46 @@ TEST_F(PaletteClientJniTest, JniInvocation) {
   PaletteNotifyEndJniInvocation(env);
 
   EXPECT_EQ(JNI_OK, jvm->DestroyJavaVM());
+}
+
+TEST_F(PaletteClientTest, SetTaskProfiles) {
+#ifndef ART_TARGET_ANDROID
+  GTEST_SKIP() << "SetTaskProfiles is only supported on Android";
+#else
+  if (!std::filesystem::exists("/sys/fs/cgroup/cgroup.controllers")) {
+    // This is intended to detect ART chroot setups, where SetTaskProfiles won't work.
+    GTEST_SKIP() << "Kernel cgroup support missing";
+  }
+
+  const char* profiles[] = {"NormalIoPriority", "TimerSlackNormal"};
+  palette_status_t res = PaletteSetTaskProfiles(GetTid(), &profiles[0], 2);
+  // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
+  // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
+  if (getuid() == 0) {
+    EXPECT_EQ(PALETTE_STATUS_OK, res);
+  } else {
+    EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+  }
+#endif
+}
+
+TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
+#ifndef ART_TARGET_ANDROID
+  GTEST_SKIP() << "SetTaskProfiles is only supported on Android";
+#else
+  if (!std::filesystem::exists("/sys/fs/cgroup/cgroup.controllers")) {
+    // This is intended to detect ART chroot setups, where SetTaskProfiles won't work.
+    GTEST_SKIP() << "Kernel cgroup support missing";
+  }
+
+  std::vector<std::string> profiles = {"NormalIoPriority", "TimerSlackNormal"};
+  palette_status_t res = PaletteSetTaskProfiles(GetTid(), profiles);
+  // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
+  // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
+  if (getuid() == 0) {
+    EXPECT_EQ(PALETTE_STATUS_OK, res);
+  } else {
+    EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+  }
+#endif
 }

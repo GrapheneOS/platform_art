@@ -29,6 +29,7 @@ namespace art {
 class DexFile;
 enum class InstructionSet;
 class OatFile;
+class OatHeader;
 
 namespace gc {
 namespace space {
@@ -258,9 +259,10 @@ class ImageSpace : public MemMapSpace {
       const std::string& image_location,
       bool boot_image_extension = false);
 
-  // Returns true if the APEX versions in the OAT file match the given APEX versions.
-  static bool ValidateApexVersions(const OatFile& oat_file,
+  // Returns true if the APEX versions in the OAT header match the given APEX versions.
+  static bool ValidateApexVersions(const OatHeader& oat_header,
                                    const std::string& apex_versions,
+                                   const std::string& file_location,
                                    std::string* error_msg);
 
   // Returns true if the dex checksums in the given oat file match the

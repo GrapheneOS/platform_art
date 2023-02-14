@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "android-base/stringprintf.h"
+#include "android-base/strings.h"
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -2055,30 +2056,72 @@ bool ClassLinker::AddImageSpace(
     if (special_root == nullptr) {
       *error_msg = "Unexpected null special root in app image";
       return false;
-    } else if (special_root->IsObjectArray()) {
-      ObjPtr<mirror::IntArray> checksums =
-          special_root->AsObjectArray<mirror::Object>()->Get(1)->AsIntArray();
-      size_t count = checksums->GetLength();
-      if (oat_file->GetVdexFile()->GetNumberOfDexFiles() != count) {
+    } else if (special_root->IsByteArray()) {
+      OatHeader* oat_header = reinterpret_cast<OatHeader*>(special_root->AsByteArray()->GetData());
+      if (!oat_header->IsValid()) {
+        *error_msg = "Invalid oat header in special root";
+        return false;
+      }
+      if (oat_file->GetVdexFile()->GetNumberOfDexFiles() != oat_header->GetDexFileCount()) {
         *error_msg = "Checksums count does not match";
         return false;
       }
-      static_assert(sizeof(VdexFile::VdexChecksum) == sizeof(int32_t));
-      const VdexFile::VdexChecksum* art_checksums =
-          reinterpret_cast<VdexFile::VdexChecksum*>(checksums->GetData());
-      const VdexFile::VdexChecksum* vdex_checksums =
-          oat_file->GetVdexFile()->GetDexChecksumsArray();
-      if (memcmp(art_checksums, vdex_checksums, sizeof(VdexFile::VdexChecksum) * count) != 0) {
-        *error_msg = "Image and vdex checksums did not match";
+
+      // Check if the dex checksums match the dex files that we just loaded.
+      uint32_t* checksums = reinterpret_cast<uint32_t*>(
+          reinterpret_cast<uint8_t*>(oat_header) + oat_header->GetHeaderSize());
+      for (uint32_t i = 0; i  < oat_header->GetDexFileCount(); ++i) {
+        if (checksums[i] != out_dex_files->at(i)->GetHeader().checksum_) {
+          *error_msg = "Image and vdex checksums did not match";
+          return false;
+        }
+      }
+
+      // Validate the class loader context.
+      const char* stored_context = oat_header->GetStoreValueByKey(OatHeader::kClassPathKey);
+      if (stored_context == nullptr) {
+        *error_msg = "Missing class loader context in special root";
         return false;
       }
-      ObjPtr<mirror::String> encoded_context =
-          special_root->AsObjectArray<mirror::Object>()->Get(0)->AsString();
-      std::string encoded_context_str = encoded_context->ToModifiedUtf8();
-      if (context->VerifyClassLoaderContextMatch(encoded_context_str.c_str()) ==
+      if (context->VerifyClassLoaderContextMatch(stored_context) ==
               ClassLoaderContext::VerificationResult::kMismatch) {
-        *error_msg =
-            StringPrintf("Class loader contexts don't match: %s", encoded_context_str.c_str());
+        *error_msg = StringPrintf("Class loader contexts don't match: %s", stored_context);
+        return false;
+      }
+
+      // Validate the apex versions.
+      if (!gc::space::ImageSpace::ValidateApexVersions(*oat_header,
+                                                       runtime->GetApexVersions(),
+                                                       space->GetImageLocation(),
+                                                       error_msg)) {
+        return false;
+      }
+
+      // Validate the boot classpath.
+      const char* bcp = oat_header->GetStoreValueByKey(OatHeader::kBootClassPathKey);
+      if (bcp == nullptr) {
+        *error_msg = "Missing boot classpath in special root";
+        return false;
+      }
+      std::string runtime_bcp = android::base::Join(runtime->GetBootClassPathLocations(), ':');
+      if (strcmp(bcp, runtime_bcp.c_str()) != 0) {
+        *error_msg = StringPrintf("Mismatch boot classpath: image has %s, runtime has %s",
+                                  bcp,
+                                  runtime_bcp.c_str());
+        return false;
+      }
+
+      // Validate the dex checksums of the boot classpath.
+      const char* bcp_checksums =
+          oat_header->GetStoreValueByKey(OatHeader::kBootClassPathChecksumsKey);
+      if (bcp_checksums == nullptr) {
+        *error_msg = "Missing boot classpath checksums in special root";
+        return false;
+      }
+      if (strcmp(bcp_checksums, runtime->GetBootClassPathChecksums().c_str()) != 0) {
+        *error_msg = StringPrintf("Mismatch boot classpath checksums: image has %s, runtime has %s",
+                                  bcp_checksums,
+                                  runtime->GetBootClassPathChecksums().c_str());
         return false;
       }
     } else if (IsBootClassLoader(special_root.Get())) {

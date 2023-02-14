@@ -3323,26 +3323,19 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-bool ImageSpace::ValidateApexVersions(const OatFile& oat_file,
+bool ImageSpace::ValidateApexVersions(const OatHeader& oat_header,
                                       const std::string& apex_versions,
+                                      const std::string& file_location,
                                       std::string* error_msg) {
   // For a boot image, the key value store only exists in the first OAT file. Skip other OAT files.
-  if (oat_file.GetOatHeader().GetKeyValueStoreSize() == 0) {
+  if (oat_header.GetKeyValueStoreSize() == 0) {
     return true;
   }
 
-  // The OAT files in the ART APEX is built on host, so they don't have the right APEX versions. It
-  // is safe to assume that they are always up-to-date because they are shipped along with the
-  // runtime and the dex files.
-  if (kIsTargetAndroid && android::base::StartsWith(oat_file.GetLocation(), GetArtRoot())) {
-    return true;
-  }
-
-  const char* oat_apex_versions =
-      oat_file.GetOatHeader().GetStoreValueByKey(OatHeader::kApexVersionsKey);
+  const char* oat_apex_versions = oat_header.GetStoreValueByKey(OatHeader::kApexVersionsKey);
   if (oat_apex_versions == nullptr) {
     *error_msg = StringPrintf("ValidateApexVersions failed to get APEX versions from oat file '%s'",
-                              oat_file.GetLocation().c_str());
+                              file_location.c_str());
     return false;
   }
   // For a boot image, it can be generated from a subset of the bootclasspath.
@@ -3352,7 +3345,7 @@ bool ImageSpace::ValidateApexVersions(const OatFile& oat_file,
     *error_msg = StringPrintf(
         "ValidateApexVersions found APEX versions mismatch between oat file '%s' and the runtime "
         "(Oat file: '%s', Runtime: '%s')",
-        oat_file.GetLocation().c_str(),
+        file_location.c_str(),
         oat_apex_versions,
         apex_versions.c_str());
     return false;
@@ -3374,7 +3367,10 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
                                  ArrayRef<const std::string> dex_filenames,
                                  ArrayRef<const int> dex_fds,
                                  const std::string& apex_versions) {
-  if (!ValidateApexVersions(oat_file, apex_versions, error_msg)) {
+  if (!ValidateApexVersions(oat_file.GetOatHeader(),
+                            apex_versions,
+                            oat_file.GetLocation(),
+                            error_msg)) {
     return false;
   }
 

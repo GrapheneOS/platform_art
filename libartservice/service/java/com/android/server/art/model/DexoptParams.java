@@ -24,6 +24,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
+import com.android.server.art.ArtConstants;
 import com.android.server.art.ReasonMapping;
 import com.android.server.art.Utils;
 
@@ -119,6 +120,10 @@ public class DexoptParams {
         public DexoptParams build() {
             if (mParams.mReason.isEmpty()) {
                 throw new IllegalArgumentException("Reason must not be empty");
+            }
+            if (mParams.mReason.equals(ArtConstants.REASON_VDEX)) {
+                throw new IllegalArgumentException(
+                        "Reason must not be '" + ArtConstants.REASON_VDEX + "'");
             }
 
             if (mParams.mCompilerFilter.isEmpty()) {

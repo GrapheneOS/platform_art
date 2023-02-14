@@ -17,11 +17,11 @@
 #ifndef ART_LIBARTPALETTE_INCLUDE_PALETTE_PALETTE_H_
 #define ART_LIBARTPALETTE_INCLUDE_PALETTE_PALETTE_H_
 
+#include <sys/cdefs.h>
+
 #include "palette_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif  // __cplusplus
+__BEGIN_DECLS
 
 // Palette method signatures are defined in palette_method_list.h.
 
@@ -31,8 +31,25 @@ extern "C" {
 PALETTE_METHOD_LIST(PALETTE_METHOD_DECLARATION)
 #undef PALETTE_METHOD_DECLARATION
 
+__END_DECLS
+
+// C++ wrappers
+
 #ifdef __cplusplus
+
+#include <string>
+#include <vector>
+
+static inline palette_status_t PaletteSetTaskProfiles(int tid,
+                                                      const std::vector<std::string>& profiles) {
+  std::vector<const char*> profile_c_strs;
+  profile_c_strs.reserve(profiles.size());
+  for (const std::string& p : profiles) {
+    profile_c_strs.push_back(p.c_str());
+  }
+  return PaletteSetTaskProfiles(tid, profile_c_strs.data(), profile_c_strs.size());
 }
+
 #endif  // __cplusplus
 
 #endif  // ART_LIBARTPALETTE_INCLUDE_PALETTE_PALETTE_H_
