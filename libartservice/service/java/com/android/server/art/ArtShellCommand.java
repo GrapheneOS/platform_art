@@ -153,21 +153,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dexopt-packages": {
-                enforceRoot();
-                DexoptResult result;
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                try (var signal = new WithCancellationSignal(pw)) {
-                    result = mArtManagerLocal.dexoptPackages(
-                            snapshot, getNextArgRequired(), signal.get(), executor, progress -> {
-                                pw.println(String.format(
-                                        "Dexopting apps: %d%%", progress.getPercentage()));
-                                pw.flush();
-                            });
-                    Utils.executeAndWait(executor, () -> printDexoptResult(pw, result));
-                } finally {
-                    executor.shutdown();
-                }
-                return 0;
+                return handleBatchDexopt(pw, snapshot);
             }
             case "cancel": {
                 String jobId = getNextArgRequired();
@@ -599,6 +585,44 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         return 0;
     }
 
+    private int handleBatchDexopt(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        String reason = null;
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            switch (opt) {
+                case "-r":
+                    reason = getNextArgRequired();
+                    break;
+                default:
+                    pw.println("Error: Unknown option: " + opt);
+                    return 1;
+            }
+        }
+        if (reason == null) {
+            pw.println("Error: '-r REASON' is required");
+            return 1;
+        }
+        if (!ReasonMapping.BATCH_DEXOPT_REASONS.contains(reason)) {
+            pw.printf("Error: Invalid batch dexopt reason '%s'. Valid values are: %s\n", reason,
+                    ReasonMapping.BATCH_DEXOPT_REASONS);
+            return 1;
+        }
+        DexoptResult result;
+        ExecutorService progressCallbackExecutor = Executors.newSingleThreadExecutor();
+        try (var signal = new WithCancellationSignal(pw)) {
+            result = mArtManagerLocal.dexoptPackages(
+                    snapshot, reason, signal.get(), progressCallbackExecutor, progress -> {
+                        pw.println(String.format("Dexopting apps: %d%%", progress.getPercentage()));
+                        pw.flush();
+                    });
+            Utils.executeAndWait(progressCallbackExecutor, () -> printDexoptResult(pw, result));
+        } finally {
+            progressCallbackExecutor.shutdown();
+        }
+        return 0;
+    }
+
     @Override
     public void onHelp() {
         // No one should call this. The help text should be printed by the `onHelp` handler of `cmd
@@ -728,15 +752,20 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
         pw.println("    is for the given package.");
         pw.println();
+        pw.println("  dexopt-packages -r REASON");
+        pw.println("    Run batch dexopt for the given reason.");
+        pw.println("    Valid values for REASON: 'first-boot', 'boot-after-ota',");
+        pw.println("    'boot-after-mainline-update', 'bg-dexopt'");
+        pw.println("    This command is different from 'pm compile -r REASON -a'. For example, it");
+        pw.println("    only dexopts a subset of apps, and it runs dexopt in parallel. See the");
+        pw.println("    API documentation for 'ArtManagerLocal.dexoptPackages' for details.");
+        pw.println();
         pw.println("  Note: The sub-commands below are used for internal debugging purposes only.");
         pw.println("  There are no stability guarantees for them.");
         pw.println();
         pw.println("  get-dexopt-status PACKAGE_NAME");
         pw.println("    Print the dexopt status of both primary dex files and secondary dex");
         pw.println("    files of a package.");
-        pw.println();
-        pw.println("  dexopt-packages REASON");
-        pw.println("    Run batch dexopt for the given reason.");
         pw.println();
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
         pw.println("    Notify that a dex file is loaded with the given class loader context by");
