@@ -46,12 +46,13 @@ using LogSeverity = android::base::LogSeverity;
 using ScopedLogSeverity = android::base::ScopedLogSeverity;
 
 template<class MirrorType>
-static inline ObjPtr<MirrorType> MakeObjPtr(MirrorType* ptr) {
+static inline ObjPtr<MirrorType> MakeObjPtr(MirrorType* ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
   return ptr;
 }
 
 template<class MirrorType>
-static inline ObjPtr<MirrorType> MakeObjPtr(ObjPtr<MirrorType> ptr) {
+static inline ObjPtr<MirrorType> MakeObjPtr(ObjPtr<MirrorType> ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return ptr;
 }
 

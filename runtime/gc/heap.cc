@@ -1819,7 +1819,7 @@ void Heap::VerifyObjectBody(ObjPtr<mirror::Object> obj) {
 
 void Heap::VerifyHeap() {
   ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-  auto visitor = [&](mirror::Object* obj) {
+  auto visitor = [&](mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS {
     VerifyObjectBody(obj);
   };
   // Technically we need the mutator lock here to call Visit. However, VerifyObjectBody is already
