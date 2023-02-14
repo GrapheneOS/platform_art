@@ -1093,12 +1093,16 @@ class RuntimeImageHelper {
       dex_caches.clear();
       return;
     }
-    const OatFile* oat_file = oat_dex_file->GetOatFile();
-    for (Handle<mirror::DexCache> cache : visitor.GetDexCaches()) {
-      if (cache.Get() != dex_caches[0].Get()) {
-        const OatDexFile* other_oat_dex_file = cache->GetDexFile()->GetOatDexFile();
-        if (other_oat_dex_file != nullptr && other_oat_dex_file->GetOatFile() == oat_file) {
-          dex_caches.push_back(handles.NewHandle(cache.Get()));
+
+    // Store the dex caches in the order in which their corresponding dex files
+    // are stored in the oat file. When we check for checksums at the point of
+    // loading the image, we rely on this order.
+    for (const OatDexFile* current : oat_dex_file->GetOatFile()->GetOatDexFiles()) {
+      if (current != oat_dex_file) {
+        for (Handle<mirror::DexCache> cache : visitor.GetDexCaches()) {
+          if (cache->GetDexFile()->GetOatDexFile() == current) {
+            dex_caches.push_back(handles.NewHandle(cache.Get()));
+          }
         }
       }
     }
