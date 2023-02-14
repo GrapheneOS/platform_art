@@ -22,6 +22,7 @@
 
 #include "android-base/file.h"
 #include "android-base/stringprintf.h"
+#include "android-base/strings.h"
 
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
@@ -839,22 +840,50 @@ class RuntimeImageHelper {
       }
     }
 
-    // Create and populate the checksums aray.
-    Handle<mirror::IntArray> checksums_array = handles.NewHandle(
-        mirror::IntArray::Alloc(soa.Self(), number_of_dex_files));
+    // We store the checksums of the dex files used at runtime. These can be
+    // different compared to the vdex checksums due to compact dex.
+    std::vector<uint32_t> checksums(number_of_dex_files);
+    uint32_t checksum_index = 0;
+    for (const OatDexFile* current_oat_dex_file : oat_dex_file->GetOatFile()->GetOatDexFiles()) {
+      const DexFile::Header* header =
+          reinterpret_cast<const DexFile::Header*>(current_oat_dex_file->GetDexFilePointer());
+      checksums[checksum_index++] = header->checksum_;
+    }
+    DCHECK_EQ(checksum_index, number_of_dex_files);
 
-    if (checksums_array == nullptr) {
+    // Create the fake OatHeader to store the dependencies of the image.
+    SafeMap<std::string, std::string> key_value_store;
+    Runtime* runtime = Runtime::Current();
+    key_value_store.Put(OatHeader::kApexVersionsKey, runtime->GetApexVersions());
+    key_value_store.Put(OatHeader::kBootClassPathKey,
+                        android::base::Join(runtime->GetBootClassPathLocations(), ':'));
+    key_value_store.Put(OatHeader::kBootClassPathChecksumsKey,
+                        runtime->GetBootClassPathChecksums());
+    key_value_store.Put(OatHeader::kClassPathKey,
+                        oat_dex_file->GetOatFile()->GetClassLoaderContext());
+
+    std::unique_ptr<const InstructionSetFeatures> isa_features =
+        InstructionSetFeatures::FromCppDefines();
+    std::unique_ptr<OatHeader> oat_header(
+        OatHeader::Create(kRuntimeISA,
+                          isa_features.get(),
+                          number_of_dex_files,
+                          &key_value_store));
+
+    // Create the byte array containing the oat header and dex checksums.
+    uint32_t checksums_size = checksums.size() * sizeof(uint32_t);
+    Handle<mirror::ByteArray> header_data = handles.NewHandle(
+        mirror::ByteArray::Alloc(soa.Self(), oat_header->GetHeaderSize() + checksums_size));
+
+    if (header_data == nullptr) {
       DCHECK(soa.Self()->IsExceptionPending());
       soa.Self()->ClearException();
       *error_msg = "Out of memory when trying to generate a runtime app image";
       return false;
     }
 
-    const VdexFile::VdexChecksum* checksums = vdex_file->GetDexChecksumsArray();
-    static_assert(sizeof(VdexFile::VdexChecksum) == sizeof(int32_t));
-    for (uint32_t i = 0; i < number_of_dex_files; ++i) {
-      checksums_array->Set(i, checksums[i]);
-    }
+    memcpy(header_data->GetData(), oat_header.get(), oat_header->GetHeaderSize());
+    memcpy(header_data->GetData() + oat_header->GetHeaderSize(), checksums.data(), checksums_size);
 
     // Create and populate the dex caches aray.
     Handle<mirror::ObjectArray<mirror::Object>> dex_cache_array = handles.NewHandle(
@@ -872,24 +901,9 @@ class RuntimeImageHelper {
       dex_cache_array->Set(i, dex_caches[i].Get());
     }
 
-    // Create the special roots array.
-    Handle<mirror::ObjectArray<mirror::Object>> special_array = handles.NewHandle(
-        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), object_array_class.Get(), 2));
-
-    ObjPtr<mirror::String> str = mirror::String::AllocFromModifiedUtf8(
-        soa.Self(), oat_dex_file->GetOatFile()->GetClassLoaderContext().c_str());
-    if (str == nullptr) {
-      DCHECK(soa.Self()->IsExceptionPending());
-      soa.Self()->ClearException();
-      *error_msg = "Out of memory when trying to generate a runtime app image";
-      return false;
-    }
-    special_array->Set(0, str);
-    special_array->Set(1, checksums_array.Get());
-
     image_roots->Set(ImageHeader::kDexCaches, dex_cache_array.Get());
     image_roots->Set(ImageHeader::kClassRoots, class_linker->GetClassRoots());
-    image_roots->Set(ImageHeader::kAppImageContextAndDexChecksums, special_array.Get());
+    image_roots->Set(ImageHeader::kAppImageOatHeader, header_data.Get());
 
     {
       // Now that we have created all objects needed for the `image_roots`, copy

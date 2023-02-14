@@ -352,6 +352,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 }
                 return 0;
             }
+            case "cleanup": {
+                mArtManagerLocal.cleanup(snapshot);
+                return 0;
+            }
             default:
                 pw.println(String.format("Unknown 'art' sub-command '%s'", subcmd));
                 pw.println("See 'cmd package help' for help");
@@ -453,6 +457,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
         pw.println("    The profile of a split APK is dumped to");
         pw.println("    'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
+        pw.println("  cleanup");
+        pw.println("    Cleanup obsolete files.");
     }
 
     private void enforceRoot() {

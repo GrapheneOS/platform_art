@@ -121,6 +121,8 @@ public class BackgroundDexoptJobTest {
         Result result = Utils.getFuture(mBackgroundDexoptJob.start());
         assertThat(result).isInstanceOf(CompletedResult.class);
         assertThat(((CompletedResult) result).dexoptResult()).isSameInstanceAs(mDexoptResult);
+
+        verify(mArtManagerLocal).cleanup(same(mSnapshot));
     }
 
     @Test

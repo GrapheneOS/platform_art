@@ -18,7 +18,7 @@ package com.android.server.art;
 
 import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 
-import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 import static com.android.server.art.testing.TestingUtils.inAnyOrder;
@@ -85,6 +85,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
@@ -190,8 +191,12 @@ public class ArtManagerLocalTest {
 
         // All packages are by default recently used.
         lenient().when(mDexUseManager.getPackageLastUsedAtMs(any())).thenReturn(RECENT_TIME_MS);
-        List<? extends SecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
+        List<DetailedSecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
         lenient().doReturn(secondaryDexInfo).when(mDexUseManager).getSecondaryDexInfo(eq(PKG_NAME));
+        lenient()
+                .doReturn(secondaryDexInfo)
+                .when(mDexUseManager)
+                .getFilteredDetailedSecondaryDexInfo(eq(PKG_NAME));
 
         simulateStorageNotLow();
 
@@ -794,6 +799,56 @@ public class ArtManagerLocalTest {
         mArtManagerLocal.snapshotBootImageProfile(mSnapshot);
     }
 
+    @Test
+    public void testCleanup() throws Exception {
+        // It should keep all artifacts.
+        doReturn(createGetDexoptStatusResult("speed-profile", "bg-dexopt", "location"))
+                .when(mArtd)
+                .getDexoptStatus(eq("/data/app/foo/base.apk"), eq("arm64"), any());
+        doReturn(createGetDexoptStatusResult("verify", "cmdline", "location"))
+                .when(mArtd)
+                .getDexoptStatus(eq("/data/user/0/foo/1.apk"), eq("arm64"), any());
+
+        // It should only keep VDEX files.
+        doReturn(createGetDexoptStatusResult("verify", "vdex", "location"))
+                .when(mArtd)
+                .getDexoptStatus(eq("/data/app/foo/split_0.apk"), eq("arm64"), any());
+        doReturn(createGetDexoptStatusResult("verify", "vdex", "location"))
+                .when(mArtd)
+                .getDexoptStatus(eq("/data/app/foo/split_0.apk"), eq("arm"), any());
+
+        // It should not keep any artifacts.
+        doReturn(createGetDexoptStatusResult("run-from-apk", "unknown", "unknown"))
+                .when(mArtd)
+                .getDexoptStatus(eq("/data/app/foo/base.apk"), eq("arm"), any());
+
+        when(mSnapshot.getPackageStates()).thenReturn(Map.of(PKG_NAME, mPkgState));
+        mArtManagerLocal.cleanup(mSnapshot);
+
+        verify(mArtd).cleanup(
+                inAnyOrderDeepEquals(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary"),
+                        AidlUtils.buildProfilePathForPrimaryCur(
+                                0 /* userId */, PKG_NAME, "primary"),
+                        AidlUtils.buildProfilePathForPrimaryCur(
+                                1 /* userId */, PKG_NAME, "primary"),
+                        AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "split_0.split"),
+                        AidlUtils.buildProfilePathForPrimaryCur(
+                                0 /* userId */, PKG_NAME, "split_0.split"),
+                        AidlUtils.buildProfilePathForPrimaryCur(
+                                1 /* userId */, PKG_NAME, "split_0.split"),
+                        AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk"),
+                        AidlUtils.buildProfilePathForSecondaryCur("/data/user/0/foo/1.apk")),
+                inAnyOrderDeepEquals(AidlUtils.buildArtifactsPath("/data/app/foo/base.apk", "arm64",
+                                             mIsInReadonlyPartition),
+                        AidlUtils.buildArtifactsPath(
+                                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)),
+                inAnyOrderDeepEquals(
+                        VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)),
+                        VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition))));
+    }
+
     private AndroidPackage createPackage(boolean multiSplit) {
         AndroidPackage pkg = mock(AndroidPackage.class);
 
@@ -882,8 +937,8 @@ public class ArtManagerLocalTest {
         return getDexoptStatusResult;
     }
 
-    private List<? extends SecondaryDexInfo> createSecondaryDexInfo() throws Exception {
-        var dexInfo = mock(SecondaryDexInfo.class);
+    private List<DetailedSecondaryDexInfo> createSecondaryDexInfo() throws Exception {
+        var dexInfo = mock(DetailedSecondaryDexInfo.class);
         lenient().when(dexInfo.dexPath()).thenReturn("/data/user/0/foo/1.apk");
         lenient().when(dexInfo.abiNames()).thenReturn(Set.of("arm64-v8a"));
         lenient().when(dexInfo.classLoaderContext()).thenReturn("CLC");
