@@ -144,7 +144,7 @@ TEST_F(LoadStoreAnalysisTest, ArrayHeapLocations) {
   ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc3));
   ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc3));
 
-  EXPECT_TRUE(CheckGraph(graph_));
+  EXPECT_TRUE(CheckGraph());
 }
 
 TEST_F(LoadStoreAnalysisTest, FieldHeapLocations) {
@@ -225,7 +225,7 @@ TEST_F(LoadStoreAnalysisTest, FieldHeapLocations) {
   // accesses to different fields of the same object should not alias.
   ASSERT_FALSE(heap_location_collector.MayAlias(loc1, loc2));
 
-  EXPECT_TRUE(CheckGraph(graph_));
+  EXPECT_TRUE(CheckGraph());
 }
 
 TEST_F(LoadStoreAnalysisTest, ArrayIndexAliasingTest) {
@@ -319,7 +319,7 @@ TEST_F(LoadStoreAnalysisTest, ArrayIndexAliasingTest) {
   loc2 = heap_location_collector.GetArrayHeapLocation(arr_set8);
   ASSERT_TRUE(heap_location_collector.MayAlias(loc1, loc2));
 
-  EXPECT_TRUE(CheckGraphSkipRefTypeInfoChecks(graph_));
+  EXPECT_TRUE(CheckGraph());
 }
 
 TEST_F(LoadStoreAnalysisTest, ArrayAliasingTest) {

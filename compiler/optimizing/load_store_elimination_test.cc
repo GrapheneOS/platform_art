@@ -73,7 +73,7 @@ class LoadStoreEliminationTestBase : public SuperTest, public OptimizingUnitTest
     LoadStoreElimination lse(graph_, /*stats=*/nullptr);
     lse.Run(with_partial);
     std::ostringstream oss;
-    EXPECT_TRUE(CheckGraphSkipRefTypeInfoChecks(oss)) << oss.str();
+    EXPECT_TRUE(CheckGraph(oss)) << oss.str();
   }
 
   void PerformLSEWithPartial(const AdjacencyListGraph& blks) {

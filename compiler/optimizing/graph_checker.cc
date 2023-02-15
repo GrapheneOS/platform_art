@@ -453,6 +453,20 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
   flag_info_.seen_try_boundary = true;
 }
 
+void GraphChecker::VisitLoadClass(HLoadClass* load) {
+  VisitInstruction(load);
+
+  if (load->GetLoadedClassRTI().IsValid() && !load->GetLoadedClassRTI().IsExact()) {
+    std::stringstream ssRTI;
+    ssRTI << load->GetLoadedClassRTI();
+    AddError(StringPrintf("%s:%d in block %d with RTI %s has valid but inexact RTI.",
+                          load->DebugName(),
+                          load->GetId(),
+                          load->GetBlock()->GetBlockId(),
+                          ssRTI.str().c_str()));
+  }
+}
+
 void GraphChecker::VisitLoadException(HLoadException* load) {
   VisitInstruction(load);
 
@@ -627,16 +641,6 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     }
   }
 
-  // Ensure that reference type instructions have reference type info.
-  if (check_reference_type_info_ && instruction->GetType() == DataType::Type::kReference) {
-    if (!instruction->GetReferenceTypeInfo().IsValid()) {
-      AddError(StringPrintf("Reference type instruction %s:%d does not have "
-                            "valid reference type information.",
-                            instruction->DebugName(),
-                            instruction->GetId()));
-    }
-  }
-
   if (instruction->CanThrow() && !instruction->HasEnvironment()) {
     AddError(StringPrintf("Throwing instruction %s:%d in block %d does not have an environment.",
                           instruction->DebugName(),
@@ -752,6 +756,17 @@ void GraphChecker::CheckTypeCheckBitstringInput(HTypeCheckInstruction* check,
 
 void GraphChecker::HandleTypeCheckInstruction(HTypeCheckInstruction* check) {
   VisitInstruction(check);
+
+  if (check->GetTargetClassRTI().IsValid() && !check->GetTargetClassRTI().IsExact()) {
+    std::stringstream ssRTI;
+    ssRTI << check->GetTargetClassRTI();
+    AddError(StringPrintf("%s:%d in block %d with RTI %s has valid but inexact RTI.",
+                          check->DebugName(),
+                          check->GetId(),
+                          check->GetBlock()->GetBlockId(),
+                          ssRTI.str().c_str()));
+  }
+
   HInstruction* input = check->InputAt(1);
   if (check->GetTypeCheckKind() == TypeCheckKind::kBitstringCheck) {
     if (!input->IsNullConstant()) {
