@@ -149,9 +149,6 @@ void ProfileSaver::Run() {
     }
     total_ms_of_sleep_ += sleep_time;
   }
-  // Tell the runtime that startup is completed if it has not already been notified.
-  // TODO: We should use another thread to do this in case the profile saver is not running.
-  Runtime::Current()->NotifyStartupCompleted();
 
   FetchAndCacheResolvedClassesAndMethods(/*startup=*/ true);
 
