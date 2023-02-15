@@ -40,6 +40,7 @@
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
+#include "startup_completed_task.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
 #include "trace.h"
@@ -344,6 +345,12 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
   }
 
   runtime->GetHeap()->PostForkChildAction(thread);
+
+  // Setup an app startup complete task in case the app doesn't notify it
+  // through VMRuntime::notifyStartupCompleted.
+  static constexpr uint64_t kMaxAppStartupTimeNs = MsToNs(5000);  // 5 seconds
+  runtime->GetHeap()->AddHeapTask(new StartupCompletedTask(kMaxAppStartupTimeNs));
+
   if (runtime->GetJit() != nullptr) {
     if (!is_system_server) {
       // System server already called the JIT cache post fork action in `nativePostForkSystemServer`.
