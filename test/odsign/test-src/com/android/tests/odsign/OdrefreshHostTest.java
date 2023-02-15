@@ -27,7 +27,6 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,6 +46,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private static final String CACHE_INFO_FILE =
             OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + "/cache-info.xml";
     private static final String ODREFRESH_BIN = "odrefresh";
+    private static final String ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME =
+            OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + ".bak";
 
     private static final String TAG = "OdrefreshHostTest";
     private static final String ZYGOTE_ARTIFACTS_KEY = TAG + ":ZYGOTE_ARTIFACTS";
@@ -70,10 +71,19 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         testInfo.properties().put(ZYGOTE_ARTIFACTS_KEY, String.join(":", zygoteArtifacts));
         testInfo.properties()
                 .put(SYSTEM_SERVER_ARTIFACTS_KEY, String.join(":", systemServerArtifacts));
+
+        // Backup the artifacts.
+        testInfo.getDevice().executeShellV2Command(
+                String.format("rm -rf '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
+        testUtils.assertCommandSucceeds(
+                String.format("cp -r '%s' '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME,
+                        ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
+        testInfo.getDevice().executeShellV2Command(
+                String.format("rm -rf '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         testUtils.uninstallTestApex();
         testUtils.reboot();
@@ -82,22 +92,13 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Before
     public void setUp() throws Exception {
         mTestUtils = new OdsignTestUtils(getTestInformation());
-    }
 
-    @After
-    public void tearDown() throws Exception {
-        Set<String> artifacts = new HashSet<>();
-        artifacts.addAll(getZygoteArtifacts());
-        artifacts.addAll(getSystemServerArtifacts());
-
-        for (String artifact : artifacts) {
-            if (!getDevice().doesFileExist(artifact)) {
-                // Things went wrong during the test. Run odrefresh to revert to a normal state.
-                mTestUtils.removeCompilationLogToAvoidBackoff();
-                runOdrefresh();
-                break;
-            }
-        }
+        // Restore the artifacts to ensure a clean initial state.
+        getDevice().executeShellV2Command(
+                String.format("rm -rf '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
+        mTestUtils.assertCommandSucceeds(
+                String.format("cp -r '%s' '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME,
+                        OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
     }
 
     @Test
