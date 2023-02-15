@@ -86,7 +86,7 @@
     // Prefix the assembly code with 0xFFs, which means there is no method header.
     .byte 0xFF, 0xFF, 0xFF, 0xFF
     // Cache alignment for function entry.
-    // NB: 0xFF because there is a bug in balign where 0x00 creates nop instructions.
+    // Use 0xFF as the last 4 bytes of alignment stand for OatQuickMethodHeader.
     .balign \alignment, 0xFF
 \name:
     .cfi_startproc

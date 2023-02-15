@@ -28,7 +28,7 @@
 
 namespace art HIDDEN {
 
-class FindLoopsTest : public OptimizingUnitTest {};
+class FindLoopsTest : public CommonCompilerTest, public OptimizingUnitTestHelper {};
 
 TEST_F(FindLoopsTest, CFG1) {
   // Constant is not used.

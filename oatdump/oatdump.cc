@@ -1150,11 +1150,17 @@ class OatDumper {
     if (Runtime::Current() != nullptr) {
       // We need to have the handle scope stay live until after the verifier since the verifier has
       // a handle to the dex cache from hs.
+      ScopedObjectAccess soa(Thread::Current());
       hs.reset(new StackHandleScope<1>(Thread::Current()));
       vios->Stream() << "VERIFIER TYPE ANALYSIS:\n";
       ScopedIndentation indent2(vios);
-      verifier.reset(DumpVerifier(vios, hs.get(),
-                                  dex_method_idx, &dex_file, class_def, code_item,
+      verifier.reset(DumpVerifier(vios,
+                                  soa,
+                                  hs.get(),
+                                  dex_method_idx,
+                                  &dex_file,
+                                  class_def,
+                                  code_item,
                                   method_access_flags));
     }
     {
@@ -1459,14 +1465,15 @@ class OatDumper {
   }
 
   verifier::MethodVerifier* DumpVerifier(VariableIndentationOutputStream* vios,
+                                         ScopedObjectAccess& soa,
                                          StackHandleScope<1>* hs,
                                          uint32_t dex_method_idx,
                                          const DexFile* dex_file,
                                          const dex::ClassDef& class_def,
                                          const dex::CodeItem* code_item,
-                                         uint32_t method_access_flags) {
+                                         uint32_t method_access_flags)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if ((method_access_flags & kAccNative) == 0) {
-      ScopedObjectAccess soa(Thread::Current());
       Runtime* const runtime = Runtime::Current();
       DCHECK(options_.class_loader_ != nullptr);
       Handle<mirror::DexCache> dex_cache = hs->NewHandle(
