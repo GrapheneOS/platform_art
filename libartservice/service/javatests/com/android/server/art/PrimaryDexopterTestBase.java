@@ -134,7 +134,7 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkg.isDebuggable()).thenReturn(false);
         lenient().when(pkg.getTargetSdkVersion()).thenReturn(123);
         lenient().when(pkg.isSignedWithPlatformKey()).thenReturn(false);
-        lenient().when(pkg.isUsesNonSdkApi()).thenReturn(false);
+        lenient().when(pkg.isNonSdkApiRequested()).thenReturn(false);
         return pkg;
     }
 
