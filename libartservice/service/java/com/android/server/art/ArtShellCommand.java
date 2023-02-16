@@ -100,7 +100,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Override
     public int onCommand(String cmd) {
-        // TODO(b/269283633): Restrict apps from calling ART Service shell commands.
+        // Apps shouldn't call ART Service shell commands, not even for dexopting themselves.
+        enforceRootOrShell();
         PrintWriter pw = getOutPrintWriter();
         try (var snapshot = mPackageManagerLocal.withFilteredSnapshot()) {
             switch (cmd) {
@@ -738,6 +739,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    This command is different from 'pm compile -r REASON -a'. For example, it");
         pw.println("    only dexopts a subset of apps, and it runs dexopt in parallel. See the");
         pw.println("    API documentation for 'ArtManagerLocal.dexoptPackages' for details.");
+    }
+
+    private void enforceRootOrShell() {
+        final int uid = Binder.getCallingUid();
+        if (uid != Process.ROOT_UID && uid != Process.SHELL_UID) {
+            throw new SecurityException("ART service shell commands need root or shell access");
+        }
     }
 
     @PriorityClassApi
