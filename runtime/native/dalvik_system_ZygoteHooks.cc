@@ -349,7 +349,7 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
   // Setup an app startup complete task in case the app doesn't notify it
   // through VMRuntime::notifyStartupCompleted.
   static constexpr uint64_t kMaxAppStartupTimeNs = MsToNs(5000);  // 5 seconds
-  runtime->GetHeap()->AddHeapTask(new StartupCompletedTask(kMaxAppStartupTimeNs));
+  runtime->GetHeap()->AddHeapTask(new StartupCompletedTask(NanoTime() + kMaxAppStartupTimeNs));
 
   if (runtime->GetJit() != nullptr) {
     if (!is_system_server) {
