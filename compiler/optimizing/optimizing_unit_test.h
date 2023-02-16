@@ -321,23 +321,8 @@ class OptimizingUnitTestHelper {
   // Run GraphChecker with all checks.
   //
   // Return: the status whether the run is successful.
-  bool CheckGraph(HGraph* graph, std::ostream& oss = std::cerr) {
-    return CheckGraph(graph, /*check_ref_type_info=*/true, oss);
-  }
-
   bool CheckGraph(std::ostream& oss = std::cerr) {
     return CheckGraph(graph_, oss);
-  }
-
-  // Run GraphChecker with all checks except reference type information checks.
-  //
-  // Return: the status whether the run is successful.
-  bool CheckGraphSkipRefTypeInfoChecks(HGraph* graph, std::ostream& oss = std::cerr) {
-    return CheckGraph(graph, /*check_ref_type_info=*/false, oss);
-  }
-
-  bool CheckGraphSkipRefTypeInfoChecks(std::ostream& oss = std::cerr) {
-    return CheckGraphSkipRefTypeInfoChecks(graph_, oss);
   }
 
   HEnvironment* ManuallyBuildEnvFor(HInstruction* instruction,
@@ -532,9 +517,8 @@ class OptimizingUnitTestHelper {
   }
 
  protected:
-  bool CheckGraph(HGraph* graph, bool check_ref_type_info, std::ostream& oss) {
+  bool CheckGraph(HGraph* graph, std::ostream& oss) {
     GraphChecker checker(graph);
-    checker.SetRefTypeInfoCheckEnabled(check_ref_type_info);
     checker.Run();
     checker.Dump(oss);
     return checker.IsValid();

@@ -146,6 +146,7 @@ public class ArtFlags {
     }
 
     // Keep in sync with `PriorityClass` except for `PRIORITY_NONE`.
+    // Keep this in sync with `ArtShellCommand.printHelp` except for 'PRIORITY_NONE'.
 
     /**
      * Initial value. Not expected.

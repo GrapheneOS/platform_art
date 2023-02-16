@@ -81,6 +81,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -289,10 +290,9 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Clears the profiles of the given app that are collected locally, including the profiles for
-     * primary dex files and the ones for secondary dex files. More specifically, it clears
-     * reference profiles and current profiles. External profiles (e.g., cloud profiles) will be
-     * kept.
+     * Clear the profiles that are collected locally for the given package, including the profiles
+     * for primary and secondary dex files. More specifically, it clears reference profiles and
+     * current profiles. External profiles (e.g., cloud profiles) will be kept.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen
@@ -612,6 +612,26 @@ public final class ArtManagerLocal {
     }
 
     /**
+     * Same as above, but also returns a {@link CompletableFuture}.
+     *
+     * @hide
+     */
+    @NonNull
+    public CompletableFuture<BackgroundDexoptJob.Result> startBackgroundDexoptJobAndReturnFuture() {
+        return mInjector.getBackgroundDexoptJob().start();
+    }
+
+    /**
+     * Returns the running background dexopt job, or null of no background dexopt job is running.
+     *
+     * @hide
+     */
+    @Nullable
+    public CompletableFuture<BackgroundDexoptJob.Result> getRunningBackgroundDexoptJob() {
+        return mInjector.getBackgroundDexoptJob().get();
+    }
+
+    /**
      * Cancels the running background dexopt job started by the job scheduler or by {@link
      * #startBackgroundDexoptJob()}. Does nothing if the job is not running. This method is not
      * blocking.
@@ -825,7 +845,7 @@ public final class ArtManagerLocal {
      *
      * @hide
      */
-    public void cleanup(@NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+    public long cleanup(@NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         try {
             // For every primary dex container file or secondary dex container file of every app, if
             // it has code, we keep the following types of files:
@@ -876,9 +896,7 @@ public final class ArtManagerLocal {
                     }
                 }
             }
-            long freedBytes =
-                    mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
-            Log.i(TAG, String.format("Freed %d bytes", freedBytes));
+            return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }

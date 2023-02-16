@@ -122,40 +122,6 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
                                                    const char* name)
     : HOptimization(graph, name), hint_dex_cache_(hint_dex_cache), is_first_run_(is_first_run) {}
 
-void ReferenceTypePropagation::ValidateTypes() {
-  // TODO: move this to the graph checker.
-  if (kIsDebugBuild) {
-    ScopedObjectAccess soa(Thread::Current());
-    for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-      for (HInstructionIterator iti(block->GetInstructions()); !iti.Done(); iti.Advance()) {
-        HInstruction* instr = iti.Current();
-        if (instr->GetType() == DataType::Type::kReference) {
-          DCHECK(instr->GetReferenceTypeInfo().IsValid())
-              << "Invalid RTI for instruction: " << instr->DebugName();
-          if (instr->IsBoundType()) {
-            DCHECK(instr->AsBoundType()->GetUpperBound().IsValid());
-          } else if (instr->IsLoadClass()) {
-            HLoadClass* cls = instr->AsLoadClass();
-            DCHECK(cls->GetReferenceTypeInfo().IsExact());
-            DCHECK_IMPLIES(cls->GetLoadedClassRTI().IsValid(), cls->GetLoadedClassRTI().IsExact());
-          } else if (instr->IsNullCheck()) {
-            DCHECK(instr->GetReferenceTypeInfo().IsEqual(instr->InputAt(0)->GetReferenceTypeInfo()))
-                << "NullCheck " << instr->GetReferenceTypeInfo()
-                << "Input(0) " << instr->InputAt(0)->GetReferenceTypeInfo();
-          }
-        } else if (instr->IsInstanceOf()) {
-          HInstanceOf* iof = instr->AsInstanceOf();
-          DCHECK_IMPLIES(iof->GetTargetClassRTI().IsValid(), iof->GetTargetClassRTI().IsExact());
-        } else if (instr->IsCheckCast()) {
-          HCheckCast* check = instr->AsCheckCast();
-          DCHECK_IMPLIES(check->GetTargetClassRTI().IsValid(),
-                         check->GetTargetClassRTI().IsExact());
-        }
-      }
-    }
-  }
-}
-
 void ReferenceTypePropagation::Visit(HInstruction* instruction) {
   RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
   instruction->Accept(&visitor);
@@ -346,7 +312,6 @@ bool ReferenceTypePropagation::Run() {
   }
 
   visitor.ProcessWorklist();
-  ValidateTypes();
   return true;
 }
 
