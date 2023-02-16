@@ -639,6 +639,7 @@ public class DexoptHelperTest {
         lenient().when(library.getName()).thenReturn(libraryName);
         lenient().when(library.getPackageName()).thenReturn(packageName);
         lenient().when(library.getDependencies()).thenReturn(deps);
+        lenient().when(library.isNative()).thenReturn(false);
         return library;
     }
 
@@ -655,15 +656,20 @@ public class DexoptHelperTest {
 
         mRequestedPackages = List.of(PKG_NAME_FOO, PKG_NAME_BAR, PKG_NAME_LIBBAZ);
 
+        // The native library is not dexoptable.
+        SharedLibrary libNative = createLibrary("libnative", "com.example.libnative", List.of());
+        lenient().when(libNative.isNative()).thenReturn(true);
+
         SharedLibrary libbaz = createLibrary("libbaz", PKG_NAME_LIBBAZ, List.of());
         SharedLibrary lib4 = createLibrary("lib4", PKG_NAME_LIB4, List.of());
         SharedLibrary lib3 = createLibrary("lib3", PKG_NAME_LIB3, List.of());
         SharedLibrary lib2 = createLibrary("lib2", PKG_NAME_LIB2, List.of());
         SharedLibrary lib1a = createLibrary("lib1a", PKG_NAME_LIB1, List.of(libbaz, lib2));
-        SharedLibrary lib1b = createLibrary("lib1b", PKG_NAME_LIB1, List.of(lib2, lib4));
+        SharedLibrary lib1b = createLibrary("lib1b", PKG_NAME_LIB1, List.of(lib2, libNative, lib4));
         SharedLibrary lib1c = createLibrary("lib1c", PKG_NAME_LIB1, List.of(lib3));
 
-        mPkgStateFoo = createPackageState(PKG_NAME_FOO, List.of(lib1a), true /* multiSplit */);
+        mPkgStateFoo =
+                createPackageState(PKG_NAME_FOO, List.of(lib1a, libNative), true /* multiSplit */);
         mPkgFoo = mPkgStateFoo.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_FOO)).thenReturn(mPkgStateFoo);
 
