@@ -71,8 +71,6 @@ class ReferenceTypePropagation : public HOptimization {
                                       HandleCache* handle_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void ValidateTypes();
-
   // Note: hint_dex_cache_ is usually, but not necessarily, the dex cache associated with
   // graph_->GetDexFile(). Since we may look up also in other dex files, it's used only
   // as a hint, to reduce the number of calls to the costly ClassLinker::FindDexCache().

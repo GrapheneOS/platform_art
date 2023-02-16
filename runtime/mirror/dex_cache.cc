@@ -193,13 +193,6 @@ bool DexCache::ShouldAllocateFullArrayAtStartup() {
     return false;
   }
 
-  if (!ProfileSaver::IsStarted()) {
-    // Only allocate full arrays if the profile saver is running: if the app
-    // does not call `reportFullyDrawn`, then only the profile saver will notify
-    // that the app has eventually started.
-    return false;
-  }
-
   return true;
 }
 

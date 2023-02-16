@@ -29,6 +29,8 @@ class CompilerFilter final {
  public:
   // Note: Order here matters. Later filter choices are considered "as good
   // as" earlier filter choices.
+  // Keep supported filters in sync with `ArtShellCommand.printHelp` in
+  // art/libartservice/service/java/com/android/server/art/ArtShellCommand.java.
   enum Filter {
     kAssumeVerified,      // Skip verification but mark all classes as verified anyway.
     kExtract,             // Delay verication to runtime, do not compile anything.
