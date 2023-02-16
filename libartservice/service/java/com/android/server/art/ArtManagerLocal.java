@@ -1132,6 +1132,7 @@ public final class ArtManagerLocal {
      */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static class SnapshotProfileException extends Exception {
+        /** @hide */
         public SnapshotProfileException(@NonNull Throwable cause) {
             super(cause);
         }
