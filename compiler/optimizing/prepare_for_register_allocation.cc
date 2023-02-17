@@ -295,15 +295,16 @@ bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input,
     return false;
   }
 
-  // In debug mode, check that we have not inserted a throwing instruction
-  // or an instruction with side effects between input and user.
-  if (kIsDebugBuild) {
-    for (HInstruction* between = input->GetNext(); between != user; between = between->GetNext()) {
-      CHECK(between != nullptr);  // User must be after input in the same block.
-      CHECK(!between->CanThrow()) << *between << " User: " << *user;
-      CHECK(!between->HasSideEffects()) << *between << " User: " << *user;
+  // If there's a instruction between them that can throw or it has side effects, we cannot move the
+  // responsibility.
+  for (HInstruction* between = input->GetNext(); between != user; between = between->GetNext()) {
+    DCHECK(between != nullptr) << " User must be after input in the same block. input: " << *input
+                               << ", user: " << *user;
+    if (between->CanThrow() || between->HasSideEffects()) {
+      return false;
     }
   }
+
   return true;
 }
 
