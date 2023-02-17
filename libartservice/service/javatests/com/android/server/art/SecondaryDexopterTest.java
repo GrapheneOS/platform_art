@@ -128,6 +128,7 @@ public class SecondaryDexopterTest {
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
+        lenient().when(mInjector.isLauncherPackage(any())).thenReturn(false);
         lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManager);
 
         List<DetailedSecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();

@@ -73,6 +73,7 @@ java_defaults {
     libs: [
         "androidx.annotation_annotation",
         "auto_value_annotations",
+        "sdk_module-lib_current_framework-permission-s",
         // TODO(b/256866172): Transitive dependency, for r8 only.
         "framework-statsd.stubs.module_lib",
         // TODO(b/256866172): Transitive dependency, for r8 only. This module
