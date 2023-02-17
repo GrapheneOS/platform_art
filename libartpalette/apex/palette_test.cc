@@ -23,6 +23,11 @@
 
 #include <filesystem>
 
+#ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
+#include "android/api-level.h"
+#endif
+
 #include "base/common_art_test.h"
 #include "gtest/gtest.h"
 
@@ -35,6 +40,17 @@ pid_t GetTid() {
   return syscall(__NR_gettid);
 #endif  // __BIONIC__
 }
+
+#ifdef ART_TARGET_ANDROID
+bool PaletteSetTaskProfilesIsSupported(palette_status_t res) {
+  if (android::modules::sdklevel::IsAtLeastU()) {
+    return true;
+  }
+  EXPECT_EQ(PALETTE_STATUS_NOT_SUPPORTED, res)
+      << "Device API level: " << android_get_device_api_level();
+  return false;
+}
+#endif
 
 }  // namespace
 
@@ -116,12 +132,14 @@ TEST_F(PaletteClientTest, SetTaskProfiles) {
 
   const char* profiles[] = {"NormalIoPriority", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), &profiles[0], 2);
-  // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
-  // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
-  if (getuid() == 0) {
-    EXPECT_EQ(PALETTE_STATUS_OK, res);
-  } else {
-    EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+  if (PaletteSetTaskProfilesIsSupported(res)) {
+    // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
+    // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
+    if (getuid() == 0) {
+      EXPECT_EQ(PALETTE_STATUS_OK, res);
+    } else {
+      EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+    }
   }
 #endif
 }
@@ -137,12 +155,14 @@ TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
 
   std::vector<std::string> profiles = {"NormalIoPriority", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), profiles);
-  // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
-  // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
-  if (getuid() == 0) {
-    EXPECT_EQ(PALETTE_STATUS_OK, res);
-  } else {
-    EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+  if (PaletteSetTaskProfilesIsSupported(res)) {
+    // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
+    // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
+    if (getuid() == 0) {
+      EXPECT_EQ(PALETTE_STATUS_OK, res);
+    } else {
+      EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
+    }
   }
 #endif
 }
