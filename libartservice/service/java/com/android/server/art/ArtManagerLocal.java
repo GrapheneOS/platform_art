@@ -747,6 +747,10 @@ public final class ArtManagerLocal {
     public ParcelFileDescriptor snapshotBootImageProfile(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
             throws SnapshotProfileException {
+        if (!Constants.isBootImageProfilingEnabled()) {
+            throw new SnapshotProfileException("Boot image profiling not enabled");
+        }
+
         List<ProfilePath> profiles = new ArrayList<>();
 
         // System server profiles.
@@ -1135,6 +1139,11 @@ public final class ArtManagerLocal {
         /** @hide */
         public SnapshotProfileException(@NonNull Throwable cause) {
             super(cause);
+        }
+
+        /** @hide */
+        public SnapshotProfileException(@NonNull String message) {
+            super(message);
         }
     }
 

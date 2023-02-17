@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.annotation.SuppressLint;
 import android.apphibernation.AppHibernationManager;
 import android.os.SystemProperties;
+import android.os.Trace;
 import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -55,6 +56,9 @@ import java.util.stream.Collectors;
 public final class Utils {
     public static final String TAG = "ArtServiceUtils";
     public static final String PLATFORM_PACKAGE_NAME = "android";
+
+    /** A copy of {@link android.os.Trace.TRACE_TAG_DALVIK}. */
+    private static final long TRACE_TAG_DALVIK = 1L << 14;
 
     private Utils() {}
 
@@ -312,5 +316,16 @@ public final class Utils {
         abstract @NonNull String isa();
 
         abstract boolean isPrimaryAbi();
+    }
+
+    public static class Tracing implements AutoCloseable {
+        public Tracing(@NonNull String methodName) {
+            Trace.traceBegin(TRACE_TAG_DALVIK, methodName);
+        }
+
+        @Override
+        public void close() {
+            Trace.traceEnd(TRACE_TAG_DALVIK);
+        }
     }
 }
