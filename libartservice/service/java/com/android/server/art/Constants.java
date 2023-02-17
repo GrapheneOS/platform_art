@@ -19,6 +19,7 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.system.Os;
 
 /**
@@ -54,5 +55,12 @@ public class Constants {
     @Nullable
     public static String getenv(@NonNull String name) {
         return Os.getenv(name);
+    }
+
+    public static boolean isBootImageProfilingEnabled() {
+        boolean profileBootClassPath = SystemProperties.getBoolean(
+                "persist.device_config.runtime_native_boot.profilebootclasspath",
+                SystemProperties.getBoolean("dalvik.vm.profilebootclasspath", false /* def */));
+        return Build.isDebuggable() && profileBootClassPath;
     }
 }

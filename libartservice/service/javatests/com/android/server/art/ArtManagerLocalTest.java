@@ -181,6 +181,7 @@ public class ArtManagerLocalTest {
         lenient().when(Constants.getPreferredAbi()).thenReturn("arm64-v8a");
         lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
         lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
+        lenient().when(Constants.isBootImageProfilingEnabled()).thenReturn(true);
 
         lenient().when(mAppHibernationManager.isHibernatingGlobally(any())).thenReturn(false);
         lenient().when(mAppHibernationManager.isOatArtifactDeletionEnabled()).thenReturn(true);
