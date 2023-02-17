@@ -261,9 +261,10 @@ class OptimizingUnitTestHelper {
 
   // Create a control-flow graph from Dex instructions.
   HGraph* CreateCFG(const std::vector<uint16_t>& data,
-                    DataType::Type return_type = DataType::Type::kInt32,
-                    VariableSizedHandleScope* handles = nullptr) {
-    HGraph* graph = CreateGraph(handles);
+                    DataType::Type return_type = DataType::Type::kInt32) {
+    ScopedObjectAccess soa(Thread::Current());
+    VariableSizedHandleScope handles(soa.Self());
+    HGraph* graph = CreateGraph(&handles);
 
     // The code item data might not aligned to 4 bytes, copy it to ensure that.
     const size_t code_item_size = data.size() * sizeof(data.front());
