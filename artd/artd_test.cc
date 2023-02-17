@@ -495,7 +495,7 @@ class ArtdTest : public CommonArtTest {
   }
 };
 
-TEST_F(ArtdTest, ConstantsAreInSync) { EXPECT_EQ(ArtConstants::REASON_VDEX, kReasonVdex); }
+TEST_F(ArtdTest, ConstantsAreInSync) { EXPECT_STREQ(ArtConstants::REASON_VDEX, kReasonVdex); }
 
 TEST_F(ArtdTest, isAlive) {
   bool result = false;
