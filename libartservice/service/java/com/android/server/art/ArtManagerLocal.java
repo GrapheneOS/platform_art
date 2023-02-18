@@ -153,8 +153,7 @@ public final class ArtManagerLocal {
     public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
             @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
             @NonNull String[] args) {
-        return new ArtShellCommand(
-                this, mInjector.getPackageManagerLocal(), mInjector.getDexUseManager())
+        return new ArtShellCommand(this, mInjector.getPackageManagerLocal())
                 .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
                         err.getFileDescriptor(), args);
     }
@@ -747,6 +746,10 @@ public final class ArtManagerLocal {
     public ParcelFileDescriptor snapshotBootImageProfile(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
             throws SnapshotProfileException {
+        if (!Constants.isBootImageProfilingEnabled()) {
+            throw new SnapshotProfileException("Boot image profiling not enabled");
+        }
+
         List<ProfilePath> profiles = new ArrayList<>();
 
         // System server profiles.
@@ -1132,8 +1135,14 @@ public final class ArtManagerLocal {
      */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static class SnapshotProfileException extends Exception {
+        /** @hide */
         public SnapshotProfileException(@NonNull Throwable cause) {
             super(cause);
+        }
+
+        /** @hide */
+        public SnapshotProfileException(@NonNull String message) {
+            super(message);
         }
     }
 

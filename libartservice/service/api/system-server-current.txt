@@ -42,7 +42,6 @@ package com.android.server.art {
   }
 
   public static class ArtManagerLocal.SnapshotProfileException extends java.lang.Exception {
-    ctor public ArtManagerLocal.SnapshotProfileException(@NonNull Throwable);
   }
 
   public class ArtModuleServiceInitializer {

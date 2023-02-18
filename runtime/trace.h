@@ -398,6 +398,9 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Sampling profiler sampling interval.
   int interval_us_;
 
+  // A flag to indicate to the sampling thread whether to stop tracing
+  bool stop_tracing_;
+
   // Streaming mode data.
   Mutex tracing_lock_;
 

@@ -280,7 +280,7 @@ void* Trace::RunSamplingThread(void* arg) {
     {
       MutexLock mu(self, *Locks::trace_lock_);
       the_trace = the_trace_;
-      if (the_trace == nullptr) {
+      if (the_trace_->stop_tracing_) {
         break;
       }
     }
@@ -445,73 +445,91 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
 }
 
 void Trace::StopTracing(bool finish_tracing, bool flush_file) {
-  bool stop_alloc_counting = false;
   Runtime* const runtime = Runtime::Current();
-  Trace* the_trace = nullptr;
   Thread* const self = Thread::Current();
   pthread_t sampling_pthread = 0U;
   {
     MutexLock mu(self, *Locks::trace_lock_);
     if (the_trace_ == nullptr) {
       LOG(ERROR) << "Trace stop requested, but no trace currently running";
-    } else {
-      the_trace = the_trace_;
-      the_trace_ = nullptr;
-      sampling_pthread = sampling_pthread_;
+      return;
     }
+    // Tell sampling_pthread_ to stop tracing.
+    the_trace_->stop_tracing_ = true;
+    sampling_pthread = sampling_pthread_;
   }
+
   // Make sure that we join before we delete the trace since we don't want to have
   // the sampling thread access a stale pointer. This finishes since the sampling thread exits when
   // the_trace_ is null.
   if (sampling_pthread != 0U) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, nullptr), "sampling thread shutdown");
+  }
+
+  // Make a copy of the_trace_, so it can be flushed later. We want to reset
+  // the_trace_ to nullptr in suspend all scope to prevent any races
+  Trace* the_trace = the_trace_;
+  bool stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
+  // Stop the trace sources adding more entries to the trace buffer and synchronise stores.
+  {
+    gc::ScopedGCCriticalSection gcs(
+        self, gc::kGcCauseInstrumentation, gc::kCollectorTypeInstrumentation);
+    jit::ScopedJitSuspend suspend_jit;
+    ScopedSuspendAll ssa(__FUNCTION__);
+
+    if (the_trace->trace_mode_ == TraceMode::kSampling) {
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
+    } else {
+      runtime->GetInstrumentation()->RemoveListener(
+          the_trace,
+          instrumentation::Instrumentation::kMethodEntered |
+              instrumentation::Instrumentation::kMethodExited |
+              instrumentation::Instrumentation::kMethodUnwind);
+      runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
+      runtime->GetInstrumentation()->MaybeSwitchRuntimeDebugState(self);
+    }
+
+    // Flush thread specific buffer from all threads before resetting the_trace_ to nullptr.
+    // We also flush the buffer when destroying a thread which expects the_trace_ to be valid so
+    // make sure that the per-thread buffer is reset before resetting the_trace_.
+    {
+      MutexLock tl_lock(Thread::Current(), *Locks::thread_list_lock_);
+      for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
+        if (thread->GetMethodTraceBuffer() != nullptr) {
+          the_trace_->FlushStreamingBuffer(thread);
+          thread->ResetMethodTraceBuffer();
+        }
+      }
+    }
+
+    // Reset the_trace_ by taking a trace_lock
+    MutexLock mu(self, *Locks::trace_lock_);
+    the_trace_ = nullptr;
     sampling_pthread_ = 0U;
   }
 
-  if (the_trace != nullptr) {
-    stop_alloc_counting = (the_trace->flags_ & Trace::kTraceCountAllocs) != 0;
-    // Stop the trace sources adding more entries to the trace buffer and synchronise stores.
-    {
-      gc::ScopedGCCriticalSection gcs(self,
-                                      gc::kGcCauseInstrumentation,
-                                      gc::kCollectorTypeInstrumentation);
-      jit::ScopedJitSuspend suspend_jit;
-      ScopedSuspendAll ssa(__FUNCTION__);
-
-      if (the_trace->trace_mode_ == TraceMode::kSampling) {
-        MutexLock mu(self, *Locks::thread_list_lock_);
-        runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
-      } else {
-        runtime->GetInstrumentation()->RemoveListener(
-            the_trace,
-            instrumentation::Instrumentation::kMethodEntered |
-                instrumentation::Instrumentation::kMethodExited |
-                instrumentation::Instrumentation::kMethodUnwind);
-        runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
-        runtime->GetInstrumentation()->MaybeSwitchRuntimeDebugState(self);
-      }
-    }
-    // At this point, code may read buf_ as it's writers are shutdown
-    // and the ScopedSuspendAll above has ensured all stores to buf_
-    // are now visible.
-    if (finish_tracing) {
-      the_trace->FinishTracing();
-    }
-    if (the_trace->trace_file_.get() != nullptr) {
-      // Do not try to erase, so flush and close explicitly.
-      if (flush_file) {
-        if (the_trace->trace_file_->Flush() != 0) {
-          PLOG(WARNING) << "Could not flush trace file.";
-        }
-      } else {
-        the_trace->trace_file_->MarkUnchecked();  // Do not trigger guard.
-      }
-      if (the_trace->trace_file_->Close() != 0) {
-        PLOG(ERROR) << "Could not close trace file.";
-      }
-    }
-    delete the_trace;
+  // At this point, code may read buf_ as its writers are shutdown
+  // and the ScopedSuspendAll above has ensured all stores to buf_
+  // are now visible.
+  if (finish_tracing) {
+    the_trace->FinishTracing();
   }
+  if (the_trace->trace_file_.get() != nullptr) {
+    // Do not try to erase, so flush and close explicitly.
+    if (flush_file) {
+      if (the_trace->trace_file_->Flush() != 0) {
+        PLOG(WARNING) << "Could not flush trace file.";
+      }
+    } else {
+      the_trace->trace_file_->MarkUnchecked();  // Do not trigger guard.
+    }
+    if (the_trace->trace_file_->Close() != 0) {
+      PLOG(ERROR) << "Could not close trace file.";
+    }
+  }
+  delete the_trace;
+
   if (stop_alloc_counting) {
     // Can be racy since SetStatsEnabled is not guarded by any locks.
     runtime->SetStatsEnabled(false);
@@ -595,6 +613,7 @@ Trace::Trace(File* trace_file,
       clock_overhead_ns_(GetClockOverheadNanoSeconds()),
       overflow_(false),
       interval_us_(0),
+      stop_tracing_(false),
       tracing_lock_("tracing lock", LockLevel::kTracingStreamingLock) {
   CHECK_IMPLIES(trace_file == nullptr, output_mode == TraceOutputMode::kDDMS);
 
@@ -688,16 +707,6 @@ void Trace::FinishTracing() {
   std::string header(os.str());
 
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
-    // Flush thread specific buffer from all threads.
-    {
-      MutexLock tl_lock(Thread::Current(), *Locks::thread_list_lock_);
-      for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
-        if (thread->GetMethodTraceBuffer() != nullptr) {
-          FlushStreamingBuffer(thread);
-          thread->ResetMethodTraceBuffer();
-        }
-      }
-    }
     // It is expected that this method is called when all other threads are suspended, so there
     // cannot be any writes to trace_file_ after finish tracing.
     // Write a special token to mark the end of trace records and the start of

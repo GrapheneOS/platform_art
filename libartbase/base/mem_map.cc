@@ -352,10 +352,7 @@ MemMap MemMap::MapAnonymous(const char* name,
 
   if (actual == MAP_FAILED) {
     if (error_msg != nullptr) {
-      if (kIsDebugBuild || VLOG_IS_ON(oat)) {
-        PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
-      }
-
+      PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
       *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s. "
                                     "See process maps in the log.",
                                 addr,
