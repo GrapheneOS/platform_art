@@ -29,9 +29,9 @@ import com.android.server.pm.PackageManagerLocal;
 
 import dalvik.system.DexFile;
 
-import java.util.Set;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Set;
 
 /**
  * Maps a compilation reason to a compiler filter and a priority class.
@@ -71,6 +71,11 @@ public class ReasonMapping {
     public static final Set<String> REASONS_FOR_INSTALL = Set.of(REASON_INSTALL,
             REASON_INSTALL_FAST, REASON_INSTALL_BULK, REASON_INSTALL_BULK_SECONDARY,
             REASON_INSTALL_BULK_DOWNGRADED, REASON_INSTALL_BULK_SECONDARY_DOWNGRADED);
+
+    // Keep this in sync with `ArtShellCommand.printHelp`.
+    /** @hide */
+    public static final Set<String> BATCH_DEXOPT_REASONS = Set.of(REASON_FIRST_BOOT,
+            REASON_BOOT_AFTER_OTA, REASON_BOOT_AFTER_MAINLINE_UPDATE, REASON_BG_DEXOPT);
 
     /**
      * Reasons for {@link ArtManagerLocal#dexoptPackages}.
