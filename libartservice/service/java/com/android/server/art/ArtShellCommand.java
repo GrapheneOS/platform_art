@@ -86,24 +86,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     private final ArtManagerLocal mArtManagerLocal;
     private final PackageManagerLocal mPackageManagerLocal;
-    private final DexUseManagerLocal mDexUseManager;
 
     @GuardedBy("sCancellationSignalMap")
     @NonNull
     private static final Map<String, CancellationSignal> sCancellationSignalMap = new HashMap<>();
 
     public ArtShellCommand(@NonNull ArtManagerLocal artManagerLocal,
-            @NonNull PackageManagerLocal packageManagerLocal,
-            @NonNull DexUseManagerLocal dexUseManager) {
+            @NonNull PackageManagerLocal packageManagerLocal) {
         mArtManagerLocal = artManagerLocal;
         mPackageManagerLocal = packageManagerLocal;
-        mDexUseManager = dexUseManager;
     }
 
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Override
     public int onCommand(String cmd) {
-        // TODO(b/269283633): Restrict apps from calling ART Service shell commands.
+        // Apps shouldn't call ART Service shell commands, not even for dexopting themselves.
+        enforceRootOrShell();
         PrintWriter pw = getOutPrintWriter();
         try (var snapshot = mPackageManagerLocal.withFilteredSnapshot()) {
             switch (cmd) {
@@ -124,9 +122,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 case "delete-dexopt":
                     return handleDeleteDexopt(pw, snapshot);
                 case "dump-profiles":
+                    return handleDumpProfile(pw, snapshot);
                 case "snapshot-profile":
-                    // TODO(b/263247832): Implement this.
-                    throw new UnsupportedOperationException();
+                    return handleSnapshotProfile(pw, snapshot);
                 case "art":
                     return handleArtCommand(pw, snapshot);
                 default:
@@ -134,6 +132,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     throw new IllegalArgumentException(
                             String.format("Unexpected command '%s' forwarded to ART Service", cmd));
             }
+        } catch (IllegalArgumentException | SnapshotProfileException e) {
+            pw.println("Error: " + e.getMessage());
+            return 1;
         }
     }
 
@@ -142,29 +143,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         String subcmd = getNextArgRequired();
         switch (subcmd) {
-            case "get-dexopt-status": {
-                enforceRoot();
-                DexoptStatus dexoptStatus = mArtManagerLocal.getDexoptStatus(
-                        snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
-                pw.println(dexoptStatus);
-                return 0;
-            }
             case "dexopt-packages": {
-                enforceRoot();
-                DexoptResult result;
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                try (var signal = new WithCancellationSignal(pw)) {
-                    result = mArtManagerLocal.dexoptPackages(
-                            snapshot, getNextArgRequired(), signal.get(), executor, progress -> {
-                                pw.println(String.format(
-                                        "Dexopting apps: %d%%", progress.getPercentage()));
-                                pw.flush();
-                            });
-                    Utils.executeAndWait(executor, () -> printDexoptResult(pw, result));
-                } finally {
-                    executor.shutdown();
-                }
-                return 0;
+                return handleBatchDexopt(pw, snapshot);
             }
             case "cancel": {
                 String jobId = getNextArgRequired();
@@ -180,89 +160,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 pw.println("Job cancelled");
                 return 0;
             }
-            case "dex-use-notify": {
-                enforceRoot();
-                mDexUseManager.notifyDexContainersLoaded(snapshot, getNextArgRequired(),
-                        Map.of(getNextArgRequired(), getNextArgRequired()));
-                return 0;
-            }
             case "dump": {
                 String packageName = getNextArg();
                 if (packageName != null) {
                     mArtManagerLocal.dumpPackage(pw, snapshot, packageName);
                 } else {
                     mArtManagerLocal.dump(pw, snapshot);
-                }
-                return 0;
-            }
-            case "dex-use-dump": {
-                enforceRoot();
-                pw.println(mDexUseManager.dump());
-                return 0;
-            }
-            case "snapshot-app-profile": {
-                enforceRoot();
-                String packageName = getNextArgRequired();
-                String splitName = getNextArg();
-                String outputRelativePath = String.format("%s%s.prof", packageName,
-                        splitName != null ? String.format("-split_%s.apk", splitName) : "");
-                ParcelFileDescriptor fd;
-                try {
-                    fd = mArtManagerLocal.snapshotAppProfile(snapshot, packageName, splitName);
-                } catch (SnapshotProfileException e) {
-                    throw new RuntimeException(e);
-                }
-                writeProfileFdContentsToFile(fd, outputRelativePath);
-                return 0;
-            }
-            case "snapshot-boot-image-profile": {
-                enforceRoot();
-                String outputRelativePath = "android.prof";
-                ParcelFileDescriptor fd;
-                try {
-                    fd = mArtManagerLocal.snapshotBootImageProfile(snapshot);
-                } catch (SnapshotProfileException e) {
-                    throw new RuntimeException(e);
-                }
-                writeProfileFdContentsToFile(fd, outputRelativePath);
-                return 0;
-            }
-            case "dump-profiles": {
-                enforceRoot();
-                boolean dumpClassesAndMethods = false;
-                String opt;
-                while ((opt = getNextOption()) != null) {
-                    switch (opt) {
-                        case "--dump-classes-and-methods": {
-                            dumpClassesAndMethods = true;
-                            break;
-                        }
-                        default:
-                            pw.println("Error: Unknown option: " + opt);
-                            return 1;
-                    }
-                }
-                String packageName = getNextArgRequired();
-                PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-                AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-                for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
-                    if (!dexInfo.hasCode()) {
-                        continue;
-                    }
-                    String profileName = PrimaryDexUtils.getProfileName(dexInfo.splitName());
-                    // The path is intentionally inconsistent with the one for
-                    // "snapshot-app-profile". The is to match the behavior of the legacy PM shell
-                    // command.
-                    String outputRelativePath =
-                            String.format("%s-%s.prof.txt", packageName, profileName);
-                    ParcelFileDescriptor fd;
-                    try {
-                        fd = mArtManagerLocal.dumpAppProfile(
-                                snapshot, packageName, dexInfo.splitName(), dumpClassesAndMethods);
-                    } catch (SnapshotProfileException e) {
-                        throw new RuntimeException(e);
-                    }
-                    writeProfileFdContentsToFile(fd, outputRelativePath);
                 }
                 return 0;
             }
@@ -548,6 +451,158 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         return 0;
     }
 
+    private int handleSnapshotProfile(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
+            throws SnapshotProfileException {
+        String splitName = null;
+        String codePath = null;
+
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            switch (opt) {
+                case "--split":
+                    splitName = getNextArgRequired();
+                    break;
+                default:
+                    pw.println("Error: Unknown option: " + opt);
+                    return 1;
+            }
+        }
+
+        String packageName = getNextArgRequired();
+
+        if ("--code-path".equals(getNextOption())) {
+            pw.println("Warning: Specifying a split using '--code-path' is deprecated. Please use "
+                    + "'--split SPLIT_NAME' instead");
+            pw.println("Tip: '--split SPLIT_NAME' must be passed before the package name");
+            codePath = getNextArgRequired();
+        }
+
+        if (splitName != null && codePath != null) {
+            pw.println("Error: '--split' and '--code-path' cannot be both specified");
+            return 1;
+        }
+
+        if (packageName.equals(Utils.PLATFORM_PACKAGE_NAME)) {
+            if (splitName != null) {
+                pw.println("Error: '--split' must not be specified for boot image profile");
+                return 1;
+            }
+            if (codePath != null) {
+                pw.println("Error: '--code-path' must not be specified for boot image profile");
+                return 1;
+            }
+            return handleSnapshotBootProfile(pw, snapshot);
+        }
+
+        if (splitName.isEmpty()) {
+            splitName = null;
+        }
+        if (codePath != null) {
+            splitName = getSplitNameByFullPath(snapshot, packageName, codePath);
+        }
+
+        return handleSnapshotAppProfile(pw, snapshot, packageName, splitName);
+    }
+
+    private int handleSnapshotBootProfile(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
+            throws SnapshotProfileException {
+        String outputRelativePath = "android.prof";
+        ParcelFileDescriptor fd = mArtManagerLocal.snapshotBootImageProfile(snapshot);
+        writeProfileFdContentsToFile(pw, fd, outputRelativePath);
+        return 0;
+    }
+
+    private int handleSnapshotAppProfile(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @Nullable String splitName) throws SnapshotProfileException {
+        String outputRelativePath = String.format("%s%s.prof", packageName,
+                splitName != null ? String.format("-split_%s.apk", splitName) : "");
+        ParcelFileDescriptor fd =
+                mArtManagerLocal.snapshotAppProfile(snapshot, packageName, splitName);
+        writeProfileFdContentsToFile(pw, fd, outputRelativePath);
+        return 0;
+    }
+
+    private int handleDumpProfile(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
+            throws SnapshotProfileException {
+        boolean dumpClassesAndMethods = false;
+
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            switch (opt) {
+                case "--dump-classes-and-methods": {
+                    dumpClassesAndMethods = true;
+                    break;
+                }
+                default:
+                    pw.println("Error: Unknown option: " + opt);
+                    return 1;
+            }
+        }
+
+        String packageName = getNextArgRequired();
+
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        try (var tracing = new Utils.Tracing("dump profiles")) {
+            for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                if (!dexInfo.hasCode()) {
+                    continue;
+                }
+                String profileName = PrimaryDexUtils.getProfileName(dexInfo.splitName());
+                // The path is intentionally inconsistent with the one for "snapshot-profile". This
+                // is to match the behavior of the legacy PM shell command.
+                String outputRelativePath =
+                        String.format("%s-%s.prof.txt", packageName, profileName);
+                ParcelFileDescriptor fd = mArtManagerLocal.dumpAppProfile(
+                        snapshot, packageName, dexInfo.splitName(), dumpClassesAndMethods);
+                writeProfileFdContentsToFile(pw, fd, outputRelativePath);
+            }
+        }
+        return 0;
+    }
+
+    private int handleBatchDexopt(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        String reason = null;
+        String opt;
+        while ((opt = getNextOption()) != null) {
+            switch (opt) {
+                case "-r":
+                    reason = getNextArgRequired();
+                    break;
+                default:
+                    pw.println("Error: Unknown option: " + opt);
+                    return 1;
+            }
+        }
+        if (reason == null) {
+            pw.println("Error: '-r REASON' is required");
+            return 1;
+        }
+        if (!ReasonMapping.BATCH_DEXOPT_REASONS.contains(reason)) {
+            pw.printf("Error: Invalid batch dexopt reason '%s'. Valid values are: %s\n", reason,
+                    ReasonMapping.BATCH_DEXOPT_REASONS);
+            return 1;
+        }
+        DexoptResult result;
+        ExecutorService progressCallbackExecutor = Executors.newSingleThreadExecutor();
+        try (var signal = new WithCancellationSignal(pw)) {
+            result = mArtManagerLocal.dexoptPackages(
+                    snapshot, reason, signal.get(), progressCallbackExecutor, progress -> {
+                        pw.println(String.format("Dexopting apps: %d%%", progress.getPercentage()));
+                        pw.flush();
+                    });
+            Utils.executeAndWait(progressCallbackExecutor, () -> printDexoptResult(pw, result));
+        } finally {
+            progressCallbackExecutor.shutdown();
+        }
+        return 0;
+    }
+
     @Override
     public void onHelp() {
         // No one should call this. The help text should be printed by the `onHelp` handler of `cmd
@@ -556,7 +611,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     }
 
     public static void printHelp(@NonNull PrintWriter pw) {
-        // TODO(b/263247832): Write help text about root-level commands.
         pw.println("compile [-r COMPILATION_REASON] [-m COMPILER_FILTER] [-p PRIORITY] [-f]");
         pw.println("    [--primary-dex] [--secondary-dex] [--include-dependencies] [--full]");
         pw.println("    [--split SPLIT_NAME] [--reset] [-a | PACKAGE_NAME]");
@@ -634,6 +688,26 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  This usage is deprecated. Please use 'pm compile -r bg-dexopt PACKAGE_NAME'");
         pw.println("  instead.");
         pw.println();
+        pw.println("snapshot-profile [android | [--split SPLIT_NAME] PACKAGE_NAME]");
+        pw.println("  Snapshot the boot image profile or the app profile and save it to");
+        pw.println("  '" + PROFILE_DEBUG_LOCATION + "'.");
+        pw.println("  If 'android' is passed, the command snapshots the boot image profile, and");
+        pw.println("  the output filename is 'android.prof'.");
+        pw.println("  If a package name is passed, the command snapshots the app profile.");
+        pw.println("  Options:");
+        pw.println("    --split SPLIT_NAME If specified, the command snapshots the profile of the");
+        pw.println("      given split, and the output filename is");
+        pw.println("      'PACKAGE_NAME-split_SPLIT_NAME.apk.prof'.");
+        pw.println("      If not specified, the command snapshots the profile of the base APK,");
+        pw.println("      and the output filename is 'PACKAGE_NAME.prof'");
+        pw.println();
+        pw.println("dump-profiles [--dump-classes-and-methods] PACKAGE_NAME");
+        pw.println("  Dump the profiles of the given app in text format and save the outputs to");
+        pw.println("  '" + PROFILE_DEBUG_LOCATION + "'.");
+        pw.println("  The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
+        pw.println("  The profile of a split APK is dumped to");
+        pw.println("  'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
+        pw.println();
         pw.println("art SUB_COMMAND [ARGS]...");
         pw.println("  Run ART Service commands");
         pw.println();
@@ -658,47 +732,19 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
         pw.println("    is for the given package.");
         pw.println();
-        pw.println("  Note: The sub-commands below are used for internal debugging purposes only.");
-        pw.println("  There are no stability guarantees for them.");
-        pw.println();
-        pw.println("  get-dexopt-status PACKAGE_NAME");
-        pw.println("    Print the dexopt status of both primary dex files and secondary dex");
-        pw.println("    files of a package.");
-        pw.println();
-        pw.println("  dexopt-packages REASON");
+        pw.println("  dexopt-packages -r REASON");
         pw.println("    Run batch dexopt for the given reason.");
-        pw.println();
-        pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
-        pw.println("    Notify that a dex file is loaded with the given class loader context by");
-        pw.println("    the given package.");
-        pw.println();
-        pw.println("  dex-use-dump");
-        pw.println("    Print all dex use information in textproto format.");
-        pw.println();
-        pw.println("  snapshot-app-profile PACKAGE_NAME [SPLIT_NAME]");
-        pw.println("    Snapshot the profile of the given app and save it to");
-        pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
-        pw.println("    If SPLIT_NAME is empty, the command is for the base APK, and the output");
-        pw.println("    filename is 'PACKAGE_NAME.prof'. Otherwise, the command is for the given");
-        pw.println("    split, and the output filename is");
-        pw.println("    'PACKAGE_NAME-split_SPLIT_NAME.apk.prof'.");
-        pw.println();
-        pw.println("  snapshot-boot-image-profile");
-        pw.println("    Snapshot the boot image profile and save it to");
-        pw.println("    '" + PROFILE_DEBUG_LOCATION + "/android.prof'.");
-        pw.println();
-        pw.println("  dump-profiles [--dump-classes-and-methods] PACKAGE_NAME");
-        pw.println("    Dump the profiles of the given app in text format and save the outputs to");
-        pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
-        pw.println("    The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
-        pw.println("    The profile of a split APK is dumped to");
-        pw.println("    'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
+        pw.println("    Valid values for REASON: 'first-boot', 'boot-after-ota',");
+        pw.println("    'boot-after-mainline-update', 'bg-dexopt'");
+        pw.println("    This command is different from 'pm compile -r REASON -a'. For example, it");
+        pw.println("    only dexopts a subset of apps, and it runs dexopt in parallel. See the");
+        pw.println("    API documentation for 'ArtManagerLocal.dexoptPackages' for details.");
     }
 
-    private void enforceRoot() {
+    private void enforceRootOrShell() {
         final int uid = Binder.getCallingUid();
-        if (uid != Process.ROOT_UID) {
-            throw new SecurityException("This ART service shell command needs root access");
+        if (uid != Process.ROOT_UID && uid != Process.SHELL_UID) {
+            throw new SecurityException("ART service shell commands need root or shell access");
         }
     }
 
@@ -745,6 +791,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
 
         throw new IllegalArgumentException(String.format("Split '%s' not found", splitArg));
+    }
+
+    @Nullable
+    private String getSplitNameByFullPath(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull String packageName, @NonNull String fullPath) {
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        List<PrimaryDexInfo> dexInfoList = PrimaryDexUtils.getDexInfo(pkg);
+
+        for (PrimaryDexInfo dexInfo : dexInfoList) {
+            if (fullPath.equals(dexInfo.dexPath())) {
+                return dexInfo.splitName();
+            }
+        }
+
+        throw new IllegalArgumentException(String.format("Code path '%s' not found", fullPath));
     }
 
     private int resetPackages(@NonNull PrintWriter pw,
@@ -800,7 +862,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.flush();
     }
 
-    private void writeProfileFdContentsToFile(
+    private void writeProfileFdContentsToFile(@NonNull PrintWriter pw,
             @NonNull ParcelFileDescriptor fd, @NonNull String outputRelativePath) {
         try {
             StructStat st = Os.stat(PROFILE_DEBUG_LOCATION);
@@ -822,6 +884,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             // verified by the code above.
             Os.fchmod(outputStream.getFD(), 0644);
             Streams.copy(inputStream, outputStream);
+            pw.printf("Profile saved to '%s'\n", outputPath);
         } catch (IOException | ErrnoException e) {
             Utils.deleteIfExistsSafe(outputPath);
             throw new RuntimeException(e);
