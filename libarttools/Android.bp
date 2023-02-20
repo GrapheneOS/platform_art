@@ -43,7 +43,7 @@ cc_library {
     shared_libs: [
         "libbase",
     ],
-    static_libs: [
+    whole_static_libs: [
         "libc++fs",
     ],
     export_shared_lib_headers: ["libbase"],
@@ -110,10 +110,10 @@ cc_binary {
     ],
     shared_libs: [
         "libartbase",
+        "libarttools", // Contains "libc++fs".
         "libbase",
     ],
     static_libs: [
-        "libc++fs",
         "libcap",
     ],
     apex_available: [
