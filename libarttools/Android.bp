@@ -43,6 +43,9 @@ cc_library {
     shared_libs: [
         "libbase",
     ],
+    whole_static_libs: [
+        "libc++fs",
+    ],
     export_shared_lib_headers: ["libbase"],
 }
 
