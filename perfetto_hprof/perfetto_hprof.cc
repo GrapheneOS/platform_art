@@ -165,6 +165,26 @@ uint64_t GetCurrentBootClockNs() {
   return ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
+bool IsDebugBuild() {
+  std::string build_type = android::base::GetProperty("ro.build.type", "");
+  return !build_type.empty() && build_type != "user";
+}
+
+// Verifies the manifest restrictions are respected.
+// For regular heap dumps this is already handled by heapprofd.
+bool IsOomeHeapDumpAllowed(const perfetto::DataSourceConfig& ds_config) {
+  if (art::Runtime::Current()->IsJavaDebuggable() || IsDebugBuild()) {
+    return true;
+  }
+
+  if (ds_config.session_initiator() ==
+      perfetto::DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM) {
+    return art::Runtime::Current()->IsProfileable() || art::Runtime::Current()->IsSystemServer();
+  } else {
+    return art::Runtime::Current()->IsProfileableFromShell();
+  }
+}
+
 class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
  public:
   constexpr static perfetto::BufferExhaustedPolicy kBufferExhaustedPolicy =
@@ -197,7 +217,8 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
     }
     // This tracing session ID matches the requesting tracing session ID, so we know heapprofd
     // has verified it targets this process.
-    enabled_ = !is_oome_heap_ || IsOomeDumpEnabled(*cfg.get());
+    enabled_ =
+        !is_oome_heap_ || (IsOomeHeapDumpAllowed(*args.config) && IsOomeDumpEnabled(*cfg.get()));
   }
 
   bool dump_smaps() { return dump_smaps_; }
@@ -1126,11 +1147,6 @@ void DumpPerfettoOutOfMemory() REQUIRES_SHARED(art::Locks::mutator_lock_) {
     });
 }
 
-bool CanProfile() {
-  std::string build_type = android::base::GetProperty("ro.build.type", "");
-  return !build_type.empty() && build_type != "user";
-}
-
 // The plugin initialization function.
 extern "C" bool ArtPlugin_Initialize() {
   if (art::Runtime::Current() == nullptr) {
@@ -1219,17 +1235,13 @@ extern "C" bool ArtPlugin_Initialize() {
   th.detach();
 
   // Register the OOM error handler.
-  if (CanProfile()) {
-    art::Runtime::Current()->SetOutOfMemoryErrorHook(perfetto_hprof::DumpPerfettoOutOfMemory);
-  }
+  art::Runtime::Current()->SetOutOfMemoryErrorHook(perfetto_hprof::DumpPerfettoOutOfMemory);
 
   return true;
 }
 
 extern "C" bool ArtPlugin_Deinitialize() {
-  if (CanProfile()) {
-    art::Runtime::Current()->SetOutOfMemoryErrorHook(nullptr);
-  }
+  art::Runtime::Current()->SetOutOfMemoryErrorHook(nullptr);
 
   if (sigaction(kJavaHeapprofdSignal, &g_orig_act, nullptr) != 0) {
     PLOG(ERROR) << "failed to reset signal handler";
