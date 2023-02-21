@@ -40,12 +40,9 @@ std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8
     StandardDexFile::WriteMagic(data->data());
     StandardDexFile::WriteCurrentVersion(data->data());
   }
-  const DexFileLoader dex_file_loader;
+  DexFileLoader dex_file_loader(data->data(), data->size(), "location");
   std::string error_msg;
-  std::unique_ptr<const DexFile> dex(dex_file_loader.Open(data->data(),
-                                                          data->size(),
-                                                          "location",
-                                                          /*location_checksum=*/ 123,
+  std::unique_ptr<const DexFile> dex(dex_file_loader.Open(/*location_checksum=*/123,
                                                           /*oat_dex_file=*/nullptr,
                                                           /*verify=*/false,
                                                           /*verify_checksum=*/false,

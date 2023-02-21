@@ -253,6 +253,24 @@ ZipArchive* ZipArchive::OpenFromOwnedFd(int fd, const char* filename, std::strin
   return OpenFromFdInternal(fd, /*assume_ownership=*/false, filename, error_msg);
 }
 
+ZipArchive* ZipArchive::OpenFromMemory(const uint8_t* data,
+                                       size_t size,
+                                       const char* filename,
+                                       std::string* error_msg) {
+  DCHECK(filename != nullptr);
+  DCHECK(data != nullptr);
+
+  ZipArchiveHandle handle;
+  const int32_t error = OpenArchiveFromMemory(data, size, filename, &handle);
+  if (error != 0) {
+    *error_msg = std::string(ErrorCodeString(error));
+    CloseArchive(handle);
+    return nullptr;
+  }
+
+  return new ZipArchive(handle);
+}
+
 ZipArchive* ZipArchive::OpenFromFdInternal(int fd,
                                            bool assume_ownership,
                                            const char* filename,
