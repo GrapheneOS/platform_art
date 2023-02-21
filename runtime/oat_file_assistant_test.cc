@@ -117,10 +117,8 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
 
   bool InsertNewBootClasspathEntry(const std::string& src, std::string* error_msg) {
     std::vector<std::unique_ptr<const DexFile>> dex_files;
-    ArtDexFileLoader dex_file_loader;
-    if (!dex_file_loader.Open(src.c_str(),
-                              src,
-                              /*verify=*/true,
+    ArtDexFileLoader dex_file_loader(src);
+    if (!dex_file_loader.Open(/*verify=*/true,
                               /*verify_checksum=*/false,
                               error_msg,
                               &dex_files)) {

@@ -290,7 +290,6 @@ std::vector<T> GenerateComponents(
         custom_generator) {
   std::vector<T> components;
 
-  ArtDexFileLoader loader;
   for (const std::string& path : jars) {
     std::string actual_path = RewriteParentDirectoryIfNeeded(path);
     struct stat sb;
@@ -302,7 +301,8 @@ std::vector<T> GenerateComponents(
     std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations;
     std::string error_msg;
-    if (!loader.GetMultiDexChecksums(actual_path.c_str(), &checksums, &dex_locations, &error_msg)) {
+    if (!ArtDexFileLoader::GetMultiDexChecksums(
+            actual_path.c_str(), &checksums, &dex_locations, &error_msg)) {
       LOG(ERROR) << "Failed to get multi-dex checksums: " << error_msg;
       return {};
     }

@@ -30,6 +30,7 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 
+#include "base/mem_map.h"
 #include "dex/class_accessor-inl.h"
 #include "dex/code_item_accessors-inl.h"
 #include "dex/dex_file-inl.h"
@@ -168,15 +169,10 @@ static int processFile(const char* fileName) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   DexFileLoaderErrorCode error_code;
   std::string error_msg;
-  const DexFileLoader dex_file_loader;
-  if (!dex_file_loader.OpenAll(reinterpret_cast<const uint8_t*>(content.data()),
-                               content.size(),
-                               fileName,
-                               /*verify=*/ true,
-                               kVerifyChecksum,
-                               &error_code,
-                               &error_msg,
-                               &dex_files)) {
+  DexFileLoader dex_file_loader(
+      reinterpret_cast<const uint8_t*>(content.data()), content.size(), fileName);
+  if (!dex_file_loader.Open(
+          /*verify=*/true, kVerifyChecksum, &error_code, &error_msg, &dex_files)) {
     LOG(ERROR) << error_msg;
     return -1;
   }
@@ -281,6 +277,7 @@ int dexlistDriver(int argc, char** argv) {
 int main(int argc, char** argv) {
   // Output all logging to stderr.
   android::base::SetLogger(android::base::StderrLogger);
+  art::MemMap::Init();
 
   return art::dexlistDriver(argc, argv);
 }

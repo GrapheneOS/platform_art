@@ -237,14 +237,12 @@ class TestDexFileBuilder {
     static constexpr bool kVerify = false;
     static constexpr bool kVerifyChecksum = false;
     std::string error_msg;
-    std::unique_ptr<const DexFile> dex_file(DexFileLoader::Open(
-        dex_location,
-        location_checksum,
-        std::move(dex_file_data),
-        /*oat_dex_file=*/ nullptr,
-        kVerify,
-        kVerifyChecksum,
-        &error_msg));
+    DexFileLoader dex_file_loader(std::move(dex_file_data), dex_location);
+    std::unique_ptr<const DexFile> dex_file(dex_file_loader.Open(location_checksum,
+                                                                 /*oat_dex_file=*/nullptr,
+                                                                 kVerify,
+                                                                 kVerifyChecksum,
+                                                                 &error_msg));
     CHECK(dex_file != nullptr) << error_msg;
     return dex_file;
   }

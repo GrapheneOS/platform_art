@@ -22,13 +22,13 @@
  * Also, ODEX files are no longer supported.
  */
 
-#include "dexdump.h"
-
+#include <android-base/logging.h>
+#include <base/mem_map.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <android-base/logging.h>
+#include "dexdump.h"
 
 namespace art {
 
@@ -157,6 +157,7 @@ int dexdumpDriver(int argc, char** argv) {
 int main(int argc, char** argv) {
   // Output all logging to stderr.
   android::base::SetLogger(android::base::StderrLogger);
+  art::MemMap::Init();
 
   return art::dexdumpDriver(argc, argv);
 }

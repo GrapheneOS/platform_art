@@ -1962,18 +1962,12 @@ int processFile(const char* fileName) {
     LOG(ERROR) << "ReadFileToString failed";
     return -1;
   }
-  const DexFileLoader dex_file_loader;
   DexFileLoaderErrorCode error_code;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!dex_file_loader.OpenAll(reinterpret_cast<const uint8_t*>(content.data()),
-                               content.size(),
-                               fileName,
-                               kVerify,
-                               kVerifyChecksum,
-                               &error_code,
-                               &error_msg,
-                               &dex_files)) {
+  DexFileLoader dex_file_loader(
+      reinterpret_cast<const uint8_t*>(content.data()), content.size(), fileName);
+  if (!dex_file_loader.Open(kVerify, kVerifyChecksum, &error_code, &error_msg, &dex_files)) {
     // Display returned error message to user. Note that this error behavior
     // differs from the error messages shown by the original Dalvik dexdump.
     LOG(ERROR) << error_msg;
