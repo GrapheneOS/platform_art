@@ -107,7 +107,8 @@ inline uint32_t Object::GetReadBarrierState(uintptr_t* fake_address_dependency) 
   LockWord lw(static_cast<uint32_t>(result));
   uint32_t rb_state = lw.ReadBarrierState();
   return rb_state;
-#elif defined(__i386__) || defined(__x86_64__)
+#elif defined(__i386__) || defined(__x86_64__) || defined(__riscv)
+  // TODO(riscv64): add arch-specific implementation
   LockWord lw = GetLockWord(false);
   // i386/x86_64 don't need fake address dependency. Use a compiler fence to avoid compiler
   // reordering.
