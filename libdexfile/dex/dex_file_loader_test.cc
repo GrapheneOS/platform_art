@@ -217,15 +217,9 @@ static bool OpenDexFilesBase64(const char* base64,
   // read dex file(s)
   static constexpr bool kVerifyChecksum = true;
   std::vector<std::unique_ptr<const DexFile>> tmp;
-  const DexFileLoader dex_file_loader;
-  bool success = dex_file_loader.OpenAll(dex_bytes->data(),
-                                         dex_bytes->size(),
-                                         location,
-                                         /* verify= */ true,
-                                         kVerifyChecksum,
-                                         error_code,
-                                         error_msg,
-                                         dex_files);
+  DexFileLoader dex_file_loader(dex_bytes->data(), dex_bytes->size(), location);
+  bool success =
+      dex_file_loader.Open(/* verify= */ true, kVerifyChecksum, error_code, error_msg, dex_files);
   return success;
 }
 
@@ -251,11 +245,8 @@ static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base
   DecodeDexFile(base64, dex_bytes);
 
   std::string error_message;
-  const DexFileLoader dex_file_loader;
-  std::unique_ptr<const DexFile> dex_file(dex_file_loader.Open(dex_bytes->data(),
-                                                               dex_bytes->size(),
-                                                               location,
-                                                               location_checksum,
+  DexFileLoader dex_file_loader(dex_bytes->data(), dex_bytes->size(), location);
+  std::unique_ptr<const DexFile> dex_file(dex_file_loader.Open(location_checksum,
                                                                /* oat_dex_file= */ nullptr,
                                                                /* verify= */ true,
                                                                /* verify_checksum= */ true,
@@ -353,15 +344,9 @@ TEST_F(DexFileLoaderTest, Version41Rejected) {
   DexFileLoaderErrorCode error_code;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  const DexFileLoader dex_file_loader;
-  ASSERT_FALSE(dex_file_loader.OpenAll(dex_bytes.data(),
-                                       dex_bytes.size(),
-                                       kLocationString,
-                                       /* verify= */ true,
-                                       kVerifyChecksum,
-                                       &error_code,
-                                       &error_msg,
-                                       &dex_files));
+  DexFileLoader dex_file_loader(dex_bytes.data(), dex_bytes.size(), kLocationString);
+  ASSERT_FALSE(dex_file_loader.Open(
+      /* verify= */ true, kVerifyChecksum, &error_code, &error_msg, &dex_files));
 }
 
 TEST_F(DexFileLoaderTest, ZeroLengthDexRejected) {
@@ -372,15 +357,9 @@ TEST_F(DexFileLoaderTest, ZeroLengthDexRejected) {
   DexFileLoaderErrorCode error_code;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  const DexFileLoader dex_file_loader;
-  ASSERT_FALSE(dex_file_loader.OpenAll(dex_bytes.data(),
-                                       dex_bytes.size(),
-                                       kLocationString,
-                                       /* verify= */ true,
-                                       kVerifyChecksum,
-                                       &error_code,
-                                       &error_msg,
-                                       &dex_files));
+  DexFileLoader dex_file_loader(dex_bytes.data(), dex_bytes.size(), kLocationString);
+  ASSERT_FALSE(dex_file_loader.Open(
+      /* verify= */ true, kVerifyChecksum, &error_code, &error_msg, &dex_files));
 }
 
 TEST_F(DexFileLoaderTest, GetMultiDexClassesDexName) {

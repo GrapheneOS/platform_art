@@ -607,34 +607,31 @@ class ProfMan final {
     static constexpr bool kVerifyChecksum = true;
     for (size_t i = 0; i < dex_locations_.size(); ++i) {
       std::string error_msg;
-      const ArtDexFileLoader dex_file_loader;
       std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
       // We do not need to verify the apk for processing profiles.
       if (use_apk_fd_list) {
-        if (dex_file_loader.OpenZip(apks_fd_[i],
-                                    dex_locations_[i],
-                                    /*verify=*/false,
-                                    kVerifyChecksum,
-                                    /*allow_no_dex_files=*/true,
-                                    &error_msg,
-                                    &dex_files_for_location)) {
-        } else {
-          LOG(ERROR) << "OpenZip failed for '" << dex_locations_[i] << "' " << error_msg;
-          return false;
-        }
+          ArtDexFileLoader dex_file_loader(apks_fd_[i], dex_locations_[i]);
+          if (dex_file_loader.Open(/*verify=*/false,
+                                   kVerifyChecksum,
+                                   /*allow_no_dex_files=*/true,
+                                   &error_msg,
+                                   &dex_files_for_location)) {
+          } else {
+            LOG(ERROR) << "OpenZip failed for '" << dex_locations_[i] << "' " << error_msg;
+            return false;
+          }
       } else {
         File file(apk_files_[i], O_RDONLY, /*check_usage=*/false);
         if (file.Fd() < 0) {
           PLOG(ERROR) << "Unable to open '" << apk_files_[i] << "'";
           return false;
         }
-        if (dex_file_loader.OpenZip(file.Release(),
-                                    dex_locations_[i],
-                                    /*verify=*/false,
-                                    kVerifyChecksum,
-                                    /*allow_no_dex_files=*/true,
-                                    &error_msg,
-                                    &dex_files_for_location)) {
+        ArtDexFileLoader dex_file_loader(file.Release(), dex_locations_[i]);
+        if (dex_file_loader.Open(/*verify=*/false,
+                                 kVerifyChecksum,
+                                 /*allow_no_dex_files=*/true,
+                                 &error_msg,
+                                 &dex_files_for_location)) {
         } else {
           LOG(ERROR) << "Open failed for '" << dex_locations_[i] << "' " << error_msg;
           return false;

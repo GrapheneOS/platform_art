@@ -173,13 +173,12 @@ class CommonArtTestImpl {
   bool MutateDexFile(File* output_dex, const std::string& input_jar, const Mutator& mutator) {
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     std::string error_msg;
-    const ArtDexFileLoader dex_file_loader;
-    CHECK(dex_file_loader.Open(input_jar.c_str(),
-                               input_jar.c_str(),
-                               /*verify*/ true,
+    ArtDexFileLoader dex_file_loader(input_jar);
+    CHECK(dex_file_loader.Open(/*verify*/ true,
                                /*verify_checksum*/ true,
                                &error_msg,
-                               &dex_files)) << error_msg;
+                               &dex_files))
+        << error_msg;
     EXPECT_EQ(dex_files.size(), 1u) << "Only one input dex is supported";
     const std::unique_ptr<const DexFile>& dex = dex_files[0];
     CHECK(dex->EnableWrite()) << "Failed to enable write";

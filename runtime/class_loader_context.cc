@@ -438,7 +438,6 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
   // We may get resource-only apks which we cannot load.
   // TODO(calin): Refine the dex opening interface to be able to tell if an archive contains
   // no dex files. So that we can distinguish the real failures...
-  const ArtDexFileLoader dex_file_loader;
   std::vector<ClassLoaderInfo*> work_list;
   if (class_loader_chain_ == nullptr) {
     return true;
@@ -480,12 +479,12 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
       std::string error_msg;
       if (only_read_checksums) {
         bool zip_file_only_contains_uncompress_dex;
-        if (!dex_file_loader.GetMultiDexChecksums(location.c_str(),
-                                                  &dex_checksums,
-                                                  &dex_locations,
-                                                  &error_msg,
-                                                  fd,
-                                                  &zip_file_only_contains_uncompress_dex)) {
+        if (!ArtDexFileLoader::GetMultiDexChecksums(location.c_str(),
+                                                    &dex_checksums,
+                                                    &dex_locations,
+                                                    &error_msg,
+                                                    fd,
+                                                    &zip_file_only_contains_uncompress_dex)) {
           LOG(WARNING) << "Could not get dex checksums for location " << location << ", fd=" << fd;
           dex_files_state_ = kDexFilesOpenFailed;
         }
@@ -495,11 +494,9 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
         // We don't need to do structural dex file verification, we only need to
         // check the checksum, so pass false to verify.
         size_t opened_dex_files_index = info->opened_dex_files.size();
-        if (!dex_file_loader.Open(location.c_str(),
-                                  fd,
-                                  location.c_str(),
-                                  /*verify=*/ false,
-                                  /*verify_checksum=*/ true,
+        ArtDexFileLoader dex_file_loader(location.c_str(), fd, location);
+        if (!dex_file_loader.Open(/*verify=*/false,
+                                  /*verify_checksum=*/true,
                                   &error_msg,
                                   &info->opened_dex_files)) {
           LOG(WARNING) << "Could not open dex files for location " << location << ", fd=" << fd;

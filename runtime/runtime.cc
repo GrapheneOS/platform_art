@@ -1291,7 +1291,6 @@ static size_t OpenBootDexFiles(ArrayRef<const std::string> dex_filenames,
                                std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   DCHECK(dex_files != nullptr) << "OpenDexFiles: out-param is nullptr";
   size_t failure_count = 0;
-  const ArtDexFileLoader dex_file_loader;
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i].c_str();
     const char* dex_location = dex_locations[i].c_str();
@@ -1303,13 +1302,8 @@ static size_t OpenBootDexFiles(ArrayRef<const std::string> dex_filenames,
       continue;
     }
     bool verify = Runtime::Current()->IsVerificationEnabled();
-    if (!dex_file_loader.Open(dex_filename,
-                              dex_fd,
-                              dex_location,
-                              verify,
-                              kVerifyChecksum,
-                              &error_msg,
-                              dex_files)) {
+    ArtDexFileLoader dex_file_loader(dex_filename, dex_fd, dex_location);
+    if (!dex_file_loader.Open(verify, kVerifyChecksum, &error_msg, dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "' / fd " << dex_fd
                    << ": " << error_msg;
       ++failure_count;

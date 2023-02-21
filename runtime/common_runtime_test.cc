@@ -572,10 +572,8 @@ void CommonRuntimeTestImpl::VisitDexes(ArrayRef<const std::string> dexes,
   for (const std::string& dex : dexes) {
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     std::string error_msg;
-    const ArtDexFileLoader dex_file_loader;
-    CHECK(dex_file_loader.Open(dex.c_str(),
-                               dex,
-                               /*verify*/ true,
+    ArtDexFileLoader dex_file_loader(dex);
+    CHECK(dex_file_loader.Open(/*verify*/ true,
                                /*verify_checksum*/ false,
                                &error_msg,
                                &dex_files))

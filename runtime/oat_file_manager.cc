@@ -450,10 +450,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   if (dex_files.empty()) {
     std::string error_msg;
     static constexpr bool kVerifyChecksum = true;
-    const ArtDexFileLoader dex_file_loader;
-    if (!dex_file_loader.Open(dex_location,
-                              dex_location,
-                              Runtime::Current()->IsVerificationEnabled(),
+    ArtDexFileLoader dex_file_loader(dex_location);
+    if (!dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(),
                               kVerifyChecksum,
                               /*out*/ &error_msg,
                               &dex_files)) {
@@ -556,11 +554,10 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat_
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   for (size_t i = 0; i < dex_mem_maps.size(); ++i) {
     static constexpr bool kVerifyChecksum = true;
-    const ArtDexFileLoader dex_file_loader;
+    ArtDexFileLoader dex_file_loader(std::move(dex_mem_maps[i]),
+                                     DexFileLoader::GetMultiDexLocation(i, dex_location.c_str()));
     std::unique_ptr<const DexFile> dex_file(dex_file_loader.Open(
-        DexFileLoader::GetMultiDexLocation(i, dex_location.c_str()),
         dex_headers[i]->checksum_,
-        std::move(dex_mem_maps[i]),
         /* verify= */ (vdex_file == nullptr) && Runtime::Current()->IsVerificationEnabled(),
         kVerifyChecksum,
         &error_msg));
