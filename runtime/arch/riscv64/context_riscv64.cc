@@ -139,8 +139,10 @@ void Riscv64Context::DoLongJump() {
   for (size_t i = 0; i < kNumberOfFRegisters; ++i) {
     fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Riscv64Context::kBadFprBase + i;
   }
-  // Ensure the Thread Register contains the address of the current thread.
-  DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
+
+  // Fill in TR (the ART Thread Register) with the address of the current thread.
+  gprs[TR] = reinterpret_cast<uintptr_t>(Thread::Current());
+
   // Tell HWASan about the new stack top.
   __hwasan_handle_longjmp(reinterpret_cast<void*>(gprs[SP]));
   art_quick_do_long_jump(gprs, fprs);

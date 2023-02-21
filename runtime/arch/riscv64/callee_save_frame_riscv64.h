@@ -37,10 +37,9 @@ static constexpr uint32_t kRiscv64CalleeSaveRefSpills =
     (1 << art::riscv64::S4) | (1 << art::riscv64::S5) | (1 << art::riscv64::S6) |
     (1 << art::riscv64::S7) | (1 << art::riscv64::S8) | (1 << art::riscv64::S9) |
     (1 << art::riscv64::S10) | (1 << art::riscv64::S11);
-// S1(TR) is included because exception handler checks that the saved TR holds Thread::Current().
 // Stack pointer SP is excluded (although it is callee-saved by calling convention) because it is
 // restored by the code logic and not from a stack frame.
-static constexpr uint32_t kRiscv64CalleeSaveAllSpills = (1 << art::riscv64::S1);
+static constexpr uint32_t kRiscv64CalleeSaveAllSpills = 0;
 // Argument registers except X10/A0 (which contains method pointer).
 static constexpr uint32_t kRiscv64CalleeSaveArgSpills =
     (1 << art::riscv64::A1) | (1 << art::riscv64::A2) | (1 << art::riscv64::A3) |
