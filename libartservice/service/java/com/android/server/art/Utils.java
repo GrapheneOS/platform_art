@@ -16,10 +16,13 @@
 
 package com.android.server.art;
 
+import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SuppressLint;
+import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
+import android.content.Context;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserManager;
@@ -300,6 +303,15 @@ public final class Utils {
         } catch (IOException e) {
             Log.e(TAG, "Failed to delete file '" + path + "'", e);
         }
+    }
+
+    public static boolean isSystemUiPackage(@NonNull Context context, @NonNull String packageName) {
+        return packageName.equals(context.getString(R.string.config_systemUi));
+    }
+
+    public static boolean isLauncherPackage(@NonNull Context context, @NonNull String packageName) {
+        RoleManager roleManager = context.getSystemService(RoleManager.class);
+        return roleManager.getRoleHolders(RoleManager.ROLE_HOME).contains(packageName);
     }
 
     @AutoValue
