@@ -45,12 +45,6 @@ void DexCache::Initialize(const DexFile* dex_file, ObjPtr<ClassLoader> class_loa
   DCHECK(GetResolvedMethodTypes() == nullptr);
   DCHECK(GetResolvedCallSites() == nullptr);
 
-  DCHECK(GetStringsArray() == nullptr);
-  DCHECK(GetResolvedTypesArray() == nullptr);
-  DCHECK(GetResolvedMethodsArray() == nullptr);
-  DCHECK(GetResolvedFieldsArray() == nullptr);
-  DCHECK(GetResolvedMethodTypesArray() == nullptr);
-
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
 
   SetDexFile(dex_file);
