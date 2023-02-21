@@ -339,6 +339,7 @@ libart_cc_defaults {
         arm: {
             srcs: [
                 "interpreter/mterp/nterp.cc",
+                "interpreter/mterp/nterp_impl.cc",
                 ":libart_mterp.armng",
                 "arch/arm/context_arm.cc",
                 "arch/arm/entrypoints_init_arm.cc",
@@ -354,6 +355,7 @@ libart_cc_defaults {
         arm64: {
             srcs: [
                 "interpreter/mterp/nterp.cc",
+                "interpreter/mterp/nterp_impl.cc",
                 ":libart_mterp.arm64ng",
                 "arch/arm64/context_arm64.cc",
                 "arch/arm64/entrypoints_init_arm64.cc",
@@ -368,12 +370,20 @@ libart_cc_defaults {
         riscv64: {
             srcs: [
                 "arch/riscv64/context_riscv64.cc",
+                "arch/riscv64/entrypoints_init_riscv64.cc",
+                "arch/riscv64/fault_handler_riscv64.cc",
+                "arch/riscv64/jni_entrypoints_riscv64.S",
                 "arch/riscv64/quick_entrypoints_riscv64.S",
+                "arch/riscv64/thread_riscv64.cc",
+                "interpreter/mterp/nterp.cc",
+                "interpreter/mterp/nterp_stub.cc",
+                "monitor_pool.cc",
             ],
         },
         x86: {
             srcs: [
                 "interpreter/mterp/nterp.cc",
+                "interpreter/mterp/nterp_impl.cc",
                 ":libart_mterp.x86ng",
                 "arch/x86/context_x86.cc",
                 "arch/x86/entrypoints_init_x86.cc",
@@ -395,6 +405,7 @@ libart_cc_defaults {
                 // Note that the fault_handler_x86.cc is not a mistake.  This file is
                 // shared between the x86 and x86_64 architectures.
                 "interpreter/mterp/nterp.cc",
+                "interpreter/mterp/nterp_impl.cc",
                 ":libart_mterp.x86_64ng",
                 "arch/x86_64/context_x86_64.cc",
                 "arch/x86_64/entrypoints_init_x86_64.cc",
