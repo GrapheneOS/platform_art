@@ -172,10 +172,8 @@ jvmtiError ArtClassDefinition::Init(const art::DexFile& dex_file) {
   if (dex_file.IsCompactDexFile()) {
     std::string error_msg;
     std::vector<std::unique_ptr<const art::DexFile>> dex_files;
-    const art::ArtDexFileLoader dex_file_loader;
-    if (!dex_file_loader.Open(dex_file.GetLocation().c_str(),
-                              dex_file.GetLocation().c_str(),
-                              /* verify= */ false,
+    art::ArtDexFileLoader dex_file_loader(dex_file.GetLocation());
+    if (!dex_file_loader.Open(/* verify= */ false,
                               /* verify_checksum= */ false,
                               &error_msg,
                               &dex_files)) {

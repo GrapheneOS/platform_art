@@ -660,16 +660,13 @@ class OatDumper {
           DexContainer::Section* main_section = dex_container->GetMainSection();
           CHECK_EQ(dex_container->GetDataSection()->Size(), 0u);
 
-          const ArtDexFileLoader dex_file_loader;
-          std::unique_ptr<const DexFile> dex(dex_file_loader.Open(
-              main_section->Begin(),
-              main_section->Size(),
-              vdex_dex_file->GetLocation(),
-              vdex_file->GetLocationChecksum(i),
-              /*oat_dex_file=*/ nullptr,
-              /*verify=*/ false,
-              /*verify_checksum=*/ true,
-              &error_msg));
+          ArtDexFileLoader dex_file_loader(
+              main_section->Begin(), main_section->Size(), vdex_dex_file->GetLocation());
+          std::unique_ptr<const DexFile> dex(dex_file_loader.Open(vdex_file->GetLocationChecksum(i),
+                                                                  /*oat_dex_file=*/nullptr,
+                                                                  /*verify=*/false,
+                                                                  /*verify_checksum=*/true,
+                                                                  &error_msg));
           if (dex == nullptr) {
             os << "Failed to load DexFile from layout container: " + error_msg;
             success = false;

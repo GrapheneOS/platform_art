@@ -2009,17 +2009,15 @@ bool DexLayout::ProcessDexFile(const char* file_name,
       std::string location = "memory mapped file for " + std::string(file_name);
       // Dex file verifier cannot handle compact dex.
       bool verify = options_.compact_dex_level_ == CompactDexLevel::kCompactDexLevelNone;
-      const ArtDexFileLoader dex_file_loader;
       DexContainer::Section* const main_section = (*dex_container)->GetMainSection();
       DexContainer::Section* const data_section = (*dex_container)->GetDataSection();
       DCHECK_EQ(file_size, main_section->Size())
           << main_section->Size() << " " << data_section->Size();
       auto container = std::make_unique<DexLoaderContainer>(
           main_section->Begin(), main_section->End(), data_section->Begin(), data_section->End());
+      ArtDexFileLoader dex_file_loader(std::move(container), location);
       std::unique_ptr<const DexFile> output_dex_file(
-          dex_file_loader.Open(std::move(container),
-                               location,
-                               /* location_checksum= */ 0,
+          dex_file_loader.Open(/* location_checksum= */ 0,
                                /*oat_dex_file=*/nullptr,
                                verify,
                                /*verify_checksum=*/false,
@@ -2057,10 +2055,10 @@ int DexLayout::ProcessFile(const char* file_name) {
   // all of which are Zip archives with "classes.dex" inside.
   const bool verify_checksum = !options_.ignore_bad_checksum_;
   std::string error_msg;
-  const ArtDexFileLoader dex_file_loader;
+  ArtDexFileLoader dex_file_loader(file_name);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   if (!dex_file_loader.Open(
-        file_name, file_name, /* verify= */ true, verify_checksum, &error_msg, &dex_files)) {
+          /* verify= */ true, verify_checksum, &error_msg, &dex_files)) {
     // Display returned error message to user. Note that this error behavior
     // differs from the error messages shown by the original Dalvik dexdump.
     LOG(ERROR) << error_msg;

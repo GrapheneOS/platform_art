@@ -40,6 +40,7 @@ cc_binary {
     static_libs: [
         "libdexfile",
         "libartbase",
+        "libartpalette",
         "libbase",
         "liblog",
         "libz",

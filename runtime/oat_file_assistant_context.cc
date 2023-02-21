@@ -158,8 +158,7 @@ const std::vector<std::string>* OatFileAssistantContext::GetBcpChecksums(size_t 
 
   std::vector<uint32_t> checksums;
   std::vector<std::string> dex_locations;
-  ArtDexFileLoader dex_file_loader;
-  if (!dex_file_loader.GetMultiDexChecksums(
+  if (!ArtDexFileLoader::GetMultiDexChecksums(
           runtime_options_->boot_class_path[bcp_index].c_str(),
           &checksums,
           &dex_locations,

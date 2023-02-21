@@ -246,8 +246,8 @@ class DexMember {
 
 class ClassPath final {
  public:
-  ClassPath(const std::vector<std::string>& dex_paths, bool open_writable, bool ignore_empty) {
-    OpenDexFiles(dex_paths, open_writable, ignore_empty);
+  ClassPath(const std::vector<std::string>& dex_paths, bool ignore_empty) {
+    OpenDexFiles(dex_paths, ignore_empty);
   }
 
   template <typename Fn>
@@ -292,47 +292,18 @@ class ClassPath final {
   }
 
  private:
-  void OpenDexFiles(const std::vector<std::string>& dex_paths,
-                    bool open_writable,
-                    bool ignore_empty) {
-    ArtDexFileLoader dex_loader;
+  void OpenDexFiles(const std::vector<std::string>& dex_paths, bool ignore_empty) {
     std::string error_msg;
 
-    if (open_writable) {
-      for (const std::string& filename : dex_paths) {
-        File fd(filename.c_str(), O_RDWR, /* check_usage= */ false);
-        CHECK_NE(fd.Fd(), -1) << "Unable to open file '" << filename << "': " << strerror(errno);
-
-        // Memory-map the dex file with MAP_SHARED flag so that changes in memory
-        // propagate to the underlying file. We run dex file verification as if
-        // the dex file was not in boot claass path to check basic assumptions,
-        // such as that at most one of public/private/protected flag is set.
-        // We do those checks here and skip them when loading the processed file
-        // into boot class path.
-        std::unique_ptr<const DexFile> dex_file(dex_loader.OpenDex(fd.Release(),
-                                                                   /* location= */ filename,
-                                                                   /* verify= */ true,
-                                                                   /* verify_checksum= */ true,
-                                                                   /* mmap_shared= */ true,
-                                                                   &error_msg));
-        CHECK(dex_file.get() != nullptr) << "Open failed for '" << filename << "' " << error_msg;
-        CHECK(dex_file->IsStandardDexFile()) << "Expected a standard dex file '" << filename << "'";
-        CHECK(dex_file->EnableWrite())
-            << "Failed to enable write permission for '" << filename << "'";
-        dex_files_.push_back(std::move(dex_file));
-      }
-    } else {
-      for (const std::string& filename : dex_paths) {
-        bool success = dex_loader.Open(filename.c_str(),
-                                       /* location= */ filename,
-                                       /* verify= */ true,
-                                       /* verify_checksum= */ true,
-                                       &error_msg,
-                                       &dex_files_);
-        // If requested ignore a jar with no classes.dex files.
-        if (!success && ignore_empty && error_msg != "Entry not found") {
-          CHECK(success) << "Open failed for '" << filename << "' " << error_msg;
-        }
+    for (const std::string& filename : dex_paths) {
+      DexFileLoader dex_file_loader(filename);
+      bool success = dex_file_loader.Open(/* verify= */ true,
+                                          /* verify_checksum= */ true,
+                                          &error_msg,
+                                          &dex_files_);
+      // If requested ignore a jar with no classes.dex files.
+      if (!success && ignore_empty && error_msg != "Entry not found") {
+        CHECK(success) << "Open failed for '" << filename << "' " << error_msg;
       }
     }
   }
@@ -781,11 +752,9 @@ class DexFileEditor final {
 
   void ReloadDex(const char* filename) {
     std::string error_msg;
-    ArtDexFileLoader loader;
+    ArtDexFileLoader loader(filename);
     std::vector<std::unique_ptr<const DexFile>> dex_files;
-    bool ok = loader.Open(filename,
-                          filename,
-                          /*verify*/ true,
+    bool ok = loader.Open(/*verify*/ true,
                           /*verify_checksum*/ true,
                           &error_msg,
                           &dex_files);
@@ -912,9 +881,7 @@ class HiddenApi final {
       const std::string& input_path = boot_dex_paths_[i];
       const std::string& output_path = output_dex_paths_[i];
 
-      ClassPath boot_classpath({ input_path },
-                               /* open_writable= */ false,
-                               /* ignore_empty= */ false);
+      ClassPath boot_classpath({input_path}, /* ignore_empty= */ false);
       DexFileEditor dex_editor;
       for (const DexFile* input_dex : boot_classpath.GetDexFiles()) {
         HiddenapiClassDataBuilder builder(*input_dex);
@@ -1032,9 +999,7 @@ class HiddenApi final {
     std::set<std::string> unresolved;
 
     // Open all dex files.
-    ClassPath boot_classpath(boot_dex_paths_,
-                             /* open_writable= */ false,
-                             /* ignore_empty= */ false);
+    ClassPath boot_classpath(boot_dex_paths_, /* ignore_empty= */ false);
     Hierarchy boot_hierarchy(boot_classpath, fragment_, verbose_);
 
     // Mark all boot dex members private.
@@ -1043,9 +1008,7 @@ class HiddenApi final {
     });
 
     // Open all dependency API stub dex files.
-    ClassPath dependency_classpath(dependency_stub_dex_paths_,
-                                   /* open_writable= */ false,
-                                   /* ignore_empty= */ false);
+    ClassPath dependency_classpath(dependency_stub_dex_paths_, /* ignore_empty= */ false);
 
     // Mark all dependency API stub dex members as coming from the dependency.
     dependency_classpath.ForEachDexMember([&](const DexMember& boot_member) {
@@ -1057,9 +1020,7 @@ class HiddenApi final {
       // Ignore any empty stub jars as it just means that they provide no APIs
       // for the current kind, e.g. framework-sdkextensions does not provide
       // any public APIs.
-      ClassPath stub_classpath(android::base::Split(cp_entry.first, ":"),
-                               /* open_writable= */ false,
-                               /* ignore_empty= */ true);
+      ClassPath stub_classpath(android::base::Split(cp_entry.first, ":"), /*ignore_empty=*/true);
       Hierarchy stub_hierarchy(stub_classpath, fragment_, verbose_);
       const ApiStubs::Kind stub_api = cp_entry.second;
 

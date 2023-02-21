@@ -19,15 +19,16 @@
 #include <android-base/file.h>
 #include <android-base/strings.h>
 
+#include <cstdlib>
+#include <sstream>
+
+#include "base/mem_map.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_loader.h"
 #include "hidden_api.h"
 #include "hidden_api_finder.h"
 #include "precise_hidden_api_finder.h"
 #include "resolver.h"
-
-#include <cstdlib>
-#include <sstream>
 
 namespace art {
 
@@ -301,18 +302,13 @@ class Veridex {
       return false;
     }
 
-    const DexFileLoader dex_file_loader;
     DexFileLoaderErrorCode error_code;
     static constexpr bool kVerifyChecksum = true;
     static constexpr bool kRunDexFileVerifier = true;
-    if (!dex_file_loader.OpenAll(reinterpret_cast<const uint8_t*>(content.data()),
-                                 content.size(),
-                                 filename.c_str(),
-                                 kRunDexFileVerifier,
-                                 kVerifyChecksum,
-                                 &error_code,
-                                 error_msg,
-                                 dex_files)) {
+    DexFileLoader dex_file_loader(
+        reinterpret_cast<const uint8_t*>(content.data()), content.size(), filename.c_str());
+    if (!dex_file_loader.Open(
+            kRunDexFileVerifier, kVerifyChecksum, &error_code, error_msg, dex_files)) {
       if (error_code == DexFileLoaderErrorCode::kEntryNotFound) {
         LOG(INFO) << "No .dex found, skipping analysis.";
         return true;
@@ -343,5 +339,6 @@ class Veridex {
 }  // namespace art
 
 int main(int argc, char** argv) {
+  art::MemMap::Init();
   return art::Veridex::Run(argc, argv);
 }
