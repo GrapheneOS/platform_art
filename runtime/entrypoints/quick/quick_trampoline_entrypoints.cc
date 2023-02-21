@@ -141,6 +141,51 @@ class QuickArgumentVisitor {
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
+#elif defined(__riscv)
+  // The callee save frame is pointed to by SP.
+  // | argN            |  |
+  // | ...             |  |
+  // | reg. arg spills |  |  Caller's frame
+  // | Method*         | ---
+  // | RA              |
+  // | S11/X27         |  callee-saved 11
+  // | S10/X26         |  callee-saved 10
+  // | S9/X25          |  callee-saved 9
+  // | S9/X24          |  callee-saved 8
+  // | S7/X23          |  callee-saved 7
+  // | S6/X22          |  callee-saved 6
+  // | S5/X21          |  callee-saved 5
+  // | S4/X20          |  callee-saved 4
+  // | S3/X19          |  callee-saved 3
+  // | S2/X18          |  callee-saved 2
+  // | A7/X17          |  arg 7
+  // | A6/X16          |  arg 6
+  // | A5/X15          |  arg 5
+  // | A4/X14          |  arg 4
+  // | A3/X13          |  arg 3
+  // | A2/X12          |  arg 2
+  // | A1/X11          |  arg 1 (A0 is the method => skipped)
+  // | S0/X8/FP        |  callee-saved 0 (S1 is TR => skipped)
+  // | FA7             |  float arg 8
+  // | FA6             |  float arg 7
+  // | FA5             |  float arg 6
+  // | FA4             |  float arg 5
+  // | FA3             |  float arg 4
+  // | FA2             |  float arg 3
+  // | FA1             |  float arg 2
+  // | FA0             |  float arg 1
+  // | A0/Method*      | <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
+  static constexpr bool kAlignPairRegister = false;
+  static constexpr bool kQuickSoftFloatAbi = false;
+  static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
+  static constexpr bool kQuickSkipOddFpRegisters = false;
+  static constexpr size_t kNumQuickGprArgs = 7;
+  static constexpr size_t kNumQuickFprArgs = 8;
+  static constexpr bool kGprFprLockstep = false;
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    return (gpr_index + 1) * GetBytesPerGprSpillLocation(kRuntimeISA);  // skip S0/X8/FP
+  }
 #elif defined(__i386__)
   // The callee save frame is pointed to by SP.
   // | argN        |  |
@@ -1335,6 +1380,18 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiRegistersAligned = false;
   static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
+  static constexpr bool kAlignLongOnStack = false;
+  static constexpr bool kAlignDoubleOnStack = false;
+#elif defined(__riscv)
+  static constexpr bool kNativeSoftFloatAbi = false;
+  static constexpr size_t kNumNativeGprArgs = 8;
+  static constexpr size_t kNumNativeFprArgs = 8;
+
+  static constexpr size_t kRegistersNeededForLong = 1;
+  static constexpr size_t kRegistersNeededForDouble = 1;
+  static constexpr bool kMultiRegistersAligned = false;
+  static constexpr bool kMultiFPRegistersWidened = false;
+  static constexpr bool kMultiGPRegistersWidened = true;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
 #elif defined(__i386__)
