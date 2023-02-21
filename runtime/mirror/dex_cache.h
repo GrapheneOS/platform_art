@@ -229,6 +229,16 @@ template <typename T> class NativeArray {
     return entries_[index];
   }
 
+  T** GetPtrEntryPtrSize(uint32_t index, PointerSize ptr_size) {
+    if (ptr_size == PointerSize::k64) {
+      return reinterpret_cast<T**>(
+          reinterpret_cast64<uint64_t>(entries_) + index * sizeof(uint64_t));
+    } else {
+      return reinterpret_cast<T**>(
+          reinterpret_cast32<uint32_t>(entries_) + index * sizeof(uint32_t));
+    }
+  }
+
   void Set(uint32_t index, T* value) {
     entries_[index] = value;
   }
@@ -244,6 +254,8 @@ class MANAGED DexCache final : public Object {
 
   // Size of java.lang.DexCache.class.
   static uint32_t ClassSize(PointerSize pointer_size);
+
+  // Note: update the image version in image.cc if changing any of these cache sizes.
 
   // Size of type dex cache. Needs to be a power of 2 for entrypoint assumptions to hold.
   static constexpr size_t kDexCacheTypeCacheSize = 1024;
@@ -368,6 +380,13 @@ class MANAGED DexCache final : public Object {
   // Sets null to dex cache array fields which were allocated with the startup
   // allocator.
   void UnlinkStartupCaches() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns whether we should allocate a full array given the number of elements.
+  // Note: update the image version in image.cc if changing this method.
+  static bool ShouldAllocateFullArray(size_t number_of_elements, size_t dex_cache_size) {
+    return number_of_elements <= dex_cache_size;
+  }
+
 
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_ARRAY(name, array_kind, getter_setter, type, ids, alloc_kind) \
@@ -548,12 +567,6 @@ class MANAGED DexCache final : public Object {
   // Returns whether we should allocate a full array given the current state of
   // the runtime and oat files.
   bool ShouldAllocateFullArrayAtStartup() REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Returns whether we should allocate a full array given the number of
-  // elements.
-  static bool ShouldAllocateFullArray(size_t number_of_elements, size_t dex_cache_size) {
-    return number_of_elements <= dex_cache_size;
-  }
 
   HeapReference<ClassLoader> class_loader_;
   HeapReference<String> location_;

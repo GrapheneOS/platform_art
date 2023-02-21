@@ -380,6 +380,34 @@ class ImageSpace::PatchObjectVisitor final {
       const {}
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
+  template <typename T> void VisitNativeDexCacheArray(mirror::NativeArray<T>* array)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (array == nullptr) {
+      return;
+    }
+    uint32_t size = reinterpret_cast<uint32_t*>(array)[-1];
+    for (uint32_t i = 0; i < size; ++i) {
+      PatchNativePointer(array->GetPtrEntryPtrSize(i, kPointerSize));
+    }
+  }
+
+  void VisitDexCacheArrays(ObjPtr<mirror::DexCache> dex_cache)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    mirror::NativeArray<ArtMethod>* old_resolved_methods = dex_cache->GetResolvedMethodsArray();
+    if (old_resolved_methods != nullptr) {
+      mirror::NativeArray<ArtMethod>* resolved_methods = native_visitor_(old_resolved_methods);
+      dex_cache->SetResolvedMethodsArray(resolved_methods);
+      VisitNativeDexCacheArray(resolved_methods);
+    }
+
+    mirror::NativeArray<ArtField>* old_resolved_fields = dex_cache->GetResolvedFieldsArray();
+    if (old_resolved_fields != nullptr) {
+      mirror::NativeArray<ArtField>* resolved_fields = native_visitor_(old_resolved_fields);
+      dex_cache->SetResolvedFieldsArray(resolved_fields);
+      VisitNativeDexCacheArray(resolved_fields);
+    }
+  }
+
   template <bool kMayBeNull = true, typename T>
   ALWAYS_INLINE void PatchGcRoot(/*inout*/GcRoot<T>* root) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1308,6 +1336,15 @@ class ImageSpace::Loader {
       image_header->RelocateImageReferences(app_image_objects.Delta());
       image_header->RelocateBootImageReferences(boot_image.Delta());
       CHECK_EQ(image_header->GetImageBegin(), target_base);
+
+      // Fix up dex cache arrays.
+      ObjPtr<mirror::ObjectArray<mirror::DexCache>> dex_caches =
+          image_header->GetImageRoot<kWithoutReadBarrier>(ImageHeader::kDexCaches)
+              ->AsObjectArray<mirror::DexCache, kVerifyNone>();
+      for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
+        ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get<kVerifyNone, kWithoutReadBarrier>(i);
+        patch_object_visitor.VisitDexCacheArrays(dex_cache);
+      }
     }
     {
       // Only touches objects in the app image, no need for mutator lock.

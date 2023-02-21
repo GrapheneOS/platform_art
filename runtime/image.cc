@@ -31,8 +31,8 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-// Last change: StringBuilderAppend for float/double.
-const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '7', '\0' };
+// Last change: Add DexCacheSection.
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '8', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,
@@ -240,6 +240,7 @@ const char* ImageHeader::GetImageSectionName(ImageSections index) {
     case kSectionInternedStrings: return "InternedStrings";
     case kSectionClassTable: return "ClassTable";
     case kSectionStringReferenceOffsets: return "StringReferenceOffsets";
+    case kSectionDexCacheArrays: return "DexCacheArrays";
     case kSectionMetadata: return "Metadata";
     case kSectionImageBitmap: return "ImageBitmap";
     case kSectionCount: return nullptr;
