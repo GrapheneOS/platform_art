@@ -58,9 +58,14 @@ class DexFileContainer {
  public:
   DexFileContainer() { }
   virtual ~DexFileContainer() {}
+
   virtual bool IsReadOnly() const = 0;
+
+  // Make the underlying writeable. Return true on success (memory can be written).
   virtual bool EnableWrite() = 0;
+  // Make the underlying read-only. Return true on success (memory is read-only now).
   virtual bool DisableWrite() = 0;
+
   virtual const uint8_t* Begin() const = 0;
   virtual const uint8_t* End() const = 0;
   size_t Size() const { return End() - Begin(); }
@@ -70,9 +75,12 @@ class DexFileContainer {
   virtual const uint8_t* DataBegin() const { return nullptr; }
   virtual const uint8_t* DataEnd() const { return nullptr; }
 
-  virtual bool IsDirectMmap() { return false; }
+  bool IsZip() const { return is_zip_; }
+  void SetIsZip() { is_zip_ = true; }
+  virtual bool IsFileMap() const { return false; }
 
  private:
+  bool is_zip_ = false;
   DISALLOW_COPY_AND_ASSIGN(DexFileContainer);
 };
 

@@ -235,10 +235,8 @@ jvmtiError SearchUtil::AddToBootstrapClassLoaderSearch(jvmtiEnv* env,
 
   std::string error_msg;
   std::vector<std::unique_ptr<const art::DexFile>> dex_files;
-  const art::ArtDexFileLoader dex_file_loader;
-  if (!dex_file_loader.Open(segment,
-                            segment,
-                            /* verify= */ true,
+  art::ArtDexFileLoader dex_file_loader(segment);
+  if (!dex_file_loader.Open(/* verify= */ true,
                             /* verify_checksum= */ true,
                             &error_msg,
                             &dex_files)) {
