@@ -29,7 +29,7 @@ cc_defaults {
         "artd.cc",
     ],
     shared_libs: [
-        "libarttools",
+        "libarttools", // Contains "libc++fs".
         "libbase",
         "libbinder_ndk",
     ],
