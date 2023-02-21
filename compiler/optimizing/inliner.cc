@@ -1854,7 +1854,7 @@ void HInliner::SubstituteArguments(HGraph* callee_graph,
         if (!resolved_method->IsStatic() && parameter_index == 0 && receiver_type.IsValid()) {
           run_rtp = true;
           current->SetReferenceTypeInfo(receiver_type);
-        } else {
+        } else if (argument->GetReferenceTypeInfo().IsValid()) {
           current->SetReferenceTypeInfo(argument->GetReferenceTypeInfo());
         }
         current->AsParameterValue()->SetCanBeNull(argument->CanBeNull());
@@ -2251,6 +2251,10 @@ static bool IsReferenceTypeRefinement(ObjPtr<mirror::Class> declared_class,
   }
 
   ReferenceTypeInfo actual_rti = actual_obj->GetReferenceTypeInfo();
+  if (!actual_rti.IsValid()) {
+    return false;
+  }
+
   ObjPtr<mirror::Class> actual_class = actual_rti.GetTypeHandle().Get();
   return (actual_rti.IsExact() && !declared_is_exact) ||
          (declared_class != actual_class && declared_class->IsAssignableFrom(actual_class));
