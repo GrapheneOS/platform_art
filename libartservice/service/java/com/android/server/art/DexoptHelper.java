@@ -267,7 +267,8 @@ public class DexoptHelper {
         Consumer<SharedLibrary> maybeEnqueue = library -> {
             // The package name is not null if the library is an APK.
             // TODO(jiakaiz): Support JAR libraries.
-            if (library.getPackageName() != null && !visitedLibraries.contains(library.getName())) {
+            if (library.getPackageName() != null && !library.isNative()
+                    && !visitedLibraries.contains(library.getName())) {
                 visitedLibraries.add(library.getName());
                 queue.add(library);
             }
