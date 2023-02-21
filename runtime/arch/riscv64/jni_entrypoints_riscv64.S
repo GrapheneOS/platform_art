@@ -1,0 +1,28 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "asm_support_riscv64.S"
+
+UNDEFINED art_jni_dlsym_lookup_stub
+UNDEFINED art_jni_dlsym_lookup_critical_stub
+UNDEFINED art_jni_method_start
+UNDEFINED art_jni_method_end
+UNDEFINED art_jni_read_barrier
+UNDEFINED art_jni_method_entry_hook
+UNDEFINED art_jni_lock_object_no_inline
+UNDEFINED art_jni_lock_object
+UNDEFINED art_jni_unlock_object_no_inline
+UNDEFINED art_jni_unlock_object

@@ -123,6 +123,8 @@ namespace instruction_set_details {
 
 static_assert(IsAligned<kPageSize>(kArmStackOverflowReservedBytes), "ARM gap not page aligned");
 static_assert(IsAligned<kPageSize>(kArm64StackOverflowReservedBytes), "ARM64 gap not page aligned");
+static_assert(IsAligned<kPageSize>(kRiscv64StackOverflowReservedBytes),
+              "RISCV64 gap not page aligned");
 static_assert(IsAligned<kPageSize>(kX86StackOverflowReservedBytes), "X86 gap not page aligned");
 static_assert(IsAligned<kPageSize>(kX86_64StackOverflowReservedBytes),
               "X86_64 gap not page aligned");
@@ -134,6 +136,8 @@ static_assert(IsAligned<kPageSize>(kX86_64StackOverflowReservedBytes),
 // TODO: Should we require an extra page (RoundUp(SIZE) + kPageSize)?
 static_assert(ART_FRAME_SIZE_LIMIT < kArmStackOverflowReservedBytes, "Frame size limit too large");
 static_assert(ART_FRAME_SIZE_LIMIT < kArm64StackOverflowReservedBytes,
+              "Frame size limit too large");
+static_assert(ART_FRAME_SIZE_LIMIT < kRiscv64StackOverflowReservedBytes,
               "Frame size limit too large");
 static_assert(ART_FRAME_SIZE_LIMIT < kX86StackOverflowReservedBytes,
               "Frame size limit too large");
