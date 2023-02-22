@@ -1036,7 +1036,7 @@ class RuntimeImageHelper {
     if (array == nullptr) {
       return;
     }
-    size_t size = num_entries * sizeof(T);
+    size_t size = num_entries * sizeof(void*);
 
     bool only_startup = !mirror::DexCache::ShouldAllocateFullArray(num_entries, max_entries);
     std::vector<uint8_t>& data = only_startup ? metadata_ : dex_cache_arrays_;
