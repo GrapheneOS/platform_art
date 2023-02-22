@@ -62,9 +62,9 @@ public class Main {
       return;
     }
 
+    String instructionSet = VMRuntime.getCurrentInstructionSet();
     // Wait for the file to be generated.
-    File image = new File(
-        DEX_LOCATION + "/846-multidex-data-image.art" + (runtime.is64Bit() ? "64" : "32"));
+    File image = new File(DEX_LOCATION + "/" + instructionSet + "/846-multidex-data-image.art");
     while (!image.exists()) {
       Thread.yield();
     }
