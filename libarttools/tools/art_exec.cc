@@ -37,7 +37,7 @@
 #include "base/macros.h"
 #include "base/scoped_cap.h"
 #include "fmt/format.h"
-#include "processgroup/processgroup.h"
+#include "palette/palette.h"
 #include "system/thread_defs.h"
 
 namespace {
@@ -192,8 +192,9 @@ int main(int argc, char** argv) {
   }
 
   if (!options.task_profiles.empty()) {
-    if (!SetTaskProfiles(/*tid=*/0, options.task_profiles)) {
-      LOG(ERROR) << "Failed to set task profile";
+    if (int ret = PaletteSetTaskProfiles(/*tid=*/0, options.task_profiles);
+        ret != PALETTE_STATUS_OK) {
+      LOG(ERROR) << "Failed to set task profile: " << ret;
       return kErrorOther;
     }
   }

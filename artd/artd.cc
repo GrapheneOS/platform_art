@@ -555,7 +555,8 @@ ndk::ScopedAStatus Artd::deleteProfile(const ProfilePath& in_profile) {
   std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile));
 
   std::error_code ec;
-  if (!std::filesystem::remove(profile_path, ec) && ec.value() != ENOENT) {
+  std::filesystem::remove(profile_path, ec);
+  if (ec) {
     LOG(ERROR) << "Failed to remove '{}': {}"_format(profile_path, ec.message());
   }
 

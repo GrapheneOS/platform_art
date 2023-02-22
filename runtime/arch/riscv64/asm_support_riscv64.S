@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ARCH_RISCV64_ASM_SUPPORT_RISCV64_S_
 
 #include "asm_support_riscv64.h"
+#include "interpreter/cfi_asm_support.h"
 
 // Define special registers.
 

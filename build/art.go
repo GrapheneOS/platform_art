@@ -29,7 +29,7 @@ import (
 	"android/soong/cc/config"
 )
 
-var supportedArches = []string{"arm", "arm64", "x86", "x86_64"}
+var supportedArches = []string{"arm", "arm64", "riscv64", "x86", "x86_64"}
 
 func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	var cflags []string

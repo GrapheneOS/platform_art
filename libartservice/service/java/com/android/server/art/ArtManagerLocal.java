@@ -28,7 +28,6 @@ import static com.android.server.art.model.ArtFlags.ScheduleStatus;
 import static com.android.server.art.model.Config.Callback;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
-import android.R;
 import android.annotation.CallbackExecutor;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -997,8 +996,9 @@ public final class ArtManagerLocal {
 
         switch (reason) {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
-                packages = packages.filter(
-                        pkgState -> mInjector.isSystemUiPackage(pkgState.getPackageName()));
+                packages = packages.filter(pkgState
+                        -> mInjector.isSystemUiPackage(pkgState.getPackageName())
+                                || mInjector.isLauncherPackage(pkgState.getPackageName()));
                 break;
             case ReasonMapping.REASON_INACTIVE:
                 packages = filterAndSortByLastActiveTime(
@@ -1249,9 +1249,12 @@ public final class ArtManagerLocal {
                     LocalManagerRegistry.getManager(DexUseManagerLocal.class));
         }
 
-        @NonNull
         public boolean isSystemUiPackage(@NonNull String packageName) {
-            return packageName.equals(mContext.getString(R.string.config_systemUi));
+            return Utils.isSystemUiPackage(mContext, packageName);
+        }
+
+        public boolean isLauncherPackage(@NonNull String packageName) {
+            return Utils.isLauncherPackage(mContext, packageName);
         }
 
         public long getCurrentTimeMillis() {

@@ -86,30 +86,17 @@ art_cc_test {
     ],
 }
 
-// A defaults that contains libprocessgroup and all its dependencies.
-cc_defaults {
-    name: "art_libprocessgroup_defaults",
-    shared_libs: [
-        "libbase",
-        "libcgrouprc",
-    ],
-    static_libs: [
-        "libjsoncpp",
-        "libprocessgroup",
-    ],
-}
-
 cc_binary {
     name: "art_exec",
     defaults: [
         "art_defaults",
-        "art_libprocessgroup_defaults",
     ],
     srcs: [
         "tools/art_exec.cc",
     ],
     shared_libs: [
         "libartbase",
+        "libartpalette",
         "libarttools", // Contains "libc++fs".
         "libbase",
     ],
