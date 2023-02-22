@@ -1588,24 +1588,36 @@ static void VisitInternedStringReferences(
 
     uint32_t raw_member_offset = sro_base[offset_index].second;
     DCHECK_ALIGNED(base_offset, 2);
-    DCHECK_ALIGNED(raw_member_offset, 2);
 
     ObjPtr<mirror::Object> obj_ptr =
         reinterpret_cast<mirror::Object*>(space->Begin() + base_offset);
-    MemberOffset member_offset(raw_member_offset);
-    ObjPtr<mirror::String> referred_string =
-        obj_ptr->GetFieldObject<mirror::String,
-                                kVerifyNone,
-                                kWithoutReadBarrier,
-                                /* kIsVolatile= */ false>(member_offset);
-    DCHECK(referred_string != nullptr);
+    if (obj_ptr->IsDexCache() && raw_member_offset >= sizeof(mirror::DexCache)) {
+      // Special case for strings referenced from dex cache array.
+      uint32_t offset = raw_member_offset - sizeof(mirror::DexCache);
+      ObjPtr<mirror::String> referred_string =
+          obj_ptr->AsDexCache()->GetStringsArray()->Get(offset);
+      DCHECK(referred_string != nullptr);
+      ObjPtr<mirror::String> visited = visitor(referred_string);
+      if (visited != referred_string) {
+        obj_ptr->AsDexCache()->GetStringsArray()->Set(offset, visited.Ptr());
+      }
+    } else {
+      DCHECK_ALIGNED(raw_member_offset, 2);
+      MemberOffset member_offset(raw_member_offset);
+      ObjPtr<mirror::String> referred_string =
+          obj_ptr->GetFieldObject<mirror::String,
+                                  kVerifyNone,
+                                  kWithoutReadBarrier,
+                                  /* kIsVolatile= */ false>(member_offset);
+      DCHECK(referred_string != nullptr);
 
-    ObjPtr<mirror::String> visited = visitor(referred_string);
-    if (visited != referred_string) {
-      obj_ptr->SetFieldObject</* kTransactionActive= */ false,
-                              /* kCheckTransaction= */ false,
-                              kVerifyNone,
-                              /* kIsVolatile= */ false>(member_offset, visited);
+      ObjPtr<mirror::String> visited = visitor(referred_string);
+      if (visited != referred_string) {
+        obj_ptr->SetFieldObject</* kTransactionActive= */ false,
+                                /* kCheckTransaction= */ false,
+                                kVerifyNone,
+                                /* kIsVolatile= */ false>(member_offset, visited);
+      }
     }
   }
 }
