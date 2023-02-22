@@ -1366,7 +1366,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
   static constexpr bool kMultiRegistersAligned = true;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = true;
   static constexpr bool kAlignDoubleOnStack = true;
@@ -1379,7 +1378,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
@@ -1392,7 +1390,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = true;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
@@ -1405,7 +1402,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
   static constexpr bool kMultiRegistersAligned = false;  // x86 not using regs, anyways
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
@@ -1418,7 +1414,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
@@ -1538,9 +1533,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
       if (HaveFloatFpr()) {
         fpr_index_--;
         if (kRegistersNeededForDouble == 1) {
-          if (kMultiFPRegistersWidened) {
-            PushFpr8(bit_cast<uint64_t, double>(val));
-          } else if (kNaNBoxing) {
+          if (kNaNBoxing) {
             // NaN boxing: no widening, just use the bits, but reset upper bits to 1s.
             // See e.g. RISC-V manual, D extension, section "NaN Boxing of Narrower Values".
             PushFpr8(0xFFFFFFFF00000000lu | static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
@@ -1553,14 +1546,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
         }
       } else {
         stack_entries_++;
-        if (kRegistersNeededForDouble == 1 && kMultiFPRegistersWidened) {
-          // Need to widen before storing: Note the "double" in the template instantiation.
-          // Note: We need to jump through those hoops to make the compiler happy.
-          DCHECK_EQ(sizeof(uintptr_t), sizeof(uint64_t));
-          PushStack(static_cast<uintptr_t>(bit_cast<uint64_t, double>(val)));
-        } else {
-          PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
-        }
+        PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
         fpr_index_ = 0;
       }
     }
