@@ -181,6 +181,13 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
   } else if (!cond->InputAt(0)->IsNullConstant()) {
     return false;
   }
+
+  // We can't create a BoundType for an object with an invalid RTI.
+  const ReferenceTypeInfo ti = obj->GetReferenceTypeInfo();
+  if (!ti.IsValid()) {
+    return false;
+  }
+
   // Scan all uses of obj and find null check under control dependence.
   HBoundType* bound = nullptr;
   const HUseList<HInstruction*>& uses = obj->GetUses();
@@ -193,7 +200,6 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
           user_block != throws &&
           block->Dominates(user_block)) {
         if (bound == nullptr) {
-          ReferenceTypeInfo ti = obj->GetReferenceTypeInfo();
           bound = new (obj->GetBlock()->GetGraph()->GetAllocator()) HBoundType(obj);
           bound->SetUpperBound(ti, /*can_be_null*/ false);
           bound->SetReferenceTypeInfo(ti);

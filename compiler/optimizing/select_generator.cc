@@ -160,7 +160,7 @@ bool HSelectGenerator::TryGenerateSelectSimpleDiamondPattern(
       ReferenceTypePropagation::FixUpInstructionType(select, graph_->GetHandleCache());
     }
   } else if (phi->GetType() == DataType::Type::kReference) {
-    select->SetReferenceTypeInfo(phi->GetReferenceTypeInfo());
+    select->SetReferenceTypeInfoIfValid(phi->GetReferenceTypeInfo());
   }
   block->InsertInstructionBefore(select, if_instruction);
 
