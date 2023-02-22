@@ -157,8 +157,9 @@ TEST_F(HeapTest, GCMetrics) {
   metrics::MetricsBase<uint64_t>* young_gc_duration_delta = metrics->YoungGcDurationDelta();
 
   CollectorType fg_collector_type = heap->GetForegroundCollectorType();
-  if (fg_collector_type == kCollectorTypeCC) {
-    // Only the Concurrent Copying collector enables GC metrics at the moment.
+  if (fg_collector_type == kCollectorTypeCC || fg_collector_type == kCollectorTypeCMC) {
+    // Only the Concurrent Copying and Concurrent Mark-Compact collectors enable
+    // GC metrics at the moment.
     if (heap->GetUseGenerationalCC()) {
       // Check that full-heap and/or young-generation GC metrics are non-null
       // after trigerring the collection.
@@ -186,8 +187,12 @@ TEST_F(HeapTest, GCMetrics) {
       EXPECT_FALSE(full_gc_tracing_throughput->IsNull());
       EXPECT_FALSE(full_gc_throughput_avg->IsNull());
       EXPECT_FALSE(full_gc_tracing_throughput_avg->IsNull());
-      EXPECT_FALSE(full_gc_scanned_bytes->IsNull());
-      EXPECT_FALSE(full_gc_scanned_bytes_delta->IsNull());
+      if (fg_collector_type != kCollectorTypeCMC) {
+        // TODO(b/270957146): For some reason, these metrics are still null
+        // after running the Concurrent Mark-Compact collector; investigate why.
+        EXPECT_FALSE(full_gc_scanned_bytes->IsNull());
+        EXPECT_FALSE(full_gc_scanned_bytes_delta->IsNull());
+      }
       EXPECT_FALSE(full_gc_freed_bytes->IsNull());
       EXPECT_FALSE(full_gc_freed_bytes_delta->IsNull());
       EXPECT_FALSE(full_gc_duration->IsNull());
