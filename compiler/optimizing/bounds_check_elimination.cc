@@ -2011,7 +2011,7 @@ class BCEVisitor : public HGraphVisitor {
     phi->SetRawInputAt(0, instruction);
     phi->SetRawInputAt(1, zero);
     if (type == DataType::Type::kReference) {
-      phi->SetReferenceTypeInfo(instruction->GetReferenceTypeInfo());
+      phi->SetReferenceTypeInfoIfValid(instruction->GetReferenceTypeInfo());
     }
     new_preheader->AddPhi(phi);
     return phi;
