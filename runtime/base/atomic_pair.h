@@ -40,18 +40,16 @@ struct PACKED(2 * sizeof(IntType)) AtomicPair {
 template <typename IntType>
 ALWAYS_INLINE static inline AtomicPair<IntType> AtomicPairLoadAcquire(
     std::atomic<AtomicPair<IntType>>* target) {
-  static_assert(std::atomic<AtomicPair<IntType>>::is_always_lock_free);
   return target->load(std::memory_order_acquire);
 }
 
 template <typename IntType>
-ALWAYS_INLINE static inline void AtomicPairStoreRelease(
-    std::atomic<AtomicPair<IntType>>* target, AtomicPair<IntType> value) {
-  static_assert(std::atomic<AtomicPair<IntType>>::is_always_lock_free);
+ALWAYS_INLINE static inline void AtomicPairStoreRelease(std::atomic<AtomicPair<IntType>>* target,
+                                                        AtomicPair<IntType> value) {
   target->store(value, std::memory_order_release);
 }
 
-// llvm does not implement 16-byte atomic operations on x86-64.
+// LLVM uses generic lock-based implementation for x86_64, we can do better with CMPXCHG16B.
 #if defined(__x86_64__)
 ALWAYS_INLINE static inline AtomicPair<uint64_t> AtomicPairLoadAcquire(
     std::atomic<AtomicPair<uint64_t>>* target) {

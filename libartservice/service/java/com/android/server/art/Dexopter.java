@@ -26,6 +26,7 @@ import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptRe
 import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.role.RoleManager;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
@@ -277,6 +278,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
             if (!systemUiCompilerFilter.isEmpty()) {
                 return systemUiCompilerFilter;
             }
+        }
+
+        if (mInjector.isLauncherPackage(mPkgState.getPackageName())) {
+            return "speed-profile";
         }
 
         // We force vmSafeMode on debuggable apps as well:
@@ -656,7 +661,11 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         }
 
         public boolean isSystemUiPackage(@NonNull String packageName) {
-            return packageName.equals(mContext.getString(R.string.config_systemUi));
+            return Utils.isSystemUiPackage(mContext, packageName);
+        }
+
+        public boolean isLauncherPackage(@NonNull String packageName) {
+            return Utils.isLauncherPackage(mContext, packageName);
         }
 
         @NonNull

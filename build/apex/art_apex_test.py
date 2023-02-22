@@ -44,7 +44,7 @@ BITNESS_ALL = [BITNESS_32, BITNESS_64, BITNESS_MULTILIB, BITNESS_AUTO]
 
 # Architectures supported by APEX packages.
 ARCHS_32 = ["arm", "x86"]
-ARCHS_64 = ["arm64", "x86_64"]
+ARCHS_64 = ["arm64", "riscv64", "x86_64"]
 
 # Multilib options
 MULTILIB_32 = '32'

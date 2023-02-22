@@ -19,7 +19,7 @@
 
 #include "asm_support.h"
 
-// FS0 - FS11, S0 - S11, RA and ArtMethod*, total 8*(12 + 12 + 1 + 1) = 208
+// FS0 - FS11, S0, S2 - S11, RA, ArtMethod*, padding total 8*(12 + 11 + 1 + 1 + 1) = 208
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 208
 // FA0 - FA7, A1 - A7, S0, S2 - S11, RA and ArtMethod* total 8*(8 + 7 + 11 + 1 + 1) = 224
 // A0 is excluded as the ArtMethod*, and S1 is excluded as the ART thread register TR.

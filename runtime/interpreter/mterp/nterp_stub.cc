@@ -27,22 +27,22 @@ class ArtMethod;
 
 namespace interpreter {
 
-bool IsNterpSupported() {
-  return false;
-}
+bool IsNterpSupported() { return false; }
 
-bool CanRuntimeUseNterp() {
-  return false;
-}
+bool CanRuntimeUseNterp() { return false; }
 
-const void* GetNterpEntryPoint() {
-  return nullptr;
-}
+const void* GetNterpEntryPoint() { return nullptr; }
+
+const void* GetNterpWithClinitEntryPoint() { return nullptr; }
 
 void CheckNterpAsmConstants() {
 }
 
 extern "C" void ExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_) {
+  UNIMPLEMENTED(FATAL);
+}
+
+extern "C" void ExecuteNterpWithClinitImpl() REQUIRES_SHARED(Locks::mutator_lock_) {
   UNIMPLEMENTED(FATAL);
 }
 

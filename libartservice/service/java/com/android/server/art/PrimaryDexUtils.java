@@ -284,6 +284,7 @@ public class PrimaryDexUtils {
             return null;
         }
         return sharedLibraries.stream()
+                .filter(library -> !library.isNative())
                 .map(library
                         -> encodeClassLoader(SHARED_LIBRARY_LOADER_TYPE, library.getAllCodePaths(),
                                 null /* parentContext */,

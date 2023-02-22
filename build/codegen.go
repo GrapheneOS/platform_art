@@ -218,6 +218,8 @@ func defaultDeviceCodegenArches(ctx android.LoadHookContext) []string {
 		arches[s] = true
 		if s == "arm64" {
 			arches["arm"] = true
+		} else if s == "riscv64" {
+			arches["riscv64"] = true
 		} else if s == "x86_64" {
 			arches["x86"] = true
 		}
