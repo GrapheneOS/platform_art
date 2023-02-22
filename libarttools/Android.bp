@@ -65,6 +65,11 @@ art_cc_defaults {
     static_libs: [
         "libgmock",
     ],
+    target: {
+        android: {
+            static_libs: ["libmodules-utils-build"],
+        },
+    },
 }
 
 // Version of ART gtest `art_libarttools_tests` bundled with the ART APEX on target.
