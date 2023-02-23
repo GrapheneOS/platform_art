@@ -593,6 +593,10 @@ class ProfileCompilationInfo {
       /*out*/std::set<uint16_t>* post_startup_method_method_set,
       const ProfileSampleAnnotation& annotation = ProfileSampleAnnotation::kNone) const;
 
+  const ArenaSet<dex::TypeIndex>* GetClasses(
+      const DexFile& dex_file,
+      const ProfileSampleAnnotation& annotation = ProfileSampleAnnotation::kNone) const;
+
   // Returns true iff both profiles have the same version.
   bool SameVersion(const ProfileCompilationInfo& other) const;
 
