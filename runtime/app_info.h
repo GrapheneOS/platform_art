@@ -68,14 +68,21 @@ class AppInfo {
                           const std::string& compilation_reason,
                           const std::string& odex_status);
 
-  // Extracts the optimization status of the primary apk into the given arguments.
+  // Extracts the optimization status of the primary APK into the given arguments.
   // If there are multiple primary APKs registed via RegisterAppInfo, the method
   // will assign the status of the first APK, sorted by the location name.
   //
-  // Assigns "unknown" if there is no primary apk or the optimization status was
+  // Assigns "unknown" if there is no primary APK or the optimization status was
   // not set via RegisterOdexStatus,
   void GetPrimaryApkOptimizationStatus(std::string* out_compiler_filter,
                                        std::string* out_compilation_reason);
+
+  // Returns the reference profile path of the primary APK.
+  // If there are multiple primary APKs registed via RegisterAppInfo, the method
+  // will return the profile of the first APK, sorted by the location name.
+  //
+  // Returns an empty string if there is no primary APK.
+  std::string GetPrimaryApkReferenceProfile();
 
   // Whether we've received a call to RegisterAppInfo.
   bool HasRegisteredAppInfo();
