@@ -391,6 +391,17 @@ class ImageSpace::PatchObjectVisitor final {
     }
   }
 
+  template <typename T> void VisitGcRootDexCacheArray(mirror::GcRootArray<T>* array)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (array == nullptr) {
+      return;
+    }
+    uint32_t size = reinterpret_cast<uint32_t*>(array)[-1];
+    for (uint32_t i = 0; i < size; ++i) {
+      PatchGcRoot(&array->GetGcRoot(i));
+    }
+  }
+
   void VisitDexCacheArrays(ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::NativeArray<ArtMethod>* old_resolved_methods = dex_cache->GetResolvedMethodsArray();
@@ -405,6 +416,13 @@ class ImageSpace::PatchObjectVisitor final {
       mirror::NativeArray<ArtField>* resolved_fields = native_visitor_(old_resolved_fields);
       dex_cache->SetResolvedFieldsArray(resolved_fields);
       VisitNativeDexCacheArray(resolved_fields);
+    }
+
+    mirror::GcRootArray<mirror::String>* old_strings = dex_cache->GetStringsArray();
+    if (old_strings != nullptr) {
+      mirror::GcRootArray<mirror::String>* strings = native_visitor_(old_strings);
+      dex_cache->SetStringsArray(strings);
+      VisitGcRootDexCacheArray(strings);
     }
   }
 
