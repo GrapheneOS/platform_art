@@ -1366,10 +1366,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
   static constexpr bool kMultiRegistersAligned = true;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = true;
   static constexpr bool kAlignDoubleOnStack = true;
+  static constexpr bool kNaNBoxing = false;
 #elif defined(__aarch64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumNativeGprArgs = 8;  // 8 arguments passed in GPRs.
@@ -1378,10 +1378,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
+  static constexpr bool kNaNBoxing = false;
 #elif defined(__riscv)
   static constexpr bool kNativeSoftFloatAbi = false;
   static constexpr size_t kNumNativeGprArgs = 8;
@@ -1390,10 +1390,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = true;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
+  static constexpr bool kNaNBoxing = true;
 #elif defined(__i386__)
   static constexpr bool kNativeSoftFloatAbi = false;  // Not using int registers for fp
   static constexpr size_t kNumNativeGprArgs = 0;  // 0 arguments passed in GPRs.
@@ -1402,10 +1402,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
   static constexpr bool kMultiRegistersAligned = false;  // x86 not using regs, anyways
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
+  static constexpr bool kNaNBoxing = false;
 #elif defined(__x86_64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumNativeGprArgs = 6;  // 6 arguments passed in GPRs.
@@ -1414,10 +1414,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiFPRegistersWidened = false;
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
+  static constexpr bool kNaNBoxing = false;
 #else
 #error "Unsupported architecture"
 #endif
@@ -1533,8 +1533,10 @@ template<class T> class BuildNativeCallFrameStateMachine {
       if (HaveFloatFpr()) {
         fpr_index_--;
         if (kRegistersNeededForDouble == 1) {
-          if (kMultiFPRegistersWidened) {
-            PushFpr8(bit_cast<uint64_t, double>(val));
+          if (kNaNBoxing) {
+            // NaN boxing: no widening, just use the bits, but reset upper bits to 1s.
+            // See e.g. RISC-V manual, D extension, section "NaN Boxing of Narrower Values".
+            PushFpr8(0xFFFFFFFF00000000lu | static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
           } else {
             // No widening, just use the bits.
             PushFpr8(static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
@@ -1544,14 +1546,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
         }
       } else {
         stack_entries_++;
-        if (kRegistersNeededForDouble == 1 && kMultiFPRegistersWidened) {
-          // Need to widen before storing: Note the "double" in the template instantiation.
-          // Note: We need to jump through those hoops to make the compiler happy.
-          DCHECK_EQ(sizeof(uintptr_t), sizeof(uint64_t));
-          PushStack(static_cast<uintptr_t>(bit_cast<uint64_t, double>(val)));
-        } else {
-          PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
-        }
+        PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
         fpr_index_ = 0;
       }
     }

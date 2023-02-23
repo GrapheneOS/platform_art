@@ -3420,7 +3420,6 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
     return false;
   }
 
-  const ArtDexFileLoader dex_file_loader;
   size_t dex_file_index = 0;
   for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
     // Skip multidex locations - These will be checked when we visit their
@@ -3437,7 +3436,7 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
 
     std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations_ignored;
-    if (!dex_file_loader.GetMultiDexChecksums(
+    if (!ArtDexFileLoader::GetMultiDexChecksums(
             dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg, dex_fd)) {
       *error_msg = StringPrintf("ValidateOatFile failed to get checksums of dex file '%s' "
                                 "referenced by oat file %s: %s",

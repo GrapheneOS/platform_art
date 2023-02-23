@@ -787,30 +787,24 @@ bool OatFileBase::Setup(int zip_fd,
       if (i == external_dex_files_.size()) {
         std::vector<std::unique_ptr<const DexFile>> new_dex_files;
         // No dex files, load it from location.
-        const ArtDexFileLoader dex_file_loader;
         bool loaded = false;
         CHECK(zip_fd == -1 || dex_fds.empty());  // Allow only the supported combinations.
         if (zip_fd != -1) {
-          loaded = dex_file_loader.OpenZip(zip_fd,
-                                           dex_file_location,
-                                           /*verify=*/false,
-                                           /*verify_checksum=*/false,
-                                           /*allow_no_dex_files=*/false,
-                                           error_msg,
-                                           &new_dex_files);
+          ArtDexFileLoader dex_file_loader(zip_fd, dex_file_location);
+          loaded = dex_file_loader.Open(/*verify=*/false,
+                                        /*verify_checksum=*/false,
+                                        error_msg,
+                                        &new_dex_files);
         } else if (dex_fd != -1) {
           // Note that we assume dex_fds are backing by jars.
-          loaded = dex_file_loader.OpenZipFromOwnedFd(dex_fd,
-                                                      dex_file_location,
-                                                      /*verify=*/false,
-                                                      /*verify_checksum=*/false,
-                                                      /*allow_no_dex_files=*/false,
-                                                      error_msg,
-                                                      &new_dex_files);
+          ArtDexFileLoader dex_file_loader(DupCloexec(dex_fd), dex_file_location);
+          loaded = dex_file_loader.Open(/*verify=*/false,
+                                        /*verify_checksum=*/false,
+                                        error_msg,
+                                        &new_dex_files);
         } else {
-          loaded = dex_file_loader.Open(dex_file_name.c_str(),
-                                        dex_file_location,
-                                        /*verify=*/false,
+          ArtDexFileLoader dex_file_loader(dex_file_name.c_str(), dex_file_location);
+          loaded = dex_file_loader.Open(/*verify=*/false,
                                         /*verify_checksum=*/false,
                                         error_msg,
                                         &new_dex_files);
@@ -1806,20 +1800,16 @@ class OatFileBackedByVdex final : public OatFileBase {
     } else {
       // No need for any verification when loading dex files as we already have
       // a vdex file.
-      const ArtDexFileLoader dex_file_loader;
       bool loaded = false;
       if (zip_fd != -1) {
-        loaded = dex_file_loader.OpenZip(zip_fd,
-                                         dex_location,
-                                         /*verify=*/false,
-                                         /*verify_checksum=*/false,
-                                         /*allow_no_dex_files=*/false,
-                                         error_msg,
-                                         &oat_file->external_dex_files_);
+        ArtDexFileLoader dex_file_loader(zip_fd, dex_location);
+        loaded = dex_file_loader.Open(/*verify=*/false,
+                                      /*verify_checksum=*/false,
+                                      error_msg,
+                                      &oat_file->external_dex_files_);
       } else {
-        loaded = dex_file_loader.Open(dex_location.c_str(),
-                                      dex_location,
-                                      /*verify=*/false,
+        ArtDexFileLoader dex_file_loader(dex_location);
+        loaded = dex_file_loader.Open(/*verify=*/false,
                                       /*verify_checksum=*/false,
                                       error_msg,
                                       &oat_file->external_dex_files_);
@@ -2250,15 +2240,9 @@ std::unique_ptr<const DexFile> OatDexFile::OpenDexFile(std::string* error_msg) c
   ScopedTrace trace(__PRETTY_FUNCTION__);
   static constexpr bool kVerify = false;
   static constexpr bool kVerifyChecksum = false;
-  const ArtDexFileLoader dex_file_loader;
-  return dex_file_loader.Open(dex_file_pointer_,
-                              FileSize(),
-                              dex_file_location_,
-                              dex_file_location_checksum_,
-                              this,
-                              kVerify,
-                              kVerifyChecksum,
-                              error_msg);
+  ArtDexFileLoader dex_file_loader(dex_file_pointer_, FileSize(), dex_file_location_);
+  return dex_file_loader.Open(
+      dex_file_location_checksum_, this, kVerify, kVerifyChecksum, error_msg);
 }
 
 uint32_t OatDexFile::GetOatClassOffset(uint16_t class_def_index) const {

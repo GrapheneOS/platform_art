@@ -688,7 +688,7 @@ void HGraph::TransformLoopToSinglePreheaderFormat(HBasicBlock* header) {
                                                     0,
                                                     header_phi->GetType());
     if (header_phi->GetType() == DataType::Type::kReference) {
-      preheader_phi->SetReferenceTypeInfo(header_phi->GetReferenceTypeInfo());
+      preheader_phi->SetReferenceTypeInfoIfValid(header_phi->GetReferenceTypeInfo());
     }
     preheader->AddPhi(preheader_phi);
 
@@ -3213,6 +3213,12 @@ void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
   }
   reference_type_handle_ = rti.GetTypeHandle();
   SetPackedFlag<kFlagReferenceTypeIsExact>(rti.IsExact());
+}
+
+void HInstruction::SetReferenceTypeInfoIfValid(ReferenceTypeInfo rti) {
+  if (rti.IsValid()) {
+    SetReferenceTypeInfo(rti);
+  }
 }
 
 bool HBoundType::InstructionDataEquals(const HInstruction* other) const {

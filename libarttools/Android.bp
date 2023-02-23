@@ -44,6 +44,7 @@ cc_library {
         "libbase",
     ],
     whole_static_libs: [
+        // TODO(b/270049598): Investigate the cost of libc++fs compared to its utility.
         "libc++fs",
     ],
     export_shared_lib_headers: ["libbase"],
@@ -64,6 +65,11 @@ art_cc_defaults {
     static_libs: [
         "libgmock",
     ],
+    target: {
+        android: {
+            static_libs: ["libmodules-utils-build"],
+        },
+    },
 }
 
 // Version of ART gtest `art_libarttools_tests` bundled with the ART APEX on target.

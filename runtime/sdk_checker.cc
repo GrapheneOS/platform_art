@@ -30,16 +30,13 @@ SdkChecker* SdkChecker::Create(
   std::vector<std::string> dex_file_paths;
   Split(public_sdk, ':', &dex_file_paths);
 
-  ArtDexFileLoader dex_loader;
-
   std::unique_ptr<SdkChecker> sdk_checker(new SdkChecker());
   for (const std::string& path : dex_file_paths) {
-    if (!dex_loader.Open(path.c_str(),
-                         path,
-                         /*verify=*/ true,
-                         /*verify_checksum*/ false,
-                         error_msg,
-                         &sdk_checker->sdk_dex_files_)) {
+    DexFileLoader dex_file_loader(path);
+    if (!dex_file_loader.Open(/*verify=*/true,
+                              /*verify_checksum*/ false,
+                              error_msg,
+                              &sdk_checker->sdk_dex_files_)) {
       return nullptr;
     }
   }

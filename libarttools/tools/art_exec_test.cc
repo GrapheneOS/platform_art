@@ -42,6 +42,10 @@
 #include "gtest/gtest.h"
 #include "system/thread_defs.h"
 
+#ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
+#endif
+
 namespace art {
 namespace {
 
@@ -145,6 +149,13 @@ TEST_F(ArtExecTest, Command) {
 }
 
 TEST_F(ArtExecTest, SetTaskProfiles) {
+// The condition is always true because ArtExecTest is run on device only.
+#ifdef ART_TARGET_ANDROID
+  if (!android::modules::sdklevel::IsAtLeastU()) {
+    GTEST_SKIP() << "This test depends on a libartpalette API that is only available on U+";
+  }
+#endif
+
   std::string filename = "/data/local/tmp/art-exec-test-XXXXXX";
   ScratchFile scratch_file(new File(mkstemp(filename.data()), filename, /*check_usage=*/false));
   ASSERT_GE(scratch_file.GetFd(), 0);

@@ -726,14 +726,13 @@ const std::vector<uint32_t>* OatFileAssistant::GetRequiredDexChecksums(std::stri
   if (!required_dex_checksums_attempted_) {
     required_dex_checksums_attempted_ = true;
     std::vector<uint32_t> checksums;
-    const ArtDexFileLoader dex_file_loader;
     std::vector<std::string> dex_locations_ignored;
-    if (dex_file_loader.GetMultiDexChecksums(dex_location_.c_str(),
-                                             &checksums,
-                                             &dex_locations_ignored,
-                                             &cached_required_dex_checksums_error_,
-                                             zip_fd_,
-                                             &zip_file_only_contains_uncompressed_dex_)) {
+    if (ArtDexFileLoader::GetMultiDexChecksums(dex_location_.c_str(),
+                                               &checksums,
+                                               &dex_locations_ignored,
+                                               &cached_required_dex_checksums_error_,
+                                               zip_fd_,
+                                               &zip_file_only_contains_uncompressed_dex_)) {
       if (checksums.empty()) {
         // The only valid case here is for APKs without dex files.
         VLOG(oat) << "No dex file found in " << dex_location_;

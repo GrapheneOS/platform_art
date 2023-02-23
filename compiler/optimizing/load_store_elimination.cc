@@ -3386,7 +3386,7 @@ class PartialLoadStoreEliminationHelper {
           ins->GetBlock()->InsertInstructionBefore(new_fget, ins);
           if (ins->GetType() == DataType::Type::kReference) {
             // Reference info is the same
-            new_fget->SetReferenceTypeInfo(ins->GetReferenceTypeInfo());
+            new_fget->SetReferenceTypeInfoIfValid(ins->GetReferenceTypeInfo());
           }
           // In this phase, substitute instructions are used only for the predicated get
           // default values which are used only if the partial singleton did not escape,
