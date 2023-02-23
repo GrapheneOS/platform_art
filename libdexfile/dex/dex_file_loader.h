@@ -192,12 +192,6 @@ class DexFileLoader {
   }
 
  protected:
-  enum class VerifyResult {  // private
-    kVerifyNotAttempted,
-    kVerifySucceeded,
-    kVerifyFailed
-  };
-
   bool InitAndReadMagic(uint32_t* magic, std::string* error_msg);
 
   // Ensure we have root container.  If we are backed by a file, memory-map it.
@@ -211,27 +205,17 @@ class DexFileLoader {
                                              bool verify,
                                              bool verify_checksum,
                                              std::string* error_msg,
-                                             VerifyResult* verify_result);
+                                             DexFileLoaderErrorCode* error_code);
 
-  // Open all classesXXX.dex files from a zip archive.
-  bool OpenAllDexFilesFromZip(const ZipArchive& zip_archive,
-                              const std::string& location,
-                              bool verify,
-                              bool verify_checksum,
-                              bool allow_no_dex_files,
-                              DexFileLoaderErrorCode* error_code,
-                              std::string* error_msg,
-                              std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
-
-  // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-null
-  // return.
-  std::unique_ptr<const DexFile> OpenOneDexFileFromZip(const ZipArchive& zip_archive,
-                                                       const char* entry_name,
-                                                       const std::string& location,
-                                                       bool verify,
-                                                       bool verify_checksum,
-                                                       DexFileLoaderErrorCode* error_code,
-                                                       std::string* error_msg) const;
+  // Open .dex files from the entry_name in a zip archive.
+  bool OpenFromZipEntry(const ZipArchive& zip_archive,
+                        const char* entry_name,
+                        const std::string& location,
+                        bool verify,
+                        bool verify_checksum,
+                        DexFileLoaderErrorCode* error_code,
+                        std::string* error_msg,
+                        std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
   // The DexFileLoader can be backed either by file or by memory (i.e. DexFileContainer).
   // We can not just mmap the file since APKs might be unreasonably large for 32-bit system.
