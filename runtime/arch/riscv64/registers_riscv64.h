@@ -47,7 +47,7 @@ enum XRegister {
   A6 = 16,  // X16, argument 6
   A7 = 17,  // X17, argument 7
 
-  S2 = 18,   // X18, callee-saved 2
+  S2 = 18,   // X18, callee-saved 2 (unavailable, used for shadow stack by the compiler / libc)
   S3 = 19,   // X19, callee-saved 3
   S4 = 20,   // X20, callee-saved 4
   S5 = 21,   // X21, callee-saved 5
