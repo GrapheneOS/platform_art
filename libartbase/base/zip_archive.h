@@ -93,6 +93,10 @@ class ZipArchive {
   static ZipArchive* Open(const char* filename, std::string* error_msg);
   static ZipArchive* OpenFromFd(int fd, const char* filename, std::string* error_msg);
   static ZipArchive* OpenFromOwnedFd(int fd, const char* filename, std::string* error_msg);
+  static ZipArchive* OpenFromMemory(const uint8_t* data,
+                                    size_t size,
+                                    const char* filename,
+                                    std::string* error_msg);
 
   ZipEntry* Find(const char* name, std::string* error_msg) const;
 

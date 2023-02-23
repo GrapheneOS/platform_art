@@ -120,10 +120,9 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
     // doesn't get an empty profile and changes the filter to verify.
     std::string error_msg;
     std::vector<std::unique_ptr<const DexFile>> dex_files;
-    const ArtDexFileLoader dex_file_loader;
+    ArtDexFileLoader dex_file_loader(dex_location);
     ASSERT_TRUE(dex_file_loader.Open(
-        dex_location.c_str(), dex_location.c_str(), /*verify=*/ false, /*verify_checksum=*/ false,
-        &error_msg, &dex_files));
+        /*verify=*/false, /*verify_checksum=*/false, &error_msg, &dex_files));
     EXPECT_GE(dex_files.size(), 1U);
     std::unique_ptr<const DexFile>& dex_file = dex_files[0];
     ProfileCompilationInfo info;

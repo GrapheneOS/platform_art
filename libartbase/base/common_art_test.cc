@@ -389,14 +389,9 @@ std::unique_ptr<const DexFile> CommonArtTestImpl::LoadExpectSingleDexFile(const 
   std::string error_msg;
   MemMap::Init();
   static constexpr bool kVerifyChecksum = true;
-  const ArtDexFileLoader dex_file_loader;
   std::string filename(IsHost() ? GetAndroidBuildTop() + location : location);
-  if (!dex_file_loader.Open(filename.c_str(),
-                            std::string(location),
-                            /* verify= */ true,
-                            kVerifyChecksum,
-                            &error_msg,
-                            &dex_files)) {
+  ArtDexFileLoader dex_file_loader(filename.c_str(), std::string(location));
+  if (!dex_file_loader.Open(/* verify= */ true, kVerifyChecksum, &error_msg, &dex_files)) {
     LOG(FATAL) << "Could not open .dex file '" << filename << "': " << error_msg << "\n";
     UNREACHABLE();
   }
@@ -516,14 +511,9 @@ std::vector<std::unique_ptr<const DexFile>> CommonArtTestImpl::OpenDexFiles(cons
   static constexpr bool kVerify = true;
   static constexpr bool kVerifyChecksum = true;
   std::string error_msg;
-  const ArtDexFileLoader dex_file_loader;
+  ArtDexFileLoader dex_file_loader(filename);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  bool success = dex_file_loader.Open(filename,
-                                      filename,
-                                      kVerify,
-                                      kVerifyChecksum,
-                                      &error_msg,
-                                      &dex_files);
+  bool success = dex_file_loader.Open(kVerify, kVerifyChecksum, &error_msg, &dex_files);
   CHECK(success) << "Failed to open '" << filename << "': " << error_msg;
   for (auto& dex_file : dex_files) {
     CHECK(dex_file->IsReadOnly());

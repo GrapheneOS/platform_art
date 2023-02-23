@@ -2377,7 +2377,10 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return GetType() == DataType::Type::kReference;
   }
 
+  // Sets the ReferenceTypeInfo. The RTI must be valid.
   void SetReferenceTypeInfo(ReferenceTypeInfo rti);
+  // Same as above, but we only set it if it's valid. Otherwise, we don't change the current RTI.
+  void SetReferenceTypeInfoIfValid(ReferenceTypeInfo rti);
 
   ReferenceTypeInfo GetReferenceTypeInfo() const {
     DCHECK_EQ(GetType(), DataType::Type::kReference);

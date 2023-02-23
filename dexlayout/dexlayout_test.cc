@@ -330,11 +330,9 @@ class DexLayoutTest : public CommonArtTest {
                      const std::string& out_profile) {
     std::vector<std::unique_ptr<const DexFile>> dex_files;
     std::string error_msg;
-    const ArtDexFileLoader dex_file_loader;
-    bool result = dex_file_loader.Open(input_dex.c_str(),
-                                       input_dex,
-                                       /*verify=*/ true,
-                                       /*verify_checksum=*/ false,
+    ArtDexFileLoader dex_file_loader(input_dex);
+    bool result = dex_file_loader.Open(/*verify=*/true,
+                                       /*verify_checksum=*/false,
                                        &error_msg,
                                        &dex_files);
 
@@ -774,14 +772,15 @@ TEST_F(DexLayoutTest, LinkData) {
 TEST_F(DexLayoutTest, ClassFilter) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
-  const ArtDexFileLoader dex_file_loader;
   const std::string input_jar = GetTestDexFileName("ManyMethods");
-  CHECK(dex_file_loader.Open(input_jar.c_str(),
-                             input_jar.c_str(),
-                             /*verify=*/ true,
-                             /*verify_checksum=*/ true,
-                             &error_msg,
-                             &dex_files)) << error_msg;
+  {
+    ArtDexFileLoader dex_file_loader(input_jar);
+    CHECK(dex_file_loader.Open(/*verify=*/true,
+                               /*verify_checksum=*/true,
+                               &error_msg,
+                               &dex_files))
+        << error_msg;
+  }
   ASSERT_EQ(dex_files.size(), 1u);
   for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
     EXPECT_GT(dex_file->NumClassDefs(), 1u);
@@ -808,14 +807,12 @@ TEST_F(DexLayoutTest, ClassFilter) {
                                                           out->GetMainSection()->End(),
                                                           out->GetDataSection()->Begin(),
                                                           out->GetDataSection()->End());
-    std::unique_ptr<const DexFile> output_dex_file(
-        dex_file_loader.Open(std::move(container),
-                             dex_file->GetLocation().c_str(),
-                             /* location_checksum= */ 0,
-                             /*oat_dex_file=*/nullptr,
-                             /* verify= */ true,
-                             /*verify_checksum=*/false,
-                             &error_msg));
+    ArtDexFileLoader dex_file_loader(std::move(container), dex_file->GetLocation());
+    std::unique_ptr<const DexFile> output_dex_file(dex_file_loader.Open(/* location_checksum= */ 0,
+                                                                        /*oat_dex_file=*/nullptr,
+                                                                        /* verify= */ true,
+                                                                        /*verify_checksum=*/false,
+                                                                        &error_msg));
     ASSERT_TRUE(output_dex_file != nullptr);
 
     ASSERT_EQ(output_dex_file->NumClassDefs(), options.class_filter_.size());

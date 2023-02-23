@@ -179,12 +179,9 @@ ADexFile_Error ADexFile_create(const void* _Nonnull address,
   }
 
   std::string loc_str(location);
-  art::DexFileLoader loader;
   std::string error_msg;
-  std::unique_ptr<const art::DexFile> dex_file = loader.Open(static_cast<const uint8_t*>(address),
-                                                             size,
-                                                             loc_str,
-                                                             header->checksum_,
+  art::DexFileLoader loader(static_cast<const uint8_t*>(address), size, loc_str);
+  std::unique_ptr<const art::DexFile> dex_file = loader.Open(header->checksum_,
                                                              /*oat_dex_file=*/nullptr,
                                                              /*verify=*/false,
                                                              /*verify_checksum=*/false,

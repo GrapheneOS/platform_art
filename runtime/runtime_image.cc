@@ -1036,7 +1036,7 @@ class RuntimeImageHelper {
     if (array == nullptr) {
       return;
     }
-    size_t size = num_entries * sizeof(T);
+    size_t size = num_entries * sizeof(void*);
 
     bool only_startup = !mirror::DexCache::ShouldAllocateFullArray(num_entries, max_entries);
     std::vector<uint8_t>& data = only_startup ? metadata_ : dex_cache_arrays_;
@@ -1296,28 +1296,24 @@ class RuntimeImageHelper {
   friend class NativePointerVisitor;
 };
 
-static const char* GetImageExtension() {
-  return kRuntimePointerSize == PointerSize::k32 ? "art32" : "art64";
-}
-
-std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
+static std::string GetOatPath() {
   const std::string& data_dir = Runtime::Current()->GetProcessDataDirectory();
-
-  std::string new_location = ReplaceFileExtension(dex_location, GetImageExtension());
-
   if (data_dir.empty()) {
     // The data ditectory is empty for tests.
-    return new_location;
-  } else {
-    std::replace(new_location.begin(), new_location.end(), '/', '@');
-    return data_dir + "/oat/" + new_location;
+    return "";
   }
+  return data_dir + "/cache/oat_primary/";
 }
 
-static bool EnsureDirectoryExists(const std::string& path, std::string* error_msg) {
-  size_t last_slash_pos = path.find_last_of('/');
-  CHECK_NE(last_slash_pos, std::string::npos) << "Invalid path: " << path;
-  std::string directory = path.substr(0, last_slash_pos);
+// Note: this may return a relative path for tests.
+std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
+  std::string basename = android::base::Basename(dex_location);
+  std::string filename = ReplaceFileExtension(basename, "art");
+
+  return GetOatPath() + GetInstructionSetString(kRuntimeISA) + "/" + filename;
+}
+
+static bool EnsureDirectoryExists(const std::string& directory, std::string* error_msg) {
   if (!OS::DirectoryExists(directory.c_str())) {
     static constexpr mode_t kDirectoryMode = S_IRWXU | S_IRGRP | S_IXGRP| S_IROTH | S_IXOTH;
     if (mkdir(directory.c_str(), kDirectoryMode) != 0) {
@@ -1335,6 +1331,11 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
     *error_msg = "Cannot generate an app image without a boot image";
     return false;
   }
+  std::string oat_path = GetOatPath();
+  if (!oat_path.empty() && !EnsureDirectoryExists(oat_path, error_msg)) {
+    return false;
+  }
+
   ScopedTrace generate_image_trace("Generating runtime image");
   RuntimeImageHelper image(heap);
   if (!image.Generate(error_msg)) {
@@ -1342,14 +1343,15 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
   }
 
   ScopedTrace write_image_trace("Writing runtime image to disk");
+
   const std::string path = GetRuntimeImagePath(image.GetDexLocation());
-  if (!EnsureDirectoryExists(path, error_msg)) {
+  if (!EnsureDirectoryExists(android::base::Dirname(path), error_msg)) {
     return false;
   }
+
   // We first generate the app image in a temporary file, which we will then
   // move to `path`.
-  const std::string temp_path =
-      ReplaceFileExtension(path, std::to_string(getpid()) + GetImageExtension());
+  const std::string temp_path = ReplaceFileExtension(path, std::to_string(getpid()) + ".tmp");
   std::unique_ptr<File> out(OS::CreateEmptyFileWriteOnly(temp_path.c_str()));
   if (out == nullptr) {
     *error_msg = "Could not open " + temp_path + " for writing";

@@ -215,7 +215,6 @@ const uint8_t* VdexFile::GetNextTypeLookupTableData(const uint8_t* cursor,
 
 bool VdexFile::OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_files,
                                std::string* error_msg) const {
-  const ArtDexFileLoader dex_file_loader;
   size_t i = 0;
   for (const uint8_t* dex_file_start = GetNextDexFileData(nullptr, i);
        dex_file_start != nullptr;
@@ -224,10 +223,8 @@ bool VdexFile::OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_
     // TODO: Supply the location information for a vdex file.
     static constexpr char kVdexLocation[] = "";
     std::string location = DexFileLoader::GetMultiDexLocation(i, kVdexLocation);
-    std::unique_ptr<const DexFile> dex(dex_file_loader.Open(dex_file_start,
-                                                            size,
-                                                            location,
-                                                            GetLocationChecksum(i),
+    ArtDexFileLoader dex_file_loader(dex_file_start, size, location);
+    std::unique_ptr<const DexFile> dex(dex_file_loader.Open(GetLocationChecksum(i),
                                                             /*oat_dex_file=*/nullptr,
                                                             /*verify=*/false,
                                                             /*verify_checksum=*/false,
