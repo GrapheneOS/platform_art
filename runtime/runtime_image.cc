@@ -477,12 +477,23 @@ class RuntimeImageHelper {
       if (cls == nullptr) {
         return true;
       }
-      const dex::ClassDef* class_def = cls->GetClassDef();
-      if (class_def == nullptr) {
-        // Covers array classes and proxy classes.
-        // TODO: Handle these differently.
+      if (cls->IsProxyClass()) {
         return false;
       }
+      if (cls->IsArrayClass()) {
+        if (cls->IsBootStrapClassLoaded()) {
+          // For boot classpath arrays, we can only emit them if they are
+          // in the boot image already.
+          return helper_->IsInBootImage(cls.Get());
+        }
+        ObjPtr<mirror::Class> temp = cls.Get();
+        while ((temp = temp->GetComponentType())->IsArrayClass()) {}
+        StackHandleScope<1> hs(self_);
+        Handle<mirror::Class> other_class = hs.NewHandle(temp);
+        return CanEmit(other_class);
+      }
+      const dex::ClassDef* class_def = cls->GetClassDef();
+      DCHECK_NE(class_def, nullptr);
       auto existing = visited_.find(class_def);
       if (existing != visited_.end()) {
         // Already processed;
@@ -708,6 +719,11 @@ class RuntimeImageHelper {
     ScopedObjectAccess soa(Thread::Current());
     NativePointerVisitor visitor(this);
     for (auto it : classes_) {
+      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
+      cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
+      RelocateMethodPointerArrays(cls, visitor);
+    }
+    for (auto it : array_classes_) {
       mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
@@ -1229,13 +1245,26 @@ class RuntimeImageHelper {
   }
 
   uint32_t CopyClass(ObjPtr<mirror::Class> cls) REQUIRES_SHARED(Locks::mutator_lock_) {
-    const dex::ClassDef* class_def = cls->GetClassDef();
-    auto it = classes_.find(class_def);
-    if (it != classes_.end()) {
-      return it->second;
+    DCHECK(!cls->IsBootStrapClassLoaded());
+    uint32_t offset = 0u;
+    if (cls->IsArrayClass()) {
+      std::string class_name;
+      cls->GetDescriptor(&class_name);
+      auto it = array_classes_.find(class_name);
+      if (it != array_classes_.end()) {
+        return it->second;
+      }
+      offset = CopyObject(cls);
+      array_classes_[class_name] = offset;
+    } else {
+      const dex::ClassDef* class_def = cls->GetClassDef();
+      auto it = classes_.find(class_def);
+      if (it != classes_.end()) {
+        return it->second;
+      }
+      offset = CopyObject(cls);
+      classes_[class_def] = offset;
     }
-    uint32_t offset = CopyObject(cls);
-    classes_[class_def] = offset;
 
     uint32_t hash = cls->DescriptorHash();
     // Save the hash, the `HashSet` implementation requires to find it.
@@ -1249,7 +1278,11 @@ class RuntimeImageHelper {
     // Clear internal state.
     mirror::Class* copy = reinterpret_cast<mirror::Class*>(objects_.data() + offset);
     copy->SetClinitThreadId(static_cast<pid_t>(0u));
-    copy->SetStatusInternal(cls->IsVerified() ? ClassStatus::kVerified : ClassStatus::kResolved);
+    if (cls->IsArrayClass()) {
+      DCHECK(copy->IsVisiblyInitialized());
+    } else {
+      copy->SetStatusInternal(cls->IsVerified() ? ClassStatus::kVerified : ClassStatus::kResolved);
+    }
     copy->SetObjectSizeAllocFastPath(std::numeric_limits<uint32_t>::max());
     copy->SetAccessFlags(copy->GetAccessFlags() & ~kAccRecursivelyInitialized);
 
@@ -1417,6 +1450,7 @@ class RuntimeImageHelper {
   std::vector<uint32_t> object_offsets_;
 
   std::map<const dex::ClassDef*, uint32_t> classes_;
+  std::map<std::string, uint32_t> array_classes_;
   std::map<const DexFile*, uint32_t> dex_caches_;
   std::map<uint32_t, uint32_t> class_hashes_;
 
