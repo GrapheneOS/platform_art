@@ -21,6 +21,9 @@ import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import android.annotation.NonNull;
+import android.os.RemoteException;
+import android.os.ServiceSpecificException;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
@@ -45,6 +48,8 @@ import java.util.stream.Collectors;
  * @hide
  */
 public class DumpHelper {
+    private static final String TAG = "DumpHelper";
+
     @NonNull private final Injector mInjector;
 
     public DumpHelper(@NonNull ArtManagerLocal artManagerLocal) {
@@ -113,14 +118,14 @@ public class DumpHelper {
 
         ipw.increaseIndent();
         for (List<DexContainerFileDexoptStatus> fileStatuses : primaryStatusesByDexPath.values()) {
-            dumpPrimaryDex(ipw, fileStatuses, packageName);
+            dumpPrimaryDex(ipw, snapshot, fileStatuses, packageName);
         }
         if (!secondaryStatusesByDexPath.isEmpty()) {
             ipw.println("known secondary dex files:");
             ipw.increaseIndent();
             for (Map.Entry<String, List<DexContainerFileDexoptStatus>> entry :
                     secondaryStatusesByDexPath.entrySet()) {
-                dumpSecondaryDex(ipw, entry.getValue(), packageName,
+                dumpSecondaryDex(ipw, snapshot, entry.getValue(), packageName,
                         secondaryDexInfoByDexPath.get(entry.getKey()));
             }
             ipw.decreaseIndent();
@@ -129,39 +134,68 @@ public class DumpHelper {
     }
 
     private void dumpPrimaryDex(@NonNull IndentingPrintWriter ipw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName) {
         String dexPath = fileStatuses.get(0).getDexContainerFile();
         ipw.printf("path: %s\n", dexPath);
         ipw.increaseIndent();
         dumpFileStatuses(ipw, fileStatuses);
-        dumpUsedByOtherApps(ipw,
+        dumpUsedByOtherApps(ipw, snapshot,
                 mInjector.getDexUseManager().getPrimaryDexLoaders(packageName, dexPath),
                 packageName);
         ipw.decreaseIndent();
     }
 
     private void dumpSecondaryDex(@NonNull IndentingPrintWriter ipw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName,
             @NonNull SecondaryDexInfo info) {
         String dexPath = fileStatuses.get(0).getDexContainerFile();
-        ipw.println(dexPath);
+        @FileVisibility int visibility = getDexFileVisibility(dexPath);
+        ipw.println(dexPath
+                + (visibility == FileVisibility.NOT_FOUND
+                                ? " (removed)"
+                                : (visibility == FileVisibility.OTHER_READABLE ? " (public)"
+                                                                               : "")));
         ipw.increaseIndent();
         dumpFileStatuses(ipw, fileStatuses);
         ipw.printf("class loader context: %s\n", info.displayClassLoaderContext());
-        dumpUsedByOtherApps(ipw, info.loaders(), packageName);
+        Map<DexLoader, String> classLoaderContexts =
+                info.loaders().stream().collect(Collectors.toMap(loader
+                        -> loader,
+                        loader
+                        -> mInjector.getDexUseManager().getSecondaryClassLoaderContext(
+                                packageName, dexPath, loader)));
+        // We should print all class loader contexts even if `info.displayClassLoaderContext()` is
+        // not `VARYING_CLASS_LOADER_CONTEXTS`. This is because `info.displayClassLoaderContext()`
+        // may show the only supported class loader context while other apps have unsupported ones.
+        if (classLoaderContexts.values().stream().distinct().count() >= 2) {
+            ipw.increaseIndent();
+            for (var entry : classLoaderContexts.entrySet()) {
+                // entry.getValue() may be null due to a race, but it's an edge case.
+                ipw.printf("%s: %s\n", entry.getKey(), entry.getValue());
+            }
+            ipw.decreaseIndent();
+        }
+        dumpUsedByOtherApps(ipw, snapshot, info.loaders(), packageName);
         ipw.decreaseIndent();
     }
 
     private void dumpFileStatuses(
             @NonNull IndentingPrintWriter ipw, List<DexContainerFileDexoptStatus> fileStatuses) {
         for (DexContainerFileDexoptStatus fileStatus : fileStatuses) {
-            ipw.printf("%s: [status=%s] [reason=%s]\n",
+            ipw.printf("%s: [status=%s] [reason=%s]%s\n",
                     VMRuntime.getInstructionSet(fileStatus.getAbi()),
-                    fileStatus.getCompilerFilter(), fileStatus.getCompilationReason());
+                    fileStatus.getCompilerFilter(), fileStatus.getCompilationReason(),
+                    fileStatus.isPrimaryAbi() ? " [primary-abi]" : "");
+            ipw.increaseIndent();
+            ipw.printf("[location is %s]\n", fileStatus.getLocationDebugString());
+            ipw.decreaseIndent();
         }
     }
 
     private void dumpUsedByOtherApps(@NonNull IndentingPrintWriter ipw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull Set<DexLoader> dexLoaders, @NonNull String packageName) {
         List<DexLoader> otherApps =
                 dexLoaders.stream()
@@ -170,10 +204,34 @@ public class DumpHelper {
         if (!otherApps.isEmpty()) {
             ipw.printf("used by other apps: [%s]\n",
                     otherApps.stream()
-                            .map(loader
-                                    -> loader.loadingPackageName()
-                                            + (loader.isolatedProcess() ? " (isolated)" : ""))
+                            .map(loader -> getLoaderState(snapshot, loader))
                             .collect(Collectors.joining(", ")));
+        }
+    }
+
+    @NonNull
+    private String getLoaderState(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull DexLoader loader) {
+        var result = new StringBuilder(loader.toString());
+        PackageState loadingPkgState = snapshot.getPackageState(loader.loadingPackageName());
+        if (loadingPkgState == null) {
+            // This can happen because the information held by DexUseManagerLocal can be outdated.
+            // We don't want to clean up the entry at this point because we don't want the dump
+            // operation to have an side effect.
+            result.append(" (removed)");
+            return result.toString();
+        }
+        Utils.Abi abi = Utils.getPrimaryAbi(loadingPkgState);
+        result.append(String.format(" (isa=%s)", abi.isa()));
+        return result.toString();
+    }
+
+    private @FileVisibility int getDexFileVisibility(@NonNull String dexPath) {
+        try {
+            return mInjector.getArtd().getDexFileVisibility(dexPath);
+        } catch (ServiceSpecificException | RemoteException e) {
+            Log.e(TAG, "Failed to get visibility of " + dexPath, e);
+            return FileVisibility.NOT_FOUND;
         }
     }
 
@@ -195,6 +253,11 @@ public class DumpHelper {
         public DexUseManagerLocal getDexUseManager() {
             return Objects.requireNonNull(
                     LocalManagerRegistry.getManager(DexUseManagerLocal.class));
+        }
+
+        @NonNull
+        public IArtd getArtd() {
+            return Utils.getArtd();
         }
     }
 }
