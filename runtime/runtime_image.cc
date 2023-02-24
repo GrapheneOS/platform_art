@@ -29,6 +29,7 @@
 #include "base/bit_utils.h"
 #include "base/file_utils.h"
 #include "base/length_prefixed_array.h"
+#include "base/scoped_flock.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
@@ -45,6 +46,7 @@
 #include "mirror/object_array.h"
 #include "mirror/string-inl.h"
 #include "oat.h"
+#include "profile/profile_compilation_info.h"
 #include "scoped_thread_state_change-inl.h"
 #include "vdex_file.h"
 
@@ -512,6 +514,7 @@ class RuntimeImageHelper {
 
   void EmitClasses(Thread* self, Handle<mirror::ObjectArray<mirror::Object>> dex_cache_array)
       REQUIRES_SHARED(Locks::mutator_lock_) {
+    ScopedTrace trace("Emit strings and classes");
     ArenaAllocator allocator(Runtime::Current()->GetArenaPool());
     ArenaSet<const DexFile*> dex_files(allocator.Adapter());
     for (int32_t i = 0; i < dex_cache_array->GetLength(); ++i) {
@@ -686,6 +689,7 @@ class RuntimeImageHelper {
   }
 
   void RelocateNativePointers() {
+    ScopedTrace relocate_native_pointers("Relocate native pointers");
     ScopedObjectAccess soa(Thread::Current());
     NativePointerVisitor visitor(this);
     for (auto it : classes_) {
@@ -849,7 +853,67 @@ class RuntimeImageHelper {
     return native_relocations_.find(ptr) != native_relocations_.end();
   }
 
+
+  static void LoadClassesFromReferenceProfile(
+      Thread* self,
+      const dchecked_vector<Handle<mirror::DexCache>>& dex_caches)
+          REQUIRES_SHARED(Locks::mutator_lock_) {
+    AppInfo* app_info = Runtime::Current()->GetAppInfo();
+    std::string profile_file = app_info->GetPrimaryApkReferenceProfile();
+
+    if (profile_file.empty()) {
+      return;
+    }
+
+    // Lock the file, it could be concurrently updated by the system. Don't block
+    // as this is app startup sensitive.
+    std::string error;
+    ScopedFlock profile =
+        LockedFile::Open(profile_file.c_str(), O_RDONLY, /*block=*/false, &error);
+
+    if (profile == nullptr) {
+      LOG(DEBUG) << "Couldn't lock the profile file " << profile_file << ": " << error;
+      return;
+    }
+
+    ProfileCompilationInfo profile_info(/* for_boot_image= */ false);
+
+    if (!profile_info.Load(profile->Fd())) {
+      LOG(DEBUG) << "Could not load profile file";
+      return;
+    }
+
+    StackHandleScope<1> hs(self);
+    Handle<mirror::ClassLoader> class_loader =
+        hs.NewHandle<mirror::ClassLoader>(dex_caches[0]->GetClassLoader());
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    ScopedTrace loading_classes("Loading classes from profile");
+    for (auto dex_cache : dex_caches) {
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      const ArenaSet<dex::TypeIndex>* class_types = profile_info.GetClasses(*dex_file);
+      if (class_types == nullptr) {
+        // This means the profile file did not reference the dex file, which is the case
+        // if there's no classes and methods of that dex file in the profile.
+        continue;
+      }
+
+      for (dex::TypeIndex idx : *class_types) {
+        // The index is greater or equal to NumTypeIds if the type is an extra
+        // descriptor, not referenced by the dex file.
+        if (idx.index_ < dex_file->NumTypeIds()) {
+          ObjPtr<mirror::Class> klass = class_linker->ResolveType(idx, dex_cache, class_loader);
+          if (klass == nullptr) {
+            self->ClearException();
+            LOG(DEBUG) << "Failed to preload " << dex_file->PrettyType(idx);
+            continue;
+          }
+        }
+      }
+    }
+  }
+
   bool WriteObjects(std::string* error_msg) {
+    ScopedTrace write_objects("Writing objects");
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     ScopedObjectAccess soa(Thread::Current());
     VariableSizedHandleScope handles(soa.Self());
@@ -898,6 +962,11 @@ class RuntimeImageHelper {
         return false;
       }
     }
+
+    // If classes referenced in the reference profile are not loaded, preload
+    // them. This makes sure we generate a good runtime app image, even if this
+    // current app run did not load all startup classes.
+    LoadClassesFromReferenceProfile(soa.Self(), dex_caches);
 
     // We store the checksums of the dex files used at runtime. These can be
     // different compared to the vdex checksums due to compact dex.
@@ -1228,6 +1297,7 @@ class RuntimeImageHelper {
                      dchecked_vector<Handle<mirror::DexCache>>& dex_caches,
                      VariableSizedHandleScope& handles)
       REQUIRES_SHARED(Locks::mutator_lock_) {
+    ScopedTrace trace("Find dex caches");
     DCHECK(dex_caches.empty());
     // Collect all dex caches.
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
