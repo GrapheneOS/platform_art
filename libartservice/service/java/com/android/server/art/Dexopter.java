@@ -45,6 +45,7 @@ import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
+import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
 
@@ -55,11 +56,14 @@ import com.google.auto.value.AutoValue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** @hide */
 public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     private static final String TAG = "Dexopter";
+    private static final List<String> ART_PACKAGE_NAMES =
+            List.of("com.google.android.art", "com.android.art", "com.google.android.go.art");
 
     @NonNull protected final Injector mInjector;
     @NonNull protected final PackageState mPkgState;
@@ -365,6 +369,9 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         dexoptOptions.generateAppImage =
                 isProfileGuidedFilter && isAppImageAllowed(dexInfo) && isAppImageEnabled();
         dexoptOptions.hiddenApiPolicyEnabled = isHiddenApiPolicyEnabled();
+        dexoptOptions.comments = String.format(
+                "app-version-name:%s,app-version-code:%d,art-version:%d", mPkg.getVersionName(),
+                mPkg.getLongVersionCode(), mInjector.getArtVersion());
         return dexoptOptions;
     }
 
@@ -687,6 +694,26 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         @NonNull
         public StorageManager getStorageManager() {
             return Objects.requireNonNull(mContext.getSystemService(StorageManager.class));
+        }
+
+        @NonNull
+        private PackageManagerLocal getPackageManagerLocal() {
+            return Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(PackageManagerLocal.class));
+        }
+
+        public long getArtVersion() {
+            try (var snapshot = getPackageManagerLocal().withUnfilteredSnapshot()) {
+                Map<String, PackageState> packageStates = snapshot.getPackageStates();
+                for (String artPackageName : ART_PACKAGE_NAMES) {
+                    PackageState pkgState = packageStates.get(artPackageName);
+                    if (pkgState != null) {
+                        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+                        return pkg.getLongVersionCode();
+                    }
+                }
+            }
+            return -1;
         }
     }
 }
