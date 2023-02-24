@@ -143,4 +143,17 @@ std::ostream& operator<<(std::ostream& os, AppInfo& rhs) {
   return os;
 }
 
+std::string AppInfo::GetPrimaryApkReferenceProfile() {
+  MutexLock mu(Thread::Current(), update_mutex_);
+
+  for (const auto& it : registered_code_locations_) {
+    const CodeLocationInfo& cli = it.second;
+    if (cli.code_type == CodeType::kPrimaryApk) {
+      return cli.ref_profile_path.value_or("");
+    }
+  }
+  return "";
+}
+
+
 }  // namespace art
