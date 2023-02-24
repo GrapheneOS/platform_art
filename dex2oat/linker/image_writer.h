@@ -708,7 +708,6 @@ class ImageWriter final {
   class FixupClassVisitor;
   class FixupRootVisitor;
   class FixupVisitor;
-  class ImageFileGuard;
   class LayoutHelper;
   class NativeLocationVisitor;
   class PruneClassesVisitor;
