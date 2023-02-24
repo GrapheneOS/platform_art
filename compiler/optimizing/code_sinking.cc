@@ -37,6 +37,23 @@ bool CodeSinking::Run() {
   // as an indicator of an uncommon branch.
   for (HBasicBlock* exit_predecessor : exit->GetPredecessors()) {
     HInstruction* last = exit_predecessor->GetLastInstruction();
+
+    // TryBoundary instructions are sometimes inserted between the last instruction (e.g. Throw,
+    // Return) and Exit. We don't want to use that instruction for our "uncommon branch" heuristic
+    // because they are not as good an indicator as throwing branches, so we skip them and fetch the
+    // actual last instruction.
+    if (last->IsTryBoundary()) {
+      // We have an exit try boundary. Fetch the previous instruction.
+      DCHECK(!last->AsTryBoundary()->IsEntry());
+      if (last->GetPrevious() == nullptr) {
+        DCHECK(exit_predecessor->IsSingleTryBoundary());
+        exit_predecessor = exit_predecessor->GetSinglePredecessor();
+        last = exit_predecessor->GetLastInstruction();
+      } else {
+        last = last->GetPrevious();
+      }
+    }
+
     // Any predecessor of the exit that does not return, throws an exception.
     if (!last->IsReturn() && !last->IsReturnVoid()) {
       SinkCodeToUncommonBranch(exit_predecessor);
