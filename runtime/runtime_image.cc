@@ -147,8 +147,8 @@ class RuntimeImageHelper {
         boot_image_checksums,
         static_cast<uint32_t>(kRuntimePointerSize));
 
-    // Data size includes everything except the bitmap.
-    header_.data_size_ = sections_end;
+    // Data size includes everything except the bitmap and the header.
+    header_.data_size_ = sections_end - sizeof(ImageHeader);
 
     // Write image methods - needs to happen after creation of the header.
     WriteImageMethods();
