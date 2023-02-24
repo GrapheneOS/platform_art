@@ -198,7 +198,6 @@ public class BackgroundDexoptJob {
 
     @NonNull
     private CompletedResult run(@NonNull CancellationSignal cancellationSignal) {
-        // TODO(b/254013427): Cleanup dex use info.
         long startTimeMs = SystemClock.uptimeMillis();
         DexoptResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
