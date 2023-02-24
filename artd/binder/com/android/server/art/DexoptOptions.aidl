@@ -39,4 +39,6 @@ parcelable DexoptOptions {
     boolean generateAppImage;
     /** -Xhidden-api-policy:enabled */
     boolean hiddenApiPolicyEnabled;
+    /** --comments */
+    @utf8InCpp String comments;
 }

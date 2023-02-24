@@ -761,6 +761,7 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
       .debuggable = false,
       .generateAppImage = false,
       .hiddenApiPolicyEnabled = false,
+      .comments = "my-comments",
   };
 
   EXPECT_CALL(
@@ -771,7 +772,8 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
                                             Contains(Flag("-Xtarget-sdk-version:", "123")),
                                             Not(Contains("--debuggable")),
                                             Not(Contains(Flag("--app-image-fd=", _))),
-                                            Not(Contains(Flag("-Xhidden-api-policy:", _))))),
+                                            Not(Contains(Flag("-Xhidden-api-policy:", _))),
+                                            Contains(Flag("--comments=", "my-comments")))),
                           _,
                           _))
       .WillOnce(Return(0));
