@@ -23,6 +23,7 @@ import android.annotation.SuppressLint;
 import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
+import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserManager;
@@ -338,6 +339,28 @@ public final class Utils {
         @Override
         public void close() {
             Trace.traceEnd(TRACE_TAG_DALVIK);
+        }
+    }
+
+    public static class TracingWithTimingLogging extends Tracing {
+        @NonNull private final String mTag;
+        @NonNull private final String mMethodName;
+        @NonNull private final long mStartTimeMs;
+
+        public TracingWithTimingLogging(@NonNull String tag, @NonNull String methodName) {
+            super(methodName);
+            mTag = tag;
+            mMethodName = methodName;
+            mStartTimeMs = SystemClock.elapsedRealtime();
+            Log.d(tag, methodName);
+        }
+
+        @Override
+        public void close() {
+            Log.d(mTag,
+                    mMethodName + " took to complete: "
+                            + (SystemClock.elapsedRealtime() - mStartTimeMs) + "ms");
+            super.close();
         }
     }
 }
