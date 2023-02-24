@@ -222,7 +222,7 @@ public class DexoptHelper {
             PrimaryDexUtils.getDexInfoBySplitName(pkg, params.getSplitName());
         }
 
-        try {
+        try (var tracing = new Utils.Tracing("dexopt")) {
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 if (cancellationSignal.isCanceled()) {
                     return createResult.get();
