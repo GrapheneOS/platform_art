@@ -39,6 +39,7 @@ public class Main {
     } catch (Error e) {
       // expected
     }
+    $noinline$testMethodEndsWithTryBoundary();
     doThrow = true;
     try {
       testInstanceSideEffects();
@@ -298,6 +299,66 @@ public class Main {
     m.volatileField = 42;
     if (doThrow) {
       throw new Error(m.toString());
+    }
+  }
+
+  private static void $noinline$testMethodEndsWithTryBoundary() throws Exception {
+    assertEquals(0, $noinline$testDontSinkToReturnBranch(0, 0, false, new Object()));
+    assertEquals(1, $noinline$testSinkToThrowBranch(0, 0, true, new Object()));
+    try {
+      $noinline$testSinkToThrowBranch(0, 0, false, new Object());
+      throw new Exception("Unreachable");
+    } catch (Error expected) {
+    }
+  }
+
+  // Consistency check: only one add
+  /// CHECK-START: int Main.$noinline$testDontSinkToReturnBranch(int, int, boolean, java.lang.Object) code_sinking (before)
+  /// CHECK:     Add
+  /// CHECK-NOT: Add
+
+  /// CHECK-START: int Main.$noinline$testDontSinkToReturnBranch(int, int, boolean, java.lang.Object) code_sinking (before)
+  /// CHECK:      Add
+  /// CHECK-NEXT: If
+
+  /// CHECK-START: int Main.$noinline$testDontSinkToReturnBranch(int, int, boolean, java.lang.Object) code_sinking (after)
+  /// CHECK:      Add
+  /// CHECK-NEXT: If
+  private static int $noinline$testDontSinkToReturnBranch(int a, int b, boolean flag, Object obj) {
+    int c = a + b;
+    if (flag) {
+      return 1;
+    }
+
+    synchronized (obj) {
+      return $noinline$returnSameValue(c);
+    }
+  }
+
+  private static int $noinline$returnSameValue(int value) {
+    return value;
+  }
+
+  // Consistency check: only one add
+  /// CHECK-START: int Main.$noinline$testSinkToThrowBranch(int, int, boolean, java.lang.Object) code_sinking (before)
+  /// CHECK:     Add
+  /// CHECK-NOT: Add
+
+  /// CHECK-START: int Main.$noinline$testSinkToThrowBranch(int, int, boolean, java.lang.Object) code_sinking (before)
+  /// CHECK:      Add
+  /// CHECK:      If
+
+  /// CHECK-START: int Main.$noinline$testSinkToThrowBranch(int, int, boolean, java.lang.Object) code_sinking (after)
+  /// CHECK:      If
+  /// CHECK:      Add
+  private static int $noinline$testSinkToThrowBranch(int a, int b, boolean flag, Object obj) {
+    int c = a + b;
+    if (flag) {
+      return 1;
+    }
+
+    synchronized (obj) {
+      throw new Error(Integer.toString(c));
     }
   }
 
