@@ -70,6 +70,11 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -208,29 +213,29 @@ public class DexoptHelperTest {
         inOrder.verify(mWakeLock).setWorkSource(any());
         inOrder.verify(mWakeLock).acquire(anyLong());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
+                same(mPkgStateFoo), same(mPkgFoo), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
+                same(mPkgStateFoo), same(mPkgFoo), same(mParams), any());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateBar), same(mPkgBar), same(mParams), same(mCancellationSignal));
+                same(mPkgStateBar), same(mPkgBar), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateBar), same(mPkgBar), same(mParams), same(mCancellationSignal));
+                same(mPkgStateBar), same(mPkgBar), same(mParams), any());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLibbaz), same(mPkgLibbaz), same(mParams), any());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateLib1), same(mPkgLib1), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib1), same(mPkgLib1), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateLib1), same(mPkgLib1), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib1), same(mPkgLib1), same(mParams), any());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateLib2), same(mPkgLib2), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib2), same(mPkgLib2), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateLib2), same(mPkgLib2), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib2), same(mPkgLib2), same(mParams), any());
         inOrder.verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateLib4), same(mPkgLib4), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib4), same(mPkgLib4), same(mParams), any());
         inOrder.verify(mInjector).getSecondaryDexopter(
-                same(mPkgStateLib4), same(mPkgLib4), same(mParams), same(mCancellationSignal));
+                same(mPkgStateLib4), same(mPkgLib4), same(mParams), any());
         inOrder.verify(mWakeLock).release();
 
         verifyNoMoreDexopt(6 /* expectedPrimaryTimes */, 6 /* expectedSecondaryTimes */);
@@ -340,9 +345,108 @@ public class DexoptHelperTest {
                 result, 5 /* index */, PKG_NAME_LIB4, DexoptResult.DEXOPT_CANCELLED, List.of());
 
         verify(mInjector).getPrimaryDexopter(
-                same(mPkgStateFoo), same(mPkgFoo), same(mParams), same(mCancellationSignal));
+                same(mPkgStateFoo), same(mPkgFoo), same(mParams), any());
 
         verifyNoMoreDexopt(1 /* expectedPrimaryTimes */, 0 /* expectedSecondaryTimes */);
+    }
+
+    // This test verifies that every child thread can register its own listener on the cancellation
+    // signal through `setOnCancelListener` (i.e., the listeners don't overwrite each other).
+    @Test
+    public void testDexoptCancelledDuringDex2oatInvocationsMultiThreaded() throws Exception {
+        final int NUM_PACKAGES = 6;
+        final long TIMEOUT_SEC = 1;
+        var dexoptStarted = new Semaphore(0);
+        var dexoptCancelled = new Semaphore(0);
+
+        when(mInjector.getPrimaryDexopter(any(), any(), any(), any())).thenAnswer(invocation -> {
+            var cancellationSignal = invocation.<CancellationSignal>getArgument(3);
+            var dexopter = mock(PrimaryDexopter.class);
+            when(dexopter.dexopt()).thenAnswer(innerInvocation -> {
+                // Simulate that the child thread registers its own listener.
+                var isListenerCalled = new AtomicBoolean(false);
+                cancellationSignal.setOnCancelListener(() -> isListenerCalled.set(true));
+
+                dexoptStarted.release();
+                assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+                // Verify that the listener is called.
+                assertThat(isListenerCalled.get()).isTrue();
+
+                return mPrimaryResults;
+            });
+            return dexopter;
+        });
+
+        ExecutorService dexoptExecutor = Executors.newFixedThreadPool(NUM_PACKAGES);
+        Future<DexoptResult> future = ForkJoinPool.commonPool().submit(() -> {
+            return mDexoptHelper.dexopt(
+                    mSnapshot, mRequestedPackages, mParams, mCancellationSignal, dexoptExecutor);
+        });
+
+        try {
+            // Wait for all dexopt operations to start.
+            for (int i = 0; i < NUM_PACKAGES; i++) {
+                assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+            }
+
+            mCancellationSignal.cancel();
+
+            for (int i = 0; i < NUM_PACKAGES; i++) {
+                dexoptCancelled.release();
+            }
+        } finally {
+            dexoptExecutor.shutdown();
+            Utils.getFuture(future);
+        }
+    }
+
+    // This test verifies that dexopt operation on the current thread can be cancelled.
+    @Test
+    public void testDexoptCancelledDuringDex2oatInvocationsOnCurrentThread() throws Exception {
+        final long TIMEOUT_SEC = 1;
+        var dexoptStarted = new Semaphore(0);
+        var dexoptCancelled = new Semaphore(0);
+
+        when(mInjector.getPrimaryDexopter(any(), any(), any(), any())).thenAnswer(invocation -> {
+            var cancellationSignal = invocation.<CancellationSignal>getArgument(3);
+            var dexopter = mock(PrimaryDexopter.class);
+            when(dexopter.dexopt()).thenAnswer(innerInvocation -> {
+                if (cancellationSignal.isCanceled()) {
+                    return mPrimaryResults;
+                }
+
+                var isListenerCalled = new AtomicBoolean(false);
+                cancellationSignal.setOnCancelListener(() -> isListenerCalled.set(true));
+
+                dexoptStarted.release();
+                assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+                // Verify that the listener is called.
+                assertThat(isListenerCalled.get()).isTrue();
+
+                return mPrimaryResults;
+            });
+            return dexopter;
+        });
+
+        // Use the current thread (the one in ForkJoinPool).
+        Executor dexoptExecutor = Runnable::run;
+        Future<DexoptResult> future = ForkJoinPool.commonPool().submit(() -> {
+            return mDexoptHelper.dexopt(
+                    mSnapshot, mRequestedPackages, mParams, mCancellationSignal, dexoptExecutor);
+        });
+
+        try {
+            // Only one dexopt operation should start.
+            assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+            mCancellationSignal.cancel();
+
+            dexoptCancelled.release();
+        } finally {
+            Utils.getFuture(future);
+        }
     }
 
     @Test
