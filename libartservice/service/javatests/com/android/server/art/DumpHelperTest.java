@@ -23,22 +23,28 @@ import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptSt
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
+import android.annotation.NonNull;
+import android.os.SystemProperties;
+
 import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.model.DexoptStatus;
+import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -48,25 +54,43 @@ import java.util.List;
 import java.util.Set;
 
 @SmallTest
-@RunWith(MockitoJUnitRunner.StrictStubs.class)
+@RunWith(AndroidJUnit4.class)
 public class DumpHelperTest {
     private static final String PKG_NAME_FOO = "com.example.foo";
     private static final String PKG_NAME_BAR = "com.example.bar";
+
+    @Rule
+    public StaticMockitoRule mockitoRule =
+            new StaticMockitoRule(SystemProperties.class, Constants.class);
 
     @Mock private DumpHelper.Injector mInjector;
     @Mock private ArtManagerLocal mArtManagerLocal;
     @Mock private DexUseManagerLocal mDexUseManagerLocal;
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
+    @Mock private IArtd mArtd;
 
     private DumpHelper mDumpHelper;
 
     @Before
     public void setUp() throws Exception {
+        lenient().when(Constants.getPreferredAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
+
+        // No ISA translation.
+        lenient()
+                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+                .thenReturn("");
+
         lenient().when(mInjector.getArtManagerLocal()).thenReturn(mArtManagerLocal);
         lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManagerLocal);
+        lenient().when(mInjector.getArtd()).thenReturn(mArtd);
 
         LinkedHashMap<String, PackageState> pkgStates = createPackageStates();
         lenient().when(mSnapshot.getPackageStates()).thenReturn(pkgStates);
+        for (var entry : pkgStates.entrySet()) {
+            lenient().when(mSnapshot.getPackageState(entry.getKey())).thenReturn(entry.getValue());
+        }
 
         setUpForFoo();
         setUpForBar();
@@ -78,38 +102,52 @@ public class DumpHelperTest {
     public void testDump() throws Exception {
         String expected = "[com.example.foo]\n"
                 + "  path: /data/app/foo/base.apk\n"
-                + "    arm64: [status=speed-profile] [reason=bg-dexopt]\n"
+                + "    arm64: [status=speed-profile] [reason=bg-dexopt] [primary-abi]\n"
+                + "      [location is /data/app/foo/oat/arm64/base.odex]\n"
                 + "    arm: [status=verify] [reason=install]\n"
+                + "      [location is /data/app/foo/oat/arm/base.odex]\n"
                 + "  path: /data/app/foo/split_0.apk\n"
-                + "    arm64: [status=verify] [reason=vdex]\n"
+                + "    arm64: [status=verify] [reason=vdex] [primary-abi]\n"
+                + "      [location is primary.vdex in /data/app/foo/split_0.dm]\n"
                 + "    arm: [status=verify] [reason=vdex]\n"
-                + "    used by other apps: [com.example.bar]\n"
+                + "      [location is primary.vdex in /data/app/foo/split_0.dm]\n"
+                + "    used by other apps: [com.example.bar (isa=arm)]\n"
                 + "  known secondary dex files:\n"
-                + "    /data/user_de/0/foo/1.apk\n"
+                + "    /data/user_de/0/foo/1.apk (removed)\n"
                 + "      arm: [status=run-from-apk] [reason=unknown]\n"
+                + "        [location is unknown]\n"
                 + "      class loader context: =VaryingClassLoaderContexts=\n"
-                + "      used by other apps: [com.example.foo (isolated), com.example.baz]\n"
-                + "    /data/user_de/0/foo/2.apk\n"
-                + "      arm64: [status=speed-profile] [reason=bg-dexopt]\n"
+                + "        com.example.foo (isolated): CLC1\n"
+                + "        com.example.baz: CLC2\n"
+                + "      used by other apps: [com.example.foo (isolated) (isa=arm64), com.example.baz (removed)]\n"
+                + "    /data/user_de/0/foo/2.apk (public)\n"
+                + "      arm64: [status=speed-profile] [reason=bg-dexopt] [primary-abi]\n"
+                + "        [location is /data/user_de/0/foo/oat/arm64/2.odex]\n"
                 + "      arm: [status=verify] [reason=vdex]\n"
+                + "        [location is /data/user_de/0/foo/oat/arm/2.vdex]\n"
                 + "      class loader context: PCL[]\n"
                 + "[com.example.bar]\n"
                 + "  path: /data/app/bar/base.apk\n"
-                + "    arm: [status=verify] [reason=install]\n"
-                + "    arm64: [status=verify] [reason=install]\n";
+                + "    arm: [status=verify] [reason=install] [primary-abi]\n"
+                + "      [location is /data/app/bar/oat/arm/base.odex]\n"
+                + "    arm64: [status=verify] [reason=install]\n"
+                + "      [location is /data/app/bar/oat/arm64/base.odex]\n";
 
         var stringWriter = new StringWriter();
         mDumpHelper.dump(new PrintWriter(stringWriter), mSnapshot);
         assertThat(stringWriter.toString()).isEqualTo(expected);
     }
 
-    private PackageState createPackageState(String packageName, int appId, boolean hasPackage) {
+    private PackageState createPackageState(@NonNull String packageName, int appId,
+            boolean hasPackage, @NonNull String primaryAbi, @NonNull String secondaryAbi) {
         var pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         lenient().when(pkgState.getAppId()).thenReturn(appId);
         lenient()
                 .when(pkgState.getAndroidPackage())
                 .thenReturn(hasPackage ? mock(AndroidPackage.class) : null);
+        lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn(primaryAbi);
+        lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn(secondaryAbi);
         return pkgState;
     }
 
@@ -117,42 +155,46 @@ public class DumpHelperTest {
         // Use LinkedHashMap to ensure the determinism of the output.
         var pkgStates = new LinkedHashMap<String, PackageState>();
         pkgStates.put(PKG_NAME_FOO,
-                createPackageState(PKG_NAME_FOO, 10001 /* appId */, true /* hasPackage */));
+                createPackageState(PKG_NAME_FOO, 10001 /* appId */, true /* hasPackage */,
+                        "arm64-v8a", "armeabi-v7a"));
         pkgStates.put(PKG_NAME_BAR,
-                createPackageState(PKG_NAME_BAR, 10003 /* appId */, true /* hasPackage */));
+                createPackageState(PKG_NAME_BAR, 10003 /* appId */, true /* hasPackage */,
+                        "armeabi-v7a", "arm64-v8a"));
         // This should not be included in the output because it has a negative app id.
         pkgStates.put("com.android.art",
-                createPackageState("com.android.art", -1 /* appId */, true /* hasPackage */));
+                createPackageState("com.android.art", -1 /* appId */, true /* hasPackage */,
+                        "arm64-v8a", "armeabi-v7a"));
         // This should not be included in the output because it does't have AndroidPackage.
         pkgStates.put("com.example.null",
-                createPackageState("com.example.null", 10010 /* appId */, false /* hasPackage */));
+                createPackageState("com.example.null", 10010 /* appId */, false /* hasPackage */,
+                        "arm64-v8a", "armeabi-v7a"));
         return pkgStates;
     }
 
-    private void setUpForFoo() {
+    private void setUpForFoo() throws Exception {
         // The order of the dex path and the ABI should be kept in the output.
-        var status = DexoptStatus.create(
-                List.of(DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
-                                true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
-                                "speed-profile", "bg-dexopt", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
-                                true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
-                                "verify", "install", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
-                                true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
-                                "verify", "vdex", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
-                                true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
-                                "verify", "vdex", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/1.apk",
-                                false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
-                                "run-from-apk", "unknown", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
-                                false /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
-                                "speed-profile", "bg-dexopt", "location-ignored"),
-                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
-                                false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
-                                "verify", "vdex", "location-ignored")));
+        var status = DexoptStatus.create(List.of(
+                DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
+                        true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
+                        "speed-profile", "bg-dexopt", "/data/app/foo/oat/arm64/base.odex"),
+                DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
+                        true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a", "verify",
+                        "install", "/data/app/foo/oat/arm/base.odex"),
+                DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
+                        true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a", "verify",
+                        "vdex", "primary.vdex in /data/app/foo/split_0.dm"),
+                DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
+                        true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a", "verify",
+                        "vdex", "primary.vdex in /data/app/foo/split_0.dm"),
+                DexContainerFileDexoptStatus.create("/data/user_de/0/foo/1.apk",
+                        false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
+                        "run-from-apk", "unknown", "unknown"),
+                DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
+                        false /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
+                        "speed-profile", "bg-dexopt", "/data/user_de/0/foo/oat/arm64/2.odex"),
+                DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
+                        false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a", "verify",
+                        "vdex", "/data/user_de/0/foo/oat/arm/2.vdex")));
 
         lenient()
                 .when(mArtManagerLocal.getDexoptStatus(any(), eq(PKG_NAME_FOO)))
@@ -176,19 +218,45 @@ public class DumpHelperTest {
         lenient()
                 .when(info1.displayClassLoaderContext())
                 .thenReturn(SecondaryDexInfo.VARYING_CLASS_LOADER_CONTEXTS);
+
+        lenient()
+                .when(mDexUseManagerLocal.getSecondaryClassLoaderContext(PKG_NAME_FOO,
+                        "/data/user_de/0/foo/1.apk",
+                        DexLoader.create(PKG_NAME_FOO, true /* isolatedProcess */)))
+                .thenReturn("CLC1");
+        lenient()
+                .when(mDexUseManagerLocal.getSecondaryClassLoaderContext(PKG_NAME_FOO,
+                        "/data/user_de/0/foo/1.apk",
+                        DexLoader.create("com.example.baz", false /* isolatedProcess */)))
+                .thenReturn("CLC2");
+
         var loaders = new LinkedHashSet<DexLoader>();
         // The output should show "foo" with "(isolated)" in "used by other apps:".
         loaders.add(DexLoader.create(PKG_NAME_FOO, true /* isolatedProcess */));
+        // The output should show "baz" with "(removed)" in "used by other apps:".
         loaders.add(DexLoader.create("com.example.baz", false /* isolatedProcess */));
         lenient().when(info1.loaders()).thenReturn(loaders);
+
+        // The output should show the dex path with "(removed)".
+        lenient()
+                .when(mArtd.getDexFileVisibility("/data/user_de/0/foo/1.apk"))
+                .thenReturn(FileVisibility.NOT_FOUND);
 
         var info2 = mock(SecondaryDexInfo.class);
         lenient().when(info2.dexPath()).thenReturn("/data/user_de/0/foo/2.apk");
         lenient().when(info2.displayClassLoaderContext()).thenReturn("PCL[]");
+        lenient()
+                .when(mDexUseManagerLocal.getSecondaryClassLoaderContext(PKG_NAME_FOO,
+                        "/data/user_de/0/foo/2.apk",
+                        DexLoader.create(PKG_NAME_FOO, false /* isolatedProcess */)))
+                .thenReturn("PCL[]");
         // The output should not show "used by other apps:".
         lenient()
                 .when(info2.loaders())
                 .thenReturn(Set.of(DexLoader.create(PKG_NAME_FOO, false /* isolatedProcess */)));
+        lenient()
+                .when(mArtd.getDexFileVisibility("/data/user_de/0/foo/2.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
 
         lenient()
                 .doReturn(List.of(info1, info2))
@@ -203,10 +271,10 @@ public class DumpHelperTest {
         var status = DexoptStatus.create(
                 List.of(DexContainerFileDexoptStatus.create("/data/app/bar/base.apk",
                                 true /* isPrimaryDex */, true /* isPrimaryAbi */, "armeabi-v7a",
-                                "verify", "install", "location-ignored"),
+                                "verify", "install", "/data/app/bar/oat/arm/base.odex"),
                         DexContainerFileDexoptStatus.create("/data/app/bar/base.apk",
                                 true /* isPrimaryDex */, false /* isPrimaryAbi */, "arm64-v8a",
-                                "verify", "install", "location-ignored")));
+                                "verify", "install", "/data/app/bar/oat/arm64/base.odex")));
 
         lenient()
                 .when(mArtManagerLocal.getDexoptStatus(any(), eq(PKG_NAME_BAR)))

@@ -68,6 +68,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -606,6 +607,20 @@ public class DexUseManagerLocal {
         }
     }
 
+    /** @hide */
+    @Nullable
+    public String getSecondaryClassLoaderContext(
+            @NonNull String owningPackageName, @NonNull String dexFile, @NonNull DexLoader loader) {
+        synchronized (mLock) {
+            return Optional
+                    .ofNullable(mDexUse.mPackageDexUseByOwningPackageName.get(owningPackageName))
+                    .map(packageDexUse -> packageDexUse.mSecondaryDexUseByDexFile.get(dexFile))
+                    .map(secondaryDexUse -> secondaryDexUse.mRecordByLoader.get(loader))
+                    .map(record -> record.mClassLoaderContext)
+                    .orElse(null);
+        }
+    }
+
     /**
      * Basic information about a secondary dex file (an APK or JAR file that an app adds to its
      * own data directory and loads dynamically).
@@ -826,6 +841,12 @@ public class DexUseManagerLocal {
 
         /** @see Process#isIsolatedUid(int) */
         abstract boolean isolatedProcess();
+
+        @Override
+        @NonNull
+        public String toString() {
+            return loadingPackageName() + (isolatedProcess() ? " (isolated)" : "");
+        }
     }
 
     private static class PrimaryDexUseRecord {
