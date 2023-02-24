@@ -854,7 +854,8 @@ class DexFile {
           const std::string& location,
           uint32_t location_checksum,
           const OatDexFile* oat_dex_file,
-          std::unique_ptr<DexFileContainer> container,
+          // Shared since several dex files may be stored in the same logical container.
+          std::shared_ptr<DexFileContainer> container,
           bool is_compact_dex);
 
   // Top-level initializer that calls other Init methods.
@@ -930,7 +931,7 @@ class DexFile {
   mutable const OatDexFile* oat_dex_file_;
 
   // Manages the underlying memory allocation.
-  std::unique_ptr<DexFileContainer> container_;
+  std::shared_ptr<DexFileContainer> container_;
 
   // If the dex file is a compact dex file. If false then the dex file is a standard dex file.
   const bool is_compact_dex_;

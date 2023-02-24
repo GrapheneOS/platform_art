@@ -88,7 +88,7 @@ CompactDexFile::CompactDexFile(const uint8_t* base,
                                const std::string& location,
                                uint32_t location_checksum,
                                const OatDexFile* oat_dex_file,
-                               std::unique_ptr<DexFileContainer> container)
+                               std::shared_ptr<DexFileContainer> container)
     : DexFile(base,
               size,
               location,
