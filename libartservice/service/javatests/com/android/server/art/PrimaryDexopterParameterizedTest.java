@@ -230,7 +230,10 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         ArgumentMatcher<DexoptOptions> dexoptOptionsMatcher = options
                 -> options.compilationReason.equals("install") && options.targetSdkVersion == 123
                 && options.debuggable == mParams.mExpectedIsDebuggable
-                && options.hiddenApiPolicyEnabled == mParams.mExpectedIsHiddenApiPolicyEnabled;
+                && options.hiddenApiPolicyEnabled == mParams.mExpectedIsHiddenApiPolicyEnabled
+                && options.comments.equals(
+                        String.format("app-version-name:%s,app-version-code:%d,art-version:%d",
+                                APP_VERSION_NAME, APP_VERSION_CODE, ART_VERSION));
 
         when(mArtd.createCancellationSignal()).thenReturn(mock(IArtdCancellationSignal.class));
         when(mArtd.getDmFileVisibility(any())).thenReturn(FileVisibility.NOT_FOUND);
