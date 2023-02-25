@@ -143,9 +143,26 @@ public class DexoptHelper {
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
             List<CompletableFuture<PackageDexoptResult>> futures = new ArrayList<>();
-            for (PackageState pkgState : pkgStates) {
-                futures.add(CompletableFuture.supplyAsync(
-                        () -> dexoptPackage(pkgState, params, cancellationSignal), dexoptExecutor));
+
+            // Child threads will set their own listeners on the cancellation signal, so we must
+            // create a separate cancellation signal for each of them so that the listeners don't
+            // overwrite each other.
+            List<CancellationSignal> childCancellationSignals =
+                    pkgStates.stream()
+                            .map(pkgState -> new CancellationSignal())
+                            .collect(Collectors.toList());
+            cancellationSignal.setOnCancelListener(() -> {
+                for (CancellationSignal childCancellationSignal : childCancellationSignals) {
+                    childCancellationSignal.cancel();
+                }
+            });
+
+            for (int i = 0; i < pkgStates.size(); i++) {
+                PackageState pkgState = pkgStates.get(i);
+                CancellationSignal childCancellationSignal = childCancellationSignals.get(i);
+                futures.add(CompletableFuture.supplyAsync(() -> {
+                    return dexoptPackage(pkgState, params, childCancellationSignal);
+                }, dexoptExecutor));
             }
 
             if (progressCallback != null) {
@@ -196,6 +213,8 @@ public class DexoptHelper {
                 wakeLock.release();
             }
             Binder.restoreCallingIdentity(identityToken);
+            // Make sure nothing leaks even if the caller holds `cancellationSignal` forever.
+            cancellationSignal.setOnCancelListener(null);
         }
     }
 
@@ -222,7 +241,7 @@ public class DexoptHelper {
             PrimaryDexUtils.getDexInfoBySplitName(pkg, params.getSplitName());
         }
 
-        try {
+        try (var tracing = new Utils.Tracing("dexopt")) {
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 if (cancellationSignal.isCanceled()) {
                     return createResult.get();

@@ -166,14 +166,12 @@ public class BackgroundDexoptJob {
         mCancellationSignal = new CancellationSignal();
         mLastStopReason = Optional.empty();
         mRunningJob = new CompletableFuture().supplyAsync(() -> {
-            Log.i(TAG, "Job started");
-            try {
+            try (var tracing = new Utils.TracingWithTimingLogging(TAG, "jobExecution")) {
                 return run(mCancellationSignal);
             } catch (RuntimeException e) {
                 Log.e(TAG, "Fatal error", e);
                 return new FatalErrorResult();
             } finally {
-                Log.i(TAG, "Job finished");
                 synchronized (this) {
                     mRunningJob = null;
                     mCancellationSignal = null;
