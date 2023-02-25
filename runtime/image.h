@@ -21,6 +21,8 @@
 
 #include "base/enums.h"
 #include "base/iteration_range.h"
+#include "base/os.h"
+#include "base/unix_file/fd_file.h"
 #include "mirror/object.h"
 #include "runtime_globals.h"
 
@@ -28,6 +30,8 @@ namespace art {
 
 class ArtField;
 class ArtMethod;
+class ImageFileGuard;
+
 template <class MirrorType> class ObjPtr;
 
 namespace linker {
@@ -418,6 +422,16 @@ class PACKED(8) ImageHeader {
     return blocks_count_;
   }
 
+  // Helper for writing `data` and `bitmap_data` into `image_file`, following
+  // the information stored in this header and passed as arguments.
+  bool WriteData(const ImageFileGuard& image_file,
+                 const uint8_t* data,
+                 const uint8_t* bitmap_data,
+                 ImageHeader::StorageMode image_storage_mode,
+                 uint32_t max_image_block_size,
+                 bool update_checksum,
+                 std::string* error_msg);
+
  private:
   static const uint8_t kImageMagic[4];
   static const uint8_t kImageVersion[4];
@@ -508,6 +522,59 @@ class PACKED(8) ImageHeader {
   friend class linker::ImageWriter;
   friend class RuntimeImageHelper;
 };
+
+// Helper class that erases the image file if it isn't properly flushed and closed.
+class ImageFileGuard {
+ public:
+  ImageFileGuard() noexcept = default;
+  ImageFileGuard(ImageFileGuard&& other) noexcept = default;
+  ImageFileGuard& operator=(ImageFileGuard&& other) noexcept = default;
+
+  ~ImageFileGuard() {
+    if (image_file_ != nullptr) {
+      // Failure, erase the image file.
+      image_file_->Erase();
+    }
+  }
+
+  void reset(File* image_file) {
+    image_file_.reset(image_file);
+  }
+
+  bool operator==(std::nullptr_t) {
+    return image_file_ == nullptr;
+  }
+
+  bool operator!=(std::nullptr_t) {
+    return image_file_ != nullptr;
+  }
+
+  File* operator->() const {
+    return image_file_.get();
+  }
+
+  bool WriteHeaderAndClose(const std::string& image_filename, const ImageHeader* image_header) {
+    // The header is uncompressed since it contains whether the image is compressed or not.
+    if (!image_file_->PwriteFully(image_header, sizeof(ImageHeader), 0)) {
+      PLOG(ERROR) << "Failed to write image file header " << image_filename;
+      return false;
+    }
+
+    // FlushCloseOrErase() takes care of erasing, so the destructor does not need
+    // to do that whether the FlushCloseOrErase() succeeds or fails.
+    std::unique_ptr<File> image_file = std::move(image_file_);
+    if (image_file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
+      return false;
+    }
+
+    return true;
+  }
+
+ private:
+  std::unique_ptr<File> image_file_;
+};
+
 
 /*
  * This type holds the information necessary to fix up AppImage string

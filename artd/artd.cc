@@ -932,6 +932,9 @@ ndk::ScopedAStatus Artd::dexopt(
       in_instructionSet, in_compilerFilter, in_priorityClass, in_dexoptOptions, args);
   AddPerfConfigFlags(in_priorityClass, art_exec_args, args);
 
+  // For being surfaced in crash reports on crashes.
+  args.Add("--comments=%s", in_dexoptOptions.comments);
+
   art_exec_args.Add("--keep-fds=%s", fd_logger.GetFds()).Add("--").Concat(std::move(args));
 
   LOG(INFO) << "Running dex2oat: " << Join(art_exec_args.Get(), /*separator=*/" ")
