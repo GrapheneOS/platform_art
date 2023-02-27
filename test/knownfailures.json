@@ -1329,7 +1329,7 @@
     {
         "tests": ["2040-huge-native-alloc"],
         "env_vars": {"ART_USE_READ_BARRIER": "false"},
-	"variant": "debug",
+        "variant": "debug",
         "bug": "b/242181443",
         "description": ["Test fails due to delay delebrately added in the userfaultfd GC between marking and compaction."]
     },
@@ -1557,5 +1557,11 @@
         "env_vars": {"ART_TEST_DEBUG_GC": "true"},
         "bug": "b/264844668",
         "description": ["Test timing out on debug gc."]
+    },
+    {
+        "tests": ["845-data-image, 846-multidex-data-image"],
+        "env_vars": {"ART_USE_READ_BARRIER": "true"},
+        "bug": "b/270936884",
+        "description": ["Fails with CMC."]
     }
 ]
