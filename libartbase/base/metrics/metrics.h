@@ -300,7 +300,9 @@ class MetricsCounter : public MetricsBase<T> {
   }
 
   void AddOne() { Add(1u); }
-  void Add(value_t value) { value_.fetch_add(value, std::memory_order::memory_order_relaxed); }
+  void Add(value_t value) override {
+    value_.fetch_add(value, std::memory_order::memory_order_relaxed);
+  }
 
   void Report(const std::vector<MetricsBackend*>& backends) const {
     for (MetricsBackend* backend : backends) {
@@ -341,7 +343,7 @@ class MetricsAverage final : public MetricsCounter<datum_id, T> {
   // 1. The metric eventually becomes consistent.
   // 2. For sufficiently large count_, a few data points which are off shouldn't
   // make a huge difference to the reporter.
-  void Add(value_t value) {
+  void Add(value_t value) override {
     MetricsCounter<datum_id, value_t>::Add(value);
     count_.fetch_add(1, std::memory_order::memory_order_release);
   }
@@ -422,7 +424,7 @@ class MetricsHistogram final : public MetricsBase<int64_t> {
                   == RoundUp(sizeof(intptr_t) + sizeof(value_t) * num_buckets_, sizeof(uint64_t)));
   }
 
-  void Add(int64_t value) {
+  void Add(int64_t value) override {
     const size_t i = FindBucketId(value);
     buckets_[i].fetch_add(1u, std::memory_order::memory_order_relaxed);
   }
@@ -479,7 +481,7 @@ class MetricsAccumulator final : MetricsBase<T> {
                   RoundUp(sizeof(intptr_t) + sizeof(T), sizeof(uint64_t)));
   }
 
-  void Add(T value) {
+  void Add(T value) override {
     T current = value_.load(std::memory_order::memory_order_relaxed);
     T new_value;
     do {
