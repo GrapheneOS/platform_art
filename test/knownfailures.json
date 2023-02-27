@@ -1559,7 +1559,7 @@
         "description": ["Test timing out on debug gc."]
     },
     {
-        "tests": ["845-data-image, 846-multidex-data-image"],
+        "tests": ["845-data-image", "846-multidex-data-image"],
         "env_vars": {"ART_USE_READ_BARRIER": "true"},
         "bug": "b/270936884",
         "description": ["Fails with CMC."]
