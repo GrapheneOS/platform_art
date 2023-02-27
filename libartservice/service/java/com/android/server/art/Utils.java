@@ -23,6 +23,7 @@ import android.annotation.SuppressLint;
 import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
+import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
@@ -180,9 +181,37 @@ public final class Utils {
                 || abiName.equals(Constants.getNative32BitAbi());
     }
 
+    /**
+     * Returns whether the artifacts of the primary dex files should be in the global dalvik-cache
+     * directory.
+     *
+     * This method is not needed for secondary dex files because they are always in writable
+     * locations.
+     */
     @NonNull
-    public static boolean isInDalvikCache(@NonNull PackageState pkg) {
-        return pkg.isSystem() && !pkg.isUpdatedSystemApp();
+    public static boolean isInDalvikCache(@NonNull PackageState pkgState, @NonNull IArtd artd)
+            throws RemoteException {
+        // The artifacts should be in the global dalvik-cache directory if:
+        // (1). the package is on a system partition, even if the partition is remounted read-write,
+        //      or
+        // (2). the package is in any other readonly location. (At the time of writing, this only
+        //      include Incremental FS.)
+        //
+        // Right now, we are using some heuristics to determine this. For (1), we can potentially
+        // use "libfstab" instead as a general solution, but for (2), unfortunately, we have to
+        // stick with heuristics.
+        //
+        // We cannot rely on access(2) because:
+        // - It doesn't take effective capabilities into account, from which artd gets root access
+        //   to the filesystem.
+        // - The `faccessat` variant with the `AT_EACCESS` flag, which takes effective capabilities
+        //   into account, is not supported by bionic.
+        //
+        // We cannot rely on `f_flags` returned by statfs(2) because:
+        // - Incremental FS is tagged as read-write while it's actually not.
+        return (pkgState.isSystem() && !pkgState.isUpdatedSystemApp())
+                || artd.isIncrementalFsPath(
+                        pkgState.getAndroidPackage().getSplits().get(0).getPath());
     }
 
     /** Returns true if the given string is a valid compiler filter. */
