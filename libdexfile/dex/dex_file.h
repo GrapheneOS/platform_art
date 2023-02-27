@@ -25,6 +25,7 @@
 #include <string_view>
 #include <vector>
 
+#include "base/array_ref.h"
 #include "base/globals.h"
 #include "base/macros.h"
 #include "base/mman.h"  // For the PROT_* and MAP_* constants.
@@ -72,8 +73,7 @@ class DexFileContainer {
 
   // TODO: Remove. This is only used by dexlayout to override the data section of the dex header,
   //       and redirect it to intermediate memory buffer at completely unrelated memory location.
-  virtual const uint8_t* DataBegin() const { return nullptr; }
-  virtual const uint8_t* DataEnd() const { return nullptr; }
+  virtual ArrayRef<const uint8_t> Data() const { return {}; }
 
   bool IsZip() const { return is_zip_; }
   void SetIsZip() { is_zip_ = true; }
@@ -575,9 +575,8 @@ class DexFile {
     // Check that the offset is in bounds.
     // Note that although the specification says that 0 should be used if there
     // is no debug information, some applications incorrectly use 0xFFFFFFFF.
-    return (debug_info_off == 0 || debug_info_off >= data_size_)
-        ? nullptr
-        : DataBegin() + debug_info_off;
+    return (debug_info_off == 0 || debug_info_off >= DataSize()) ? nullptr :
+                                                                   DataBegin() + debug_info_off;
   }
 
   struct PositionInfo {
@@ -756,13 +755,13 @@ class DexFile {
     return size_;
   }
 
-  const uint8_t* DataBegin() const {
-    return data_begin_;
-  }
+  static ArrayRef<const uint8_t> GetDataRange(const uint8_t* data,
+                                              size_t size,
+                                              DexFileContainer* container);
 
-  size_t DataSize() const {
-    return data_size_;
-  }
+  const uint8_t* DataBegin() const { return data_.data(); }
+
+  size_t DataSize() const { return data_.size(); }
 
   template <typename T>
   const T* DataPointer(size_t offset) const {
@@ -852,8 +851,6 @@ class DexFile {
 
   DexFile(const uint8_t* base,
           size_t size,
-          const uint8_t* data_begin,
-          size_t data_size,
           const std::string& location,
           uint32_t location_checksum,
           const OatDexFile* oat_dex_file,
@@ -875,11 +872,12 @@ class DexFile {
   // The size of the underlying memory allocation in bytes.
   const size_t size_;
 
-  // The base address of the data section (same as Begin() for standard dex).
-  const uint8_t* const data_begin_;
-
-  // The size of the data section.
-  const size_t data_size_;
+  // Data memory range: Most dex offsets are relative to this memory range.
+  // Standard dex: same as (begin_, size_).
+  // Compact: shared data which is located after all non-shared data.
+  //
+  // This is different to the "data section" in the standard dex header.
+  ArrayRef<const uint8_t> const data_;
 
   // Typically the dex file name when available, alternatively some identifying string.
   //

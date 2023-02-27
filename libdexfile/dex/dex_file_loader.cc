@@ -354,37 +354,16 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::unique_ptr<DexFileContai
   CHECK(container != nullptr);
   const uint8_t* base = container->Begin();
   size_t size = container->Size();
-  const uint8_t* data_base = container->DataBegin();
-  size_t data_size = container->DataEnd() - container->DataBegin();
   if (error_code != nullptr) {
     *error_code = DexFileLoaderErrorCode::kDexFileError;
   }
   std::unique_ptr<DexFile> dex_file;
   if (size >= sizeof(StandardDexFile::Header) && StandardDexFile::IsMagicValid(base)) {
-    if (data_size != 0) {
-      CHECK_EQ(base, data_base) << "Unsupported for standard dex";
-    }
     dex_file.reset(new StandardDexFile(
         base, size, location, location_checksum, oat_dex_file, std::move(container)));
   } else if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(base)) {
-    if (data_base == nullptr) {
-      // TODO: Is there a clean way to support both an explicit data section and reading the one
-      // from the header.
-      CHECK_EQ(data_size, 0u);
-      const CompactDexFile::Header* const header = CompactDexFile::Header::At(base);
-      data_base = base + header->data_off_;
-      data_size = header->data_size_;
-    }
-    dex_file.reset(new CompactDexFile(base,
-                                      size,
-                                      data_base,
-                                      data_size,
-                                      location,
-                                      location_checksum,
-                                      oat_dex_file,
-                                      std::move(container)));
-    // Disable verification for CompactDex input.
-    verify = false;
+    dex_file.reset(new CompactDexFile(
+        base, size, location, location_checksum, oat_dex_file, std::move(container)));
   } else {
     *error_msg = "Invalid or truncated dex file";
   }
@@ -397,7 +376,8 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::unique_ptr<DexFileContai
     dex_file.reset();
     return nullptr;
   }
-  if (verify) {
+  // NB: Dex verifier does not understand the compact dex format.
+  if (verify && !dex_file->IsCompactDexFile()) {
     ScopedTrace trace(std::string("Verify dex file ") + location);
     if (!dex::Verify(dex_file.get(),
                      dex_file->Begin(),
