@@ -555,16 +555,15 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
           runtime->GetInstrumentation()->UpdateEntrypointsForDebuggable();
           runtime->DeoptimizeBootImage();
         }
+        // For thread cpu clocks, we need to make a kernel call and hence we call into c++ to
+        // support them.
+        bool is_fast_trace = !the_trace_->UseThreadCpuClock();
         runtime->GetInstrumentation()->AddListener(
             the_trace_,
             instrumentation::Instrumentation::kMethodEntered |
                 instrumentation::Instrumentation::kMethodExited |
-                instrumentation::Instrumentation::kMethodUnwind);
-        // TODO: In full-PIC mode, we don't need to fully deopt.
-        // TODO: We can only use trampoline entrypoints if we are java-debuggable since in that case
-        // we know that inlining and other problematic optimizations are disabled. We might just
-        // want to use the trampolines anyway since it is faster. It makes the story with disabling
-        // jit-gc more complex though.
+                instrumentation::Instrumentation::kMethodUnwind,
+            is_fast_trace);
         runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey,
                                                            the_trace_,
                                                            /*needs_interpreter=*/false);
@@ -638,11 +637,15 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
       MutexLock mu(self, *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
+      // For thread cpu clocks, we need to make a kernel call and hence we call into c++ to support
+      // them.
+      bool is_fast_trace = !the_trace_->UseThreadCpuClock();
       runtime->GetInstrumentation()->RemoveListener(
           the_trace,
           instrumentation::Instrumentation::kMethodEntered |
               instrumentation::Instrumentation::kMethodExited |
-              instrumentation::Instrumentation::kMethodUnwind);
+              instrumentation::Instrumentation::kMethodUnwind,
+          is_fast_trace);
       runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
       runtime->GetInstrumentation()->MaybeSwitchRuntimeDebugState(self);
     }
@@ -1031,7 +1034,7 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
   if (method_trace_buffer == nullptr) {
     method_trace_buffer = new uintptr_t[std::max(kMinBufSize, kPerThreadBufSize)]();
     thread->SetMethodTraceBuffer(method_trace_buffer);
-    *current_offset = 0;
+    *current_offset = kPerThreadBufSize - 1;
 
     // This is the first event from this thread, so first record information about the thread.
     std::string thread_name;
@@ -1056,29 +1059,29 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
   }
 
   size_t required_entries = (clock_source_ == TraceClockSource::kDual) ? 4 : 3;
-  if (*current_offset + required_entries >= kPerThreadBufSize) {
+  if (*current_offset < required_entries) {
     // We don't have space for further entries. Flush the contents of the buffer and reuse the
     // buffer to store contents. Reset the index to the start of the buffer.
     FlushStreamingBuffer(thread);
-    *current_offset = 0;
+    *current_offset = kPerThreadBufSize - 1;
   }
 
   // Record entry in per-thread trace buffer.
   int current_index = *current_offset;
-  method_trace_buffer[current_index++] = reinterpret_cast<uintptr_t>(method);
+  method_trace_buffer[current_index--] = reinterpret_cast<uintptr_t>(method);
   // TODO(mythria): We only need two bits to record the action. Consider merging
   // it with the method entry to save space.
-  method_trace_buffer[current_index++] = action;
+  method_trace_buffer[current_index--] = action;
   if (UseThreadCpuClock()) {
-    method_trace_buffer[current_index++] = thread_clock_diff;
+    method_trace_buffer[current_index--] = thread_clock_diff;
   }
   if (UseWallClock()) {
     if (art::kRuntimePointerSize == PointerSize::k32) {
       // On 32-bit architectures store timestamp counter as two 32-bit values.
-      method_trace_buffer[current_index++] = timestamp_counter >> 32;
-      method_trace_buffer[current_index++] = static_cast<uint32_t>(timestamp_counter);
+      method_trace_buffer[current_index--] = timestamp_counter >> 32;
+      method_trace_buffer[current_index--] = static_cast<uint32_t>(timestamp_counter);
     } else {
-      method_trace_buffer[current_index++] = timestamp_counter;
+      method_trace_buffer[current_index--] = timestamp_counter;
     }
   }
   *current_offset = current_index;
@@ -1114,6 +1117,7 @@ void Trace::FlushStreamingBuffer(Thread* thread) {
   // seen method. tracing_lock_ is required to serialize these.
   MutexLock mu(Thread::Current(), tracing_lock_);
   uintptr_t* method_trace_buffer = thread->GetMethodTraceBuffer();
+  CHECK(method_trace_buffer != nullptr);
   // Create a temporary buffer to encode the trace events from the specified thread.
   size_t buffer_size = kPerThreadBufSize;
   size_t current_index = 0;
@@ -1121,19 +1125,19 @@ void Trace::FlushStreamingBuffer(Thread* thread) {
 
   size_t num_entries = *(thread->GetMethodTraceIndexPtr());
   uint16_t thread_id = GetThreadEncoding(thread->GetTid());
-  for (size_t entry_index = 0; entry_index < num_entries;) {
-    ArtMethod* method = reinterpret_cast<ArtMethod*>(method_trace_buffer[entry_index++]);
-    TraceAction action = DecodeTraceAction(method_trace_buffer[entry_index++]);
+  for (size_t entry_index = kPerThreadBufSize - 1; entry_index > num_entries;) {
+    ArtMethod* method = reinterpret_cast<ArtMethod*>(method_trace_buffer[entry_index--]);
+    TraceAction action = DecodeTraceAction(method_trace_buffer[entry_index--]);
     uint32_t thread_time = 0;
     uint32_t wall_time = 0;
     if (UseThreadCpuClock()) {
-      thread_time = method_trace_buffer[entry_index++];
+      thread_time = method_trace_buffer[entry_index--];
     }
     if (UseWallClock()) {
-      uint64_t timestamp = method_trace_buffer[entry_index++];
+      uint64_t timestamp = method_trace_buffer[entry_index--];
       if (art::kRuntimePointerSize == PointerSize::k32) {
         // On 32-bit architectures timestamp is stored as two 32-bit values.
-        timestamp = (timestamp << 32 | method_trace_buffer[entry_index++]);
+        timestamp = (timestamp << 32 | method_trace_buffer[entry_index--]);
       }
       wall_time = GetMicroTime(timestamp) - start_time_;
     }
