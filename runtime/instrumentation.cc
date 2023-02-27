@@ -478,16 +478,12 @@ bool Instrumentation::MethodSupportsExitEvents(ArtMethod* method,
   return false;
 }
 
-// Places the instrumentation exit pc as the return PC for every quick frame. This also allows
-// deoptimization of quick frames to interpreter frames. When force_deopt is
-// true the frames have to be deoptimized. If the frame has a deoptimization
-// stack slot (all Jited frames), it is set to true to indicate this. For frames
-// that do not have this slot, the force_deopt_id on the InstrumentationStack is
-// used to check if the frame needs to be deoptimized. When force_deopt is false
-// we just instrument the stack for method entry / exit hooks.
-// Since we may already have done this previously, we need to push new instrumentation frame before
-// existing instrumentation frames.
-void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frames)
+// Updates on stack frames to support any changes related to instrumentation.
+// For JITed frames, DeoptimizeFlag is updated to enable deoptimization of
+// methods when necessary. Shadow frames are updated if dex pc event
+// notification has changed. When force_deopt is true then DeoptimizationFlag is
+// updated to force a deoptimization.
+void InstrumentationInstallStack(Thread* thread, bool deopt_all_frames)
     REQUIRES(Locks::mutator_lock_) {
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
   struct InstallStackVisitor final : public StackVisitor {
@@ -523,21 +519,11 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         DCHECK(shadow_frame != nullptr);
         shadow_frame->SetNotifyDexPcMoveEvents(
             Runtime::Current()->GetInstrumentation()->NeedsDexPcEvents(GetMethod(), GetThread()));
-        stack_methods_.push_back(m);
         return true;  // Continue.
       }
 
       DCHECK(!m->IsRuntimeMethod());
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-      if (Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(m, method_header)) {
-        // It is unexpected to see a method enter event but not a method exit event so record stack
-        // methods only for frames that support method exit events. Even if we deoptimize we make
-        // sure that we only call method exit event if the frame supported it in the first place.
-        // For ex: deoptimizing from JITed code with debug support calls a method exit hook but
-        // deoptimizing from nterp doesn't.
-        stack_methods_.push_back(m);
-      }
-
       // If it is a JITed frame then just set the deopt bit if required otherwise continue.
       // We need kForceDeoptForRedefinition to ensure we don't use any JITed code after a
       // redefinition. We support redefinition only if the runtime has started off as a
@@ -555,7 +541,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
 
       return true;  // Continue.
     }
-    std::vector<ArtMethod*> stack_methods_;
     bool deopt_all_frames_;
     bool runtime_methods_need_deopt_check_;
   };
@@ -565,7 +550,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
     LOG(INFO) << "Installing exit stubs in " << thread_name;
   }
 
-  Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
   std::unique_ptr<Context> context(Context::Create());
   InstallStackVisitor visitor(thread,
                               context.get(),
@@ -576,13 +560,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
     thread->SetDeoptCheckRequired(true);
   }
 
-  if (instrumentation->ShouldNotifyMethodEnterExitEvents()) {
-    // Create method enter events for all methods currently on the thread's stack. We only do this
-    // if we haven't already processed the method enter events.
-    for (auto smi = visitor.stack_methods_.rbegin(); smi != visitor.stack_methods_.rend(); smi++) {
-      instrumentation->MethodEnterEvent(thread,  *smi);
-    }
-  }
   thread->VerifyStack();
 }
 
@@ -603,6 +580,45 @@ void UpdateNeedsDexPcEventsOnStack(Thread* thread) REQUIRES(Locks::mutator_lock_
     }
   };
 
+  std::unique_ptr<Context> context(Context::Create());
+  InstallStackVisitor visitor(thread, context.get());
+  visitor.WalkStack(true);
+}
+
+void ReportMethodEntryForOnStackMethods(InstrumentationListener* listener, Thread* thread)
+    REQUIRES(Locks::mutator_lock_) {
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+
+  struct InstallStackVisitor final : public StackVisitor {
+    InstallStackVisitor(Thread* thread_in, Context* context)
+        : StackVisitor(thread_in, context, kInstrumentationStackWalk) {}
+
+    bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
+      ArtMethod* m = GetMethod();
+      if (m == nullptr || m->IsRuntimeMethod()) {
+        // Skip upcall / runtime methods
+        return true;
+      }
+
+      if (GetCurrentShadowFrame() != nullptr) {
+        stack_methods_.push_back(m);
+      } else {
+        const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+        if (Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(m, method_header)) {
+          // It is unexpected to see a method enter event but not a method exit event so record
+          // stack methods only for frames that support method exit events. Even if we deoptimize we
+          // make sure that we only call method exit event if the frame supported it in the first
+          // place. For ex: deoptimizing from JITed code with debug support calls a method exit hook
+          // but deoptimizing from nterp doesn't.
+          stack_methods_.push_back(m);
+        }
+      }
+      return true;
+    }
+
+    std::vector<ArtMethod*> stack_methods_;
+  };
+
   if (kVerboseInstrumentation) {
     std::string thread_name;
     thread->GetThreadName(thread_name);
@@ -612,11 +628,16 @@ void UpdateNeedsDexPcEventsOnStack(Thread* thread) REQUIRES(Locks::mutator_lock_
   std::unique_ptr<Context> context(Context::Create());
   InstallStackVisitor visitor(thread, context.get());
   visitor.WalkStack(true);
+
+  // Create method enter events for all methods currently on the thread's stack.
+  for (auto smi = visitor.stack_methods_.rbegin(); smi != visitor.stack_methods_.rend(); smi++) {
+    listener->MethodEntered(thread, *smi);
+  }
 }
 
 void Instrumentation::InstrumentThreadStack(Thread* thread, bool force_deopt) {
   run_exit_hooks_ = true;
-  InstrumentationInstallStack(thread, this, force_deopt);
+  InstrumentationInstallStack(thread, force_deopt);
 }
 
 void Instrumentation::InstrumentAllThreadStacks(bool force_deopt) {
@@ -1237,14 +1258,6 @@ void Instrumentation::MaybeSwitchRuntimeDebugState(Thread* self) {
   runtime->SetRuntimeDebugState(art::Runtime::RuntimeDebugState::kNonJavaDebuggable);
 }
 
-// Indicates if instrumentation should notify method enter/exit events to the listeners.
-bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
-  if (!HasMethodEntryListeners() && !HasMethodExitListeners()) {
-    return false;
-  }
-  return !InterpreterStubsInstalled();
-}
-
 void Instrumentation::DeoptimizeEverything(const char* key) {
   ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreter);
 }
@@ -1254,7 +1267,9 @@ void Instrumentation::UndeoptimizeEverything(const char* key) {
   ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
 }
 
-void Instrumentation::EnableMethodTracing(const char* key, bool needs_interpreter) {
+void Instrumentation::EnableMethodTracing(const char* key,
+                                          InstrumentationListener* listener,
+                                          bool needs_interpreter) {
   InstrumentationLevel level;
   if (needs_interpreter) {
     level = InstrumentationLevel::kInstrumentWithInterpreter;
@@ -1262,6 +1277,11 @@ void Instrumentation::EnableMethodTracing(const char* key, bool needs_interprete
     level = InstrumentationLevel::kInstrumentWithEntryExitHooks;
   }
   ConfigureStubs(key, level);
+
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
+    ReportMethodEntryForOnStackMethods(listener, thread);
+  }
 }
 
 void Instrumentation::DisableMethodTracing(const char* key) {
