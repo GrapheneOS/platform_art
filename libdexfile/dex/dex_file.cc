@@ -91,8 +91,6 @@ bool DexFile::DisableWrite() const {
 
 DexFile::DexFile(const uint8_t* base,
                  size_t size,
-                 const uint8_t* data_begin,
-                 size_t data_size,
                  const std::string& location,
                  uint32_t location_checksum,
                  const OatDexFile* oat_dex_file,
@@ -100,8 +98,7 @@ DexFile::DexFile(const uint8_t* base,
                  bool is_compact_dex)
     : begin_(base),
       size_(size),
-      data_begin_(data_begin),
-      data_size_(data_size),
+      data_(GetDataRange(base, size, container.get())),
       location_(location),
       location_checksum_(location_checksum),
       header_(reinterpret_cast<const Header*>(base)),
@@ -171,6 +168,23 @@ bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
     return false;
   }
   return true;
+}
+
+ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data,
+                                              size_t size,
+                                              DexFileContainer* container) {
+  if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(data)) {
+    auto header = reinterpret_cast<const CompactDexFile::Header*>(data);
+    // TODO: Remove. This is a hack. See comment of the Data method.
+    ArrayRef<const uint8_t> separate_data = container->Data();
+    if (separate_data.size() > 0) {
+      return separate_data;
+    }
+    // Shared compact dex data is located at the end after all dex files.
+    data += header->data_off_;
+    size = header->data_size_;
+  }
+  return {data, size};
 }
 
 void DexFile::InitializeSectionsFromMapList() {
