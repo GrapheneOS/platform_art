@@ -29,6 +29,7 @@
 
 #include "android-base/logging.h"
 #include "base/bit_utils.h"
+#include "base/macros.h"
 #include "base/time_utils.h"
 #include "tinyxml2.h"
 
@@ -104,6 +105,17 @@ namespace art {
 
 class Runtime;
 struct RuntimeArgumentMap;
+
+namespace metrics {
+template <typename value_t>
+class MetricsBase;
+}  // namespace metrics
+
+namespace gc {
+class HeapTest_GCMetrics_Test;
+template <typename T>
+bool AnyIsNonNull(const metrics::MetricsBase<T>* x, const metrics::MetricsBase<T>* y);
+}  // namespace gc
 
 namespace metrics {
 
@@ -285,6 +297,15 @@ class MetricsBase {
  public:
   virtual void Add(value_t value) = 0;
   virtual ~MetricsBase() { }
+
+ private:
+  // Is the metric "null", i.e. never updated or freshly reset?
+  // Used for testing purpose only.
+  virtual bool IsNull() const = 0;
+
+  ART_FRIEND_TEST(gc::HeapTest, GCMetrics);
+  template <typename T>
+  friend bool gc::AnyIsNonNull(const MetricsBase<T>* x, const MetricsBase<T>* y);
 };
 
 template <DatumId counter_type, typename T = uint64_t>
@@ -315,6 +336,8 @@ class MetricsCounter : public MetricsBase<T> {
   value_t Value() const { return value_.load(std::memory_order::memory_order_relaxed); }
 
  private:
+  bool IsNull() const override { return Value() == 0; }
+
   std::atomic<value_t> value_;
   static_assert(std::atomic<value_t>::is_always_lock_free);
 
@@ -365,6 +388,10 @@ class MetricsAverage final : public MetricsCounter<datum_id, T> {
   }
 
  private:
+  count_t Count() const { return count_.load(std::memory_order::memory_order_relaxed); }
+
+  bool IsNull() const override { return Count() == 0; }
+
   std::atomic<count_t> count_;
   static_assert(std::atomic<count_t>::is_always_lock_free);
 
@@ -399,6 +426,10 @@ class MetricsDeltaCounter : public MetricsBase<T> {
   void Reset() { value_ = 0; }
 
  private:
+  value_t Value() const { return value_.load(std::memory_order::memory_order_relaxed); }
+
+  bool IsNull() const override { return Value() == 0; }
+
   std::atomic<value_t> value_;
   static_assert(std::atomic<value_t>::is_always_lock_free);
 
@@ -464,6 +495,11 @@ class MetricsHistogram final : public MetricsBase<int64_t> {
     return std::vector<value_t>{buckets_.begin(), buckets_.end()};
   }
 
+  bool IsNull() const override {
+    std::vector<value_t> buckets = GetBuckets();
+    return std::all_of(buckets.cbegin(), buckets.cend(), [](value_t i) { return i == 0; });
+  }
+
   std::array<std::atomic<value_t>, num_buckets_> buckets_;
   static_assert(std::atomic<value_t>::is_always_lock_free);
 
@@ -506,6 +542,8 @@ class MetricsAccumulator final : MetricsBase<T> {
 
  private:
   T Value() const { return value_.load(std::memory_order::memory_order_relaxed); }
+
+  bool IsNull() const override { return Value() == 0; }
 
   std::atomic<T> value_;
 
