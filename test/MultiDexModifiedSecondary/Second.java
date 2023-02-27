@@ -15,11 +15,7 @@
  */
 
 class Second {
-  public String getThird() {
-    return "I Third That.";
-  }
-
   public String getSecond() {
-    return "I Second That.";
+    return "Modified";  // Must have the same length as original so that dex size is same.
   }
 }

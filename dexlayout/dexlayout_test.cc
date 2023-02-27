@@ -746,6 +746,7 @@ TEST_F(DexLayoutTest, LinkData) {
     header.link_off_ = header.file_size_;
     header.link_size_ = 16 * KB;
     header.file_size_ += header.link_size_;
+    header.SetDexContainer(0, header.file_size_);
     file_size = header.file_size_;
   });
   TEMP_FAILURE_RETRY(temp_dex.GetFile()->SetLength(file_size));
