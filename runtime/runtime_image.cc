@@ -45,6 +45,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/string-inl.h"
+#include "nterp_helpers.h"
 #include "oat.h"
 #include "profile/profile_compilation_info.h"
 #include "scoped_thread_state_change-inl.h"
@@ -808,8 +809,10 @@ class RuntimeImageHelper {
         stub = StubType::kQuickToInterpreterBridge;
       } else if (method->NeedsClinitCheckBeforeCall()) {
         stub = StubType::kQuickResolutionTrampoline;
-      } else {
+      } else if (interpreter::IsNterpSupported() && CanMethodUseNterp(method)) {
         stub = StubType::kNterpTrampoline;
+      } else {
+        stub = StubType::kQuickToInterpreterBridge;
       }
       const std::vector<gc::space::ImageSpace*>& image_spaces =
           Runtime::Current()->GetHeap()->GetBootImageSpaces();
