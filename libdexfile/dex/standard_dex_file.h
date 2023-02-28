@@ -117,7 +117,8 @@ class StandardDexFile : public DexFile {
                   const std::string& location,
                   uint32_t location_checksum,
                   const OatDexFile* oat_dex_file,
-                  std::unique_ptr<DexFileContainer> container)
+                  // Shared since several dex files may be stored in the same logical container.
+                  std::shared_ptr<DexFileContainer> container)
       : DexFile(base,
                 size,
                 location,

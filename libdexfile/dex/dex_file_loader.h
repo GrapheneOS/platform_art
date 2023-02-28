@@ -111,8 +111,10 @@ class DexFileLoader {
         file_(fd == -1 ? std::optional<File>() : File(fd, /*check_usage=*/false)),
         location_(location) {}
 
-  DexFileLoader(std::unique_ptr<DexFileContainer>&& container, const std::string& location)
-      : root_container_(std::move(container)), location_(location) {}
+  DexFileLoader(std::shared_ptr<DexFileContainer> container, const std::string& location)
+      : root_container_(std::move(container)), location_(location) {
+    DCHECK(root_container_ != nullptr);
+  }
 
   DexFileLoader(const uint8_t* base, size_t size, const std::string& location);
 
@@ -198,7 +200,7 @@ class DexFileLoader {
   // We can only do this for dex files since zip files might be too big to map.
   bool MapRootContainer(std::string* error_msg);
 
-  static std::unique_ptr<DexFile> OpenCommon(std::unique_ptr<DexFileContainer> container,
+  static std::unique_ptr<DexFile> OpenCommon(const std::shared_ptr<DexFileContainer>& container,
                                              const std::string& location,
                                              uint32_t location_checksum,
                                              const OatDexFile* oat_dex_file,
@@ -221,7 +223,7 @@ class DexFileLoader {
   // We can not just mmap the file since APKs might be unreasonably large for 32-bit system.
   std::string filename_;
   std::optional<File> file_;
-  std::unique_ptr<DexFileContainer> root_container_;
+  std::shared_ptr<DexFileContainer> root_container_;
   const std::string location_;
 };
 
