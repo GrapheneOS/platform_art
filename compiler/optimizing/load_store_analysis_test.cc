@@ -230,10 +230,9 @@ TEST_F(LoadStoreAnalysisTest, FieldHeapLocations) {
 
 TEST_F(LoadStoreAnalysisTest, ArrayIndexAliasingTest) {
   CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph_);
-  graph_->AddBlock(entry);
-  graph_->SetEntryBlock(entry);
-  graph_->BuildDominatorTree();
+  AdjacencyListGraph blks(
+      SetupFromAdjacencyList("entry", "exit", {{"entry", "body"}, {"body", "exit"}}));
+  HBasicBlock* body = blks.Get("body");
 
   HInstruction* array = new (GetAllocator()) HParameterValue(
       graph_->GetDexFile(), dex::TypeIndex(0), 0, DataType::Type::kReference);
@@ -263,23 +262,25 @@ TEST_F(LoadStoreAnalysisTest, ArrayIndexAliasingTest) {
   HInstruction* arr_set8 =
       new (GetAllocator()) HArraySet(array, sub_neg1, c0, DataType::Type::kInt32, 0);
 
-  entry->AddInstruction(array);
-  entry->AddInstruction(index);
-  entry->AddInstruction(add0);
-  entry->AddInstruction(add1);
-  entry->AddInstruction(sub0);
-  entry->AddInstruction(sub1);
-  entry->AddInstruction(sub_neg1);
-  entry->AddInstruction(rev_sub1);
+  body->AddInstruction(array);
+  body->AddInstruction(index);
+  body->AddInstruction(add0);
+  body->AddInstruction(add1);
+  body->AddInstruction(sub0);
+  body->AddInstruction(sub1);
+  body->AddInstruction(sub_neg1);
+  body->AddInstruction(rev_sub1);
 
-  entry->AddInstruction(arr_set1);  // array[0] = c0
-  entry->AddInstruction(arr_set2);  // array[1] = c0
-  entry->AddInstruction(arr_set3);  // array[i+0] = c0
-  entry->AddInstruction(arr_set4);  // array[i+1] = c0
-  entry->AddInstruction(arr_set5);  // array[i-0] = c0
-  entry->AddInstruction(arr_set6);  // array[i-1] = c0
-  entry->AddInstruction(arr_set7);  // array[1-i] = c0
-  entry->AddInstruction(arr_set8);  // array[i-(-1)] = c0
+  body->AddInstruction(arr_set1);  // array[0] = c0
+  body->AddInstruction(arr_set2);  // array[1] = c0
+  body->AddInstruction(arr_set3);  // array[i+0] = c0
+  body->AddInstruction(arr_set4);  // array[i+1] = c0
+  body->AddInstruction(arr_set5);  // array[i-0] = c0
+  body->AddInstruction(arr_set6);  // array[i-1] = c0
+  body->AddInstruction(arr_set7);  // array[1-i] = c0
+  body->AddInstruction(arr_set8);  // array[i-(-1)] = c0
+
+  body->AddInstruction(new (GetAllocator()) HReturnVoid());
 
   ScopedArenaAllocator allocator(graph_->GetArenaStack());
   LoadStoreAnalysis lsa(graph_, nullptr, &allocator, LoadStoreAnalysisType::kBasic);
