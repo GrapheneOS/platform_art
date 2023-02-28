@@ -130,7 +130,8 @@ static void StartTracing() REQUIRES(!art::Locks::mutator_lock_,
                                              art::instrumentation::Instrumentation::kMethodEntered |
                                              art::instrumentation::Instrumentation::kMethodExited |
                                              art::instrumentation::Instrumentation::kMethodUnwind);
-  runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey, kNeedsInterpreter);
+  runtime->GetInstrumentation()->EnableMethodTracing(
+      kTracerInstrumentationKey, &gEmptyTracer, kNeedsInterpreter);
 }
 
 class TraceFastPhaseCB : public art::RuntimePhaseCallback {
