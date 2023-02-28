@@ -417,7 +417,8 @@ bool ImageWriter::Write(int image_fd,
     if (i == 0u) {
       primary_image_file = std::move(image_file);
     } else {
-      if (!image_file.WriteHeaderAndClose(image_filename, image_header)) {
+      if (!image_file.WriteHeaderAndClose(image_filename, image_header, &error_msg)) {
+        LOG(ERROR) << error_msg;
         return false;
       }
       // Update the primary image checksum with the secondary image checksum.
@@ -426,7 +427,9 @@ bool ImageWriter::Write(int image_fd,
     }
   }
   DCHECK(primary_image_file != nullptr);
-  if (!primary_image_file.WriteHeaderAndClose(image_filenames[0], primary_header)) {
+  std::string error_msg;
+  if (!primary_image_file.WriteHeaderAndClose(image_filenames[0], primary_header, &error_msg)) {
+    LOG(ERROR) << error_msg;
     return false;
   }
 
