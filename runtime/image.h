@@ -553,10 +553,13 @@ class ImageFileGuard {
     return image_file_.get();
   }
 
-  bool WriteHeaderAndClose(const std::string& image_filename, const ImageHeader* image_header) {
+  bool WriteHeaderAndClose(const std::string& image_filename,
+                           const ImageHeader* image_header,
+                           std::string* error_msg) {
     // The header is uncompressed since it contains whether the image is compressed or not.
     if (!image_file_->PwriteFully(image_header, sizeof(ImageHeader), 0)) {
-      PLOG(ERROR) << "Failed to write image file header " << image_filename;
+      *error_msg = "Failed to write image file header "
+          + image_filename + ": " + std::string(strerror(errno));
       return false;
     }
 
@@ -564,7 +567,8 @@ class ImageFileGuard {
     // to do that whether the FlushCloseOrErase() succeeds or fails.
     std::unique_ptr<File> image_file = std::move(image_file_);
     if (image_file->FlushCloseOrErase() != 0) {
-      PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
+      *error_msg = "Failed to flush and close image file "
+          + image_filename + ": " + std::string(strerror(errno));
       return false;
     }
 
