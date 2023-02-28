@@ -433,6 +433,7 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
         // want to use the trampolines anyway since it is faster. It makes the story with disabling
         // jit-gc more complex though.
         runtime->GetInstrumentation()->EnableMethodTracing(kTracerInstrumentationKey,
+                                                           the_trace_,
                                                            /*needs_interpreter=*/false);
       }
     }
