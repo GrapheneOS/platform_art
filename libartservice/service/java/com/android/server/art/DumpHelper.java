@@ -34,11 +34,13 @@ import dalvik.system.VMRuntime;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -64,9 +66,11 @@ public class DumpHelper {
     /** Handles {@link ArtManagerLocal#dump(PrintWriter, PackageManagerLocal.FilteredSnapshot)}. */
     public void dump(
             @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
-        for (PackageState pkgState : snapshot.getPackageStates().values()) {
-            dumpPackage(pw, snapshot, pkgState);
-        }
+        snapshot.getPackageStates()
+                .values()
+                .stream()
+                .sorted(Comparator.comparing(PackageState::getPackageName))
+                .forEach(pkgState -> dumpPackage(pw, snapshot, pkgState));
     }
 
     /**
@@ -97,11 +101,11 @@ public class DumpHelper {
                         .stream()
                         .collect(Collectors.toMap(SecondaryDexInfo::dexPath, Function.identity()));
 
-        // Use LinkedHashMap to keep the order.
+        // Use LinkedHashMap to keep the order. They are ordered by their split indexes.
         var primaryStatusesByDexPath =
                 new LinkedHashMap<String, List<DexContainerFileDexoptStatus>>();
-        var secondaryStatusesByDexPath =
-                new LinkedHashMap<String, List<DexContainerFileDexoptStatus>>();
+        // Use TreeMap to force lexicographical order.
+        var secondaryStatusesByDexPath = new TreeMap<String, List<DexContainerFileDexoptStatus>>();
         for (DexContainerFileDexoptStatus fileStatus : statuses) {
             if (fileStatus.isPrimaryDex()) {
                 primaryStatusesByDexPath
@@ -160,12 +164,13 @@ public class DumpHelper {
         ipw.increaseIndent();
         dumpFileStatuses(ipw, fileStatuses);
         ipw.printf("class loader context: %s\n", info.displayClassLoaderContext());
-        Map<DexLoader, String> classLoaderContexts =
+        TreeMap<DexLoader, String> classLoaderContexts =
                 info.loaders().stream().collect(Collectors.toMap(loader
                         -> loader,
                         loader
                         -> mInjector.getDexUseManager().getSecondaryClassLoaderContext(
-                                packageName, dexPath, loader)));
+                                packageName, dexPath, loader),
+                        (a, b) -> a, TreeMap::new));
         // We should print all class loader contexts even if `info.displayClassLoaderContext()` is
         // not `VARYING_CLASS_LOADER_CONTEXTS`. This is because `info.displayClassLoaderContext()`
         // may show the only supported class loader context while other apps have unsupported ones.
@@ -204,6 +209,7 @@ public class DumpHelper {
         if (!otherApps.isEmpty()) {
             ipw.printf("used by other apps: [%s]\n",
                     otherApps.stream()
+                            .sorted()
                             .map(loader -> getLoaderState(snapshot, loader))
                             .collect(Collectors.joining(", ")));
         }

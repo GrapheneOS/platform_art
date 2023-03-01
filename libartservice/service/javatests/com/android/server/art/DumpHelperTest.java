@@ -48,16 +48,17 @@ import org.mockito.Mock;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class DumpHelperTest {
-    private static final String PKG_NAME_FOO = "com.example.foo";
-    private static final String PKG_NAME_BAR = "com.example.bar";
+    private static final String PKG_NAME_FOO = "com.example1.foo";
+    private static final String PKG_NAME_BAR = "com.example2.bar";
 
     @Rule
     public StaticMockitoRule mockitoRule =
@@ -86,7 +87,7 @@ public class DumpHelperTest {
         lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManagerLocal);
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
 
-        LinkedHashMap<String, PackageState> pkgStates = createPackageStates();
+        Map<String, PackageState> pkgStates = createPackageStates();
         lenient().when(mSnapshot.getPackageStates()).thenReturn(pkgStates);
         for (var entry : pkgStates.entrySet()) {
             lenient().when(mSnapshot.getPackageState(entry.getKey())).thenReturn(entry.getValue());
@@ -100,7 +101,7 @@ public class DumpHelperTest {
 
     @Test
     public void testDump() throws Exception {
-        String expected = "[com.example.foo]\n"
+        String expected = "[com.example1.foo]\n"
                 + "  path: /data/app/foo/base.apk\n"
                 + "    arm64: [status=speed-profile] [reason=bg-dexopt] [primary-abi]\n"
                 + "      [location is /data/app/foo/oat/arm64/base.odex]\n"
@@ -111,22 +112,22 @@ public class DumpHelperTest {
                 + "      [location is primary.vdex in /data/app/foo/split_0.dm]\n"
                 + "    arm: [status=verify] [reason=vdex]\n"
                 + "      [location is primary.vdex in /data/app/foo/split_0.dm]\n"
-                + "    used by other apps: [com.example.bar (isa=arm)]\n"
+                + "    used by other apps: [com.example2.bar (isa=arm)]\n"
                 + "  known secondary dex files:\n"
                 + "    /data/user_de/0/foo/1.apk (removed)\n"
                 + "      arm: [status=run-from-apk] [reason=unknown]\n"
                 + "        [location is unknown]\n"
                 + "      class loader context: =VaryingClassLoaderContexts=\n"
-                + "        com.example.foo (isolated): CLC1\n"
-                + "        com.example.baz: CLC2\n"
-                + "      used by other apps: [com.example.foo (isolated) (isa=arm64), com.example.baz (removed)]\n"
+                + "        com.example1.foo (isolated): CLC1\n"
+                + "        com.example3.baz: CLC2\n"
+                + "      used by other apps: [com.example1.foo (isolated) (isa=arm64), com.example3.baz (removed)]\n"
                 + "    /data/user_de/0/foo/2.apk (public)\n"
                 + "      arm64: [status=speed-profile] [reason=bg-dexopt] [primary-abi]\n"
                 + "        [location is /data/user_de/0/foo/oat/arm64/2.odex]\n"
                 + "      arm: [status=verify] [reason=vdex]\n"
                 + "        [location is /data/user_de/0/foo/oat/arm/2.vdex]\n"
                 + "      class loader context: PCL[]\n"
-                + "[com.example.bar]\n"
+                + "[com.example2.bar]\n"
                 + "  path: /data/app/bar/base.apk\n"
                 + "    arm: [status=verify] [reason=install] [primary-abi]\n"
                 + "      [location is /data/app/bar/oat/arm/base.odex]\n"
@@ -151,9 +152,8 @@ public class DumpHelperTest {
         return pkgState;
     }
 
-    private LinkedHashMap<String, PackageState> createPackageStates() {
-        // Use LinkedHashMap to ensure the determinism of the output.
-        var pkgStates = new LinkedHashMap<String, PackageState>();
+    private Map<String, PackageState> createPackageStates() {
+        var pkgStates = new HashMap<String, PackageState>();
         pkgStates.put(PKG_NAME_FOO,
                 createPackageState(PKG_NAME_FOO, 10001 /* appId */, true /* hasPackage */,
                         "arm64-v8a", "armeabi-v7a"));
@@ -172,7 +172,8 @@ public class DumpHelperTest {
     }
 
     private void setUpForFoo() throws Exception {
-        // The order of the dex path and the ABI should be kept in the output.
+        // The order of the primary dex files and the ABIs should be kept in the output. Secondary
+        // dex files should be reordered in lexicographical order.
         var status = DexoptStatus.create(List.of(
                 DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
                         true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
@@ -186,15 +187,15 @@ public class DumpHelperTest {
                 DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
                         true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a", "verify",
                         "vdex", "primary.vdex in /data/app/foo/split_0.dm"),
-                DexContainerFileDexoptStatus.create("/data/user_de/0/foo/1.apk",
-                        false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
-                        "run-from-apk", "unknown", "unknown"),
                 DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
                         false /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
                         "speed-profile", "bg-dexopt", "/data/user_de/0/foo/oat/arm64/2.odex"),
                 DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
                         false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a", "verify",
-                        "vdex", "/data/user_de/0/foo/oat/arm/2.vdex")));
+                        "vdex", "/data/user_de/0/foo/oat/arm/2.vdex"),
+                DexContainerFileDexoptStatus.create("/data/user_de/0/foo/1.apk",
+                        false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
+                        "run-from-apk", "unknown", "unknown")));
 
         lenient()
                 .when(mArtManagerLocal.getDexoptStatus(any(), eq(PKG_NAME_FOO)))
@@ -227,14 +228,14 @@ public class DumpHelperTest {
         lenient()
                 .when(mDexUseManagerLocal.getSecondaryClassLoaderContext(PKG_NAME_FOO,
                         "/data/user_de/0/foo/1.apk",
-                        DexLoader.create("com.example.baz", false /* isolatedProcess */)))
+                        DexLoader.create("com.example3.baz", false /* isolatedProcess */)))
                 .thenReturn("CLC2");
 
-        var loaders = new LinkedHashSet<DexLoader>();
+        var loaders = new HashSet<DexLoader>();
         // The output should show "foo" with "(isolated)" in "used by other apps:".
         loaders.add(DexLoader.create(PKG_NAME_FOO, true /* isolatedProcess */));
         // The output should show "baz" with "(removed)" in "used by other apps:".
-        loaders.add(DexLoader.create("com.example.baz", false /* isolatedProcess */));
+        loaders.add(DexLoader.create("com.example3.baz", false /* isolatedProcess */));
         lenient().when(info1.loaders()).thenReturn(loaders);
 
         // The output should show the dex path with "(removed)".

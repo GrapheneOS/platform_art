@@ -120,6 +120,7 @@ public class ArtManagerLocalTest {
     @Mock private StorageManager mStorageManager;
     private PackageState mPkgState1;
     private AndroidPackage mPkg1;
+    private List<DetailedSecondaryDexInfo> mSecondaryDexInfo1;
     private Config mConfig;
 
     // True if the primary dex'es are in a readonly partition.
@@ -192,13 +193,13 @@ public class ArtManagerLocalTest {
 
         // All packages are by default recently used.
         lenient().when(mDexUseManager.getPackageLastUsedAtMs(any())).thenReturn(RECENT_TIME_MS);
-        List<DetailedSecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
+        mSecondaryDexInfo1 = createSecondaryDexInfo();
         lenient()
-                .doReturn(secondaryDexInfo)
+                .doReturn(mSecondaryDexInfo1)
                 .when(mDexUseManager)
                 .getSecondaryDexInfo(eq(PKG_NAME_1));
         lenient()
-                .doReturn(secondaryDexInfo)
+                .doReturn(mSecondaryDexInfo1)
                 .when(mDexUseManager)
                 .getFilteredDetailedSecondaryDexInfo(eq(PKG_NAME_1));
 
@@ -247,6 +248,7 @@ public class ArtManagerLocalTest {
         lenient().when(Constants.getPreferredAbi()).thenReturn("x86_64");
         lenient().when(Constants.getNative64BitAbi()).thenReturn("x86_64");
         lenient().when(Constants.getNative32BitAbi()).thenReturn("x86");
+        when(mSecondaryDexInfo1.get(0).abiNames()).thenReturn(Set.of("x86_64"));
 
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
@@ -263,7 +265,7 @@ public class ArtManagerLocalTest {
                 "/data/app/foo/split_0.apk", "x86", mIsInReadonlyPartition)));
         // We assume that the ISA got from `DexUseManagerLocal` is already the translated one.
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
+                "/data/user/0/foo/1.apk", "x86_64", false /* isInDalvikCache */)));
         verifyNoMoreInteractions(mArtd);
     }
 
