@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+
+#include "base/metrics/metrics.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "gc/accounting/card_table-inl.h"
@@ -101,6 +104,148 @@ TEST_F(HeapTest, HeapBitmapCapacityTest) {
 TEST_F(HeapTest, DumpGCPerformanceOnShutdown) {
   Runtime::Current()->GetHeap()->CollectGarbage(/* clear_soft_references= */ false);
   Runtime::Current()->SetDumpGCPerformanceOnShutdown(true);
+}
+
+template <typename T>
+bool AnyIsNonNull(const metrics::MetricsBase<T>* x, const metrics::MetricsBase<T>* y) {
+  return !x->IsNull() || !y->IsNull();
+}
+
+TEST_F(HeapTest, GCMetrics) {
+  // Allocate a few string objects (to be collected), then trigger garbage
+  // collection, and check that GC metrics are updated (where applicable).
+  {
+    constexpr const size_t kNumObj = 128;
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<kNumObj> hs(soa.Self());
+    for (size_t i = 0u; i < kNumObj; ++i) {
+      Handle<mirror::String> string [[maybe_unused]] (
+          hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
+    }
+  }
+  Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(/* clear_soft_references= */ false);
+
+  // ART Metrics.
+  metrics::ArtMetrics* metrics = Runtime::Current()->GetMetrics();
+  // ART full-heap GC metrics.
+  metrics::MetricsBase<int64_t>* full_gc_collection_time = metrics->FullGcCollectionTime();
+  metrics::MetricsBase<uint64_t>* full_gc_count = metrics->FullGcCount();
+  metrics::MetricsBase<uint64_t>* full_gc_count_delta = metrics->FullGcCountDelta();
+  metrics::MetricsBase<int64_t>* full_gc_throughput = metrics->FullGcThroughput();
+  metrics::MetricsBase<int64_t>* full_gc_tracing_throughput = metrics->FullGcTracingThroughput();
+  metrics::MetricsBase<uint64_t>* full_gc_throughput_avg = metrics->FullGcThroughputAvg();
+  metrics::MetricsBase<uint64_t>* full_gc_tracing_throughput_avg =
+      metrics->FullGcTracingThroughputAvg();
+  metrics::MetricsBase<uint64_t>* full_gc_scanned_bytes = metrics->FullGcScannedBytes();
+  metrics::MetricsBase<uint64_t>* full_gc_scanned_bytes_delta = metrics->FullGcScannedBytesDelta();
+  metrics::MetricsBase<uint64_t>* full_gc_freed_bytes = metrics->FullGcFreedBytes();
+  metrics::MetricsBase<uint64_t>* full_gc_freed_bytes_delta = metrics->FullGcFreedBytesDelta();
+  metrics::MetricsBase<uint64_t>* full_gc_duration = metrics->FullGcDuration();
+  metrics::MetricsBase<uint64_t>* full_gc_duration_delta = metrics->FullGcDurationDelta();
+  // ART young-generation GC metrics.
+  metrics::MetricsBase<int64_t>* young_gc_collection_time = metrics->YoungGcCollectionTime();
+  metrics::MetricsBase<uint64_t>* young_gc_count = metrics->YoungGcCount();
+  metrics::MetricsBase<uint64_t>* young_gc_count_delta = metrics->YoungGcCountDelta();
+  metrics::MetricsBase<int64_t>* young_gc_throughput = metrics->YoungGcThroughput();
+  metrics::MetricsBase<int64_t>* young_gc_tracing_throughput = metrics->YoungGcTracingThroughput();
+  metrics::MetricsBase<uint64_t>* young_gc_throughput_avg = metrics->YoungGcThroughputAvg();
+  metrics::MetricsBase<uint64_t>* young_gc_tracing_throughput_avg =
+      metrics->YoungGcTracingThroughputAvg();
+  metrics::MetricsBase<uint64_t>* young_gc_scanned_bytes = metrics->YoungGcScannedBytes();
+  metrics::MetricsBase<uint64_t>* young_gc_scanned_bytes_delta =
+      metrics->YoungGcScannedBytesDelta();
+  metrics::MetricsBase<uint64_t>* young_gc_freed_bytes = metrics->YoungGcFreedBytes();
+  metrics::MetricsBase<uint64_t>* young_gc_freed_bytes_delta = metrics->YoungGcFreedBytesDelta();
+  metrics::MetricsBase<uint64_t>* young_gc_duration = metrics->YoungGcDuration();
+  metrics::MetricsBase<uint64_t>* young_gc_duration_delta = metrics->YoungGcDurationDelta();
+
+  CollectorType fg_collector_type = heap->GetForegroundCollectorType();
+  if (fg_collector_type == kCollectorTypeCC || fg_collector_type == kCollectorTypeCMC) {
+    // Only the Concurrent Copying and Concurrent Mark-Compact collectors enable
+    // GC metrics at the moment.
+    if (heap->GetUseGenerationalCC()) {
+      // Check that full-heap and/or young-generation GC metrics are non-null
+      // after trigerring the collection.
+      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_collection_time, young_gc_collection_time);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_count, young_gc_count);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_count_delta, young_gc_count_delta);
+      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_throughput, young_gc_throughput);
+      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_tracing_throughput, young_gc_tracing_throughput);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_throughput_avg, young_gc_throughput_avg);
+      EXPECT_PRED2(
+          AnyIsNonNull<uint64_t>, full_gc_tracing_throughput_avg, young_gc_tracing_throughput_avg);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_scanned_bytes, young_gc_scanned_bytes);
+      EXPECT_PRED2(
+          AnyIsNonNull<uint64_t>, full_gc_scanned_bytes_delta, young_gc_scanned_bytes_delta);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes, young_gc_freed_bytes);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes_delta, young_gc_freed_bytes_delta);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration, young_gc_duration);
+      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration_delta, young_gc_duration_delta);
+    } else {
+      // Check that only full-heap GC metrics are non-null after trigerring the collection.
+      EXPECT_FALSE(full_gc_collection_time->IsNull());
+      EXPECT_FALSE(full_gc_count->IsNull());
+      EXPECT_FALSE(full_gc_count_delta->IsNull());
+      EXPECT_FALSE(full_gc_throughput->IsNull());
+      EXPECT_FALSE(full_gc_tracing_throughput->IsNull());
+      EXPECT_FALSE(full_gc_throughput_avg->IsNull());
+      EXPECT_FALSE(full_gc_tracing_throughput_avg->IsNull());
+      if (fg_collector_type != kCollectorTypeCMC) {
+        // TODO(b/270957146): For some reason, these metrics are still null
+        // after running the Concurrent Mark-Compact collector; investigate why.
+        EXPECT_FALSE(full_gc_scanned_bytes->IsNull());
+        EXPECT_FALSE(full_gc_scanned_bytes_delta->IsNull());
+      }
+      EXPECT_FALSE(full_gc_freed_bytes->IsNull());
+      EXPECT_FALSE(full_gc_freed_bytes_delta->IsNull());
+      EXPECT_FALSE(full_gc_duration->IsNull());
+      EXPECT_FALSE(full_gc_duration_delta->IsNull());
+
+      EXPECT_TRUE(young_gc_collection_time->IsNull());
+      EXPECT_TRUE(young_gc_count->IsNull());
+      EXPECT_TRUE(young_gc_count_delta->IsNull());
+      EXPECT_TRUE(young_gc_throughput->IsNull());
+      EXPECT_TRUE(young_gc_tracing_throughput->IsNull());
+      EXPECT_TRUE(young_gc_throughput_avg->IsNull());
+      EXPECT_TRUE(young_gc_tracing_throughput_avg->IsNull());
+      EXPECT_TRUE(young_gc_scanned_bytes->IsNull());
+      EXPECT_TRUE(young_gc_scanned_bytes_delta->IsNull());
+      EXPECT_TRUE(young_gc_freed_bytes->IsNull());
+      EXPECT_TRUE(young_gc_freed_bytes_delta->IsNull());
+      EXPECT_TRUE(young_gc_duration->IsNull());
+      EXPECT_TRUE(young_gc_duration_delta->IsNull());
+    }
+  } else {
+    // Check that all metrics are null after trigerring the collection.
+    EXPECT_TRUE(full_gc_collection_time->IsNull());
+    EXPECT_TRUE(full_gc_count->IsNull());
+    EXPECT_TRUE(full_gc_count_delta->IsNull());
+    EXPECT_TRUE(full_gc_throughput->IsNull());
+    EXPECT_TRUE(full_gc_tracing_throughput->IsNull());
+    EXPECT_TRUE(full_gc_throughput_avg->IsNull());
+    EXPECT_TRUE(full_gc_tracing_throughput_avg->IsNull());
+    EXPECT_TRUE(full_gc_scanned_bytes->IsNull());
+    EXPECT_TRUE(full_gc_scanned_bytes_delta->IsNull());
+    EXPECT_TRUE(full_gc_freed_bytes->IsNull());
+    EXPECT_TRUE(full_gc_freed_bytes_delta->IsNull());
+    EXPECT_TRUE(full_gc_duration->IsNull());
+    EXPECT_TRUE(full_gc_duration_delta->IsNull());
+
+    EXPECT_TRUE(young_gc_collection_time->IsNull());
+    EXPECT_TRUE(young_gc_count->IsNull());
+    EXPECT_TRUE(young_gc_count_delta->IsNull());
+    EXPECT_TRUE(young_gc_throughput->IsNull());
+    EXPECT_TRUE(young_gc_tracing_throughput->IsNull());
+    EXPECT_TRUE(young_gc_throughput_avg->IsNull());
+    EXPECT_TRUE(young_gc_tracing_throughput_avg->IsNull());
+    EXPECT_TRUE(young_gc_scanned_bytes->IsNull());
+    EXPECT_TRUE(young_gc_scanned_bytes_delta->IsNull());
+    EXPECT_TRUE(young_gc_freed_bytes->IsNull());
+    EXPECT_TRUE(young_gc_freed_bytes_delta->IsNull());
+    EXPECT_TRUE(young_gc_duration->IsNull());
+    EXPECT_TRUE(young_gc_duration_delta->IsNull());
+  }
 }
 
 class ZygoteHeapTest : public CommonRuntimeTest {

@@ -353,6 +353,24 @@ MarkCompact::MarkCompact(Heap* heap)
   CHECK_EQ(*conc_compaction_termination_page_, 0);
   // In most of the cases, we don't expect more than one LinearAlloc space.
   linear_alloc_spaces_data_.reserve(1);
+
+  // Initialize GC metrics.
+  metrics::ArtMetrics* metrics = GetMetrics();
+  // The mark-compact collector supports only full-heap collections at the moment.
+  gc_time_histogram_ = metrics->FullGcCollectionTime();
+  metrics_gc_count_ = metrics->FullGcCount();
+  metrics_gc_count_delta_ = metrics->FullGcCountDelta();
+  gc_throughput_histogram_ = metrics->FullGcThroughput();
+  gc_tracing_throughput_hist_ = metrics->FullGcTracingThroughput();
+  gc_throughput_avg_ = metrics->FullGcThroughputAvg();
+  gc_tracing_throughput_avg_ = metrics->FullGcTracingThroughputAvg();
+  gc_scanned_bytes_ = metrics->FullGcScannedBytes();
+  gc_scanned_bytes_delta_ = metrics->FullGcScannedBytesDelta();
+  gc_freed_bytes_ = metrics->FullGcFreedBytes();
+  gc_freed_bytes_delta_ = metrics->FullGcFreedBytesDelta();
+  gc_duration_ = metrics->FullGcDuration();
+  gc_duration_delta_ = metrics->FullGcDurationDelta();
+  are_metrics_initialized_ = true;
 }
 
 void MarkCompact::AddLinearAllocSpaceData(uint8_t* begin, size_t len) {

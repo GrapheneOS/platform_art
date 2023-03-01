@@ -1560,7 +1560,7 @@
     },
     {
         "tests": ["845-data-image", "846-multidex-data-image"],
-        "env_vars": {"ART_USE_READ_BARRIER": "true"},
+        "env_vars": {"ART_USE_READ_BARRIER": "false"},
         "bug": "b/270936884",
         "description": ["Fails with CMC."]
     }

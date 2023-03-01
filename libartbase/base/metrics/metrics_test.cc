@@ -272,13 +272,13 @@ TEST_F(MetricsTest, ResetMetrics) {
 
   class NonZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
+    void ReportCounter(DatumId counter_type [[maybe_unused]], uint64_t value) override {
       EXPECT_NE(value, 0u);
     }
 
-    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
-                         int64_t minimum_value [[gnu::unused]],
-                         int64_t maximum_value [[gnu::unused]],
+    void ReportHistogram(DatumId histogram_type [[maybe_unused]],
+                         int64_t minimum_value [[maybe_unused]],
+                         int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
       bool nonzero = false;
       for (const auto value : buckets) {
@@ -296,13 +296,13 @@ TEST_F(MetricsTest, ResetMetrics) {
 
   class ZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
+    void ReportCounter(DatumId counter_type [[maybe_unused]], uint64_t value) override {
       EXPECT_EQ(value, 0u);
     }
 
-    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
-                         int64_t minimum_value [[gnu::unused]],
-                         int64_t maximum_value [[gnu::unused]],
+    void ReportHistogram(DatumId histogram_type [[maybe_unused]],
+                         int64_t minimum_value [[maybe_unused]],
+                         int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
       for (const auto value : buckets) {
         EXPECT_EQ(value, 0u);
@@ -323,13 +323,13 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
 
   class FirstBackend : public TestBackendBase {
    public:
-    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
+    void ReportCounter(DatumId counter_type [[maybe_unused]], uint64_t value) override {
       EXPECT_NE(value, 0u);
     }
 
-    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
-                         int64_t minimum_value [[gnu::unused]],
-                         int64_t maximum_value [[gnu::unused]],
+    void ReportHistogram(DatumId histogram_type [[maybe_unused]],
+                         int64_t minimum_value [[maybe_unused]],
+                         int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
       EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
       for (size_t i = 1; i < buckets.size(); i++) {
@@ -368,9 +368,9 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
     }
 
     // All histograms are event metrics.
-    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
-                         int64_t minimum_value [[gnu::unused]],
-                         int64_t maximum_value [[gnu::unused]],
+    void ReportHistogram(DatumId histogram_type [[maybe_unused]],
+                         int64_t minimum_value [[maybe_unused]],
+                         int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
       EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
       for (size_t i = 1; i < buckets.size(); i++) {

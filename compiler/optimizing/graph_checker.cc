@@ -319,6 +319,12 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
+  // Ensure all blocks have at least one successor, except the Exit block.
+  if (block->GetSuccessors().empty() && !block->IsExitBlock()) {
+    AddError(StringPrintf("Block %d has no successor and it is not the Exit block.",
+                          block->GetBlockId()));
+  }
+
   // Ensure there is no critical edge (i.e., an edge connecting a
   // block with multiple successors to a block with multiple
   // predecessors). Exceptional edges are synthesized and hence

@@ -289,10 +289,10 @@ class Instrumentation {
 
   // Enable method tracing by installing instrumentation entry/exit stubs or interpreter.
   void EnableMethodTracing(const char* key,
+                           InstrumentationListener* listener,
                            bool needs_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
-      REQUIRES(!Locks::thread_list_lock_,
-               !Locks::classlinker_classes_lock_);
+          REQUIRES(!Locks::thread_list_lock_, !Locks::classlinker_classes_lock_);
 
   // Disable method tracing by uninstalling instrumentation entry/exit stubs or interpreter.
   void DisableMethodTracing(const char* key)
@@ -758,7 +758,7 @@ class Instrumentation {
 
   friend class InstrumentationTest;  // For GetCurrentInstrumentationLevel and ConfigureStubs.
   friend class InstrumentationStackPopper;  // For popping instrumentation frames.
-  friend void InstrumentationInstallStack(Thread*, void*, bool);
+  friend void InstrumentationInstallStack(Thread*, bool);
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
