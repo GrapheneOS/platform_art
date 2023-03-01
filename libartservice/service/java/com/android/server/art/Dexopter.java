@@ -95,6 +95,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     public final List<DexContainerFileDexoptResult> dexopt() throws RemoteException {
         List<DexContainerFileDexoptResult> results = new ArrayList<>();
 
+        boolean isInDalvikCache = isInDalvikCache();
+
         for (DexInfoType dexInfo : getDexInfoList()) {
             ProfilePath profile = null;
             boolean succeeded = true;
@@ -164,7 +166,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                         var target = DexoptTarget.<DexInfoType>builder()
                                              .setDexInfo(dexInfo)
                                              .setIsa(abi.isa())
-                                             .setIsInDalvikCache(isInDalvikCache())
+                                             .setIsInDalvikCache(isInDalvikCache)
                                              .setCompilerFilter(compilerFilter)
                                              .build();
                         var options = GetDexoptNeededOptions.builder()
@@ -550,7 +552,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     // Methods to be implemented by child classes.
 
     /** Returns true if the artifacts should be written to the global dalvik-cache directory. */
-    protected abstract boolean isInDalvikCache();
+    protected abstract boolean isInDalvikCache() throws RemoteException;
 
     /** Returns information about all dex files. */
     @NonNull protected abstract List<DexInfoType> getDexInfoList();

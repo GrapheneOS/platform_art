@@ -169,4 +169,11 @@ interface IArtd {
     long cleanup(in List<com.android.server.art.ProfilePath> profilesToKeep,
             in List<com.android.server.art.ArtifactsPath> artifactsToKeep,
             in List<com.android.server.art.VdexPath> vdexFilesToKeep);
+
+    /**
+     * Returns whether the dex file is in Incremental FS.
+     *
+     * Throws fatal errors. On non-fatal errors, logs the error and returns false.
+     */
+    boolean isIncrementalFsPath(@utf8InCpp String dexFile);
 }
