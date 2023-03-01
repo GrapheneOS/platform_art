@@ -48,6 +48,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -87,7 +88,7 @@ public final class Utils {
         return array == null || array.length == 0;
     }
 
-    /** Returns the ABI information for the package. */
+    /** Returns the ABI information for the package. The primary ABI comes first. */
     @NonNull
     public static List<Abi> getAllAbis(@NonNull PackageState pkgState) {
         List<Abi> abis = new ArrayList<>();
@@ -108,15 +109,20 @@ public final class Utils {
         return abis;
     }
 
-    /** Returns the ABI information for the ABIs with the given names. */
+    /**
+     * Returns the ABI information for the ABIs with the given names. The primary ABI comes first,
+     * if given.
+     */
     @NonNull
     public static List<Abi> getAllAbisForNames(
             @NonNull Set<String> abiNames, @NonNull PackageState pkgState) {
+        Utils.check(abiNames.stream().allMatch(Utils::isNativeAbi));
         Abi pkgPrimaryAbi = getPrimaryAbi(pkgState);
         return abiNames.stream()
                 .map(name
                         -> Abi.create(name, VMRuntime.getInstructionSet(name),
                                 name.equals(pkgPrimaryAbi.name())))
+                .sorted(Comparator.comparing(Abi::isPrimaryAbi).reversed())
                 .collect(Collectors.toList());
     }
 
@@ -131,6 +137,7 @@ public final class Utils {
         // the package doesn't contain any native library. The app is launched with the device's
         // preferred ABI.
         String preferredAbi = Constants.getPreferredAbi();
+        Utils.check(isNativeAbi(preferredAbi));
         return Abi.create(
                 preferredAbi, VMRuntime.getInstructionSet(preferredAbi), true /* isPrimaryAbi */);
     }
@@ -166,6 +173,11 @@ public final class Utils {
             return abi32;
         }
         throw new IllegalStateException(String.format("Non-native isa '%s'", isa));
+    }
+
+    private static boolean isNativeAbi(@NonNull String abiName) {
+        return abiName.equals(Constants.getNative64BitAbi())
+                || abiName.equals(Constants.getNative32BitAbi());
     }
 
     @NonNull
