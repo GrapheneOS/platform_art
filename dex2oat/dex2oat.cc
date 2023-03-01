@@ -1431,24 +1431,36 @@ class Dex2Oat final {
     }
   }
 
-  void LoadClassProfileDescriptors() {
+  void LoadImageClassDescriptors() {
     if (!IsImage()) {
       return;
     }
+    HashSet<std::string> image_classes;
     if (DoProfileGuidedOptimizations()) {
       // TODO: The following comment looks outdated or misplaced.
       // Filter out class path classes since we don't want to include these in the image.
-      HashSet<std::string> image_classes = profile_compilation_info_->GetClassDescriptors(
+      image_classes = profile_compilation_info_->GetClassDescriptors(
           compiler_options_->dex_files_for_oat_file_);
       VLOG(compiler) << "Loaded " << image_classes.size()
                      << " image class descriptors from profile";
-      if (VLOG_IS_ON(compiler)) {
-        for (const std::string& s : image_classes) {
-          LOG(INFO) << "Image class " << s;
+    } else if (compiler_options_->IsBootImage() || compiler_options_->IsBootImageExtension()) {
+      // If we are compiling a boot image but no profile is provided, include all classes in the
+      // image. This is to match pre-boot image extension work where we would load all boot image
+      // extension classes at startup.
+      for (const DexFile* dex_file : compiler_options_->dex_files_for_oat_file_) {
+        for (uint32_t i = 0; i < dex_file->NumClassDefs(); i++) {
+          const dex::ClassDef& class_def = dex_file->GetClassDef(i);
+          const char* descriptor = dex_file->GetClassDescriptor(class_def);
+          image_classes.insert(descriptor);
         }
       }
-      compiler_options_->image_classes_.swap(image_classes);
     }
+    if (VLOG_IS_ON(compiler)) {
+      for (const std::string& s : image_classes) {
+        LOG(INFO) << "Image class " << s;
+      }
+    }
+    compiler_options_->image_classes_ = std::move(image_classes);
   }
 
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
@@ -3078,7 +3090,7 @@ class ScopedGlobalRef {
 
 static dex2oat::ReturnCode DoCompilation(Dex2Oat& dex2oat) REQUIRES(!Locks::mutator_lock_) {
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());
-  dex2oat.LoadClassProfileDescriptors();
+  dex2oat.LoadImageClassDescriptors();
   jobject class_loader = dex2oat.Compile();
   // Keep the class loader that was used for compilation live for the rest of the compilation
   // process.
