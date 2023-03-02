@@ -1062,7 +1062,7 @@ ScopedAStatus Artd::isIncrementalFsPath(const std::string& in_dexFile [[maybe_un
   *_aidl_return = st.f_type == INCFS_MAGIC_NUMBER;
   return ScopedAStatus::ok();
 #else
-  *_aidl_return = true;
+  *_aidl_return = false;
   return ScopedAStatus::ok();
 #endif
 }
