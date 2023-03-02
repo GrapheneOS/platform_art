@@ -179,7 +179,7 @@ public final class ArtManagerLocal {
         try {
             long freedBytes = 0;
 
-            boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
+            boolean isInDalvikCache = Utils.isInDalvikCache(pkgState, mInjector.getArtd());
             for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
                 if (!dexInfo.hasCode()) {
                     continue;
@@ -865,7 +865,7 @@ public final class ArtManagerLocal {
                     continue;
                 }
                 AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-                boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
+                boolean isInDalvikCache = Utils.isInDalvikCache(pkgState, mInjector.getArtd());
                 boolean keepArtifacts = !Utils.shouldSkipDexoptDueToHibernation(
                         pkgState, mInjector.getAppHibernationManager());
                 for (DetailedPrimaryDexInfo dexInfo :

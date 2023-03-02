@@ -23,6 +23,7 @@ import android.annotation.SuppressLint;
 import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
+import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
@@ -48,6 +49,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -87,7 +89,7 @@ public final class Utils {
         return array == null || array.length == 0;
     }
 
-    /** Returns the ABI information for the package. */
+    /** Returns the ABI information for the package. The primary ABI comes first. */
     @NonNull
     public static List<Abi> getAllAbis(@NonNull PackageState pkgState) {
         List<Abi> abis = new ArrayList<>();
@@ -108,15 +110,20 @@ public final class Utils {
         return abis;
     }
 
-    /** Returns the ABI information for the ABIs with the given names. */
+    /**
+     * Returns the ABI information for the ABIs with the given names. The primary ABI comes first,
+     * if given.
+     */
     @NonNull
     public static List<Abi> getAllAbisForNames(
             @NonNull Set<String> abiNames, @NonNull PackageState pkgState) {
+        Utils.check(abiNames.stream().allMatch(Utils::isNativeAbi));
         Abi pkgPrimaryAbi = getPrimaryAbi(pkgState);
         return abiNames.stream()
                 .map(name
                         -> Abi.create(name, VMRuntime.getInstructionSet(name),
                                 name.equals(pkgPrimaryAbi.name())))
+                .sorted(Comparator.comparing(Abi::isPrimaryAbi).reversed())
                 .collect(Collectors.toList());
     }
 
@@ -131,6 +138,7 @@ public final class Utils {
         // the package doesn't contain any native library. The app is launched with the device's
         // preferred ABI.
         String preferredAbi = Constants.getPreferredAbi();
+        Utils.check(isNativeAbi(preferredAbi));
         return Abi.create(
                 preferredAbi, VMRuntime.getInstructionSet(preferredAbi), true /* isPrimaryAbi */);
     }
@@ -168,9 +176,42 @@ public final class Utils {
         throw new IllegalStateException(String.format("Non-native isa '%s'", isa));
     }
 
+    private static boolean isNativeAbi(@NonNull String abiName) {
+        return abiName.equals(Constants.getNative64BitAbi())
+                || abiName.equals(Constants.getNative32BitAbi());
+    }
+
+    /**
+     * Returns whether the artifacts of the primary dex files should be in the global dalvik-cache
+     * directory.
+     *
+     * This method is not needed for secondary dex files because they are always in writable
+     * locations.
+     */
     @NonNull
-    public static boolean isInDalvikCache(@NonNull PackageState pkg) {
-        return pkg.isSystem() && !pkg.isUpdatedSystemApp();
+    public static boolean isInDalvikCache(@NonNull PackageState pkgState, @NonNull IArtd artd)
+            throws RemoteException {
+        // The artifacts should be in the global dalvik-cache directory if:
+        // (1). the package is on a system partition, even if the partition is remounted read-write,
+        //      or
+        // (2). the package is in any other readonly location. (At the time of writing, this only
+        //      include Incremental FS.)
+        //
+        // Right now, we are using some heuristics to determine this. For (1), we can potentially
+        // use "libfstab" instead as a general solution, but for (2), unfortunately, we have to
+        // stick with heuristics.
+        //
+        // We cannot rely on access(2) because:
+        // - It doesn't take effective capabilities into account, from which artd gets root access
+        //   to the filesystem.
+        // - The `faccessat` variant with the `AT_EACCESS` flag, which takes effective capabilities
+        //   into account, is not supported by bionic.
+        //
+        // We cannot rely on `f_flags` returned by statfs(2) because:
+        // - Incremental FS is tagged as read-write while it's actually not.
+        return (pkgState.isSystem() && !pkgState.isUpdatedSystemApp())
+                || artd.isIncrementalFsPath(
+                        pkgState.getAndroidPackage().getSplits().get(0).getPath());
     }
 
     /** Returns true if the given string is a valid compiler filter. */

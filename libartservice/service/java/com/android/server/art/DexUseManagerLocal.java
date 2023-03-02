@@ -64,6 +64,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -832,7 +833,7 @@ public class DexUseManagerLocal {
      */
     @Immutable
     @AutoValue
-    public abstract static class DexLoader {
+    public abstract static class DexLoader implements Comparable<DexLoader> {
         static DexLoader create(@NonNull String loadingPackageName, boolean isolatedProcess) {
             return new AutoValue_DexUseManagerLocal_DexLoader(loadingPackageName, isolatedProcess);
         }
@@ -846,6 +847,13 @@ public class DexUseManagerLocal {
         @NonNull
         public String toString() {
             return loadingPackageName() + (isolatedProcess() ? " (isolated)" : "");
+        }
+
+        @Override
+        public int compareTo(DexLoader o) {
+            return Comparator.comparing(DexLoader::loadingPackageName)
+                    .thenComparing(DexLoader::isolatedProcess)
+                    .compare(this, o);
         }
     }
 

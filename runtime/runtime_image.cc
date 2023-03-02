@@ -55,6 +55,8 @@ namespace art {
 
 using android::base::StringPrintf;
 
+static constexpr bool kEmitDexCacheArrays = false;
+
 /**
  * The native data structures that we store in the image.
  */
@@ -1162,6 +1164,10 @@ class RuntimeImageHelper {
     mirror::Object* copy = reinterpret_cast<mirror::Object*>(objects_.data() + offset);
     reinterpret_cast<mirror::DexCache*>(copy)->ResetNativeArrays();
     reinterpret_cast<mirror::DexCache*>(copy)->SetDexFile(nullptr);
+
+    if (!kEmitDexCacheArrays) {
+      return offset;
+    }
 
     // Copy the ArtMethod array.
     mirror::NativeArray<ArtMethod>* resolved_methods = cache->GetResolvedMethodsArray();
