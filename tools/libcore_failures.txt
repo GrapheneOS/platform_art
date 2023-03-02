@@ -336,5 +336,13 @@
   result: ERROR,
   bug: 231439593,
   names: ["org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"]
+},
+{
+  description: "libcore.android.system.OsConstantsTest CAP constants tests work on device only",
+  result: EXEC_FAILED,
+  modes: [host],
+  names: ["libcore.android.system.OsConstantsTest#test_CAP_TO_INDEX",
+          "libcore.android.system.OsConstantsTest#test_CAP_TO_MASK",
+          "libcore.android.system.OsConstantsTest#test_CAP_constants"]
 }
 ]
