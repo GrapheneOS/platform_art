@@ -1427,7 +1427,6 @@ java.time.format.DateTimeFormatterBuilder$2
 java.time.format.DateTimeFormatterBuilder$CharLiteralPrinterParser
 java.time.format.DateTimeFormatterBuilder$CompositePrinterParser
 java.time.format.DateTimeFormatterBuilder$DateTimePrinterParser
-java.time.format.DateTimeFormatterBuilder$DayPeriod
 java.time.format.DateTimeFormatterBuilder$FractionPrinterParser
 java.time.format.DateTimeFormatterBuilder$InstantPrinterParser
 java.time.format.DateTimeFormatterBuilder$NumberPrinterParser
@@ -2510,7 +2509,6 @@ jdk.internal.misc.VM
 jdk.internal.reflect.Reflection
 jdk.internal.util.ArraysSupport
 jdk.internal.util.Preconditions
-jdk.internal.util.StaticProperty
 libcore.content.type.MimeMap$$ExternalSyntheticLambda0
 libcore.content.type.MimeMap$Builder$Element
 libcore.content.type.MimeMap$Builder
