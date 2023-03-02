@@ -23,35 +23,39 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_library {
-    // This library contains low-level interfaces used to call dex2oat and
-    // related tools.  It will translate structured messages into command line
-    // arguments.  This will allow other libraries or programs besides the ART
-    // Service to make use of this functionality.
+cc_defaults {
+    // This library contains low-level interfaces used to call dex2oat and related tools. This will
+    // allow other libraries or programs besides the ART Service to make use of this functionality.
 
-    name: "libarttools",
+    name: "libarttools_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
         "tools/tools.cc",
     ],
     export_include_dirs: ["."],
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
-    ],
     shared_libs: [
         "libbase",
-    ],
-    whole_static_libs: [
-        // TODO(b/270049598): Investigate the cost of libc++fs compared to its utility.
-        "libc++fs",
     ],
     export_shared_lib_headers: ["libbase"],
 }
 
+cc_library {
+    name: "libarttools",
+    defaults: ["libarttools_defaults"],
+    whole_static_libs: [
+        // TODO(b/270049598): Investigate the cost of libc++fs compared to its utility.
+        "libc++fs",
+    ],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
 art_cc_defaults {
     name: "art_libarttools_tests_defaults",
+    defaults: ["libarttools_defaults"],
     srcs: [
         "tools/art_exec_test.cc",
         "tools/cmdline_builder_test.cc",
@@ -60,7 +64,6 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libbase",
-        "libarttools",
     ],
     static_libs: [
         "libgmock",

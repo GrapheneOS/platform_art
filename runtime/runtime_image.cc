@@ -55,6 +55,8 @@ namespace art {
 
 using android::base::StringPrintf;
 
+static constexpr bool kEmitDexCacheArrays = false;
+
 /**
  * The native data structures that we store in the image.
  */
@@ -157,36 +159,56 @@ class RuntimeImageHelper {
     return true;
   }
 
-  const std::vector<uint8_t>& GetObjects() const {
-    return objects_;
+  void FillData(std::vector<uint8_t>& data) {
+    // Note we don't put the header, we only have it reserved in `data` as
+    // Image::WriteData expects the object section to contain the image header.
+    auto compute_dest = [&](const ImageSection& section) {
+      return data.data() + section.Offset();
+    };
+
+    auto objects_section = header_.GetImageSection(ImageHeader::kSectionObjects);
+    memcpy(compute_dest(objects_section) + sizeof(ImageHeader), objects_.data(), objects_.size());
+    std::vector<uint8_t>().swap(objects_);
+
+    auto fields_section = header_.GetImageSection(ImageHeader::kSectionArtFields);
+    memcpy(compute_dest(fields_section), art_fields_.data(), fields_section.Size());
+    std::vector<uint8_t>().swap(art_fields_);
+
+    auto methods_section = header_.GetImageSection(ImageHeader::kSectionArtMethods);
+    memcpy(compute_dest(methods_section), art_methods_.data(), methods_section.Size());
+    std::vector<uint8_t>().swap(art_methods_);
+
+    auto im_tables_section = header_.GetImageSection(ImageHeader::kSectionImTables);
+    memcpy(compute_dest(im_tables_section), im_tables_.data(), im_tables_section.Size());
+    std::vector<uint8_t>().swap(im_tables_);
+
+    auto intern_section = header_.GetImageSection(ImageHeader::kSectionInternedStrings);
+    intern_table_.WriteToMemory(compute_dest(intern_section));
+
+    auto class_table_section = header_.GetImageSection(ImageHeader::kSectionClassTable);
+    class_table_.WriteToMemory(compute_dest(class_table_section));
+
+    auto string_offsets_section =
+        header_.GetImageSection(ImageHeader::kSectionStringReferenceOffsets);
+    memcpy(compute_dest(string_offsets_section),
+           string_reference_offsets_.data(),
+           string_offsets_section.Size());
+    std::vector<AppImageReferenceOffsetInfo>().swap(string_reference_offsets_);
+
+    auto dex_cache_section = header_.GetImageSection(ImageHeader::kSectionDexCacheArrays);
+    memcpy(compute_dest(dex_cache_section), dex_cache_arrays_.data(), dex_cache_section.Size());
+    std::vector<uint8_t>().swap(dex_cache_arrays_);
+
+    auto metadata_section = header_.GetImageSection(ImageHeader::kSectionMetadata);
+    memcpy(compute_dest(metadata_section), metadata_.data(), metadata_section.Size());
+    std::vector<uint8_t>().swap(metadata_);
+
+    DCHECK_EQ(metadata_section.Offset() + metadata_section.Size(), data.size());
   }
 
-  const std::vector<uint8_t>& GetArtMethods() const {
-    return art_methods_;
-  }
 
-  const std::vector<uint8_t>& GetArtFields() const {
-    return art_fields_;
-  }
-
-  const std::vector<uint8_t>& GetImTables() const {
-    return im_tables_;
-  }
-
-  const std::vector<uint8_t>& GetMetadata() const {
-    return metadata_;
-  }
-
-  const std::vector<uint8_t>& GetDexCacheArrays() const {
-    return dex_cache_arrays_;
-  }
-
-  const std::vector<AppImageReferenceOffsetInfo>& GetStringReferenceOffsets() const {
-    return string_reference_offsets_;
-  }
-
-  const ImageHeader& GetHeader() const {
-    return header_;
+  ImageHeader* GetHeader() {
+    return &header_;
   }
 
   const gc::accounting::ContinuousSpaceBitmap& GetImageBitmap() const {
@@ -195,14 +217,6 @@ class RuntimeImageHelper {
 
   const std::string& GetDexLocation() const {
     return dex_location_;
-  }
-
-  void GenerateInternData(std::vector<uint8_t>& data) const {
-    intern_table_.WriteToMemory(data.data());
-  }
-
-  void GenerateClassTableData(std::vector<uint8_t>& data) const {
-    class_table_.WriteToMemory(data.data());
   }
 
  private:
@@ -1151,6 +1165,10 @@ class RuntimeImageHelper {
     reinterpret_cast<mirror::DexCache*>(copy)->ResetNativeArrays();
     reinterpret_cast<mirror::DexCache*>(copy)->SetDexFile(nullptr);
 
+    if (!kEmitDexCacheArrays) {
+      return offset;
+    }
+
     // Copy the ArtMethod array.
     mirror::NativeArray<ArtMethod>* resolved_methods = cache->GetResolvedMethodsArray();
     CopyNativeDexCacheArray(cache->GetDexFile()->NumMethodIds(),
@@ -1484,138 +1502,36 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
   // We first generate the app image in a temporary file, which we will then
   // move to `path`.
   const std::string temp_path = ReplaceFileExtension(path, std::to_string(getpid()) + ".tmp");
-  std::unique_ptr<File> out(OS::CreateEmptyFileWriteOnly(temp_path.c_str()));
-  if (out == nullptr) {
+  ImageFileGuard image_file;
+  image_file.reset(OS::CreateEmptyFileWriteOnly(temp_path.c_str()));
+
+  if (image_file == nullptr) {
     *error_msg = "Could not open " + temp_path + " for writing";
     return false;
   }
 
-  // Write objects. The header is written at the end in case we get killed.
-  if (out->Write(reinterpret_cast<const char*>(image.GetObjects().data()),
-                 image.GetObjects().size(),
-                 sizeof(ImageHeader)) != static_cast<int64_t>(image.GetObjects().size())) {
-    *error_msg = "Could not write image data to " + temp_path;
-    out->Erase(/*unlink=*/true);
+  std::vector<uint8_t> full_data(image.GetHeader()->GetImageSize());
+  image.FillData(full_data);
+
+  // Specify default block size of 512K to enable parallel image decompression.
+  static constexpr size_t kMaxImageBlockSize = 524288;
+  // Use LZ4 as good compromise between CPU time and compression. LZ4HC
+  // empirically takes 10x more time compressing.
+  static constexpr ImageHeader::StorageMode kImageStorageMode = ImageHeader::kStorageModeLZ4;
+  // Note: no need to update the checksum of the runtime app image: we have no
+  // use for it, and computing it takes CPU time.
+  if (!image.GetHeader()->WriteData(
+          image_file,
+          full_data.data(),
+          reinterpret_cast<const uint8_t*>(image.GetImageBitmap().Begin()),
+          kImageStorageMode,
+          kMaxImageBlockSize,
+          /* update_checksum= */ false,
+          error_msg)) {
     return false;
   }
 
-  {
-    // Write fields.
-    auto fields_section = image.GetHeader().GetImageSection(ImageHeader::kSectionArtFields);
-    if (out->Write(reinterpret_cast<const char*>(image.GetArtFields().data()),
-                   fields_section.Size(),
-                   fields_section.Offset()) != fields_section.Size()) {
-      *error_msg = "Could not write fields section " + temp_path;
-      out->Erase(/*unlink=*/true);
-      return false;
-    }
-  }
-
-  {
-    // Write methods.
-    auto methods_section = image.GetHeader().GetImageSection(ImageHeader::kSectionArtMethods);
-    if (out->Write(reinterpret_cast<const char*>(image.GetArtMethods().data()),
-                   methods_section.Size(),
-                   methods_section.Offset()) != methods_section.Size()) {
-      *error_msg = "Could not write methods section " + temp_path;
-      out->Erase(/*unlink=*/true);
-      return false;
-    }
-  }
-
-  {
-    // Write im tables.
-    auto im_tables_section = image.GetHeader().GetImageSection(ImageHeader::kSectionImTables);
-    if (out->Write(reinterpret_cast<const char*>(image.GetImTables().data()),
-                   im_tables_section.Size(),
-                   im_tables_section.Offset()) != im_tables_section.Size()) {
-      *error_msg = "Could not write ImTable section " + temp_path;
-      out->Erase(/*unlink=*/true);
-      return false;
-    }
-  }
-
-  {
-    // Write intern string set.
-    auto intern_section = image.GetHeader().GetImageSection(ImageHeader::kSectionInternedStrings);
-    std::vector<uint8_t> intern_data(intern_section.Size());
-    image.GenerateInternData(intern_data);
-    if (out->Write(reinterpret_cast<const char*>(intern_data.data()),
-                   intern_section.Size(),
-                   intern_section.Offset()) != intern_section.Size()) {
-      *error_msg = "Could not write intern section " + temp_path;
-      out->Erase(/*unlink=*/true);
-      return false;
-    }
-  }
-
-  {
-    // Write class table.
-    auto class_table_section = image.GetHeader().GetImageSection(ImageHeader::kSectionClassTable);
-    std::vector<uint8_t> class_table_data(class_table_section.Size());
-    image.GenerateClassTableData(class_table_data);
-    if (out->Write(reinterpret_cast<const char*>(class_table_data.data()),
-                   class_table_section.Size(),
-                   class_table_section.Offset()) != class_table_section.Size()) {
-      *error_msg = "Could not write class table section " + temp_path;
-      out->Erase(/*unlink=*/true);
-      return false;
-    }
-  }
-
-  // Write bitmap.
-  auto bitmap_section = image.GetHeader().GetImageSection(ImageHeader::kSectionImageBitmap);
-  if (out->Write(reinterpret_cast<const char*>(image.GetImageBitmap().Begin()),
-                 bitmap_section.Size(),
-                 bitmap_section.Offset()) != bitmap_section.Size()) {
-    *error_msg = "Could not write image bitmap " + temp_path;
-    out->Erase(/*unlink=*/true);
-    return false;
-  }
-
-  // Write metadata section.
-  auto metadata_section = image.GetHeader().GetImageSection(ImageHeader::kSectionMetadata);
-  if (out->Write(reinterpret_cast<const char*>(image.GetMetadata().data()),
-                 metadata_section.Size(),
-                 metadata_section.Offset()) != metadata_section.Size()) {
-    *error_msg = "Could not write metadata " + temp_path;
-    out->Erase(/*unlink=*/true);
-    return false;
-  }
-
-  // Write string offset array section.
-  auto string_offsets_section =
-      image.GetHeader().GetImageSection(ImageHeader::kSectionStringReferenceOffsets);
-  if (out->Write(reinterpret_cast<const char*>(image.GetStringReferenceOffsets().data()),
-                 string_offsets_section.Size(),
-                 string_offsets_section.Offset()) != string_offsets_section.Size()) {
-    *error_msg = "Could not write string reference offsets " + temp_path;
-    out->Erase(/*unlink=*/true);
-    return false;
-  }
-
-  // Write dex cache array section.
-  auto dex_cache_section = image.GetHeader().GetImageSection(ImageHeader::kSectionDexCacheArrays);
-  if (out->Write(reinterpret_cast<const char*>(image.GetDexCacheArrays().data()),
-                 dex_cache_section.Size(),
-                 dex_cache_section.Offset()) != dex_cache_section.Size()) {
-    *error_msg = "Could not write dex cache arrays " + temp_path;
-    out->Erase(/*unlink=*/true);
-    return false;
-  }
-
-  // Now write header.
-  if (out->Write(reinterpret_cast<const char*>(&image.GetHeader()), sizeof(ImageHeader), 0u) !=
-          sizeof(ImageHeader)) {
-    *error_msg = "Could not write image header to " + temp_path;
-    out->Erase(/*unlink=*/true);
-    return false;
-  }
-
-  if (out->FlushClose() != 0) {
-    *error_msg = "Could not flush and close " + temp_path;
-    // Unlink directly: we cannot use `out` as we may have closed it.
-    unlink(temp_path.c_str());
+  if (!image_file.WriteHeaderAndClose(temp_path, image.GetHeader(), error_msg)) {
     return false;
   }
 

@@ -164,6 +164,9 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::vector<aidl::com::android::server::art::VdexPath>& in_vdexFilesToKeep,
       int64_t* _aidl_return) override;
 
+  ndk::ScopedAStatus isIncrementalFsPath(const std::string& in_dexFile,
+                                         bool* _aidl_return) override;
+
   android::base::Result<void> Start();
 
  private:

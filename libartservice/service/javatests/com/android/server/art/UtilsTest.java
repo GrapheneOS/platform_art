@@ -55,9 +55,7 @@ public class UtilsTest {
         lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86_64"))).thenReturn("arm64");
         lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86"))).thenReturn("arm");
 
-        // In reality, the preferred ABI should be either the native 64 bit ABI or the native 32 bit
-        // ABI, but we use a different value here to make sure the value is used only if expected.
-        lenient().when(Constants.getPreferredAbi()).thenReturn("x86");
+        lenient().when(Constants.getPreferredAbi()).thenReturn("arm64-v8a");
         lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
         lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
     }
@@ -133,7 +131,13 @@ public class UtilsTest {
         when(pkgState.getSecondaryCpuAbi()).thenReturn(null);
 
         assertThat(Utils.getAllAbis(pkgState))
-                .containsExactly(Utils.Abi.create("x86", "x86", true /* isPrimaryAbi */));
+                .containsExactly(Utils.Abi.create("arm64-v8a", "arm64", true /* isPrimaryAbi */));
+
+        // Make sure the result does come from `Constants.getPreferredAbi()` rather than somewhere
+        // else.
+        when(Constants.getPreferredAbi()).thenReturn("armeabi-v7a");
+        assertThat(Utils.getAllAbis(pkgState))
+                .containsExactly(Utils.Abi.create("armeabi-v7a", "arm", true /* isPrimaryAbi */));
     }
 
     @Test(expected = IllegalStateException.class)

@@ -40,8 +40,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.same;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.apphibernation.AppHibernationManager;
@@ -120,16 +120,24 @@ public class ArtManagerLocalTest {
     @Mock private StorageManager mStorageManager;
     private PackageState mPkgState1;
     private AndroidPackage mPkg1;
+    private List<DetailedSecondaryDexInfo> mSecondaryDexInfo1;
     private Config mConfig;
 
-    // True if the primary dex'es are in a readonly partition.
-    @Parameter(0) public boolean mIsInReadonlyPartition;
+    // True if the primary dex'es are in a system partition.
+    @Parameter(0) public boolean mIsInSystemPartition;
+    // True if the primary dex'es are in Incremental FS.
+    @Parameter(1) public boolean mIsInIncrementalFs;
+    // True if the artifacts should be in dalvik-cache.
+    @Parameter(2) public boolean mExpectedIsInDalvikCache;
 
     private ArtManagerLocal mArtManagerLocal;
 
-    @Parameters(name = "isInReadonlyPartition={0}")
-    public static Iterable<? extends Object> data() {
-        return List.of(false, true);
+    @Parameters(name = "isInReadonlyPartition={0},isInIncrementalFs={1},"
+                    + "expectedIsInDalvikCache={2}")
+    public static Iterable<Object[]>
+    data() {
+        return List.of(new Object[] {true, false, true}, new Object[] {false, true, true},
+                new Object[] {false, false, false});
     }
 
     @Before
@@ -192,13 +200,13 @@ public class ArtManagerLocalTest {
 
         // All packages are by default recently used.
         lenient().when(mDexUseManager.getPackageLastUsedAtMs(any())).thenReturn(RECENT_TIME_MS);
-        List<DetailedSecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
+        mSecondaryDexInfo1 = createSecondaryDexInfo();
         lenient()
-                .doReturn(secondaryDexInfo)
+                .doReturn(mSecondaryDexInfo1)
                 .when(mDexUseManager)
                 .getSecondaryDexInfo(eq(PKG_NAME_1));
         lenient()
-                .doReturn(secondaryDexInfo)
+                .doReturn(mSecondaryDexInfo1)
                 .when(mDexUseManager)
                 .getFilteredDetailedSecondaryDexInfo(eq(PKG_NAME_1));
 
@@ -217,6 +225,8 @@ public class ArtManagerLocalTest {
         mPkgState1 = mSnapshot.getPackageState(PKG_NAME_1);
         mPkg1 = mPkgState1.getAndroidPackage();
 
+        lenient().when(mArtd.isIncrementalFsPath(any())).thenReturn(mIsInIncrementalFs);
+
         mArtManagerLocal = new ArtManagerLocal(mInjector);
     }
 
@@ -228,16 +238,18 @@ public class ArtManagerLocalTest {
         assertThat(result.getFreedBytes()).isEqualTo(5);
 
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "arm64", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "arm64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "arm", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "arm", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "arm64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "arm", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
                 "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
-        verifyNoMoreInteractions(mArtd);
+
+        // Verify that there are no more calls than the ones above.
+        verify(mArtd, times(5)).deleteArtifacts(any());
     }
 
     @Test
@@ -247,6 +259,7 @@ public class ArtManagerLocalTest {
         lenient().when(Constants.getPreferredAbi()).thenReturn("x86_64");
         lenient().when(Constants.getNative64BitAbi()).thenReturn("x86_64");
         lenient().when(Constants.getNative32BitAbi()).thenReturn("x86");
+        when(mSecondaryDexInfo1.get(0).abiNames()).thenReturn(Set.of("x86_64"));
 
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
@@ -254,17 +267,19 @@ public class ArtManagerLocalTest {
         assertThat(result.getFreedBytes()).isEqualTo(5);
 
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "x86_64", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "x86_64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "x86", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "x86", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "x86_64", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "x86_64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "x86", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "x86", mExpectedIsInDalvikCache)));
         // We assume that the ISA got from `DexUseManagerLocal` is already the translated one.
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
-        verifyNoMoreInteractions(mArtd);
+                "/data/user/0/foo/1.apk", "x86_64", false /* isInDalvikCache */)));
+
+        // Verify that there are no more calls than the ones above.
+        verify(mArtd, times(5)).deleteArtifacts(any());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -422,13 +437,13 @@ public class ArtManagerLocalTest {
                 AidlUtils.buildProfilePathForPrimaryCur(1 /* userId */, PKG_NAME_1, "primary")));
 
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "arm64", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "arm64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/base.apk", "arm", mIsInReadonlyPartition)));
+                "/data/app/foo/base.apk", "arm", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "arm64", mExpectedIsInDalvikCache)));
         verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
-                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition)));
+                "/data/app/foo/split_0.apk", "arm", mExpectedIsInDalvikCache)));
 
         verify(mArtd).deleteProfile(
                 deepEq(AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk")));
@@ -865,14 +880,14 @@ public class ArtManagerLocalTest {
                         AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk"),
                         AidlUtils.buildProfilePathForSecondaryCur("/data/user/0/foo/1.apk")),
                 inAnyOrderDeepEquals(AidlUtils.buildArtifactsPath("/data/app/foo/base.apk", "arm64",
-                                             mIsInReadonlyPartition),
+                                             mExpectedIsInDalvikCache),
                         AidlUtils.buildArtifactsPath(
                                 "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)),
                 inAnyOrderDeepEquals(
                         VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
-                                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)),
+                                "/data/app/foo/split_0.apk", "arm64", mExpectedIsInDalvikCache)),
                         VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
-                                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition))));
+                                "/data/app/foo/split_0.apk", "arm", mExpectedIsInDalvikCache))));
     }
 
     private AndroidPackage createPackage(boolean multiSplit) {
@@ -916,7 +931,7 @@ public class ArtManagerLocalTest {
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn("arm64-v8a");
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
-        lenient().when(pkgState.isSystem()).thenReturn(mIsInReadonlyPartition);
+        lenient().when(pkgState.isSystem()).thenReturn(mIsInSystemPartition);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
 
         AndroidPackage pkg = createPackage(multiSplit);

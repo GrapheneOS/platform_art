@@ -77,8 +77,8 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
     }
 
     @Override
-    protected boolean isInDalvikCache() {
-        return Utils.isInDalvikCache(mPkgState);
+    protected boolean isInDalvikCache() throws RemoteException {
+        return Utils.isInDalvikCache(mPkgState, mInjector.getArtd());
     }
 
     @Override

@@ -321,12 +321,13 @@ class InstrumentationTest : public CommonRuntimeTest {
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
+    TestInstrumentationListener listener;
     ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("EnableMethodTracing");
-    instrumentation->EnableMethodTracing(key, needs_interpreter);
+    instrumentation->EnableMethodTracing(key, &listener, needs_interpreter);
   }
 
   void DisableMethodTracing(Thread* self, const char* key)
@@ -471,8 +472,6 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
   EXPECT_FALSE(instr->EntryExitStubsInstalled());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_FALSE(instr->NeedsSlowInterpreterForListeners());
-  EXPECT_FALSE(instr->ShouldNotifyMethodEnterExitEvents());
-
 
   // Check there is no registered listener.
   EXPECT_FALSE(instr->HasDexPcListeners());
