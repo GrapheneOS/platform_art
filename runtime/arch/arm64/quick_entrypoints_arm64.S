@@ -417,12 +417,12 @@ SAVE_SIZE=8*8   // x4, x5, <padding>, x19, x20, x21, FP, LR saved.
 
     // Copy parameters into the stack. Use numeric label as this is a macro and Clang's assembler
     // does not have unique-id variables.
-1:
     cbz w2, 2f
+1:
     sub w2, w2, #4      // Need 65536 bytes of range.
     ldr w10, [x1, x2]
     str w10, [x9, x2]
-    b 1b
+    cbnz w2, 1b
 
 2:
     // Store null into ArtMethod* at bottom of frame.
@@ -484,6 +484,134 @@ SAVE_SIZE=8*8   // x4, x5, <padding>, x19, x20, x21, FP, LR saved.
 .endm
 
 
+// Macro for loading an argument into a register.
+//  label - the base name of the label of the load routine,
+//  reg - the register to load,
+//  args - pointer to current argument, incremented by size,
+//  size - the size of the register - 4 or 8 bytes,
+//  nh4_reg - the register to fill with the address of the next handler for 4-byte values,
+//  nh4_l - the base name of the label of the next handler for 4-byte values,
+//  nh8_reg - the register to fill with the address of the next handler for 8-byte values,
+//  nh8_l - the base name of the label of the next handler for 8-byte values,
+//  cont - the base name of the label for continuing the shorty processing loop,
+//  suffix - suffix added to all labels to make labels unique for different users.
+.macro INVOKE_STUB_LOAD_REG label, reg, args, size, nh4_reg, nh4_l, nh8_reg, nh8_l, cont, suffix
+\label\suffix:
+    ldr \reg, [\args], #\size
+    adr \nh4_reg, \nh4_l\suffix
+    adr \nh8_reg, \nh8_l\suffix
+    b \cont\suffix
+.endm
+
+// Macro for skipping an argument that does not fit into argument registers.
+//  label - the base name of the label of the skip routine,
+//  args - pointer to current argument, incremented by size,
+//  size - the size of the argument - 4 or 8 bytes,
+//  cont - the base name of the label for continuing the shorty processing loop,
+//  suffix - suffix added to all labels to make labels unique for different users.
+.macro INVOKE_STUB_SKIP_ARG label, args, size, cont, suffix
+\label\suffix:
+    add \args, \args, #\size
+    b \cont\suffix
+.endm
+
+// Fill registers x/w1 to x/w7 and s/d0 to s/d7 with parameters.
+// Parse the passed shorty to determine which register to load.
+//  x5 - shorty,
+//  x9 - points to arguments on the stack,
+//  suffix - suffix added to all labels to make labels unique for different users.
+.macro INVOKE_STUB_LOAD_ALL_ARGS suffix
+    add x10, x5, #1                 // Load shorty address, plus one to skip the return type.
+
+    // Load this (if instance method) and addresses for routines that load WXSD registers.
+    .ifc \suffix, _instance
+        ldr w1, [x9], #4            // Load "this" parameter, and increment arg pointer.
+        adr x11, .Lload_w2\suffix
+        adr x12, .Lload_x2\suffix
+    .else
+        adr x11, .Lload_w1\suffix
+        adr x12, .Lload_x1\suffix
+    .endif
+    adr  x13, .Lload_s0\suffix
+    adr  x14, .Lload_d0\suffix
+
+    // Loop to fill registers.
+.Lfill_regs\suffix:
+    ldrb w17, [x10], #1             // Load next character in signature, and increment.
+    cbz w17, .Lcall_method\suffix   // Exit at end of signature. Shorty 0 terminated.
+
+    cmp w17, #'J'                   // Is this a long?
+    beq .Lload_long\suffix
+
+    cmp  w17, #'F'                  // Is this a float?
+    beq .Lload_float\suffix
+
+    cmp w17, #'D'                   // Is this a double?
+    beq .Lload_double\suffix
+
+    // Everything else uses a 4-byte GPR.
+    br x11
+
+.Lload_long\suffix:
+    br x12
+
+.Lload_float\suffix:
+    br x13
+
+.Lload_double\suffix:
+    br x14
+
+// Handlers for loading other args (not float/double/long) into W registers.
+    .ifnc \suffix, _instance
+        INVOKE_STUB_LOAD_REG \
+            .Lload_w1, w1, x9, 4, x11, .Lload_w2, x12, .Lload_x2, .Lfill_regs, \suffix
+    .endif
+    INVOKE_STUB_LOAD_REG .Lload_w2, w2, x9, 4, x11, .Lload_w3, x12, .Lload_x3, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_w3, w3, x9, 4, x11, .Lload_w4, x12, .Lload_x4, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_w4, w4, x9, 4, x11, .Lload_w5, x12, .Lload_x5, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_w5, w5, x9, 4, x11, .Lload_w6, x12, .Lload_x6, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_w6, w6, x9, 4, x11, .Lload_w7, x12, .Lload_x7, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_w7, w7, x9, 4, x11, .Lskip4, x12, .Lskip8, .Lfill_regs, \suffix
+
+// Handlers for loading longs into X registers.
+    .ifnc \suffix, _instance
+        INVOKE_STUB_LOAD_REG \
+            .Lload_x1, x1, x9, 8, x11, .Lload_w2, x12, .Lload_x2, .Lfill_regs, \suffix
+    .endif
+    INVOKE_STUB_LOAD_REG .Lload_x2, x2, x9, 8, x11, .Lload_w3, x12, .Lload_x3, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_x3, x3, x9, 8, x11, .Lload_w4, x12, .Lload_x4, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_x4, x4, x9, 8, x11, .Lload_w5, x12, .Lload_x5, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_x5, x5, x9, 8, x11, .Lload_w6, x12, .Lload_x6, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_x6, x6, x9, 8, x11, .Lload_w7, x12, .Lload_x7, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_x7, x7, x9, 8, x11, .Lskip4, x12, .Lskip8, .Lfill_regs, \suffix
+
+// Handlers for loading singles into S registers.
+    INVOKE_STUB_LOAD_REG .Lload_s0, s0, x9, 4, x13, .Lload_s1, x14, .Lload_d1, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s1, s1, x9, 4, x13, .Lload_s2, x14, .Lload_d2, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s2, s2, x9, 4, x13, .Lload_s3, x14, .Lload_d3, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s3, s3, x9, 4, x13, .Lload_s4, x14, .Lload_d4, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s4, s4, x9, 4, x13, .Lload_s5, x14, .Lload_d5, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s5, s5, x9, 4, x13, .Lload_s6, x14, .Lload_d6, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s6, s6, x9, 4, x13, .Lload_s7, x14, .Lload_d7, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_s7, s7, x9, 4, x13, .Lskip4, x14, .Lskip8, .Lfill_regs, \suffix
+
+// Handlers for loading doubles into D registers.
+    INVOKE_STUB_LOAD_REG .Lload_d0, d0, x9, 8, x13, .Lload_s1, x14, .Lload_d1, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d1, d1, x9, 8, x13, .Lload_s2, x14, .Lload_d2, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d2, d2, x9, 8, x13, .Lload_s3, x14, .Lload_d3, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d3, d3, x9, 8, x13, .Lload_s4, x14, .Lload_d4, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d4, d4, x9, 8, x13, .Lload_s5, x14, .Lload_d5, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d5, d5, x9, 8, x13, .Lload_s6, x14, .Lload_d6, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d6, d6, x9, 8, x13, .Lload_s7, x14, .Lload_d7, .Lfill_regs, \suffix
+    INVOKE_STUB_LOAD_REG .Lload_d7, d7, x9, 8, x13, .Lskip4, x14, .Lskip8, .Lfill_regs, \suffix
+
+// Handlers for skipping arguments that do not fit into registers.
+    INVOKE_STUB_SKIP_ARG .Lskip4, x9, 4, .Lfill_regs, \suffix
+    INVOKE_STUB_SKIP_ARG .Lskip8, x9, 8, .Lfill_regs, \suffix
+
+.Lcall_method\suffix:
+.endm
+
 /*
  *  extern"C" void art_quick_invoke_stub(ArtMethod *method,   x0
  *                                       uint32_t  *args,     x1
@@ -526,126 +654,11 @@ ENTRY art_quick_invoke_stub
     // Spill registers as per AACPS64 calling convention.
     INVOKE_STUB_CREATE_FRAME
 
-    // Fill registers x/w1 to x/w7 and s/d0 to s/d7 with parameters.
-    // Parse the passed shorty to determine which register to load.
-    // Load addresses for routines that load WXSD registers.
-    adr  x11, .LstoreW2
-    adr  x12, .LstoreX2
-    adr  x13, .LstoreS0
-    adr  x14, .LstoreD0
+    // Load args into registers.
+    INVOKE_STUB_LOAD_ALL_ARGS _instance
 
-    // Initialize routine offsets to 0 for integers and floats.
-    // x8 for integers, x15 for floating point.
-    mov x8, #0
-    mov x15, #0
-
-    add x10, x5, #1         // Load shorty address, plus one to skip return value.
-    ldr w1, [x9],#4         // Load "this" parameter, and increment arg pointer.
-
-    // Loop to fill registers.
-.LfillRegisters:
-    ldrb w17, [x10], #1       // Load next character in signature, and increment.
-    cbz w17, .LcallFunction   // Exit at end of signature. Shorty 0 terminated.
-
-    cmp  w17, #'F' // is this a float?
-    bne .LisDouble
-
-    cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .Ladvance4
-
-    add x17, x13, x15       // Calculate subroutine to jump to.
-    br  x17
-
-.LisDouble:
-    cmp w17, #'D'           // is this a double?
-    bne .LisLong
-
-    cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .Ladvance8
-
-    add x17, x14, x15       // Calculate subroutine to jump to.
-    br x17
-
-.LisLong:
-    cmp w17, #'J'           // is this a long?
-    bne .LisOther
-
-    cmp x8, # 6*12          // Skip this load if all registers full.
-    beq .Ladvance8
-
-    add x17, x12, x8        // Calculate subroutine to jump to.
-    br x17
-
-.LisOther:                  // Everything else takes one vReg.
-    cmp x8, # 6*12          // Skip this load if all registers full.
-    beq .Ladvance4
-
-    add x17, x11, x8        // Calculate subroutine to jump to.
-    br x17
-
-.Ladvance4:
-    add x9, x9, #4
-    b .LfillRegisters
-
-.Ladvance8:
-    add x9, x9, #8
-    b .LfillRegisters
-
-// Macro for loading a parameter into a register.
-//  counter - the register with offset into these tables
-//  size - the size of the register - 4 or 8 bytes.
-//  register - the name of the register to be loaded.
-.macro LOADREG counter size register return
-    ldr \register , [x9], #\size
-    add \counter, \counter, 12
-    b \return
-.endm
-
-// Store ints.
-.LstoreW2:
-    LOADREG x8 4 w2 .LfillRegisters
-    LOADREG x8 4 w3 .LfillRegisters
-    LOADREG x8 4 w4 .LfillRegisters
-    LOADREG x8 4 w5 .LfillRegisters
-    LOADREG x8 4 w6 .LfillRegisters
-    LOADREG x8 4 w7 .LfillRegisters
-
-// Store longs.
-.LstoreX2:
-    LOADREG x8 8 x2 .LfillRegisters
-    LOADREG x8 8 x3 .LfillRegisters
-    LOADREG x8 8 x4 .LfillRegisters
-    LOADREG x8 8 x5 .LfillRegisters
-    LOADREG x8 8 x6 .LfillRegisters
-    LOADREG x8 8 x7 .LfillRegisters
-
-// Store singles.
-.LstoreS0:
-    LOADREG x15 4 s0 .LfillRegisters
-    LOADREG x15 4 s1 .LfillRegisters
-    LOADREG x15 4 s2 .LfillRegisters
-    LOADREG x15 4 s3 .LfillRegisters
-    LOADREG x15 4 s4 .LfillRegisters
-    LOADREG x15 4 s5 .LfillRegisters
-    LOADREG x15 4 s6 .LfillRegisters
-    LOADREG x15 4 s7 .LfillRegisters
-
-// Store doubles.
-.LstoreD0:
-    LOADREG x15 8 d0 .LfillRegisters
-    LOADREG x15 8 d1 .LfillRegisters
-    LOADREG x15 8 d2 .LfillRegisters
-    LOADREG x15 8 d3 .LfillRegisters
-    LOADREG x15 8 d4 .LfillRegisters
-    LOADREG x15 8 d5 .LfillRegisters
-    LOADREG x15 8 d6 .LfillRegisters
-    LOADREG x15 8 d7 .LfillRegisters
-
-
-.LcallFunction:
-
+    // Call the method and return.
     INVOKE_STUB_CALL_AND_RETURN
-
 END art_quick_invoke_stub
 
 /*  extern"C"
@@ -660,117 +673,11 @@ ENTRY art_quick_invoke_static_stub
     // Spill registers as per AACPS64 calling convention.
     INVOKE_STUB_CREATE_FRAME
 
-    // Fill registers x/w1 to x/w7 and s/d0 to s/d7 with parameters.
-    // Parse the passed shorty to determine which register to load.
-    // Load addresses for routines that load WXSD registers.
-    adr  x11, .LstoreW1_2
-    adr  x12, .LstoreX1_2
-    adr  x13, .LstoreS0_2
-    adr  x14, .LstoreD0_2
+    // Load args into registers.
+    INVOKE_STUB_LOAD_ALL_ARGS _static
 
-    // Initialize routine offsets to 0 for integers and floats.
-    // x8 for integers, x15 for floating point.
-    mov x8, #0
-    mov x15, #0
-
-    add x10, x5, #1     // Load shorty address, plus one to skip return value.
-
-    // Loop to fill registers.
-.LfillRegisters2:
-    ldrb w17, [x10], #1         // Load next character in signature, and increment.
-    cbz w17, .LcallFunction2    // Exit at end of signature. Shorty 0 terminated.
-
-    cmp  w17, #'F'          // is this a float?
-    bne .LisDouble2
-
-    cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .Ladvance4_2
-
-    add x17, x13, x15       // Calculate subroutine to jump to.
-    br  x17
-
-.LisDouble2:
-    cmp w17, #'D'           // is this a double?
-    bne .LisLong2
-
-    cmp x15, # 8*12         // Skip this load if all registers full.
-    beq .Ladvance8_2
-
-    add x17, x14, x15       // Calculate subroutine to jump to.
-    br x17
-
-.LisLong2:
-    cmp w17, #'J'           // is this a long?
-    bne .LisOther2
-
-    cmp x8, # 7*12          // Skip this load if all registers full.
-    beq .Ladvance8_2
-
-    add x17, x12, x8        // Calculate subroutine to jump to.
-    br x17
-
-.LisOther2:                 // Everything else takes one vReg.
-    cmp x8, # 7*12          // Skip this load if all registers full.
-    beq .Ladvance4_2
-
-    add x17, x11, x8        // Calculate subroutine to jump to.
-    br x17
-
-.Ladvance4_2:
-    add x9, x9, #4
-    b .LfillRegisters2
-
-.Ladvance8_2:
-    add x9, x9, #8
-    b .LfillRegisters2
-
-// Store ints.
-.LstoreW1_2:
-    LOADREG x8 4 w1 .LfillRegisters2
-    LOADREG x8 4 w2 .LfillRegisters2
-    LOADREG x8 4 w3 .LfillRegisters2
-    LOADREG x8 4 w4 .LfillRegisters2
-    LOADREG x8 4 w5 .LfillRegisters2
-    LOADREG x8 4 w6 .LfillRegisters2
-    LOADREG x8 4 w7 .LfillRegisters2
-
-// Store longs.
-.LstoreX1_2:
-    LOADREG x8 8 x1 .LfillRegisters2
-    LOADREG x8 8 x2 .LfillRegisters2
-    LOADREG x8 8 x3 .LfillRegisters2
-    LOADREG x8 8 x4 .LfillRegisters2
-    LOADREG x8 8 x5 .LfillRegisters2
-    LOADREG x8 8 x6 .LfillRegisters2
-    LOADREG x8 8 x7 .LfillRegisters2
-
-// Store singles.
-.LstoreS0_2:
-    LOADREG x15 4 s0 .LfillRegisters2
-    LOADREG x15 4 s1 .LfillRegisters2
-    LOADREG x15 4 s2 .LfillRegisters2
-    LOADREG x15 4 s3 .LfillRegisters2
-    LOADREG x15 4 s4 .LfillRegisters2
-    LOADREG x15 4 s5 .LfillRegisters2
-    LOADREG x15 4 s6 .LfillRegisters2
-    LOADREG x15 4 s7 .LfillRegisters2
-
-// Store doubles.
-.LstoreD0_2:
-    LOADREG x15 8 d0 .LfillRegisters2
-    LOADREG x15 8 d1 .LfillRegisters2
-    LOADREG x15 8 d2 .LfillRegisters2
-    LOADREG x15 8 d3 .LfillRegisters2
-    LOADREG x15 8 d4 .LfillRegisters2
-    LOADREG x15 8 d5 .LfillRegisters2
-    LOADREG x15 8 d6 .LfillRegisters2
-    LOADREG x15 8 d7 .LfillRegisters2
-
-
-.LcallFunction2:
-
+    // Call the method and return.
     INVOKE_STUB_CALL_AND_RETURN
-
 END art_quick_invoke_static_stub
 
 
