@@ -495,7 +495,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             return handleSnapshotBootProfile(pw, snapshot);
         }
 
-        if (splitName.isEmpty()) {
+        if (splitName != null && splitName.isEmpty()) {
             splitName = null;
         }
         if (codePath != null) {

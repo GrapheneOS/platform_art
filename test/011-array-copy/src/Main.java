@@ -24,6 +24,7 @@ public class Main {
         testObjectCopy();
         testOverlappingMoves();
         testFloatAndDouble();
+        testArrayCopyChar();
     }
 
     public static void testObjectCopy() {
@@ -165,4 +166,190 @@ public class Main {
         System.arraycopy(new float[len], 0, new float[len], 0, len);
         System.arraycopy(new double[len], 0, new double[len], 0, len);
     }
+
+    static final char SRC_INIT_CHAR = '1';
+    static final char DST_CHAR = '0';
+
+    /* Return a char array of the specified length.
+     * If do_increment is true, populate the array with (numerically) ascending
+     * characters starting from initChar (note: char wraps-around on overflow).
+     * If do_increment is false, populate all array elements with initChar.
+     */
+    public static char[] createCharArray(int length, char initChar, boolean do_increment) {
+        char[] charArr = new char[length];
+        char nextChar = initChar;
+
+        for (int i = 0; i < length; ++i) {
+            charArr[i] = nextChar;
+            if (do_increment) {
+                nextChar++;
+            }
+        }
+        return charArr;
+    }
+
+    public static boolean verifyCorrectness(char[] src, char[] dst, int copiedPrefixLength) {
+        for (int i = 0; i < dst.length; ++i) {
+            if (i < copiedPrefixLength) {
+                // Check that we copied source array.
+                if (dst[i] != src[i]) {
+                    return false;
+                }
+            } else {
+                // Check that we didn't write more chars than necessary.
+                if (dst[i] != DST_CHAR) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public static void testArrayCopyCharConstCase2() {
+        final int copy_length = 2;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 2 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 2 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase3() {
+        final int copy_length = 3;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 3 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 3 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase5() {
+        final int copy_length = 5;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 5 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 5 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase7() {
+        final int copy_length = 7;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 7 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 7 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase8() {
+        final int copy_length = 8;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 8 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 8 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase9() {
+        final int copy_length = 9;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 9 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 9 passed");
+        }
+    }
+
+    public static void testArrayCopyCharConstCase11() {
+        final int copy_length = 11;
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) const case 11 failed");
+        } else {
+            System.out.println("arraycopy(char) const case 11 passed");
+        }
+    }
+
+    public static void testArrayCopyCharCase(int copy_length) {
+        char[] src = createCharArray(2 * copy_length, SRC_INIT_CHAR, true);
+        char[] dst = createCharArray(4 * copy_length, DST_CHAR, false);
+
+        System.arraycopy(src, 0, dst, 0, copy_length);
+
+        boolean passed = verifyCorrectness(src, dst, copy_length);
+        if (!passed) {
+            System.out.println("arraycopy(char) " + copy_length + " failed");
+        } else {
+            System.out.println("arraycopy(char) " + copy_length + " passed");
+        }
+    }
+
+    public static void testArrayCopyChar() {
+        testArrayCopyCharConstCase2();
+        testArrayCopyCharConstCase3();
+        testArrayCopyCharConstCase5();
+        testArrayCopyCharConstCase7();
+        testArrayCopyCharConstCase8();
+        testArrayCopyCharConstCase9();
+        testArrayCopyCharConstCase11();
+        testArrayCopyCharCase(0);
+        testArrayCopyCharCase(1);
+        testArrayCopyCharCase(3);
+        testArrayCopyCharCase(4);
+        testArrayCopyCharCase(5);
+        testArrayCopyCharCase(7);
+        testArrayCopyCharCase(15);
+        testArrayCopyCharCase(16);
+        testArrayCopyCharCase(17);
+        testArrayCopyCharCase(31);
+        testArrayCopyCharCase(32);
+        testArrayCopyCharCase(33);
+        testArrayCopyCharCase(63);
+        testArrayCopyCharCase(64);
+        testArrayCopyCharCase(65);
+        testArrayCopyCharCase(255);
+        testArrayCopyCharCase(513);
+        testArrayCopyCharCase(1025);
+    }
+
 }

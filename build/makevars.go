@@ -62,7 +62,7 @@ func makeVarsProvider(ctx android.MakeVarsContext) {
 	// Create list of copy commands to install the content of the testcases directory.
 	testcasesContent := testcasesContent(ctx.Config())
 	copy_cmds := []string{}
-	for _, key := range android.SortedStringKeys(testcasesContent) {
+	for _, key := range android.SortedKeys(testcasesContent) {
 		copy_cmds = append(copy_cmds, testcasesContent[key]+":"+key)
 	}
 	ctx.Strict("ART_TESTCASES_CONTENT", strings.Join(copy_cmds, " "))
