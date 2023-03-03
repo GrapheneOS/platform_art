@@ -113,8 +113,6 @@ class MetricsBase;
 
 namespace gc {
 class HeapTest_GCMetrics_Test;
-template <typename T>
-bool AnyIsNonNull(const metrics::MetricsBase<T>* x, const metrics::MetricsBase<T>* y);
 }  // namespace gc
 
 namespace metrics {
@@ -304,8 +302,6 @@ class MetricsBase {
   virtual bool IsNull() const = 0;
 
   ART_FRIEND_TEST(gc::HeapTest, GCMetrics);
-  template <typename T>
-  friend bool gc::AnyIsNonNull(const MetricsBase<T>* x, const MetricsBase<T>* y);
 };
 
 template <DatumId counter_type, typename T = uint64_t>
