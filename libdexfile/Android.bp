@@ -57,6 +57,9 @@ cc_defaults {
         "jni_headers",
         "libdexfile_external_headers",
     ],
+    static: {
+        cflags: ["-DSTATIC_LIB"],
+    },
     target: {
         android: {
             srcs: [
@@ -572,6 +575,14 @@ art_cc_test {
     ],
     enabled: false,
     target: {
+        android: {
+            // Build static test binary on device, to make sure libdexfile_static can be used in
+            // static simpleperf binary in ndk.
+            static_executable: true,
+            static_libs: [
+                "libc",
+            ],
+        },
         linux: {
             enabled: true,
         },
