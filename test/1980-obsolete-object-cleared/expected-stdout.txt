@@ -17,6 +17,10 @@ Using unsafe to access obsolete values directly from memory.
 Using obsolete class object!
 
 
+Calling public java.lang.Class java.lang.Class.arrayType() with params: []
+public java.lang.Class java.lang.Class.arrayType() on (obsolete)class Main$Transform with [] = class [LMain$Transform;
+Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.arrayType() with params: []
+public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.arrayType() on (obsolete)class Main$Transform with [] = class [LMain$Transform;
 Calling public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) with params: [[null, class java.lang.Object, (obsolete)class Main$Transform, class Main$Transform, long, class java.lang.Class]]
 public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) with [null] throws java.lang.reflect.InvocationTargetException: java.lang.NullPointerException: Attempt to invoke virtual method 'boolean java.lang.Class.isAssignableFrom(java.lang.Class)' on a null object reference
 public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) on (obsolete)class Main$Transform with [class java.lang.Object] = (obsolete)class Main$Transform
@@ -29,6 +33,12 @@ public java.lang.Object java.lang.Class.cast(java.lang.Object) on (obsolete)clas
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [foo] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.String to Main$Transform
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [NOT_USED_STRING] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.String to Main$Transform
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [class Main$Transform] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.Class to Main$Transform
+Calling public java.lang.Class java.lang.Class.componentType() with params: []
+public java.lang.Class java.lang.Class.componentType() on (obsolete)class Main$Transform with [] = null
+Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() with params: []
+public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() on (obsolete)class Main$Transform with [] = null
+Calling public java.lang.String java.lang.Class.descriptorString() with params: []
+public java.lang.String java.lang.Class.descriptorString() on (obsolete)class Main$Transform with [] = LMain$Transform;
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
 public boolean java.lang.Class.desiredAssertionStatus() on (obsolete)class Main$Transform with [] = false
 Calling public int java.lang.Class.getAccessFlags() with params: []
@@ -252,6 +262,10 @@ public java.lang.String java.lang.Class.toString() on (obsolete)class Main$Trans
 Using non-obsolete class object!
 
 
+Calling public java.lang.Class java.lang.Class.arrayType() with params: []
+public java.lang.Class java.lang.Class.arrayType() on class Main$Transform with [] = class [LMain$Transform;
+Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.arrayType() with params: []
+public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.arrayType() on class Main$Transform with [] = class [LMain$Transform;
 Calling public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) with params: [[null, class java.lang.Object, (obsolete)class Main$Transform, class Main$Transform, long, class java.lang.Class]]
 public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) with [null] throws java.lang.reflect.InvocationTargetException: java.lang.NullPointerException: Attempt to invoke virtual method 'boolean java.lang.Class.isAssignableFrom(java.lang.Class)' on a null object reference
 public java.lang.Class java.lang.Class.asSubclass(java.lang.Class) on class Main$Transform with [class java.lang.Object] = class Main$Transform
@@ -264,6 +278,12 @@ public java.lang.Object java.lang.Class.cast(java.lang.Object) on class Main$Tra
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [foo] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.String to Main$Transform
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [NOT_USED_STRING] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.String to Main$Transform
 public java.lang.Object java.lang.Class.cast(java.lang.Object) with [class Main$Transform] throws java.lang.reflect.InvocationTargetException: java.lang.ClassCastException: Cannot cast java.lang.Class to Main$Transform
+Calling public java.lang.Class java.lang.Class.componentType() with params: []
+public java.lang.Class java.lang.Class.componentType() on class Main$Transform with [] = null
+Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() with params: []
+public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() on class Main$Transform with [] = null
+Calling public java.lang.String java.lang.Class.descriptorString() with params: []
+public java.lang.String java.lang.Class.descriptorString() on class Main$Transform with [] = LMain$Transform;
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
 public boolean java.lang.Class.desiredAssertionStatus() on class Main$Transform with [] = false
 Calling public int java.lang.Class.getAccessFlags() with params: []
