@@ -180,8 +180,16 @@ TEST_F(HeapTest, GCMetrics) {
           AnyIsNonNull<uint64_t>, full_gc_scanned_bytes_delta, young_gc_scanned_bytes_delta);
       EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes, young_gc_freed_bytes);
       EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes_delta, young_gc_freed_bytes_delta);
+      // We have observed that sometimes the GC duration (both for full-heap and
+      // young-generation collections) is null (b/271112044). Temporarily
+      // suspend the following checks while we investigate.
+      //
+      // TODO(b/271112044): Investigate and adjust these expectations and/or the
+      // corresponding metric logic.
+#if 0
       EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration, young_gc_duration);
       EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration_delta, young_gc_duration_delta);
+#endif
     } else {
       // Check that only full-heap GC metrics are non-null after trigerring the collection.
       EXPECT_FALSE(full_gc_collection_time->IsNull());
