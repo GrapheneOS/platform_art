@@ -398,7 +398,7 @@ class ImageSpace::PatchObjectVisitor final {
     }
     uint32_t size = reinterpret_cast<uint32_t*>(array)[-1];
     for (uint32_t i = 0; i < size; ++i) {
-      PatchGcRoot(&array->GetGcRoot(i));
+      PatchGcRoot(array->GetGcRootAddress(i));
     }
   }
 
