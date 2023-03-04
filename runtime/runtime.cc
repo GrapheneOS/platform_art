@@ -969,6 +969,9 @@ bool Runtime::Start() {
 
   started_ = true;
 
+  // Before running any clinit, set up the native methods provided by the runtime itself.
+  RegisterRuntimeNativeMethods(self->GetJniEnv());
+
   class_linker_->RunEarlyRootClinits(self);
   InitializeIntrinsics();
 
@@ -2180,9 +2183,6 @@ void Runtime::InitNativeMethods() {
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
   CHECK_EQ(self->GetState(), ThreadState::kNative);
-
-  // Set up the native methods provided by the runtime itself.
-  RegisterRuntimeNativeMethods(env);
 
   // Then set up libjavacore / libopenjdk / libicu_jni ,which are just
   // a regular JNI libraries with a regular JNI_OnLoad. Most JNI libraries can
