@@ -118,12 +118,12 @@ inline void NativeDexCachePair<T>::Initialize(std::atomic<NativeDexCachePair<T>>
 template <typename T>
 inline void GcRootArray<T>::Set(uint32_t index, T* value) {
   GcRoot<T> root(value);
-  entries_[index] = root;
+  entries_[index].store(root, std::memory_order_relaxed);
 }
 
 template <typename T>
 inline T* GcRootArray<T>::Get(uint32_t index) {
-  return entries_[index].Read();
+  return entries_[index].load(std::memory_order_relaxed).Read();
 }
 
 inline uint32_t DexCache::ClassSize(PointerSize pointer_size) {
@@ -214,10 +214,8 @@ inline CallSite* DexCache::GetResolvedCallSite(uint32_t call_site_idx) {
   if (UNLIKELY(call_sites == nullptr)) {
     return nullptr;
   }
-  GcRoot<mirror::CallSite>& target = call_sites->GetGcRoot(call_site_idx);
-  Atomic<GcRoot<mirror::CallSite>>& ref =
-      reinterpret_cast<Atomic<GcRoot<mirror::CallSite>>&>(target);
-  return ref.load(std::memory_order_seq_cst).Read();
+  Atomic<GcRoot<mirror::CallSite>>* target = call_sites->GetGcRoot(call_site_idx);
+  return target->load(std::memory_order_seq_cst).Read();
 }
 
 inline ObjPtr<CallSite> DexCache::SetResolvedCallSite(uint32_t call_site_idx,
@@ -231,17 +229,15 @@ inline ObjPtr<CallSite> DexCache::SetResolvedCallSite(uint32_t call_site_idx,
   if (UNLIKELY(call_sites == nullptr)) {
     call_sites = AllocateResolvedCallSites();
   }
-  GcRoot<mirror::CallSite>& target = call_sites->GetGcRoot(call_site_idx);
+  Atomic<GcRoot<mirror::CallSite>>* target = call_sites->GetGcRoot(call_site_idx);
 
   // The first assignment for a given call site wins.
-  Atomic<GcRoot<mirror::CallSite>>& ref =
-      reinterpret_cast<Atomic<GcRoot<mirror::CallSite>>&>(target);
-  if (ref.CompareAndSetStrongSequentiallyConsistent(null_call_site, candidate)) {
+  if (target->CompareAndSetStrongSequentiallyConsistent(null_call_site, candidate)) {
     // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
     WriteBarrier::ForEveryFieldWrite(this);
     return call_site;
   } else {
-    return target.Read();
+    return target->load(std::memory_order_relaxed).Read();
   }
 }
 
@@ -323,26 +319,26 @@ inline void DexCache::VisitNativeRoots(const Visitor& visitor) {
   GcRootArray<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites<kVerifyFlags>();
   size_t num_call_sites = NumResolvedCallSites<kVerifyFlags>();
   for (size_t i = 0; resolved_call_sites != nullptr && i != num_call_sites; ++i) {
-    visitor.VisitRootIfNonNull(resolved_call_sites->GetGcRoot(i).AddressWithoutBarrier());
+    visitor.VisitRootIfNonNull(resolved_call_sites->GetGcRootAddress(i)->AddressWithoutBarrier());
   }
 
   GcRootArray<mirror::Class>* resolved_types = GetResolvedTypesArray<kVerifyFlags>();
   size_t num_resolved_types = NumResolvedTypesArray<kVerifyFlags>();
   for (size_t i = 0; resolved_types != nullptr && i != num_resolved_types; ++i) {
-    visitor.VisitRootIfNonNull(resolved_types->GetGcRoot(i).AddressWithoutBarrier());
+    visitor.VisitRootIfNonNull(resolved_types->GetGcRootAddress(i)->AddressWithoutBarrier());
   }
 
   GcRootArray<mirror::String>* resolved_strings = GetStringsArray<kVerifyFlags>();
   size_t num_resolved_strings = NumStringsArray<kVerifyFlags>();
   for (size_t i = 0; resolved_strings != nullptr && i != num_resolved_strings; ++i) {
-    visitor.VisitRootIfNonNull(resolved_strings->GetGcRoot(i).AddressWithoutBarrier());
+    visitor.VisitRootIfNonNull(resolved_strings->GetGcRootAddress(i)->AddressWithoutBarrier());
   }
 
   GcRootArray<mirror::MethodType>* resolved_method_types =
       GetResolvedMethodTypesArray<kVerifyFlags>();
   size_t num_resolved_method_types = NumResolvedMethodTypesArray<kVerifyFlags>();
   for (size_t i = 0; resolved_method_types != nullptr && i != num_resolved_method_types; ++i) {
-    visitor.VisitRootIfNonNull(resolved_method_types->GetGcRoot(i).AddressWithoutBarrier());
+    visitor.VisitRootIfNonNull(resolved_method_types->GetGcRootAddress(i)->AddressWithoutBarrier());
   }
 }
 
