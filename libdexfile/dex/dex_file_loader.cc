@@ -395,6 +395,7 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(
   if (error_code != nullptr) {
     *error_code = DexFileLoaderErrorCode::kNoError;
   }
+  DCHECK_EQ(dex_file->GetHeader().file_size_, container->Size());
   return dex_file;
 }
 
