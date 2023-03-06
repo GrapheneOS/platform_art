@@ -53,8 +53,11 @@ namespace hiddenapi {
 enum class Domain : char;
 }  // namespace hiddenapi
 
-// Some instances of DexFile own the storage referred to by DexFile.  Clients who create
-// such management do so by subclassing Container.
+// Owns the physical storage that backs one or more DexFiles (that is, it can be shared).
+// It frees the storage (e.g. closes file) when all DexFiles that use it are all closed.
+//
+// The Begin()-End() range represents exactly one DexFile (with the size from the header).
+// In particular, the End() does NOT include any shared cdex data from other DexFiles.
 class DexFileContainer {
  public:
   DexFileContainer() { }
@@ -87,6 +90,7 @@ class DexFileContainer {
 class MemoryDexFileContainer : public DexFileContainer {
  public:
   MemoryDexFileContainer(const uint8_t* begin, const uint8_t* end) : begin_(begin), end_(end) {}
+  MemoryDexFileContainer(const uint8_t* begin, size_t size) : begin_(begin), end_(begin + size) {}
   bool IsReadOnly() const override { return true; }
   bool EnableWrite() override { return false; }
   bool DisableWrite() override { return false; }
