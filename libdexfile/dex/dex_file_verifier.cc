@@ -191,14 +191,10 @@ std::string GetMethodDescription(const uint8_t* const begin,
 
 class DexFileVerifier {
  public:
-  DexFileVerifier(const DexFile* dex_file,
-                  const uint8_t* begin,
-                  size_t size,
-                  const char* location,
-                  bool verify_checksum)
+  DexFileVerifier(const DexFile* dex_file, const char* location, bool verify_checksum)
       : dex_file_(dex_file),
-        begin_(begin),
-        size_(size),
+        begin_(dex_file->Begin()),
+        size_(dex_file->Size()),
         location_(location),
         verify_checksum_(verify_checksum),
         header_(&dex_file->GetHeader()),
@@ -207,8 +203,7 @@ class DexFileVerifier {
         init_indices_{std::numeric_limits<size_t>::max(),
                       std::numeric_limits<size_t>::max(),
                       std::numeric_limits<size_t>::max(),
-                      std::numeric_limits<size_t>::max()} {
-  }
+                      std::numeric_limits<size_t>::max()} {}
 
   bool Verify();
 
@@ -3679,13 +3674,11 @@ bool DexFileVerifier::CheckConstructorProperties(
 }
 
 bool Verify(const DexFile* dex_file,
-            const uint8_t* begin,
-            size_t size,
             const char* location,
             bool verify_checksum,
             std::string* error_msg) {
   std::unique_ptr<DexFileVerifier> verifier(
-      new DexFileVerifier(dex_file, begin, size, location, verify_checksum));
+      new DexFileVerifier(dex_file, location, verify_checksum));
   if (!verifier->Verify()) {
     *error_msg = verifier->FailureReason();
     return false;

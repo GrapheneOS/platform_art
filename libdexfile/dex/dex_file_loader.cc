@@ -380,12 +380,7 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(
   // NB: Dex verifier does not understand the compact dex format.
   if (verify && !dex_file->IsCompactDexFile()) {
     ScopedTrace trace(std::string("Verify dex file ") + location);
-    if (!dex::Verify(dex_file.get(),
-                     dex_file->Begin(),
-                     dex_file->Size(),
-                     location.c_str(),
-                     verify_checksum,
-                     error_msg)) {
+    if (!dex::Verify(dex_file.get(), location.c_str(), verify_checksum, error_msg)) {
       if (error_code != nullptr) {
         *error_code = DexFileLoaderErrorCode::kVerifyError;
       }
