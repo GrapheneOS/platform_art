@@ -31,8 +31,8 @@ void X86_64Context::Reset() {
   gprs_[RSP] = &rsp_;
   gprs_[RDI] = &arg0_;
   // Initialize registers with easy to spot debug values.
-  rsp_ = X86_64Context::kBadGprBase + RSP;
-  rip_ = X86_64Context::kBadGprBase + kNumberOfCpuRegisters;
+  rsp_ = kBadGprBase + RSP;
+  rip_ = kBadGprBase + kNumberOfCpuRegisters;
   arg0_ = 0;
 }
 
@@ -108,10 +108,10 @@ void X86_64Context::DoLongJump() {
   uintptr_t fprs[kNumberOfFloatRegisters];
 
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
-    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86_64Context::kBadGprBase + i;
+    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : X86_64Context::kBadFprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : kBadFprBase + i;
   }
 
   // We want to load the stack pointer one slot below so that the ret will pop eip.

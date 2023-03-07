@@ -41,8 +41,8 @@ void Riscv64Context::Reset() {
   gprs_[kPC] = &pc_;
   gprs_[A0] = &arg0_;
   // Initialize registers with easy to spot debug values.
-  sp_ = Riscv64Context::kBadGprBase + SP;
-  pc_ = Riscv64Context::kBadGprBase + kPC;
+  sp_ = kBadGprBase + SP;
+  pc_ = kBadGprBase + kPC;
   arg0_ = 0;
 }
 
@@ -134,10 +134,10 @@ void Riscv64Context::DoLongJump() {
   DCHECK_EQ(SP, 2);
 
   for (size_t i = 0; i < arraysize(gprs_); ++i) {
-    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : Riscv64Context::kBadGprBase + i;
+    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfFRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Riscv64Context::kBadFprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : kBadFprBase + i;
   }
 
   // Fill in TR (the ART Thread Register) with the address of the current thread.
