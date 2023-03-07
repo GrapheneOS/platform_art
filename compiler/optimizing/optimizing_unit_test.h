@@ -241,13 +241,14 @@ class OptimizingUnitTestHelper {
 
     // Create the dex file based on the fake data. Call the constructor so that we can use virtual
     // functions. Don't use the arena for the StandardDexFile otherwise the dex location leaks.
-    dex_files_.emplace_back(new StandardDexFile(
-        dex_data,
-        sizeof(StandardDexFile::Header),
-        "no_location",
-        /*location_checksum*/ 0,
-        /*oat_dex_file*/ nullptr,
-        /*container*/ nullptr));
+    auto container =
+        std::make_shared<MemoryDexFileContainer>(dex_data, sizeof(StandardDexFile::Header));
+    dex_files_.emplace_back(new StandardDexFile(dex_data,
+                                                sizeof(StandardDexFile::Header),
+                                                "no_location",
+                                                /*location_checksum*/ 0,
+                                                /*oat_dex_file*/ nullptr,
+                                                std::move(container)));
 
     graph_ = new (allocator) HGraph(
         allocator,
