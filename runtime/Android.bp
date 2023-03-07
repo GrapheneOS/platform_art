@@ -419,7 +419,9 @@ libart_cc_defaults {
             ],
             generated_sources: [
                 "apex-info-list-tinyxml",
+                "art-apex-cache-info",
             ],
+            tidy_disabled_srcs: [":art-apex-cache-info"],
         },
         android_arm: {
             ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
