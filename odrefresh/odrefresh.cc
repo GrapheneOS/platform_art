@@ -1436,8 +1436,10 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
                                           &checked_artifacts);
   }
 
-  bool compilation_required = (!compilation_options->compile_boot_classpath_for_isas.empty() ||
-                               !compilation_options->system_server_jars_to_compile.empty());
+  // Return kCompilationRequired to generate the cache info even if there's nothing to compile.
+  bool compilation_required = !compilation_options->compile_boot_classpath_for_isas.empty() ||
+                              !compilation_options->system_server_jars_to_compile.empty() ||
+                              !cache_info.has_value();
 
   // If partial compilation is disabled, we should compile everything regardless of what's in
   // `compilation_options`.
@@ -1445,10 +1447,8 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     return cleanup_and_compile_all();
   }
 
-  // We should only keep the cache info if we have artifacts on /data.
-  if (!checked_artifacts.empty()) {
-    checked_artifacts.push_back(cache_info_filename_);
-  }
+  // Always keep the cache info.
+  checked_artifacts.push_back(cache_info_filename_);
 
   Result<void> result = CleanupArtifactDirectory(metrics, checked_artifacts);
   if (!result.ok()) {
