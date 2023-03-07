@@ -238,11 +238,9 @@ template <typename T> class NativeArray {
 
   T** GetPtrEntryPtrSize(uint32_t index, PointerSize ptr_size) {
     if (ptr_size == PointerSize::k64) {
-      return reinterpret_cast<T**>(
-          reinterpret_cast64<uint64_t>(entries_) + index * sizeof(uint64_t));
+      return reinterpret_cast<T**>(reinterpret_cast<uint64_t*>(entries_) + index);
     } else {
-      return reinterpret_cast<T**>(
-          reinterpret_cast32<uint32_t>(entries_) + index * sizeof(uint32_t));
+      return reinterpret_cast<T**>(reinterpret_cast<uint32_t*>(entries_) + index);
     }
   }
 
