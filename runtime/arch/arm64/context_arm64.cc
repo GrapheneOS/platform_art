@@ -45,8 +45,8 @@ void Arm64Context::Reset() {
   gprs_[kPC] = &pc_;
   gprs_[X0] = &arg0_;
   // Initialize registers with easy to spot debug values.
-  sp_ = Arm64Context::kBadGprBase + SP;
-  pc_ = Arm64Context::kBadGprBase + kPC;
+  sp_ = kBadGprBase + SP;
+  pc_ = kBadGprBase + kPC;
   arg0_ = 0;
 }
 
@@ -156,10 +156,10 @@ __attribute__((no_sanitize("memtag"))) void Arm64Context::DoLongJump() {
   DCHECK_EQ(SP, 31);
 
   for (size_t i = 0; i < arraysize(gprs_); ++i) {
-    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : Arm64Context::kBadGprBase + i;
+    gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : Arm64Context::kBadFprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : kBadFprBase + i;
   }
   // Ensure the Thread Register contains the address of the current thread.
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
