@@ -59,7 +59,8 @@ static void FixUpChecksum(uint8_t* dex_file) {
 class DexFileVerifierTest : public testing::Test {
  protected:
   DexFile* GetDexFile(const uint8_t* dex_bytes, size_t length) {
-    return new StandardDexFile(dex_bytes, length, "tmp", 0, nullptr, nullptr);
+    auto container = std::make_shared<MemoryDexFileContainer>(dex_bytes, length);
+    return new StandardDexFile(dex_bytes, length, "tmp", 0, nullptr, std::move(container));
   }
 
   void VerifyModification(const char* dex_file_base64_content,

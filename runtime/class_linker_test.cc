@@ -1543,12 +1543,14 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
                                                                               data)));
   const DexFile* old_dex_file = dex_cache->GetDexFile();
 
+  auto container =
+      std::make_shared<MemoryDexFileContainer>(old_dex_file->Begin(), old_dex_file->Size());
   std::unique_ptr<DexFile> dex_file(new StandardDexFile(old_dex_file->Begin(),
                                                         old_dex_file->Size(),
                                                         location->ToModifiedUtf8(),
                                                         0u,
                                                         nullptr,
-                                                        nullptr));
+                                                        std::move(container)));
   // Make a copy of the dex cache with changed name.
   dex_cache.Assign(class_linker->AllocAndInitializeDexCache(Thread::Current(),
                                                             *dex_file,
