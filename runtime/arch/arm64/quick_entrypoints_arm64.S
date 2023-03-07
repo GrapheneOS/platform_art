@@ -1744,7 +1744,7 @@ ENTRY art_quick_generic_jni_trampoline
     // of the frame when the handle scope is inserted.
     mov xFP, sp
 
-    mov xIP0, #5120
+    mov xIP0, #GENERIC_JNI_TRAMPOLINE_RESERVED_AREA
     sub sp, sp, xIP0
 
     // prepare for artQuickGenericJniTrampoline call
