@@ -36,9 +36,12 @@ std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8
     CompactDexFile::WriteCurrentVersion(header->magic_);
     header->data_off_ = 0;
     header->data_size_ = data->size();
+    header->file_size_ = data->size();
   } else {
+    auto* header = reinterpret_cast<DexFile::Header*>(data->data());
     StandardDexFile::WriteMagic(data->data());
     StandardDexFile::WriteCurrentVersion(data->data());
+    header->file_size_ = data->size();
   }
   DexFileLoader dex_file_loader(data->data(), data->size(), "location");
   std::string error_msg;
