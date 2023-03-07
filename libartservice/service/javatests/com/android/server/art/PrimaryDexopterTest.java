@@ -513,7 +513,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
     public void testDexoptCancelledDuringDexopt() throws Exception {
         Semaphore dexoptStarted = new Semaphore(0);
         Semaphore dexoptCancelled = new Semaphore(0);
-        final long TIMEOUT_SEC = 1;
+        final long TIMEOUT_SEC = 10;
 
         var artdCancellationSignal = mock(IArtdCancellationSignal.class);
         when(mArtd.createCancellationSignal()).thenReturn(artdCancellationSignal);

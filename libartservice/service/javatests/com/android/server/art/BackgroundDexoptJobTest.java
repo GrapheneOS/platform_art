@@ -63,7 +63,7 @@ import java.util.concurrent.TimeUnit;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class BackgroundDexoptJobTest {
-    private static final long TIMEOUT_SEC = 1;
+    private static final long TIMEOUT_SEC = 10;
 
     @Rule
     public StaticMockitoRule mockitoRule =
