@@ -106,10 +106,7 @@ TEST_F(HeapTest, DumpGCPerformanceOnShutdown) {
   Runtime::Current()->SetDumpGCPerformanceOnShutdown(true);
 }
 
-template <typename T>
-bool AnyIsNonNull(const metrics::MetricsBase<T>* x, const metrics::MetricsBase<T>* y) {
-  return !x->IsNull() || !y->IsNull();
-}
+bool AnyIsFalse(bool x, bool y) { return !x || !y; }
 
 TEST_F(HeapTest, GCMetrics) {
   // Allocate a few string objects (to be collected), then trigger garbage
@@ -167,19 +164,24 @@ TEST_F(HeapTest, GCMetrics) {
     if (heap->GetUseGenerationalCC()) {
       // Check that full-heap and/or young-generation GC metrics are non-null
       // after trigerring the collection.
-      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_collection_time, young_gc_collection_time);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_count, young_gc_count);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_count_delta, young_gc_count_delta);
-      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_throughput, young_gc_throughput);
-      EXPECT_PRED2(AnyIsNonNull<int64_t>, full_gc_tracing_throughput, young_gc_tracing_throughput);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_throughput_avg, young_gc_throughput_avg);
       EXPECT_PRED2(
-          AnyIsNonNull<uint64_t>, full_gc_tracing_throughput_avg, young_gc_tracing_throughput_avg);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_scanned_bytes, young_gc_scanned_bytes);
+          AnyIsFalse, full_gc_collection_time->IsNull(), young_gc_collection_time->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_count->IsNull(), young_gc_count->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_count_delta->IsNull(), young_gc_count_delta->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_throughput->IsNull(), young_gc_throughput->IsNull());
       EXPECT_PRED2(
-          AnyIsNonNull<uint64_t>, full_gc_scanned_bytes_delta, young_gc_scanned_bytes_delta);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes, young_gc_freed_bytes);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_freed_bytes_delta, young_gc_freed_bytes_delta);
+          AnyIsFalse, full_gc_tracing_throughput->IsNull(), young_gc_tracing_throughput->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_throughput_avg->IsNull(), young_gc_throughput_avg->IsNull());
+      EXPECT_PRED2(AnyIsFalse,
+                   full_gc_tracing_throughput_avg->IsNull(),
+                   young_gc_tracing_throughput_avg->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_scanned_bytes->IsNull(), young_gc_scanned_bytes->IsNull());
+      EXPECT_PRED2(AnyIsFalse,
+                   full_gc_scanned_bytes_delta->IsNull(),
+                   young_gc_scanned_bytes_delta->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_freed_bytes->IsNull(), young_gc_freed_bytes->IsNull());
+      EXPECT_PRED2(
+          AnyIsFalse, full_gc_freed_bytes_delta->IsNull(), young_gc_freed_bytes_delta->IsNull());
       // We have observed that sometimes the GC duration (both for full-heap and
       // young-generation collections) is null (b/271112044). Temporarily
       // suspend the following checks while we investigate.
@@ -187,8 +189,8 @@ TEST_F(HeapTest, GCMetrics) {
       // TODO(b/271112044): Investigate and adjust these expectations and/or the
       // corresponding metric logic.
 #if 0
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration, young_gc_duration);
-      EXPECT_PRED2(AnyIsNonNull<uint64_t>, full_gc_duration_delta, young_gc_duration_delta);
+      EXPECT_PRED2(AnyIsFalse, full_gc_duration->IsNull(), young_gc_duration->IsNull());
+      EXPECT_PRED2(AnyIsFalse, full_gc_duration_delta->IsNull(), young_gc_duration_delta->IsNull());
 #endif
     } else {
       // Check that only full-heap GC metrics are non-null after trigerring the collection.
