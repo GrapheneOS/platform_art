@@ -412,7 +412,7 @@ ENTRY art_quick_generic_jni_trampoline
     fld  fa6, 8*14(sp)
     fld  fa7, 8*15(sp)
 
-    ld  t6, 8*16(sp)  // @CriticalNative arg
+    ld  t6, 8*16(sp)  // @CriticalNative arg, used by art_jni_dlsym_lookup_critical_stub
 
     ld  t1, 8*17(sp)  // restore stack
     mv  sp, t1
@@ -442,7 +442,7 @@ ENTRY art_quick_generic_jni_trampoline
     bnez a1, .Lcall_method_exit_hook
 
 .Lcall_method_exit_hook_done:
-    // This does not clobber the result register a0, and a1 not used for result as the managed code
+    // This does not clobber the result register a0. a1 is not used for result as the managed code
     // does not have a 128-bit type. Alternatively we could restore a subset of these registers.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     fmv.d.x  fa0, a0
