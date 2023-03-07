@@ -60,31 +60,13 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   // Store routines
   void Store(FrameOffset offs, ManagedRegister src, size_t size) override;
   void Store(ManagedRegister base, MemberOffset offs, ManagedRegister src, size_t size) override;
-  void StoreRef(FrameOffset dest, ManagedRegister src) override;
   void StoreRawPtr(FrameOffset dest, ManagedRegister src) override;
 
-  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm) override;
-
-  void StoreStackOffsetToThread(ThreadOffset64 thr_offs, FrameOffset fr_offs) override;
-
   void StoreStackPointerToThread(ThreadOffset64 thr_offs, bool tag_sp) override;
-
-  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off) override;
 
   // Load routines
   void Load(ManagedRegister dest, FrameOffset src, size_t size) override;
   void Load(ManagedRegister dest, ManagedRegister base, MemberOffset offs, size_t size) override;
-
-  void LoadFromThread(ManagedRegister dest, ThreadOffset64 src, size_t size) override;
-
-  void LoadRef(ManagedRegister dest, FrameOffset  src) override;
-
-  void LoadRef(ManagedRegister dest,
-               ManagedRegister base,
-               MemberOffset offs,
-               bool unpoison_reference) override;
-
-  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) override;
 
   void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset64 offs) override;
 
@@ -97,53 +79,6 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
 
   void Move(ManagedRegister dest, size_t value) override;
 
-  void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset64 thr_offs) override;
-
-  void CopyRawPtrToThread(ThreadOffset64 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
-      override;
-
-  void CopyRef(FrameOffset dest, FrameOffset src) override;
-  void CopyRef(FrameOffset dest,
-               ManagedRegister base,
-               MemberOffset offs,
-               bool unpoison_reference) override;
-
-  void Copy(FrameOffset dest, FrameOffset src, size_t size) override;
-
-  void Copy(FrameOffset dest,
-            ManagedRegister src_base,
-            Offset src_offset,
-            ManagedRegister scratch,
-            size_t size) override;
-
-  void Copy(ManagedRegister dest_base,
-            Offset dest_offset,
-            FrameOffset src,
-            ManagedRegister scratch,
-            size_t size) override;
-
-  void Copy(FrameOffset dest,
-            FrameOffset src_base,
-            Offset src_offset,
-            ManagedRegister scratch,
-            size_t size) override;
-
-  void Copy(ManagedRegister dest,
-            Offset dest_offset,
-            ManagedRegister src,
-            Offset src_offset,
-            ManagedRegister scratch,
-            size_t size) override;
-
-  void Copy(FrameOffset dest,
-            Offset dest_offset,
-            FrameOffset src,
-            Offset src_offset,
-            ManagedRegister scratch,
-            size_t size) override;
-
-  void MemoryBarrier(ManagedRegister) override;
-
   // Sign extension
   void SignExtend(ManagedRegister mreg, size_t size) override;
 
@@ -153,21 +88,6 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   // Exploit fast access in managed code to Thread::Current()
   void GetCurrentThread(ManagedRegister dest) override;
   void GetCurrentThread(FrameOffset dest_offset) override;
-
-  // Set up `out_reg` to hold a `jobject` (`StackReference<Object>*` to a spilled value),
-  // or to be null if the value is null and `null_allowed`. `in_reg` holds a possibly
-  // stale reference that can be used to avoid loading the spilled value to
-  // see if the value is null.
-  void CreateJObject(ManagedRegister out_reg,
-                     FrameOffset spilled_reference_offset,
-                     ManagedRegister in_reg,
-                     bool null_allowed) override;
-
-  // Set up `out_off` to hold a `jobject` (`StackReference<Object>*` to a spilled value),
-  // or to be null if the value is null and `null_allowed`.
-  void CreateJObject(FrameOffset out_off,
-                     FrameOffset spilled_reference_offset,
-                     bool null_allowed) override;
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.
@@ -217,6 +137,23 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   void Bind(JNIMacroLabel* label) override;
 
  private:
+  void Copy(FrameOffset dest, FrameOffset src, size_t size);
+
+  // Set up `out_reg` to hold a `jobject` (`StackReference<Object>*` to a spilled value),
+  // or to be null if the value is null and `null_allowed`. `in_reg` holds a possibly
+  // stale reference that can be used to avoid loading the spilled value to
+  // see if the value is null.
+  void CreateJObject(ManagedRegister out_reg,
+                     FrameOffset spilled_reference_offset,
+                     ManagedRegister in_reg,
+                     bool null_allowed);
+
+  // Set up `out_off` to hold a `jobject` (`StackReference<Object>*` to a spilled value),
+  // or to be null if the value is null and `null_allowed`.
+  void CreateJObject(FrameOffset out_off,
+                     FrameOffset spilled_reference_offset,
+                     bool null_allowed);
+
   DISALLOW_COPY_AND_ASSIGN(X86_64JNIMacroAssembler);
 };
 

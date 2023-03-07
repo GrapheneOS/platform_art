@@ -165,26 +165,10 @@ void X86JNIMacroAssembler::Store(ManagedRegister mbase,
   }
 }
 
-void X86JNIMacroAssembler::StoreRef(FrameOffset dest, ManagedRegister msrc) {
-  X86ManagedRegister src = msrc.AsX86();
-  CHECK(src.IsCpuRegister());
-  __ movl(Address(ESP, dest), src.AsCpuRegister());
-}
-
 void X86JNIMacroAssembler::StoreRawPtr(FrameOffset dest, ManagedRegister msrc) {
   X86ManagedRegister src = msrc.AsX86();
   CHECK(src.IsCpuRegister());
   __ movl(Address(ESP, dest), src.AsCpuRegister());
-}
-
-void X86JNIMacroAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm) {
-  __ movl(Address(ESP, dest), Immediate(imm));
-}
-
-void X86JNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs) {
-  Register scratch = GetScratchRegister();
-  __ leal(scratch, Address(ESP, fr_offs));
-  __ fs()->movl(Address::Absolute(thr_offs), scratch);
 }
 
 void X86JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs, bool tag_sp) {
@@ -199,12 +183,6 @@ void X86JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs, bo
   } else {
     __ fs()->movl(Address::Absolute(thr_offs), ESP);
   }
-}
-
-void X86JNIMacroAssembler::StoreSpanning(FrameOffset /*dst*/,
-                                         ManagedRegister /*src*/,
-                                         FrameOffset /*in_off*/) {
-  UNIMPLEMENTED(FATAL);  // this case only currently exists for ARM
 }
 
 void X86JNIMacroAssembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
@@ -241,61 +219,6 @@ void X86JNIMacroAssembler::Load(ManagedRegister mdest,
       __ movsd(dest.AsXmmRegister(), Address(base.AsCpuRegister(), offs));
     }
   }
-}
-
-void X86JNIMacroAssembler::LoadFromThread(ManagedRegister mdest, ThreadOffset32 src, size_t size) {
-  X86ManagedRegister dest = mdest.AsX86();
-  if (dest.IsNoRegister()) {
-    CHECK_EQ(0u, size);
-  } else if (dest.IsCpuRegister()) {
-    if (size == 1u) {
-      __ fs()->movzxb(dest.AsCpuRegister(), Address::Absolute(src));
-    } else {
-      CHECK_EQ(4u, size);
-      __ fs()->movl(dest.AsCpuRegister(), Address::Absolute(src));
-    }
-  } else if (dest.IsRegisterPair()) {
-    CHECK_EQ(8u, size);
-    __ fs()->movl(dest.AsRegisterPairLow(), Address::Absolute(src));
-    __ fs()->movl(dest.AsRegisterPairHigh(), Address::Absolute(ThreadOffset32(src.Int32Value()+4)));
-  } else if (dest.IsX87Register()) {
-    if (size == 4) {
-      __ fs()->flds(Address::Absolute(src));
-    } else {
-      __ fs()->fldl(Address::Absolute(src));
-    }
-  } else {
-    CHECK(dest.IsXmmRegister());
-    if (size == 4) {
-      __ fs()->movss(dest.AsXmmRegister(), Address::Absolute(src));
-    } else {
-      __ fs()->movsd(dest.AsXmmRegister(), Address::Absolute(src));
-    }
-  }
-}
-
-void X86JNIMacroAssembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
-  X86ManagedRegister dest = mdest.AsX86();
-  CHECK(dest.IsCpuRegister());
-  __ movl(dest.AsCpuRegister(), Address(ESP, src));
-}
-
-void X86JNIMacroAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base, MemberOffset offs,
-                           bool unpoison_reference) {
-  X86ManagedRegister dest = mdest.AsX86();
-  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  __ movl(dest.AsCpuRegister(), Address(base.AsX86().AsCpuRegister(), offs));
-  if (unpoison_reference) {
-    __ MaybeUnpoisonHeapReference(dest.AsCpuRegister());
-  }
-}
-
-void X86JNIMacroAssembler::LoadRawPtr(ManagedRegister mdest,
-                                      ManagedRegister base,
-                                      Offset offs) {
-  X86ManagedRegister dest = mdest.AsX86();
-  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  __ movl(dest.AsCpuRegister(), Address(base.AsX86().AsCpuRegister(), offs));
 }
 
 void X86JNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister mdest, ThreadOffset32 offs) {
@@ -417,39 +340,6 @@ void X86JNIMacroAssembler::Move(ManagedRegister mdest, size_t value) {
   __ movl(dest.AsCpuRegister(), Immediate(value));
 }
 
-void X86JNIMacroAssembler::CopyRef(FrameOffset dest, FrameOffset src) {
-  Register scratch = GetScratchRegister();
-  __ movl(scratch, Address(ESP, src));
-  __ movl(Address(ESP, dest), scratch);
-}
-
-void X86JNIMacroAssembler::CopyRef(FrameOffset dest,
-                                   ManagedRegister base,
-                                   MemberOffset offs,
-                                   bool unpoison_reference) {
-  Register scratch = GetScratchRegister();
-  __ movl(scratch, Address(base.AsX86().AsCpuRegister(), offs));
-  if (unpoison_reference) {
-    __ MaybeUnpoisonHeapReference(scratch);
-  }
-  __ movl(Address(ESP, dest), scratch);
-}
-
-void X86JNIMacroAssembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset32 thr_offs) {
-  Register scratch = GetScratchRegister();
-  __ fs()->movl(scratch, Address::Absolute(thr_offs));
-  __ movl(Address(ESP, fr_offs), scratch);
-}
-
-void X86JNIMacroAssembler::CopyRawPtrToThread(ThreadOffset32 thr_offs,
-                                              FrameOffset fr_offs,
-                                              ManagedRegister mscratch) {
-  X86ManagedRegister scratch = mscratch.AsX86();
-  CHECK(scratch.IsCpuRegister());
-  Load(scratch, fr_offs, 4);
-  __ fs()->movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
-}
-
 void X86JNIMacroAssembler::Copy(FrameOffset dest, FrameOffset src, size_t size) {
   DCHECK(size == 4 || size == 8) << size;
   Register scratch = GetScratchRegister();
@@ -459,67 +349,6 @@ void X86JNIMacroAssembler::Copy(FrameOffset dest, FrameOffset src, size_t size) 
     __ movl(scratch, Address(ESP, FrameOffset(src.Int32Value() + 4)));
     __ movl(Address(ESP, FrameOffset(dest.Int32Value() + 4)), scratch);
   }
-}
-
-void X86JNIMacroAssembler::Copy(FrameOffset /*dst*/,
-                                ManagedRegister /*src_base*/,
-                                Offset /*src_offset*/,
-                                ManagedRegister /*scratch*/,
-                                size_t /*size*/) {
-  UNIMPLEMENTED(FATAL);
-}
-
-void X86JNIMacroAssembler::Copy(ManagedRegister dest_base,
-                                Offset dest_offset,
-                                FrameOffset src,
-                                ManagedRegister scratch,
-                                size_t size) {
-  CHECK(scratch.IsNoRegister());
-  CHECK_EQ(size, 4u);
-  __ pushl(Address(ESP, src));
-  __ popl(Address(dest_base.AsX86().AsCpuRegister(), dest_offset));
-}
-
-void X86JNIMacroAssembler::Copy(FrameOffset dest,
-                                FrameOffset src_base,
-                                Offset src_offset,
-                                ManagedRegister mscratch,
-                                size_t size) {
-  Register scratch = mscratch.AsX86().AsCpuRegister();
-  CHECK_EQ(size, 4u);
-  __ movl(scratch, Address(ESP, src_base));
-  __ movl(scratch, Address(scratch, src_offset));
-  __ movl(Address(ESP, dest), scratch);
-}
-
-void X86JNIMacroAssembler::Copy(ManagedRegister dest,
-                                Offset dest_offset,
-                                ManagedRegister src,
-                                Offset src_offset,
-                                ManagedRegister scratch,
-                                size_t size) {
-  CHECK_EQ(size, 4u);
-  CHECK(scratch.IsNoRegister());
-  __ pushl(Address(src.AsX86().AsCpuRegister(), src_offset));
-  __ popl(Address(dest.AsX86().AsCpuRegister(), dest_offset));
-}
-
-void X86JNIMacroAssembler::Copy(FrameOffset dest,
-                                Offset dest_offset,
-                                FrameOffset src,
-                                Offset src_offset,
-                                ManagedRegister mscratch,
-                                size_t size) {
-  Register scratch = mscratch.AsX86().AsCpuRegister();
-  CHECK_EQ(size, 4u);
-  CHECK_EQ(dest.Int32Value(), src.Int32Value());
-  __ movl(scratch, Address(ESP, src));
-  __ pushl(Address(scratch, src_offset));
-  __ popl(Address(scratch, dest_offset));
-}
-
-void X86JNIMacroAssembler::MemoryBarrier(ManagedRegister) {
-  __ mfence();
 }
 
 void X86JNIMacroAssembler::CreateJObject(ManagedRegister mout_reg,
