@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ARCH_RISCV64_ASM_SUPPORT_RISCV64_H_
 
 #include "asm_support.h"
+#include "entrypoints/entrypoint_asm_constants.h"
 
 // FS0 - FS11, S0, S3 - S11, RA and ArtMethod*, total 8*(12 + 10 + 1 + 1) = 192
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 192
