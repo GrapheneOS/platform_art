@@ -1487,24 +1487,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rsp, %rbp                 // save SP at (old) callee-save frame
     CFI_DEF_CFA_REGISTER(rbp)
 
-    //
-    // reserve a lot of space
-    //
-    //      4    local state ref
-    //      4    padding
-    //   4196    4k scratch space, enough for 2x 256 8-byte parameters (TODO: handle scope overhead?)
-    //     16    handle scope member fields ?
-    // +  112    14x 8-byte stack-2-register space
-    // ------
-    //   4332
-    // 16-byte aligned: 4336
-    // Note: 14x8 = 7*16, so the stack stays aligned for the native call...
-    //       Also means: the padding is somewhere in the middle
-    //
-    //
-    // New test: use 5K and release
-    // 5k = 5120
-    subq LITERAL(5120), %rsp
+    subq LITERAL(GENERIC_JNI_TRAMPOLINE_RESERVED_AREA), %rsp
     // prepare for artQuickGenericJniTrampoline call
     // (Thread*, managed_sp, reserved_area)
     //    rdi       rsi           rdx   <= C calling convention
