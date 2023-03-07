@@ -32,8 +32,8 @@ void X86Context::Reset() {
   gprs_[ESP] = &esp_;
   gprs_[EAX] = &arg0_;
   // Initialize registers with easy to spot debug values.
-  esp_ = X86Context::kBadGprBase + ESP;
-  eip_ = X86Context::kBadGprBase + kNumberOfCpuRegisters;
+  esp_ = kBadGprBase + ESP;
+  eip_ = kBadGprBase + kNumberOfCpuRegisters;
   arg0_ = 0;
 }
 
@@ -94,11 +94,11 @@ void X86Context::DoLongJump() {
   // the top for the stack pointer that doesn't get popped in a pop-all.
   volatile uintptr_t gprs[kNumberOfCpuRegisters + 1];
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
-    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86Context::kBadGprBase + i;
+    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : kBadGprBase + i;
   }
   uint32_t fprs[kNumberOfFloatRegisters];
   for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
-    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : X86Context::kBadFprBase + i;
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : kBadFprBase + i;
   }
   // We want to load the stack pointer one slot below so that the ret will pop eip.
   uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - sizeof(intptr_t);
