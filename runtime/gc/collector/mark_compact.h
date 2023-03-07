@@ -37,6 +37,8 @@
 
 namespace art {
 
+bool KernelSupportsUffd();
+
 namespace mirror {
 class DexCache;
 }  // namespace mirror
