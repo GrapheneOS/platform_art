@@ -1464,7 +1464,7 @@ ENTRY art_quick_generic_jni_trampoline
     mov r10, sp
     .cfi_def_cfa_register r10
 
-    sub sp, sp, #5120
+    sub sp, sp, #GENERIC_JNI_TRAMPOLINE_RESERVED_AREA
 
     // prepare for artQuickGenericJniTrampoline call
     // (Thread*, managed_sp, reserved_area)
