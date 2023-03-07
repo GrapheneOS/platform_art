@@ -83,15 +83,11 @@ std::string GetArtApexData();
 // generated at build time).
 std::string GetPrebuiltPrimaryBootImageDir();
 
-// Returns the default boot image location, based on the passed `android_root`.
-// Returns an empty string if an error occurs.
-// The default boot image location can only be used with the default bootclasspath (the value of the
-// BOOTCLASSPATH environment variable).
-std::string GetDefaultBootImageLocationSafe(const std::string& android_root,
-                                            bool deny_art_apex_data_files,
-                                            std::string* error_msg);
+// Returns the default boot image location (ANDROID_ROOT/framework/boot.art).
+// Returns an empty string if ANDROID_ROOT is not set.
+std::string GetDefaultBootImageLocation(std::string* error_msg);
 
-// Same as above, but fails if an error occurs.
+// Returns the default boot image location, based on the passed `android_root`.
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files);
 
