@@ -1655,7 +1655,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_EAX
     movl %esp, %ebp               // save SP at callee-save frame
     CFI_DEF_CFA_REGISTER(ebp)
-    subl LITERAL(5120), %esp
+    subl LITERAL(GENERIC_JNI_TRAMPOLINE_RESERVED_AREA), %esp
     // prepare for artQuickGenericJniTrampoline call
     // (Thread*, managed_sp, reserved_area)
     //   (esp)    4(esp)        8(esp)  <= C calling convention
