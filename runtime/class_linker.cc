@@ -1585,16 +1585,17 @@ static void VisitInternedStringReferences(
     ObjPtr<mirror::Object> obj_ptr =
         reinterpret_cast<mirror::Object*>(space->Begin() + base_offset);
     if (obj_ptr->IsDexCache() && raw_member_offset >= sizeof(mirror::DexCache)) {
-      // Special case for strings referenced from dex cache array.
-      uint32_t offset = raw_member_offset - sizeof(mirror::DexCache);
+      // Special case for strings referenced from dex cache array: the offset is
+      // actually decoded as an index into the dex cache string array.
+      uint32_t index = raw_member_offset - sizeof(mirror::DexCache);
       mirror::GcRootArray<mirror::String>* array = obj_ptr->AsDexCache()->GetStringsArray();
       // The array could be concurrently set to null. See `StartupCompletedTask`.
       if (array != nullptr) {
-        ObjPtr<mirror::String> referred_string = array->Get(offset);
+        ObjPtr<mirror::String> referred_string = array->Get(index);
         DCHECK(referred_string != nullptr);
         ObjPtr<mirror::String> visited = visitor(referred_string);
         if (visited != referred_string) {
-          obj_ptr->AsDexCache()->GetStringsArray()->Set(offset, visited.Ptr());
+          array->Set(index, visited.Ptr());
         }
       }
     } else {
