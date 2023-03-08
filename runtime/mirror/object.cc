@@ -74,46 +74,50 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   const ObjPtr<Object> dest_obj_;
 };
 
+void Object::CopyRawObjectData(uint8_t* dst_bytes,
+                               ObjPtr<mirror::Object> src,
+                               size_t num_bytes) {
+  // Copy instance data.  Don't assume memcpy copies by words (b/32012820).
+  const size_t offset = sizeof(Object);
+  uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src.Ptr()) + offset;
+  dst_bytes += offset;
+  DCHECK_ALIGNED(src_bytes, sizeof(uintptr_t));
+  DCHECK_ALIGNED(dst_bytes, sizeof(uintptr_t));
+  // Use word sized copies to begin.
+  while (num_bytes >= sizeof(uintptr_t)) {
+    reinterpret_cast<Atomic<uintptr_t>*>(dst_bytes)->store(
+        reinterpret_cast<Atomic<uintptr_t>*>(src_bytes)->load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    src_bytes += sizeof(uintptr_t);
+    dst_bytes += sizeof(uintptr_t);
+    num_bytes -= sizeof(uintptr_t);
+  }
+  // Copy possible 32 bit word.
+  if (sizeof(uintptr_t) != sizeof(uint32_t) && num_bytes >= sizeof(uint32_t)) {
+    reinterpret_cast<Atomic<uint32_t>*>(dst_bytes)->store(
+        reinterpret_cast<Atomic<uint32_t>*>(src_bytes)->load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    src_bytes += sizeof(uint32_t);
+    dst_bytes += sizeof(uint32_t);
+    num_bytes -= sizeof(uint32_t);
+  }
+  // Copy remaining bytes, avoid going past the end of num_bytes since there may be a redzone
+  // there.
+  while (num_bytes > 0) {
+    reinterpret_cast<Atomic<uint8_t>*>(dst_bytes)->store(
+        reinterpret_cast<Atomic<uint8_t>*>(src_bytes)->load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    src_bytes += sizeof(uint8_t);
+    dst_bytes += sizeof(uint8_t);
+    num_bytes -= sizeof(uint8_t);
+  }
+}
+
 ObjPtr<Object> Object::CopyObject(ObjPtr<mirror::Object> dest,
                                   ObjPtr<mirror::Object> src,
                                   size_t num_bytes) {
-  // Copy instance data.  Don't assume memcpy copies by words (b/32012820).
-  {
-    const size_t offset = sizeof(Object);
-    uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src.Ptr()) + offset;
-    uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest.Ptr()) + offset;
-    num_bytes -= offset;
-    DCHECK_ALIGNED(src_bytes, sizeof(uintptr_t));
-    DCHECK_ALIGNED(dst_bytes, sizeof(uintptr_t));
-    // Use word sized copies to begin.
-    while (num_bytes >= sizeof(uintptr_t)) {
-      reinterpret_cast<Atomic<uintptr_t>*>(dst_bytes)->store(
-          reinterpret_cast<Atomic<uintptr_t>*>(src_bytes)->load(std::memory_order_relaxed),
-          std::memory_order_relaxed);
-      src_bytes += sizeof(uintptr_t);
-      dst_bytes += sizeof(uintptr_t);
-      num_bytes -= sizeof(uintptr_t);
-    }
-    // Copy possible 32 bit word.
-    if (sizeof(uintptr_t) != sizeof(uint32_t) && num_bytes >= sizeof(uint32_t)) {
-      reinterpret_cast<Atomic<uint32_t>*>(dst_bytes)->store(
-          reinterpret_cast<Atomic<uint32_t>*>(src_bytes)->load(std::memory_order_relaxed),
-          std::memory_order_relaxed);
-      src_bytes += sizeof(uint32_t);
-      dst_bytes += sizeof(uint32_t);
-      num_bytes -= sizeof(uint32_t);
-    }
-    // Copy remaining bytes, avoid going past the end of num_bytes since there may be a redzone
-    // there.
-    while (num_bytes > 0) {
-      reinterpret_cast<Atomic<uint8_t>*>(dst_bytes)->store(
-          reinterpret_cast<Atomic<uint8_t>*>(src_bytes)->load(std::memory_order_relaxed),
-          std::memory_order_relaxed);
-      src_bytes += sizeof(uint8_t);
-      dst_bytes += sizeof(uint8_t);
-      num_bytes -= sizeof(uint8_t);
-    }
-  }
+  // Copy everything but the header.
+  CopyRawObjectData(reinterpret_cast<uint8_t*>(dest.Ptr()), src, num_bytes - sizeof(Object));
 
   if (gUseReadBarrier) {
     // We need a RB here. After copying the whole object above, copy references fields one by one
