@@ -31,7 +31,9 @@
 #include <numeric>
 
 #include "android-base/file.h"
+#include "android-base/parsebool.h"
 #include "android-base/properties.h"
+#include "base/file_utils.h"
 #include "base/memfd.h"
 #include "base/quasi_atomic.h"
 #include "base/systrace.h"
@@ -49,6 +51,10 @@
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
 #include "thread_list.h"
+
+#ifdef ART_TARGET_ANDROID
+#include "com_android_art.h"
+#endif
 
 #ifndef __BIONIC__
 #ifndef MREMAP_DONTUNMAP
@@ -75,8 +81,10 @@
 namespace {
 
 using ::android::base::GetBoolProperty;
+using ::android::base::ParseBool;
+using ::android::base::ParseBoolResult;
 
-}
+}  // namespace
 
 namespace art {
 
@@ -101,7 +109,7 @@ static uint64_t gUffdFeatures = 0;
 static constexpr uint64_t kUffdFeaturesForMinorFault =
     UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
 
-static bool KernelSupportsUffd() {
+bool KernelSupportsUffd() {
 #ifdef __linux__
   if (gHaveMremapDontunmap) {
     int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
@@ -142,10 +150,48 @@ static gc::CollectorType FetchCmdlineGcType() {
   return gc_type;
 }
 
-static bool SysPropSaysUffdGc() {
-  return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc",
-                         GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
+#ifdef ART_TARGET_ANDROID
+static bool GetCachedBoolProperty(const std::string& key, bool default_value) {
+  std::string path = GetApexDataDalvikCacheDirectory(InstructionSet::kNone) + "/cache-info.xml";
+  std::optional<com::android::art::CacheInfo> cache_info = com::android::art::read(path.c_str());
+  if (!cache_info.has_value()) {
+    // We are in chroot or in a standalone runtime process (e.g., IncidentHelper), or
+    // odsign/odrefresh failed to generate and sign the cache info. There's nothing we can do.
+    return default_value;
+  }
+  const com::android::art::KeyValuePairList* list = cache_info->getFirstSystemProperties();
+  if (list == nullptr) {
+    // This should never happen.
+    LOG(ERROR) << "Missing system properties from cache-info.";
+    return default_value;
+  }
+  const std::vector<com::android::art::KeyValuePair>& properties = list->getItem();
+  for (const com::android::art::KeyValuePair& pair : properties) {
+    if (pair.getK() == key) {
+      ParseBoolResult result = ParseBool(pair.getV());
+      switch (result) {
+        case ParseBoolResult::kTrue:
+          return true;
+        case ParseBoolResult::kFalse:
+          return false;
+        case ParseBoolResult::kError:
+          return default_value;
+      }
+    }
+  }
+  return default_value;
 }
+
+static bool SysPropSaysUffdGc() {
+  // The phenotype flag can change at time time after boot, but it shouldn't take effect until a
+  // reboot. Therefore, we read the phenotype flag from the cache info, which is generated on boot.
+  return GetCachedBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc",
+                               GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
+}
+#else
+// Never called.
+static bool SysPropSaysUffdGc() { return false; }
+#endif
 
 static bool ShouldUseUserfaultfd() {
   static_assert(kUseBakerReadBarrier || kUseTableLookupReadBarrier);
