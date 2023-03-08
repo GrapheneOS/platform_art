@@ -585,9 +585,37 @@ ENTRY art_quick_do_long_jump
 END art_quick_do_long_jump
 
 
+// Called by managed code that is attempting to call a method on a proxy class. On entry a0 holds
+// the proxy method and a1 holds the receiver. The frame size of the invoked proxy method agrees
+// with kSaveRefsAndArgs frame.
+.extern artQuickProxyInvokeHandler
+ENTRY art_quick_proxy_invoke_handler
+    SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_A0
+
+    // uint64_t artQuickProxyInvokeHandler(ArtMethod* proxy_method,   // a0
+    //                                     mirror::Object* receiver,  // a1
+    //                                     Thread* self,              // a2
+    //                                     ArtMethod** sp)            // a3
+    mv    a2, xSELF                   // pass Thread::Current
+    mv    a3, sp                      // pass sp
+    call  artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, sp)
+
+    ld    a2, THREAD_EXCEPTION_OFFSET(xSELF)
+    bnez  a2, .Lexception_in_proxy    // success if no exception is pending
+    .cfi_remember_state
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME  // Restore frame
+    fmv.d.x  fa0, a0                  // Store result in fa0 in case it was float or double
+    ret                               // return on success
+
+.Lexception_in_proxy:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    DELIVER_PENDING_EXCEPTION
+END art_quick_proxy_invoke_handler
+
+
 UNDEFINED art_quick_imt_conflict_trampoline
 UNDEFINED art_invoke_obsolete_method_stub
-UNDEFINED art_quick_proxy_invoke_handler
 UNDEFINED art_quick_resolution_trampoline
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
