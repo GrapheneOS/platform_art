@@ -79,6 +79,7 @@
 #include "dexoptanalyzer.h"
 #include "exec_utils.h"
 #include "fmt/format.h"
+#include "gc/collector/mark_compact.h"
 #include "log/log.h"
 #include "odr_artifacts.h"
 #include "odr_common.h"
@@ -943,11 +944,12 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBuildUserfaultFdGc() const {
   bool build_enable_uffd_gc = it != config_.GetSystemProperties().end() ?
                                   ParseBool(it->second) == ParseBoolResult::kTrue :
                                   false;
-  if (build_enable_uffd_gc != gUseUserfaultfd) {
+  bool kernel_supports_uffd = KernelSupportsUffd();
+  if (build_enable_uffd_gc && !kernel_supports_uffd) {
     // Normally, this should not happen. If this happens, the system image was probably built with a
     // wrong PRODUCT_ENABLE_UFFD_GC flag.
     LOG(WARNING) << "Userfaultfd GC check failed (build-time: {}, runtime: {})."_format(
-        build_enable_uffd_gc, gUseUserfaultfd);
+        build_enable_uffd_gc, kernel_supports_uffd);
     return false;
   }
   return true;
