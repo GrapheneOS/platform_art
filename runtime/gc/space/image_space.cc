@@ -1365,7 +1365,8 @@ class ImageSpace::Loader {
           image_header->GetImageRoot<kWithoutReadBarrier>(ImageHeader::kDexCaches)
               ->AsObjectArray<mirror::DexCache, kVerifyNone>();
       for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
-        ObjPtr<mirror::DexCache> dex_cache = dex_caches->Get<kVerifyNone, kWithoutReadBarrier>(i);
+        ObjPtr<mirror::DexCache> dex_cache =
+            dex_caches->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(i);
         patch_object_visitor.VisitDexCacheArrays(dex_cache);
       }
     }
