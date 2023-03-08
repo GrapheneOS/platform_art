@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
 
 #include "asm_support.h"
+#include "entrypoints/entrypoint_asm_constants.h"
 
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 32
 #define FRAME_SIZE_SAVE_REFS_ONLY 32

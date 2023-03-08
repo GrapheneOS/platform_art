@@ -3201,8 +3201,6 @@ bool OatWriter::WriteDexFiles(File* file,
       const DexFile* dex_file = oat_dex_file.GetDexFile();
       std::string error_msg;
       if (!dex::Verify(dex_file,
-                       dex_file->Begin(),
-                       dex_file->Size(),
                        dex_file->GetLocation().c_str(),
                        /*verify_checksum=*/true,
                        &error_msg)) {

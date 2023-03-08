@@ -59,7 +59,8 @@ static void FixUpChecksum(uint8_t* dex_file) {
 class DexFileVerifierTest : public testing::Test {
  protected:
   DexFile* GetDexFile(const uint8_t* dex_bytes, size_t length) {
-    return new StandardDexFile(dex_bytes, length, "tmp", 0, nullptr, nullptr);
+    auto container = std::make_shared<MemoryDexFileContainer>(dex_bytes, length);
+    return new StandardDexFile(dex_bytes, length, "tmp", 0, nullptr, std::move(container));
   }
 
   void VerifyModification(const char* dex_file_base64_content,
@@ -76,12 +77,7 @@ class DexFileVerifierTest : public testing::Test {
 
     static constexpr bool kVerifyChecksum = true;
     std::string error_msg;
-    bool success = dex::Verify(dex_file.get(),
-                               dex_file->Begin(),
-                               dex_file->Size(),
-                               location,
-                               kVerifyChecksum,
-                               &error_msg);
+    bool success = dex::Verify(dex_file.get(), location, kVerifyChecksum, &error_msg);
     if (expected_error == nullptr) {
       EXPECT_TRUE(success) << error_msg;
     } else {
@@ -1617,16 +1613,12 @@ TEST_F(DexFileVerifierTest, Checksum) {
 
   // Good checksum: all pass.
   EXPECT_TRUE(dex::Verify(dex_file.get(),
-                          dex_file->Begin(),
-                          dex_file->Size(),
                           "good checksum, no verify",
-                          /*verify_checksum=*/ false,
+                          /*verify_checksum=*/false,
                           &error_msg));
   EXPECT_TRUE(dex::Verify(dex_file.get(),
-                          dex_file->Begin(),
-                          dex_file->Size(),
                           "good checksum, verify",
-                          /*verify_checksum=*/ true,
+                          /*verify_checksum=*/true,
                           &error_msg));
 
   // Bad checksum: !verify_checksum passes verify_checksum fails.
@@ -1634,16 +1626,12 @@ TEST_F(DexFileVerifierTest, Checksum) {
       const_cast<uint8_t*>(dex_file->Begin()));
   header->checksum_ = 0;
   EXPECT_TRUE(dex::Verify(dex_file.get(),
-                          dex_file->Begin(),
-                          dex_file->Size(),
                           "bad checksum, no verify",
-                          /*verify_checksum=*/ false,
+                          /*verify_checksum=*/false,
                           &error_msg));
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad checksum, verify",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
   EXPECT_NE(error_msg.find("Bad checksum"), std::string::npos) << error_msg;
 }
@@ -1687,10 +1675,8 @@ TEST_F(DexFileVerifierTest, BadStaticMethodName) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad static method name",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -1731,10 +1717,8 @@ TEST_F(DexFileVerifierTest, BadVirtualMethodName) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad virtual method name",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -1775,10 +1759,8 @@ TEST_F(DexFileVerifierTest, BadClinitSignature) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad clinit signature",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -1819,10 +1801,8 @@ TEST_F(DexFileVerifierTest, BadClinitSignatureAgain) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad clinit signature",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -1856,10 +1836,8 @@ TEST_F(DexFileVerifierTest, BadInitSignature) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad init signature",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -2059,10 +2037,8 @@ TEST_F(DexFileVerifierTest, InvokeCustomDexSamples) {
     std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
     std::string error_msg;
     EXPECT_TRUE(dex::Verify(dex_file.get(),
-                            dex_file->Begin(),
-                            dex_file->Size(),
                             "good checksum, verify",
-                            /*verify_checksum=*/ true,
+                            /*verify_checksum=*/true,
                             &error_msg));
     // TODO(oth): Test corruptions (b/35308502)
   }
@@ -2106,10 +2082,8 @@ TEST_F(DexFileVerifierTest, BadStaticFieldInitialValuesArray) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_FALSE(dex::Verify(dex_file.get(),
-                           dex_file->Begin(),
-                           dex_file->Size(),
                            "bad static field initial values array",
-                           /*verify_checksum=*/ true,
+                           /*verify_checksum=*/true,
                            &error_msg));
 }
 
@@ -2162,10 +2136,8 @@ TEST_F(DexFileVerifierTest, GoodStaticFieldInitialValuesArray) {
   std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
   std::string error_msg;
   EXPECT_TRUE(dex::Verify(dex_file.get(),
-                          dex_file->Begin(),
-                          dex_file->Size(),
                           "good static field initial values array",
-                          /*verify_checksum=*/ true,
+                          /*verify_checksum=*/true,
                           &error_msg));
 }
 
