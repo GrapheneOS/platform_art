@@ -385,7 +385,10 @@ class ImageSpace::PatchObjectVisitor final {
     if (array == nullptr) {
       return;
     }
-    uint32_t size = reinterpret_cast<uint32_t*>(array)[-1];
+    DCHECK_ALIGNED(array, static_cast<size_t>(kPointerSize));
+    uint32_t size = (kPointerSize == PointerSize::k32)
+        ? reinterpret_cast<uint32_t*>(array)[-1]
+        : dchecked_integral_cast<uint32_t>(reinterpret_cast<uint64_t*>(array)[-1]);
     for (uint32_t i = 0; i < size; ++i) {
       PatchNativePointer(array->GetPtrEntryPtrSize(i, kPointerSize));
     }
@@ -396,6 +399,8 @@ class ImageSpace::PatchObjectVisitor final {
     if (array == nullptr) {
       return;
     }
+    DCHECK_ALIGNED(array, sizeof(GcRoot<T>));
+    static_assert(sizeof(GcRoot<T>) == sizeof(uint32_t));
     uint32_t size = reinterpret_cast<uint32_t*>(array)[-1];
     for (uint32_t i = 0; i < size; ++i) {
       PatchGcRoot(array->GetGcRootAddress(i));
