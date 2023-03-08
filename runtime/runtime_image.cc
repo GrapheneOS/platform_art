@@ -1078,7 +1078,7 @@ class RuntimeImageHelper {
       CopyObject(image_roots.Get());
     }
 
-    // Emit classes defined in the app class loader (which will also indrirectly
+    // Emit classes defined in the app class loader (which will also indirectly
     // emit dex caches and their arrays).
     EmitClasses(soa.Self(), dex_cache_array);
 
