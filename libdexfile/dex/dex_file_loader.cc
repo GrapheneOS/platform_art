@@ -37,6 +37,12 @@
 
 namespace art {
 
+#if defined(STATIC_LIB)
+#define DEXFILE_SCOPED_TRACE(name)
+#else
+#define DEXFILE_SCOPED_TRACE(name) ScopedTrace trace(name)
+#endif
+
 namespace {
 
 // Technically we do not have a limitation with respect to the number of dex files that can be in a
@@ -186,7 +192,7 @@ std::unique_ptr<const DexFile> DexFileLoader::Open(uint32_t location_checksum,
                                                    bool verify,
                                                    bool verify_checksum,
                                                    std::string* error_msg) {
-  ScopedTrace trace(std::string("Open dex file ") + location_);
+  DEXFILE_SCOPED_TRACE(std::string("Open dex file ") + location_);
 
   uint32_t magic;
   if (!InitAndReadMagic(&magic, error_msg) || !MapRootContainer(error_msg)) {
@@ -270,7 +276,7 @@ bool DexFileLoader::Open(bool verify,
                          DexFileLoaderErrorCode* error_code,
                          std::string* error_msg,
                          std::vector<std::unique_ptr<const DexFile>>* dex_files) {
-  ScopedTrace trace(std::string("Open dex file ") + location_);
+  DEXFILE_SCOPED_TRACE(std::string("Open dex file ") + location_);
 
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
 
@@ -381,7 +387,7 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::shared_ptr<DexFileContai
   }
   // NB: Dex verifier does not understand the compact dex format.
   if (verify && !dex_file->IsCompactDexFile()) {
-    ScopedTrace trace(std::string("Verify dex file ") + location);
+    DEXFILE_SCOPED_TRACE(std::string("Verify dex file ") + location);
     if (!dex::Verify(dex_file.get(), location.c_str(), verify_checksum, error_msg)) {
       if (error_code != nullptr) {
         *error_code = DexFileLoaderErrorCode::kVerifyError;
@@ -437,7 +443,7 @@ bool DexFileLoader::OpenFromZipEntry(const ZipArchive& zip_archive,
     }
   }
   if (!map.IsValid()) {
-    ScopedTrace trace(std::string("Extract dex file ") + location);
+    DEXFILE_SCOPED_TRACE(std::string("Extract dex file ") + location);
 
     // Default path for compressed ZIP entries,
     // and fallback for stored ZIP entries.
