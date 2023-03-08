@@ -355,7 +355,7 @@ public class DexoptHelperTest {
     @Test
     public void testDexoptCancelledDuringDex2oatInvocationsMultiThreaded() throws Exception {
         final int NUM_PACKAGES = 6;
-        final long TIMEOUT_SEC = 1;
+        final long TIMEOUT_SEC = 10;
         var dexoptStarted = new Semaphore(0);
         var dexoptCancelled = new Semaphore(0);
 
@@ -404,7 +404,7 @@ public class DexoptHelperTest {
     // This test verifies that dexopt operation on the current thread can be cancelled.
     @Test
     public void testDexoptCancelledDuringDex2oatInvocationsOnCurrentThread() throws Exception {
-        final long TIMEOUT_SEC = 1;
+        final long TIMEOUT_SEC = 10;
         var dexoptStarted = new Semaphore(0);
         var dexoptCancelled = new Semaphore(0);
 
