@@ -683,12 +683,14 @@ class RuntimeImageHelper {
       return;
     }
 
-    auto it = native_relocations_[old_method_array];
-    std::vector<uint8_t>& data = (it.first == NativeRelocationKind::kFullNativeDexCacheArray)
-        ? dex_cache_arrays_ : metadata_;
+    auto it = native_relocations_.find(old_method_array);
+    DCHECK(it != native_relocations_.end());
+    std::vector<uint8_t>& data =
+        (it->second.first == NativeRelocationKind::kFullNativeDexCacheArray)
+            ? dex_cache_arrays_ : metadata_;
 
     mirror::NativeArray<T>* content_array =
-        reinterpret_cast<mirror::NativeArray<T>*>(data.data() + it.second);
+        reinterpret_cast<mirror::NativeArray<T>*>(data.data() + it->second.second);
     for (uint32_t i = 0; i < num_ids; ++i) {
       // We may not have relocations for some entries, in which case we'll
       // just store null.
@@ -719,8 +721,8 @@ class RuntimeImageHelper {
     ScopedTrace relocate_native_pointers("Relocate native pointers");
     ScopedObjectAccess soa(Thread::Current());
     NativePointerVisitor visitor(this);
-    for (auto it : classes_) {
-      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
+    for (auto entry : classes_) {
+      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[entry.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
     }
