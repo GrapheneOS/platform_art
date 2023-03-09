@@ -1834,10 +1834,10 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
                               uint32_t shorty_len,
                               ArtMethod** managed_sp,
                               uintptr_t* reserved_area)
-     : QuickArgumentVisitor(managed_sp, is_static, shorty, shorty_len),
-       jni_call_(nullptr, nullptr, nullptr, critical_native),
-       sm_(&jni_call_),
-       current_vreg_(nullptr) {
+      : QuickArgumentVisitor(managed_sp, is_static, shorty, shorty_len),
+        jni_call_(nullptr, nullptr, nullptr),
+        sm_(&jni_call_),
+        current_vreg_(nullptr) {
     DCHECK_ALIGNED(managed_sp, kStackAlignment);
     DCHECK_ALIGNED(reserved_area, sizeof(uintptr_t));
 
@@ -1886,33 +1886,8 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override;
 
  private:
-  // A class to fill a JNI call. Adds reference/handle-scope management to FillNativeCall.
-  class FillJniCall final : public FillNativeCall {
-   public:
-    FillJniCall(uintptr_t* gpr_regs,
-                uint32_t* fpr_regs,
-                uintptr_t* stack_args,
-                bool critical_native)
-        : FillNativeCall(gpr_regs, fpr_regs, stack_args),
-          cur_entry_(0),
-          critical_native_(critical_native) {}
-
-    void Reset(uintptr_t* gpr_regs, uint32_t* fpr_regs, uintptr_t* stack_args) {
-      FillNativeCall::Reset(gpr_regs, fpr_regs, stack_args);
-      cur_entry_ = 0U;
-    }
-
-    bool CriticalNative() const {
-      return critical_native_;
-    }
-
-   private:
-    size_t cur_entry_;
-    const bool critical_native_;
-  };
-
-  FillJniCall jni_call_;
-  BuildNativeCallFrameStateMachine<FillJniCall> sm_;
+  FillNativeCall jni_call_;
+  BuildNativeCallFrameStateMachine<FillNativeCall> sm_;
 
   // Pointer to the current vreg in caller's reserved out vreg area.
   // Used for spilling reference arguments.
