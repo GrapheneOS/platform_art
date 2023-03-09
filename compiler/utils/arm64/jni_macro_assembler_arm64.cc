@@ -191,31 +191,10 @@ void Arm64JNIMacroAssembler::Store(ManagedRegister m_base,
   }
 }
 
-void Arm64JNIMacroAssembler::StoreRef(FrameOffset offs, ManagedRegister m_src) {
-  Arm64ManagedRegister src = m_src.AsArm64();
-  CHECK(src.IsXRegister()) << src;
-  StoreWToOffset(kStoreWord, src.AsOverlappingWRegister(), SP,
-                 offs.Int32Value());
-}
-
 void Arm64JNIMacroAssembler::StoreRawPtr(FrameOffset offs, ManagedRegister m_src) {
   Arm64ManagedRegister src = m_src.AsArm64();
   CHECK(src.IsXRegister()) << src;
   StoreToOffset(src.AsXRegister(), SP, offs.Int32Value());
-}
-
-void Arm64JNIMacroAssembler::StoreImmediateToFrame(FrameOffset offs, uint32_t imm) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  Register scratch = temps.AcquireW();
-  ___ Mov(scratch, imm);
-  ___ Str(scratch, MEM_OP(reg_x(SP), offs.Int32Value()));
-}
-
-void Arm64JNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset64 tr_offs, FrameOffset fr_offs) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  Register scratch = temps.AcquireX();
-  ___ Add(scratch, reg_x(SP), fr_offs.Int32Value());
-  ___ Str(scratch, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
 }
 
 void Arm64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 tr_offs, bool tag_sp) {
@@ -226,12 +205,6 @@ void Arm64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 tr_offs, b
     ___ Orr(scratch, scratch, 0x2);
   }
   ___ Str(scratch, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
-}
-
-void Arm64JNIMacroAssembler::StoreSpanning(FrameOffset dest_off ATTRIBUTE_UNUSED,
-                                           ManagedRegister m_source ATTRIBUTE_UNUSED,
-                                           FrameOffset in_off ATTRIBUTE_UNUSED) {
-  UNIMPLEMENTED(FATAL);  // This case is not applicable to ARM64.
 }
 
 // Load routines.
@@ -330,45 +303,6 @@ void Arm64JNIMacroAssembler::Load(ManagedRegister m_dst,
                                   MemberOffset offs,
                                   size_t size) {
   return Load(m_dst.AsArm64(), m_base.AsArm64().AsXRegister(), offs.Int32Value(), size);
-}
-
-void Arm64JNIMacroAssembler::LoadFromThread(ManagedRegister m_dst,
-                                            ThreadOffset64 src,
-                                            size_t size) {
-  return Load(m_dst.AsArm64(), TR, src.Int32Value(), size);
-}
-
-void Arm64JNIMacroAssembler::LoadRef(ManagedRegister m_dst, FrameOffset offs) {
-  Arm64ManagedRegister dst = m_dst.AsArm64();
-  CHECK(dst.IsXRegister()) << dst;
-  LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), SP, offs.Int32Value());
-}
-
-void Arm64JNIMacroAssembler::LoadRef(ManagedRegister m_dst,
-                                     ManagedRegister m_base,
-                                     MemberOffset offs,
-                                     bool unpoison_reference) {
-  Arm64ManagedRegister dst = m_dst.AsArm64();
-  Arm64ManagedRegister base = m_base.AsArm64();
-  CHECK(dst.IsXRegister() && base.IsXRegister());
-  LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), base.AsXRegister(),
-                  offs.Int32Value());
-  if (unpoison_reference) {
-    WRegister ref_reg = dst.AsOverlappingWRegister();
-    asm_.MaybeUnpoisonHeapReference(reg_w(ref_reg));
-  }
-}
-
-void Arm64JNIMacroAssembler::LoadRawPtr(ManagedRegister m_dst,
-                                        ManagedRegister m_base,
-                                        Offset offs) {
-  Arm64ManagedRegister dst = m_dst.AsArm64();
-  Arm64ManagedRegister base = m_base.AsArm64();
-  CHECK(dst.IsXRegister() && base.IsXRegister());
-  // Remove dst and base form the temp list - higher level API uses IP1, IP0.
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  temps.Exclude(reg_x(dst.AsXRegister()), reg_x(base.AsXRegister()));
-  ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
 
 void Arm64JNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset64 offs) {
@@ -649,147 +583,12 @@ void Arm64JNIMacroAssembler::Move(ManagedRegister m_dst, size_t value) {
   ___ Mov(reg_x(dst.AsXRegister()), value);
 }
 
-void Arm64JNIMacroAssembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset64 tr_offs) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  Register scratch = temps.AcquireX();
-  ___ Ldr(scratch, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
-  ___ Str(scratch, MEM_OP(sp, fr_offs.Int32Value()));
-}
-
-void Arm64JNIMacroAssembler::CopyRawPtrToThread(ThreadOffset64 tr_offs,
-                                                FrameOffset fr_offs,
-                                                ManagedRegister m_scratch) {
-  Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsXRegister()) << scratch;
-  LoadFromOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
-  StoreToOffset(scratch.AsXRegister(), TR, tr_offs.Int32Value());
-}
-
-void Arm64JNIMacroAssembler::CopyRef(FrameOffset dest, FrameOffset src) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  Register scratch = temps.AcquireW();
-  ___ Ldr(scratch, MEM_OP(reg_x(SP), src.Int32Value()));
-  ___ Str(scratch, MEM_OP(reg_x(SP), dest.Int32Value()));
-}
-
-void Arm64JNIMacroAssembler::CopyRef(FrameOffset dest,
-                                     ManagedRegister base,
-                                     MemberOffset offs,
-                                     bool unpoison_reference) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  Register scratch = temps.AcquireW();
-  ___ Ldr(scratch, MEM_OP(reg_x(base.AsArm64().AsXRegister()), offs.Int32Value()));
-  if (unpoison_reference) {
-    asm_.MaybeUnpoisonHeapReference(scratch);
-  }
-  ___ Str(scratch, MEM_OP(reg_x(SP), dest.Int32Value()));
-}
-
 void Arm64JNIMacroAssembler::Copy(FrameOffset dest, FrameOffset src, size_t size) {
   DCHECK(size == 4 || size == 8) << size;
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = (size == 8) ? temps.AcquireX() : temps.AcquireW();
   ___ Ldr(scratch, MEM_OP(reg_x(SP), src.Int32Value()));
   ___ Str(scratch, MEM_OP(reg_x(SP), dest.Int32Value()));
-}
-
-void Arm64JNIMacroAssembler::Copy(FrameOffset dest,
-                                  ManagedRegister src_base,
-                                  Offset src_offset,
-                                  ManagedRegister m_scratch,
-                                  size_t size) {
-  Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  Arm64ManagedRegister base = src_base.AsArm64();
-  CHECK(base.IsXRegister()) << base;
-  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
-  CHECK(size == 4 || size == 8) << size;
-  if (size == 4) {
-    LoadWFromOffset(kLoadWord, scratch.AsWRegister(), base.AsXRegister(),
-                   src_offset.Int32Value());
-    StoreWToOffset(kStoreWord, scratch.AsWRegister(), SP, dest.Int32Value());
-  } else if (size == 8) {
-    LoadFromOffset(scratch.AsXRegister(), base.AsXRegister(), src_offset.Int32Value());
-    StoreToOffset(scratch.AsXRegister(), SP, dest.Int32Value());
-  } else {
-    UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
-  }
-}
-
-void Arm64JNIMacroAssembler::Copy(ManagedRegister m_dest_base,
-                                  Offset dest_offs,
-                                  FrameOffset src,
-                                  ManagedRegister m_scratch,
-                                  size_t size) {
-  Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  Arm64ManagedRegister base = m_dest_base.AsArm64();
-  CHECK(base.IsXRegister()) << base;
-  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
-  CHECK(size == 4 || size == 8) << size;
-  if (size == 4) {
-    LoadWFromOffset(kLoadWord, scratch.AsWRegister(), SP, src.Int32Value());
-    StoreWToOffset(kStoreWord, scratch.AsWRegister(), base.AsXRegister(),
-                   dest_offs.Int32Value());
-  } else if (size == 8) {
-    LoadFromOffset(scratch.AsXRegister(), SP, src.Int32Value());
-    StoreToOffset(scratch.AsXRegister(), base.AsXRegister(), dest_offs.Int32Value());
-  } else {
-    UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
-  }
-}
-
-void Arm64JNIMacroAssembler::Copy(FrameOffset /*dst*/,
-                                  FrameOffset /*src_base*/,
-                                  Offset /*src_offset*/,
-                                  ManagedRegister /*mscratch*/,
-                                  size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "Unimplemented Copy() variant";
-}
-
-void Arm64JNIMacroAssembler::Copy(ManagedRegister m_dest,
-                                  Offset dest_offset,
-                                  ManagedRegister m_src,
-                                  Offset src_offset,
-                                  ManagedRegister m_scratch,
-                                  size_t size) {
-  Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  Arm64ManagedRegister src = m_src.AsArm64();
-  Arm64ManagedRegister dest = m_dest.AsArm64();
-  CHECK(dest.IsXRegister()) << dest;
-  CHECK(src.IsXRegister()) << src;
-  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
-  CHECK(size == 4 || size == 8) << size;
-  if (size == 4) {
-    if (scratch.IsWRegister()) {
-      LoadWFromOffset(kLoadWord, scratch.AsWRegister(), src.AsXRegister(),
-                    src_offset.Int32Value());
-      StoreWToOffset(kStoreWord, scratch.AsWRegister(), dest.AsXRegister(),
-                   dest_offset.Int32Value());
-    } else {
-      LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), src.AsXRegister(),
-                    src_offset.Int32Value());
-      StoreWToOffset(kStoreWord, scratch.AsOverlappingWRegister(), dest.AsXRegister(),
-                   dest_offset.Int32Value());
-    }
-  } else if (size == 8) {
-    LoadFromOffset(scratch.AsXRegister(), src.AsXRegister(), src_offset.Int32Value());
-    StoreToOffset(scratch.AsXRegister(), dest.AsXRegister(), dest_offset.Int32Value());
-  } else {
-    UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
-  }
-}
-
-void Arm64JNIMacroAssembler::Copy(FrameOffset /*dst*/,
-                                  Offset /*dest_offset*/,
-                                  FrameOffset /*src*/,
-                                  Offset /*src_offset*/,
-                                  ManagedRegister /*scratch*/,
-                                  size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "Unimplemented Copy() variant";
-}
-
-void Arm64JNIMacroAssembler::MemoryBarrier(ManagedRegister m_scratch ATTRIBUTE_UNUSED) {
-  // TODO: Should we check that m_scratch is IP? - see arm.
-  ___ Dmb(InnerShareable, BarrierAll);
 }
 
 void Arm64JNIMacroAssembler::SignExtend(ManagedRegister mreg, size_t size) {
