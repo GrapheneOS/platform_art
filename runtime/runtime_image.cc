@@ -1383,23 +1383,25 @@ class RuntimeImageHelper {
     DCHECK(IsAligned<kObjectAlignment>(offset));
     object_offsets_.push_back(offset);
     objects_.resize(RoundUp(offset + object_size, kObjectAlignment));
-    memcpy(objects_.data() + offset, obj.Ptr(), object_size);
-    object_section_size_ += RoundUp(object_size, kObjectAlignment);
+
+    mirror::Object* copy = reinterpret_cast<mirror::Object*>(objects_.data() + offset);
+    mirror::Object::CopyRawObjectData(
+        reinterpret_cast<uint8_t*>(copy), obj, object_size - sizeof(mirror::Object));
+    // Clear any lockword data.
+    copy->SetLockWord(LockWord::Default(), /* as_volatile= */ false);
+    copy->SetClass(obj->GetClass());
 
     // Fixup reference pointers.
     FixupVisitor visitor(this, offset);
     obj->VisitReferences</*kVisitNativeRoots=*/ false>(visitor, visitor);
-
-    mirror::Object* copy = reinterpret_cast<mirror::Object*>(objects_.data() + offset);
-
-    // Clear any lockword data.
-    copy->SetLockWord(LockWord::Default(), /* as_volatile= */ false);
 
     if (obj->IsString()) {
       // Ensure a string always has a hashcode stored. This is checked at
       // runtime because boot images don't want strings dirtied due to hashcode.
       reinterpret_cast<mirror::String*>(copy)->GetHashCode();
     }
+
+    object_section_size_ += RoundUp(object_size, kObjectAlignment);
     return offset;
   }
 
