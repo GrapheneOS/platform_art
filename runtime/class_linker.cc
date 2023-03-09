@@ -1585,14 +1585,18 @@ static void VisitInternedStringReferences(
     ObjPtr<mirror::Object> obj_ptr =
         reinterpret_cast<mirror::Object*>(space->Begin() + base_offset);
     if (obj_ptr->IsDexCache() && raw_member_offset >= sizeof(mirror::DexCache)) {
-      // Special case for strings referenced from dex cache array.
-      uint32_t offset = raw_member_offset - sizeof(mirror::DexCache);
-      ObjPtr<mirror::String> referred_string =
-          obj_ptr->AsDexCache()->GetStringsArray()->Get(offset);
-      DCHECK(referred_string != nullptr);
-      ObjPtr<mirror::String> visited = visitor(referred_string);
-      if (visited != referred_string) {
-        obj_ptr->AsDexCache()->GetStringsArray()->Set(offset, visited.Ptr());
+      // Special case for strings referenced from dex cache array: the offset is
+      // actually decoded as an index into the dex cache string array.
+      uint32_t index = raw_member_offset - sizeof(mirror::DexCache);
+      mirror::GcRootArray<mirror::String>* array = obj_ptr->AsDexCache()->GetStringsArray();
+      // The array could be concurrently set to null. See `StartupCompletedTask`.
+      if (array != nullptr) {
+        ObjPtr<mirror::String> referred_string = array->Get(index);
+        DCHECK(referred_string != nullptr);
+        ObjPtr<mirror::String> visited = visitor(referred_string);
+        if (visited != referred_string) {
+          array->Set(index, visited.Ptr());
+        }
       }
     } else {
       DCHECK_ALIGNED(raw_member_offset, 2);
@@ -1704,6 +1708,14 @@ void AppImageLoadingHelper::Update(
         CHECK(live_bitmap->Test(klass.Ptr())) << "Image method has unmarked declaring class";
       }
     }, space->Begin(), kRuntimePointerSize);
+  }
+
+  if (runtime->GetStartupCompleted()) {
+    // Free up dex cache arrays that we would only allocate at startup.
+    for (auto dex_cache : dex_caches.Iterate<mirror::DexCache>()) {
+      dex_cache->UnlinkStartupCaches();
+    }
+    space->ReleaseMetadata();
   }
 }
 

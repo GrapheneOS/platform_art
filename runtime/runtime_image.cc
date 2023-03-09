@@ -55,7 +55,7 @@ namespace art {
 
 using android::base::StringPrintf;
 
-static constexpr bool kEmitDexCacheArrays = false;
+static constexpr bool kEmitDexCacheArrays = true;
 
 /**
  * The native data structures that we store in the image.
@@ -298,12 +298,13 @@ class RuntimeImageHelper {
 
     // Round up to the alignment dex caches arrays expects.
     cur_pos =
-        RoundUp(sections_[ImageHeader::kSectionStringReferenceOffsets].End(), sizeof(uint32_t));
+        RoundUp(sections_[ImageHeader::kSectionStringReferenceOffsets].End(), sizeof(void*));
     sections_[ImageHeader::kSectionDexCacheArrays] =
         ImageSection(cur_pos, dex_cache_arrays_.size());
 
-    // Round up to the alignment expected for the metadata.
-    cur_pos = RoundUp(sections_[ImageHeader::kSectionDexCacheArrays].End(), sizeof(uint32_t));
+    // Round up to the alignment expected for the metadata, which holds dex
+    // cache arrays.
+    cur_pos = RoundUp(sections_[ImageHeader::kSectionDexCacheArrays].End(), sizeof(void*));
     sections_[ImageHeader::kSectionMetadata] = ImageSection(cur_pos, metadata_.size());
   }
 
@@ -682,12 +683,14 @@ class RuntimeImageHelper {
       return;
     }
 
-    auto it = native_relocations_[old_method_array];
-    std::vector<uint8_t>& data = (it.first == NativeRelocationKind::kFullNativeDexCacheArray)
-        ? dex_cache_arrays_ : metadata_;
+    auto it = native_relocations_.find(old_method_array);
+    DCHECK(it != native_relocations_.end());
+    std::vector<uint8_t>& data =
+        (it->second.first == NativeRelocationKind::kFullNativeDexCacheArray)
+            ? dex_cache_arrays_ : metadata_;
 
     mirror::NativeArray<T>* content_array =
-        reinterpret_cast<mirror::NativeArray<T>*>(data.data() + it.second);
+        reinterpret_cast<mirror::NativeArray<T>*>(data.data() + it->second.second);
     for (uint32_t i = 0; i < num_ids; ++i) {
       // We may not have relocations for some entries, in which case we'll
       // just store null.
@@ -718,8 +721,8 @@ class RuntimeImageHelper {
     ScopedTrace relocate_native_pointers("Relocate native pointers");
     ScopedObjectAccess soa(Thread::Current());
     NativePointerVisitor visitor(this);
-    for (auto it : classes_) {
-      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
+    for (auto entry : classes_) {
+      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[entry.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
     }
@@ -1075,7 +1078,7 @@ class RuntimeImageHelper {
       CopyObject(image_roots.Get());
     }
 
-    // Emit classes defined in the app class loader (which will also indrirectly
+    // Emit classes defined in the app class loader (which will also indirectly
     // emit dex caches and their arrays).
     EmitClasses(soa.Self(), dex_cache_array);
 
@@ -1129,19 +1132,26 @@ class RuntimeImageHelper {
     if (array == nullptr) {
       return;
     }
-    size_t size = num_entries * sizeof(void*);
 
     bool only_startup = !mirror::DexCache::ShouldAllocateFullArray(num_entries, max_entries);
     std::vector<uint8_t>& data = only_startup ? metadata_ : dex_cache_arrays_;
     NativeRelocationKind relocation_kind = only_startup
         ? NativeRelocationKind::kStartupNativeDexCacheArray
         : NativeRelocationKind::kFullNativeDexCacheArray;
-    size_t offset = data.size() + sizeof(uint32_t);
-    data.resize(offset + size);
-    // We need to store `num_entries` because ImageSpace doesn't have
+
+    size_t size = num_entries * sizeof(void*);
+    // We need to reserve space to store `num_entries` because ImageSpace doesn't have
     // access to the dex files when relocating dex caches.
-    reinterpret_cast<uint32_t*>(data.data() + offset)[-1] = num_entries;
-    memcpy(data.data() + offset, array, size);
+    size_t offset = RoundUp(data.size(), sizeof(void*)) + sizeof(uintptr_t);
+    data.resize(RoundUp(data.size(), sizeof(void*)) + sizeof(uintptr_t) + size);
+    reinterpret_cast<uintptr_t*>(data.data() + offset)[-1] = num_entries;
+
+    // Copy each entry individually. We cannot use memcpy, as the entries may be
+    // updated concurrently by other mutator threads.
+    mirror::NativeArray<T>* copy = reinterpret_cast<mirror::NativeArray<T>*>(data.data() + offset);
+    for (uint32_t i = 0; i < num_entries; ++i) {
+      copy->Set(i, array->Get(i));
+    }
     native_relocations_[array] = std::make_pair(relocation_kind, offset);
   }
 
@@ -1152,17 +1162,17 @@ class RuntimeImageHelper {
     if (array == nullptr) {
       return nullptr;
     }
-    size_t size = num_entries * sizeof(GcRoot<T>);
-
     bool only_startup = !mirror::DexCache::ShouldAllocateFullArray(num_entries, max_entries);
     std::vector<uint8_t>& data = only_startup ? metadata_ : dex_cache_arrays_;
     NativeRelocationKind relocation_kind = only_startup
         ? NativeRelocationKind::kStartupNativeDexCacheArray
         : NativeRelocationKind::kFullNativeDexCacheArray;
-    size_t offset = data.size() + sizeof(uint32_t);
-    data.resize(offset + size);
-    // We need to store `num_entries` because ImageSpace doesn't have
+    size_t size = num_entries * sizeof(GcRoot<T>);
+    // We need to reserve space to store `num_entries` because ImageSpace doesn't have
     // access to the dex files when relocating dex caches.
+    static_assert(sizeof(GcRoot<T>) == sizeof(uint32_t));
+    size_t offset = data.size() + sizeof(uint32_t);
+    data.resize(data.size() + sizeof(uint32_t) + size);
     reinterpret_cast<uint32_t*>(data.data() + offset)[-1] = num_entries;
     native_relocations_[array] = std::make_pair(relocation_kind, offset);
 
