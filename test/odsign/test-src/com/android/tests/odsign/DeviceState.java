@@ -39,6 +39,7 @@ import javax.xml.transform.stream.StreamResult;
 /** A helper class that can mutate the device state and restore it afterwards. */
 public class DeviceState {
     private static final String APEX_INFO_FILE = "/apex/apex-info-list.xml";
+    private static final String TEST_JAR_RESOURCE_NAME = "/art-gtest-jars-Main.jar";
 
     private final TestInformation mTestInfo;
     private final OdsignTestUtils mTestUtils;
@@ -93,6 +94,18 @@ public class DeviceState {
                 }
             }
         }
+    }
+
+    /** Simulates that there is an OTA that updates a boot classpath jar. */
+    public void simulateBootClasspathOta() throws Exception {
+        File localFile = mTestUtils.copyResourceToFile(TEST_JAR_RESOURCE_NAME);
+        pushAndBindMount(localFile, "/system/framework/framework.jar");
+    }
+
+    /** Simulates that there is an OTA that updates a system server jar. */
+    public void simulateSystemServerOta() throws Exception {
+        File localFile = mTestUtils.copyResourceToFile(TEST_JAR_RESOURCE_NAME);
+        pushAndBindMount(localFile, "/system/framework/services.jar");
     }
 
     /**
