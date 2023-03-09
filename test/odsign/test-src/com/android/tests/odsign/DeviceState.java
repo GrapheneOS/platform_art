@@ -26,7 +26,9 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import javax.xml.parsers.DocumentBuilder;
@@ -40,12 +42,15 @@ import javax.xml.transform.stream.StreamResult;
 public class DeviceState {
     private static final String APEX_INFO_FILE = "/apex/apex-info-list.xml";
     private static final String TEST_JAR_RESOURCE_NAME = "/art-gtest-jars-Main.jar";
+    private static final String PHENOTYPE_FLAG_NAMESPACE = "runtime_native_boot";
 
     private final TestInformation mTestInfo;
     private final OdsignTestUtils mTestUtils;
 
     private Set<String> mTempFiles = new HashSet<>();
     private Set<String> mMountPoints = new HashSet<>();
+    private Map<String, String> mMutatedProperties = new HashMap<>();
+    private Set<String> mMutatedPhenotypeFlags = new HashSet<>();
 
     public DeviceState(TestInformation testInfo) throws Exception {
         mTestInfo = testInfo;
@@ -60,6 +65,21 @@ public class DeviceState {
 
         for (String tempFile : mTempFiles) {
             mTestInfo.getDevice().deleteFile(tempFile);
+        }
+
+        for (var entry : mMutatedProperties.entrySet()) {
+            mTestInfo.getDevice().setProperty(
+                    entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+        }
+
+        for (String flag : mMutatedPhenotypeFlags) {
+            mTestInfo.getDevice().executeShellV2Command(String.format(
+                    "device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, flag));
+        }
+
+        if (!mMutatedPhenotypeFlags.isEmpty()) {
+            mTestInfo.getDevice().executeShellV2Command(
+                    "device_config set_sync_disabled_for_tests none");
         }
     }
 
@@ -106,6 +126,41 @@ public class DeviceState {
     public void simulateSystemServerOta() throws Exception {
         File localFile = mTestUtils.copyResourceToFile(TEST_JAR_RESOURCE_NAME);
         pushAndBindMount(localFile, "/system/framework/services.jar");
+    }
+
+    /** Sets a system property. */
+    public void setProperty(String key, String value) throws Exception {
+        if (!mMutatedProperties.containsKey(key)) {
+            // Backup the original value.
+            mMutatedProperties.put(key, mTestInfo.getDevice().getProperty(key));
+        }
+
+        mTestInfo.getDevice().setProperty(key, value);
+    }
+
+    /** Sets a phenotype flag. */
+    public void setPhenotypeFlag(String key, String value) throws Exception {
+        if (!mMutatedPhenotypeFlags.contains(key)) {
+            // Tests assume that phenotype flags are initially not set. Check if the assumption is
+            // true.
+            assertThat(mTestUtils.assertCommandSucceeds(String.format(
+                               "device_config get '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key)))
+                    .isEqualTo("null");
+            mMutatedPhenotypeFlags.add(key);
+        }
+
+        // Disable phenotype flag syncing. Potentially, we can set `set_sync_disabled_for_tests` to
+        // `until_reboot`, but setting it to `persistent` prevents unrelated system crashes/restarts
+        // from affecting the test. `set_sync_disabled_for_tests` is reset in `restore` anyway.
+        mTestUtils.assertCommandSucceeds("device_config set_sync_disabled_for_tests persistent");
+
+        if (value != null) {
+            mTestUtils.assertCommandSucceeds(String.format(
+                    "device_config put '%s' '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key, value));
+        } else {
+            mTestUtils.assertCommandSucceeds(
+                    String.format("device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key));
+        }
     }
 
     /**
