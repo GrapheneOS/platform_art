@@ -165,131 +165,85 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyEnableUffdGcChangeTriggersCompilation() throws Exception {
-        try {
-            // Disable phenotype flag syncing. Potentially, we can set
-            // `set_sync_disabled_for_tests` to `until_reboot`, but setting it to
-            // `persistent` prevents unrelated system crashes/restarts from affecting the
-            // test. `set_sync_disabled_for_tests` is reset in the `finally` block anyway.
-            getDevice().executeShellV2Command(
-                    "device_config set_sync_disabled_for_tests persistent");
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc", "false");
 
-            // Simulate that the phenotype flag is set to false.
-            getDevice().executeShellV2Command(
-                    "device_config put runtime_native_boot enable_uffd_gc false");
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            long timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should be re-compiled.
-            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc", "true");
 
-            // Simulate that the phenotype flag is set to true.
-            getDevice().executeShellV2Command(
-                    "device_config put runtime_native_boot enable_uffd_gc true");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should be re-compiled.
-            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+        // Run odrefresh again with the flag unchanged.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            // Run odrefresh again with the flag unchanged.
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should not be re-compiled.
-            assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc", null);
 
-            // Simulate that the phenotype flag is cleared.
-            getDevice().executeShellV2Command(
-                    "device_config delete runtime_native_boot enable_uffd_gc");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
-
-            // Artifacts should be re-compiled.
-            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
-        } finally {
-            getDevice().executeShellV2Command("device_config set_sync_disabled_for_tests none");
-            getDevice().executeShellV2Command(
-                    "device_config delete runtime_native_boot enable_uffd_gc");
-        }
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
     public void verifySystemServerCompilerFilterOverrideChangeTriggersCompilation()
             throws Exception {
-        try {
-            // Disable phenotype flag syncing. Potentially, we can set
-            // `set_sync_disabled_for_tests` to `until_reboot`, but setting it to
-            // `persistent` prevents unrelated system crashes/restarts from affecting the
-            // test. `set_sync_disabled_for_tests` is reset in the `finally` block anyway.
-            getDevice()
-                    .executeShellV2Command("device_config set_sync_disabled_for_tests persistent");
+        mDeviceState.setPhenotypeFlag("systemservercompilerfilter_override", null);
 
-            // Simulate that the phenotype flag is set to the default value.
-            getDevice()
-                    .executeShellV2Command(
-                            "device_config put runtime_native_boot"
-                                + " systemservercompilerfilter_override");
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            long timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should not be re-compiled.
-            assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+        mDeviceState.setPhenotypeFlag("systemservercompilerfilter_override", "speed");
 
-            // Simulate that the phenotype flag is set to "speed".
-            getDevice()
-                    .executeShellV2Command(
-                            "device_config put runtime_native_boot"
-                                + " systemservercompilerfilter_override speed");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should be re-compiled.
-            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+        // Run odrefresh again with the flag unchanged.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            // Run odrefresh again with the flag unchanged.
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Artifacts should not be re-compiled.
-            assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+        mDeviceState.setPhenotypeFlag("systemservercompilerfilter_override", "verify");
 
-            // Simulate that the phenotype flag is set to "verify".
-            getDevice()
-                    .executeShellV2Command(
-                            "device_config put runtime_native_boot"
-                                + " systemservercompilerfilter_override verify");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        runOdrefresh();
 
-            timeMs = mTestUtils.getCurrentTimeMs();
-            runOdrefresh();
-
-            // Artifacts should be re-compiled.
-            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
-        } finally {
-            getDevice().executeShellV2Command("device_config set_sync_disabled_for_tests none");
-            getDevice()
-                    .executeShellV2Command(
-                            "device_config delete runtime_native_boot"
-                                + " systemservercompilerfilter_override");
-        }
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
     public void verifySystemPropertyMismatchTriggersCompilation() throws Exception {
         // Change a system property from empty to a value.
-        getDevice().setProperty("dalvik.vm.foo", "1");
+        mDeviceState.setProperty("dalvik.vm.foo", "1");
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -306,7 +260,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
         // Change the system property to another value.
-        getDevice().setProperty("dalvik.vm.foo", "2");
+        mDeviceState.setProperty("dalvik.vm.foo", "2");
         timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -323,7 +277,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
         // Change the system property to empty.
-        getDevice().setProperty("dalvik.vm.foo", "");
+        mDeviceState.setProperty("dalvik.vm.foo", "");
         timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
