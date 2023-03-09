@@ -35,47 +35,47 @@ UNDEFINED art_jni_unlock_object
     INCREASE_FRAME (ALL_ARGS_SIZE + \extra_space)
 
     // Argument GPRs a0 - a7.
-    SAVE_GPR a0 (8*0)
-    SAVE_GPR a1 (8*1)
-    SAVE_GPR a2 (8*2)
-    SAVE_GPR a3 (8*3)
-    SAVE_GPR a4 (8*4)
-    SAVE_GPR a5 (8*5)
-    SAVE_GPR a6 (8*6)
-    SAVE_GPR a7 (8*7)
+    SAVE_GPR a0, (8*0)
+    SAVE_GPR a1, (8*1)
+    SAVE_GPR a2, (8*2)
+    SAVE_GPR a3, (8*3)
+    SAVE_GPR a4, (8*4)
+    SAVE_GPR a5, (8*5)
+    SAVE_GPR a6, (8*6)
+    SAVE_GPR a7, (8*7)
 
     // Argument FPRs fa0 - fa7.
-    SAVE_FPR fa0 (8*8)
-    SAVE_FPR fa1 (8*9)
-    SAVE_FPR fa2 (8*10)
-    SAVE_FPR fa3 (8*11)
-    SAVE_FPR fa4 (8*12)
-    SAVE_FPR fa5 (8*13)
-    SAVE_FPR fa6 (8*14)
-    SAVE_FPR fa7 (8*15)
+    SAVE_FPR fa0, (8*8)
+    SAVE_FPR fa1, (8*9)
+    SAVE_FPR fa2, (8*10)
+    SAVE_FPR fa3, (8*11)
+    SAVE_FPR fa4, (8*12)
+    SAVE_FPR fa5, (8*13)
+    SAVE_FPR fa6, (8*14)
+    SAVE_FPR fa7, (8*15)
 .endm
 
 
 .macro RESTORE_ALL_ARGS_DECREASE_FRAME extra_space
     // Argument GPRs a0 - a7.
-    RESTORE_GPR a0 (8*0)
-    RESTORE_GPR a1 (8*1)
-    RESTORE_GPR a2 (8*2)
-    RESTORE_GPR a3 (8*3)
-    RESTORE_GPR a4 (8*4)
-    RESTORE_GPR a5 (8*5)
-    RESTORE_GPR a6 (8*6)
-    RESTORE_GPR a7 (8*7)
+    RESTORE_GPR a0, (8*0)
+    RESTORE_GPR a1, (8*1)
+    RESTORE_GPR a2, (8*2)
+    RESTORE_GPR a3, (8*3)
+    RESTORE_GPR a4, (8*4)
+    RESTORE_GPR a5, (8*5)
+    RESTORE_GPR a6, (8*6)
+    RESTORE_GPR a7, (8*7)
 
     // Argument FPRs fa0 - fa7.
-    RESTORE_FPR fa0 (8*8)
-    RESTORE_FPR fa1 (8*9)
-    RESTORE_FPR fa2 (8*10)
-    RESTORE_FPR fa3 (8*11)
-    RESTORE_FPR fa4 (8*12)
-    RESTORE_FPR fa5 (8*13)
-    RESTORE_FPR fa6 (8*14)
-    RESTORE_FPR fa7 (8*15)
+    RESTORE_FPR fa0, (8*8)
+    RESTORE_FPR fa1, (8*9)
+    RESTORE_FPR fa2, (8*10)
+    RESTORE_FPR fa3, (8*11)
+    RESTORE_FPR fa4, (8*12)
+    RESTORE_FPR fa5, (8*13)
+    RESTORE_FPR fa6, (8*14)
+    RESTORE_FPR fa7, (8*15)
 
     DECREASE_FRAME (ALL_ARGS_SIZE + \extra_space)
 .endm
@@ -86,8 +86,8 @@ UNDEFINED art_jni_unlock_object
 .extern artFindNativeMethodRunnable
 ENTRY art_jni_dlsym_lookup_stub
     SAVE_ALL_ARGS_INCREASE_FRAME 2*8
-    SAVE_GPR fp (ALL_ARGS_SIZE + 0)
-    SAVE_GPR ra (ALL_ARGS_SIZE + 8)
+    SAVE_GPR fp, (ALL_ARGS_SIZE + 0)
+    SAVE_GPR ra, (ALL_ARGS_SIZE + 8)
     add  fp, sp, ALL_ARGS_SIZE
 
     // Call artFindNativeMethod for normal native.
@@ -109,8 +109,8 @@ ENTRY art_jni_dlsym_lookup_stub
 
 .Llookup_stub_continue:
     mv    t0, a0  // store result in a temp reg.
-    RESTORE_GPR fp (ALL_ARGS_SIZE + 0)
-    RESTORE_GPR ra (ALL_ARGS_SIZE + 8)
+    RESTORE_GPR fp, (ALL_ARGS_SIZE + 0)
+    RESTORE_GPR ra, (ALL_ARGS_SIZE + 8)
     RESTORE_ALL_ARGS_DECREASE_FRAME 2*8
 
     beqz  t0, 1f  // is method code null?
