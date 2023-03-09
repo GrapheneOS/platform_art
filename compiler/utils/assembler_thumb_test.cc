@@ -144,7 +144,6 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ Load(scratch_register, FrameOffset(4092), 4);
   __ Load(scratch_register, FrameOffset(4096), 4);
   __ LoadRawPtrFromThread(scratch_register, ThreadOffset32(512));
-  __ LoadRef(method_register, scratch_register, MemberOffset(128), /* unpoison_reference= */ false);
 
   // Stores
   __ Store(FrameOffset(32), method_register, 4);
@@ -154,20 +153,67 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ Store(FrameOffset(1024), method_register, 4);
   __ Store(FrameOffset(4092), scratch_register, 4);
   __ Store(FrameOffset(4096), scratch_register, 4);
-  __ StoreImmediateToFrame(FrameOffset(48), 0xFF);
-  __ StoreImmediateToFrame(FrameOffset(48), 0xFFFFFF);
   __ StoreRawPtr(FrameOffset(48), scratch_register);
-  __ StoreRef(FrameOffset(48), scratch_register);
-  __ StoreSpanning(FrameOffset(48), method_register, FrameOffset(48));
-  __ StoreStackOffsetToThread(ThreadOffset32(512), FrameOffset(4096));
   __ StoreStackPointerToThread(ThreadOffset32(512), false);
   __ StoreStackPointerToThread(ThreadOffset32(512), true);
+
+  // MoveArguments
+  static constexpr FrameOffset kInvalidReferenceOffset =
+      JNIMacroAssembler<kArmPointerSize>::kInvalidReferenceOffset;
+  static constexpr size_t kNativePointerSize = static_cast<size_t>(kArmPointerSize);
+  // Normal or @FastNative with parameters (Object, long, long, int, Object).
+  // Note: This shall not spill the reference R1 to [sp, #36]. The JNI compiler spills
+  // references in an separate initial pass before moving arguments and creating `jobject`s.
+  ArgumentLocation move_dests1[] = {
+      ArgumentLocation(ArmManagedRegister::FromCoreRegister(R2), kNativePointerSize),
+      ArgumentLocation(FrameOffset(0), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(8), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(16), kVRegSize),
+      ArgumentLocation(FrameOffset(20), kNativePointerSize),
+  };
+  ArgumentLocation move_srcs1[] = {
+      ArgumentLocation(ArmManagedRegister::FromCoreRegister(R1), kVRegSize),
+      ArgumentLocation(ArmManagedRegister::FromRegisterPair(R2_R3), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(48), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(56), kVRegSize),
+      ArgumentLocation(FrameOffset(60), kVRegSize),
+  };
+  FrameOffset move_refs1[] {
+      FrameOffset(36),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(60),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests1),
+                   ArrayRef<ArgumentLocation>(move_srcs1),
+                   ArrayRef<FrameOffset>(move_refs1));
+  // @CriticalNative with parameters (long, long, long, int).
+  ArgumentLocation move_dests2[] = {
+      ArgumentLocation(ArmManagedRegister::FromRegisterPair(R0_R1), 2 * kVRegSize),
+      ArgumentLocation(ArmManagedRegister::FromRegisterPair(R2_R3), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(0), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(8), kVRegSize),
+  };
+  ArgumentLocation move_srcs2[] = {
+      ArgumentLocation(ArmManagedRegister::FromRegisterPair(R2_R3), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(28), kVRegSize),
+      ArgumentLocation(FrameOffset(32), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(40), kVRegSize),
+  };
+  FrameOffset move_refs2[] {
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests2),
+                   ArrayRef<ArgumentLocation>(move_srcs2),
+                   ArrayRef<FrameOffset>(move_refs2));
 
   // Other
   __ Call(method_register, FrameOffset(48));
   __ Copy(FrameOffset(48), FrameOffset(44), 4);
-  __ CopyRawPtrFromThread(FrameOffset(44), ThreadOffset32(512));
-  __ CopyRef(FrameOffset(48), FrameOffset(44));
   __ GetCurrentThread(method_register);
   __ GetCurrentThread(FrameOffset(48));
   __ Move(hidden_arg_register, method_register, 4);
@@ -178,7 +224,6 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ CreateJObject(high_register, FrameOffset(48), high_register, true);
   __ CreateJObject(high_register, FrameOffset(48), high_register, false);
   __ CreateJObject(method_register, FrameOffset(48), high_register, true);
-  __ CreateJObject(FrameOffset(48), FrameOffset(64), true);
   __ CreateJObject(method_register, FrameOffset(0), high_register, true);
   __ CreateJObject(method_register, FrameOffset(1028), high_register, true);
   __ CreateJObject(high_register, FrameOffset(1028), high_register, true);

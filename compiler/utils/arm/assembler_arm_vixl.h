@@ -27,7 +27,6 @@
 #include "utils/arm/assembler_arm_shared.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
-#include "utils/jni_macro_assembler.h"
 
 // TODO(VIXL): Make VIXL compile with -Wshadow and remove pragmas.
 #pragma GCC diagnostic push
