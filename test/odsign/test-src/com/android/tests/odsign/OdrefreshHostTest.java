@@ -27,6 +27,7 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -54,6 +55,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private static final String SYSTEM_SERVER_ARTIFACTS_KEY = TAG + ":SYSTEM_SERVER_ARTIFACTS";
 
     private OdsignTestUtils mTestUtils;
+    private DeviceState mDeviceState;
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
@@ -92,6 +94,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Before
     public void setUp() throws Exception {
         mTestUtils = new OdsignTestUtils(getTestInformation());
+        mDeviceState = new DeviceState(getTestInformation());
 
         // Restore the artifacts to ensure a clean initial state.
         getDevice().executeShellV2Command(
@@ -101,9 +104,14 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                         OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
     }
 
+    @After
+    public void tearDown() throws Exception {
+        mDeviceState.restore();
+    }
+
     @Test
     public void verifyArtSamegradeUpdateTriggersCompilation() throws Exception {
-        simulateArtApexUpgrade();
+        mDeviceState.simulateArtApexUpgrade();
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -113,7 +121,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
-        simulateApexUpgrade();
+        mDeviceState.simulateApexUpgrade();
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -370,7 +378,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyCompilationOsMode() throws Exception {
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        simulateApexUpgrade();
+        mDeviceState.simulateApexUpgrade();
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh("--compilation-os-mode");
 
@@ -470,33 +478,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                 "(.*/system/framework/services\\.jar.*checksums=\").*?(\".*)",
                 "$1aaaaaaaa$2");
         getDevice().pushString(cacheInfo, CACHE_INFO_FILE);
-    }
-
-    /**
-     * Simulates that an ART APEX has been upgraded.
-     */
-    private void simulateArtApexUpgrade() throws Exception {
-        String apexInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
-        // Replace the lastUpdateMillis of com.android.art with "1".
-        apexInfo = replaceLine(
-                apexInfo,
-                "(.*com\\.android\\.art.*lastUpdateMillis=\").*?(\".*)",
-                "$11$2");
-        getDevice().pushString(apexInfo, CACHE_INFO_FILE);
-    }
-
-    /**
-     * Simulates that an APEX has been upgraded. We could install a real APEX, but that would
-     * introduce an extra dependency to this test, which we want to avoid.
-     */
-    private void simulateApexUpgrade() throws Exception {
-        String apexInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
-        // Replace the lastUpdateMillis of com.android.wifi with "1".
-        apexInfo = replaceLine(
-                apexInfo,
-                "(.*com\\.android\\.wifi.*lastUpdateMillis=\").*?(\".*)",
-                "$11$2");
-        getDevice().pushString(apexInfo, CACHE_INFO_FILE);
     }
 
     private Set<String> simulateMissingArtifacts() throws Exception {
