@@ -82,6 +82,122 @@ static TraceAction DecodeTraceAction(uint32_t tmid) {
   return static_cast<TraceAction>(tmid & kTraceMethodActionMask);
 }
 
+namespace {
+// Scaling factor to convert timestamp counter into wall clock time reported in micro seconds.
+// This is initialized at the start of tracing using the timestamp counter update frequency.
+// See InitializeTimestampCounters for more details.
+double tsc_to_microsec_scaling_factor = -1.0;
+
+uint64_t GetTimestamp() {
+  uint64_t t = 0;
+#if defined(__arm__)
+  // See Architecture Reference Manual ARMv7-A and ARMv7-R edition section B4.1.34
+  // Q and R specify that they should be written to lower and upper halves of 64-bit value.
+  // See: https://llvm.org/docs/LangRef.html#asm-template-argument-modifiers
+  asm volatile("mrrc p15, 1, %Q0, %R0, c14" : "=r"(t));
+#elif defined(__aarch64__)
+  // See Arm Architecture Registers  Armv8 section System Registers
+  asm volatile("mrs %0, cntvct_el0" : "=r"(t));
+#elif defined(__i386__) || defined(__x86_64__)
+  // rdtsc returns two 32-bit values in rax and rdx even on 64-bit architectures.
+  unsigned int lo, hi;
+  asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
+  t = (static_cast<uint64_t>(hi) << 32) | lo;
+#else
+  t = MicroTime();
+#endif
+  return t;
+}
+
+#if defined(__i386__) || defined(__x86_64__)
+// Here we compute the scaling factor by sleeping for a millisecond. Alternatively, we could
+// generate raw timestamp counter and also time using clock_gettime at the start and the end of the
+// trace. We can compute the frequency of timestamp counter upadtes in the post processing step
+// using these two samples. However, that would require a change in Android Studio which is the main
+// consumer of these profiles. For now, just compute the frequency of tsc updates here.
+double computeScalingFactor() {
+  uint64_t start = MicroTime();
+  uint64_t start_tsc = GetTimestamp();
+  // Sleep for one millisecond.
+  usleep(1000);
+  uint64_t diff_tsc = GetTimestamp() - start_tsc;
+  uint64_t diff_time = MicroTime() - start;
+  double scaling_factor = static_cast<double>(diff_time) / diff_tsc;
+  DCHECK(scaling_factor > 0.0) << scaling_factor;
+  return scaling_factor;
+}
+
+double GetScalingFactorForX86() {
+  uint32_t eax, ebx, ecx;
+  asm volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx) : "a"(0x0), "c"(0));
+  if (eax < 0x15) {
+    // There is no 15H - Timestamp counter and core crystal clock information
+    // leaf. Just compute the frequency.
+    return computeScalingFactor();
+  }
+
+  // From Intel architecture-instruction-set-extensions-programming-reference:
+  // EBX[31:0]/EAX[31:0] indicates the ratio of the TSC frequency and the
+  // core crystal clock frequency.
+  // If EBX[31:0] is 0, the TSC and "core crystal clock" ratio is not enumerated.
+  // If ECX is 0, the nominal core crystal clock frequency is not enumerated.
+  // "TSC frequency" = "core crystal clock frequency" * EBX/EAX.
+  // The core crystal clock may differ from the reference clock, bus clock, or core clock
+  // frequencies.
+  // EAX Bits 31 - 00: An unsigned integer which is the denominator of the
+  //                   TSC/"core crystal clock" ratio.
+  // EBX Bits 31 - 00: An unsigned integer which is the numerator of the
+  //                   TSC/"core crystal clock" ratio.
+  // ECX Bits 31 - 00: An unsigned integer which is the nominal frequency of the core
+  //                   crystal clock in Hz.
+  // EDX Bits 31 - 00: Reserved = 0.
+  asm volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx) : "a"(0x15), "c"(0));
+  if (ebx == 0 || ecx == 0) {
+    return computeScalingFactor();
+  }
+  double coreCrystalFreq = ecx;
+  // frequency = coreCrystalFreq * (ebx / eax)
+  // scaling_factor = seconds_to_microseconds / frequency
+  //                = seconds_to_microseconds * eax / (coreCrystalFreq * ebx)
+  double seconds_to_microseconds = 1000 * 1000;
+  double scaling_factor = (seconds_to_microseconds * eax) / (coreCrystalFreq * ebx);
+  return scaling_factor;
+}
+#endif
+
+void InitializeTimestampCounters() {
+  // It is sufficient to initialize this once for the entire execution. Just return if it is
+  // already initialized.
+  if (tsc_to_microsec_scaling_factor > 0.0) {
+    return;
+  }
+
+#if defined(__arm__)
+  double seconds_to_microseconds = 1000 * 1000;
+  uint64_t freq = 0;
+  // See Architecture Reference Manual ARMv7-A and ARMv7-R edition section B4.1.21
+  asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(freq));
+  tsc_to_microsec_scaling_factor = seconds_to_microseconds / static_cast<double>(freq);
+#elif defined(__aarch64__)
+  double seconds_to_microseconds = 1000 * 1000;
+  uint64_t freq = 0;
+  // See Arm Architecture Registers  Armv8 section System Registers
+  asm volatile("mrs %0,  cntfrq_el0" : "=r"(freq));
+  tsc_to_microsec_scaling_factor = seconds_to_microseconds / static_cast<double>(freq);
+#elif defined(__i386__) || defined(__x86_64__)
+  tsc_to_microsec_scaling_factor = GetScalingFactorForX86();
+#else
+  tsc_to_microsec_scaling_factor = 1.0;
+#endif
+}
+
+ALWAYS_INLINE uint64_t GetMicroTime(uint64_t counter) {
+  DCHECK(tsc_to_microsec_scaling_factor > 0.0) << tsc_to_microsec_scaling_factor;
+  return tsc_to_microsec_scaling_factor * counter;
+}
+
+}  // namespace
+
 ArtMethod* Trace::DecodeTraceMethod(uint32_t tmid) {
   uint32_t method_index = tmid >> TraceActionBits;
   // This is used only for logging which is usually needed only for debugging ART. So it's not
@@ -152,7 +268,7 @@ void Trace::MeasureClockOverhead() {
     Thread::Current()->GetCpuMicroTime();
   }
   if (UseWallClock()) {
-    MicroTime();
+    GetTimestamp();
   }
 }
 
@@ -235,13 +351,13 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
   thread->SetStackTraceSample(stack_trace);
   // Read timer clocks to use for all events in this trace.
   uint32_t thread_clock_diff = 0;
-  uint32_t wall_clock_diff = 0;
-  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
+  uint64_t timestamp_counter = 0;
+  ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   if (old_stack_trace == nullptr) {
     // If there's no previous stack trace sample for this thread, log an entry event for all
     // methods in the trace.
     for (auto rit = stack_trace->rbegin(); rit != stack_trace->rend(); ++rit) {
-      LogMethodTraceEvent(thread, *rit, kTraceMethodEnter, thread_clock_diff, wall_clock_diff);
+      LogMethodTraceEvent(thread, *rit, kTraceMethodEnter, thread_clock_diff, timestamp_counter);
     }
   } else {
     // If there's a previous stack trace for this thread, diff the traces and emit entry and exit
@@ -255,11 +371,11 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
     }
     // Iterate top-down over the old trace until the point where they differ, emitting exit events.
     for (auto old_it = old_stack_trace->begin(); old_it != old_rit.base(); ++old_it) {
-      LogMethodTraceEvent(thread, *old_it, kTraceMethodExit, thread_clock_diff, wall_clock_diff);
+      LogMethodTraceEvent(thread, *old_it, kTraceMethodExit, thread_clock_diff, timestamp_counter);
     }
     // Iterate bottom-up over the new trace from the point where they differ, emitting entry events.
     for (; rit != stack_trace->rend(); ++rit) {
-      LogMethodTraceEvent(thread, *rit, kTraceMethodEnter, thread_clock_diff, wall_clock_diff);
+      LogMethodTraceEvent(thread, *rit, kTraceMethodEnter, thread_clock_diff, timestamp_counter);
     }
     FreeStackTrace(old_stack_trace);
   }
@@ -382,6 +498,10 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
     ThrowRuntimeException("Invalid sampling interval: %d", interval_us);
     return;
   }
+
+  // Initialize the frequency of timestamp counter updates here. This is needed
+  // to get wallclock time from timestamp counter values.
+  InitializeTimestampCounters();
 
   Runtime* runtime = Runtime::Current();
 
@@ -610,7 +730,7 @@ Trace::Trace(File* trace_file,
       trace_mode_(trace_mode),
       clock_source_(GetClockSourceFromFlags(flags)),
       buffer_size_(std::max(kMinBufSize, buffer_size)),
-      start_time_(MicroTime()),
+      start_time_(GetMicroTime(GetTimestamp())),
       clock_overhead_ns_(GetClockOverheadNanoSeconds()),
       overflow_(false),
       interval_us_(0),
@@ -671,7 +791,7 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
 void Trace::FinishTracing() {
   size_t final_offset = 0;
   // Compute elapsed time.
-  uint64_t elapsed = MicroTime() - start_time_;
+  uint64_t elapsed = GetMicroTime(GetTimestamp()) - start_time_;
 
   std::ostringstream os;
 
@@ -780,9 +900,9 @@ void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
 
 void Trace::MethodEntered(Thread* thread, ArtMethod* method) {
   uint32_t thread_clock_diff = 0;
-  uint32_t wall_clock_diff = 0;
-  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
-  LogMethodTraceEvent(thread, method, kTraceMethodEnter, thread_clock_diff, wall_clock_diff);
+  uint64_t timestamp_counter = 0;
+  ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
+  LogMethodTraceEvent(thread, method, kTraceMethodEnter, thread_clock_diff, timestamp_counter);
 }
 
 void Trace::MethodExited(Thread* thread,
@@ -790,22 +910,18 @@ void Trace::MethodExited(Thread* thread,
                          instrumentation::OptionalFrame frame ATTRIBUTE_UNUSED,
                          JValue& return_value ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
-  uint32_t wall_clock_diff = 0;
-  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
-  LogMethodTraceEvent(thread,
-                      method,
-                      kTraceMethodExit,
-                      thread_clock_diff,
-                      wall_clock_diff);
+  uint64_t timestamp_counter = 0;
+  ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
+  LogMethodTraceEvent(thread, method, kTraceMethodExit, thread_clock_diff, timestamp_counter);
 }
 
 void Trace::MethodUnwind(Thread* thread,
                          ArtMethod* method,
                          uint32_t dex_pc ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
-  uint32_t wall_clock_diff = 0;
-  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
-  LogMethodTraceEvent(thread, method, kTraceUnroll, thread_clock_diff, wall_clock_diff);
+  uint64_t timestamp_counter = 0;
+  ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
+  LogMethodTraceEvent(thread, method, kTraceUnroll, thread_clock_diff, timestamp_counter);
 }
 
 void Trace::ExceptionThrown(Thread* thread ATTRIBUTE_UNUSED,
@@ -831,7 +947,7 @@ void Trace::WatchedFramePop(Thread* self ATTRIBUTE_UNUSED,
   LOG(ERROR) << "Unexpected WatchedFramePop event in tracing";
 }
 
-void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff) {
+void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* timestamp_counter) {
   if (UseThreadCpuClock()) {
     uint64_t clock_base = thread->GetTraceClockBase();
     if (UNLIKELY(clock_base == 0)) {
@@ -843,7 +959,7 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wa
     }
   }
   if (UseWallClock()) {
-    *wall_clock_diff = MicroTime() - start_time_;
+    *timestamp_counter = GetTimestamp();
   }
 }
 
@@ -861,7 +977,7 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
                                        ArtMethod* method,
                                        TraceAction action,
                                        uint32_t thread_clock_diff,
-                                       uint32_t wall_clock_diff) {
+                                       uint64_t timestamp_counter) {
   uintptr_t* method_trace_buffer = thread->GetMethodTraceBuffer();
   size_t* current_offset = thread->GetMethodTraceIndexPtr();
   // Initialize the buffer lazily. It's just simpler to keep the creation at one place.
@@ -906,20 +1022,24 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
   }
 
   // Record entry in per-thread trace buffer.
-  method_trace_buffer[*current_offset] = reinterpret_cast<uintptr_t>(method);
-  *current_offset += 1;
+  int current_index = *current_offset;
+  method_trace_buffer[current_index++] = reinterpret_cast<uintptr_t>(method);
   // TODO(mythria): We only need two bits to record the action. Consider merging
   // it with the method entry to save space.
-  method_trace_buffer[*current_offset] = action;
-  *current_offset += 1;
+  method_trace_buffer[current_index++] = action;
   if (UseThreadCpuClock()) {
-    method_trace_buffer[*current_offset] = thread_clock_diff;
-    *current_offset += 1;
+    method_trace_buffer[current_index++] = thread_clock_diff;
   }
   if (UseWallClock()) {
-    method_trace_buffer[*current_offset] = wall_clock_diff;
-    *current_offset += 1;
+    if (art::kRuntimePointerSize == PointerSize::k32) {
+      // On 32-bit architectures store timestamp counter as two 32-bit values.
+      method_trace_buffer[current_index++] = timestamp_counter >> 32;
+      method_trace_buffer[current_index++] = static_cast<uint32_t>(timestamp_counter);
+    } else {
+      method_trace_buffer[current_index++] = timestamp_counter;
+    }
   }
+  *current_offset = current_index;
 }
 
 void Trace::WriteToBuf(uint8_t* header,
@@ -967,7 +1087,12 @@ void Trace::FlushStreamingBuffer(Thread* thread) {
       thread_time = method_trace_buffer[entry_index++];
     }
     if (UseWallClock()) {
-      wall_time = method_trace_buffer[entry_index++];
+      uint64_t timestamp = method_trace_buffer[entry_index++];
+      if (art::kRuntimePointerSize == PointerSize::k32) {
+        // On 32-bit architectures timestamp is stored as two 32-bit values.
+        timestamp = (timestamp << 32 | method_trace_buffer[entry_index++]);
+      }
+      wall_time = GetMicroTime(timestamp) - start_time_;
     }
 
     auto it = art_method_id_map_.find(method);
@@ -1013,7 +1138,7 @@ void Trace::RecordMethodEvent(Thread* thread,
                               ArtMethod* method,
                               TraceAction action,
                               uint32_t thread_clock_diff,
-                              uint32_t wall_clock_diff) {
+                              uint64_t timestamp_counter) {
   // Advance cur_offset_ atomically.
   int32_t new_offset;
   int32_t old_offset = 0;
@@ -1044,6 +1169,7 @@ void Trace::RecordMethodEvent(Thread* thread,
   // the buffer memory.
   uint8_t* ptr;
   ptr = buf_.get() + old_offset;
+  uint32_t wall_clock_diff = GetMicroTime(timestamp_counter) - start_time_;
   MutexLock mu(Thread::Current(), tracing_lock_);
   EncodeEventEntry(
       ptr, thread, EncodeTraceMethod(method), action, thread_clock_diff, wall_clock_diff);
@@ -1053,7 +1179,7 @@ void Trace::LogMethodTraceEvent(Thread* thread,
                                 ArtMethod* method,
                                 TraceAction action,
                                 uint32_t thread_clock_diff,
-                                uint32_t wall_clock_diff) {
+                                uint64_t timestamp_counter) {
   // This method is called in both tracing modes (method and sampling). In sampling mode, this
   // method is only called by the sampling thread. In method tracing mode, it can be called
   // concurrently.
@@ -1063,9 +1189,9 @@ void Trace::LogMethodTraceEvent(Thread* thread,
   method = method->GetNonObsoleteMethod();
 
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
-    RecordStreamingMethodEvent(thread, method, action, thread_clock_diff, wall_clock_diff);
+    RecordStreamingMethodEvent(thread, method, action, thread_clock_diff, timestamp_counter);
   } else {
-    RecordMethodEvent(thread, method, action, thread_clock_diff, wall_clock_diff);
+    RecordMethodEvent(thread, method, action, thread_clock_diff, timestamp_counter);
   }
 }
 
