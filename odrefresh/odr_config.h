@@ -72,7 +72,7 @@ struct SystemPropertyConfig {
 // requirement (go/platform-experiments-flags#pre-requisites).
 const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProperties{
     {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.enable_uffd_gc",
-                          .default_value = "false"},
+                          .default_value = ""},
      SystemPropertyConfig{.name = kPhDisableCompactDex, .default_value = "false"},
      SystemPropertyConfig{.name = kSystemPropertySystemServerCompilerFilterOverride,
                           .default_value = ""}}};

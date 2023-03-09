@@ -167,16 +167,16 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
             getDevice().executeShellV2Command(
                     "device_config set_sync_disabled_for_tests persistent");
 
-            // Simulate that the phenotype flag is set to the default value.
+            // Simulate that the phenotype flag is set to false.
             getDevice().executeShellV2Command(
                     "device_config put runtime_native_boot enable_uffd_gc false");
 
             long timeMs = mTestUtils.getCurrentTimeMs();
             runOdrefresh();
 
-            // Artifacts should not be re-compiled.
-            assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
-            assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+            // Artifacts should be re-compiled.
+            assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+            assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
             // Simulate that the phenotype flag is set to true.
             getDevice().executeShellV2Command(
@@ -197,9 +197,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
             assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
             assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
-            // Simulate that the phenotype flag is set to false.
+            // Simulate that the phenotype flag is cleared.
             getDevice().executeShellV2Command(
-                    "device_config put runtime_native_boot enable_uffd_gc false");
+                    "device_config delete runtime_native_boot enable_uffd_gc");
 
             timeMs = mTestUtils.getCurrentTimeMs();
             runOdrefresh();
