@@ -35,8 +35,6 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Test to check end-to-end odrefresh invocations, but without odsign, fs-verity, and ART runtime
@@ -131,7 +129,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyBootClasspathOtaTriggersCompilation() throws Exception {
-        simulateBootClasspathOta();
+        mDeviceState.simulateBootClasspathOta();
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -141,7 +139,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifySystemServerOtaTriggersCompilation() throws Exception {
-        simulateSystemServerOta();
+        mDeviceState.simulateSystemServerOta();
         long timeMs = mTestUtils.getCurrentTimeMs();
         runOdrefresh();
 
@@ -433,51 +431,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         }
 
         assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
-    }
-
-    /**
-     * Checks the input line by line and replaces all lines that match the regex with the given
-     * replacement.
-     */
-    private String replaceLine(String input, String regex, String replacement) {
-        StringBuffer output = new StringBuffer();
-        Pattern p = Pattern.compile(regex);
-        for (String line : input.split("\n")) {
-            Matcher m = p.matcher(line);
-            if (m.matches()) {
-                m.appendReplacement(output, replacement);
-                output.append("\n");
-            } else {
-                output.append(line + "\n");
-            }
-        }
-        return output.toString();
-    }
-
-    /**
-     * Simulates that there is an OTA that updates a boot classpath jar.
-     */
-    private void simulateBootClasspathOta() throws Exception {
-        String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
-        // Replace the cached checksum of /system/framework/framework.jar with "aaaaaaaa".
-        cacheInfo = replaceLine(
-                cacheInfo,
-                "(.*/system/framework/framework\\.jar.*checksums=\").*?(\".*)",
-                "$1aaaaaaaa$2");
-        getDevice().pushString(cacheInfo, CACHE_INFO_FILE);
-    }
-
-    /**
-     * Simulates that there is an OTA that updates a system server jar.
-     */
-    private void simulateSystemServerOta() throws Exception {
-        String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
-        // Replace the cached checksum of /system/framework/services.jar with "aaaaaaaa".
-        cacheInfo = replaceLine(
-                cacheInfo,
-                "(.*/system/framework/services\\.jar.*checksums=\").*?(\".*)",
-                "$1aaaaaaaa$2");
-        getDevice().pushString(cacheInfo, CACHE_INFO_FILE);
     }
 
     private Set<String> simulateMissingArtifacts() throws Exception {
