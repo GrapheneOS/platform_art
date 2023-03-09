@@ -50,6 +50,9 @@ java_test_host {
     data: [
         ":odsign_e2e_test_app",
     ],
+    java_resources: [
+        ":art-gtest-jars-Main",
+    ],
     test_config: "odsign-e2e-tests-full.xml",
     test_suites: [
         "general-tests",
