@@ -30,7 +30,6 @@
 #include "managed_register_x86_64.h"
 #include "offsets.h"
 #include "utils/assembler.h"
-#include "utils/jni_macro_assembler.h"
 
 namespace art HIDDEN {
 namespace x86_64 {
