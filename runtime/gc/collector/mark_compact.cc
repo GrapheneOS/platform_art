@@ -1063,6 +1063,18 @@ void MarkCompact::MarkingPause() {
         bump_pointer_space_->RevokeThreadLocalBuffers(thread);
       }
     }
+    // Fetch only the accumulated objects-allocated count as it is guaranteed to
+    // be up-to-date after the TLAB revocation above.
+    freed_objects_ += bump_pointer_space_->GetAccumulatedObjectsAllocated();
+    // Capture 'end' of moving-space at this point. Every allocation beyond this
+    // point will be considered as black.
+    // Align-up to page boundary so that black allocations happen from next page
+    // onwards. Also, it ensures that 'end' is aligned for card-table's
+    // ClearCardRange().
+    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize);
+    DCHECK(IsAligned<kAlignment>(black_allocations_begin_));
+    black_allocations_begin_ = AlignUp(black_allocations_begin_, kPageSize);
+
     // Re-mark root set. Doesn't include thread-roots as they are already marked
     // above.
     ReMarkRoots(runtime);
@@ -1074,9 +1086,6 @@ void MarkCompact::MarkingPause() {
       live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
     }
   }
-  // Fetch only the accumulated objects-allocated count as it is guaranteed to
-  // be up-to-date after the TLAB revocation above.
-  freed_objects_ += bump_pointer_space_->GetAccumulatedObjectsAllocated();
   // TODO: For PreSweepingGcVerification(), find correct strategy to visit/walk
   // objects in bump-pointer space when we have a mark-bitmap to indicate live
   // objects. At the same time we also need to be able to visit black allocations,
@@ -1096,14 +1105,6 @@ void MarkCompact::MarkingPause() {
   // Enable the reference processing slow path, needs to be done with mutators
   // paused since there is no lock in the GetReferent fast path.
   heap_->GetReferenceProcessor()->EnableSlowPath();
-
-  // Capture 'end' of moving-space at this point. Every allocation beyond this
-  // point will be considered as black.
-  // Align-up to page boundary so that black allocations happen from next page
-  // onwards.
-  black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize);
-  DCHECK(IsAligned<kAlignment>(black_allocations_begin_));
-  black_allocations_begin_ = AlignUp(black_allocations_begin_, kPageSize);
 }
 
 void MarkCompact::SweepSystemWeaks(Thread* self, Runtime* runtime, const bool paused) {
@@ -1516,12 +1517,15 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
                                                                           to_obj,
                                                                           dest,
                                                                           dest_page_end);
-        from_obj->VisitRefsForCompaction<
-                /*kFetchObjSize*/false, /*kVisitNativeRoots*/false>(visitor,
-                                                                    MemberOffset(offset),
-                                                                    MemberOffset(offset
-                                                                                 + kPageSize));
-        return;
+        obj_size = from_obj->VisitRefsForCompaction<
+                /*kFetchObjSize*/true, /*kVisitNativeRoots*/false>(visitor,
+                                                                   MemberOffset(offset),
+                                                                   MemberOffset(offset
+                                                                                + kPageSize));
+        if (first_obj == next_page_first_obj) {
+          // First object is the only object on this page. So there's nothing else left to do.
+          return;
+        }
       }
       obj_size = RoundUp(obj_size, kAlignment);
       obj_size -= offset;
@@ -2096,6 +2100,10 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
       // BumpPointerSpace::Walk() also works similarly.
       while (black_allocs < block_end
              && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
+        // Try to keep instructions which access class instance together to
+        // avoid reloading the pointer from object.
+        size_t obj_size = RoundUp(obj->SizeOf(), kAlignment);
+        UpdateClassAfterObjectMap(obj);
         if (first_obj == nullptr) {
           first_obj = obj;
         }
@@ -2104,8 +2112,6 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
         if (set_mark_bit) {
           moving_space_bitmap_->Set(obj);
         }
-        UpdateClassAfterObjectMap(obj);
-        size_t obj_size = RoundUp(obj->SizeOf(), kAlignment);
         // Handle objects which cross page boundary, including objects larger
         // than page size.
         if (remaining_chunk_size + obj_size >= kPageSize) {
@@ -2143,11 +2149,11 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
       // consume the unallocated portion of the block
       if (black_allocs < block_end) {
         // first-chunk of the current page ends here. Store it.
-        if (first_chunk_size > 0) {
+        if (first_chunk_size > 0 && black_alloc_pages_first_chunk_size_[black_page_idx] == 0) {
           black_alloc_pages_first_chunk_size_[black_page_idx] = first_chunk_size;
           first_objs_moving_space_[black_page_idx].Assign(first_obj);
-          first_chunk_size = 0;
         }
+        first_chunk_size = 0;
         first_obj = nullptr;
         size_t page_remaining = kPageSize - remaining_chunk_size;
         size_t block_remaining = block_end - black_allocs;
@@ -2161,6 +2167,14 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
         }
         black_allocs = block_end;
       }
+    }
+    // Store the leftover first-chunk, if any, and update page index.
+    if (black_alloc_pages_first_chunk_size_[black_page_idx] > 0) {
+      black_page_idx++;
+    } else if (first_chunk_size > 0) {
+      black_alloc_pages_first_chunk_size_[black_page_idx] = first_chunk_size;
+      first_objs_moving_space_[black_page_idx].Assign(first_obj);
+      black_page_idx++;
     }
     black_page_count_ = black_page_idx - moving_first_objs_count_;
     delete block_sizes;
