@@ -84,11 +84,25 @@ if [[ $build_host == "no" ]] && [[ $build_target == "no" ]]; then
   build_target="yes"
 fi
 
-# Allow to build successfully in master-art.
-extra_args="SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true"
+implementation_libs=(
+  "heapprofd_client_api"
+  "libandroid_runtime_lazy"
+  "libartpalette-system"
+  "libbinder"
+  "libbinder_ndk"
+  "libcutils"
+  "libutils"
+  "libvndksupport"
+)
 
-# Switch the build system to unbundled mode in the reduced manifest branch.
-if [ ! -d frameworks/base ]; then
+if [ -d frameworks/base ]; then
+  # In full manifest branches, build the implementation libraries from source
+  # instead of using prebuilts.
+  common_targets="$common_targets ${implementation_libs[*]}"
+else
+  # Allow to build successfully in master-art.
+  extra_args="SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true"
+  # Switch the build system to unbundled mode in the reduced manifest branch.
   extra_args="$extra_args TARGET_BUILD_UNBUNDLED=true"
 fi
 
@@ -190,17 +204,7 @@ if [[ $build_target == "yes" ]]; then
   # testing, we need to install an implementation of the libraries (and cannot
   # rely on the one already installed on the device, if the device is post R and
   # has it).
-  implementation_libs=(
-    "heapprofd_client_api.so"
-    "libandroid_runtime_lazy.so"
-    "libartpalette-system.so"
-    "libbinder.so"
-    "libbinder_ndk.so"
-    "libcutils.so"
-    "libutils.so"
-    "libvndksupport.so"
-  )
-  if [ -d prebuilts/runtime/mainline/platform/impl ]; then
+  if [ -d prebuilts/runtime/mainline/platform/impl -a ! -d frameworks/base ]; then
     if [[ $TARGET_ARCH = arm* ]]; then
       arch32=arm
       arch64=arm64
@@ -213,12 +217,12 @@ if [[ $build_target == "yes" ]]; then
     else
       for so in ${implementation_libs[@]}; do
         if [ -d "$ANDROID_PRODUCT_OUT/system/lib" ]; then
-          cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch32/$so $ANDROID_PRODUCT_OUT/system/lib/$so"
+          cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch32/${so}.so $ANDROID_PRODUCT_OUT/system/lib/${so}.so"
           msginfo "Executing" "$cmd"
           eval "$cmd"
         fi
         if [ -d "$ANDROID_PRODUCT_OUT/system/lib64" ]; then
-          cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch64/$so $ANDROID_PRODUCT_OUT/system/lib64/$so"
+          cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch64/${so}.so $ANDROID_PRODUCT_OUT/system/lib64/${so}.so"
           msginfo "Executing" "$cmd"
           eval "$cmd"
         fi
