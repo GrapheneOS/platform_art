@@ -573,6 +573,59 @@ class RuntimeImageHelper {
       ScopedAssertNoThreadSuspension sants("Writing class");
       CopyClass(cls.Get());
     }
+
+    // Relocate the type array entries. We do this now before creating image
+    // sections because we may add new boot image classes into our
+    // `class_table`_.
+    for (auto entry : dex_caches_) {
+      const DexFile& dex_file = *entry.first;
+      mirror::DexCache* cache = reinterpret_cast<mirror::DexCache*>(&objects_[entry.second]);
+      mirror::GcRootArray<mirror::Class>* old_types_array = cache->GetResolvedTypesArray();
+      if (HasNativeRelocation(old_types_array)) {
+        auto reloc_it = native_relocations_.find(old_types_array);
+        DCHECK(reloc_it != native_relocations_.end());
+        std::vector<uint8_t>& data =
+            (reloc_it->second.first == NativeRelocationKind::kFullNativeDexCacheArray)
+                ? dex_cache_arrays_ : metadata_;
+        mirror::GcRootArray<mirror::Class>* content_array =
+            reinterpret_cast<mirror::GcRootArray<mirror::Class>*>(
+                data.data() + reloc_it->second.second);
+        for (uint32_t i = 0; i < dex_file.NumTypeIds(); ++i) {
+          ObjPtr<mirror::Class> cls = old_types_array->Get(i);
+          if (cls == nullptr) {
+            content_array->Set(i, nullptr);
+          } else if (IsInBootImage(cls.Ptr())) {
+            // The dex cache is concurrently updated by the app. If the class
+            // collection logic in `PruneVisitor` did not see this class, insert it now.
+            uint32_t hash = cls->DescriptorHash();
+            class_table_.InsertWithHash(ClassTable::TableSlot(cls.Ptr(), hash), hash);
+            content_array->Set(i, cls.Ptr());
+          } else if (cls->IsArrayClass()) {
+            std::string class_name;
+            cls->GetDescriptor(&class_name);
+            auto class_it = array_classes_.find(class_name);
+            if (class_it == array_classes_.end()) {
+              content_array->Set(i, nullptr);
+            } else {
+              mirror::Class* ptr = reinterpret_cast<mirror::Class*>(
+                  image_begin_ + sizeof(ImageHeader) + class_it->second);
+              content_array->Set(i, ptr);
+            }
+          } else {
+            const dex::ClassDef* class_def = cls->GetClassDef();
+            DCHECK_NE(class_def, nullptr);
+            auto class_it = classes_.find(class_def);
+            if (class_it == classes_.end()) {
+              content_array->Set(i, nullptr);
+            } else {
+              mirror::Class* ptr = reinterpret_cast<mirror::Class*>(
+                  image_begin_ + sizeof(ImageHeader) + class_it->second);
+              content_array->Set(i, ptr);
+            }
+          }
+        }
+      }
+    }
   }
 
   // Helper visitor returning the location of a native pointer in the image.
@@ -713,8 +766,9 @@ class RuntimeImageHelper {
 
     mirror::GcRootArray<mirror::String>* old_strings_array = cache->GetStringsArray();
     cache->SetStringsArray(visitor(old_strings_array));
-    // No need to relocate string entries in the array, we have already done this when
-    // creating the DexCache copy.
+
+    mirror::GcRootArray<mirror::Class>* old_types_array = cache->GetResolvedTypesArray();
+    cache->SetResolvedTypesArray(visitor(old_types_array));
   }
 
   void RelocateNativePointers() {
@@ -1211,8 +1265,17 @@ class RuntimeImageHelper {
     // Store the array pointer in the dex cache, which will be relocated at the end.
     reinterpret_cast<mirror::DexCache*>(copy)->SetResolvedFieldsArray(resolved_fields);
 
+    // Copy the type array.
+    mirror::GcRootArray<mirror::Class>* resolved_types = cache->GetResolvedTypesArray();
+    CreateGcRootDexCacheArray(cache->GetDexFile()->NumTypeIds(),
+                              mirror::DexCache::kDexCacheTypeCacheSize,
+                              resolved_types);
+    // Store the array pointer in the dex cache, which will be relocated at the end.
+    reinterpret_cast<mirror::DexCache*>(copy)->SetResolvedTypesArray(resolved_types);
+
     // Copy the string array.
     mirror::GcRootArray<mirror::String>* strings = cache->GetStringsArray();
+    // Note: `new_strings` points to temporary data, and is only valid here.
     mirror::GcRootArray<mirror::String>* new_strings =
         CreateGcRootDexCacheArray(cache->GetDexFile()->NumStringIds(),
                                   mirror::DexCache::kDexCacheStringCacheSize,
@@ -1320,23 +1383,25 @@ class RuntimeImageHelper {
     DCHECK(IsAligned<kObjectAlignment>(offset));
     object_offsets_.push_back(offset);
     objects_.resize(RoundUp(offset + object_size, kObjectAlignment));
-    memcpy(objects_.data() + offset, obj.Ptr(), object_size);
-    object_section_size_ += RoundUp(object_size, kObjectAlignment);
+
+    mirror::Object* copy = reinterpret_cast<mirror::Object*>(objects_.data() + offset);
+    mirror::Object::CopyRawObjectData(
+        reinterpret_cast<uint8_t*>(copy), obj, object_size - sizeof(mirror::Object));
+    // Clear any lockword data.
+    copy->SetLockWord(LockWord::Default(), /* as_volatile= */ false);
+    copy->SetClass(obj->GetClass());
 
     // Fixup reference pointers.
     FixupVisitor visitor(this, offset);
     obj->VisitReferences</*kVisitNativeRoots=*/ false>(visitor, visitor);
-
-    mirror::Object* copy = reinterpret_cast<mirror::Object*>(objects_.data() + offset);
-
-    // Clear any lockword data.
-    copy->SetLockWord(LockWord::Default(), /* as_volatile= */ false);
 
     if (obj->IsString()) {
       // Ensure a string always has a hashcode stored. This is checked at
       // runtime because boot images don't want strings dirtied due to hashcode.
       reinterpret_cast<mirror::String*>(copy)->GetHashCode();
     }
+
+    object_section_size_ += RoundUp(object_size, kObjectAlignment);
     return offset;
   }
 
