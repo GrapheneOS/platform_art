@@ -24,15 +24,15 @@
 //  Argument 2: a2: The value of DEX PC (memory address of the methods bytecode).
 ENTRY ExecuteSwitchImplAsm
     INCREASE_FRAME 16
-    SAVE_GPR s1 0
-    SAVE_GPR ra 8
+    SAVE_GPR s1, 0
+    SAVE_GPR ra, 8
 
     mv s1, a2   // s1 = DEX PC
     CFI_DEFINE_DEX_PC_WITH_OFFSET(0 /* a0 */, 9 /* s1, a.k.a. x9 */, 0)
     jalr a1     // Call the wrapped method.
 
-    RESTORE_GPR s1 0
-    RESTORE_GPR ra 8
+    RESTORE_GPR s1, 0
+    RESTORE_GPR ra, 8
     DECREASE_FRAME 16
     ret
 END ExecuteSwitchImplAsm
@@ -42,12 +42,12 @@ END ExecuteSwitchImplAsm
     // Save ra, fp, xSELF (current thread) a4, a5 (they will be needed in the invoke stub return)
     // and callee-save regs s3 - s5 that are clobbered here and in art_quick_invoke_(static_)_stub.
     INCREASE_FRAME 48
-    SAVE_GPR fp    (8*0)
-    SAVE_GPR xSELF (8*1)
-    SAVE_GPR a4    (8*2)
-    SAVE_GPR a5    (8*3)
-    SAVE_GPR s3    (8*4)
-    SAVE_GPR ra    (8*5)
+    SAVE_GPR fp,    (8*0)
+    SAVE_GPR xSELF, (8*1)
+    SAVE_GPR a4,    (8*2)
+    SAVE_GPR a5,    (8*3)
+    SAVE_GPR s3,    (8*4)
+    SAVE_GPR ra,    (8*5)
 
     mv fp, sp  // save frame pointer
     .cfi_def_cfa_register fp
@@ -88,12 +88,12 @@ END ExecuteSwitchImplAsm
 
     // Restore ra, fp, xSELF (current thread) a4 (shorty), a5 (result pointer) and callee-save
     // regs s3 - s5 from stack.
-    RESTORE_GPR fp    (8*0)
-    RESTORE_GPR xSELF (8*1)
-    RESTORE_GPR a4    (8*2)
-    RESTORE_GPR a5    (8*3)
-    RESTORE_GPR s3    (8*4)
-    RESTORE_GPR ra    (8*5)
+    RESTORE_GPR fp,    (8*0)
+    RESTORE_GPR xSELF, (8*1)
+    RESTORE_GPR a4,    (8*2)
+    RESTORE_GPR a5,    (8*3)
+    RESTORE_GPR s3,    (8*4)
+    RESTORE_GPR ra,    (8*5)
     DECREASE_FRAME 48
 
     // Load result type (1-byte symbol) from a5.
@@ -375,7 +375,7 @@ ENTRY art_quick_generic_jni_trampoline
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     fmv.d.x  fa0, a0
     ret
-    CFI_RESTORE_STATE_AND_DEF_CFA sp FRAME_SIZE_SAVE_REFS_AND_ARGS
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcall_method_exit_hook:
     fmv.d.x  fa0, a0
