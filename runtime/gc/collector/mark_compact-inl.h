@@ -270,12 +270,13 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
     if (!live_words_bitmap_->HasAddress(old_ref)) {
       return false;
     }
+    Thread* self = Thread::Current();
     if (UNLIKELY(stack_low_addr == nullptr)) {
-      Thread* self = Thread::Current();
       stack_low_addr = self->GetStackEnd();
       stack_high_addr = reinterpret_cast<char*>(stack_low_addr) + self->GetStackSize();
     }
     if (root < stack_low_addr || root > stack_high_addr) {
+      MutexLock mu(self, lock_);
       auto ret = updated_roots_->insert(root);
       DCHECK(ret.second) << "root=" << root << " old_ref=" << old_ref
                          << " stack_low_addr=" << stack_low_addr
