@@ -2268,16 +2268,10 @@ class ScopedTransitioningToRunnable : public ValueObject {
   explicit ScopedTransitioningToRunnable(Thread* self)
       : self_(self) {
     DCHECK_EQ(self, Thread::Current());
-    if (gUseReadBarrier) {
-      self_->SetIsTransitioningToRunnable(true);
-    }
+    self_->SetIsTransitioningToRunnable(true);
   }
 
-  ~ScopedTransitioningToRunnable() {
-    if (gUseReadBarrier) {
-      self_->SetIsTransitioningToRunnable(false);
-    }
-  }
+  ~ScopedTransitioningToRunnable() { self_->SetIsTransitioningToRunnable(false); }
 
  private:
   Thread* const self_;
