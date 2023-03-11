@@ -92,7 +92,7 @@ inline MirrorType* ReadBarrier::Barrier(
       UNREACHABLE();
     }
   } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
-    CHECK(gUseUserfaultfd);
+    DCHECK(gUseUserfaultfd);
     MirrorType* old = ref_addr->template AsMirrorPtr<kIsVolatile>();
     mirror::Object* ref =
         Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(old);
@@ -141,6 +141,11 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
       LOG(FATAL) << "Unexpected read barrier type";
       UNREACHABLE();
     }
+  } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
+    DCHECK(gUseUserfaultfd);
+    mirror::Object* from_ref =
+        Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(ref);
+    return reinterpret_cast<MirrorType*>(from_ref);
   } else {
     return ref;
   }
@@ -187,6 +192,11 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
       LOG(FATAL) << "Unexpected read barrier type";
       UNREACHABLE();
     }
+  } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
+    DCHECK(gUseUserfaultfd);
+    mirror::Object* from_ref =
+        Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(ref);
+    return reinterpret_cast<MirrorType*>(from_ref);
   } else {
     return ref;
   }
