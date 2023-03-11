@@ -402,6 +402,15 @@ class Thread {
     tlsPtr_.thread_local_mark_stack = stack;
   }
 
+  uint8_t* GetThreadLocalGcBuffer() {
+    DCHECK(gUseUserfaultfd);
+    return tlsPtr_.thread_local_gc_buffer;
+  }
+  void SetThreadLocalGcBuffer(uint8_t* buf) {
+    DCHECK(gUseUserfaultfd);
+    tlsPtr_.thread_local_gc_buffer = buf;
+  }
+
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
   void FullSuspendCheck(bool implicit = false)
@@ -2088,8 +2097,12 @@ class Thread {
     // Current method verifier, used for root marking.
     verifier::MethodVerifier* method_verifier;
 
-    // Thread-local mark stack for the concurrent copying collector.
-    gc::accounting::AtomicStack<mirror::Object>* thread_local_mark_stack;
+    union {
+      // Thread-local mark stack for the concurrent copying collector.
+      gc::accounting::AtomicStack<mirror::Object>* thread_local_mark_stack;
+      // Thread-local page-sized buffer for userfaultfd GC.
+      uint8_t* thread_local_gc_buffer;
+    };
 
     // The pending async-exception or null.
     mirror::Throwable* async_exception;
@@ -2255,16 +2268,10 @@ class ScopedTransitioningToRunnable : public ValueObject {
   explicit ScopedTransitioningToRunnable(Thread* self)
       : self_(self) {
     DCHECK_EQ(self, Thread::Current());
-    if (gUseReadBarrier) {
-      self_->SetIsTransitioningToRunnable(true);
-    }
+    self_->SetIsTransitioningToRunnable(true);
   }
 
-  ~ScopedTransitioningToRunnable() {
-    if (gUseReadBarrier) {
-      self_->SetIsTransitioningToRunnable(false);
-    }
-  }
+  ~ScopedTransitioningToRunnable() { self_->SetIsTransitioningToRunnable(false); }
 
  private:
   Thread* const self_;

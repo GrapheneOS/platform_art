@@ -38,7 +38,9 @@ class FaultManager {
   FaultManager();
   ~FaultManager();
 
-  void Init();
+  // Use libsigchain if use_sig_chain is true. Otherwise, setup SIGBUS directly
+  // using sigaction().
+  void Init(bool use_sig_chain);
 
   // Unclaim signals.
   void Release();
@@ -46,8 +48,11 @@ class FaultManager {
   // Unclaim signals and delete registered handlers.
   void Shutdown();
 
-  // Try to handle a fault, returns true if successful.
-  bool HandleFault(int sig, siginfo_t* info, void* context);
+  // Try to handle a SIGSEGV fault, returns true if successful.
+  bool HandleSigsegvFault(int sig, siginfo_t* info, void* context);
+
+  // Try to handle a SIGBUS fault, returns true if successful.
+  bool HandleSigbusFault(int sig, siginfo_t* info, void* context);
 
   // Added handlers are owned by the fault handler and will be freed on Shutdown().
   void AddHandler(FaultHandler* handler, bool generated_code);
@@ -91,7 +96,6 @@ class FaultManager {
 
   std::vector<FaultHandler*> generated_code_handlers_;
   std::vector<FaultHandler*> other_handlers_;
-  struct sigaction oldaction_;
   bool initialized_;
 
   // We keep a certain number of generated code ranges locally to avoid too many
