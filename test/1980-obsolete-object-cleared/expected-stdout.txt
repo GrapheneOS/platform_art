@@ -183,6 +183,8 @@ Calling public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with p
 public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() with params: []
 public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() on (obsolete)class Main$Transform with [] = null
+Calling public java.lang.reflect.RecordComponent[] java.lang.Class.getRecordComponents() with params: []
+public java.lang.reflect.RecordComponent[] java.lang.Class.getRecordComponents() on (obsolete)class Main$Transform with [] = null
 Calling public java.net.URL java.lang.Class.getResource(java.lang.String) with params: [[NOT_USED_STRING, foo, SECRET_ARRAY]]
 public java.net.URL java.lang.Class.getResource(java.lang.String) on (obsolete)class Main$Transform with [NOT_USED_STRING] = null
 public java.net.URL java.lang.Class.getResource(java.lang.String) on (obsolete)class Main$Transform with [foo] = null
@@ -247,6 +249,8 @@ Calling public boolean java.lang.Class.isPrimitive() with params: []
 public boolean java.lang.Class.isPrimitive() on (obsolete)class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isProxy() with params: []
 public boolean java.lang.Class.isProxy() on (obsolete)class Main$Transform with [] = false
+Calling public boolean java.lang.Class.isRecord() with params: []
+public boolean java.lang.Class.isRecord() on (obsolete)class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isSealed() with params: []
 public boolean java.lang.Class.isSealed() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public boolean java.lang.Class.isSynthetic() with params: []
@@ -428,6 +432,8 @@ Calling public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with p
 public java.lang.Class[] java.lang.Class.getPermittedSubclasses() on class Main$Transform with [] = null
 Calling public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() with params: []
 public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() on class Main$Transform with [] = null
+Calling public java.lang.reflect.RecordComponent[] java.lang.Class.getRecordComponents() with params: []
+public java.lang.reflect.RecordComponent[] java.lang.Class.getRecordComponents() on class Main$Transform with [] = null
 Calling public java.net.URL java.lang.Class.getResource(java.lang.String) with params: [[NOT_USED_STRING, foo, SECRET_ARRAY]]
 public java.net.URL java.lang.Class.getResource(java.lang.String) on class Main$Transform with [NOT_USED_STRING] = null
 public java.net.URL java.lang.Class.getResource(java.lang.String) on class Main$Transform with [foo] = null
@@ -492,6 +498,8 @@ Calling public boolean java.lang.Class.isPrimitive() with params: []
 public boolean java.lang.Class.isPrimitive() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isProxy() with params: []
 public boolean java.lang.Class.isProxy() on class Main$Transform with [] = false
+Calling public boolean java.lang.Class.isRecord() with params: []
+public boolean java.lang.Class.isRecord() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isSealed() with params: []
 public boolean java.lang.Class.isSealed() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isSynthetic() with params: []
