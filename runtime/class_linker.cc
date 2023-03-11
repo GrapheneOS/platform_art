@@ -2098,6 +2098,10 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
         *error_msg = "Checksums count does not match";
         return false;
       }
+      if (oat_header->IsConcurrentCopying() != gUseReadBarrier) {
+        *error_msg = "GCs do not match";
+        return false;
+      }
 
       // Check if the dex checksums match the dex files that we just loaded.
       uint32_t* checksums = reinterpret_cast<uint32_t*>(
