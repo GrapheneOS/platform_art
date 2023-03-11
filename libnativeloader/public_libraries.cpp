@@ -458,6 +458,12 @@ Result<std::vector<std::string>> ParseConfig(
     if (entry.bitness == ONLY_64) continue;
 #endif
 
+    // TODO(b/206676167): Remove this check when renderscript is officially removed.
+#if defined(__riscv)
+    // skip renderscript lib on riscv target
+    if (entry.soname == "libRS.so") continue;
+#endif
+
     Result<bool> ret = filter_fn(entry);
     if (!ret.ok()) {
       return ret.error();
