@@ -832,10 +832,12 @@ class Heap {
 
   bool IsPerformingUffdCompaction() { return gUseUserfaultfd && mark_compact_->IsCompacting(); }
 
-  CollectorType CurrentCollectorType() {
+  CollectorType CurrentCollectorType() const {
     DCHECK(!gUseUserfaultfd || collector_type_ == kCollectorTypeCMC);
     return collector_type_;
   }
+
+  bool IsMovingGc() const { return IsMovingGc(CurrentCollectorType()); }
 
   CollectorType GetForegroundCollectorType() const { return foreground_collector_type_; }
 
