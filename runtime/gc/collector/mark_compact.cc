@@ -1280,24 +1280,6 @@ void MarkCompact::SweepLargeObjects(bool swap_bitmaps) {
   }
 }
 
-class MarkCompact::CheckpointSweepInterpreterCache : public Closure {
- public:
-  explicit CheckpointSweepInterpreterCache(MarkCompact* collector) : collector_(collector) {}
-
-  void Run(Thread* thread) override REQUIRES_SHARED(Locks::mutator_lock_) {
-    Thread* const self = Thread::Current();
-    CHECK(thread == self
-          || thread->IsSuspended()
-          || thread->GetState() == ThreadState::kWaitingPerformingGc)
-        << thread->GetState() << " thread " << thread << " self " << self;
-    thread->SweepInterpreterCache(collector_);
-    collector_->GetBarrier().Pass(self);
-  }
-
- private:
-  MarkCompact* collector_;
-};
-
 void MarkCompact::ReclaimPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   DCHECK(thread_running_gc_ == Thread::Current());
@@ -1321,24 +1303,6 @@ void MarkCompact::ReclaimPhase() {
     SwapBitmaps();
     // Unbind the live and mark bitmaps.
     GetHeap()->UnBindBitmaps();
-  }
-  {
-    // TODO: Once the logic in Runtime::ProcessWeakClass() is streamlined to not
-    // check for class-loader's liveness, we can remove this as the Sweep during
-    // compaction pause would suffice.
-    CHECK(!compacting_);
-    CheckpointSweepInterpreterCache check_point(this);
-    gc_barrier_.Init(thread_running_gc_, 0);
-    size_t barrier_count = runtime->GetThreadList()->RunCheckpoint(&check_point);
-    // Release locks, then wait for all mutator threads to pass the barrier. If there are
-    // no threads to wait for, which implies that all the checkpoint functions are finished,
-    // then no need to release locks.
-    if (barrier_count != 0) {
-      Locks::mutator_lock_->SharedUnlock(thread_running_gc_);
-      ScopedThreadStateChange tsc(thread_running_gc_, ThreadState::kWaitingForCheckPointsToRun);
-      gc_barrier_.Increment(thread_running_gc_, barrier_count);
-      Locks::mutator_lock_->SharedLock(thread_running_gc_);
-    }
   }
 }
 
