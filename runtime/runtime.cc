@@ -811,7 +811,9 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
   GetMonitorList()->SweepMonitorList(visitor);
   GetJavaVM()->SweepJniWeakGlobals(visitor);
   GetHeap()->SweepAllocationRecords(visitor);
-  if (GetJit() != nullptr) {
+  // Sweep JIT tables only if the GC is moving as in other cases the entries are
+  // not updated.
+  if (GetJit() != nullptr && GetHeap()->IsMovingGc()) {
     // Visit JIT literal tables. Objects in these tables are classes and strings
     // and only classes can be affected by class unloading. The strings always
     // stay alive as they are strongly interned.
@@ -3402,31 +3404,6 @@ bool Runtime::IsSystemServerProfiled() const {
 
 bool Runtime::GetOatFilesExecutable() const {
   return !IsAotCompiler() && !IsSystemServerProfiled();
-}
-
-void Runtime::ProcessWeakClass(GcRoot<mirror::Class>* root_ptr,
-                               IsMarkedVisitor* visitor,
-                               mirror::Class* update) {
-  // This does not need a read barrier because this is called by GC.
-  mirror::Class* cls = root_ptr->Read<kWithoutReadBarrier>();
-  if (cls != nullptr && cls != GetWeakClassSentinel()) {
-    DCHECK((cls->IsClass<kDefaultVerifyFlags>()));
-    // Look at the classloader of the class to know if it has been unloaded.
-    // This does not need a read barrier because this is called by GC.
-    ObjPtr<mirror::Object> class_loader =
-        cls->GetClassLoader<kDefaultVerifyFlags, kWithoutReadBarrier>();
-    if (class_loader == nullptr || visitor->IsMarked(class_loader.Ptr()) != nullptr) {
-      // The class loader is live, update the entry if the class has moved.
-      mirror::Class* new_cls = down_cast<mirror::Class*>(visitor->IsMarked(cls));
-      // Note that new_object can be null for CMS and newly allocated objects.
-      if (new_cls != nullptr && new_cls != cls) {
-        *root_ptr = GcRoot<mirror::Class>(new_cls);
-      }
-    } else {
-      // The class loader is not live, clear the entry.
-      *root_ptr = GcRoot<mirror::Class>(update);
-    }
-  }
 }
 
 void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,

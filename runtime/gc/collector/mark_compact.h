@@ -764,7 +764,6 @@ class MarkCompact final : public GarbageCollector {
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
   class CheckpointMarkThreadRoots;
-  class CheckpointSweepInterpreterCache;
   template<size_t kBufferSize> class ThreadRootsVisitor;
   class CardModifiedVisitor;
   class RefFieldsVisitor;
