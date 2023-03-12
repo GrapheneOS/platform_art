@@ -2098,6 +2098,10 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
         *error_msg = "Checksums count does not match";
         return false;
       }
+      if (oat_header->IsConcurrentCopying() != gUseReadBarrier) {
+        *error_msg = "GCs do not match";
+        return false;
+      }
 
       // Check if the dex checksums match the dex files that we just loaded.
       uint32_t* checksums = reinterpret_cast<uint32_t*>(
@@ -2389,8 +2393,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       // Don't visit class-loaders if compacting with userfaultfd GC as these
       // weaks are updated using Runtime::SweepSystemWeaks() and the GC doesn't
       // tolerate double updates.
-      if (!gUseUserfaultfd
-          || !heap->MarkCompactCollector()->IsCompacting(self)) {
+      if (!heap->IsPerformingUffdCompaction()) {
         for (const ClassLoaderData& data : class_loaders_) {
           GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
           root.VisitRoot(visitor, RootInfo(kRootVMInternal));
