@@ -427,19 +427,20 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
       } else if (object->IsString<kDefaultVerifyFlags>()) {
         mirror::Object* new_object = visitor->IsMarked(object);
         // We know the string is marked because it's a strongly-interned string that
-        // is always alive. The IsMarked implementation of the CMS collector returns
-        // null for newly allocated objects, but we know those haven't moved. Therefore,
-        // only update the entry if we get a different non-null string.
+        // is always alive.
         // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
         // out of the weak access/creation pause. b/32167580
-        if (new_object != nullptr && new_object != object) {
+        DCHECK_NE(new_object, nullptr);
+        if (new_object != object) {
           roots[i] = GcRoot<mirror::Object>(new_object);
         }
       } else {
-        Runtime::ProcessWeakClass(
-            reinterpret_cast<GcRoot<mirror::Class>*>(&roots[i]),
-            visitor,
-            Runtime::GetWeakClassSentinel());
+        mirror::Object* new_klass = visitor->IsMarked(object);
+        if (new_klass == nullptr) {
+          roots[i] = GcRoot<mirror::Object>(Runtime::GetWeakClassSentinel());
+        } else if (new_klass != object) {
+          roots[i] = GcRoot<mirror::Object>(new_klass);
+        }
       }
     }
   }
@@ -449,7 +450,13 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       InlineCache* cache = &info->cache_[i];
       for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
-        Runtime::ProcessWeakClass(&cache->classes_[j], visitor, nullptr);
+        mirror::Class* klass = cache->classes_[j].Read<kWithoutReadBarrier>();
+        if (klass != nullptr) {
+          mirror::Class* new_klass = down_cast<mirror::Class*>(visitor->IsMarked(klass));
+          if (new_klass != klass) {
+            cache->classes_[j] = GcRoot<mirror::Class>(new_klass);
+          }
+        }
       }
     }
   }

@@ -1131,7 +1131,6 @@ void MarkSweep::VerifySystemWeaks() {
   VerifySystemWeakVisitor visitor(this);
   Runtime* runtime = Runtime::Current();
   runtime->SweepSystemWeaks(&visitor);
-  runtime->GetThreadList()->SweepInterpreterCaches(&visitor);
 }
 
 class MarkSweep::CheckpointMarkThreadRoots : public Closure, public RootVisitor {
@@ -1459,6 +1458,8 @@ inline mirror::Object* MarkSweep::IsMarked(mirror::Object* object) {
   if (current_space_bitmap_->HasAddress(object)) {
     return current_space_bitmap_->Test(object) ? object : nullptr;
   }
+  // This function returns nullptr for objects allocated after marking phase as
+  // they are not marked in the bitmap.
   return mark_bitmap_->Test(object) ? object : nullptr;
 }
 
