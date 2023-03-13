@@ -1972,9 +1972,11 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
         WellKnownClasses::java_lang_Thread_group->GetObject(thread->tlsPtr_.opeer);
 
     if (thread_group != nullptr) {
-      ObjPtr<mirror::String> group_name_string =
-          WellKnownClasses::java_lang_ThreadGroup_name->GetObject(thread_group)->AsString();
-      group_name = (group_name_string != nullptr) ? group_name_string->ToModifiedUtf8() : "<null>";
+      ObjPtr<mirror::Object> group_name_object =
+          WellKnownClasses::java_lang_ThreadGroup_name->GetObject(thread_group);
+      group_name = (group_name_object != nullptr)
+          ? group_name_object->AsString()->ToModifiedUtf8()
+          : "<null>";
     }
   } else if (thread != nullptr) {
     priority = thread->GetNativePriority();
