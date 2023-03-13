@@ -43,6 +43,8 @@ public class DeviceState {
     private static final String APEX_INFO_FILE = "/apex/apex-info-list.xml";
     private static final String TEST_JAR_RESOURCE_NAME = "/art-gtest-jars-Main.jar";
     private static final String PHENOTYPE_FLAG_NAMESPACE = "runtime_native_boot";
+    private static final String ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME =
+            OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + ".bak";
 
     private final TestInformation mTestInfo;
     private final OdsignTestUtils mTestUtils;
@@ -51,6 +53,7 @@ public class DeviceState {
     private Set<String> mMountPoints = new HashSet<>();
     private Map<String, String> mMutatedProperties = new HashMap<>();
     private Set<String> mMutatedPhenotypeFlags = new HashSet<>();
+    private boolean mHasArtifactsBackup = false;
 
     public DeviceState(TestInformation testInfo) throws Exception {
         mTestInfo = testInfo;
@@ -80,6 +83,14 @@ public class DeviceState {
         if (!mMutatedPhenotypeFlags.isEmpty()) {
             mTestInfo.getDevice().executeShellV2Command(
                     "device_config set_sync_disabled_for_tests none");
+        }
+
+        if (mHasArtifactsBackup) {
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("rm -rf '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("mv '%s' '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME,
+                            OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
         }
     }
 
@@ -161,6 +172,15 @@ public class DeviceState {
             mTestUtils.assertCommandSucceeds(
                     String.format("device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key));
         }
+    }
+
+    public void backupArtifacts() throws Exception {
+        mTestInfo.getDevice().executeShellV2Command(
+                String.format("rm -rf '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
+        mTestUtils.assertCommandSucceeds(
+                String.format("cp -r '%s' '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME,
+                        ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
+        mHasArtifactsBackup = true;
     }
 
     /**
