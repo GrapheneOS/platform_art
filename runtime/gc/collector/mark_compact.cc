@@ -269,25 +269,34 @@ std::pair<bool, bool> MarkCompact::GetUffdAndMinorFault() {
 
 bool MarkCompact::CreateUserfaultfd(bool post_fork) {
   if (post_fork || uffd_ == kFdUnused) {
-    // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
-    // any read event available. We don't use poll.
-    uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-    // On non-android devices we may not have the kernel patches that restrict
-    // userfaultfd to user mode. But that is not a security concern as we are
-    // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-    if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
-      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
-    }
-    if (UNLIKELY(uffd_ == -1)) {
-      uffd_ = kFallbackMode;
-      LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
-                   << ") and therefore falling back to stop-the-world compaction.";
+    // Check if we have MREMAP_DONTUNMAP here for cases where
+    // 'ART_USE_READ_BARRIER=false' is used. Additionally, this check ensures
+    // that userfaultfd isn't used on old kernels, which cause random ioctl
+    // failures.
+    if (gHaveMremapDontunmap) {
+      // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
+      // any read event available. We don't use poll.
+      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
+      // On non-android devices we may not have the kernel patches that restrict
+      // userfaultfd to user mode. But that is not a security concern as we are
+      // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+      if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
+        uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
+      }
+      if (UNLIKELY(uffd_ == -1)) {
+        uffd_ = kFallbackMode;
+        LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
+                     << ") and therefore falling back to stop-the-world compaction.";
+      } else {
+        DCHECK(IsValidFd(uffd_));
+        // Initialize uffd with the features which are required and available.
+        struct uffdio_api api = {.api = UFFD_API, .features = gUffdFeatures, .ioctls = 0};
+        api.features &= use_uffd_sigbus_ ? kUffdFeaturesRequired : kUffdFeaturesForMinorFault;
+        CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
+            << "ioctl_userfaultfd: API: " << strerror(errno);
+      }
     } else {
-      DCHECK(IsValidFd(uffd_));
-      // Initialize uffd with the features which are required and available.
-      struct uffdio_api api = {.api = UFFD_API, .features = gUffdFeatures, .ioctls = 0};
-      api.features &= use_uffd_sigbus_ ? kUffdFeaturesRequired : kUffdFeaturesForMinorFault;
-      CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0) << "ioctl_userfaultfd: API: " << strerror(errno);
+      uffd_ = kFallbackMode;
     }
   }
   uffd_initialized_ = !post_fork || uffd_ == kFallbackMode;
