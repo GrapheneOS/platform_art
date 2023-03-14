@@ -1134,7 +1134,7 @@ void ClassLinker::RunRootClinits(Thread* self) {
   // classes are always in the boot image, so this code is primarily intended
   // for running without boot image but may be needed for boot image if the
   // AOT-initialization fails due to introduction of new code to `<clinit>`.
-  ArtMethod* static_methods_of_classes_to_initialize[] = {
+  ArtMethod* methods_of_classes_to_initialize[] = {
       // Initialize primitive boxing classes (avoid check at runtime).
       WellKnownClasses::java_lang_Boolean_valueOf,
       WellKnownClasses::java_lang_Byte_valueOf,
@@ -1179,10 +1179,10 @@ void ClassLinker::RunRootClinits(Thread* self) {
       // suppress class initialization error (say, due to OOM), so initialize it early.
       WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
   };
-  for (ArtMethod* method : static_methods_of_classes_to_initialize) {
+  for (ArtMethod* method : methods_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, method->GetDeclaringClass());
   }
-  ArtField* static_fields_of_classes_to_initialize[] = {
+  ArtField* fields_of_classes_to_initialize[] = {
       // Ensure classes used by class loaders are initialized (avoid check at runtime).
       WellKnownClasses::dalvik_system_DexFile_cookie,
       WellKnownClasses::dalvik_system_DexPathList_dexElements,
@@ -1193,7 +1193,7 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_util_Collections_EMPTY_LIST,
       WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT,
   };
-  for (ArtField* field : static_fields_of_classes_to_initialize) {
+  for (ArtField* field : fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
 }
