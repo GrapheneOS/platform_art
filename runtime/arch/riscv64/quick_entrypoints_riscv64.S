@@ -542,8 +542,22 @@ ENTRY art_quick_proxy_invoke_handler
 END art_quick_proxy_invoke_handler
 
 
+.macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
+.extern \cxx_name
+ENTRY \c_name
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context.
+    mv  a1, xSELF                     // pass Thread::Current.
+    jal \cxx_name                     // \cxx_name(arg, Thread*).
+    ebreak
+END \c_name
+.endm
+
+
+// Called to attempt to execute an obsolete method.
+ONE_ARG_RUNTIME_EXCEPTION art_invoke_obsolete_method_stub, artInvokeObsoleteMethod
+
+
 UNDEFINED art_quick_imt_conflict_trampoline
-UNDEFINED art_invoke_obsolete_method_stub
 UNDEFINED art_quick_resolution_trampoline
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
