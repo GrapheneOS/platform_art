@@ -331,11 +331,10 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
                          int64_t minimum_value [[maybe_unused]],
                          int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
-      bool nonzero = false;
-      for (const auto value : buckets) {
-        nonzero |= (value != 0u);
+      EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
+      for (size_t i = 1; i < buckets.size(); i++) {
+        EXPECT_EQ(buckets[i], 0u) << "Bucket " << i << " should have a zero value";
       }
-      EXPECT_TRUE(nonzero);
     }
   } first_backend;
 
@@ -373,11 +372,10 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
                          int64_t minimum_value [[maybe_unused]],
                          int64_t maximum_value [[maybe_unused]],
                          const std::vector<uint32_t>& buckets) override {
-      bool nonzero = false;
-      for (const auto value : buckets) {
-        nonzero |= (value != 0u);
+      EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
+      for (size_t i = 1; i < buckets.size(); i++) {
+        EXPECT_EQ(buckets[i], 0u) << "Bucket " << i << " should have a zero value";
       }
-      EXPECT_TRUE(nonzero);
     }
   } second_backend;
 
