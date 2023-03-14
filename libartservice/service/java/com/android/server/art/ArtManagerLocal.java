@@ -339,8 +339,6 @@ public final class ArtManagerLocal {
      * @throws IllegalArgumentException if the package is not found or the params are illegal
      * @throws IllegalStateException if the operation encounters an error that should never happen
      *         (e.g., an internal logic error).
-     * @throws RuntimeException if called during boot before the app hibernation manager has
-     *         started.
      */
     @NonNull
     public DexoptResult dexoptPackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
@@ -358,8 +356,8 @@ public final class ArtManagerLocal {
     public DexoptResult dexoptPackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String packageName, @NonNull DexoptParams params,
             @NonNull CancellationSignal cancellationSignal) {
-        return mInjector.getDexoptHelper(mInjector.getAppHibernationManager())
-                .dexopt(snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
+        return mInjector.getDexoptHelper().dexopt(
+                snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
     }
 
     /**
@@ -445,28 +443,8 @@ public final class ArtManagerLocal {
             @NonNull CancellationSignal cancellationSignal,
             @Nullable @CallbackExecutor Executor progressCallbackExecutor,
             @Nullable Consumer<OperationProgress> progressCallback) {
-        // We cannot assume the app hibernation manager has been initialized yet in the boot time
-        // compilation, because ArtManagerLocal.onBoot needs to run early to ensure apps are
-        // compiled before the system server fires them up. This means the boot time compilation
-        // will ignore the hibernation states of the packages.
-        //
-        // TODO(b/265782156): When hibernated packages get compiled this way, the file GC will
-        // delete them again in the next background dexopt run. That means they are likely to get
-        // recreated again in the next boot dexopt (i.e. for OTA or Mainline update).
-        AppHibernationManager appHibernationManager;
-        switch (reason) {
-            case ReasonMapping.REASON_FIRST_BOOT:
-            case ReasonMapping.REASON_BOOT_AFTER_OTA:
-            case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
-                appHibernationManager = null;
-                break;
-            default:
-                appHibernationManager = mInjector.getAppHibernationManager();
-                break;
-        }
-
-        List<String> defaultPackages = Collections.unmodifiableList(
-                getDefaultPackages(snapshot, reason, appHibernationManager));
+        List<String> defaultPackages =
+                Collections.unmodifiableList(getDefaultPackages(snapshot, reason));
         DexoptParams defaultDexoptParams = new DexoptParams.Builder(reason).build();
         var builder = new BatchDexoptParams.Builder(defaultPackages, defaultDexoptParams);
         Callback<BatchDexoptStartCallback, Void> callback =
@@ -489,10 +467,9 @@ public final class ArtManagerLocal {
                         cancellationSignal, dexoptExecutor);
             }
             Log.i(TAG, "Dexopting packages");
-            return mInjector.getDexoptHelper(appHibernationManager)
-                    .dexopt(snapshot, params.getPackages(), params.getDexoptParams(),
-                            cancellationSignal, dexoptExecutor, progressCallbackExecutor,
-                            progressCallback);
+            return mInjector.getDexoptHelper().dexopt(snapshot, params.getPackages(),
+                    params.getDexoptParams(), cancellationSignal, dexoptExecutor,
+                    progressCallbackExecutor, progressCallback);
         } finally {
             dexoptExecutor.shutdown();
         }
@@ -954,8 +931,7 @@ public final class ArtManagerLocal {
             @NonNull Set<String> excludedPackages, @NonNull CancellationSignal cancellationSignal,
             @NonNull Executor executor) {
         if (shouldDowngrade()) {
-            List<String> packages = getDefaultPackages(
-                    snapshot, ReasonMapping.REASON_INACTIVE, mInjector.getAppHibernationManager())
+            List<String> packages = getDefaultPackages(snapshot, ReasonMapping.REASON_INACTIVE)
                                             .stream()
                                             .filter(pkg -> !excludedPackages.contains(pkg))
                                             .collect(Collectors.toList());
@@ -963,9 +939,8 @@ public final class ArtManagerLocal {
                 Log.i(TAG, "Storage is low. Downgrading inactive packages");
                 DexoptParams params =
                         new DexoptParams.Builder(ReasonMapping.REASON_INACTIVE).build();
-                mInjector.getDexoptHelper(mInjector.getAppHibernationManager())
-                        .dexopt(snapshot, packages, params, cancellationSignal, executor,
-                                null /* processCallbackExecutor */, null /* progressCallback */);
+                mInjector.getDexoptHelper().dexopt(snapshot, packages, params, cancellationSignal,
+                        executor, null /* processCallbackExecutor */, null /* progressCallback */);
             } else {
                 Log.i(TAG,
                         "Storage is low, but downgrading is disabled or there's nothing to "
@@ -987,8 +962,9 @@ public final class ArtManagerLocal {
     /** Returns the list of packages to process for the given reason. */
     @NonNull
     private List<String> getDefaultPackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull /* @BatchDexoptReason|REASON_INACTIVE */ String reason,
-            @Nullable AppHibernationManager appHibernationManager) {
+            @NonNull /* @BatchDexoptReason|REASON_INACTIVE */ String reason) {
+        var appHibernationManager = mInjector.getAppHibernationManager();
+
         // Filter out hibernating packages even if the reason is REASON_INACTIVE. This is because
         // artifacts for hibernating packages are already deleted.
         Stream<PackageState> packages = snapshot.getPackageStates().values().stream().filter(
@@ -1170,7 +1146,7 @@ public final class ArtManagerLocal {
 
                 // Call the getters for the dependencies that aren't optional, to ensure correct
                 // initialization order.
-                getDexoptHelper(null);
+                getDexoptHelper();
                 getUserManager();
                 getDexUseManager();
                 getStorageManager();
@@ -1196,16 +1172,10 @@ public final class ArtManagerLocal {
             return Utils.getArtd();
         }
 
-        /**
-         * Returns a new {@link DexoptHelper} instance.
-         *
-         * The {@link AppHibernationManager} reference may be null for boot time compilation runs,
-         * when the app hibernation manager hasn't yet been initialized. It should not be null
-         * otherwise. See comment in {@link ArtManagerLocal.dexoptPackages} for more details.
-         */
+        /** Returns a new {@link DexoptHelper} instance. */
         @NonNull
-        public DexoptHelper getDexoptHelper(@Nullable AppHibernationManager appHibernationManager) {
-            return new DexoptHelper(getContext(), getConfig(), appHibernationManager);
+        public DexoptHelper getDexoptHelper() {
+            return new DexoptHelper(getContext(), getConfig());
         }
 
         @NonNull
@@ -1213,12 +1183,7 @@ public final class ArtManagerLocal {
             return mConfig;
         }
 
-        /**
-         * Returns the registered {@link AppHibernationManager} instance.
-         *
-         * @throws RuntimeException if called during boot before the app hibernation manager has
-         *         started.
-         */
+        /** Returns the registered {@link AppHibernationManager} instance. */
         @NonNull
         public AppHibernationManager getAppHibernationManager() {
             return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
