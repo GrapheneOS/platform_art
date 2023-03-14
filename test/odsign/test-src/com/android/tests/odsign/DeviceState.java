@@ -158,6 +158,10 @@ public class DeviceState {
         pushAndBindMount(localFile, "/system/framework/services.jar");
     }
 
+    public void makeDex2oatFail() throws Exception {
+        setProperty("dalvik.vm.boot-dex2oat-threads", "-1");
+    }
+
     /** Sets a system property. */
     public void setProperty(String key, String value) throws Exception {
         if (!mMutatedProperties.containsKey(key)) {
