@@ -152,7 +152,7 @@
   mov r1, r0                           // pass the result
   mov r0, rSELF                        // Thread::Current
   bl artDeoptimizeIfNeeded
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   REFRESH_MARKING_REGISTER
   bx     lr
@@ -162,7 +162,7 @@
 .macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_R0 temp, is_ref
   ldr \temp, [rSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
   cbnz \temp, 2f
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
   REFRESH_MARKING_REGISTER
   bx     lr
@@ -173,7 +173,7 @@
   mov r1, r0                                       // pass the result
   mov r0, rSELF                                    // Thread::Current
   bl artDeoptimizeIfNeeded
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   REFRESH_MARKING_REGISTER
   bx     lr
@@ -465,7 +465,7 @@ ENTRY art_quick_osr_stub
     SAVE_SIZE=(9*4+16*4)
     mov    r11, sp                         @ Save the stack pointer
     .cfi_def_cfa r11, SAVE_SIZE            @ CFA = r11 + SAVE_SIZE
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     mov    r10, r1                         @ Save size of stack
     ldr    r9, [r11, #(SAVE_SIZE+4)]       @ Move managed thread pointer into r9
     REFRESH_MARKING_REGISTER
@@ -747,7 +747,7 @@ ENTRY art_quick_aput_obj
     mov r0, r3
     bl artIsAssignableFromCode
     cbz r0, .Lthrow_array_store_exception
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     pop {r0-r2, lr}
     .cfi_restore lr
     .cfi_adjust_cfa_offset -16
@@ -765,7 +765,7 @@ ENTRY art_quick_aput_obj
     .cfi_restore lr
     .cfi_adjust_cfa_offset -16
 #if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
 #endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r3
     mov r1, r2
@@ -1440,7 +1440,7 @@ ENTRY art_quick_resolution_trampoline
     mov     r3, sp                 @ pass SP
     blx     artQuickResolutionTrampoline  @ (Method* called, receiver, Thread*, SP)
     cbz     r0, 1f                 @ is code pointer null? goto exception
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     mov     r12, r0
     ldr     r0, [sp, #0]           @ load resolved method in r0
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -1523,8 +1523,6 @@ ENTRY art_quick_generic_jni_trampoline
 
     // Tear down the alloca.
     mov sp, r10
-    .cfi_remember_state
-    .cfi_def_cfa_register sp
 
     // store into fpr, for when it's a fpr return...
     vmov d0, r0, r1
@@ -1535,20 +1533,30 @@ ENTRY art_quick_generic_jni_trampoline
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame. Skip arg registers.
-    add     sp, #FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY
-    .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY)
-    RESTORE_SAVE_REFS_ONLY_FRAME
+    CFI_REMEMBER_STATE
+    .cfi_def_cfa_register sp
+    add sp, #(FRAME_SIZE_SAVE_REFS_AND_ARGS - 7 * 4)
+    .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS - 7 * 4)
+    pop {r5-r8, r10-r11, lr}  @ This must match the non-args registers restored by
+    .cfi_restore r5           @ `RESTORE_SAVE_REFS_AND_ARGS_FRAME`.
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r10
+    .cfi_restore r11
+    .cfi_restore lr
+    .cfi_adjust_cfa_offset -(7 * 4)
     REFRESH_MARKING_REGISTER
-
     bx lr      // ret
+
+    // Undo the unwinding information from above since it doesn't apply below.
+    CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcall_method_exit_hook:
     mov r2, #FRAME_SIZE_SAVE_REFS_AND_ARGS
     bl art_quick_method_exit_hook
     b .Lcall_method_exit_hook_done
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
 .Lexception_in_native:
     ldr ip, [rSELF, #THREAD_TOP_QUICK_FRAME_OFFSET]
     add ip, ip, #-1  // Remove the GenericJNI tag. ADD/SUB writing directly to SP is UNPREDICTABLE.
