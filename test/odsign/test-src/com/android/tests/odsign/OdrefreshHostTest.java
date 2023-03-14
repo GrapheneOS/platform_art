@@ -349,6 +349,38 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
     }
 
+    @Test
+    public void verifyCompilationFailureBackoff() throws Exception {
+        mDeviceState.makeDex2oatFail();
+        mDeviceState.simulateArtApexUpgrade();
+
+        // Run odrefresh. It should encounter dex2oat failures.
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefresh();
+
+        // Artifacts don't exist because the compilation failed.
+        mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
+        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
+
+        // Run odrefresh again.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefresh();
+
+        // It should not retry.
+        mTestUtils.assertNotModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
+
+        // Simulate that the backoff time has passed.
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+
+        // Run odrefresh again.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefresh();
+
+        // Now it should retry.
+        mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
+    }
+
     private Set<String> simulateMissingArtifacts() throws Exception {
         Set<String> missingArtifacts = new HashSet<>();
         String sample = mTestUtils.getSystemServerExpectedArtifacts().iterator().next();
