@@ -36,6 +36,11 @@ import com.android.tradefed.util.CommandResult;
 
 import com.google.common.io.ByteStreams;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -53,11 +58,14 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 public class OdsignTestUtils {
     public static final String ART_APEX_DALVIK_CACHE_DIRNAME =
             "/data/misc/apexdata/com.android.art/dalvik-cache";
     public static final String CACHE_INFO_FILE = ART_APEX_DALVIK_CACHE_DIRNAME + "/cache-info.xml";
+    public static final String APEX_INFO_FILE = "/apex/apex-info-list.xml";
 
     private static final String ODREFRESH_BIN = "odrefresh";
 
@@ -413,6 +421,24 @@ public class OdsignTestUtils {
         }
     }
 
+    public void assertFilesExist(Set<String> files) throws Exception {
+        assertThat(getExistingFiles(files)).containsExactlyElementsIn(files);
+    }
+
+    public void assertFilesNotExist(Set<String> files) throws Exception {
+        assertThat(getExistingFiles(files)).isEmpty();
+    }
+
+    private Set<String> getExistingFiles(Set<String> files) throws Exception {
+        Set<String> existingFiles = new HashSet<>();
+        for (String file : files) {
+            if (mTestInfo.getDevice().doesFileExist(file)) {
+                existingFiles.add(file);
+            }
+        }
+        return existingFiles;
+    }
+
     public static String replaceExtension(String filename, String extension) throws Exception {
         int index = filename.lastIndexOf(".");
         assertTrue("Extension not found in filename: " + filename, index != -1);
@@ -427,5 +453,25 @@ public class OdsignTestUtils {
         mTestInfo.getDevice().executeShellV2Command(ODREFRESH_BIN + " --check");
         mTestInfo.getDevice().executeShellV2Command(
                 ODREFRESH_BIN + " --partial-compilation --no-refresh " + extraArgs + " --compile");
+    }
+
+    public boolean areAllApexesFactoryInstalled() throws Exception {
+        Document doc = loadXml(APEX_INFO_FILE);
+        NodeList list = doc.getElementsByTagName("apex-info");
+        for (int i = 0; i < list.getLength(); i++) {
+            Element node = (Element) list.item(i);
+            if (node.getAttribute("isActive").equals("true")
+                    && node.getAttribute("isFactory").equals("false")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Document loadXml(String remoteXmlFile) throws Exception {
+        File localFile = mTestInfo.getDevice().pullFile(remoteXmlFile);
+        assertThat(localFile).isNotNull();
+        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        return builder.parse(localFile);
     }
 }
