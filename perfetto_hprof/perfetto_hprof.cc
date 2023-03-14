@@ -412,8 +412,9 @@ class Writer {
 class ReferredObjectsFinder {
  public:
   explicit ReferredObjectsFinder(
-      std::vector<std::pair<std::string, art::mirror::Object*>>* referred_objects)
-      : referred_objects_(referred_objects) {}
+      std::vector<std::pair<std::string, art::mirror::Object*>>* referred_objects,
+      bool emit_field_ids)
+      : referred_objects_(referred_objects), emit_field_ids_(emit_field_ids) {}
 
   // For art::mirror::Object::VisitReferences.
   void operator()(art::ObjPtr<art::mirror::Object> obj, art::MemberOffset offset,
@@ -431,7 +432,7 @@ class ReferredObjectsFinder {
       field = art::ArtField::FindInstanceFieldWithOffset(obj->GetClass(), offset.Uint32Value());
     }
     std::string field_name = "";
-    if (field != nullptr) {
+    if (field != nullptr && emit_field_ids_) {
       field_name = field->PrettyField(/*with_type=*/true);
     }
     referred_objects_->emplace_back(std::move(field_name), ref);
@@ -446,6 +447,8 @@ class ReferredObjectsFinder {
   // We can use a raw Object* pointer here, because there are no concurrent GC threads after the
   // fork.
   std::vector<std::pair<std::string, art::mirror::Object*>>* referred_objects_;
+  // Prettifying field names is expensive; avoid if field name will not be used.
+  bool emit_field_ids_;
 };
 
 class RootFinder : public art::SingleRootVisitor {
@@ -583,10 +586,11 @@ size_t EncodedSize(uint64_t n) {
 
 // Returns all the references that `*obj` (an object of type `*klass`) is holding.
 std::vector<std::pair<std::string, art::mirror::Object*>> GetReferences(art::mirror::Object* obj,
-                                                                        art::mirror::Class* klass)
+                                                                        art::mirror::Class* klass,
+                                                                        bool emit_field_ids)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
   std::vector<std::pair<std::string, art::mirror::Object*>> referred_objects;
-  ReferredObjectsFinder objf(&referred_objects);
+  ReferredObjectsFinder objf(&referred_objects, emit_field_ids);
 
   if (klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
       klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference) {
@@ -797,16 +801,15 @@ class HeapGraphDumper {
                       art::mirror::Class* klass,
                       perfetto::protos::pbzero::HeapGraphObject* object_proto)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    const bool emit_field_ids = klass->GetClassFlags() != art::mirror::kClassFlagObjectArray &&
+                                klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
+                                klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference;
     std::vector<std::pair<std::string, art::mirror::Object*>> referred_objects =
-        GetReferences(obj, klass);
+        GetReferences(obj, klass, emit_field_ids);
 
     art::mirror::Object* min_nonnull_ptr = FilterIgnoredReferencesAndFindMin(referred_objects);
 
     uint64_t base_obj_id = EncodeBaseObjId(referred_objects, min_nonnull_ptr);
-
-    const bool emit_field_ids = klass->GetClassFlags() != art::mirror::kClassFlagObjectArray &&
-                                klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
-                                klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference;
 
     for (const auto& p : referred_objects) {
       const std::string& field_name = p.first;

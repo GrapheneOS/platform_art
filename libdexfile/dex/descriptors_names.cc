@@ -36,38 +36,58 @@ void AppendPrettyDescriptor(const char* descriptor, std::string* result) {
   }
 
   // Reference or primitive?
+  bool primitive = false;
   if (*c == 'L') {
     // "[[La/b/C;" -> "a.b.C[][]".
     c++;  // Skip the 'L'.
   } else {
+    primitive = true;
     // "[[B" -> "byte[][]".
-    // To make life easier, we make primitives look like unqualified
-    // reference types.
     switch (*c) {
-      case 'B': c = "byte;"; break;
-      case 'C': c = "char;"; break;
-      case 'D': c = "double;"; break;
-      case 'F': c = "float;"; break;
-      case 'I': c = "int;"; break;
-      case 'J': c = "long;"; break;
-      case 'S': c = "short;"; break;
-      case 'Z': c = "boolean;"; break;
-      case 'V': c = "void;"; break;  // Used when decoding return types.
+      case 'B':
+        c = "byte";
+        break;
+      case 'C':
+        c = "char";
+        break;
+      case 'D':
+        c = "double";
+        break;
+      case 'F':
+        c = "float";
+        break;
+      case 'I':
+        c = "int";
+        break;
+      case 'J':
+        c = "long";
+        break;
+      case 'S':
+        c = "short";
+        break;
+      case 'Z':
+        c = "boolean";
+        break;
+      case 'V':
+        c = "void";
+        break;  // Used when decoding return types.
       default: result->append(descriptor); return;
     }
   }
 
-  // At this point, 'c' is a string of the form "fully/qualified/Type;"
-  // or "primitive;". Rewrite the type with '.' instead of '/':
-  const char* p = c;
-  while (*p != ';') {
-    char ch = *p++;
-    if (ch == '/') {
-      ch = '.';
+  // At this point, 'c' is a string of the form "fully/qualified/Type;" or
+  // "primitive". In the former case, rewrite the type with '.' instead of '/':
+  std::string temp(c);
+  if (!primitive) {
+    std::replace(temp.begin(), temp.end(), '/', '.');
+    // ...and remove the semicolon:
+    if (temp.back() == ';') {
+      temp.pop_back();
     }
-    result->push_back(ch);
   }
-  // ...and replace the semicolon with 'dim' "[]" pairs:
+  result->append(temp);
+
+  // Finally, add 'dim' "[]" pairs:
   for (size_t i = 0; i < dim; ++i) {
     result->append("[]");
   }
