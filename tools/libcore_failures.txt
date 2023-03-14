@@ -344,13 +344,5 @@
   names: ["libcore.android.system.OsConstantsTest#test_CAP_TO_INDEX",
           "libcore.android.system.OsConstantsTest#test_CAP_TO_MASK",
           "libcore.android.system.OsConstantsTest#test_CAP_constants"]
-},
-{
-   description: "Record test doens't work properly on vogar/",
-   result: EXEC_FAILED,
-   bug: 272698028,
-   names: ["libcore.java.lang.RecordTest",
-           "crossvmtest.java.lang.RecordComponentTest",
-           "crossvmtest.java.lang.RecordTest"]
 }
 ]
