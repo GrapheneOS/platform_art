@@ -640,8 +640,16 @@ std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() co
   return filtered_info_list;
 }
 
-std::optional<art_apex::CacheInfo> OnDeviceRefresh::ReadCacheInfo() const {
-  return art_apex::read(cache_info_filename_.c_str());
+Result<art_apex::CacheInfo> OnDeviceRefresh::ReadCacheInfo() const {
+  std::optional<art_apex::CacheInfo> cache_info = art_apex::read(cache_info_filename_.c_str());
+  if (!cache_info.has_value()) {
+    if (errno != 0) {
+      return ErrnoErrorf("Failed to load {}", QuotePath(cache_info_filename_));
+    } else {
+      return Errorf("Failed to parse {}", QuotePath(cache_info_filename_));
+    }
+  }
+  return cache_info.value();
 }
 
 Result<void> OnDeviceRefresh::WriteCacheInfo() const {
@@ -831,7 +839,7 @@ WARN_UNUSED bool OnDeviceRefresh::BootClasspathArtifactsExist(
   return true;
 }
 
-WARN_UNUSED bool OnDeviceRefresh::SystemServerArtifactsExist(
+bool OnDeviceRefresh::SystemServerArtifactsExist(
     bool on_system,
     /*out*/ std::string* error_msg,
     /*out*/ std::set<std::string>* jars_missing_artifacts,
@@ -931,112 +939,108 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBuildUserfaultFdGc() const {
   return true;
 }
 
-WARN_UNUSED bool OnDeviceRefresh::BootClasspathArtifactsOnSystemUsable(
-    const apex::ApexInfo& art_apex_info) const {
-  if (!art_apex_info.getIsFactory()) {
-    LOG(INFO) << "Updated ART APEX mounted";
-    return false;
-  }
-
+WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForSystem(
+    const std::vector<apex::ApexInfo>& apex_info_list) const {
   if (!CheckSystemPropertiesAreDefault()) {
-    return false;
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   if (!CheckBuildUserfaultFdGc()) {
-    return false;
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
-  return true;
-}
+  std::optional<apex::ApexInfo> art_apex_info = GetArtApexInfo(apex_info_list);
+  if (!art_apex_info.has_value()) {
+    // This should never happen, further up-to-date checks are not possible if it does.
+    LOG(ERROR) << "Could not get ART APEX info.";
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kUnknown);
+  }
 
-WARN_UNUSED bool OnDeviceRefresh::SystemServerArtifactsOnSystemUsable(
-    const std::vector<apex::ApexInfo>& apex_info_list) const {
+  if (!art_apex_info->getIsFactory()) {
+    LOG(INFO) << "Updated ART APEX mounted";
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
+  }
+
   if (std::any_of(apex_info_list.begin(),
                   apex_info_list.end(),
                   [](const apex::ApexInfo& apex_info) { return !apex_info.getIsFactory(); })) {
     LOG(INFO) << "Updated APEXes mounted";
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
+  }
+
+  return PreconditionCheckResult::AllOk();
+}
+
+WARN_UNUSED static bool CheckModuleInfo(const art_apex::ModuleInfo& cached_info,
+                                        const apex::ApexInfo& current_info) {
+  if (cached_info.getVersionCode() != current_info.getVersionCode()) {
+    LOG(INFO) << "APEX ({}) version code mismatch (before: {}, now: {})"_format(
+        current_info.getModuleName(), cached_info.getVersionCode(), current_info.getVersionCode());
     return false;
   }
 
-  if (!CheckSystemPropertiesAreDefault()) {
+  if (cached_info.getVersionName() != current_info.getVersionName()) {
+    LOG(INFO) << "APEX ({}) version name mismatch (before: {}, now: {})"_format(
+        current_info.getModuleName(), cached_info.getVersionName(), current_info.getVersionName());
     return false;
   }
 
-  if (!CheckBuildUserfaultFdGc()) {
+  // Check lastUpdateMillis for samegrade installs. If `cached_info` is missing the lastUpdateMillis
+  // field then it is not current with the schema used by this binary so treat it as a samegrade
+  // update. Otherwise check whether the lastUpdateMillis changed.
+  const int64_t cached_last_update_millis =
+      cached_info.hasLastUpdateMillis() ? cached_info.getLastUpdateMillis() : -1;
+  if (cached_last_update_millis != current_info.getLastUpdateMillis()) {
+    LOG(INFO) << "APEX ({}) last update time mismatch (before: {}, now: {})"_format(
+        current_info.getModuleName(),
+        cached_info.getLastUpdateMillis(),
+        current_info.getLastUpdateMillis());
     return false;
   }
 
   return true;
 }
 
-WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
-    OdrMetrics& metrics,
-    const InstructionSet isa,
-    const apex::ApexInfo& art_apex_info,
-    const std::optional<art_apex::CacheInfo>& cache_info,
-    /*out*/ std::vector<std::string>* checked_artifacts) const {
-  if (BootClasspathArtifactsOnSystemUsable(art_apex_info)) {
-    // We can use the artifacts on /system. Check if they exist.
-    std::string error_msg;
-    if (BootClasspathArtifactsExist(/*on_system=*/true, /*minimal=*/false, isa, &error_msg)) {
-      return true;
+WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForData(
+    const std::vector<com::android::apex::ApexInfo>& apex_info_list) const {
+  Result<art_apex::CacheInfo> cache_info = ReadCacheInfo();
+  if (!cache_info.ok()) {
+    if (cache_info.error().code() == ENOENT) {
+      // If the cache info file does not exist, it usually means it's the first boot, or the
+      // dalvik-cache directory is cleared by odsign due to corrupted files. Set the trigger to be
+      // `kApexVersionMismatch` to force generate the cache info file and compile if necessary.
+      LOG(INFO) << "No prior cache-info file: " << QuotePath(cache_info_filename_);
+    } else {
+      // This should not happen unless odrefresh is updated to a new version that is not compatible
+      // with an old cache-info file. Further up-to-date checks are not possible if it does.
+      LOG(ERROR) << cache_info.error().message();
     }
-
-    LOG(INFO) << "Incomplete boot classpath artifacts on /system. " << error_msg;
-    LOG(INFO) << "Checking cache.";
-  }
-
-  if (!cache_info.has_value()) {
-    // If the cache info file does not exist, it usually means on-device compilation has not been
-    // done before because the device was using the factory version of modules, or artifacts were
-    // cleared because an updated version was uninstalled. Set the trigger to be
-    // `kApexVersionMismatch` so that compilation will always be performed.
-    PLOG(INFO) << "No prior cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
-  }
-
-  // Check whether the current cache ART module info differs from the current ART module info.
-  const art_apex::ModuleInfo* cached_art_info = cache_info->getFirstArtModuleInfo();
-
-  if (cached_art_info == nullptr) {
-    LOG(INFO) << "Missing ART APEX info from cache-info.";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
-  }
-
-  if (cached_art_info->getVersionCode() != art_apex_info.getVersionCode()) {
-    LOG(INFO) << "ART APEX version code mismatch (" << cached_art_info->getVersionCode()
-              << " != " << art_apex_info.getVersionCode() << ").";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
-  }
-
-  if (cached_art_info->getVersionName() != art_apex_info.getVersionName()) {
-    LOG(INFO) << "ART APEX version name mismatch (" << cached_art_info->getVersionName()
-              << " != " << art_apex_info.getVersionName() << ").";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
-  }
-
-  // Check lastUpdateMillis for samegrade installs. If `cached_art_info` is missing the
-  // lastUpdateMillis field then it is not current with the schema used by this binary so treat
-  // it as a samegrade update. Otherwise check whether the lastUpdateMillis changed.
-  const int64_t cached_art_last_update_millis =
-      cached_art_info->hasLastUpdateMillis() ? cached_art_info->getLastUpdateMillis() : -1;
-  if (cached_art_last_update_millis != art_apex_info.getLastUpdateMillis()) {
-    LOG(INFO) << "ART APEX last update time mismatch (" << cached_art_last_update_millis
-              << " != " << art_apex_info.getLastUpdateMillis() << ").";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   if (!CheckSystemPropertiesHaveNotChanged(cache_info.value())) {
     // We don't have a trigger kind for system property changes. For now, we reuse
     // `kApexVersionMismatch` as it implies the expected behavior: re-compile regardless of the last
     // compilation attempt.
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
+  }
+
+  // Check whether the current cache ART module info differs from the current ART module info.
+  const art_apex::ModuleInfo* cached_art_info = cache_info->getFirstArtModuleInfo();
+  if (cached_art_info == nullptr) {
+    LOG(ERROR) << "Missing ART APEX info from cache-info.";
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
+  }
+
+  std::optional<apex::ApexInfo> current_art_info = GetArtApexInfo(apex_info_list);
+  if (!current_art_info.has_value()) {
+    // This should never happen, further up-to-date checks are not possible if it does.
+    LOG(ERROR) << "Could not get ART APEX info.";
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kUnknown);
+  }
+
+  if (!CheckModuleInfo(*cached_art_info, *current_art_info)) {
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   // Check boot class components.
@@ -1047,102 +1051,32 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
   //
   // The boot class components may change unexpectedly, for example an OTA could update
   // framework.jar.
-  const std::vector<art_apex::Component> expected_bcp_compilable_components =
+  const std::vector<art_apex::Component> current_bcp_compilable_components =
       GenerateBootClasspathCompilableComponents();
-  if (expected_bcp_compilable_components.size() != 0 &&
-      (!cache_info->hasDex2oatBootClasspath() ||
-       !cache_info->getFirstDex2oatBootClasspath()->hasComponent())) {
+
+  const art_apex::Classpath* cached_bcp_compilable_components =
+      cache_info->getFirstDex2oatBootClasspath();
+  if (cached_bcp_compilable_components == nullptr) {
     LOG(INFO) << "Missing Dex2oatBootClasspath components.";
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
-    return false;
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
-  const std::vector<art_apex::Component>& bcp_compilable_components =
-      cache_info->getFirstDex2oatBootClasspath()->getComponent();
-  Result<void> result =
-      CheckComponents(expected_bcp_compilable_components, bcp_compilable_components);
+  Result<void> result = CheckComponents(current_bcp_compilable_components,
+                                        cached_bcp_compilable_components->getComponent());
   if (!result.ok()) {
     LOG(INFO) << "Dex2OatClasspath components mismatch: " << result.error();
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
-    return false;
-  }
-
-  // Cache info looks good, check all compilation artifacts exist.
-  std::string error_msg;
-  if (!BootClasspathArtifactsExist(
-          /*on_system=*/false, /*minimal=*/false, isa, &error_msg, checked_artifacts)) {
-    LOG(INFO) << "Incomplete boot classpath artifacts. " << error_msg;
-    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
-    // Add the minimal boot image to `checked_artifacts` if exists. This is to prevent the minimal
-    // boot image from being deleted. It does not affect the return value because we should still
-    // attempt to generate a full boot image even if the minimal one exists.
-    if (BootClasspathArtifactsExist(
-            /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
-      LOG(INFO) << "Found minimal boot classpath artifacts.";
-    }
-    return false;
-  }
-
-  return true;
-}
-
-bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
-    OdrMetrics& metrics,
-    const std::vector<apex::ApexInfo>& apex_info_list,
-    const std::optional<art_apex::CacheInfo>& cache_info,
-    /*out*/ std::set<std::string>* jars_to_compile,
-    /*out*/ std::vector<std::string>* checked_artifacts) const {
-  auto compile_all = [&, this]() {
-    *jars_to_compile = AllSystemServerJars();
-    return false;
-  };
-
-  std::set<std::string> jars_missing_artifacts_on_system;
-  bool artifacts_on_system_up_to_date = false;
-
-  if (SystemServerArtifactsOnSystemUsable(apex_info_list)) {
-    // We can use the artifacts on /system. Check if they exist.
-    std::string error_msg;
-    if (SystemServerArtifactsExist(
-            /*on_system=*/true, &error_msg, &jars_missing_artifacts_on_system)) {
-      return true;
-    }
-
-    LOG(INFO) << "Incomplete system server artifacts on /system. " << error_msg;
-    LOG(INFO) << "Checking cache.";
-    artifacts_on_system_up_to_date = true;
-  }
-
-  if (!cache_info.has_value()) {
-    // If the cache info file does not exist, it usually means on-device compilation has not been
-    // done before because the device was using the factory version of modules, or artifacts were
-    // cleared because an updated version was uninstalled. Set the trigger to be
-    // `kApexVersionMismatch` so that compilation will always be performed.
-    PLOG(INFO) << "No prior cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    if (artifacts_on_system_up_to_date) {
-      *jars_to_compile = jars_missing_artifacts_on_system;
-      return false;
-    }
-    return compile_all();
+    return PreconditionCheckResult::NoneOk(OdrMetrics::Trigger::kDexFilesChanged);
   }
 
   // Check whether the current cached module info differs from the current module info.
   const art_apex::ModuleInfoList* cached_module_info_list = cache_info->getFirstModuleInfoList();
-
   if (cached_module_info_list == nullptr) {
-    LOG(INFO) << "Missing APEX info list from cache-info.";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return compile_all();
+    LOG(ERROR) << "Missing APEX info list from cache-info.";
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   std::unordered_map<std::string, const art_apex::ModuleInfo*> cached_module_info_map;
   for (const art_apex::ModuleInfo& module_info : cached_module_info_list->getModuleInfo()) {
-    if (!module_info.hasName()) {
-      LOG(INFO) << "Unexpected module info from cache-info. Missing module name.";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
-    }
     cached_module_info_map[module_info.getName()] = &module_info;
   }
 
@@ -1155,44 +1089,13 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
     auto it = cached_module_info_map.find(apex_name);
     if (it == cached_module_info_map.end()) {
       LOG(INFO) << "Missing APEX info from cache-info (" << apex_name << ").";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
+      return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
     }
 
     const art_apex::ModuleInfo* cached_module_info = it->second;
-
-    if (cached_module_info->getVersionCode() != current_apex_info.getVersionCode()) {
-      LOG(INFO) << "APEX (" << apex_name << ") version code mismatch ("
-                << cached_module_info->getVersionCode()
-                << " != " << current_apex_info.getVersionCode() << ").";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
+    if (!CheckModuleInfo(*cached_module_info, current_apex_info)) {
+      return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
     }
-
-    if (cached_module_info->getVersionName() != current_apex_info.getVersionName()) {
-      LOG(INFO) << "APEX (" << apex_name << ") version name mismatch ("
-                << cached_module_info->getVersionName()
-                << " != " << current_apex_info.getVersionName() << ").";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
-    }
-
-    if (!cached_module_info->hasLastUpdateMillis() ||
-        cached_module_info->getLastUpdateMillis() != current_apex_info.getLastUpdateMillis()) {
-      LOG(INFO) << "APEX (" << apex_name << ") last update time mismatch ("
-                << cached_module_info->getLastUpdateMillis()
-                << " != " << current_apex_info.getLastUpdateMillis() << ").";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
-    }
-  }
-
-  if (!CheckSystemPropertiesHaveNotChanged(cache_info.value())) {
-    // We don't have a trigger kind for system property changes. For now, we reuse
-    // `kApexVersionMismatch` as it implies the expected behavior: re-compile regardless of the last
-    // compilation attempt.
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
   }
 
   // Check system server components.
@@ -1204,73 +1107,130 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
   //
   // The system_server components may change unexpectedly, for example an OTA could update
   // services.jar.
-  const std::vector<art_apex::SystemServerComponent> expected_system_server_components =
+  const std::vector<art_apex::SystemServerComponent> current_system_server_components =
       GenerateSystemServerComponents();
-  if (expected_system_server_components.size() != 0 &&
-      (!cache_info->hasSystemServerComponents() ||
-       !cache_info->getFirstSystemServerComponents()->hasComponent())) {
+
+  const art_apex::SystemServerComponents* cached_system_server_components =
+      cache_info->getFirstSystemServerComponents();
+  if (cached_system_server_components == nullptr) {
     LOG(INFO) << "Missing SystemServerComponents.";
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
-    return compile_all();
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
-  const std::vector<art_apex::SystemServerComponent>& system_server_components =
-      cache_info->getFirstSystemServerComponents()->getComponent();
-  Result<void> result =
-      CheckSystemServerComponents(expected_system_server_components, system_server_components);
+  result = CheckSystemServerComponents(current_system_server_components,
+                                       cached_system_server_components->getComponent());
   if (!result.ok()) {
     LOG(INFO) << "SystemServerComponents mismatch: " << result.error();
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
-    return compile_all();
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kDexFilesChanged);
   }
 
-  const std::vector<art_apex::Component> expected_bcp_components =
-      GenerateBootClasspathComponents();
-  if (expected_bcp_components.size() != 0 &&
-      (!cache_info->hasBootClasspath() || !cache_info->getFirstBootClasspath()->hasComponent())) {
+  const std::vector<art_apex::Component> current_bcp_components = GenerateBootClasspathComponents();
+
+  const art_apex::Classpath* cached_bcp_components = cache_info->getFirstBootClasspath();
+  if (cached_bcp_components == nullptr) {
     LOG(INFO) << "Missing BootClasspath components.";
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
-    return false;
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
-  const std::vector<art_apex::Component>& bcp_components =
-      cache_info->getFirstBootClasspath()->getComponent();
-  result = CheckComponents(expected_bcp_components, bcp_components);
+  result = CheckComponents(current_bcp_components, cached_bcp_components->getComponent());
   if (!result.ok()) {
     LOG(INFO) << "BootClasspath components mismatch: " << result.error();
-    metrics.SetTrigger(OdrMetrics::Trigger::kDexFilesChanged);
     // Boot classpath components can be dependencies of system_server components, so system_server
     // components need to be recompiled if boot classpath components are changed.
-    return compile_all();
+    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kDexFilesChanged);
   }
 
-  std::string error_msg;
-  std::set<std::string> jars_missing_artifacts_on_data;
-  if (!SystemServerArtifactsExist(
-          /*on_system=*/false, &error_msg, &jars_missing_artifacts_on_data, checked_artifacts)) {
-    if (artifacts_on_system_up_to_date) {
-      // Check if the remaining system_server artifacts are on /data.
-      std::set_intersection(jars_missing_artifacts_on_system.begin(),
-                            jars_missing_artifacts_on_system.end(),
-                            jars_missing_artifacts_on_data.begin(),
-                            jars_missing_artifacts_on_data.end(),
-                            std::inserter(*jars_to_compile, jars_to_compile->end()));
-      if (!jars_to_compile->empty()) {
-        LOG(INFO) << "Incomplete system_server artifacts on /data. " << error_msg;
-        metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
-        return false;
-      }
+  return PreconditionCheckResult::AllOk();
+}
 
-      LOG(INFO) << "Found the remaining system_server artifacts on /data.";
+WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
+    OdrMetrics& metrics,
+    const InstructionSet isa,
+    const PreconditionCheckResult& system_result,
+    const PreconditionCheckResult& data_result,
+    /*out*/ std::vector<std::string>* checked_artifacts) const {
+  if (system_result.IsBootClasspathOk()) {
+    // We can use the artifacts on /system. Check if they exist.
+    std::string error_msg;
+    if (BootClasspathArtifactsExist(/*on_system=*/true, /*minimal=*/false, isa, &error_msg)) {
       return true;
     }
 
-    LOG(INFO) << "Incomplete system_server artifacts. " << error_msg;
-    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
-    *jars_to_compile = jars_missing_artifacts_on_data;
+    LOG(INFO) << "Incomplete boot classpath artifacts on /system: " << error_msg;
+    LOG(INFO) << "Checking /data";
+  }
+
+  if (!data_result.IsBootClasspathOk()) {
+    metrics.SetTrigger(data_result.GetTrigger());
     return false;
   }
 
+  // Cache info looks good, check all compilation artifacts exist.
+  std::string error_msg;
+  if (!BootClasspathArtifactsExist(
+          /*on_system=*/false, /*minimal=*/false, isa, &error_msg, checked_artifacts)) {
+    LOG(INFO) << "Incomplete boot classpath artifacts on /data: " << error_msg;
+    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+    // Add the minimal boot image to `checked_artifacts` if exists. This is to prevent the minimal
+    // boot image from being deleted. It does not affect the return value because we should still
+    // attempt to generate a full boot image even if the minimal one exists.
+    if (BootClasspathArtifactsExist(
+            /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
+      LOG(INFO) << "Found minimal boot classpath artifacts";
+    }
+    return false;
+  }
+
+  LOG(INFO) << "Boot classpath artifacts on /data OK";
+  return true;
+}
+
+bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
+    OdrMetrics& metrics,
+    const PreconditionCheckResult& system_result,
+    const PreconditionCheckResult& data_result,
+    /*out*/ std::set<std::string>* jars_to_compile,
+    /*out*/ std::vector<std::string>* checked_artifacts) const {
+  std::set<std::string> jars_missing_artifacts_on_system;
+  if (system_result.IsSystemServerOk()) {
+    // We can use the artifacts on /system. Check if they exist.
+    std::string error_msg;
+    if (SystemServerArtifactsExist(
+            /*on_system=*/true, &error_msg, &jars_missing_artifacts_on_system)) {
+      return true;
+    }
+
+    LOG(INFO) << "Incomplete system server artifacts on /system: " << error_msg;
+    LOG(INFO) << "Checking /data";
+  } else {
+    jars_missing_artifacts_on_system = AllSystemServerJars();
+  }
+
+  std::set<std::string> jars_missing_artifacts_on_data;
+  std::string error_msg;
+  if (data_result.IsSystemServerOk()) {
+    SystemServerArtifactsExist(
+        /*on_system=*/false, &error_msg, &jars_missing_artifacts_on_data, checked_artifacts);
+  } else {
+    jars_missing_artifacts_on_data = AllSystemServerJars();
+  }
+
+  std::set_intersection(jars_missing_artifacts_on_system.begin(),
+                        jars_missing_artifacts_on_system.end(),
+                        jars_missing_artifacts_on_data.begin(),
+                        jars_missing_artifacts_on_data.end(),
+                        std::inserter(*jars_to_compile, jars_to_compile->end()));
+  if (!jars_to_compile->empty()) {
+    if (data_result.IsSystemServerOk()) {
+      LOG(INFO) << "Incomplete system_server artifacts on /data: " << error_msg;
+      metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+    } else {
+      metrics.SetTrigger(data_result.GetTrigger());
+    }
+    return false;
+  }
+
+  LOG(INFO) << "system_server artifacts on /data OK";
   return true;
 }
 
@@ -1406,22 +1366,15 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   // Record ART APEX last update milliseconds (used in compilation log).
   metrics.SetArtApexLastUpdateMillis(art_apex_info->getLastUpdateMillis());
 
-  std::optional<art_apex::CacheInfo> cache_info = ReadCacheInfo();
-  if (!cache_info.has_value() && OS::FileExists(cache_info_filename_.c_str())) {
-    // This should not happen unless odrefresh is updated to a new version that is not
-    // compatible with an old cache-info file. Further up-to-date checks are not possible if it
-    // does.
-    PLOG(ERROR) << "Failed to parse cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return cleanup_and_compile_all();
-  }
-
   InstructionSet system_server_isa = config_.GetSystemServerIsa();
   std::vector<std::string> checked_artifacts;
 
+  PreconditionCheckResult system_result = CheckPreconditionForSystem(apex_info_list.value());
+  PreconditionCheckResult data_result = CheckPreconditionForData(apex_info_list.value());
+
   for (const InstructionSet isa : config_.GetBootClasspathIsas()) {
     if (!CheckBootClasspathArtifactsAreUpToDate(
-            metrics, isa, art_apex_info.value(), cache_info, &checked_artifacts)) {
+            metrics, isa, system_result, data_result, &checked_artifacts)) {
       compilation_options->compile_boot_classpath_for_isas.push_back(isa);
       // system_server artifacts are invalid without valid boot classpath artifacts.
       if (isa == system_server_isa) {
@@ -1432,8 +1385,8 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
 
   if (compilation_options->system_server_jars_to_compile.empty()) {
     CheckSystemServerArtifactsAreUpToDate(metrics,
-                                          apex_info_list.value(),
-                                          cache_info,
+                                          system_result,
+                                          data_result,
                                           &compilation_options->system_server_jars_to_compile,
                                           &checked_artifacts);
   }
@@ -1441,7 +1394,7 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   // Return kCompilationRequired to generate the cache info even if there's nothing to compile.
   bool compilation_required = !compilation_options->compile_boot_classpath_for_isas.empty() ||
                               !compilation_options->system_server_jars_to_compile.empty() ||
-                              !cache_info.has_value();
+                              !data_result.IsAllOk();
 
   // If partial compilation is disabled, we should compile everything regardless of what's in
   // `compilation_options`.
