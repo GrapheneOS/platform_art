@@ -46,6 +46,43 @@ struct CompilationOptions {
   std::set<std::string> system_server_jars_to_compile;
 };
 
+class PreconditionCheckResult {
+ public:
+  static PreconditionCheckResult NoneOk(OdrMetrics::Trigger trigger) {
+    return PreconditionCheckResult(trigger,
+                                   /*boot_classpath_ok=*/false,
+                                   /*system_server_ok=*/false);
+  }
+  static PreconditionCheckResult SystemServerNotOk(OdrMetrics::Trigger trigger) {
+    return PreconditionCheckResult(trigger,
+                                   /*boot_classpath_ok=*/true,
+                                   /*system_server_ok=*/false);
+  }
+  static PreconditionCheckResult AllOk() {
+    return PreconditionCheckResult(/*trigger=*/std::nullopt,
+                                   /*boot_classpath_ok=*/true,
+                                   /*system_server_ok=*/true);
+  }
+  bool IsAllOk() const { return !trigger_.has_value(); }
+  OdrMetrics::Trigger GetTrigger() const { return trigger_.value(); }
+  bool IsBootClasspathOk() const { return boot_classpath_ok_; }
+  bool IsSystemServerOk() const { return system_server_ok_; }
+
+ private:
+  // Use static factory methods instead.
+  PreconditionCheckResult(std::optional<OdrMetrics::Trigger> trigger,
+                          bool boot_classpath_ok,
+                          bool system_server_ok)
+      : trigger_(trigger),
+        boot_classpath_ok_(boot_classpath_ok),
+        system_server_ok_(system_server_ok) {}
+
+  // Indicates why the precondition is not okay, or `std::nullopt` if it's okay.
+  std::optional<OdrMetrics::Trigger> trigger_;
+  bool boot_classpath_ok_;
+  bool system_server_ok_;
+};
+
 class OnDeviceRefresh final {
  public:
   explicit OnDeviceRefresh(const OdrConfig& config);
@@ -81,7 +118,7 @@ class OnDeviceRefresh final {
   std::optional<std::vector<com::android::apex::ApexInfo>> GetApexInfoList() const;
 
   // Reads the ART APEX cache information (if any) found in the output artifact directory.
-  std::optional<com::android::art::CacheInfo> ReadCacheInfo() const;
+  android::base::Result<com::android::art::CacheInfo> ReadCacheInfo() const;
 
   // Writes ART APEX cache information to `kOnDeviceRefreshOdrefreshArtifactDirectory`.
   android::base::Result<void> WriteCacheInfo() const;
@@ -134,7 +171,7 @@ class OnDeviceRefresh final {
   // order of compilation. Returns true if all are present, false otherwise.
   // Adds the paths to the jars that are missing artifacts in `jars_with_missing_artifacts`.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  WARN_UNUSED bool SystemServerArtifactsExist(
+  bool SystemServerArtifactsExist(
       bool on_system,
       /*out*/ std::string* error_msg,
       /*out*/ std::set<std::string>* jars_missing_artifacts,
@@ -153,15 +190,15 @@ class OnDeviceRefresh final {
   // Returns true if the system image is built with the right userfaultfd GC flag.
   WARN_UNUSED bool CheckBuildUserfaultFdGc() const;
 
-  // Returns true if boot classpath artifacts on /system are usable if they exist. Note that this
-  // function does not check file existence.
-  WARN_UNUSED bool BootClasspathArtifactsOnSystemUsable(
-      const com::android::apex::ApexInfo& art_apex_info) const;
+  // Returns whether the precondition for using artifacts on /system is met. Note that this function
+  // does not check the artifacts.
+  WARN_UNUSED PreconditionCheckResult
+  CheckPreconditionForSystem(const std::vector<com::android::apex::ApexInfo>& apex_info_list) const;
 
-  // Returns true if system_server artifacts on /system are usable if they exist. Note that this
-  // function does not check file existence.
-  WARN_UNUSED bool SystemServerArtifactsOnSystemUsable(
-      const std::vector<com::android::apex::ApexInfo>& apex_info_list) const;
+  // Returns whether the precondition for using artifacts on /data is met. Note that this function
+  // does not check the artifacts.
+  WARN_UNUSED PreconditionCheckResult
+  CheckPreconditionForData(const std::vector<com::android::apex::ApexInfo>& apex_info_list) const;
 
   // Checks whether all boot classpath artifacts are up to date. Returns true if all are present,
   // false otherwise.
@@ -169,8 +206,8 @@ class OnDeviceRefresh final {
   WARN_UNUSED bool CheckBootClasspathArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const InstructionSet isa,
-      const com::android::apex::ApexInfo& art_apex_info,
-      const std::optional<com::android::art::CacheInfo>& cache_info,
+      const PreconditionCheckResult& system_result,
+      const PreconditionCheckResult& data_result,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   // Checks whether all system_server artifacts are up to date. The artifacts are checked in their
@@ -179,8 +216,8 @@ class OnDeviceRefresh final {
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
   bool CheckSystemServerArtifactsAreUpToDate(
       OdrMetrics& metrics,
-      const std::vector<com::android::apex::ApexInfo>& apex_info_list,
-      const std::optional<com::android::art::CacheInfo>& cache_info,
+      const PreconditionCheckResult& system_result,
+      const PreconditionCheckResult& data_result,
       /*out*/ std::set<std::string>* jars_to_compile,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
