@@ -557,8 +557,32 @@ END \c_name
 ONE_ARG_RUNTIME_EXCEPTION art_invoke_obsolete_method_stub, artInvokeObsoleteMethod
 
 
+ENTRY art_quick_resolution_trampoline
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
+
+    // const void* artQuickResolutionTrampoline(ArtMethod* called,         // a0
+    //                                          mirror::Object* receiver,  // a1
+    //                                          Thread* self,              // a2
+    //                                          ArtMethod** sp)            // a3
+    mv   a2, xSELF
+    mv   a3, sp
+    call artQuickResolutionTrampoline
+
+    beqz a0, 1f
+    .cfi_remember_state
+    mv   t0, a0    // Remember returned code pointer in t0.
+    ld   a0, (sp)  // artQuickResolutionTrampoline puts called method in *sp.
+
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    jr   t0
+1:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    DELIVER_PENDING_EXCEPTION
+END art_quick_resolution_trampoline
+
+
 UNDEFINED art_quick_imt_conflict_trampoline
-UNDEFINED art_quick_resolution_trampoline
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
 UNDEFINED art_quick_compile_optimized
