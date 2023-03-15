@@ -25,16 +25,17 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <unordered_set>
 #include <vector>
 
 #include "android-base/stringprintf.h"
-
-#include "base/logging.h"  // For VLOG_IS_ON.
 #include "base/hiddenapi_flags.h"
+#include "base/logging.h"  // For VLOG_IS_ON.
 #include "base/mem_map.h"
 #include "base/mman.h"  // For the PROT_* and MAP_* constants.
 #include "base/os.h"
@@ -47,6 +48,7 @@
 #include "dex/dex_file_types.h"
 #include "dex/dex_file_verifier.h"
 #include "dex/dex_instruction-inl.h"
+#include "dex_ir.h"
 #include "dex_ir_builder.h"
 #include "dex_verify.h"
 #include "dex_visualize.h"
@@ -533,6 +535,9 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
                          method.c_str(), proto.c_str(), width, index, width, secondary_index);
     }
     break;
+    case Instruction::kIndexCallSiteRef:
+      outSize = snprintf(buf.get(), buf_size, "call_site@%0*x", width, index);
+      break;
     // SOME NOT SUPPORTED:
     // case Instruction::kIndexVaries:
     // case Instruction::kIndexInlineMethod:
@@ -1607,6 +1612,226 @@ void DexLayout::DumpClass(int idx, char** last_package) {
   free(access_str);
 }
 
+void DexLayout::DumpMethodHandle(int idx) {
+  const dex_ir::MethodHandleItem* mh = header_->MethodHandleItems()[idx];
+  const char* type = nullptr;
+  bool is_instance = false;
+  bool is_invoke = false;
+
+  switch (mh->GetMethodHandleType()) {
+    case DexFile::MethodHandleType::kStaticPut:
+      type = "put-static";
+      is_instance = false;
+      is_invoke = false;
+      break;
+    case DexFile::MethodHandleType::kStaticGet:
+      type = "get-static";
+      is_instance = false;
+      is_invoke = false;
+      break;
+    case DexFile::MethodHandleType::kInstancePut:
+      type = "put-instance";
+      is_instance = true;
+      is_invoke = false;
+      break;
+    case DexFile::MethodHandleType::kInstanceGet:
+      type = "get-instance";
+      is_instance = true;
+      is_invoke = false;
+      break;
+    case DexFile::MethodHandleType::kInvokeStatic:
+      type = "invoke-static";
+      is_instance = false;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeInstance:
+      type = "invoke-instance";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeConstructor:
+      type = "invoke-constructor";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeDirect:
+      type = "invoke-direct";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    case DexFile::MethodHandleType::kInvokeInterface:
+      type = "invoke-interface";
+      is_instance = true;
+      is_invoke = true;
+      break;
+    default:
+      type = "????";
+      break;
+  }  // switch
+
+  const char* declaring_class;
+  const char* member;
+  std::string member_type;
+  if (type != nullptr) {
+    if (is_invoke) {
+      auto method_id = static_cast<dex_ir::MethodId*>(mh->GetFieldOrMethodId());
+      declaring_class = method_id->Class()->GetStringId()->Data();
+      member = method_id->Name()->Data();
+      auto proto_id = method_id->Proto();
+      member_type = GetSignatureForProtoId(proto_id);
+    } else {
+      auto field_id = static_cast<dex_ir::FieldId*>(mh->GetFieldOrMethodId());
+      declaring_class = field_id->Class()->GetStringId()->Data();
+      member = field_id->Name()->Data();
+      member_type = field_id->Type()->GetStringId()->Data();
+    }
+    if (is_instance) {
+      member_type = android::base::StringPrintf("(%s%s", declaring_class, member_type.c_str() + 1);
+    }
+  } else {
+    type = "?";
+    declaring_class = "?";
+    member = "?";
+    member_type = "?";
+  }
+
+  if (options_.output_format_ == kOutputPlain) {
+    fprintf(out_file_, "Method handle #%u:\n", idx);
+    fprintf(out_file_, "  type        : %s\n", type);
+    fprintf(out_file_, "  target      : %s %s\n", declaring_class, member);
+    fprintf(out_file_, "  target_type : %s\n", member_type.c_str());
+  }
+}
+
+void DexLayout::DumpCallSite(int idx) {
+  const dex_ir::CallSiteId* call_site_id = header_->CallSiteIds()[idx];
+  auto call_site_items = call_site_id->CallSiteItem()->GetEncodedValues();
+  if (call_site_items->size() < 3) {
+    LOG(ERROR) << "ERROR: Call site " << idx << " has too few values.";
+    return;
+  }
+  uint32_t offset = call_site_id->CallSiteItem()->GetOffset();
+
+  auto it = call_site_items->begin();
+  if ((*it)->Type() != EncodedArrayValueIterator::ValueType::kMethodHandle) {
+    LOG(ERROR) << "ERROR: Call site " << idx << " needs to have a MethodHandle as its first item."
+               << " Found " << (*it)->Type();
+    return;
+  }
+  auto method_handle = (*it)->GetMethodHandle();
+  uint32_t method_handle_idx = method_handle->GetIndex();
+
+  it++;
+  if ((*it)->Type() != EncodedArrayValueIterator::ValueType::kString) {
+    LOG(ERROR) << "ERROR: Call site " << idx << " needs to have a String for method name "
+               << "as its second item."
+               << " Found " << (*it)->Type();
+    return;
+  }
+  const char* method_name = (*it)->GetStringId()->Data();
+
+  it++;
+  if ((*it)->Type() != EncodedArrayValueIterator::ValueType::kMethodType) {
+    LOG(ERROR) << "ERROR: Call site " << idx << " needs to have a Prototype as its third item."
+               << " Found " << (*it)->Type();
+    return;
+  }
+  auto proto_id = (*it)->GetProtoId();
+  std::string method_type = GetSignatureForProtoId(proto_id);
+
+  it++;
+  if (options_.output_format_ == kOutputPlain) {
+    fprintf(out_file_, "Call site #%u: // offset %u\n", idx, offset);
+    fprintf(out_file_, "  link_argument[0] : %u (MethodHandle)\n", method_handle_idx);
+    fprintf(out_file_, "  link_argument[1] : %s (String)\n", method_name);
+    fprintf(out_file_, "  link_argument[2] : %s (MethodType)\n", method_type.c_str());
+  }
+
+  size_t argument = 3;
+
+  while (it != call_site_items->end()) {
+    const char* type;
+    std::string value;
+    switch ((*it)->Type()) {
+      case EncodedArrayValueIterator::ValueType::kByte:
+        type = "byte";
+        value = android::base::StringPrintf("%u", (*it)->GetByte());
+        break;
+      case EncodedArrayValueIterator::ValueType::kShort:
+        type = "short";
+        value = android::base::StringPrintf("%d", (*it)->GetShort());
+        break;
+      case EncodedArrayValueIterator::ValueType::kChar:
+        type = "char";
+        value = android::base::StringPrintf("%u", (*it)->GetChar());
+        break;
+      case EncodedArrayValueIterator::ValueType::kInt:
+        type = "int";
+        value = android::base::StringPrintf("%d", (*it)->GetInt());
+        break;
+      case EncodedArrayValueIterator::ValueType::kLong:
+        type = "long";
+        value = android::base::StringPrintf("%" PRId64, (*it)->GetLong());
+        break;
+      case EncodedArrayValueIterator::ValueType::kFloat:
+        type = "float";
+        value = android::base::StringPrintf("%g", (*it)->GetFloat());
+        break;
+      case EncodedArrayValueIterator::ValueType::kDouble:
+        type = "double";
+        value = android::base::StringPrintf("%g", (*it)->GetDouble());
+        break;
+      case EncodedArrayValueIterator::ValueType::kMethodType: {
+        type = "MethodType";
+        auto proto_id_item = (*it)->GetProtoId();
+        value = GetSignatureForProtoId(proto_id_item);
+        break;
+      }
+      case EncodedArrayValueIterator::ValueType::kMethodHandle: {
+        type = "MethodHandle";
+        auto method_handle_item = (*it)->GetMethodHandle();
+        value = android::base::StringPrintf("%d", method_handle_item->GetIndex());
+        break;
+      }
+      case EncodedArrayValueIterator::ValueType::kString: {
+        type = "String";
+        auto string_id = (*it)->GetStringId();
+        value = string_id->Data();
+        break;
+      }
+      case EncodedArrayValueIterator::ValueType::kType: {
+        type = "Class";
+        auto type_id = (*it)->GetTypeId();
+        value = type_id->GetStringId()->Data();
+        break;
+      }
+      case EncodedArrayValueIterator::ValueType::kField:
+      case EncodedArrayValueIterator::ValueType::kMethod:
+      case EncodedArrayValueIterator::ValueType::kEnum:
+      case EncodedArrayValueIterator::ValueType::kArray:
+      case EncodedArrayValueIterator::ValueType::kAnnotation:
+        // Unreachable based on current EncodedArrayValueIterator::Next().
+        UNIMPLEMENTED(FATAL) << " type " << (*it)->Type();
+        UNREACHABLE();
+      case EncodedArrayValueIterator::ValueType::kNull:
+        type = "Null";
+        value = "null";
+        break;
+      case EncodedArrayValueIterator::ValueType::kBoolean:
+        type = "boolean";
+        value = (*it)->GetBoolean() ? "true" : "false";
+        break;
+    }
+
+    if (options_.output_format_ == kOutputPlain) {
+      fprintf(out_file_, "  link_argument[%zu] : %s (%s)\n", argument, value.c_str(), type);
+    }
+
+    it++;
+    argument++;
+  }
+}
+
 void DexLayout::DumpDexFile() {
   // Headers.
   if (options_.show_file_headers_) {
@@ -1624,6 +1849,16 @@ void DexLayout::DumpDexFile() {
   for (uint32_t i = 0; i < class_defs_size; i++) {
     DumpClass(i, &package);
   }  // for
+
+  const uint32_t mh_items_size = header_->MethodHandleItems().Size();
+  for (uint32_t i = 0; i < mh_items_size; i++) {
+    DumpMethodHandle(i);
+  }
+
+  const uint32_t call_sites_size = header_->CallSiteIds().Size();
+  for (uint32_t i = 0; i < call_sites_size; i++) {
+    DumpCallSite(i);
+  }
 
   // Free the last package allocated.
   if (package != nullptr) {
