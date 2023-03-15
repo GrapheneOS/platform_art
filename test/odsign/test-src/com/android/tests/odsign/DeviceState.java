@@ -40,9 +40,10 @@ import javax.xml.transform.stream.StreamResult;
 
 /** A helper class that can mutate the device state and restore it afterwards. */
 public class DeviceState {
-    private static final String APEX_INFO_FILE = "/apex/apex-info-list.xml";
     private static final String TEST_JAR_RESOURCE_NAME = "/art-gtest-jars-Main.jar";
     private static final String PHENOTYPE_FLAG_NAMESPACE = "runtime_native_boot";
+    private static final String ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME =
+            OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + ".bak";
 
     private final TestInformation mTestInfo;
     private final OdsignTestUtils mTestUtils;
@@ -51,6 +52,8 @@ public class DeviceState {
     private Set<String> mMountPoints = new HashSet<>();
     private Map<String, String> mMutatedProperties = new HashMap<>();
     private Set<String> mMutatedPhenotypeFlags = new HashSet<>();
+    private Map<String, String> mDeletedFiles = new HashMap<>();
+    private boolean mHasArtifactsBackup = false;
 
     public DeviceState(TestInformation testInfo) throws Exception {
         mTestInfo = testInfo;
@@ -81,21 +84,35 @@ public class DeviceState {
             mTestInfo.getDevice().executeShellV2Command(
                     "device_config set_sync_disabled_for_tests none");
         }
+
+        for (var entry : mDeletedFiles.entrySet()) {
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("cp '%s' '%s'", entry.getValue(), entry.getKey()));
+            mTestInfo.getDevice().executeShellV2Command(String.format("rm '%s'", entry.getValue()));
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("restorecon '%s'", entry.getKey()));
+        }
+
+        if (mHasArtifactsBackup) {
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("rm -rf '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
+            mTestInfo.getDevice().executeShellV2Command(
+                    String.format("mv '%s' '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME,
+                            OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
+        }
     }
 
     /** Simulates that the ART APEX has been upgraded. */
     public void simulateArtApexUpgrade() throws Exception {
-        try (var xmlMutator = new XmlMutator(APEX_INFO_FILE)) {
-            NodeList list = xmlMutator.getDocument().getElementsByTagName("apex-info");
-            for (int i = 0; i < list.getLength(); i++) {
-                Element node = (Element) list.item(i);
-                if (node.getAttribute("moduleName").equals("com.android.art")
-                        && node.getAttribute("isActive").equals("true")) {
-                    node.setAttribute("isFactory", "false");
-                    node.setAttribute("lastUpdateMillis", "1");
-                }
-            }
-        }
+        updateApexInfo("com.android.art", false /* isFactory */);
+    }
+
+    /**
+     * Simulates that the new ART APEX has been uninstalled (i.e., the ART module goes back to the
+     * factory version).
+     */
+    public void simulateArtApexUninstall() throws Exception {
+        updateApexInfo("com.android.art", true /* isFactory */);
     }
 
     /**
@@ -103,14 +120,27 @@ public class DeviceState {
      * introduce an extra dependency to this test, which we want to avoid.
      */
     public void simulateApexUpgrade() throws Exception {
-        try (var xmlMutator = new XmlMutator(APEX_INFO_FILE)) {
+        updateApexInfo("com.android.wifi", false /* isFactory */);
+    }
+
+    /**
+     * Simulates that the new APEX has been uninstalled (i.e., the module goes back to the factory
+     * version).
+     */
+    public void simulateApexUninstall() throws Exception {
+        updateApexInfo("com.android.wifi", true /* isFactory */);
+    }
+
+    private void updateApexInfo(String moduleName, boolean isFactory) throws Exception {
+        try (var xmlMutator = new XmlMutator(OdsignTestUtils.APEX_INFO_FILE)) {
             NodeList list = xmlMutator.getDocument().getElementsByTagName("apex-info");
             for (int i = 0; i < list.getLength(); i++) {
                 Element node = (Element) list.item(i);
-                if (node.getAttribute("moduleName").equals("com.android.wifi")
+                if (node.getAttribute("moduleName").equals(moduleName)
                         && node.getAttribute("isActive").equals("true")) {
-                    node.setAttribute("isFactory", "false");
-                    node.setAttribute("lastUpdateMillis", "1");
+                    node.setAttribute("isFactory", String.valueOf(isFactory));
+                    node.setAttribute(
+                            "lastUpdateMillis", String.valueOf(System.currentTimeMillis()));
                 }
             }
         }
@@ -126,6 +156,10 @@ public class DeviceState {
     public void simulateSystemServerOta() throws Exception {
         File localFile = mTestUtils.copyResourceToFile(TEST_JAR_RESOURCE_NAME);
         pushAndBindMount(localFile, "/system/framework/services.jar");
+    }
+
+    public void makeDex2oatFail() throws Exception {
+        setProperty("dalvik.vm.boot-dex2oat-threads", "-1");
     }
 
     /** Sets a system property. */
@@ -163,6 +197,23 @@ public class DeviceState {
         }
     }
 
+    public void backupAndDeleteFile(String remotePath) throws Exception {
+        String tempFile = "/data/local/tmp/odsign_e2e_tests_" + UUID.randomUUID() + ".tmp";
+        // Backup the file before deleting it.
+        mTestUtils.assertCommandSucceeds(String.format("cp '%s' '%s'", remotePath, tempFile));
+        mTestUtils.assertCommandSucceeds(String.format("rm '%s'", remotePath));
+        mDeletedFiles.put(remotePath, tempFile);
+    }
+
+    public void backupArtifacts() throws Exception {
+        mTestInfo.getDevice().executeShellV2Command(
+                String.format("rm -rf '%s'", ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
+        mTestUtils.assertCommandSucceeds(
+                String.format("cp -r '%s' '%s'", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME,
+                        ART_APEX_DALVIK_CACHE_BACKUP_DIRNAME));
+        mHasArtifactsBackup = true;
+    }
+
     /**
      * Pushes the file to a temporary location and bind-mount it at the given path. This is useful
      * when the path is readonly.
@@ -171,6 +222,12 @@ public class DeviceState {
         String tempFile = "/data/local/tmp/odsign_e2e_tests_" + UUID.randomUUID() + ".tmp";
         assertThat(mTestInfo.getDevice().pushFile(localFile, tempFile)).isTrue();
         mTempFiles.add(tempFile);
+
+        // If the path has already been bind-mounted by this method before, unmount it first.
+        if (mMountPoints.contains(remotePath)) {
+            mTestUtils.assertCommandSucceeds(String.format("umount '%s'", remotePath));
+            mMountPoints.remove(remotePath);
+        }
 
         mTestUtils.assertCommandSucceeds(
                 String.format("mount --bind '%s' '%s'", tempFile, remotePath));
