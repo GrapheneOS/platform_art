@@ -441,16 +441,6 @@ class RuntimeImageHelper {
           classes_to_write_(classes) {}
 
     bool CanEmitHelper(Handle<mirror::Class> cls) REQUIRES_SHARED(Locks::mutator_lock_) {
-      // Only emit classes that are resolved and not erroneous.
-      if (!cls->IsResolved() || cls->IsErroneous()) {
-        return false;
-      }
-
-      // Classes in the boot image can be trivially encoded directly.
-      if (helper_->IsInBootImage(cls.Get())) {
-        return true;
-      }
-
       // If the class comes from a dex file which is not part of the primary
       // APK, don't encode it.
       if (!ContainsElement(dex_files_, &cls->GetDexFile())) {
@@ -482,9 +472,32 @@ class RuntimeImageHelper {
       if (cls == nullptr) {
         return true;
       }
+      // Only emit classes that are resolved and not erroneous.
+      if (!cls->IsResolved() || cls->IsErroneous()) {
+        return false;
+      }
+
+      // Proxy classes are generated at runtime, so don't emit them.
       if (cls->IsProxyClass()) {
         return false;
       }
+
+      // Classes in the boot image can be trivially encoded directly.
+      if (helper_->IsInBootImage(cls.Get())) {
+        return true;
+      }
+
+      if (cls->IsPrimitive()) {
+        // A primitive type, not encoded in the boot image. Should not happen,
+        // but make this code safe.
+        return false;
+      }
+
+      if (cls->IsBootStrapClassLoaded()) {
+        // We cannot encode classes that are part of the boot classpath.
+        return false;
+      }
+
       if (cls->IsArrayClass()) {
         if (cls->IsBootStrapClassLoaded()) {
           // For boot classpath arrays, we can only emit them if they are
@@ -598,10 +611,14 @@ class RuntimeImageHelper {
           if (cls == nullptr) {
             content_array->Set(i, nullptr);
           } else if (IsInBootImage(cls.Ptr())) {
-            // The dex cache is concurrently updated by the app. If the class
-            // collection logic in `PruneVisitor` did not see this class, insert it now.
-            uint32_t hash = cls->DescriptorHash();
-            class_table_.InsertWithHash(ClassTable::TableSlot(cls.Ptr(), hash), hash);
+            if (!cls->IsPrimitive()) {
+              // The dex cache is concurrently updated by the app. If the class
+              // collection logic in `PruneVisitor` did not see this class, insert it now.
+              // Note that application class tables do not contain primitive
+              // classes.
+              uint32_t hash = cls->DescriptorHash();
+              class_table_.InsertWithHash(ClassTable::TableSlot(cls.Ptr(), hash), hash);
+            }
             content_array->Set(i, cls.Ptr());
           } else if (cls->IsArrayClass()) {
             std::string class_name;
@@ -615,6 +632,8 @@ class RuntimeImageHelper {
               content_array->Set(i, ptr);
             }
           } else {
+            DCHECK(!cls->IsPrimitive());
+            DCHECK(!cls->IsProxyClass());
             const dex::ClassDef* class_def = cls->GetClassDef();
             DCHECK_NE(class_def, nullptr);
             auto class_it = classes_.find(class_def);
