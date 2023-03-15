@@ -487,16 +487,12 @@ class RuntimeImageHelper {
         return true;
       }
 
-      if (cls->IsPrimitive()) {
-        // A primitive type, not encoded in the boot image. Should not happen,
-        // but make this code safe.
-        return false;
-      }
-
       if (cls->IsBootStrapClassLoaded()) {
         // We cannot encode classes that are part of the boot classpath.
         return false;
       }
+
+      DCHECK(!cls->IsPrimitive());
 
       if (cls->IsArrayClass()) {
         if (cls->IsBootStrapClassLoaded()) {
