@@ -40,7 +40,6 @@ using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
-using ::android::base::EndsWith;
 using ::android::base::Error;
 using ::android::base::Result;
 
@@ -155,9 +154,6 @@ Result<std::vector<std::string>> ListManagedFiles() {
 
 Result<void> ValidateDexPath(const std::string& dex_path) {
   OR_RETURN(ValidateAbsoluteNormalPath(dex_path));
-  if (!EndsWith(dex_path, ".apk") && !EndsWith(dex_path, ".jar")) {
-    return Errorf("Dex path '{}' has an invalid extension", dex_path);
-  }
   return {};
 }
 

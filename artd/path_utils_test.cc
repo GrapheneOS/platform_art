@@ -86,12 +86,6 @@ TEST_F(PathUtilsTest, BuildOatPathNul) {
               HasError(WithMessage("Path '/a/\0/b.apk' has invalid character '\\0'"s)));
 }
 
-TEST_F(PathUtilsTest, BuildOatPathInvalidDexExtension) {
-  EXPECT_THAT(BuildOatPath(ArtifactsPath{
-                  .dexPath = "/a/b.invalid", .isa = "arm64", .isInDalvikCache = false}),
-              HasError(WithMessage("Dex path '/a/b.invalid' has an invalid extension")));
-}
-
 TEST_F(PathUtilsTest, BuildOatPathInvalidIsa) {
   EXPECT_THAT(BuildOatPath(
                   ArtifactsPath{.dexPath = "/a/b.apk", .isa = "invalid", .isInDalvikCache = false}),
