@@ -26,6 +26,7 @@
 #define __ GetAssembler()->
 
 namespace art {
+namespace riscv64 {
 
 struct RISCV64CpuRegisterCompare {
   bool operator()(const riscv64::XRegister& a, const riscv64::XRegister& b) const { return a < b; }
@@ -177,6 +178,358 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
   }
 
   uint32_t CreateImmediate(int64_t imm_value) override { return imm_value; }
+
+  template <typename Emit>
+  std::string RepeatInsn(size_t count, const std::string& insn, Emit&& emit) {
+    std::string result;
+    for (; count != 0u; --count) {
+      result += insn;
+      emit();
+    }
+    return result;
+  }
+
+  std::string EmitNops(size_t size) {
+    // TODO(riscv64): Support "C" Standard Extension.
+    DCHECK_ALIGNED(size, sizeof(uint32_t));
+    const size_t num_nops = size / sizeof(uint32_t);
+    return RepeatInsn(num_nops, "nop\n", [&]() { __ Nop(); });
+  }
+
+  auto GetPrintBcond() {
+    return [](const std::string& cond,
+              [[maybe_unused]] const std::string& opposite_cond,
+              const std::string& args,
+              const std::string& target) {
+      return "b" + cond + args + ", " + target + "\n";
+    };
+  }
+
+  auto GetPrintBcondOppositeAndJ(const std::string& skip_label) {
+    return [=]([[maybe_unused]] const std::string& cond,
+               const std::string& opposite_cond,
+               const std::string& args,
+               const std::string& target) {
+      return "b" + opposite_cond + args + ", " + skip_label + "f\n" +
+             "j " + target + "\n" +
+             skip_label + ":\n";
+    };
+  }
+
+  auto GetPrintBcondOppositeAndTail(const std::string& skip_label, const std::string& base_label) {
+    return [=]([[maybe_unused]] const std::string& cond,
+               const std::string& opposite_cond,
+               const std::string& args,
+               const std::string& target) {
+      return "b" + opposite_cond + args + ", " + skip_label + "f\n" +
+             base_label + ":\n" +
+             "auipc t6, %pcrel_hi(" + target + ")\n" +
+             "jalr x0, %pcrel_lo(" + base_label + "b)(t6)\n" +
+             skip_label + ":\n";
+    };
+  }
+
+  // Helper function for basic tests that all branch conditions map to the correct opcodes,
+  // whether with branch expansion (a conditional branch with opposite condition over an
+  // unconditional branch) or without.
+  template <typename PrintBcond>
+  std::string EmitBcondForAllConditions(Riscv64Label* label,
+                                        const std::string& target,
+                                        PrintBcond&& print_bcond) {
+    XRegister rs = A0;
+    __ Beqz(rs, label);
+    __ Bnez(rs, label);
+    __ Blez(rs, label);
+    __ Bgez(rs, label);
+    __ Bltz(rs, label);
+    __ Bgtz(rs, label);
+    XRegister rt = A1;
+    __ Beq(rs, rt, label);
+    __ Bne(rs, rt, label);
+    __ Ble(rs, rt, label);
+    __ Bge(rs, rt, label);
+    __ Blt(rs, rt, label);
+    __ Bgt(rs, rt, label);
+    __ Bleu(rs, rt, label);
+    __ Bgeu(rs, rt, label);
+    __ Bltu(rs, rt, label);
+    __ Bgtu(rs, rt, label);
+
+    return
+        print_bcond("eq", "ne", "z a0", target) +
+        print_bcond("ne", "eq", "z a0", target) +
+        print_bcond("le", "gt", "z a0", target) +
+        print_bcond("ge", "lt", "z a0", target) +
+        print_bcond("lt", "ge", "z a0", target) +
+        print_bcond("gt", "le", "z a0", target) +
+        print_bcond("eq", "ne", " a0, a1", target) +
+        print_bcond("ne", "eq", " a0, a1", target) +
+        print_bcond("le", "gt", " a0, a1", target) +
+        print_bcond("ge", "lt", " a0, a1", target) +
+        print_bcond("lt", "ge", " a0, a1", target) +
+        print_bcond("gt", "le", " a0, a1", target) +
+        print_bcond("leu", "gtu", " a0, a1", target) +
+        print_bcond("geu", "ltu", " a0, a1", target) +
+        print_bcond("ltu", "geu", " a0, a1", target) +
+        print_bcond("gtu", "leu", " a0, a1", target);
+  }
+
+  // Test Bcond for forward branches with all conditions.
+  // The gap must be such that either all branches expand, or none does.
+  template <typename PrintBcond>
+  void TestBcondForward(const std::string& test_name,
+                        size_t gap_size,
+                        const std::string& target_label,
+                        PrintBcond&& print_bcond) {
+    std::string expected;
+    Riscv64Label label;
+    expected += EmitBcondForAllConditions(&label, target_label + "f", print_bcond);
+    expected += EmitNops(gap_size);
+    __ Bind(&label);
+    expected += target_label + ":\n";
+    DriverStr(expected, test_name);
+  }
+
+  // Test Bcond for backward branches with all conditions.
+  // The gap must be such that either all branches expand, or none does.
+  template <typename PrintBcond>
+  void TestBcondBackward(const std::string& test_name,
+                         size_t gap_size,
+                         const std::string& target_label,
+                         PrintBcond&& print_bcond) {
+    std::string expected;
+    Riscv64Label label;
+    __ Bind(&label);
+    expected += target_label + ":\n";
+    expected += EmitNops(gap_size);
+    expected += EmitBcondForAllConditions(&label, target_label + "b", print_bcond);
+    DriverStr(expected, test_name);
+  }
+
+  size_t MaxOffset13BackwardDistance() {
+    return 4 * KB;
+  }
+
+  size_t MaxOffset13ForwardDistance() {
+    // TODO(riscv64): Support "C" Standard Extension, max forward distance 4KiB - 2.
+    return 4 * KB - 4;
+  }
+
+  size_t MaxOffset21BackwardDistance() {
+    return 1 * MB;
+  }
+
+  size_t MaxOffset21ForwardDistance() {
+    // TODO(riscv64): Support "C" Standard Extension, max forward distance 1MiB - 2.
+    return 1 * MB - 4;
+  }
+
+  template <typename PrintBcond>
+  void TestBeqA0A1Forward(const std::string& test_name,
+                          size_t nops_size,
+                          const std::string& target_label,
+                          PrintBcond&& print_bcond) {
+    std::string expected;
+    Riscv64Label label;
+    __ Beq(A0, A1, &label);
+    expected += print_bcond("eq", "ne", " a0, a1", target_label + "f");
+    expected += EmitNops(nops_size);
+    __ Bind(&label);
+    expected += target_label + ":\n";
+    DriverStr(expected, test_name);
+  }
+
+  template <typename PrintBcond>
+  void TestBeqA0A1Backward(const std::string& test_name,
+                           size_t nops_size,
+                           const std::string& target_label,
+                           PrintBcond&& print_bcond) {
+    std::string expected;
+    Riscv64Label label;
+    __ Bind(&label);
+    expected += target_label + ":\n";
+    expected += EmitNops(nops_size);
+    __ Beq(A0, A1, &label);
+    expected += print_bcond("eq", "ne", " a0, a1", target_label + "b");
+    DriverStr(expected, test_name);
+  }
+
+  // Test a branch setup where expanding one branch causes expanding another branch
+  // which causes expanding another branch, etc. The argument `cascade` determines
+  // whether we push the first branch to expand, or not.
+  template <typename PrintBcond>
+  void TestBeqA0A1MaybeCascade(const std::string& test_name,
+                               bool cascade,
+                               PrintBcond&& print_bcond) {
+    const size_t kNumBeqs = MaxOffset13ForwardDistance() / sizeof(uint32_t) / 2u;
+    auto label_name = [](size_t i) { return  ".L" + std::to_string(i); };
+
+    std::string expected;
+    std::vector<Riscv64Label> labels(kNumBeqs);
+    for (size_t i = 0; i != kNumBeqs; ++i) {
+      __ Beq(A0, A1, &labels[i]);
+      expected += print_bcond("eq", "ne", " a0, a1", label_name(i));
+    }
+    if (cascade) {
+      expected += EmitNops(sizeof(uint32_t));
+    }
+    for (size_t i = 0; i != kNumBeqs; ++i) {
+      expected += EmitNops(2 * sizeof(uint32_t));
+      __ Bind(&labels[i]);
+      expected += label_name(i) + ":\n";
+    }
+    DriverStr(expected, test_name);
+  }
+
+  auto GetPrintJalRd() {
+    return [=](XRegister rd, const std::string& target) {
+      std::string rd_name = GetRegisterName(rd);
+      return "jal " + rd_name + ", " + target + "\n";
+    };
+  }
+
+  auto GetPrintCallRd(const std::string& base_label) {
+    return [=](XRegister rd, const std::string& target) {
+      std::string rd_name = GetRegisterName(rd);
+      std::string temp_name = (rd != Zero) ? rd_name : GetRegisterName(TMP);
+      return base_label + ":\n" +
+             "auipc " + temp_name + ", %pcrel_hi(" + target + ")\n" +
+             "jalr " + rd_name + ", %pcrel_lo(" + base_label + "b)(" + temp_name + ")\n";
+    };
+  }
+
+  template <typename PrintJalRd>
+  void TestJalRdForward(const std::string& test_name,
+                        size_t gap_size,
+                        const std::string& label_name,
+                        PrintJalRd&& print_jalrd) {
+    std::string expected;
+    Riscv64Label label;
+    for (XRegister* reg : GetRegisters()) {
+      __ Jal(*reg, &label);
+      expected += print_jalrd(*reg, label_name + "f");
+    }
+    expected += EmitNops(gap_size);
+    __ Bind(&label);
+    expected += label_name + ":\n";
+    DriverStr(expected, test_name);
+  }
+
+  template <typename PrintJalRd>
+  void TestJalRdBackward(const std::string& test_name,
+                         size_t gap_size,
+                         const std::string& label_name,
+                         PrintJalRd&& print_jalrd) {
+    std::string expected;
+    Riscv64Label label;
+    __ Bind(&label);
+    expected += label_name + ":\n";
+    expected += EmitNops(gap_size);
+    for (XRegister* reg : GetRegisters()) {
+      __ Jal(*reg, &label);
+      expected += print_jalrd(*reg, label_name + "b");
+    }
+    DriverStr(expected, test_name);
+  }
+
+  auto GetEmitJ() {
+    return [=](Riscv64Label* label) { __ J(label); };
+  }
+
+  auto GetEmitJal() {
+    return [=](Riscv64Label* label) { __ Jal(label); };
+  }
+
+  auto GetPrintJ() {
+    return [=](const std::string& target) {
+      return "j " + target + "\n";
+    };
+  }
+
+  auto GetPrintJal() {
+    return [=](const std::string& target) {
+      return "jal " + target + "\n";
+    };
+  }
+
+  auto GetPrintTail(const std::string& base_label) {
+    return [=](const std::string& target) {
+      return base_label + ":\n" +
+             "auipc t6, %pcrel_hi(" + target + ")\n" +
+             "jalr x0, %pcrel_lo(" + base_label + "b)(t6)\n";
+    };
+  }
+
+  auto GetPrintCall(const std::string& base_label) {
+    return [=](const std::string& target) {
+      return base_label + ":\n" +
+             "auipc ra, %pcrel_hi(" + target + ")\n" +
+             "jalr ra, %pcrel_lo(" + base_label + "b)(ra)\n";
+    };
+  }
+
+  template <typename EmitBuncond, typename PrintBuncond>
+  void TestBuncondForward(const std::string& test_name,
+                          size_t gap_size,
+                          const std::string& label_name,
+                          EmitBuncond&& emit_buncond,
+                          PrintBuncond&& print_buncond) {
+    std::string expected;
+    Riscv64Label label;
+    emit_buncond(&label);
+    expected += print_buncond(label_name + "f");
+    expected += EmitNops(gap_size);
+    __ Bind(&label);
+    expected += label_name + ":\n";
+    DriverStr(expected, test_name);
+  }
+
+  template <typename EmitBuncond, typename PrintBuncond>
+  void TestBuncondBackward(const std::string& test_name,
+                           size_t gap_size,
+                           const std::string& label_name,
+                           EmitBuncond&& emit_buncond,
+                           PrintBuncond&& print_buncond) {
+    std::string expected;
+    Riscv64Label label;
+    __ Bind(&label);
+    expected += label_name + ":\n";
+    expected += EmitNops(gap_size);
+    emit_buncond(&label);
+    expected += print_buncond(label_name + "b");
+    DriverStr(expected, test_name);
+  }
+
+  void TestLoadLiteral(const std::string& test_name, bool with_padding_for_long) {
+    std::string expected;
+    Literal* narrow_literal = __ NewLiteral<uint32_t>(0x12345678);
+    Literal* wide_literal = __ NewLiteral<uint64_t>(0x1234567887654321);
+    auto print_load = [&](const std::string& load, XRegister rd, const std::string& label) {
+      std::string rd_name = GetRegisterName(rd);
+      expected += "1:\n"
+                  "auipc " + rd_name + ", %pcrel_hi(" + label + "f)\n" +
+                  load + " " + rd_name + ", %pcrel_lo(1b)(" + rd_name + ")\n";
+    };
+    for (XRegister* reg : GetRegisters()) {
+      if (*reg != Zero) {
+        __ Lw(*reg, narrow_literal);
+        print_load("lw", *reg, "2");
+        __ Lwu(*reg, narrow_literal);
+        print_load("lwu", *reg, "2");
+        __ Ld(*reg, wide_literal);
+        print_load("ld", *reg, "3");
+      }
+    }
+    // All literal loads above emit 8 bytes of code. The narrow literal shall emit 4 bytes of code.
+    // If we do not add another instruction, we shall end up with padding before the long literal.
+    expected += EmitNops(with_padding_for_long ? 0u : sizeof(uint32_t));
+    expected += "2:\n"
+                ".4byte 0x12345678\n" +
+                std::string(with_padding_for_long ? ".4byte 0\n" : "") +
+                "3:\n"
+                ".8byte 0x1234567887654321\n";
+    DriverStr(expected, test_name);
+  }
 
  private:
   std::vector<riscv64::XRegister*> registers_;
@@ -414,15 +767,15 @@ TEST_F(AssemblerRISCV64Test, Mul) {
 }
 
 TEST_F(AssemblerRISCV64Test, Mulh) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulh, "mul {reg1}, {reg2}, {reg3}"), "Mulh");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulh, "mulh {reg1}, {reg2}, {reg3}"), "Mulh");
 }
 
 TEST_F(AssemblerRISCV64Test, Mulhsu) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulhsu, "mul {reg1}, {reg2}, {reg3}"), "Mulhsu");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulhsu, "mulhsu {reg1}, {reg2}, {reg3}"), "Mulhsu");
 }
 
 TEST_F(AssemblerRISCV64Test, Mulhu) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulhu, "mul {reg1}, {reg2}, {reg3}"), "Mulhu");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mulhu, "mulhu {reg1}, {reg2}, {reg3}"), "Mulhu");
 }
 
 TEST_F(AssemblerRISCV64Test, Div) {
@@ -434,11 +787,11 @@ TEST_F(AssemblerRISCV64Test, Divu) {
 }
 
 TEST_F(AssemblerRISCV64Test, Rem) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Rem, "remw {reg1}, {reg2}, {reg3}"), "Rem");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Rem, "rem {reg1}, {reg2}, {reg3}"), "Rem");
 }
 
 TEST_F(AssemblerRISCV64Test, Remu) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Remu, "remw {reg1}, {reg2}, {reg3}"), "Remu");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Remu, "remu {reg1}, {reg2}, {reg3}"), "Remu");
 }
 
 TEST_F(AssemblerRISCV64Test, Mulw) {
@@ -450,7 +803,7 @@ TEST_F(AssemblerRISCV64Test, Divw) {
 }
 
 TEST_F(AssemblerRISCV64Test, Divuw) {
-  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Divuw, "div {reg1}, {reg2}, {reg3}"), "Divuw");
+  DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Divuw, "divuw {reg1}, {reg2}, {reg3}"), "Divuw");
 }
 
 TEST_F(AssemblerRISCV64Test, Remw) {
@@ -908,10 +1261,308 @@ TEST_F(AssemblerRISCV64Test, Jalr0) {
 }
 
 TEST_F(AssemblerRISCV64Test, Ret) {
-  GetAssembler()->Ret();
+  __ Ret();
   DriverStr("ret\n", "Ret");
+}
+
+TEST_F(AssemblerRISCV64Test, BcondForward3KiB) {
+  TestBcondForward("BcondForward3KiB", 3 * KB, "1", GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BcondBackward3KiB) {
+  TestBcondBackward("BcondBackward3KiB", 3 * KB, "1", GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BcondForward5KiB) {
+  TestBcondForward("BcondForward5KiB", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BcondBackward5KiB) {
+  TestBcondBackward("BcondBackward5KiB", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BcondForward2MiB) {
+  TestBcondForward("BcondForward2MiB", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+}
+
+TEST_F(AssemblerRISCV64Test, BcondBackward2MiB) {
+  TestBcondBackward("BcondBackward2MiB", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13Forward) {
+  TestBeqA0A1Forward("BeqA0A1MaxOffset13Forward",
+                     MaxOffset13ForwardDistance() - /*BEQ*/ 4u,
+                     "1",
+                     GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13Backward) {
+  TestBeqA0A1Backward("BeqA0A1MaxOffset13Forward",
+                      MaxOffset13BackwardDistance(),
+                      "1",
+                      GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1OverMaxOffset13Forward) {
+  TestBeqA0A1Forward("BeqA0A1OverMaxOffset13Forward",
+                     MaxOffset13ForwardDistance() - /*BEQ*/ 4u + /*Exceed max*/ 4u,
+                     "1",
+                     GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1OverMaxOffset13Backward) {
+  TestBeqA0A1Backward("BeqA0A1OverMaxOffset13Forward",
+                      MaxOffset13BackwardDistance() + /*Exceed max*/ 4u,
+                      "1",
+                      GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset21Forward) {
+  TestBeqA0A1Forward("BeqA0A1MaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u,
+                     "1",
+                     GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset21Backward) {
+  TestBeqA0A1Backward("BeqA0A1MaxOffset21Backward",
+                      MaxOffset21BackwardDistance() - /*BNE*/ 4u,
+                      "1",
+                      GetPrintBcondOppositeAndJ("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1OverMaxOffset21Forward) {
+  TestBeqA0A1Forward("BeqA0A1OverMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u + /*Exceed max*/ 4u,
+                     "1",
+                     GetPrintBcondOppositeAndTail("2", "3"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1OverMaxOffset21Backward) {
+  TestBeqA0A1Backward("BeqA0A1OverMaxOffset21Backward",
+                      MaxOffset21BackwardDistance() - /*BNE*/ 4u + /*Exceed max*/ 4u,
+                      "1",
+                      GetPrintBcondOppositeAndTail("2", "3"));
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1AlmostCascade) {
+  TestBeqA0A1MaybeCascade("BeqA0A1AlmostCascade", /*cascade=*/ false, GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1Cascade) {
+  TestBeqA0A1MaybeCascade(
+      "BeqA0A1AlmostCascade", /*cascade=*/ true, GetPrintBcondOppositeAndJ("1"));
+}
+
+TEST_F(AssemblerRISCV64Test, BcondElimination) {
+  Riscv64Label label;
+  __ Bind(&label);
+  __ Nop();
+  for (XRegister* reg : GetRegisters()) {
+    __ Bne(*reg, *reg, &label);
+    __ Blt(*reg, *reg, &label);
+    __ Bgt(*reg, *reg, &label);
+    __ Bltu(*reg, *reg, &label);
+    __ Bgtu(*reg, *reg, &label);
+  }
+  DriverStr("nop\n", "BcondElimination");
+}
+
+TEST_F(AssemblerRISCV64Test, BcondUnconditional) {
+  Riscv64Label label;
+  __ Bind(&label);
+  __ Nop();
+  for (XRegister* reg : GetRegisters()) {
+    __ Beq(*reg, *reg, &label);
+    __ Bge(*reg, *reg, &label);
+    __ Ble(*reg, *reg, &label);
+    __ Bleu(*reg, *reg, &label);
+    __ Bgeu(*reg, *reg, &label);
+  }
+  std::string expected =
+      "1:\n"
+      "nop\n" +
+      RepeatInsn(5u * GetRegisters().size(), "j 1b\n", []() {});
+  DriverStr(expected, "BcondUnconditional");
+}
+
+TEST_F(AssemblerRISCV64Test, JalRdForward3KiB) {
+  TestJalRdForward("JalRdForward3KiB", 3 * KB, "1", GetPrintJalRd());
+}
+
+TEST_F(AssemblerRISCV64Test, JalRdBackward3KiB) {
+  TestJalRdBackward("JalRdBackward3KiB", 3 * KB, "1", GetPrintJalRd());
+}
+
+TEST_F(AssemblerRISCV64Test, JalRdForward2MiB) {
+  TestJalRdForward("JalRdForward2MiB", 2 * MB, "1", GetPrintCallRd("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, JalRdBackward2MiB) {
+  TestJalRdBackward("JalRdBackward2MiB", 2 * MB, "1", GetPrintCallRd("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, JForward3KiB) {
+  TestBuncondForward("JForward3KiB", 3 * KB, "1", GetEmitJ(), GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JBackward3KiB) {
+  TestBuncondBackward("JBackward3KiB", 3 * KB, "1", GetEmitJ(), GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JForward2MiB) {
+  TestBuncondForward("JForward2MiB", 2 * MB, "1", GetEmitJ(), GetPrintTail("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, JBackward2MiB) {
+  TestBuncondBackward("JBackward2MiB", 2 * MB, "1", GetEmitJ(), GetPrintTail("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, JMaxOffset21Forward) {
+  TestBuncondForward("JMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u,
+                     "1",
+                     GetEmitJ(),
+                     GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JMaxOffset21Backward) {
+  TestBuncondBackward("JMaxOffset21Backward",
+                      MaxOffset21BackwardDistance(),
+                      "1",
+                      GetEmitJ(),
+                      GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JOverMaxOffset21Forward) {
+  TestBuncondForward("JOverMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u + /*Exceed max*/ 4u,
+                     "1",
+                     GetEmitJ(),
+                     GetPrintTail("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, JOverMaxOffset21Backward) {
+  TestBuncondBackward("JMaxOffset21Backward",
+                      MaxOffset21BackwardDistance() + /*Exceed max*/ 4u,
+                      "1",
+                      GetEmitJ(),
+                      GetPrintTail("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, CallForward3KiB) {
+  TestBuncondForward("CallForward3KiB", 3 * KB, "1", GetEmitJal(), GetPrintJal());
+}
+
+TEST_F(AssemblerRISCV64Test, CallBackward3KiB) {
+  TestBuncondBackward("CallBackward3KiB", 3 * KB, "1", GetEmitJal(), GetPrintJal());
+}
+
+TEST_F(AssemblerRISCV64Test, CallForward2MiB) {
+  TestBuncondForward("CallForward2MiB", 2 * MB, "1", GetEmitJal(), GetPrintCall("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, CallBackward2MiB) {
+  TestBuncondBackward("CallBackward2MiB", 2 * MB, "1", GetEmitJal(), GetPrintCall("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, CallMaxOffset21Forward) {
+  TestBuncondForward("CallMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u,
+                     "1",
+                     GetEmitJal(),
+                     GetPrintJal());
+}
+
+TEST_F(AssemblerRISCV64Test, CallMaxOffset21Backward) {
+  TestBuncondBackward("CallMaxOffset21Backward",
+                      MaxOffset21BackwardDistance(),
+                      "1",
+                      GetEmitJal(),
+                      GetPrintJal());
+}
+
+TEST_F(AssemblerRISCV64Test, CallOverMaxOffset21Forward) {
+  TestBuncondForward("CallOverMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u + /*Exceed max*/ 4u,
+                     "1",
+                     GetEmitJal(),
+                     GetPrintCall("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, CallOverMaxOffset21Backward) {
+  TestBuncondBackward("CallMaxOffset21Backward",
+                      MaxOffset21BackwardDistance() + /*Exceed max*/ 4u,
+                      "1",
+                      GetEmitJal(),
+                      GetPrintCall("2"));
+}
+
+TEST_F(AssemblerRISCV64Test, LoadLabelAddress) {
+  std::string expected;
+  constexpr size_t kNumLoadsForward = 4 * KB;
+  constexpr size_t kNumLoadsBackward = 4 * KB;
+  Riscv64Label label;
+  auto emit_batch = [&](size_t num_loads, const std::string& target_label) {
+    for (size_t i = 0; i != num_loads; ++i) {
+      // Cycle through non-Zero registers.
+      XRegister rd = enum_cast<XRegister>((i % (kNumberOfXRegisters - 1)) + 1);
+      DCHECK_NE(rd, Zero);
+      std::string rd_name = GetRegisterName(rd);
+      __ LoadLabelAddress(rd, &label);
+      expected += "1:\n"
+                  "auipc " + rd_name + ", %pcrel_hi(" + target_label + ")\n"
+                  "addi " + rd_name + ", " + rd_name + ", %pcrel_lo(1b)\n";
+    }
+  };
+  emit_batch(kNumLoadsForward, "2f");
+  __ Bind(&label);
+  expected += "2:\n";
+  emit_batch(kNumLoadsBackward, "2b");
+  DriverStr(expected, "LoadLabelAddress");
+}
+
+TEST_F(AssemblerRISCV64Test, LoadLiteralWithPadingForLong) {
+  TestLoadLiteral("LoadLiteralWithPadingForLong", /*with_padding_for_long=*/ true);
+}
+
+TEST_F(AssemblerRISCV64Test, LoadLiteralWithoutPadingForLong) {
+  TestLoadLiteral("LoadLiteralWithoutPadingForLong", /*with_padding_for_long=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, JumpTable) {
+  std::string expected;
+  expected += EmitNops(sizeof(uint32_t));
+  Riscv64Label targets[4];
+  uint32_t target_locations[4];
+  JumpTable* jump_table = __ CreateJumpTable(ArenaVector<Riscv64Label*>(
+      {&targets[0], &targets[1], &targets[2], &targets[3]}, __ GetAllocator()->Adapter()));
+  for (size_t i : {0, 1, 2, 3}) {
+    target_locations[i] = __ CodeSize();
+    __ Bind(&targets[i]);
+    expected += std::to_string(i) + ":\n";
+    expected += EmitNops(sizeof(uint32_t));
+  }
+  __ LoadLabelAddress(A0, jump_table->GetLabel());
+  expected += "4:\n"
+              "auipc a0, %pcrel_hi(5f)\n"
+              "addi a0, a0, %pcrel_lo(4b)\n";
+  expected += EmitNops(sizeof(uint32_t));
+  uint32_t label5_location = __ CodeSize();
+  auto target_offset = [&](size_t i) {
+    // Even with `-mno-relax`, clang assembler does not fully resolve `.4byte 0b - 5b`
+    // and emits a relocation, so we need to calculate target offsets ourselves.
+    return std::to_string(static_cast<int64_t>(target_locations[i] - label5_location));
+  };
+  expected += "5:\n"
+              ".4byte " + target_offset(0) + "\n"
+              ".4byte " + target_offset(1) + "\n"
+              ".4byte " + target_offset(2) + "\n"
+              ".4byte " + target_offset(3) + "\n";
+  DriverStr(expected, "JumpTable");
 }
 
 #undef __
 
+}  // namespace riscv64
 }  // namespace art
