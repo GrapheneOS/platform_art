@@ -140,6 +140,8 @@ class DexLayout {
   void DumpBytecodes(uint32_t idx, const dex_ir::CodeItem* code, uint32_t code_offset);
   void DumpCatches(const dex_ir::CodeItem* code);
   void DumpClass(int idx, char** last_package);
+  void DumpMethodHandle(int idx);
+  void DumpCallSite(int idx);
   void DumpClassAnnotations(int idx);
   void DumpClassDef(int idx);
   void DumpCode(uint32_t idx,
