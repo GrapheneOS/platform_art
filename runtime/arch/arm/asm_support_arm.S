@@ -63,6 +63,10 @@
     .endif
 .endm
 
+.macro CFI_REMEMBER_STATE
+    .cfi_remember_state
+.endm
+
 // The spec is not clear whether the CFA is part of the saved state and tools
 // differ in the behaviour, so explicitly set the CFA to avoid any ambiguity.
 // The restored CFA state should match the CFA state during CFI_REMEMBER_STATE.
@@ -206,9 +210,6 @@
     // later; but it's not worth handling this special case.
     push {r1-r3, r5-r8, r10-r11, lr}   @ 10 words of callee saves and args.
     .cfi_adjust_cfa_offset 40
-    .cfi_rel_offset r1, 0
-    .cfi_rel_offset r2, 4
-    .cfi_rel_offset r3, 8
     .cfi_rel_offset r5, 12
     .cfi_rel_offset r6, 16
     .cfi_rel_offset r7, 20
@@ -235,9 +236,6 @@
     // read barriers, as it is overwritten by REFRESH_MARKING_REGISTER
     // later; but it's not worth handling this special case.
     pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves and args.
-    .cfi_restore r1
-    .cfi_restore r2
-    .cfi_restore r3
     .cfi_restore r5
     .cfi_restore r6
     .cfi_restore r7
