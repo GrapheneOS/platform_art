@@ -25,6 +25,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "handle_scope-inl.h"
+#include "jni/java_vm_ext.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"  // Strings are easiest to allocate
 #include "object_lock.h"
@@ -48,9 +49,8 @@ class MonitorTest : public CommonRuntimeTest {
 
  public:
   std::unique_ptr<Monitor> monitor_;
-  Handle<mirror::String> object_;
-  Handle<mirror::String> second_object_;
-  Handle<mirror::String> watchdog_object_;
+  jobject object_;
+  jobject watchdog_object_;
   // One exception test is for waiting on another Thread's lock. This is used to race-free &
   // loop-free pass
   Thread* thread_;
@@ -69,59 +69,59 @@ class CreateTask : public Task {
       expected_(expected) {}
 
   void Run(Thread* self) override {
-    {
-      ScopedObjectAccess soa(self);
+    ScopedObjectAccess soa(self);
+    StackHandleScope<1u> hs(self);
+    Handle<mirror::Object> obj = hs.NewHandle(soa.Decode<mirror::Object>(monitor_test_->object_));
 
-      monitor_test_->thread_ = self;        // Pass the Thread.
-      monitor_test_->object_.Get()->MonitorEnter(self);  // Lock the object. This should transition
-      LockWord lock_after = monitor_test_->object_.Get()->GetLockWord(false);  // it to thinLocked.
-      LockWord::LockState new_state = lock_after.GetState();
+    monitor_test_->thread_ = self;        // Pass the Thread.
+    obj->MonitorEnter(self);  // Lock the object. This should transition
+    LockWord lock_after = obj->GetLockWord(false);  // it to thinLocked.
+    LockWord::LockState new_state = lock_after.GetState();
 
-      // Cannot use ASSERT only, as analysis thinks we'll keep holding the mutex.
-      if (LockWord::LockState::kThinLocked != new_state) {
-        monitor_test_->object_.Get()->MonitorExit(self);         // To appease analysis.
-        ASSERT_EQ(LockWord::LockState::kThinLocked, new_state);  // To fail the test.
-        return;
-      }
-
-      // Force a fat lock by running identity hashcode to fill up lock word.
-      monitor_test_->object_.Get()->IdentityHashCode();
-      LockWord lock_after2 = monitor_test_->object_.Get()->GetLockWord(false);
-      LockWord::LockState new_state2 = lock_after2.GetState();
-
-      // Cannot use ASSERT only, as analysis thinks we'll keep holding the mutex.
-      if (LockWord::LockState::kFatLocked != new_state2) {
-        monitor_test_->object_.Get()->MonitorExit(self);         // To appease analysis.
-        ASSERT_EQ(LockWord::LockState::kFatLocked, new_state2);  // To fail the test.
-        return;
-      }
-    }  // Need to drop the mutator lock to use the barrier.
-
-    monitor_test_->barrier_->Wait(self);           // Let the other thread know we're done.
-
-    {
-      ScopedObjectAccess soa(self);
-
-      // Give the other task a chance to do its thing.
-      NanoSleep(initial_sleep_ * 1000 * 1000);
-
-      // Now try to Wait on the Monitor.
-      Monitor::Wait(self, monitor_test_->object_.Get(), millis_, 0, true,
-                    ThreadState::kTimedWaiting);
-
-      // Check the exception status against what we expect.
-      EXPECT_EQ(expected_, self->IsExceptionPending());
-      if (expected_) {
-        self->ClearException();
-      }
+    // Cannot use ASSERT only, as analysis thinks we'll keep holding the mutex.
+    if (LockWord::LockState::kThinLocked != new_state) {
+      obj->MonitorExit(self);         // To appease analysis.
+      ASSERT_EQ(LockWord::LockState::kThinLocked, new_state);  // To fail the test.
+      return;
     }
 
-    monitor_test_->complete_barrier_->Wait(self);  // Wait for test completion.
+    // Force a fat lock by running identity hashcode to fill up lock word.
+    obj->IdentityHashCode();
+    LockWord lock_after2 = obj->GetLockWord(false);
+    LockWord::LockState new_state2 = lock_after2.GetState();
+
+    // Cannot use ASSERT only, as analysis thinks we'll keep holding the mutex.
+    if (LockWord::LockState::kFatLocked != new_state2) {
+      obj->MonitorExit(self);         // To appease analysis.
+      ASSERT_EQ(LockWord::LockState::kFatLocked, new_state2);  // To fail the test.
+      return;
+    }
 
     {
-      ScopedObjectAccess soa(self);
-      monitor_test_->object_.Get()->MonitorExit(self);  // Release the object. Appeases analysis.
+      // Need to drop the mutator lock to use the barrier.
+      ScopedThreadSuspension sts(self, ThreadState::kSuspended);
+      monitor_test_->barrier_->Wait(self);           // Let the other thread know we're done.
     }
+
+    // Give the other task a chance to do its thing.
+    NanoSleep(initial_sleep_ * 1000 * 1000);
+
+    // Now try to Wait on the Monitor.
+    Monitor::Wait(self, obj.Get(), millis_, 0, true, ThreadState::kTimedWaiting);
+
+    // Check the exception status against what we expect.
+    EXPECT_EQ(expected_, self->IsExceptionPending());
+    if (expected_) {
+      self->ClearException();
+    }
+
+    {
+      // Need to drop the mutator lock to use the barrier.
+      ScopedThreadSuspension sts(self, ThreadState::kSuspended);
+      monitor_test_->complete_barrier_->Wait(self);  // Wait for test completion.
+    }
+
+    obj->MonitorExit(self);  // Release the object. Appeases analysis.
   }
 
   void Finalize() override {
@@ -151,8 +151,8 @@ class UseTask : public Task {
       // Give the other task a chance to do its thing.
       NanoSleep(initial_sleep_ * 1000 * 1000);
 
-      Monitor::Wait(self, monitor_test_->object_.Get(), millis_, 0, true,
-                    ThreadState::kTimedWaiting);
+      ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(monitor_test_->object_);
+      Monitor::Wait(self, obj, millis_, 0, true, ThreadState::kTimedWaiting);
 
       // Check the exception status against what we expect.
       EXPECT_EQ(expected_, self->IsExceptionPending());
@@ -196,8 +196,8 @@ class InterruptTask : public Task {
       NanoSleep(millis_ * 1000 * 1000);
 
       // Now try to Wait.
-      Monitor::Wait(self, monitor_test_->object_.Get(), 10, 0, true,
-                    ThreadState::kTimedWaiting);
+      ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(monitor_test_->object_);
+      Monitor::Wait(self, obj, 10, 0, true, ThreadState::kTimedWaiting);
 
       // No check here, as depending on scheduling we may or may not fail.
       if (self->IsExceptionPending()) {
@@ -224,13 +224,15 @@ class WatchdogTask : public Task {
 
   void Run(Thread* self) override {
     ScopedObjectAccess soa(self);
+    StackHandleScope<1u> hs(self);
+    Handle<mirror::Object> watchdog_obj =
+        hs.NewHandle(soa.Decode<mirror::Object>(monitor_test_->watchdog_object_));
 
-    monitor_test_->watchdog_object_.Get()->MonitorEnter(self);        // Lock the object.
+    watchdog_obj->MonitorEnter(self);        // Lock the object.
 
-    monitor_test_->watchdog_object_.Get()->Wait(self, 30 * 1000, 0);  // Wait for 30s, or being
-                                                                      // woken up.
+    watchdog_obj->Wait(self, 30 * 1000, 0);  // Wait for 30s, or being woken up.
 
-    monitor_test_->watchdog_object_.Get()->MonitorExit(self);         // Release the lock.
+    watchdog_obj->MonitorExit(self);         // Release the lock.
 
     if (!monitor_test_->completed_) {
       LOG(FATAL) << "Watchdog timeout!";
@@ -251,10 +253,15 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   Thread* const self = Thread::Current();
   ScopedObjectAccess soa(self);
   // First create the object we lock. String is easiest.
-  StackHandleScope<3> hs(soa.Self());
-  test->object_ = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "hello, world!"));
-  test->watchdog_object_ = hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self,
-                                                                              "hello, world!"));
+  StackHandleScope<2u> hs(soa.Self());
+  Handle<mirror::Object> obj =
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "hello, world!"));
+  test->object_ = soa.Vm()->AddGlobalRef(self, obj.Get());
+  ASSERT_TRUE(test->object_ != nullptr);
+  Handle<mirror::Object> watchdog_obj =
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, "hello, world!"));
+  test->watchdog_object_ = soa.Vm()->AddGlobalRef(self, watchdog_obj.Get());
+  ASSERT_TRUE(test->watchdog_object_ != nullptr);
 
   // Create the barrier used to synchronize.
   test->barrier_ = std::make_unique<Barrier>(2);
@@ -288,9 +295,9 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   // Wake the watchdog.
   {
     ScopedObjectAccess soa2(self);
-    test->watchdog_object_.Get()->MonitorEnter(self);     // Lock the object.
-    test->watchdog_object_.Get()->NotifyAll(self);        // Wake up waiting parties.
-    test->watchdog_object_.Get()->MonitorExit(self);      // Release the lock.
+    watchdog_obj->MonitorEnter(self);     // Lock the object.
+    watchdog_obj->NotifyAll(self);        // Wake up waiting parties.
+    watchdog_obj->MonitorExit(self);      // Release the lock.
   }
 
   thread_pool.StopWorkers(self);
@@ -330,12 +337,14 @@ TEST_F(MonitorTest, CheckExceptionsWait3) {
 
 class TryLockTask : public Task {
  public:
-  explicit TryLockTask(Handle<mirror::Object> obj) : obj_(obj) {}
+  explicit TryLockTask(jobject obj) : obj_(obj) {}
 
   void Run(Thread* self) override {
     ScopedObjectAccess soa(self);
+    StackHandleScope<1u> hs(self);
+    Handle<mirror::Object> obj = hs.NewHandle(soa.Decode<mirror::Object>(obj_));
     // Lock is held by other thread, try lock should fail.
-    ObjectTryLock<mirror::Object> lock(self, obj_);
+    ObjectTryLock<mirror::Object> lock(self, obj);
     EXPECT_FALSE(lock.Acquired());
   }
 
@@ -344,7 +353,7 @@ class TryLockTask : public Task {
   }
 
  private:
-  Handle<mirror::Object> obj_;
+  jobject obj_;
 };
 
 // Test trylock in deadlock scenarios.
@@ -357,6 +366,8 @@ TEST_F(MonitorTest, TestTryLock) {
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> obj1(
       hs.NewHandle<mirror::Object>(mirror::String::AllocFromModifiedUtf8(self, "hello, world!")));
+  jobject g_obj1 = soa.Vm()->AddGlobalRef(self, obj1.Get());
+  ASSERT_TRUE(g_obj1 != nullptr);
   {
     ObjectLock<mirror::Object> lock1(self, obj1);
     {
@@ -364,7 +375,7 @@ TEST_F(MonitorTest, TestTryLock) {
       EXPECT_TRUE(trylock.Acquired());
     }
     // Test failure case.
-    thread_pool.AddTask(self, new TryLockTask(obj1));
+    thread_pool.AddTask(self, new TryLockTask(g_obj1));
     thread_pool.StartWorkers(self);
     ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     thread_pool.Wait(Thread::Current(), /*do_work=*/false, /*may_hold_locks=*/false);
