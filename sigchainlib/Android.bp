@@ -62,6 +62,7 @@ cc_library {
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
+        "test_broken_com.android.art",
     ],
     stubs: {
         symbol_file: "libsigchain.map.txt",
