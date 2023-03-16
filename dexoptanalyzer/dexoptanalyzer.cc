@@ -239,11 +239,16 @@ class DexoptAnalyzer final {
       // If we don't receive the image, try to use the default one.
       // Tests may specify a different image (e.g. core image).
       std::string error_msg;
-      image_ = GetDefaultBootImageLocation(&error_msg);
-
+      std::string android_root = GetAndroidRootSafe(&error_msg);
+      if (android_root.empty()) {
+        LOG(ERROR) << error_msg;
+        Usage("--image unspecified and ANDROID_ROOT not set.");
+      }
+      image_ = GetDefaultBootImageLocationSafe(
+          android_root, /*deny_art_apex_data_files=*/false, &error_msg);
       if (image_.empty()) {
         LOG(ERROR) << error_msg;
-        Usage("--image unspecified and ANDROID_ROOT not set or image file does not exist.");
+        Usage("--image unspecified and failed to get default boot image location.");
       }
     }
   }
