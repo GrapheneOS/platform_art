@@ -23,6 +23,15 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.concurrent.CyclicBarrier;
 
+class ClassWithStatics {
+  public static final String STATIC_STRING = "foo";
+  public static final int STATIC_INT = 42;
+}
+
+class ClassWithStaticType {
+  public static final Class<?> STATIC_TYPE = Object.class;
+}
+
 // Add an interface for testing generating classes and interfaces.
 interface Itf {
   public int someMethod();
@@ -198,6 +207,8 @@ public class Main implements Itf {
 
   public static Itf itf = new Main();
   public static Itf2 itf2 = new Itf2Impl();
+  public static ClassWithStatics statics = new ClassWithStatics();
+  public static ClassWithStaticType staticType = new ClassWithStaticType();
 
   public static void runClassTests() {
     // Test Class.getName, app images expect all strings to have hash codes.
@@ -228,6 +239,11 @@ public class Main implements Itf {
     assertEquals(Object[][][][].class, Array.newInstance(Object.class, 0, 0, 0, 0).getClass());
     assertEquals("int", int.class.getName());
     assertEquals("[I", int[].class.getName());
+
+    assertEquals("foo", statics.STATIC_STRING);
+    assertEquals(42, statics.STATIC_INT);
+
+    assertEquals(Object.class, staticType.STATIC_TYPE);
 
     // Call all interface methods to trigger the creation of a imt conflict method.
     itf2.defaultMethod1();
