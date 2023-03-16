@@ -714,35 +714,20 @@ void Runtime::Abort(const char* msg) {
 }
 
 /**
- * Update entrypoints (native and Java) of methods before the first fork. This
+ * Update entrypoints of methods before the first fork. This
  * helps sharing pages where ArtMethods are allocated between the zygote and
  * forked apps.
  */
 class UpdateMethodsPreFirstForkVisitor : public ClassVisitor {
  public:
-  UpdateMethodsPreFirstForkVisitor(Thread* self, ClassLinker* class_linker)
-      : vm_(down_cast<JNIEnvExt*>(self->GetJniEnv())->GetVm()),
-        self_(self),
-        class_linker_(class_linker),
+  explicit UpdateMethodsPreFirstForkVisitor(ClassLinker* class_linker)
+      : class_linker_(class_linker),
         can_use_nterp_(interpreter::CanRuntimeUseNterp()) {}
 
   bool operator()(ObjPtr<mirror::Class> klass) override REQUIRES_SHARED(Locks::mutator_lock_) {
     bool is_initialized = klass->IsVisiblyInitialized();
     for (ArtMethod& method : klass->GetDeclaredMethods(kRuntimePointerSize)) {
-      if (is_initialized || !method.NeedsClinitCheckBeforeCall()) {
-        if (method.IsNative()) {
-          const void* existing = method.GetEntryPointFromJni();
-          if (method.IsCriticalNative()
-                  ? class_linker_->IsJniDlsymLookupCriticalStub(existing)
-                  : class_linker_->IsJniDlsymLookupStub(existing)) {
-            const void* native_code =
-                vm_->FindCodeForNativeMethod(&method, /*error_msg=*/ nullptr, /*can_suspend=*/ false);
-            if (native_code != nullptr) {
-              class_linker_->RegisterNative(self_, &method, native_code);
-            }
-          }
-        }
-      } else if (can_use_nterp_) {
+      if (!is_initialized && method.NeedsClinitCheckBeforeCall() && can_use_nterp_) {
         const void* existing = method.GetEntryPointFromQuickCompiledCode();
         if (class_linker_->IsQuickResolutionStub(existing) && CanMethodUseNterp(&method)) {
           method.SetEntryPointFromQuickCompiledCode(interpreter::GetNterpWithClinitEntryPoint());
@@ -753,8 +738,6 @@ class UpdateMethodsPreFirstForkVisitor : public ClassVisitor {
   }
 
  private:
-  JavaVMExt* const vm_;
-  Thread* const self_;
   ClassLinker* const class_linker_;
   const bool can_use_nterp_;
 
@@ -775,7 +758,7 @@ void Runtime::PreZygoteFork() {
     class_linker_->MakeInitializedClassesVisiblyInitialized(self, /*wait=*/ true);
 
     ScopedObjectAccess soa(self);
-    UpdateMethodsPreFirstForkVisitor visitor(self, class_linker_);
+    UpdateMethodsPreFirstForkVisitor visitor(class_linker_);
     class_linker_->VisitClasses(&visitor);
   }
   heap_->PreZygoteFork();
