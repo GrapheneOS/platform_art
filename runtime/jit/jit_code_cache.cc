@@ -430,7 +430,7 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
         // is always alive.
         // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
         // out of the weak access/creation pause. b/32167580
-        DCHECK_NE(new_object, nullptr);
+        DCHECK_NE(new_object, nullptr) << "old-string:" << object;
         if (new_object != object) {
           roots[i] = GcRoot<mirror::Object>(new_object);
         }
