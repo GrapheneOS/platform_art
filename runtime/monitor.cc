@@ -472,7 +472,7 @@ void Monitor::Lock(Thread* self) {
     Locks::thread_list_lock_->ExclusiveLock(self);
     orig_owner = owner_.load(std::memory_order_relaxed);
     if (orig_owner != nullptr) {  // Did the owner_ give the lock up?
-      const uint32_t orig_owner_thread_id = orig_owner->GetThreadId();
+      const uint32_t orig_owner_thread_id = orig_owner->GetTid();
       GetLockOwnerInfo(&owners_method, &owners_dex_pc, orig_owner);
       std::ostringstream oss;
       std::string name;
