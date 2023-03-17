@@ -387,6 +387,7 @@ art_cc_defaults {
         // apex_available lists need to be the same for internal libs to avoid
         // stubs, and this depends on libdexfiled and others.
         "com.android.art",
+        "test_broken_com.android.art",
     ],
 }
 
@@ -453,6 +454,7 @@ art_cc_defaults {
         // apex_available lists need to be the same for internal libs to avoid
         // stubs, and this depends on libdexfiled and others.
         "com.android.art",
+        "test_broken_com.android.art",
     ],
 }
 
