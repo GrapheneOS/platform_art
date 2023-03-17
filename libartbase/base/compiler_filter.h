@@ -31,7 +31,6 @@ class CompilerFilter final {
   // as" earlier filter choices.
   enum Filter {
     kAssumeVerified,      // Skip verification but mark all classes as verified anyway.
-    kExtract,             // Delay verication to runtime, do not compile anything.
     kVerify,              // Only verify classes.
     kSpaceProfile,        // Maximize space savings based on profile.
     kSpace,               // Maximize space savings.
