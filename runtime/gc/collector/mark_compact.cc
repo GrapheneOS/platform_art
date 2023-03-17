@@ -2641,6 +2641,9 @@ void MarkCompact::CompactionPause() {
     LinearAllocPageUpdater updater(this);
     arena_pool->VisitRoots(updater);
   } else {
+    // Clear the flag as we care about this only if arenas are freed during
+    // concurrent compaction.
+    arena_pool->ClearArenasFreed();
     arena_pool->ForEachAllocatedArena(
         [this](const TrackedArena& arena) REQUIRES_SHARED(Locks::mutator_lock_) {
           // The pre-zygote fork arenas are not visited concurrently in the
@@ -3286,68 +3289,86 @@ void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool i
 }
 
 void MarkCompact::ProcessLinearAlloc() {
+  GcVisitedArenaPool* arena_pool =
+      static_cast<GcVisitedArenaPool*>(Runtime::Current()->GetLinearAllocArenaPool());
   for (auto& pair : linear_alloc_arenas_) {
     const TrackedArena* arena = pair.first;
-    uint8_t* last_byte = pair.second;
-    DCHECK_ALIGNED(last_byte, kPageSize);
-    bool others_processing = false;
-    // Find the linear-alloc space containing the arena
-    LinearAllocSpaceData* space_data = nullptr;
-    for (auto& data : linear_alloc_spaces_data_) {
-      if (data.begin_ <= arena->Begin() && arena->Begin() < data.end_) {
-        space_data = &data;
-        break;
+    size_t arena_size;
+    uint8_t* arena_begin;
+    ptrdiff_t diff;
+    bool others_processing;
+    {
+      // Acquire arena-pool's lock so that the arena being worked cannot be
+      // deallocated at the same time.
+      std::lock_guard<std::mutex> lock(arena_pool->GetLock());
+      // If any arenas were freed since compaction pause then skip them from
+      // visiting.
+      if (arena_pool->AreArenasFreed() && !arena_pool->FindAllocatedArena(arena)) {
+        continue;
       }
-    }
-    DCHECK_NE(space_data, nullptr);
-    ptrdiff_t diff = space_data->shadow_.Begin() - space_data->begin_;
-    auto visitor = [space_data, last_byte, diff, this, &others_processing](
-                       uint8_t* page_begin,
-                       uint8_t* first_obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-      // No need to process pages past last_byte as they already have updated
-      // gc-roots, if any.
-      if (page_begin >= last_byte) {
-        return;
-      }
-      LinearAllocPageUpdater updater(this);
-      size_t page_idx = (page_begin - space_data->begin_) / kPageSize;
-      DCHECK_LT(page_idx, space_data->page_status_map_.Size());
-      Atomic<PageState>* state_arr =
-          reinterpret_cast<Atomic<PageState>*>(space_data->page_status_map_.Begin());
-      PageState expected_state = PageState::kUnprocessed;
-      PageState desired_state =
-          minor_fault_initialized_ ? PageState::kProcessing : PageState::kProcessingAndMapping;
-      // Acquire order to ensure that we don't start accessing the shadow page,
-      // which is shared with other threads, prior to CAS. Also, for same
-      // reason, we used 'release' order for changing the state to 'processed'.
-      if (state_arr[page_idx].compare_exchange_strong(
-              expected_state, desired_state, std::memory_order_acquire)) {
-        updater(page_begin + diff, first_obj + diff);
-        expected_state = PageState::kProcessing;
-        if (!minor_fault_initialized_) {
-          MapUpdatedLinearAllocPage(
-              page_begin, page_begin + diff, state_arr[page_idx], updater.WasLastPageTouched());
-        } else if (!state_arr[page_idx].compare_exchange_strong(
-                       expected_state, PageState::kProcessed, std::memory_order_release)) {
-          DCHECK_EQ(expected_state, PageState::kProcessingAndMapping);
-          // Force read in case the page was missing and updater didn't touch it
-          // as there was nothing to do. This will ensure that a zeropage is
-          // faulted on the shadow map.
-          ForceRead(page_begin + diff);
-          MapProcessedPages</*kFirstPageMapping=*/true>(
-              page_begin, state_arr, page_idx, space_data->page_status_map_.Size());
+      uint8_t* last_byte = pair.second;
+      DCHECK_ALIGNED(last_byte, kPageSize);
+      others_processing = false;
+      arena_begin = arena->Begin();
+      arena_size = arena->Size();
+      // Find the linear-alloc space containing the arena
+      LinearAllocSpaceData* space_data = nullptr;
+      for (auto& data : linear_alloc_spaces_data_) {
+        if (data.begin_ <= arena_begin && arena_begin < data.end_) {
+          space_data = &data;
+          break;
         }
-      } else {
-        others_processing = true;
       }
-    };
+      DCHECK_NE(space_data, nullptr);
+      diff = space_data->shadow_.Begin() - space_data->begin_;
+      auto visitor = [space_data, last_byte, diff, this, &others_processing](
+                         uint8_t* page_begin,
+                         uint8_t* first_obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+        // No need to process pages past last_byte as they already have updated
+        // gc-roots, if any.
+        if (page_begin >= last_byte) {
+          return;
+        }
+        LinearAllocPageUpdater updater(this);
+        size_t page_idx = (page_begin - space_data->begin_) / kPageSize;
+        DCHECK_LT(page_idx, space_data->page_status_map_.Size());
+        Atomic<PageState>* state_arr =
+            reinterpret_cast<Atomic<PageState>*>(space_data->page_status_map_.Begin());
+        PageState expected_state = PageState::kUnprocessed;
+        PageState desired_state =
+            minor_fault_initialized_ ? PageState::kProcessing : PageState::kProcessingAndMapping;
+        // Acquire order to ensure that we don't start accessing the shadow page,
+        // which is shared with other threads, prior to CAS. Also, for same
+        // reason, we used 'release' order for changing the state to 'processed'.
+        if (state_arr[page_idx].compare_exchange_strong(
+                expected_state, desired_state, std::memory_order_acquire)) {
+          updater(page_begin + diff, first_obj + diff);
+          expected_state = PageState::kProcessing;
+          if (!minor_fault_initialized_) {
+            MapUpdatedLinearAllocPage(
+                page_begin, page_begin + diff, state_arr[page_idx], updater.WasLastPageTouched());
+          } else if (!state_arr[page_idx].compare_exchange_strong(
+                         expected_state, PageState::kProcessed, std::memory_order_release)) {
+            DCHECK_EQ(expected_state, PageState::kProcessingAndMapping);
+            // Force read in case the page was missing and updater didn't touch it
+            // as there was nothing to do. This will ensure that a zeropage is
+            // faulted on the shadow map.
+            ForceRead(page_begin + diff);
+            MapProcessedPages</*kFirstPageMapping=*/true>(
+                page_begin, state_arr, page_idx, space_data->page_status_map_.Size());
+          }
+        } else {
+          others_processing = true;
+        }
+      };
 
-    arena->VisitRoots(visitor);
+      arena->VisitRoots(visitor);
+    }
     // If we are not in minor-fault mode and if no other thread was found to be
     // processing any pages in this arena, then we can madvise the shadow size.
     // Otherwise, we will double the memory use for linear-alloc.
     if (!minor_fault_initialized_ && !others_processing) {
-      ZeroAndReleasePages(arena->Begin() + diff, arena->Size());
+      ZeroAndReleasePages(arena_begin + diff, arena_size);
     }
   }
 }
