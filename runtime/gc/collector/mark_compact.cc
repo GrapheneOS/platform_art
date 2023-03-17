@@ -2358,13 +2358,15 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
         black_allocs = block_end;
       }
     }
-    // Store the leftover first-chunk, if any, and update page index.
-    if (black_alloc_pages_first_chunk_size_[black_page_idx] > 0) {
-      black_page_idx++;
-    } else if (first_chunk_size > 0) {
-      black_alloc_pages_first_chunk_size_[black_page_idx] = first_chunk_size;
-      first_objs_moving_space_[black_page_idx].Assign(first_obj);
-      black_page_idx++;
+    if (black_page_idx < bump_pointer_space_->Size() / kPageSize) {
+      // Store the leftover first-chunk, if any, and update page index.
+      if (black_alloc_pages_first_chunk_size_[black_page_idx] > 0) {
+        black_page_idx++;
+      } else if (first_chunk_size > 0) {
+        black_alloc_pages_first_chunk_size_[black_page_idx] = first_chunk_size;
+        first_objs_moving_space_[black_page_idx].Assign(first_obj);
+        black_page_idx++;
+      }
     }
     black_page_count_ = black_page_idx - moving_first_objs_count_;
     delete block_sizes;
