@@ -99,6 +99,56 @@ std::string PrettyDescriptor(const char* descriptor) {
   return result;
 }
 
+std::string InversePrettyDescriptor(const std::string& pretty_descriptor) {
+  std::string result;
+
+  // Used to determine the length of the descriptor without trailing "[]"s.
+  size_t l = pretty_descriptor.length();
+
+  // Determine dimensionality, and append the necessary leading '['s.
+  size_t dim = 0;
+  size_t pos = 0;
+  static const std::string array_indicator = "[]";
+  while ((pos = pretty_descriptor.find(array_indicator, pos)) != std::string::npos) {
+    if (dim == 0) {
+      l = pos;
+    }
+    ++dim;
+    pos += array_indicator.length();
+  }
+  for (size_t i = 0; i < dim; ++i) {
+    result += '[';
+  }
+
+  // temp_descriptor is now in the form of "some.pretty.Type" or "primitive".
+  std::string temp_descriptor(pretty_descriptor, 0, l);
+  if (temp_descriptor == "byte") {
+    result += 'B';
+  } else if (temp_descriptor == "char") {
+    result += 'C';
+  } else if (temp_descriptor == "double") {
+    result += 'D';
+  } else if (temp_descriptor == "float") {
+    result += 'F';
+  } else if (temp_descriptor == "int") {
+    result += 'I';
+  } else if (temp_descriptor == "long") {
+    result += 'J';
+  } else if (temp_descriptor == "short") {
+    result += 'S';
+  } else if (temp_descriptor == "boolean") {
+    result += 'Z';
+  } else if (temp_descriptor == "void") {
+    result += 'V';
+  } else {
+    result += 'L';
+    std::replace(temp_descriptor.begin(), temp_descriptor.end(), '.', '/');
+    result += temp_descriptor;
+    result += ';';
+  }
+  return result;
+}
+
 std::string GetJniShortName(const std::string& class_descriptor, const std::string& method) {
   // Remove the leading 'L' and trailing ';'...
   std::string class_name(class_descriptor);

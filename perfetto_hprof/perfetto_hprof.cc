@@ -213,7 +213,7 @@ class JavaHprofDataSource : public perfetto::DataSource<JavaHprofDataSource> {
     dump_smaps_ = cfg->dump_smaps();
     for (auto it = cfg->ignored_types(); it; ++it) {
       std::string name = (*it).ToStdString();
-      ignored_types_.emplace_back(std::move(name));
+      ignored_types_.emplace_back(art::InversePrettyDescriptor(name));
     }
     // This tracing session ID matches the requesting tracing session ID, so we know heapprofd
     // has verified it targets this process.
@@ -888,8 +888,9 @@ class HeapGraphDumper {
       return false;
     }
     art::mirror::Class* klass = obj->GetClass();
-    return std::find(ignored_types_.begin(), ignored_types_.end(), PrettyType(klass)) !=
-           ignored_types_.end();
+    std::string temp;
+    std::string_view name(klass->GetDescriptor(&temp));
+    return std::find(ignored_types_.begin(), ignored_types_.end(), name) != ignored_types_.end();
   }
 
   // Name of classes whose instances should be ignored.
