@@ -118,7 +118,6 @@ TEST_F(DexoptAnalyzerTest, DexNoOat) {
   Copy(GetDexSrc1(), dex_location);
 
   Verify(dex_location, CompilerFilter::kSpeed);
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kVerify);
   Verify(dex_location, CompilerFilter::kSpeedProfile);
   Verify(dex_location, CompilerFilter::kSpeed,
@@ -134,7 +133,6 @@ TEST_F(DexoptAnalyzerTest, OatUpToDate) {
 
   Verify(dex_location, CompilerFilter::kSpeed);
   Verify(dex_location, CompilerFilter::kVerify);
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kEverything);
   Verify(dex_location, CompilerFilter::kSpeed,
       ProfileAnalysisResult::kDontOptimizeSmallDelta, false, nullptr);
@@ -194,8 +192,6 @@ TEST_F(DexoptAnalyzerTest, Downgrade) {
       ProfileAnalysisResult::kDontOptimizeSmallDelta, true);
   Verify(dex_location, CompilerFilter::kVerify,
       ProfileAnalysisResult::kDontOptimizeSmallDelta, true);
-  Verify(dex_location, CompilerFilter::kExtract,
-      ProfileAnalysisResult::kDontOptimizeSmallDelta, true);
 }
 
 // Case: We have a MultiDEX file and up-to-date ODEX file for it.
@@ -237,7 +233,6 @@ TEST_F(DexoptAnalyzerTest, OatDexOutOfDate) {
   GenerateOdexForTest(dex_location.c_str(), odex_location.c_str(), CompilerFilter::kSpeed);
   Copy(GetDexSrc2(), dex_location);
 
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
@@ -253,27 +248,8 @@ TEST_F(DexoptAnalyzerTest, OatImageOutOfDate) {
                      CompilerFilter::kSpeed,
                      /*with_alternate_image=*/true);
 
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kVerify);
   Verify(dex_location, CompilerFilter::kSpeed);
-}
-
-// Case: We have a DEX file and a verify-at-runtime OAT file out of date with
-// respect to the boot image.
-// It shouldn't matter that the OAT file is out of date, because it is
-// verify-at-runtime.
-TEST_F(DexoptAnalyzerTest, OatVerifyAtRuntimeImageOutOfDate) {
-  std::string dex_location = GetScratchDir() + "/OatVerifyAtRuntimeImageOutOfDate.jar";
-  std::string odex_location = GetOdexDir() + "/OatVerifyAtRuntimeImageOutOfDate.odex";
-
-  Copy(GetDexSrc1(), dex_location);
-  GenerateOatForTest(dex_location.c_str(),
-                     odex_location.c_str(),
-                     CompilerFilter::kExtract,
-                     /*with_alternate_image=*/true);
-
-  Verify(dex_location, CompilerFilter::kExtract);
-  Verify(dex_location, CompilerFilter::kVerify);
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
@@ -284,7 +260,6 @@ TEST_F(DexoptAnalyzerTest, DexOdexNoOat) {
   Copy(GetDexSrc1(), dex_location);
   GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed);
 
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
   Verify(dex_location, CompilerFilter::kEverything);
 }
@@ -297,7 +272,6 @@ TEST_F(DexoptAnalyzerTest, ResourceOnlyDex) {
   Copy(GetResourceOnlySrc1(), dex_location);
 
   Verify(dex_location, CompilerFilter::kSpeed);
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kVerify);
 }
 
@@ -314,18 +288,6 @@ TEST_F(DexoptAnalyzerTest, OdexOatOverlap) {
   // place in memory.
   Copy(odex_location, oat_location);
 
-  Verify(dex_location, CompilerFilter::kSpeed);
-}
-
-// Case: We have a DEX file and a VerifyAtRuntime ODEX file, but no OAT file..
-TEST_F(DexoptAnalyzerTest, DexVerifyAtRuntimeOdexNoOat) {
-  std::string dex_location = GetScratchDir() + "/DexVerifyAtRuntimeOdexNoOat.jar";
-  std::string odex_location = GetOdexDir() + "/DexVerifyAtRuntimeOdexNoOat.odex";
-
-  Copy(GetDexSrc1(), dex_location);
-  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kExtract);
-
-  Verify(dex_location, CompilerFilter::kExtract);
   Verify(dex_location, CompilerFilter::kSpeed);
 }
 
