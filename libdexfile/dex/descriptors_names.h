@@ -32,6 +32,11 @@ void AppendPrettyDescriptor(const char* descriptor, std::string* result);
 std::string PrettyDescriptor(const char* descriptor);
 std::string PrettyDescriptor(Primitive::Type type);
 
+// Used to convert user-specified ignored types ("java.lang.String[]",
+// "byte[][]") to the form returned by art::mirror::Class->GetDescriptor()
+// ("[Ljava/lang/String;", "[[B").
+std::string InversePrettyDescriptor(const std::string& pretty_descriptor);
+
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.
 std::string MangleForJni(const std::string& s);
