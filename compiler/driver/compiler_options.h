@@ -114,10 +114,6 @@ class CompilerOptions final {
     return compiler_filter_ == CompilerFilter::kAssumeVerified;
   }
 
-  bool VerifyAtRuntime() const {
-    return compiler_filter_ == CompilerFilter::kExtract;
-  }
-
   bool IsAnyCompilationEnabled() const {
     return CompilerFilter::IsAnyCompilationEnabled(compiler_filter_);
   }
