@@ -115,8 +115,10 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
     @Test
     public void verifyMissingArtifactTriggersCompilation() throws Exception {
         // Simulate that an artifact is missing from /system.
-        mDeviceState.backupAndDeleteFile("/system/framework/oat/x86_64/services.odex");
+        mDeviceState.backupAndDeleteFile(
+                "/system/framework/oat/" + mTestUtils.getSystemServerIsa() + "/services.odex");
 
+        mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 

@@ -1415,10 +1415,14 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
                                           &checked_artifacts);
   }
 
-  // Return kCompilationRequired to generate the cache info even if there's nothing to compile.
   bool compilation_required = !compilation_options->compile_boot_classpath_for_isas.empty() ||
-                              !compilation_options->system_server_jars_to_compile.empty() ||
-                              !data_result.IsAllOk();
+                              !compilation_options->system_server_jars_to_compile.empty();
+
+  if (!compilation_required && !data_result.IsAllOk()) {
+    // Return kCompilationRequired to generate the cache info even if there's nothing to compile.
+    compilation_required = true;
+    metrics.SetTrigger(data_result.GetTrigger());
+  }
 
   // If partial compilation is disabled, we should compile everything regardless of what's in
   // `compilation_options`.
