@@ -61,7 +61,7 @@ import java.util.Objects;
 
 /** @hide */
 public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
-    private static final String TAG = "Dexopter";
+    private static final String TAG = ArtManagerLocal.TAG;
     private static final List<String> ART_PACKAGE_NAMES =
             List.of("com.google.android.art", "com.android.art", "com.google.android.go.art");
 
@@ -233,9 +233,13 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                 e);
                         status = DexoptResult.DEXOPT_FAILED;
                     } finally {
-                        results.add(DexContainerFileDexoptResult.create(dexInfo.dexPath(),
+                        var result = DexContainerFileDexoptResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow));
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow);
+                        Log.i(TAG,
+                                String.format("Dexopt result: [packageName = %s] %s",
+                                        mPkgState.getPackageName(), result));
+                        results.add(result);
                         if (status != DexoptResult.DEXOPT_SKIPPED
                                 && status != DexoptResult.DEXOPT_PERFORMED) {
                             succeeded = false;
