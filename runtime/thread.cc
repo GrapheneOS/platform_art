@@ -4488,7 +4488,7 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, s
       mirror::Object* new_object = visitor->IsMarked(object);
       // We know the string is marked because it's a strongly-interned string that
       // is always alive (see b/117621117 for trying to make those strings weak).
-      DCHECK_NE(new_object, nullptr);
+      CHECK_NE(new_object, nullptr) << "old-string:" << object;
       if (new_object != object) {
         *value = reinterpret_cast<size_t>(new_object);
       }

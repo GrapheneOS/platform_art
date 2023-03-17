@@ -22,7 +22,13 @@ namespace art {
 void InterpreterCache::Clear(Thread* owning_thread) {
   DCHECK(owning_thread->GetInterpreterCache() == this);
   DCHECK(owning_thread == Thread::Current() || owning_thread->IsSuspended());
-  data_.fill(Entry{});
+  // Avoid using std::fill (or its variant) as there could be a concurrent sweep
+  // happening by the GC thread and these functions may clear partially.
+  for (Entry& entry : data_) {
+    std::atomic<const void*>* atomic_key_addr =
+        reinterpret_cast<std::atomic<const void*>*>(&entry.first);
+    atomic_key_addr->store(nullptr, std::memory_order_relaxed);
+  }
 }
 
 }  // namespace art
