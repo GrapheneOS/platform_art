@@ -273,6 +273,7 @@ void GcVisitedArenaPool::FreeArenaChain(Arena* first) {
   }
 
   std::lock_guard<std::mutex> lock(lock_);
+  arenas_freed_ = true;
   while (first != nullptr) {
     FreeRangeLocked(first->Begin(), first->Size());
     // In other implementations of ArenaPool this is calculated when asked for,
