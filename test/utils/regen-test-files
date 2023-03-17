@@ -584,9 +584,7 @@ class Generator:
 
     # Mainline presubmits.
     mainline_presubmit_apex_suffix = "[com.google.android.art.apex]"
-    mainline_other_presubmit_tests = [
-        "ComposHostTestCases",
-    ]
+    mainline_other_presubmit_tests = []
     mainline_presubmit_tests = (mainline_other_presubmit_tests + run_test_module_names +
                                 art_gtests_mainline_presubmit_module_names)
     mainline_presubmit_tests_dict = [
@@ -604,7 +602,6 @@ class Generator:
     other_presubmit_tests = [
         "ArtServiceTests",
         "BootImageProfileTest",
-        "ComposHostTestCases",
         "CtsJdwpTestCases",
         "art-apex-update-rollback",
         "art_standalone_dexpreopt_tests",
