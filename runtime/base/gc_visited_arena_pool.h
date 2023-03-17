@@ -142,6 +142,29 @@ class GcVisitedArenaPool final : public ArenaPool {
     pre_zygote_fork_ = false;
   }
 
+  // For userfaultfd GC to be able to acquire the lock to avoid concurrent
+  // release of arenas when it is visiting them.
+  std::mutex& GetLock() { return lock_; }
+
+  // Find the given arena in allocated_arenas_. The function is called with
+  // lock_ acquired.
+  bool FindAllocatedArena(const TrackedArena* arena) const NO_THREAD_SAFETY_ANALYSIS {
+    for (auto& allocated_arena : allocated_arenas_) {
+      if (arena == &allocated_arena) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void ClearArenasFreed() {
+    std::lock_guard<std::mutex> lock(lock_);
+    arenas_freed_ = false;
+  }
+
+  // The function is called with lock_ acquired.
+  bool AreArenasFreed() const NO_THREAD_SAFETY_ANALYSIS { return arenas_freed_; }
+
  private:
   void FreeRangeLocked(uint8_t* range_begin, size_t range_size) REQUIRES(lock_);
   // Add a map (to be visited by userfaultfd) to the pool of at least min_size
@@ -194,6 +217,11 @@ class GcVisitedArenaPool final : public ArenaPool {
   // Number of bytes allocated so far.
   size_t bytes_allocated_ GUARDED_BY(lock_);
   const char* name_;
+  // Flag to indicate that some arenas have been freed. This flag is used as an
+  // optimization by GC to know if it needs to find if the arena being visited
+  // has been freed or not. The flag is cleared in the compaction pause and read
+  // when linear-alloc space is concurrently visited updated to update GC roots.
+  bool arenas_freed_ GUARDED_BY(lock_);
   const bool low_4gb_;
   // Set to true in zygote process so that all linear-alloc allocations are in
   // private-anonymous mappings and not on userfaultfd visited pages. At
