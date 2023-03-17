@@ -41,7 +41,6 @@ TEST(CompilerFilterTest, ParseCompilerFilter) {
   CompilerFilter::Filter filter;
 
   TestCompilerFilterName(CompilerFilter::kAssumeVerified, "assume-verified");
-  TestCompilerFilterName(CompilerFilter::kExtract, "extract");
   TestCompilerFilterName(CompilerFilter::kVerify, "verify");
   TestCompilerFilterName(CompilerFilter::kSpaceProfile, "space-profile");
   TestCompilerFilterName(CompilerFilter::kSpace, "space");
@@ -55,7 +54,6 @@ TEST(CompilerFilterTest, ParseCompilerFilter) {
 
 TEST(CompilerFilterTest, SafeModeFilter) {
   TestSafeModeFilter(CompilerFilter::kAssumeVerified, "assume-verified");
-  TestSafeModeFilter(CompilerFilter::kExtract, "extract");
   TestSafeModeFilter(CompilerFilter::kVerify, "verify");
   TestSafeModeFilter(CompilerFilter::kVerify, "space-profile");
   TestSafeModeFilter(CompilerFilter::kVerify, "space");
