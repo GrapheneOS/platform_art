@@ -1564,7 +1564,6 @@ void Heap::DoPendingCollectorTransition() {
     }
   } else if (desired_collector_type == kCollectorTypeCCBackground ||
              desired_collector_type == kCollectorTypeCMC) {
-    DCHECK(gUseReadBarrier);
     if (!CareAboutPauseTimes()) {
       // Invoke full compaction.
       CollectGarbageInternal(collector::kGcTypeFull,
