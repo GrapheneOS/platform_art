@@ -74,6 +74,45 @@ TEST_F(DescriptorsNamesTest, PrettyDescriptor_PrimitiveScalars) {
   EXPECT_EQ("short", PrettyDescriptor("S"));
 }
 
+TEST_F(DescriptorsNamesTest, InversePrettyDescriptor_ArrayReferences) {
+  EXPECT_EQ("[Ljava/lang/Class;", InversePrettyDescriptor("java.lang.Class[]"));
+  EXPECT_EQ("[[Ljava/lang/Class;", InversePrettyDescriptor("java.lang.Class[][]"));
+}
+
+TEST_F(DescriptorsNamesTest, InversePrettyDescriptor_ScalarReferences) {
+  EXPECT_EQ("Ljava/lang/String;", InversePrettyDescriptor("java.lang.String"));
+}
+
+TEST_F(DescriptorsNamesTest, InversePrettyDescriptor_PrimitiveArrays) {
+  EXPECT_EQ("[B", InversePrettyDescriptor("byte[]"));
+  EXPECT_EQ("[[B", InversePrettyDescriptor("byte[][]"));
+  EXPECT_EQ("[C", InversePrettyDescriptor("char[]"));
+  EXPECT_EQ("[[C", InversePrettyDescriptor("char[][]"));
+  EXPECT_EQ("[D", InversePrettyDescriptor("double[]"));
+  EXPECT_EQ("[[D", InversePrettyDescriptor("double[][]"));
+  EXPECT_EQ("[F", InversePrettyDescriptor("float[]"));
+  EXPECT_EQ("[[F", InversePrettyDescriptor("float[][]"));
+  EXPECT_EQ("[I", InversePrettyDescriptor("int[]"));
+  EXPECT_EQ("[[I", InversePrettyDescriptor("int[][]"));
+  EXPECT_EQ("[J", InversePrettyDescriptor("long[]"));
+  EXPECT_EQ("[[J", InversePrettyDescriptor("long[][]"));
+  EXPECT_EQ("[S", InversePrettyDescriptor("short[]"));
+  EXPECT_EQ("[[S", InversePrettyDescriptor("short[][]"));
+  EXPECT_EQ("[Z", InversePrettyDescriptor("boolean[]"));
+  EXPECT_EQ("[[Z", InversePrettyDescriptor("boolean[][]"));
+}
+
+TEST_F(DescriptorsNamesTest, InversePrettyDescriptor_PrimitiveScalars) {
+  EXPECT_EQ("B", InversePrettyDescriptor("byte"));
+  EXPECT_EQ("C", InversePrettyDescriptor("char"));
+  EXPECT_EQ("D", InversePrettyDescriptor("double"));
+  EXPECT_EQ("F", InversePrettyDescriptor("float"));
+  EXPECT_EQ("I", InversePrettyDescriptor("int"));
+  EXPECT_EQ("J", InversePrettyDescriptor("long"));
+  EXPECT_EQ("S", InversePrettyDescriptor("short"));
+  EXPECT_EQ("Z", InversePrettyDescriptor("boolean"));
+}
+
 TEST_F(DescriptorsNamesTest, MangleForJni) {
   EXPECT_EQ("hello_00024world", MangleForJni("hello$world"));
   EXPECT_EQ("hello_000a9world", MangleForJni("hello\xc2\xa9world"));
