@@ -925,22 +925,16 @@ class ZygoteVerificationTask final : public Task {
     uint64_t start_ns = ThreadCpuNanoTime();
     uint64_t number_of_classes = 0;
     for (const DexFile* dex_file : boot_class_path) {
-      if (dex_file->GetOatDexFile() != nullptr &&
-          dex_file->GetOatDexFile()->GetOatFile() != nullptr) {
-        // If backed by an .oat file, we have already run verification at
-        // compile-time. Note that some classes may still have failed
-        // verification there if they reference updatable mainline module
-        // classes.
-        continue;
-      }
       for (uint32_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const dex::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
-        ScopedNullHandle<mirror::ClassLoader> null_loader;
-        klass.Assign(linker->FindClass(self, descriptor, null_loader));
+        klass.Assign(linker->LookupResolvedType(descriptor, /* class_loader= */ nullptr));
         if (klass == nullptr) {
-          self->ClearException();
-          LOG(WARNING) << "Could not find " << descriptor;
+          // Class not loaded yet.
+          DCHECK(!self->IsExceptionPending());
+          continue;
+        }
+        if (klass->IsVerified()) {
           continue;
         }
         if (linker->VerifyClass(self, /* verifier_deps= */ nullptr, klass) ==
@@ -955,9 +949,9 @@ class ZygoteVerificationTask final : public Task {
         CHECK(!self->IsExceptionPending());
       }
     }
-    LOG(INFO) << "Verified "
+    LOG(INFO) << "Background verification of "
               << number_of_classes
-              << " classes from mainline modules in "
+              << " classes from boot classpath took "
               << PrettyDuration(ThreadCpuNanoTime() - start_ns);
   }
 };
