@@ -788,9 +788,12 @@ class Dex2Oat final {
       compiler_options_->multi_image_ = IsBootImage() || IsBootImageExtension();
     }
     // On target we support generating a single image for the primary boot image.
-    if (!kIsTargetBuild) {
+    if (!kIsTargetBuild && !force_allow_oj_inlines_) {
       if (IsBootImage() && !compiler_options_->multi_image_) {
-        Usage("--single-image specified for primary boot image on host");
+        Usage(
+            "--single-image specified for primary boot image on host. Please "
+            "use the flag --force-allow-oj-inlines and do not distribute "
+            "binaries.");
       }
     }
     if (IsAppImage() && compiler_options_->multi_image_) {
@@ -1837,7 +1840,7 @@ class Dex2Oat final {
     // 2. not verifying a vdex file, and
     // 3. using multidex, and
     // 4. not doing any AOT compilation.
-    // This means extract, no-vdex verify, and quicken, will use the individual compilation
+    // This means no-vdex verify will use the individual compilation
     // mode (to reduce RAM used by the compiler).
     return compile_individually_ &&
            (!IsImage() && !use_existing_vdex_ &&
@@ -1931,9 +1934,7 @@ class Dex2Oat final {
 
     const bool compile_individually = ShouldCompileDexFilesIndividually();
     if (compile_individually) {
-      // Set the compiler driver in the callbacks so that we can avoid re-verification. This not
-      // only helps performance but also prevents reverifying quickened bytecodes. Attempting
-      // verify quickened bytecode causes verification failures.
+      // Set the compiler driver in the callbacks so that we can avoid re-verification.
       // Only set the compiler filter if we are doing separate compilation since there is a bit
       // of overhead when checking if a class was previously verified.
       callbacks_->SetDoesClassUnloading(true, driver_.get());

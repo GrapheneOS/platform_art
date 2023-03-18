@@ -479,7 +479,6 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
     CheckResult(dex_location,
                 odex_location,
                 app_image_file,
-                filter,
                 expected_filter,
                 expect_large,
                 expect_downgrade);
@@ -488,7 +487,6 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
   void CheckResult(const std::string& dex_location,
                    const std::string& odex_location,
                    const std::string& app_image_file,
-                   CompilerFilter::Filter filter,
                    CompilerFilter::Filter expected_filter,
                    bool expect_large,
                    bool expect_downgrade) {
@@ -526,9 +524,7 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
       }
 
       // If the input filter was "below," it should have been used.
-      if (!CompilerFilter::IsAsGoodAs(CompilerFilter::kExtract, filter)) {
-        EXPECT_EQ(odex_file->GetCompilerFilter(), expected_filter);
-      }
+      EXPECT_EQ(odex_file->GetCompilerFilter(), expected_filter);
 
       // If expect large, make sure the app image isn't generated or is empty.
       if (file != nullptr) {
@@ -583,17 +579,14 @@ class Dex2oatVeryLargeTest : public Dex2oatTest {
 
 TEST_F(Dex2oatVeryLargeTest, DontUseVeryLarge) {
   RunTest(CompilerFilter::kAssumeVerified, false, false);
-  RunTest(CompilerFilter::kExtract, false, false);
   RunTest(CompilerFilter::kSpeed, false, false);
 
   RunTest(CompilerFilter::kAssumeVerified, false, false, { "--very-large-app-threshold=10000000" });
-  RunTest(CompilerFilter::kExtract, false, false, { "--very-large-app-threshold=10000000" });
   RunTest(CompilerFilter::kSpeed, false, false, { "--very-large-app-threshold=10000000" });
 }
 
 TEST_F(Dex2oatVeryLargeTest, UseVeryLarge) {
   RunTest(CompilerFilter::kAssumeVerified, true, false, { "--very-large-app-threshold=100" });
-  RunTest(CompilerFilter::kExtract, true, false, { "--very-large-app-threshold=100" });
   RunTest(CompilerFilter::kSpeed, true, true, { "--very-large-app-threshold=100" });
 }
 
