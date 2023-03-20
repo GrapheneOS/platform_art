@@ -334,33 +334,19 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         return compilerFilter;
     }
 
-    /**
-     * Gets the existing reference profile if exists, or initializes a reference profile from an
-     * external profile.
-     *
-     * @return A pair where the first element is the found or initialized profile, and the second
-     *         element is true if the profile is readable by others. Or null if there is no
-     *         reference profile or external profile to use.
-     */
+    /** @see Utils#getOrInitReferenceProfile */
     @Nullable
     private Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull DexInfoType dexInfo)
             throws RemoteException {
-        ProfilePath refProfile = buildRefProfilePath(dexInfo);
-        try {
-            if (mInjector.getArtd().isProfileUsable(refProfile, dexInfo.dexPath())) {
-                boolean isOtherReadable = mInjector.getArtd().getProfileVisibility(refProfile)
-                        == FileVisibility.OTHER_READABLE;
-                return Pair.create(refProfile, isOtherReadable);
-            }
-        } catch (ServiceSpecificException e) {
-            Log.e(TAG,
-                    "Failed to use the existing reference profile "
-                            + AidlUtils.toString(refProfile),
-                    e);
-        }
+        return Utils.getOrInitReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
+                buildRefProfilePath(dexInfo), getExternalProfiles(dexInfo),
+                buildOutputProfile(dexInfo, true /* isPublic */));
+    }
 
-        ProfilePath initializedProfile = initReferenceProfile(dexInfo);
-        return initializedProfile != null ? Pair.create(initializedProfile, true) : null;
+    @Nullable
+    private ProfilePath initReferenceProfile(@NonNull DexInfoType dexInfo) throws RemoteException {
+        return Utils.initReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
+                getExternalProfiles(dexInfo), buildOutputProfile(dexInfo, true /* isPublic */));
     }
 
     @NonNull
@@ -577,12 +563,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     protected abstract boolean isDexFilePublic(@NonNull DexInfoType dexInfo);
 
     /**
-     * Returns a reference profile initialized from an external profile (e.g., a DM profile) if
-     * one exists, or null otherwise.
+     * Returns a list of external profiles (e.g., a DM profile) that the reference profile can be
+     * initialized from, in the order of preference.
      */
-    @Nullable
-    protected abstract ProfilePath initReferenceProfile(@NonNull DexInfoType dexInfo)
-            throws RemoteException;
+    @NonNull protected abstract List<ProfilePath> getExternalProfiles(@NonNull DexInfoType dexInfo);
 
     /** Returns the permission settings to use for the artifacts of the given dex file. */
     @NonNull

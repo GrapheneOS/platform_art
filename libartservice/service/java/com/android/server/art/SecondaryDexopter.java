@@ -80,10 +80,10 @@ public class SecondaryDexopter extends Dexopter<DetailedSecondaryDexInfo> {
     }
 
     @Override
-    @Nullable
-    protected ProfilePath initReferenceProfile(@NonNull DetailedSecondaryDexInfo dexInfo) {
+    @NonNull
+    protected List<ProfilePath> getExternalProfiles(@NonNull DetailedSecondaryDexInfo dexInfo) {
         // A secondary dex file doesn't have any external profile to use.
-        return null;
+        return List.of();
     }
 
     @Override
