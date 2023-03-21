@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  * @hide
  */
 public class DumpHelper {
-    private static final String TAG = "DumpHelper";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     @NonNull private final Injector mInjector;
 

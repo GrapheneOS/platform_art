@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
-    public static final String TAG = "ArtServiceUtils";
+    public static final String TAG = ArtManagerLocal.TAG;
     public static final String PLATFORM_PACKAGE_NAME = "android";
 
     /** A copy of {@link android.os.Trace.TRACE_TAG_DALVIK}. */

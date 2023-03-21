@@ -79,7 +79,7 @@ import java.util.stream.Collectors;
  * @hide
  */
 public final class ArtShellCommand extends BasicShellCommandHandler {
-    private static final String TAG = "ArtShellCommand";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     /** The default location for profile dumps. */
     private final static String PROFILE_DEBUG_LOCATION = "/data/misc/profman";

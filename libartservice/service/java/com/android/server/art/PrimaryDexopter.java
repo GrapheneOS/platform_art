@@ -52,7 +52,7 @@ import java.util.Objects;
 
 /** @hide */
 public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
-    private static final String TAG = "PrimaryDexopter";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     private final int mSharedGid;
 

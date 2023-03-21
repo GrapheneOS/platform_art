@@ -30,7 +30,7 @@ import java.lang.reflect.Modifier;
 import java.util.List;
 
 public final class TestingUtils {
-    private static final String TAG = "TestingUtils";
+    private static final String TAG = "ArtServiceTesting";
 
     private TestingUtils() {}
 

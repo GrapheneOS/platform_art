@@ -35,7 +35,7 @@ import java.util.List;
 
 /** @hide */
 public class SecondaryDexopter extends Dexopter<DetailedSecondaryDexInfo> {
-    private static final String TAG = "SecondaryDexopter";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     public SecondaryDexopter(@NonNull Context context, @NonNull PackageState pkgState,
             @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
