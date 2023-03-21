@@ -180,13 +180,23 @@ public final class AidlUtils {
 
     @NonNull
     public static String toString(@NonNull PrimaryRefProfilePath profile) {
-        return String.format(
-                "[packageName = %s, profileName = %s]", profile.packageName, profile.profileName);
+        return String.format("PrimaryRefProfilePath[packageName = %s, profileName = %s]",
+                profile.packageName, profile.profileName);
     }
 
     @NonNull
     public static String toString(@NonNull SecondaryRefProfilePath profile) {
-        return String.format("[dexPath = %s]", profile.dexPath);
+        return String.format("SecondaryRefProfilePath[dexPath = %s]", profile.dexPath);
+    }
+
+    @NonNull
+    public static String toString(@NonNull PrebuiltProfilePath profile) {
+        return String.format("PrebuiltProfilePath[dexPath = %s]", profile.dexPath);
+    }
+
+    @NonNull
+    public static String toString(@NonNull DexMetadataPath profile) {
+        return String.format("DexMetadataPath[dexPath = %s]", profile.dexPath);
     }
 
     @NonNull
@@ -209,10 +219,14 @@ public final class AidlUtils {
                 return toString(profile.getPrimaryRefProfilePath());
             case ProfilePath.secondaryRefProfilePath:
                 return toString(profile.getSecondaryRefProfilePath());
+            case ProfilePath.prebuiltProfilePath:
+                return toString(profile.getPrebuiltProfilePath());
+            case ProfilePath.dexMetadataPath:
+                return toString(profile.getDexMetadataPath());
             default:
                 throw new UnsupportedOperationException(
-                        "Only reference profile paths are supported to be converted to string, got "
-                        + profile.getTag());
+                        "Only a subset of profile paths are supported to be converted to string, "
+                        + "got " + profile.getTag());
         }
     }
 }
