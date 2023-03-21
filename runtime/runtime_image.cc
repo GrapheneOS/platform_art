@@ -37,6 +37,7 @@
 #include "class_loader_context.h"
 #include "class_loader_utils.h"
 #include "class_root-inl.h"
+#include "dex/class_accessor-inl.h"
 #include "gc/space/image_space.h"
 #include "image.h"
 #include "mirror/object-inl.h"
@@ -228,10 +229,25 @@ class RuntimeImageHelper {
     return reinterpret_cast<uintptr_t>(obj) - boot_image_begin_ < boot_image_size_;
   }
 
+  // Returns the image contents for `cls`. If `cls` is in the boot image, the
+  // method just returns it.
+  mirror::Class* GetClassContent(ObjPtr<mirror::Class> cls) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (cls == nullptr || IsInBootImage(cls.Ptr())) {
+      return cls.Ptr();
+    }
+    const dex::ClassDef* class_def = cls->GetClassDef();
+    DCHECK(class_def != nullptr) << cls->PrettyClass();
+    auto it = classes_.find(class_def);
+    DCHECK(it != classes_.end()) << cls->PrettyClass();
+    mirror::Class* result = reinterpret_cast<mirror::Class*>(objects_.data() + it->second);
+    DCHECK(result->GetClass()->IsClass());
+    return result;
+  }
+
   // Returns a pointer that can be stored in `objects_`:
   // - The pointer itself for boot image objects,
   // - The offset in the image for all other objects.
-  mirror::Object* GetOrComputeImageAddress(ObjPtr<mirror::Object> object)
+  template <typename T> T* GetOrComputeImageAddress(ObjPtr<T> object)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (object == nullptr || IsInBootImage(object.Ptr())) {
       DCHECK(object == nullptr || Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(object));
@@ -259,7 +275,7 @@ class RuntimeImageHelper {
     } else {
       offset = CopyObject(object);
     }
-    return reinterpret_cast<mirror::Object*>(image_begin_ + sizeof(ImageHeader) + offset);
+    return reinterpret_cast<T*>(image_begin_ + sizeof(ImageHeader) + offset);
   }
 
   void CreateImageSections() {
@@ -860,7 +876,9 @@ class RuntimeImageHelper {
     }
   }
 
-  void CopyMethodArrays(ObjPtr<mirror::Class> cls, uint32_t class_image_address)
+  void CopyMethodArrays(ObjPtr<mirror::Class> cls,
+                        uint32_t class_image_address,
+                        bool is_class_initialized)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     size_t number_of_methods = cls->NumMethods();
     if (number_of_methods == 0) {
@@ -915,7 +933,7 @@ class RuntimeImageHelper {
         stub = StubType::kQuickGenericJNITrampoline;
       } else if (!cls->IsVerified()) {
         stub = StubType::kQuickToInterpreterBridge;
-      } else if (method->NeedsClinitCheckBeforeCall()) {
+      } else if (!is_class_initialized && method->NeedsClinitCheckBeforeCall()) {
         stub = StubType::kQuickResolutionTrampoline;
       } else if (interpreter::IsNterpSupported() && CanMethodUseNterp(method)) {
         stub = StubType::kNterpTrampoline;
@@ -1180,11 +1198,11 @@ class RuntimeImageHelper {
                     MemberOffset offset,
                     bool is_static) const
         REQUIRES_SHARED(Locks::mutator_lock_) {
-      // We don't copy static fields, instead classes will be marked as resolved
-      // and initialized at runtime.
+      // We don't copy static fields, they are being handled when we try to
+      // initialize the class.
       ObjPtr<mirror::Object> ref =
           is_static ? nullptr : obj->GetFieldObject<mirror::Object>(offset);
-      mirror::Object* address = image_->GetOrComputeImageAddress(ref.Ptr());
+      mirror::Object* address = image_->GetOrComputeImageAddress(ref);
       mirror::Object* copy =
           reinterpret_cast<mirror::Object*>(image_->objects_.data() + copy_offset_);
       copy->GetFieldObjectReferenceAddr<kVerifyNone>(offset)->Assign(address);
@@ -1345,6 +1363,192 @@ class RuntimeImageHelper {
     return offset;
   }
 
+  bool IsInitialized(mirror::Class* cls) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (IsInBootImage(cls)) {
+      const OatDexFile* oat_dex_file = cls->GetDexFile().GetOatDexFile();
+      DCHECK(oat_dex_file != nullptr) << "We should always have an .oat file for a boot image";
+      uint16_t class_def_index = cls->GetDexClassDefIndex();
+      ClassStatus oat_file_class_status = oat_dex_file->GetOatClass(class_def_index).GetStatus();
+      return oat_file_class_status == ClassStatus::kVisiblyInitialized;
+    } else {
+      return cls->IsVisiblyInitialized<kVerifyNone>();
+    }
+  }
+  // Try to initialize `copy`. Note that `cls` may not be initialized.
+  // This is called after the image generation logic has visited super classes
+  // and super interfaces, so we can just check those directly.
+  bool TryInitializeClass(mirror::Class* copy, ObjPtr<mirror::Class> cls, uint32_t class_offset)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!cls->IsVerified()) {
+      return false;
+    }
+    if (cls->IsArrayClass()) {
+      return true;
+    }
+
+    // Check if we have been able to initialize the super class.
+    mirror::Class* super = GetClassContent(cls->GetSuperClass());
+    DCHECK(super != nullptr)
+        << "App image classes should always have a super class: " << cls->PrettyClass();
+    if (!IsInitialized(super)) {
+      return false;
+    }
+
+    // We won't initialize class with class initializers.
+    if (cls->FindClassInitializer(kRuntimePointerSize) != nullptr) {
+      return false;
+    }
+
+    // For non-interface classes, we require all implemented interfaces to be
+    // initialized.
+    if (!cls->IsInterface()) {
+      for (size_t i = 0; i < cls->NumDirectInterfaces(); i++) {
+        mirror::Class* itf = GetClassContent(cls->GetDirectInterface(i));
+        if (!IsInitialized(itf)) {
+          return false;
+        }
+      }
+    }
+
+    // Trivial case: no static fields.
+    if (cls->NumStaticFields() == 0u) {
+      return true;
+    }
+
+    // Go over all static fields and try to initialize them.
+    EncodedStaticFieldValueIterator it(cls->GetDexFile(), *cls->GetClassDef());
+    if (!it.HasNext()) {
+      return true;
+    }
+
+    // Temporary string offsets in case we failed to initialize the class. We
+    // will add the offsets at the end of this method if we are successful.
+    ArenaVector<AppImageReferenceOffsetInfo> string_offsets(allocator_.Adapter());
+    ClassLinker* linker = Runtime::Current()->GetClassLinker();
+    ClassAccessor accessor(cls->GetDexFile(), *cls->GetClassDef());
+    for (const ClassAccessor::Field& field : accessor.GetStaticFields()) {
+      if (!it.HasNext()) {
+        break;
+      }
+      ArtField* art_field = linker->LookupResolvedField(field.GetIndex(),
+                                                        cls->GetDexCache(),
+                                                        cls->GetClassLoader(),
+                                                        /* is_static= */ true);
+      DCHECK_NE(art_field, nullptr);
+      MemberOffset offset(art_field->GetOffset());
+      switch (it.GetValueType()) {
+        case EncodedArrayValueIterator::ValueType::kBoolean:
+          copy->SetFieldBoolean<false>(offset, it.GetJavaValue().z);
+          break;
+        case EncodedArrayValueIterator::ValueType::kByte:
+          copy->SetFieldByte<false>(offset, it.GetJavaValue().b);
+          break;
+        case EncodedArrayValueIterator::ValueType::kShort:
+          copy->SetFieldShort<false>(offset, it.GetJavaValue().s);
+          break;
+        case EncodedArrayValueIterator::ValueType::kChar:
+          copy->SetFieldChar<false>(offset, it.GetJavaValue().c);
+          break;
+        case EncodedArrayValueIterator::ValueType::kInt:
+          copy->SetField32<false>(offset, it.GetJavaValue().i);
+          break;
+        case EncodedArrayValueIterator::ValueType::kLong:
+          copy->SetField64<false>(offset, it.GetJavaValue().j);
+          break;
+        case EncodedArrayValueIterator::ValueType::kFloat:
+          copy->SetField32<false>(offset, it.GetJavaValue().i);
+          break;
+        case EncodedArrayValueIterator::ValueType::kDouble:
+          copy->SetField64<false>(offset, it.GetJavaValue().j);
+          break;
+        case EncodedArrayValueIterator::ValueType::kNull:
+          copy->SetFieldObject<false>(offset, nullptr);
+          break;
+        case EncodedArrayValueIterator::ValueType::kString: {
+          ObjPtr<mirror::String> str =
+              linker->LookupString(dex::StringIndex(it.GetJavaValue().i), cls->GetDexCache());
+          mirror::String* str_copy = nullptr;
+          if (str == nullptr) {
+            // String wasn't created yet.
+            return false;
+          } else if (IsInBootImage(str.Ptr())) {
+            str_copy = str.Ptr();
+          } else {
+            uint32_t hash = static_cast<uint32_t>(str->GetStoredHashCode());
+            DCHECK_EQ(hash, static_cast<uint32_t>(str->ComputeHashCode()))
+                << "Dex cache strings should be interned";
+            auto string_it = intern_table_.FindWithHash(str.Ptr(), hash);
+            if (string_it == intern_table_.end()) {
+              // The string must be interned.
+              uint32_t string_offset = CopyObject(str);
+              // Reload the class copy after having copied the string.
+              copy = reinterpret_cast<mirror::Class*>(objects_.data() + class_offset);
+              uint32_t address = image_begin_ + string_offset + sizeof(ImageHeader);
+              intern_table_.InsertWithHash(address, hash);
+              str_copy = reinterpret_cast<mirror::String*>(address);
+            } else {
+              str_copy = reinterpret_cast<mirror::String*>(*string_it);
+            }
+            string_offsets.emplace_back(sizeof(ImageHeader) + class_offset, offset.Int32Value());
+          }
+          uint8_t* raw_addr = reinterpret_cast<uint8_t*>(copy) + offset.Int32Value();
+          mirror::HeapReference<mirror::Object>* objref_addr =
+              reinterpret_cast<mirror::HeapReference<mirror::Object>*>(raw_addr);
+          objref_addr->Assign</* kIsVolatile= */ false>(str_copy);
+          break;
+        }
+        case EncodedArrayValueIterator::ValueType::kType: {
+          // Note that it may be that the referenced type hasn't been processed
+          // yet by the image generation logic. In this case we bail out for
+          // simplicity.
+          ObjPtr<mirror::Class> type =
+              linker->LookupResolvedType(dex::TypeIndex(it.GetJavaValue().i), cls);
+          mirror::Class* type_copy = nullptr;
+          if (type == nullptr) {
+            // Class wasn't resolved yet.
+            return false;
+          } else if (IsInBootImage(type.Ptr())) {
+            // Make sure the type is in our class table.
+            uint32_t hash = type->DescriptorHash();
+            class_table_.InsertWithHash(ClassTable::TableSlot(type.Ptr(), hash), hash);
+            type_copy = type.Ptr();
+          } else if (type->IsArrayClass()) {
+            std::string class_name;
+            type->GetDescriptor(&class_name);
+            auto class_it = array_classes_.find(class_name);
+            if (class_it == array_classes_.end()) {
+              return false;
+            }
+            type_copy = reinterpret_cast<mirror::Class*>(
+                image_begin_ + sizeof(ImageHeader) + class_it->second);
+          } else {
+            const dex::ClassDef* class_def = type->GetClassDef();
+            DCHECK_NE(class_def, nullptr);
+            auto class_it = classes_.find(class_def);
+            if (class_it == classes_.end()) {
+              return false;
+            }
+            type_copy = reinterpret_cast<mirror::Class*>(
+                image_begin_ + sizeof(ImageHeader) + class_it->second);
+          }
+          uint8_t* raw_addr = reinterpret_cast<uint8_t*>(copy) + offset.Int32Value();
+          mirror::HeapReference<mirror::Object>* objref_addr =
+              reinterpret_cast<mirror::HeapReference<mirror::Object>*>(raw_addr);
+          objref_addr->Assign</* kIsVolatile= */ false>(type_copy);
+          break;
+        }
+        default:
+          LOG(FATAL) << "Unreachable";
+      }
+      it.Next();
+    }
+    // We have successfully initialized the class, we can now record the string
+    // offsets.
+    string_reference_offsets_.insert(
+        string_reference_offsets_.end(), string_offsets.begin(), string_offsets.end());
+    return true;
+  }
+
   uint32_t CopyClass(ObjPtr<mirror::Class> cls) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!cls->IsBootStrapClassLoaded());
     uint32_t offset = 0u;
@@ -1384,17 +1588,37 @@ class RuntimeImageHelper {
     } else {
       copy->SetStatusInternal(cls->IsVerified() ? ClassStatus::kVerified : ClassStatus::kResolved);
     }
-    copy->SetObjectSizeAllocFastPath(std::numeric_limits<uint32_t>::max());
-    copy->SetAccessFlags(copy->GetAccessFlags() & ~kAccRecursivelyInitialized);
 
     // Clear static field values.
-    MemberOffset static_offset = cls->GetFirstReferenceStaticFieldOffset(kRuntimePointerSize);
-    memset(objects_.data() + offset + static_offset.Uint32Value(),
-           0,
-           cls->GetClassSize() - static_offset.Uint32Value());
+    auto clear_class = [&] () REQUIRES_SHARED(Locks::mutator_lock_) {
+      MemberOffset static_offset = cls->GetFirstReferenceStaticFieldOffset(kRuntimePointerSize);
+      memset(objects_.data() + offset + static_offset.Uint32Value(),
+             0,
+             cls->GetClassSize() - static_offset.Uint32Value());
+    };
+    clear_class();
+
+    bool is_class_initialized = TryInitializeClass(copy, cls, offset);
+    // Reload the copy, it may have moved after `TryInitializeClass`.
+    copy = reinterpret_cast<mirror::Class*>(objects_.data() + offset);
+    if (is_class_initialized) {
+      copy->SetStatusInternal(ClassStatus::kVisiblyInitialized);
+      if (!cls->IsArrayClass() && !cls->IsFinalizable()) {
+        copy->SetObjectSizeAllocFastPath(RoundUp(cls->GetObjectSize(), kObjectAlignment));
+      }
+      if (cls->IsInterface()) {
+        copy->SetAccessFlags(copy->GetAccessFlags() | kAccRecursivelyInitialized);
+      }
+    } else {
+      // If we fail to initialize, remove initialization related flags and
+      // clear again.
+      copy->SetObjectSizeAllocFastPath(std::numeric_limits<uint32_t>::max());
+      copy->SetAccessFlags(copy->GetAccessFlags() & ~kAccRecursivelyInitialized);
+      clear_class();
+    }
 
     CopyFieldArrays(cls, class_image_address);
-    CopyMethodArrays(cls, class_image_address);
+    CopyMethodArrays(cls, class_image_address, is_class_initialized);
     if (cls->ShouldHaveImt()) {
       CopyImTable(cls);
     }
