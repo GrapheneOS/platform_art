@@ -84,6 +84,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -158,6 +160,10 @@ public class ArtManagerLocalTest {
         lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManager);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(CURRENT_TIME_MS);
         lenient().when(mInjector.getStorageManager()).thenReturn(mStorageManager);
+
+        Path tempDir = Files.createTempDirectory("temp");
+        tempDir.toFile().deleteOnExit();
+        lenient().when(mInjector.getTempDir()).thenReturn(tempDir.toString());
 
         lenient().when(SystemProperties.get(eq("pm.dexopt.install"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.bg-dexopt"))).thenReturn("speed-profile");
@@ -711,6 +717,7 @@ public class ArtManagerLocalTest {
         verify(mArtd).deleteProfile(
                 argThat(profile -> profile.getTmpProfilePath().tmpPath.equals(tempFile.getPath())));
 
+        assertThat(fd.getStatSize()).isGreaterThan(0);
         try (InputStream inputStream = new AutoCloseInputStream(fd)) {
             String contents = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             assertThat(contents).isEqualTo("snapshot");
@@ -743,6 +750,7 @@ public class ArtManagerLocalTest {
 
         verify(mArtd, never()).deleteProfile(any());
 
+        assertThat(fd.getStatSize()).isEqualTo(0);
         try (InputStream inputStream = new AutoCloseInputStream(fd)) {
             assertThat(inputStream.readAllBytes()).isEmpty();
         }
