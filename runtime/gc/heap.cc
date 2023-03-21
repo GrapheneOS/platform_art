@@ -1102,15 +1102,11 @@ void Heap::UpdateProcessState(ProcessState old_process_state, ProcessState new_p
       RequestCollectorTransition(foreground_collector_type_, 0);
       GrowHeapOnJankPerceptibleSwitch();
     } else {
-      // Don't delay for debug builds since we may want to stress test the GC.
       // If background_collector_type_ is kCollectorTypeHomogeneousSpaceCompact then we have
       // special handling which does a homogenous space compaction once but then doesn't transition
       // the collector. Similarly, we invoke a full compaction for kCollectorTypeCC but don't
       // transition the collector.
-      RequestCollectorTransition(background_collector_type_,
-                                 kStressCollectorTransition
-                                     ? 0
-                                     : kCollectorTransitionWait);
+      RequestCollectorTransition(background_collector_type_, 0);
     }
   }
 }
