@@ -363,7 +363,7 @@ MACRO0(SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY)
 END_MACRO
 
 MACRO0(RESTORE_SAVE_REFS_AND_ARGS_FRAME)
-    // Restore FPRs. EAX is still on the stack.
+    // Restore FPRs. The method is still on the stack.
     movsd 4(%esp), %xmm0
     movsd 12(%esp), %xmm1
     movsd 20(%esp), %xmm2
