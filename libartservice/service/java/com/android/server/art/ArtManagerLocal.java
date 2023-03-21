@@ -694,19 +694,40 @@ public final class ArtManagerLocal {
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
             @Nullable String splitName, @NonNull MergeProfileOptions options)
             throws SnapshotProfileException {
-        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-        PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
+        try {
+            PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
 
-        List<ProfilePath> profiles = new ArrayList<>();
-        profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
-        profiles.addAll(
-                PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+            List<ProfilePath> profiles = new ArrayList<>();
 
-        OutputProfile output = PrimaryDexUtils.buildOutputProfile(
-                pkgState, dexInfo, Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+            Pair<ProfilePath, Boolean> pair = Utils.getOrInitReferenceProfile(mInjector.getArtd(),
+                    dexInfo.dexPath(), PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo),
+                    PrimaryDexUtils.getExternalProfiles(dexInfo),
+                    PrimaryDexUtils.buildOutputProfile(pkgState, dexInfo, Process.SYSTEM_UID,
+                            Process.SYSTEM_UID, false /* isPublic */));
+            ProfilePath refProfile = pair != null ? pair.first : null;
 
-        return mergeProfilesAndGetFd(profiles, output, List.of(dexInfo.dexPath()), options);
+            if (refProfile != null) {
+                profiles.add(refProfile);
+            }
+
+            profiles.addAll(
+                    PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+
+            OutputProfile output = PrimaryDexUtils.buildOutputProfile(pkgState, dexInfo,
+                    Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+
+            try {
+                return mergeProfilesAndGetFd(profiles, output, List.of(dexInfo.dexPath()), options);
+            } finally {
+                if (refProfile != null && refProfile.getTag() == ProfilePath.tmpProfilePath) {
+                    mInjector.getArtd().deleteProfile(refProfile);
+                }
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
     }
 
     /**
