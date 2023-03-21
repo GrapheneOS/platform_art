@@ -213,7 +213,7 @@
   mov x1, x0                        // pass the result
   mov x0, xSELF                     // Thread::Current
   bl artDeoptimizeIfNeeded
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   REFRESH_MARKING_REGISTER
   ret
@@ -223,7 +223,7 @@
 .macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_X0 temp, is_ref
   ldr \temp, [xSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
   cbnz \temp, 2f
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
   REFRESH_MARKING_REGISTER
   ret
@@ -234,7 +234,7 @@
   mov x1, x0                                     // pass the result
   mov x0, xSELF                                  // Thread::Current
   bl artDeoptimizeIfNeeded
-  .cfi_remember_state
+  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   REFRESH_MARKING_REGISTER
   ret
@@ -719,7 +719,7 @@ ENTRY art_quick_osr_stub
     str xzr, [sp]                         // Store null for ArtMethod* slot
     // Branch to stub.
     bl .Losr_entry
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     DECREASE_FRAME 16
 
     // Restore saved registers including value address and shorty address.
@@ -904,7 +904,7 @@ ENTRY art_quick_check_instance_of
     cbz x0, .Lthrow_class_cast_exception
 
     // Restore and return
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
     CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
@@ -1043,7 +1043,7 @@ ENTRY art_quick_aput_obj
     cbz x0, .Laput_obj_throw_array_store_exception
 
     // Restore
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
@@ -1061,7 +1061,7 @@ ENTRY art_quick_aput_obj
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
 #if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
 #endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
     mov x1, x2                      // Pass value.
@@ -1703,7 +1703,7 @@ ENTRY art_quick_proxy_invoke_handler
     bl      artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
     ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
     cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     RESTORE_SAVE_REFS_AND_ARGS_FRAME    // Restore frame
     REFRESH_MARKING_REGISTER
     fmov    d0, x0                      // Store result in d0 in case it was float or double
@@ -1752,7 +1752,7 @@ ENTRY art_quick_resolution_trampoline
     mov x3, sp
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
     cbz x0, 1f
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     mov xIP0, x0            // Remember returned code pointer in xIP0.
     ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -1887,8 +1887,6 @@ ENTRY art_quick_generic_jni_trampoline
 
     // Tear down the alloca.
     mov sp, x28
-    .cfi_remember_state
-    .cfi_def_cfa_register sp
 
     LOAD_RUNTIME_INSTANCE x1
     ldrb w1, [x1, #RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE]
@@ -1896,12 +1894,33 @@ ENTRY art_quick_generic_jni_trampoline
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    CFI_REMEMBER_STATE
+    .cfi_def_cfa_register sp
+    // Restore callee-saves and LR as in `RESTORE_SAVE_REFS_AND_ARGS_FRAME`
+    // but do not restore argument registers.
+    // Note: Likewise, we could avoid restoring X20 in the case of Baker
+    // read barriers, as it is overwritten by REFRESH_MARKING_REGISTER
+    // later; but it's not worth handling this special case.
+#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 224)
+#error "FRAME_SIZE_SAVE_REFS_AND_ARGS(ARM64) size not as expected."
+#endif
+    RESTORE_REG x20, 136
+    RESTORE_TWO_REGS x21, x22, 144
+    RESTORE_TWO_REGS x23, x24, 160
+    RESTORE_TWO_REGS x25, x26, 176
+    RESTORE_TWO_REGS x27, x28, 192
+    RESTORE_TWO_REGS x29, xLR, 208
+    // Remove the frame.
+    DECREASE_FRAME FRAME_SIZE_SAVE_REFS_AND_ARGS
+
     REFRESH_MARKING_REGISTER
 
     // store into fpr, for when it's a fpr return...
     fmov d0, x0
     ret
+
+    // Undo the unwinding information from above since it doesn't apply below.
+    CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcall_method_exit_hook:
     fmov d0, x0
@@ -1909,8 +1928,6 @@ ENTRY art_quick_generic_jni_trampoline
     bl art_quick_method_exit_hook
     b .Lcall_method_exit_hook_done
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
 .Lexception_in_native:
     // Move to x1 then sp to please assembler.
     ldr x1, [xSELF, # THREAD_TOP_QUICK_FRAME_OFFSET]
