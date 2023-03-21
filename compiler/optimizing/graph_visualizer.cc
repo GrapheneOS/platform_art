@@ -490,6 +490,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("bias") << compare->GetBias();
   }
 
+  void VisitCondition(HCondition* condition) override {
+    StartAttributeStream("bias") << condition->GetBias();
+  }
+
   void VisitInvoke(HInvoke* invoke) override {
     StartAttributeStream("dex_file_index") << invoke->GetMethodReference().index;
     ArtMethod* method = invoke->GetResolvedMethod();

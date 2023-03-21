@@ -63,6 +63,11 @@ class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
   void VisitBelow(HBelow* instruction) override;
   void VisitBelowOrEqual(HBelowOrEqual* instruction) override;
 
+  void VisitGreaterThan(HGreaterThan* instruction) override;
+  void VisitGreaterThanOrEqual(HGreaterThanOrEqual* instruction) override;
+  void VisitLessThan(HLessThan* instruction) override;
+  void VisitLessThanOrEqual(HLessThanOrEqual* instruction) override;
+
   void VisitAnd(HAnd* instruction) override;
   void VisitCompare(HCompare* instruction) override;
   void VisitMul(HMul* instruction) override;
@@ -284,8 +289,17 @@ void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instr
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitEqual(HEqual* instruction) {
-  if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
-      (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      !DataType::IsFloatingPointType(instruction->GetLeft()->GetType())) {
+    // Replace code looking like
+    //    EQUAL lhs, lhs
+    //    CONSTANT true
+    // We don't perform this optimizations for FP types since Double.NaN != Double.NaN, which is the
+    // opposite value.
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
+             (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
     // Replace code looking like
     //    EQUAL lhs, null
     // where lhs cannot be null with
@@ -296,8 +310,17 @@ void InstructionWithAbsorbingInputSimplifier::VisitEqual(HEqual* instruction) {
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitNotEqual(HNotEqual* instruction) {
-  if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
-      (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      !DataType::IsFloatingPointType(instruction->GetLeft()->GetType())) {
+    // Replace code looking like
+    //    NOT_EQUAL lhs, lhs
+    //    CONSTANT false
+    // We don't perform this optimizations for FP types since Double.NaN != Double.NaN, which is the
+    // opposite value.
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
+             (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
     // Replace code looking like
     //    NOT_EQUAL lhs, null
     // where lhs cannot be null with
@@ -308,8 +331,14 @@ void InstructionWithAbsorbingInputSimplifier::VisitNotEqual(HNotEqual* instructi
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
-  if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    ABOVE lhs, lhs
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if (instruction->GetLeft()->IsConstant() &&
+             instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE dst, 0, src  // unsigned 0 > src is always false
     // with
@@ -320,8 +349,14 @@ void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* instruction) {
-  if (instruction->GetRight()->IsConstant() &&
-      instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    ABOVE_OR_EQUAL lhs, lhs
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if (instruction->GetRight()->IsConstant() &&
+             instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE_OR_EQUAL dst, src, 0  // unsigned src >= 0 is always true
     // with
@@ -332,8 +367,14 @@ void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* i
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
-  if (instruction->GetRight()->IsConstant() &&
-      instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    BELOW lhs, lhs
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if (instruction->GetRight()->IsConstant() &&
+             instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW dst, src, 0  // unsigned src < 0 is always false
     // with
@@ -344,11 +385,66 @@ void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
 }
 
 void InstructionWithAbsorbingInputSimplifier::VisitBelowOrEqual(HBelowOrEqual* instruction) {
-  if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    BELOW_OR_EQUAL lhs, lhs
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  } else if (instruction->GetLeft()->IsConstant() &&
+             instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW_OR_EQUAL dst, 0, src  // unsigned 0 <= src is always true
     // with
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitGreaterThan(HGreaterThan* instruction) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      (!DataType::IsFloatingPointType(instruction->GetLeft()->GetType()) ||
+       instruction->IsLtBias())) {
+    // Replace code looking like
+    //    GREATER_THAN lhs, lhs
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitGreaterThanOrEqual(
+    HGreaterThanOrEqual* instruction) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      (!DataType::IsFloatingPointType(instruction->GetLeft()->GetType()) ||
+       instruction->IsGtBias())) {
+    // Replace code looking like
+    //    GREATER_THAN_OR_EQUAL lhs, lhs
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitLessThan(HLessThan* instruction) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      (!DataType::IsFloatingPointType(instruction->GetLeft()->GetType()) ||
+       instruction->IsGtBias())) {
+    // Replace code looking like
+    //    LESS_THAN lhs, lhs
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitLessThanOrEqual(HLessThanOrEqual* instruction) {
+  if (instruction->GetLeft() == instruction->GetRight() &&
+      (!DataType::IsFloatingPointType(instruction->GetLeft()->GetType()) ||
+       instruction->IsLtBias())) {
+    // Replace code looking like
+    //    LESS_THAN_OR_EQUAL lhs, lhs
     //    CONSTANT true
     instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
     instruction->GetBlock()->RemoveInstruction(instruction);
