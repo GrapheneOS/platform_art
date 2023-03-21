@@ -669,8 +669,8 @@ def default_run(ctx, args, **kwargs):
       INT_OPTS += " -Xcompiler-option --compiler-filter=verify"
       COMPILE_FLAGS += " --compiler-filter=verify"
     elif VERIFY == "s":
-      INT_OPTS += " -Xcompiler-option --compiler-filter=extract"
-      COMPILE_FLAGS += " --compiler-filter=extract"
+      INT_OPTS += " -Xcompiler-option --compiler-filter=verify"
+      COMPILE_FLAGS += " --compiler-filter=verify"
       DEX_VERIFY = f"{DEX_VERIFY} -Xverify:softfail"
     else:  # VERIFY == "n"
       INT_OPTS += " -Xcompiler-option --compiler-filter=assume-verified"
