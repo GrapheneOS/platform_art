@@ -1554,8 +1554,6 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     // Tear down the alloca.
     movq %rbp, %rsp
-    CFI_REMEMBER_STATE
-    CFI_DEF_CFA_REGISTER(rsp)
 
     // store into fpr, for when it's a fpr return...
     movq %rax, %xmm0
@@ -1566,43 +1564,33 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    // Load FPRs.
-    // movq %xmm0, 16(%rsp)         // doesn't make sense!!!
-    movq 24(%rsp), %xmm1            // neither does this!!!
-    movq 32(%rsp), %xmm2
-    movq 40(%rsp), %xmm3
-    movq 48(%rsp), %xmm4
-    movq 56(%rsp), %xmm5
-    movq 64(%rsp), %xmm6
-    movq 72(%rsp), %xmm7
+    CFI_REMEMBER_STATE
+    CFI_DEF_CFA_REGISTER(rsp)
+    // Load callee-save FPRs. Skip FP args.
     movq 80(%rsp), %xmm12
     movq 88(%rsp), %xmm13
     movq 96(%rsp), %xmm14
     movq 104(%rsp), %xmm15
-    // was 80 bytes
-    addq LITERAL(80 + 4*8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80 - 4*8)
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
-    POP rcx  // Arg.
-    POP rdx  // Arg.
+    // Pop method, padding, FP args and two GRP args (rcx, rdx).
+    DECREASE_FRAME 16 + 12*8 + 2*8
+    // Load callee-save GPRs and skip args, mixed together to agree with core spills bitmap.
     POP rbx  // Callee save.
     POP rbp  // Callee save.
-    POP rsi  // Arg.
-    POP r8   // Arg.
-    POP r9   // Arg.
+    DECREASE_FRAME 3*8  // Skip three args (RSI, R8, R9).
     POP r12  // Callee save.
     POP r13  // Callee save.
     POP r14  // Callee save.
     POP r15  // Callee save.
     ret
 
+    // Undo the unwinding information from above since it doesn't apply below.
+    CFI_RESTORE_STATE_AND_DEF_CFA rbp, 208
+
 .Lcall_method_exit_hook:
    movq LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %r8
    call art_quick_method_exit_hook
    jmp .Lcall_method_exit_hook_done
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA rbp, 208
 .Lexception_in_native:
     pushq %gs:THREAD_TOP_QUICK_FRAME_OFFSET
     addq LITERAL(-1), (%rsp)  // Remove the GenericJNI tag.
