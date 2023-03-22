@@ -356,7 +356,7 @@ MACRO0(SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY)
     PUSH rbx      // Callee save.
     PUSH_ARG rdx  // Quick arg 2.
     PUSH_ARG rcx  // Quick arg 3.
-    // Create space for FPR args and create 2 slots for ArtMethod*.
+    // Create space for FPR args and create 2 slots for ArtMethod* and padding.
     INCREASE_FRAME 16 + 12 * 8
     // Save FPRs.
     movq %xmm0, 16(%rsp)

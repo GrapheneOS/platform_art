@@ -68,6 +68,10 @@
     .endif
 .endm
 
+.macro CFI_REMEMBER_STATE
+    .cfi_remember_state
+.endm
+
 // The spec is not clear whether the CFA is part of the saved state and tools
 // differ in the behaviour, so explicitly set the CFA to avoid any ambiguity.
 // The restored CFA state should match the CFA state during CFI_REMEMBER_STATE.
@@ -265,15 +269,16 @@
     stp d6, d7, [\base, #64]
 
     // Core args.
-    SAVE_TWO_REGS_BASE \base, x1, x2, 80
-    SAVE_TWO_REGS_BASE \base, x3, x4, 96
-    SAVE_TWO_REGS_BASE \base, x5, x6, 112
+    stp x1, x2, [\base, #80]
+    stp x3, x4, [\base, #96]
+    stp x5, x6, [\base, #112]
 
     // x7, Callee-saves.
     // Note: We could avoid saving X20 in the case of Baker read
     // barriers, as it is overwritten by REFRESH_MARKING_REGISTER
     // later; but it's not worth handling this special case.
-    SAVE_TWO_REGS_BASE \base, x7, x20, 128
+    stp x7, x20, [\base, #128]
+    .cfi_rel_offset x20, 136
     SAVE_TWO_REGS_BASE \base, x21, x22, 144
     SAVE_TWO_REGS_BASE \base, x23, x24, 160
     SAVE_TWO_REGS_BASE \base, x25, x26, 176
@@ -293,21 +298,20 @@
     ldp d6, d7, [\base, #64]
 
     // Core args.
-    RESTORE_TWO_REGS_BASE \base, x1, x2, 80
-    RESTORE_TWO_REGS_BASE \base, x3, x4, 96
-    RESTORE_TWO_REGS_BASE \base, x5, x6, 112
+    ldp x1, x2, [\base, #80]
+    ldp x3, x4, [\base, #96]
+    ldp x5, x6, [\base, #112]
 
-    // x7, Callee-saves.
+    // x7, callee-saves and LR.
     // Note: Likewise, we could avoid restoring X20 in the case of Baker
     // read barriers, as it is overwritten by REFRESH_MARKING_REGISTER
     // later; but it's not worth handling this special case.
-    RESTORE_TWO_REGS_BASE \base, x7, x20, 128
+    ldp x7, x20, [\base, #128]
+    .cfi_restore x20
     RESTORE_TWO_REGS_BASE \base, x21, x22, 144
     RESTORE_TWO_REGS_BASE \base, x23, x24, 160
     RESTORE_TWO_REGS_BASE \base, x25, x26, 176
     RESTORE_TWO_REGS_BASE \base, x27, x28, 192
-
-    // x29(callee-save) and LR.
     RESTORE_TWO_REGS_BASE \base, x29, xLR, 208
 .endm
 
