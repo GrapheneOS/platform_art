@@ -1939,7 +1939,7 @@ void MarkCompact::DoPageCompactionWithStateChange(size_t page_idx,
   }
 }
 
-void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
+void MarkCompact::FreeFromSpacePages(size_t cur_page_idx, int mode) {
   // Thanks to sliding compaction, bump-pointer allocations, and reverse
   // compaction (see CompactMovingSpace) the logic here is pretty simple: find
   // the to-space page up to which compaction has finished, all the from-space
@@ -1955,7 +1955,8 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
       break;
     }
     DCHECK(state >= PageState::kProcessed ||
-           (state == PageState::kUnprocessed && idx > moving_first_objs_count_));
+           (state == PageState::kUnprocessed &&
+            (mode == kFallbackMode || idx > moving_first_objs_count_)));
   }
 
   uint8_t* reclaim_begin;
@@ -2129,7 +2130,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
       // We are sliding here, so no point attempting to madvise for every
       // page. Wait for enough pages to be done.
       if (idx % (kMinFromSpaceMadviseSize / kPageSize) == 0) {
-        FreeFromSpacePages(idx);
+        FreeFromSpacePages(idx, kMode);
       }
     }
   }
@@ -2149,7 +2150,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
         idx, page_status_arr_len, to_space_end, page, [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
           CompactPage(first_obj, pre_compact_offset_moving_space_[idx], page, kMode == kCopyMode);
         });
-    FreeFromSpacePages(idx);
+    FreeFromSpacePages(idx, kMode);
   }
   DCHECK_EQ(to_space_end, bump_pointer_space_->Begin());
 }
