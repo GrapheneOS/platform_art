@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  * @hide
  */
 public class DexoptHelper {
-    private static final String TAG = "DexoptHelper";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     /**
      * Timeout of the wake lock. This is required by AndroidLint, but we set it to a very large

@@ -182,10 +182,8 @@ class Heap {
 
   // How often we allow heap trimming to happen (nanoseconds).
   static constexpr uint64_t kHeapTrimWait = MsToNs(5000);
-  // How long we wait after a transition request to perform a collector transition (nanoseconds).
-  static constexpr uint64_t kCollectorTransitionWait = MsToNs(5000);
-  // Whether the transition-wait applies or not. Zero wait will stress the
-  // transition code and collector, but increases jank probability.
+  // Whether the transition-GC heap threshold condition applies or not for non-low memory devices.
+  // Stressing GC will bypass the heap threshold condition.
   DECLARE_RUNTIME_DEBUG_FLAG(kStressCollectorTransition);
 
   // Create a heap with the requested sizes. The possible empty

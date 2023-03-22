@@ -1710,8 +1710,6 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     // Tear down the alloca.
     movl %ebp, %esp
-    CFI_REMEMBER_STATE
-    CFI_DEF_CFA_REGISTER(esp)
 
     // Quick expects the return value to be in xmm0.
     movd %eax, %xmm0
@@ -1724,26 +1722,24 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    // Remove space for FPR args and EAX
-    addl LITERAL(4 + 4 * 8), %esp
-    CFI_ADJUST_CFA_OFFSET(-(4 + 4 * 8))
-
-    POP ecx
-    addl LITERAL(4), %esp         // Avoid edx, as it may be part of the result.
-    CFI_ADJUST_CFA_OFFSET(-4)
-    POP ebx
-    POP ebp  // Restore callee saves
+    CFI_REMEMBER_STATE
+    CFI_DEF_CFA_REGISTER(esp)
+    // Remove space for the method, FPR and GPR args
+    DECREASE_FRAME 4 + 4 * 8 + 3*4
+    // Restore callee saves and return.
+    POP ebp
     POP esi
     POP edi
     ret
+
+    // Undo the unwinding information from above since it doesn't apply below.
+    CFI_RESTORE_STATE_AND_DEF_CFA ebp, 64
 
 .Lcall_method_exit_hook:
     movl LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %ebx
     call art_quick_method_exit_hook
     jmp .Lcall_method_exit_hook_done
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA ebp, 64
 .Lexception_in_native:
     pushl %fs:THREAD_TOP_QUICK_FRAME_OFFSET
     addl LITERAL(-1), (%esp)  // Remove the GenericJNI tag.

@@ -35,7 +35,7 @@ import java.util.List;
 
 /** @hide */
 public class SecondaryDexopter extends Dexopter<DetailedSecondaryDexInfo> {
-    private static final String TAG = "SecondaryDexopter";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     public SecondaryDexopter(@NonNull Context context, @NonNull PackageState pkgState,
             @NonNull AndroidPackage pkg, @NonNull DexoptParams params,
@@ -80,10 +80,10 @@ public class SecondaryDexopter extends Dexopter<DetailedSecondaryDexInfo> {
     }
 
     @Override
-    @Nullable
-    protected ProfilePath initReferenceProfile(@NonNull DetailedSecondaryDexInfo dexInfo) {
+    @NonNull
+    protected List<ProfilePath> getExternalProfiles(@NonNull DetailedSecondaryDexInfo dexInfo) {
         // A secondary dex file doesn't have any external profile to use.
-        return null;
+        return List.of();
     }
 
     @Override

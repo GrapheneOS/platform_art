@@ -84,6 +84,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -159,6 +161,10 @@ public class ArtManagerLocalTest {
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(CURRENT_TIME_MS);
         lenient().when(mInjector.getStorageManager()).thenReturn(mStorageManager);
 
+        Path tempDir = Files.createTempDirectory("temp");
+        tempDir.toFile().deleteOnExit();
+        lenient().when(mInjector.getTempDir()).thenReturn(tempDir.toString());
+
         lenient().when(SystemProperties.get(eq("pm.dexopt.install"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.bg-dexopt"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.first-boot"))).thenReturn("verify");
@@ -226,6 +232,10 @@ public class ArtManagerLocalTest {
         mPkg1 = mPkgState1.getAndroidPackage();
 
         lenient().when(mArtd.isIncrementalFsPath(any())).thenReturn(mIsInIncrementalFs);
+
+        // By default, none of the profiles are usable.
+        lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
+        lenient().when(mArtd.copyAndRewriteProfile(any(), any(), any())).thenReturn(false);
 
         mArtManagerLocal = new ArtManagerLocal(mInjector);
     }
@@ -684,16 +694,20 @@ public class ArtManagerLocalTest {
         File tempFile = File.createTempFile("primary", ".prof");
         tempFile.deleteOnExit();
 
-        when(mArtd.mergeProfiles(
-                     deepEq(List.of(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME_1, "primary"),
-                             AidlUtils.buildProfilePathForPrimaryCur(
-                                     0 /* userId */, PKG_NAME_1, "primary"),
-                             AidlUtils.buildProfilePathForPrimaryCur(
-                                     1 /* userId */, PKG_NAME_1, "primary"))),
+        ProfilePath refProfile = AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME_1, "primary");
+        String dexPath = "/data/app/foo/base.apk";
+
+        when(mArtd.isProfileUsable(deepEq(refProfile), eq(dexPath))).thenReturn(true);
+
+        when(mArtd.mergeProfiles(deepEq(List.of(refProfile,
+                                         AidlUtils.buildProfilePathForPrimaryCur(
+                                                 0 /* userId */, PKG_NAME_1, "primary"),
+                                         AidlUtils.buildProfilePathForPrimaryCur(
+                                                 1 /* userId */, PKG_NAME_1, "primary"))),
                      isNull(),
                      deepEq(AidlUtils.buildOutputProfileForPrimary(PKG_NAME_1, "primary",
                              Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */)),
-                     deepEq(List.of("/data/app/foo/base.apk")), deepEq(options)))
+                     deepEq(List.of(dexPath)), deepEq(options)))
                 .thenAnswer(invocation -> {
                     try (var writer = new FileWriter(tempFile)) {
                         writer.write("snapshot");
@@ -711,6 +725,7 @@ public class ArtManagerLocalTest {
         verify(mArtd).deleteProfile(
                 argThat(profile -> profile.getTmpProfilePath().tmpPath.equals(tempFile.getPath())));
 
+        assertThat(fd.getStatSize()).isGreaterThan(0);
         try (InputStream inputStream = new AutoCloseInputStream(fd)) {
             String contents = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             assertThat(contents).isEqualTo("snapshot");
@@ -718,9 +733,58 @@ public class ArtManagerLocalTest {
     }
 
     @Test
+    public void testSnapshotAppProfileFromDm() throws Exception {
+        String tempPathForRef = "/temp/path/for/ref";
+        File tempFileForSnapshot = File.createTempFile("primary", ".prof");
+        tempFileForSnapshot.deleteOnExit();
+
+        ProfilePath refProfile = AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME_1, "primary");
+        String dexPath = "/data/app/foo/base.apk";
+
+        // Simulate that the reference profile doesn't exist.
+        when(mArtd.isProfileUsable(deepEq(refProfile), eq(dexPath))).thenReturn(false);
+
+        // The DM file is usable.
+        when(mArtd.copyAndRewriteProfile(
+                     deepEq(AidlUtils.buildProfilePathForDm(dexPath)), any(), eq(dexPath)))
+                .thenAnswer(invocation -> {
+                    var output = invocation.<OutputProfile>getArgument(1);
+                    output.profilePath.tmpPath = tempPathForRef;
+                    return true;
+                });
+
+        // Verify that the reference file initialized from the DM file is used.
+        when(mArtd.mergeProfiles(
+                     argThat(profiles
+                             -> profiles.stream().anyMatch(profile
+                                     -> profile.getTag() == ProfilePath.tmpProfilePath
+                                             && profile.getTmpProfilePath().tmpPath.equals(
+                                                     tempPathForRef))),
+                     isNull(), any(), deepEq(List.of(dexPath)), any()))
+                .thenAnswer(invocation -> {
+                    var output = invocation.<OutputProfile>getArgument(2);
+                    output.profilePath.tmpPath = tempFileForSnapshot.getPath();
+                    return true;
+                });
+
+        ParcelFileDescriptor fd =
+                mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME_1, null /* splitName */);
+
+        verify(mArtd).deleteProfile(argThat(profile
+                -> profile.getTmpProfilePath().tmpPath.equals(tempFileForSnapshot.getPath())));
+        verify(mArtd).deleteProfile(
+                argThat(profile -> profile.getTmpProfilePath().tmpPath.equals(tempPathForRef)));
+    }
+
+    @Test
     public void testSnapshotAppProfileSplit() throws Exception {
-        when(mArtd.mergeProfiles(deepEq(List.of(AidlUtils.buildProfilePathForPrimaryRef(
-                                                        PKG_NAME_1, "split_0.split"),
+        ProfilePath refProfile =
+                AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME_1, "split_0.split");
+        String dexPath = "/data/app/foo/split_0.apk";
+
+        when(mArtd.isProfileUsable(deepEq(refProfile), eq(dexPath))).thenReturn(true);
+
+        when(mArtd.mergeProfiles(deepEq(List.of(refProfile,
                                          AidlUtils.buildProfilePathForPrimaryCur(
                                                  0 /* userId */, PKG_NAME_1, "split_0.split"),
                                          AidlUtils.buildProfilePathForPrimaryCur(
@@ -728,7 +792,7 @@ public class ArtManagerLocalTest {
                      isNull(),
                      deepEq(AidlUtils.buildOutputProfileForPrimary(PKG_NAME_1, "split_0.split",
                              Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */)),
-                     deepEq(List.of("/data/app/foo/split_0.apk")), any()))
+                     deepEq(List.of(dexPath)), any()))
                 .thenReturn(false);
 
         mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME_1, "split_0");
@@ -743,6 +807,7 @@ public class ArtManagerLocalTest {
 
         verify(mArtd, never()).deleteProfile(any());
 
+        assertThat(fd.getStatSize()).isEqualTo(0);
         try (InputStream inputStream = new AutoCloseInputStream(fd)) {
             assertThat(inputStream.readAllBytes()).isEmpty();
         }

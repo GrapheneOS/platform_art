@@ -31,6 +31,6 @@ def run(ctx, args):
   # The RI has restrictions and bugs around some PopFrame behavior that ART lacks.
   # See b/116003018. Some configurations cannot handle the class load events in
   # quite the right way so they are disabled there too.
-  if (args.jvm or args.verify_soft_fail or not args.prebuild or
+  if (args.jvm or not args.prebuild or
       (args.jvmti_redefine_stress and args.host)):
     ctx.expected_stdout = ctx.expected_stdout.with_suffix(".jvm.txt")

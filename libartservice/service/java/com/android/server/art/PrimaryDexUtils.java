@@ -331,6 +331,12 @@ public class PrimaryDexUtils {
         return splitName == null ? PROFILE_PRIMARY : splitName + ".split";
     }
 
+    @NonNull
+    public static List<ProfilePath> getExternalProfiles(@NonNull PrimaryDexInfo dexInfo) {
+        return List.of(AidlUtils.buildProfilePathForPrebuilt(dexInfo.dexPath()),
+                AidlUtils.buildProfilePathForDm(dexInfo.dexPath()));
+    }
+
     /** Basic information about a primary dex file (either the base APK or a split APK). */
     @Immutable
     public static class PrimaryDexInfo {
