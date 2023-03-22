@@ -488,7 +488,7 @@ class MarkCompact final : public GarbageCollector {
   // feature.
   bool CanCompactMovingSpaceWithMinorFault();
 
-  void FreeFromSpacePages(size_t cur_page_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+  void FreeFromSpacePages(size_t cur_page_idx, int mode) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Maps processed pages (from moving space and linear-alloc) for uffd's
   // minor-fault feature. We try to 'claim' all processed (and unmapped) pages
