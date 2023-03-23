@@ -89,7 +89,7 @@ import java.util.stream.Collectors;
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public class DexUseManagerLocal {
-    private static final String TAG = "DexUseManagerLocal";
+    private static final String TAG = ArtManagerLocal.TAG;
     private static final String FILENAME = "/data/system/package-dex-usage.pb";
 
     /**

@@ -72,6 +72,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,7 +105,9 @@ import java.util.stream.Stream;
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public final class ArtManagerLocal {
-    private static final String TAG = "ArtService";
+    /** @hide */
+    public static final String TAG = "ArtService";
+
     private static final String[] CLASSPATHS_FOR_BOOT_IMAGE_PROFILE = {
             "BOOTCLASSPATH", "SYSTEMSERVERCLASSPATH", "STANDALONE_SYSTEMSERVER_JARS"};
 
@@ -689,19 +694,40 @@ public final class ArtManagerLocal {
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
             @Nullable String splitName, @NonNull MergeProfileOptions options)
             throws SnapshotProfileException {
-        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-        PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
+        try {
+            PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
 
-        List<ProfilePath> profiles = new ArrayList<>();
-        profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
-        profiles.addAll(
-                PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+            List<ProfilePath> profiles = new ArrayList<>();
 
-        OutputProfile output = PrimaryDexUtils.buildOutputProfile(
-                pkgState, dexInfo, Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+            Pair<ProfilePath, Boolean> pair = Utils.getOrInitReferenceProfile(mInjector.getArtd(),
+                    dexInfo.dexPath(), PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo),
+                    PrimaryDexUtils.getExternalProfiles(dexInfo),
+                    PrimaryDexUtils.buildOutputProfile(pkgState, dexInfo, Process.SYSTEM_UID,
+                            Process.SYSTEM_UID, false /* isPublic */));
+            ProfilePath refProfile = pair != null ? pair.first : null;
 
-        return mergeProfilesAndGetFd(profiles, output, List.of(dexInfo.dexPath()), options);
+            if (refProfile != null) {
+                profiles.add(refProfile);
+            }
+
+            profiles.addAll(
+                    PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+
+            OutputProfile output = PrimaryDexUtils.buildOutputProfile(pkgState, dexInfo,
+                    Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+
+            try {
+                return mergeProfilesAndGetFd(profiles, output, List.of(dexInfo.dexPath()), options);
+            } finally {
+                if (refProfile != null && refProfile.getTag() == ProfilePath.tmpProfilePath) {
+                    mInjector.getArtd().deleteProfile(refProfile);
+                }
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
     }
 
     /**
@@ -1024,7 +1050,18 @@ public final class ArtManagerLocal {
                 throw new SnapshotProfileException(e);
             }
 
-            String path = hasContent ? output.profilePath.tmpPath : "/dev/null";
+            String path;
+            Path emptyFile = null;
+            if (hasContent) {
+                path = output.profilePath.tmpPath;
+            } else {
+                // We cannot use /dev/null because `ParcelFileDescriptor` have an API `getStatSize`,
+                // which expects the file to be a regular file or a link, and apps may call that
+                // API.
+                emptyFile =
+                        Files.createTempFile(Paths.get(mInjector.getTempDir()), "empty", ".tmp");
+                path = emptyFile.toString();
+            }
             ParcelFileDescriptor fd;
             try {
                 fd = ParcelFileDescriptor.open(new File(path), ParcelFileDescriptor.MODE_READ_ONLY);
@@ -1033,15 +1070,19 @@ public final class ArtManagerLocal {
                         String.format("Failed to open profile snapshot '%s'", path), e);
             }
 
+            // The deletion is done on the open file so that only the FD keeps a reference to the
+            // file.
             if (hasContent) {
-                // This is done on the open file so that only the FD keeps a reference to its
-                // contents.
                 mInjector.getArtd().deleteProfile(ProfilePath.tmpProfilePath(output.profilePath));
+            } else {
+                Files.delete(emptyFile);
             }
 
             return fd;
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
+        } catch (IOException e) {
+            throw new SnapshotProfileException(e);
         }
     }
 
@@ -1229,6 +1270,12 @@ public final class ArtManagerLocal {
         @NonNull
         public StorageManager getStorageManager() {
             return Objects.requireNonNull(mContext.getSystemService(StorageManager.class));
+        }
+
+        @NonNull
+        public String getTempDir() {
+            // This is a path that system_server is known to have full access to.
+            return "/data/system";
         }
     }
 }

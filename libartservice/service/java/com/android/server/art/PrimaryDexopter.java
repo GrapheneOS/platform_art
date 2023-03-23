@@ -52,7 +52,7 @@ import java.util.Objects;
 
 /** @hide */
 public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
-    private static final String TAG = "PrimaryDexopter";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     private final int mSharedGid;
 
@@ -113,42 +113,9 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
     }
 
     @Override
-    @Nullable
-    protected ProfilePath initReferenceProfile(@NonNull DetailedPrimaryDexInfo dexInfo)
-            throws RemoteException {
-        OutputProfile output = buildOutputProfile(dexInfo, true /* isPublic */);
-
-        ProfilePath prebuiltProfile = AidlUtils.buildProfilePathForPrebuilt(dexInfo.dexPath());
-        try {
-            // If the APK is really a prebuilt one, rewriting the profile is unnecessary because the
-            // dex location is known at build time and is correctly set in the profile header.
-            // However, the APK can also be an installed one, in which case partners may place a
-            // profile file next to the APK at install time. Rewriting the profile in the latter
-            // case is necessary.
-            if (mInjector.getArtd().copyAndRewriteProfile(
-                        prebuiltProfile, output, dexInfo.dexPath())) {
-                return ProfilePath.tmpProfilePath(output.profilePath);
-            }
-        } catch (ServiceSpecificException e) {
-            Log.e(TAG,
-                    "Failed to use prebuilt profile "
-                            + AidlUtils.toString(output.profilePath.finalPath),
-                    e);
-        }
-
-        ProfilePath dmProfile = AidlUtils.buildProfilePathForDm(dexInfo.dexPath());
-        try {
-            if (mInjector.getArtd().copyAndRewriteProfile(dmProfile, output, dexInfo.dexPath())) {
-                return ProfilePath.tmpProfilePath(output.profilePath);
-            }
-        } catch (ServiceSpecificException e) {
-            Log.e(TAG,
-                    "Failed to use profile in dex metadata file "
-                            + AidlUtils.toString(output.profilePath.finalPath),
-                    e);
-        }
-
-        return null;
+    @NonNull
+    protected List<ProfilePath> getExternalProfiles(@NonNull DetailedPrimaryDexInfo dexInfo) {
+        return PrimaryDexUtils.getExternalProfiles(dexInfo);
     }
 
     @Override

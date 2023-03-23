@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
 
 /** @hide */
 public class BackgroundDexoptJob {
-    private static final String TAG = "BackgroundDexoptJob";
+    private static final String TAG = ArtManagerLocal.TAG;
 
     /**
      * "android" is the package name for a <service> declared in

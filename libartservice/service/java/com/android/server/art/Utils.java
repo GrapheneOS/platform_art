@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.ProfilePath.TmpProfilePath;
+
 import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -24,12 +26,14 @@ import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.RemoteException;
+import android.os.ServiceSpecificException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.modules.utils.pm.PackageStateModulesUtils;
@@ -60,7 +64,7 @@ import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
-    public static final String TAG = "ArtServiceUtils";
+    public static final String TAG = ArtManagerLocal.TAG;
     public static final String PLATFORM_PACKAGE_NAME = "android";
 
     /** A copy of {@link android.os.Trace.TRACE_TAG_DALVIK}. */
@@ -354,6 +358,77 @@ public final class Utils {
     public static boolean isLauncherPackage(@NonNull Context context, @NonNull String packageName) {
         RoleManager roleManager = context.getSystemService(RoleManager.class);
         return roleManager.getRoleHolders(RoleManager.ROLE_HOME).contains(packageName);
+    }
+
+    /**
+     * Gets the existing reference profile if one exists, or initializes a reference profile from an
+     * external profile.
+     *
+     * If the reference profile is initialized from an external profile, the returned profile path
+     * will be a {@link TmpProfilePath}. It's the callers responsibility to either commit it to the
+     * final location by calling {@link IArtd#commitTmpProfile} or clean it up by calling {@link
+     * IArtd#deleteProfile}.
+     *
+     * @param dexPath the path to the dex file that the profile is checked against
+     * @param refProfile the path where an existing reference profile would be found, if present
+     * @param externalProfiles a list of external profiles to initialize the reference profile from,
+     *         in the order of preference
+     * @param initOutput the final location to initialize the reference profile to
+     *
+     * @return a pair where the first element is the found or initialized profile, and the second
+     *         element is true if the profile is readable by others. Returns null if there is no
+     *         reference profile or external profile to use
+     */
+    @Nullable
+    public static Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull IArtd artd,
+            @NonNull String dexPath, @NonNull ProfilePath refProfile,
+            @NonNull List<ProfilePath> externalProfiles, @NonNull OutputProfile initOutput)
+            throws RemoteException {
+        try {
+            if (artd.isProfileUsable(refProfile, dexPath)) {
+                boolean isOtherReadable =
+                        artd.getProfileVisibility(refProfile) == FileVisibility.OTHER_READABLE;
+                return Pair.create(refProfile, isOtherReadable);
+            }
+        } catch (ServiceSpecificException e) {
+            Log.e(TAG,
+                    "Failed to use the existing reference profile "
+                            + AidlUtils.toString(refProfile),
+                    e);
+        }
+
+        ProfilePath initializedProfile =
+                initReferenceProfile(artd, dexPath, externalProfiles, initOutput);
+        return initializedProfile != null ? Pair.create(initializedProfile, true) : null;
+    }
+
+    /**
+     * Similar to above, but never uses an existing profile.
+     *
+     * Unlike the one above, this method doesn't return a boolean flag to indicate if the profile is
+     * readable by others. The profile returned by this method is initialized form an external
+     * profile, meaning it has no user data, so it's always readable by others.
+     */
+    @Nullable
+    public static ProfilePath initReferenceProfile(@NonNull IArtd artd, @NonNull String dexPath,
+            @NonNull List<ProfilePath> externalProfiles, @NonNull OutputProfile output)
+            throws RemoteException {
+        for (ProfilePath profile : externalProfiles) {
+            try {
+                // If the profile path is a PrebuiltProfilePath, and the APK is really a prebuilt
+                // one, rewriting the profile is unnecessary because the dex location is known at
+                // build time and is correctly set in the profile header. However, the APK can also
+                // be an installed one, in which case partners may place a profile file next to the
+                // APK at install time. Rewriting the profile in the latter case is necessary.
+                if (artd.copyAndRewriteProfile(profile, output, dexPath)) {
+                    return ProfilePath.tmpProfilePath(output.profilePath);
+                }
+            } catch (ServiceSpecificException e) {
+                Log.e(TAG, "Failed to initialize profile from " + AidlUtils.toString(profile), e);
+            }
+        }
+
+        return null;
     }
 
     @AutoValue
