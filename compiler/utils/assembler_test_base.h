@@ -154,9 +154,14 @@ class AssemblerTestBase : public testing::Test {
   virtual std::vector<std::string> GetDisassemblerCommand() {
     switch (GetIsa()) {
       case InstructionSet::kThumb2:
-        return {FindTool("llvm-objdump"), "--disassemble", "--triple", "thumbv7a-linux-gnueabi"};
+        return {FindTool("llvm-objdump"),
+                "--disassemble",
+                "--no-print-imm-hex",
+                "--triple",
+                "thumbv7a-linux-gnueabi"};
       default:
-        return {FindTool("llvm-objdump"), "--disassemble", "--no-show-raw-insn"};
+        return {
+            FindTool("llvm-objdump"), "--disassemble", "--no-print-imm-hex", "--no-show-raw-insn"};
     }
   }
 
