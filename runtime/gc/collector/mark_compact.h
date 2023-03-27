@@ -422,7 +422,8 @@ class MarkCompact final : public GarbageCollector {
   // Update the live-words bitmap as well as add the object size to the
   // chunk-info vector. Both are required for computation of post-compact addresses.
   // Also updates freed_objects_ counter.
-  void UpdateLivenessInfo(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void UpdateLivenessInfo(mirror::Object* obj, size_t obj_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ProcessReferences(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -654,6 +655,8 @@ class MarkCompact final : public GarbageCollector {
   Atomic<PageState>* moving_pages_status_;
   size_t vector_length_;
   size_t live_stack_freeze_size_;
+
+  uint64_t bytes_scanned_;
 
   // For every page in the to-space (post-compact heap) we need to know the
   // first object from which we must compact and/or update references. This is
