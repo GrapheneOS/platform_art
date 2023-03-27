@@ -201,12 +201,8 @@ TEST_F(HeapTest, GCMetrics) {
       EXPECT_FALSE(full_gc_tracing_throughput->IsNull());
       EXPECT_FALSE(full_gc_throughput_avg->IsNull());
       EXPECT_FALSE(full_gc_tracing_throughput_avg->IsNull());
-      if (fg_collector_type != kCollectorTypeCMC) {
-        // TODO(b/270957146): For some reason, these metrics are still null
-        // after running the Concurrent Mark-Compact collector; investigate why.
-        EXPECT_FALSE(full_gc_scanned_bytes->IsNull());
-        EXPECT_FALSE(full_gc_scanned_bytes_delta->IsNull());
-      }
+      EXPECT_FALSE(full_gc_scanned_bytes->IsNull());
+      EXPECT_FALSE(full_gc_scanned_bytes_delta->IsNull());
       EXPECT_FALSE(full_gc_freed_bytes->IsNull());
       EXPECT_FALSE(full_gc_freed_bytes_delta->IsNull());
       EXPECT_FALSE(full_gc_duration->IsNull());
