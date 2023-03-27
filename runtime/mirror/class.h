@@ -317,6 +317,15 @@ class MANAGED Class final : public Object {
     SetClassFlags(GetClassFlags() | kClassFlagDexCache);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE bool IsRecordClass() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return (GetClassFlags<kVerifyFlags>() & kClassFlagRecord) != 0;
+  }
+
+  ALWAYS_INLINE void SetRecordClass() REQUIRES_SHARED(Locks::mutator_lock_) {
+    SetClassFlags(GetClassFlags() | kClassFlagRecord);
+  }
+
   // Returns true if the class is abstract.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE bool IsAbstract() REQUIRES_SHARED(Locks::mutator_lock_) {
