@@ -1257,6 +1257,17 @@ bool IsMethodAnnotationPresent(ArtMethod* method,
   return annotation_item != nullptr;
 }
 
+bool IsMethodAnnotationPresent(ArtMethod* method, const char* descriptor, uint32_t visibility) {
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForMethod(method);
+  if (annotation_set == nullptr) {
+    return false;
+  }
+  const DexFile* dex_file = method->GetDexFile();
+  const AnnotationItem* annotation_item =
+      SearchAnnotationSet(*dex_file, annotation_set, descriptor, visibility);
+  return annotation_item != nullptr;
+}
+
 static void DCheckNativeAnnotation(const char* descriptor, jclass cls) {
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
