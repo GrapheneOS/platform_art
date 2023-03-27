@@ -96,6 +96,7 @@ struct WellKnownClasses {
   static jclass dalvik_annotation_optimization_NeverInline;
   static jclass java_lang_annotation_Annotation__array;
   static jclass java_lang_ClassValue;
+  static jclass java_lang_Record;
   static jclass java_lang_reflect_Parameter__array;
   static jclass java_lang_StringFactory;
   static jclass java_lang_System;
