@@ -51,6 +51,7 @@ jclass WellKnownClasses::dalvik_annotation_optimization_NeverCompile;
 jclass WellKnownClasses::dalvik_annotation_optimization_NeverInline;
 jclass WellKnownClasses::java_lang_annotation_Annotation__array;
 jclass WellKnownClasses::java_lang_ClassValue;
+jclass WellKnownClasses::java_lang_Record;
 jclass WellKnownClasses::java_lang_reflect_Parameter__array;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
@@ -325,6 +326,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
 
   java_lang_annotation_Annotation__array = CacheClass(env, "[Ljava/lang/annotation/Annotation;");
   java_lang_ClassValue = CacheClass(env, "java/lang/ClassValue");
+  java_lang_Record = CacheClass(env, "java/lang/Record");
   java_lang_reflect_Parameter__array = CacheClass(env, "[Ljava/lang/reflect/Parameter;");
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
@@ -799,6 +801,7 @@ void WellKnownClasses::Clear() {
   dalvik_annotation_optimization_NeverInline = nullptr;
   java_lang_annotation_Annotation__array = nullptr;
   java_lang_ClassValue = nullptr;
+  java_lang_Record = nullptr;
   java_lang_reflect_Parameter__array = nullptr;
   java_lang_StringFactory = nullptr;
   java_lang_System = nullptr;
