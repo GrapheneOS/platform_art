@@ -587,6 +587,7 @@ void MarkCompact::InitializePhase() {
   moving_first_objs_count_ = 0;
   non_moving_first_objs_count_ = 0;
   black_page_count_ = 0;
+  bytes_scanned_ = 0;
   freed_objects_ = 0;
   // The first buffer is used by gc-thread.
   compaction_buffer_counter_ = 1;
@@ -2266,7 +2267,9 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
              && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
         // Try to keep instructions which access class instance together to
         // avoid reloading the pointer from object.
-        size_t obj_size = RoundUp(obj->SizeOf(), kAlignment);
+        size_t obj_size = obj->SizeOf();
+        bytes_scanned_ += obj_size;
+        obj_size = RoundUp(obj_size, kAlignment);
         UpdateClassAfterObjectMap(obj);
         if (first_obj == nullptr) {
           first_obj = obj;
@@ -3921,11 +3924,12 @@ size_t MarkCompact::LiveWordsBitmap<kAlignment>::LiveBytesInBitmapWord(size_t ch
   return words * kAlignment;
 }
 
-void MarkCompact::UpdateLivenessInfo(mirror::Object* obj) {
+void MarkCompact::UpdateLivenessInfo(mirror::Object* obj, size_t obj_size) {
   DCHECK(obj != nullptr);
+  DCHECK_EQ(obj_size, obj->SizeOf<kDefaultVerifyFlags>());
   uintptr_t obj_begin = reinterpret_cast<uintptr_t>(obj);
   UpdateClassAfterObjectMap(obj);
-  size_t size = RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kAlignment);
+  size_t size = RoundUp(obj_size, kAlignment);
   uintptr_t bit_index = live_words_bitmap_->SetLiveWords(obj_begin, size);
   size_t chunk_idx = (obj_begin - live_words_bitmap_->Begin()) / kOffsetChunkSize;
   // Compute the bit-index within the chunk-info vector word.
@@ -3944,10 +3948,16 @@ void MarkCompact::UpdateLivenessInfo(mirror::Object* obj) {
 
 template <bool kUpdateLiveWords>
 void MarkCompact::ScanObject(mirror::Object* obj) {
+  // The size of `obj` is used both here (to update `bytes_scanned_`) and in
+  // `UpdateLivenessInfo`. As fetching this value can be expensive, do it once
+  // here and pass that information to `UpdateLivenessInfo`.
+  size_t obj_size = obj->SizeOf<kDefaultVerifyFlags>();
+  bytes_scanned_ += obj_size;
+
   RefFieldsVisitor visitor(this);
   DCHECK(IsMarked(obj)) << "Scanning marked object " << obj << "\n" << heap_->DumpSpaces();
   if (kUpdateLiveWords && moving_space_bitmap_->HasAddress(obj)) {
-    UpdateLivenessInfo(obj);
+    UpdateLivenessInfo(obj, obj_size);
   }
   obj->VisitReferences(visitor, visitor);
 }
@@ -4132,6 +4142,7 @@ void MarkCompact::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
 }
 
 void MarkCompact::FinishPhase() {
+  GetCurrentIteration()->SetScannedBytes(bytes_scanned_);
   bool is_zygote = Runtime::Current()->IsZygote();
   compacting_ = false;
   minor_fault_initialized_ = !is_zygote && uffd_minor_fault_supported_;
