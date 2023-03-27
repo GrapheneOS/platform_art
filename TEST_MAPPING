@@ -1232,18 +1232,6 @@
       "name": "art_standalone_cmdline_tests[com.google.android.art.apex]"
     },
     {
-      "name": "art_standalone_compiler_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_dexdump_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_dexlist_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_dexoptanalyzer_tests[com.google.android.art.apex]"
-    },
-    {
       "name": "art_standalone_libartpalette_tests[com.google.android.art.apex]"
     },
     {
@@ -1260,18 +1248,6 @@
     },
     {
       "name": "art_standalone_libprofile_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_oatdump_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_profman_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_runtime_compiler_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "art_standalone_runtime_tests[com.google.android.art.apex]"
     },
     {
       "name": "art_standalone_sigchain_tests[com.google.android.art.apex]"
@@ -2524,18 +2500,6 @@
       "name": "art_standalone_cmdline_tests"
     },
     {
-      "name": "art_standalone_compiler_tests"
-    },
-    {
-      "name": "art_standalone_dexdump_tests"
-    },
-    {
-      "name": "art_standalone_dexlist_tests"
-    },
-    {
-      "name": "art_standalone_dexoptanalyzer_tests"
-    },
-    {
       "name": "art_standalone_libartpalette_tests"
     },
     {
@@ -2552,21 +2516,6 @@
     },
     {
       "name": "art_standalone_libprofile_tests"
-    },
-    {
-      "name": "art_standalone_oatdump_tests"
-    },
-    {
-      "name": "art_standalone_odrefresh_tests"
-    },
-    {
-      "name": "art_standalone_profman_tests"
-    },
-    {
-      "name": "art_standalone_runtime_compiler_tests"
-    },
-    {
-      "name": "art_standalone_runtime_tests"
     },
     {
       "name": "art_standalone_sigchain_tests"

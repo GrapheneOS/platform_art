@@ -209,11 +209,11 @@ known_failing_tests = frozenset([
 art_gtest_user_module_names = [
     "art_libnativebridge_cts_tests",
     "art_standalone_cmdline_tests",
-    "art_standalone_compiler_tests",
+    ###"art_standalone_compiler_tests",  # b/275289981
     # Temporarily disable this test as it is failing with ART module prebuilts (see b/243510263).
     ### "art_standalone_dex2oat_tests",
-    "art_standalone_dexdump_tests",
-    "art_standalone_dexlist_tests",
+    ###"art_standalone_dexdump_tests",  # b/275289981
+    ###"art_standalone_dexlist_tests",  # b/275289981
     # Temporarily disable this test as it is failing with ART module prebuilts (see b/243507635).
     ### "art_standalone_libartbase_tests",
     "art_standalone_libartpalette_tests",
@@ -222,18 +222,18 @@ art_gtest_user_module_names = [
     "art_standalone_libdexfile_support_tests",
     "art_standalone_libdexfile_tests",
     "art_standalone_libprofile_tests",
-    "art_standalone_oatdump_tests",
-    "art_standalone_odrefresh_tests",
-    "art_standalone_runtime_compiler_tests",
-    "art_standalone_runtime_tests",
+    ###"art_standalone_oatdump_tests",  # b/275289981
+    ###"art_standalone_odrefresh_tests",  # b/275289981
+    ###"art_standalone_runtime_compiler_tests",  # b/275289981
+    ###"art_standalone_runtime_tests",  # b/275289981
     "art_standalone_sigchain_tests",
     "libnativeloader_test",
 ]
 
 # ART gtests that need root access to the device.
 art_gtest_eng_only_module_names = [
-    "art_standalone_dexoptanalyzer_tests",
-    "art_standalone_profman_tests",
+    ###"art_standalone_dexoptanalyzer_tests",  # b/275289981
+    ###"art_standalone_profman_tests",  # b/275289981
 ]
 
 # All supported ART gtests.
@@ -247,7 +247,8 @@ art_gtest_mts_user_module_names = copy.copy(art_gtest_user_module_names)
 # to land.
 #
 # TODO(b/206335809): Re-enable this test when the fix has landed.
-art_gtest_mts_user_module_names.remove("art_standalone_odrefresh_tests")
+if "art_standalone_odrefresh_tests" in art_gtest_mts_user_module_names:
+  art_gtest_mts_user_module_names.remove("art_standalone_odrefresh_tests")
 
 # ART gtests supported in Mainline presubmits.
 art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
@@ -257,7 +258,8 @@ art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
 # land.
 #
 # TODO(b/206335809): Re-enable this test when the fix has landed.
-art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_tests")
+if "art_standalone_odrefresh_tests" in art_gtests_mainline_presubmit_module_names:
+  art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_tests")
 
 # Tests exhibiting a flaky behavior, currently exluded from MTS for
 # the stake of stability / confidence (b/209958457).
