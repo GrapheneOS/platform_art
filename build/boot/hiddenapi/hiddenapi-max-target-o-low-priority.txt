@@ -1453,7 +1453,6 @@ Ldalvik/system/VMDebug;->dumpHprofData(Ljava/lang/String;Ljava/io/FileDescriptor
 Ldalvik/system/VMDebug;->dumpHprofDataDdms()V
 Ldalvik/system/VMDebug;->getAllocCount(I)I
 Ldalvik/system/VMDebug;->getHeapSpaceStats([J)V
-Ldalvik/system/VMDebug;->getInstancesOfClasses([Ljava/lang/Class;Z)[[Ljava/lang/Object;
 Ldalvik/system/VMDebug;->getInstructionCount([I)V
 Ldalvik/system/VMDebug;->getLoadedClassCount()I
 Ldalvik/system/VMDebug;->getMethodTracingMode()I
