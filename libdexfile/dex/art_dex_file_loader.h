@@ -58,6 +58,20 @@ class ArtDexFileLoader : public DexFileLoader {
                                    std::string* error_msg,
                                    int zip_fd = -1,
                                    bool* only_contains_uncompressed_dex = nullptr);
+
+  // Don't shadow overloads from base class.
+  using DexFileLoader::Open;
+
+  // Old signature preserved for app-compat.
+  std::unique_ptr<const DexFile> Open(const uint8_t* base,
+                                      size_t size,
+                                      const std::string& location,
+                                      uint32_t location_checksum,
+                                      const OatDexFile* oat_dex_file,
+                                      bool verify,
+                                      bool verify_checksum,
+                                      std::string* error_msg,
+                                      std::unique_ptr<DexFileContainer> container) const;
 };
 
 }  // namespace art
