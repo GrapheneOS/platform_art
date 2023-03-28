@@ -59,6 +59,11 @@ libart_cc_defaults {
                 keep_symbols: true,
             },
         },
+        android_riscv64: {
+            strip: {
+                keep_symbols: true,
+            },
+        },
         android_x86: {
             strip: {
                 keep_symbols: true,
