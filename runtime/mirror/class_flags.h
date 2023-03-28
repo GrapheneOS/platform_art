@@ -56,6 +56,9 @@ static constexpr uint32_t kClassFlagFinalizerReference = 0x00000200;
 // Class is the phantom reference class.
 static constexpr uint32_t kClassFlagPhantomReference   = 0x00000400;
 
+// Class is a record class. See doc at java.lang.Class#isRecord().
+static constexpr uint32_t kClassFlagRecord             = 0x00000800;
+
 // Combination of flags to figure out if the class is either the weak/soft/phantom/finalizer
 // reference class.
 static constexpr uint32_t kClassFlagReference =
