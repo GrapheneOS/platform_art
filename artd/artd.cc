@@ -58,7 +58,9 @@
 #include "base/compiler_filter.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
+#include "base/logging.h"
 #include "base/os.h"
+#include "cmdline_types.h"
 #include "exec_utils.h"
 #include "file_utils.h"
 #include "fmt/format.h"
@@ -328,6 +330,22 @@ Result<void> CopyFile(const std::string& src_path, const NewFile& dst_file) {
     return Errorf(
         "Failed to reset the offset for file '{}': {}", dst_file.TempPath(), strerror(errno));
   }
+  return {};
+}
+
+Result<void> SetLogVerbosity() {
+  std::string options = android::base::GetProperty("dalvik.vm.artd-verbose", /*default_value=*/"");
+  if (options.empty()) {
+    return {};
+  }
+
+  CmdlineType<LogVerbosity> parser;
+  CmdlineParseResult<LogVerbosity> result = parser.Parse(options);
+  if (!result.IsSuccess()) {
+    return Error() << result.GetMessage();
+  }
+
+  gLogVerbosity = result.ReleaseValue();
   return {};
 }
 
@@ -1068,6 +1086,8 @@ ScopedAStatus Artd::isIncrementalFsPath(const std::string& in_dexFile [[maybe_un
 }
 
 Result<void> Artd::Start() {
+  OR_RETURN(SetLogVerbosity());
+
   ScopedAStatus status = ScopedAStatus::fromStatus(
       AServiceManager_registerLazyService(this->asBinder().get(), kServiceName));
   if (!status.isOk()) {
