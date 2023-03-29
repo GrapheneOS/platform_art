@@ -96,18 +96,6 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void vmLogCollector() throws Exception {
-        // This is not a test. The purpose is to collect VM's log, which is generated once per
-        // class, in beforeClassWithDevice before any tests run. It's implemented as a test methond
-        // because TestLogData doesn't seem to work in a class method.
-        OdsignTestUtils testUtils = new OdsignTestUtils(getTestInformation());
-        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm.log",
-                "vm.log-CompOsDenialHostTest");
-        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm_console.log",
-                "vm_console.log-CompOsDenialHostTest");
-    }
-
-    @Test
     public void denyDueToInconsistentFileName() throws Exception {
         // Attack emulation: swap file names
         String[] paths = getAllPendingOdexPaths();
