@@ -390,7 +390,7 @@ ScopedAStatus Artd::deleteArtifacts(const ArtifactsPath& in_artifactsPath, int64
 
 ScopedAStatus Artd::getDexoptStatus(const std::string& in_dexFile,
                                     const std::string& in_instructionSet,
-                                    const std::string& in_classLoaderContext,
+                                    const std::optional<std::string>& in_classLoaderContext,
                                     GetDexoptStatusResult* _aidl_return) {
   Result<OatFileAssistantContext*> ofa_context = GetOatFileAssistantContext();
   if (!ofa_context.ok()) {
@@ -399,9 +399,9 @@ ScopedAStatus Artd::getDexoptStatus(const std::string& in_dexFile,
 
   std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
-  auto oat_file_assistant = OatFileAssistant::Create(in_dexFile.c_str(),
-                                                     in_instructionSet.c_str(),
-                                                     in_classLoaderContext.c_str(),
+  auto oat_file_assistant = OatFileAssistant::Create(in_dexFile,
+                                                     in_instructionSet,
+                                                     in_classLoaderContext,
                                                      /*load_executable=*/false,
                                                      /*only_load_trusted_executable=*/true,
                                                      ofa_context.value(),
