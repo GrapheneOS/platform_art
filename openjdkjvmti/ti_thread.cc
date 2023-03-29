@@ -900,16 +900,13 @@ jvmtiError ThreadUtil::SuspendOther(art::Thread* self,
         }
       }
     }
-    bool timeout = true;
     art::Thread* ret_target = art::Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
-        target_jthread,
-        art::SuspendReason::kForUserCode,
-        &timeout);
-    if (ret_target == nullptr && !timeout) {
+        target_jthread, art::SuspendReason::kForUserCode);
+    if (ret_target == nullptr) {
       // TODO It would be good to get more information about why exactly the thread failed to
       // suspend.
       return ERR(INTERNAL);
-    } else if (!timeout) {
+    } else {
       // we didn't time out and got a result.
       return OK;
     }
@@ -927,11 +924,7 @@ jvmtiError ThreadUtil::SuspendSelf(art::Thread* self) {
       // This can only happen if we race with another thread to suspend 'self' and we lose.
       return ERR(THREAD_SUSPENDED);
     }
-    // We shouldn't be able to fail this.
-    if (!self->ModifySuspendCount(self, +1, nullptr, art::SuspendReason::kForUserCode)) {
-      // TODO More specific error would be nice.
-      return ERR(INTERNAL);
-    }
+    self->IncrementSuspendCount(self, nullptr, nullptr, art::SuspendReason::kForUserCode);
   }
   // Once we have requested the suspend we actually go to sleep. We need to do this after releasing
   // the suspend_lock to make sure we can be woken up. This call gains the mutator lock causing us
