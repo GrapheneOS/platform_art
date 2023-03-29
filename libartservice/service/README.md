@@ -86,9 +86,10 @@ If the app is installed along with a DM file that contains a profile (known as a
 *cloud profile*), it uses the "speed-profile" compiler filter. Otherwise, it
 uses the "verify" compiler filter.
 
-Note: If the app is installed along with a DM file that only contains a VDEX
-file (but not a profile), no dexopt will be performed because the compiler
-filter will be "verify" and the VDEX file is satisfactory.
+Note: If the APK is uncompressed and aligned, and it is installed along with a
+DM file that only contains a VDEX file (but not a profile), no dexopt will be
+performed because the compiler filter will be "verify" and the VDEX file is
+satisfactory.
 
 Note: There is no secondary dex file present during installation.
 
