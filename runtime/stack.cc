@@ -77,7 +77,7 @@ StackVisitor::StackVisitor(Thread* thread,
       context_(context),
       check_suspended_(check_suspended) {
   if (check_suspended_) {
-    DCHECK(thread == Thread::Current() || thread->GetState() != ThreadState::kRunnable) << *thread;
+    DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
   }
 }
 
@@ -801,7 +801,7 @@ uint8_t* StackVisitor::GetShouldDeoptimizeFlagAddr() const REQUIRES_SHARED(Locks
 template <StackVisitor::CountTransitions kCount>
 void StackVisitor::WalkStack(bool include_transitions) {
   if (check_suspended_) {
-    DCHECK(thread_ == Thread::Current() || thread_->GetState() != ThreadState::kRunnable);
+    DCHECK(thread_ == Thread::Current() || thread_->IsSuspended());
   }
   CHECK_EQ(cur_depth_, 0U);
 
