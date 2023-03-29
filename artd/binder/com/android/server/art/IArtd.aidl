@@ -35,7 +35,7 @@ interface IArtd {
      */
     com.android.server.art.GetDexoptStatusResult getDexoptStatus(
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
-            @utf8InCpp String classLoaderContext);
+            @nullable @utf8InCpp String classLoaderContext);
 
     /**
      * Returns true if the profile exists and contains entries for the given dex file.
