@@ -185,7 +185,8 @@ void Object::SetHashCodeSeed(uint32_t new_seed) {
   hash_code_seed.store(new_seed, std::memory_order_relaxed);
 }
 
-int32_t Object::IdentityHashCode() {
+template <bool kAllowInflation>
+int32_t Object::IdentityHashCodeHelper() {
   ObjPtr<Object> current_this = this;  // The this pointer may get invalidated by thread suspension.
   while (true) {
     LockWord lw = current_this->GetLockWord(false);
@@ -203,6 +204,9 @@ int32_t Object::IdentityHashCode() {
         break;
       }
       case LockWord::kThinLocked: {
+        if (!kAllowInflation) {
+          return 0;
+        }
         // Inflate the thin lock to a monitor and stick the hash code inside of the monitor. May
         // fail spuriously.
         Thread* self = Thread::Current();
@@ -228,6 +232,12 @@ int32_t Object::IdentityHashCode() {
       }
     }
   }
+}
+
+int32_t Object::IdentityHashCode() { return IdentityHashCodeHelper</* kAllowInflation= */ true>(); }
+
+int32_t Object::IdentityHashCodeNoInflation() {
+  return IdentityHashCodeHelper</* kAllowInflation= */ false>();
 }
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, ObjPtr<Object> new_value) {
