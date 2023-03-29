@@ -24,9 +24,10 @@
 #include "base/casts.h"
 #include "base/mutex-inl.h"
 #include "base/time_utils.h"
+#include "indirect_reference_table.h"
 #include "jni/jni_env_ext.h"
 #include "managed_stack-inl.h"
-#include "obj_ptr.h"
+#include "obj_ptr-inl.h"
 #include "suspend_reason.h"
 #include "thread-current-inl.h"
 #include "thread_pool.h"
@@ -37,6 +38,32 @@ namespace art {
 inline Thread* Thread::ForEnv(JNIEnv* env) {
   JNIEnvExt* full_env(down_cast<JNIEnvExt*>(env));
   return full_env->GetSelf();
+}
+
+inline ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
+  if (obj == nullptr) {
+    return nullptr;
+  }
+  IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
+  if (LIKELY(IndirectReferenceTable::IsJniTransitionOrLocalReference(ref))) {
+    // For JNI transitions, the `jclass` for a static method points to the
+    // `CompressedReference<>` in the `ArtMethod::declaring_class_` and other `jobject`
+    // arguments point to spilled stack references but a `StackReference<>` is just
+    // a subclass of `CompressedReference<>`. Local references also point to
+    // a `CompressedReference<>` encapsulated in a `GcRoot<>`.
+    if (kIsDebugBuild && IndirectReferenceTable::GetIndirectRefKind(ref) == kJniTransition) {
+      CHECK(IsJniTransitionReference(obj));
+    }
+    auto* cref = IndirectReferenceTable::ClearIndirectRefKind<
+        mirror::CompressedReference<mirror::Object>*>(ref);
+    ObjPtr<mirror::Object> result = cref->AsMirrorPtr();
+    if (kIsDebugBuild && IndirectReferenceTable::GetIndirectRefKind(ref) != kJniTransition) {
+      CHECK_EQ(result, tlsPtr_.jni_env->locals_.Get(ref));
+    }
+    return result;
+  } else {
+    return DecodeGlobalJObject(obj);
+  }
 }
 
 inline void Thread::AllowThreadSuspension() {
