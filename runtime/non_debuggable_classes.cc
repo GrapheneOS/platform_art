@@ -22,6 +22,7 @@
 #include "nativehelper/scoped_local_ref.h"
 #include "obj_ptr-inl.h"
 #include "thread-current-inl.h"
+#include "thread-inl.h"
 
 namespace art {
 
