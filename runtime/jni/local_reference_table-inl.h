@@ -21,97 +21,131 @@
 
 #include "android-base/stringprintf.h"
 
-#include "base/dumpable.h"
+#include "base/casts.h"
 #include "gc_root-inl.h"
 #include "obj_ptr-inl.h"
+#include "mirror/object_reference.h"
 #include "verify_object.h"
 
 namespace art {
-namespace mirror {
-class Object;
-}  // namespace mirror
-
 namespace jni {
 
-// Verifies that the indirect table lookup is valid.
-// Returns "false" if something looks bad.
+inline void LrtEntry::SetReference(ObjPtr<mirror::Object> ref) {
+  root_ = GcRoot<mirror::Object>(
+      mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref.Ptr()));
+  DCHECK(!IsFree());
+  DCHECK(!IsSerialNumber());
+}
+
+inline ObjPtr<mirror::Object> LrtEntry::GetReference() {
+  DCHECK(!IsFree());
+  DCHECK(!IsSerialNumber());
+  DCHECK(!IsNull());
+  // Local references do not need read barriers. They are marked during the thread root flip.
+  return root_.Read<kWithoutReadBarrier>();
+}
+
+inline void LrtEntry::SetNextFree(uint32_t next_free) {
+  SetVRegValue(NextFreeField::Update(next_free, 1u << kFlagFree));
+  DCHECK(IsFree());
+  DCHECK(!IsSerialNumber());
+}
+
+inline void LrtEntry::SetSerialNumber(uint32_t serial_number) {
+  SetVRegValue(SerialNumberField::Update(serial_number, 1u << kFlagSerialNumber));
+  DCHECK(!IsFree());
+  DCHECK(IsSerialNumber());
+}
+
+inline void LrtEntry::SetVRegValue(uint32_t value) {
+  root_ = GcRoot<mirror::Object>(
+      mirror::CompressedReference<mirror::Object>::FromVRegValue(value));
+}
+
+inline uint32_t LocalReferenceTable::GetReferenceEntryIndex(IndirectRef iref) const {
+  DCHECK_EQ(IndirectReferenceTable::GetIndirectRefKind(iref), kLocal);
+  LrtEntry* entry = ToLrtEntry(iref);
+
+  if (LIKELY(small_table_ != nullptr)) {
+    DCHECK(tables_.empty());
+    if (!std::less<const LrtEntry*>()(entry, small_table_) &&
+        std::less<const LrtEntry*>()(entry, small_table_ + kSmallLrtEntries)) {
+      return dchecked_integral_cast<uint32_t>(entry - small_table_);
+    }
+  } else {
+    for (size_t i = 0, size = tables_.size(); i != size; ++i) {
+      LrtEntry* table = tables_[i];
+      size_t table_size = GetTableSize(i);
+      if (!std::less<const LrtEntry*>()(entry, table) &&
+          std::less<const LrtEntry*>()(entry, table + table_size)) {
+        return dchecked_integral_cast<size_t>(i != 0u ? table_size : 0u) +
+               dchecked_integral_cast<size_t>(entry - table);
+      }
+    }
+  }
+  return std::numeric_limits<uint32_t>::max();
+}
+
 inline bool LocalReferenceTable::IsValidReference(IndirectRef iref,
-                                                     /*out*/std::string* error_msg) const {
-  DCHECK(iref != nullptr);
-  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
-  const uint32_t top_index = segment_state_.top_index;
-  uint32_t idx = ExtractIndex(iref);
-  if (UNLIKELY(idx >= top_index)) {
-    *error_msg = android::base::StringPrintf("deleted reference at index %u in a table of size %u",
-                                             idx,
-                                             top_index);
+                                                  /*out*/std::string* error_msg) const {
+  uint32_t entry_index = GetReferenceEntryIndex(iref);
+  if (UNLIKELY(entry_index == std::numeric_limits<uint32_t>::max())) {
+    *error_msg = android::base::StringPrintf("reference outside the table: %p", iref);
     return false;
   }
-  if (UNLIKELY(table_[idx].GetReference()->IsNull())) {
-    *error_msg = android::base::StringPrintf("deleted reference at index %u", idx);
+  if (UNLIKELY(entry_index >= segment_state_.top_index)) {
+    *error_msg = android::base::StringPrintf("popped reference at index %u in a table of size %u",
+                                             entry_index,
+                                             segment_state_.top_index);
     return false;
   }
-  uint32_t iref_serial = DecodeSerial(reinterpret_cast<uintptr_t>(iref));
-  uint32_t entry_serial = table_[idx].GetSerial();
-  if (UNLIKELY(iref_serial != entry_serial)) {
-    *error_msg = android::base::StringPrintf("stale reference with serial number %u v. current %u",
-                                             iref_serial,
-                                             entry_serial);
+  LrtEntry* entry = ToLrtEntry(iref);
+  LrtEntry* serial_number_entry = GetCheckJniSerialNumberEntry(entry);
+  if (serial_number_entry->IsSerialNumber()) {
+    // This reference was created with CheckJNI enabled.
+    uint32_t expected_serial_number = serial_number_entry->GetSerialNumber();
+    uint32_t serial_number = entry - serial_number_entry;
+    DCHECK_LT(serial_number, kCheckJniEntriesPerReference);
+    if (serial_number != expected_serial_number || serial_number == 0u) {
+      *error_msg = android::base::StringPrintf(
+          "reference at index %u with bad serial number %u v. %u (valid 1 - %u)",
+          entry_index,
+          serial_number,
+          expected_serial_number,
+          dchecked_integral_cast<uint32_t>(kCheckJniEntriesPerReference - 1u));
+      return false;
+    }
+  }
+  if (UNLIKELY(entry->IsFree())) {
+    *error_msg = android::base::StringPrintf("deleted reference at index %u", entry_index);
     return false;
   }
-  return true;
-}
-
-// Make sure that the entry at "idx" is correctly paired with "iref".
-inline bool LocalReferenceTable::CheckEntry(const char* what,
-                                               IndirectRef iref,
-                                               uint32_t idx) const {
-  IndirectRef checkRef = ToIndirectRef(idx);
-  if (UNLIKELY(checkRef != iref)) {
-    std::string msg = android::base::StringPrintf(
-        "JNI ERROR (app bug): attempt to %s stale %s %p (should be %p)",
-        what,
-        GetIndirectRefKindString(kLocal),
-        iref,
-        checkRef);
-    AbortIfNoCheckJNI(msg);
+  if (UNLIKELY(entry->IsNull())) {
+    // This should never really happen and may indicate memory coruption.
+    *error_msg = android::base::StringPrintf("null reference at index %u", entry_index);
     return false;
   }
   return true;
 }
 
-template<ReadBarrierOption kReadBarrierOption>
+inline void LocalReferenceTable::DCheckValidReference(IndirectRef iref) const {
+  // If CheckJNI is performing the checks, we should not reach this point with an invalid
+  // reference with the exception of gtests that intercept the CheckJNI abort and proceed
+  // to decode the reference anyway and we do not want to abort again in this case.
+  if (kIsDebugBuild && !IsCheckJniEnabled()) {
+    std::string error_msg;
+    CHECK(IsValidReference(iref, &error_msg)) << error_msg;
+  }
+}
+
 inline ObjPtr<mirror::Object> LocalReferenceTable::Get(IndirectRef iref) const {
-  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
-  uint32_t idx = ExtractIndex(iref);
-  DCHECK_LT(idx, segment_state_.top_index);
-  DCHECK_EQ(DecodeSerial(reinterpret_cast<uintptr_t>(iref)), table_[idx].GetSerial());
-  DCHECK(!table_[idx].GetReference()->IsNull());
-  ObjPtr<mirror::Object> obj = table_[idx].GetReference()->Read<kReadBarrierOption>();
-  VerifyObject(obj);
-  return obj;
+  DCheckValidReference(iref);
+  return ToLrtEntry(iref)->GetReference();
 }
 
 inline void LocalReferenceTable::Update(IndirectRef iref, ObjPtr<mirror::Object> obj) {
-  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
-  uint32_t idx = ExtractIndex(iref);
-  DCHECK_LT(idx, segment_state_.top_index);
-  DCHECK_EQ(DecodeSerial(reinterpret_cast<uintptr_t>(iref)), table_[idx].GetSerial());
-  DCHECK(!table_[idx].GetReference()->IsNull());
-  table_[idx].SetReference(obj);
-}
-
-inline void LrtEntry::Add(ObjPtr<mirror::Object> obj) {
-  ++serial_;
-  if (serial_ == kLRTMaxSerial) {
-    serial_ = 0;
-  }
-  reference_ = GcRoot<mirror::Object>(obj);
-}
-
-inline void LrtEntry::SetReference(ObjPtr<mirror::Object> obj) {
-  DCHECK_LT(serial_, kLRTMaxSerial);
-  reference_ = GcRoot<mirror::Object>(obj);
+  DCheckValidReference(iref);
+  ToLrtEntry(iref)->SetReference(obj);
 }
 
 }  // namespace jni

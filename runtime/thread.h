@@ -1016,6 +1016,10 @@ class Thread {
   // Is the given obj in one of this thread's JNI transition frames?
   bool IsJniTransitionReference(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Convert a global (or weak global) jobject into a Object*
+  ObjPtr<mirror::Object> DecodeGlobalJObject(jobject obj) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
