@@ -33,7 +33,6 @@
 #include "nth_caller_visitor.h"
 #include "scoped_thread_state_change.h"
 #include "thread-current-inl.h"
-#include "thread-inl.h"
 #include "thread_list.h"
 
 namespace art {
@@ -71,7 +70,7 @@ JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
     : self_(self_in),
       vm_(vm_in),
       local_ref_cookie_(jni::kLRTFirstSegment),
-      locals_(vm_in->IsCheckJniEnabled()),
+      locals_(),
       monitors_("monitors", kMonitorsInitial, kMonitorsMax),
       critical_(0),
       check_jni_(false),
@@ -115,7 +114,6 @@ void JNIEnvExt::DeleteLocalRef(jobject obj) {
 
 void JNIEnvExt::SetCheckJniEnabled(bool enabled) {
   check_jni_ = enabled;
-  locals_.SetCheckJniEnabled(enabled);
   MutexLock mu(Thread::Current(), *Locks::jni_function_table_lock_);
   functions = GetFunctionTable(enabled);
   // Check whether this is a no-op because of override.
