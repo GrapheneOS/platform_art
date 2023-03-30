@@ -130,7 +130,7 @@ TEST_F(PaletteClientTest, SetTaskProfiles) {
     GTEST_SKIP() << "Kernel cgroup support missing";
   }
 
-  const char* profiles[] = {"NormalIoPriority", "TimerSlackNormal"};
+  const char* profiles[] = {"ProcessCapacityHigh", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), &profiles[0], 2);
   if (PaletteSetTaskProfilesIsSupported(res)) {
     // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
@@ -153,7 +153,7 @@ TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
     GTEST_SKIP() << "Kernel cgroup support missing";
   }
 
-  std::vector<std::string> profiles = {"NormalIoPriority", "TimerSlackNormal"};
+  std::vector<std::string> profiles = {"ProcessCapacityHigh", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), profiles);
   if (PaletteSetTaskProfilesIsSupported(res)) {
     // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
