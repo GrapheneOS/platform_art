@@ -36,9 +36,8 @@ class ScopedOverrideDalvikCacheSubDirectory {
     OverrideDalvikCacheSubDirectory(override);
   }
 
-  ~ScopedOverrideDalvikCacheSubDirectory() {
-    OverrideDalvikCacheSubDirectory("dalvik-cache");
-  }
+  ~ScopedOverrideDalvikCacheSubDirectory() { OverrideDalvikCacheSubDirectory("dalvik-cache"); }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(ScopedOverrideDalvikCacheSubDirectory);
 };
@@ -104,7 +103,7 @@ TEST_F(FileUtilsTest, DISABLED_GetAndroidRootSafe) {
     // broken. On non-bionic. On bionic we can be running with a different libartbase that lives
     // outside of ANDROID_ROOT.
     UniqueCPtr<char> real_root3(realpath(android_root3.c_str(), nullptr));
-#if !defined(__BIONIC__ ) || defined(__ANDROID__)
+#if !defined(__BIONIC__) || defined(__ANDROID__)
     UniqueCPtr<char> real_root(realpath(android_root.c_str(), nullptr));
     EXPECT_STREQ(real_root.get(), real_root3.get()) << error_msg;
 #else
@@ -158,7 +157,7 @@ TEST_F(FileUtilsTest, GetArtRootSafe) {
       // the test setup is broken. On non-bionic. On bionic we can be running
       // with a different libartbase that lives outside of ANDROID_ART_ROOT.
       UniqueCPtr<char> real_root3(realpath(android_art_root3.c_str(), nullptr));
-#if !defined(__BIONIC__ ) || defined(__ANDROID__)
+#if !defined(__BIONIC__) || defined(__ANDROID__)
       UniqueCPtr<char> real_root(realpath(android_art_root.c_str(), nullptr));
       EXPECT_STREQ(real_root.get(), real_root3.get()) << error_msg;
 #else
@@ -195,11 +194,10 @@ TEST_F(FileUtilsTest, GetApexDataOatFilename) {
             GetApexDataOatFilename("/product/javalib/beep.jar", InstructionSet::kArm));
 
   const std::string art_apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
-  EXPECT_EQ(std::string {}, GetApexDataOatFilename(art_apex_jar.c_str(), InstructionSet::kArm));
+  EXPECT_EQ(std::string{}, GetApexDataOatFilename(art_apex_jar, InstructionSet::kArm));
 
-  const std::string i18n_jar =
-      std::string {kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
-  EXPECT_EQ(std::string {}, GetApexDataOatFilename(i18n_jar, InstructionSet::kArm));
+  const std::string i18n_jar = std::string{kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
+  EXPECT_EQ(std::string{}, GetApexDataOatFilename(i18n_jar, InstructionSet::kArm));
 
   const std::string system_jar_apexdata_oat = GetArtApexData() + "/dalvik-cache/x86/boot-lace.oat";
   EXPECT_EQ(system_jar_apexdata_oat,
@@ -216,13 +214,12 @@ TEST_F(FileUtilsTest, GetApexDataOdexFilename) {
   const std::string art_apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
   EXPECT_EQ(
       GetArtApexData() + "/dalvik-cache/arm/apex@com.android.art@javalib@some.jar@classes.odex",
-      GetApexDataOdexFilename(art_apex_jar.c_str(), InstructionSet::kArm));
+      GetApexDataOdexFilename(art_apex_jar, InstructionSet::kArm));
 
-  const std::string i18n_jar =
-      std::string {kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
+  const std::string i18n_jar = std::string{kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
   EXPECT_EQ(GetArtApexData() +
                 "/dalvik-cache/arm/apex@com.android.i18n@javalib@core-icu4j.jar@classes.odex",
-            GetApexDataOdexFilename(i18n_jar.c_str(), InstructionSet::kArm));
+            GetApexDataOdexFilename(i18n_jar, InstructionSet::kArm));
 
   const std::string system_jar_apexdata_odex =
       GetArtApexData() + "/dalvik-cache/x86/system@framework@cookie.jar@classes.odex";
@@ -234,20 +231,20 @@ TEST_F(FileUtilsTest, GetApexDataBootImage) {
   ScopedUnsetEnvironmentVariable android_root("ANDROID_ROOT");
   ScopedUnsetEnvironmentVariable art_apex_data("ART_APEX_DATA");
 
-  EXPECT_EQ(std::string {},
-            GetApexDataBootImage(std::string {kAndroidI18nApexDefaultPath} + "/javalib/bar.jar"));
+  EXPECT_EQ(std::string{},
+            GetApexDataBootImage(std::string{kAndroidI18nApexDefaultPath} + "/javalib/bar.jar"));
 
   // Check image location has the prefix "boot-" in front of the basename of dex location and
   // that image suffix is .art.
   const std::string system_jar = "/system/framework/disk.jar";
-  const std::string boot_image = GetApexDataBootImage(system_jar.c_str());
+  const std::string boot_image = GetApexDataBootImage(system_jar);
   EXPECT_EQ(GetArtApexData() + "/dalvik-cache/boot-disk.art", boot_image);
 
   // Check the image filename corresponds to the oat file for the same system jar.
   const InstructionSet isa = InstructionSet::kArm64;
   const std::string boot_image_filename = GetSystemImageFilename(boot_image.c_str(), isa);
   const std::string accompanying_oat_file = ReplaceFileExtension(boot_image_filename, "oat");
-  EXPECT_EQ(accompanying_oat_file, GetApexDataOatFilename(system_jar.c_str(), isa));
+  EXPECT_EQ(accompanying_oat_file, GetApexDataOatFilename(system_jar, isa));
 }
 
 TEST_F(FileUtilsTest, GetApexDataImage) {
@@ -308,7 +305,7 @@ TEST_F(FileUtilsTest, OverrideDalvikCacheSubDirectory) {
             GetApexDataOdexFilename("/data/some/code.dex", InstructionSet::kArm));
 
   const std::string system_jar = "/system/framework/disk.jar";
-  const std::string boot_image = GetApexDataBootImage(system_jar.c_str());
+  const std::string boot_image = GetApexDataBootImage(system_jar);
   EXPECT_EQ(GetArtApexData() + "/overridden-cache/boot-disk.art", boot_image);
 
   EXPECT_EQ(
@@ -327,7 +324,7 @@ TEST_F(FileUtilsTest, GetSystemOdexFilenameForApex) {
   const std::string apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
   EXPECT_EQ(
       GetAndroidRoot() + "/framework/oat/arm/apex@com.android.art@javalib@some.jar@classes.odex",
-      GetSystemOdexFilenameForApex(apex_jar.c_str(), InstructionSet::kArm));
+      GetSystemOdexFilenameForApex(apex_jar, InstructionSet::kArm));
 }
 
 TEST_F(FileUtilsTest, ApexNameFromLocation) {

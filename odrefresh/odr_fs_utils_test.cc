@@ -136,12 +136,12 @@ TEST_F(OdrFsUtilsTest, DISABLED_GetUsedSpace) {
   ASSERT_EQ(kFirstFileBytes, static_cast<decltype(kFirstFileBytes)>(sb.st_size));
 
   uint64_t bytes_used = 0;
-  ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath().c_str(), &bytes_used));
+  ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath(), &bytes_used));
 
   const std::string second_file_path = scratch_dir.GetPath() + "/2.dat";
   ASSERT_TRUE(CreateFile(second_file_path.c_str(), kSecondFileBytes));
 
-  ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath().c_str(), &bytes_used));
+  ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath(), &bytes_used));
   uint64_t expected_bytes_used = RoundUp(kFirstFileBytes, sb.st_blocks * kBytesPerBlock) +
                                  RoundUp(kSecondFileBytes, sb.st_blocks * kBytesPerBlock);
   ASSERT_EQ(expected_bytes_used, bytes_used);
@@ -152,7 +152,7 @@ TEST_F(OdrFsUtilsTest, DISABLED_GetUsedSpace) {
     const std::string path = android::base::StringPrintf("%s/%zu", sub_dir_path.c_str(), i);
     ASSERT_TRUE(CreateFile(path.c_str(), i));
     expected_bytes_used += RoundUp(i, sb.st_blocks * kBytesPerBlock);
-    ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath().c_str(), &bytes_used));
+    ASSERT_TRUE(GetUsedSpace(scratch_dir.GetPath(), &bytes_used));
     ASSERT_EQ(expected_bytes_used, bytes_used);
   }
 }

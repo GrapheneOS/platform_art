@@ -618,8 +618,8 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithFd) {
   std::string vdex_location = GetScratchDir() + "/OatUpToDate.vdex";
 
   Copy(GetDexSrc1(), dex_location);
-  GenerateOatForTest(dex_location.c_str(),
-                     odex_location.c_str(),
+  GenerateOatForTest(dex_location,
+                     odex_location,
                      CompilerFilter::kSpeed,
                      /* with_alternate_image= */ false);
 
@@ -668,8 +668,8 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithInvalidOdexFd) {
   std::string vdex_location = GetScratchDir() + "/OatUpToDate.vdex";
 
   Copy(GetDexSrc1(), dex_location);
-  GenerateOatForTest(dex_location.c_str(),
-                     odex_location.c_str(),
+  GenerateOatForTest(dex_location,
+                     odex_location,
                      CompilerFilter::kSpeed,
                      /* with_alternate_image= */ false);
 
@@ -716,8 +716,8 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithInvalidVdexFd) {
   std::string odex_location = GetScratchDir() + "/OatUpToDate.odex";
 
   Copy(GetDexSrc1(), dex_location);
-  GenerateOatForTest(dex_location.c_str(),
-                     odex_location.c_str(),
+  GenerateOatForTest(dex_location,
+                     odex_location,
                      CompilerFilter::kSpeed,
                      /* with_alternate_image= */ false);
 
@@ -816,8 +816,8 @@ TEST_P(OatFileAssistantTest, EmptyVdexOdex) {
   std::string vdex_location = GetOdexDir() + "/EmptyVdexOdex.vdex";
 
   Copy(GetDexSrc1(), dex_location);
-  ScratchFile vdex_file(vdex_location.c_str());
-  ScratchFile odex_file(odex_location.c_str());
+  ScratchFile vdex_file(vdex_location);
+  ScratchFile odex_file(odex_location);
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1163,7 +1163,7 @@ TEST_P(OatFileAssistantTest, OatContextOutOfDate) {
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
   VerifyOptimizationStatus(
-      dex_location.c_str(), context.get(), "verify", "vdex", "up-to-date", /*check_context=*/true);
+      dex_location, context.get(), "verify", "vdex", "up-to-date", /*check_context=*/true);
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
