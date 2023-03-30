@@ -1,0 +1,198 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+
+abstract class BaseTraceParser {
+    public static final int MAGIC_NUMBER = 0x574f4c53;
+    public static final int DUAL_CLOCK_VERSION = 3;
+    public static final int STREAMING_DUAL_CLOCK_VERSION = 0xF3;
+    public static final String START_SECTION_ID = "*";
+    public static final String METHODS_SECTION_ID = "*methods";
+    public static final String THREADS_SECTION_ID = "*threads";
+    public static final String END_SECTION_ID = "*end";
+
+    public void InitializeParser(File file) throws IOException {
+        dataStream = new DataInputStream(new FileInputStream(file));
+        methodIdMap = new HashMap<Integer, String>();
+        threadIdMap = new HashMap<Integer, String>();
+        nestingLevelMap = new HashMap<Integer, Integer>();
+    }
+
+    public void closeFile() throws IOException {
+        dataStream.close();
+    }
+
+    public String readString(int numBytes) throws IOException {
+        byte[] buffer = new byte[numBytes];
+        dataStream.readFully(buffer);
+        return new String(buffer, StandardCharsets.UTF_8);
+    }
+
+    public String readLine() throws IOException {
+        StringBuilder sb = new StringBuilder();
+        char lineSeparator = '\n';
+        char c = (char)dataStream.readUnsignedByte();
+        while ( c != lineSeparator) {
+            sb.append(c);
+            c = (char)dataStream.readUnsignedByte();
+        }
+        return sb.toString();
+    }
+
+    public int readNumber(int numBytes) throws IOException {
+        int number = 0;
+        for (int i = 0; i < numBytes; i++) {
+            number += dataStream.readUnsignedByte() << (i * 8);
+        }
+        return number;
+    }
+
+    public void validateTraceHeader(int expectedVersion) throws Exception {
+        // Read 4-byte magicNumber.
+        int magicNumber = readNumber(4);
+        if (magicNumber != MAGIC_NUMBER) {
+            throw new Exception("Magic number doesn't match. Expected "
+                    + Integer.toHexString(MAGIC_NUMBER) + " Got "
+                    + Integer.toHexString(magicNumber));
+        }
+        // Read 2-byte version.
+        int version = readNumber(2);
+        if (version != expectedVersion) {
+            throw new Exception(
+                    "Unexpected version. Expected " + expectedVersion + " Got " + version);
+        }
+        traceFormatVersion = version & 0xF;
+        // Read 2-byte headerLength length.
+        int headerLength = readNumber(2);
+        // Read 8-byte starting time - Ignore timestamps since they are not deterministic.
+        dataStream.skipBytes(8);
+        // 4 byte magicNumber + 2 byte version + 2 byte offset + 8 byte timestamp.
+        int numBytesRead = 16;
+        if (version >= DUAL_CLOCK_VERSION) {
+            // Read 2-byte record size.
+            // TODO(mythria): Check why this is needed. We can derive recordSize from version. Not
+            // sure why this is needed.
+            recordSize = readNumber(2);
+            numBytesRead += 2;
+        }
+        // Skip any padding.
+        if (headerLength > numBytesRead) {
+            dataStream.skipBytes(headerLength - numBytesRead);
+        }
+    }
+
+    public int GetEntryHeader() throws IOException {
+        // Read 2-byte thread-id. On host thread-ids can be greater than 16-bit.
+        int threadId = readNumber(2);
+        if (threadId != 0) {
+            return threadId;
+        }
+        // Read 1-byte header type
+        return readNumber(1);
+    }
+
+    public void ProcessMethodInfoEntry() throws IOException {
+        // Read 2-byte method info size
+        int headerLength = readNumber(2);
+        // Read header size data.
+        String methodInfo = readString(headerLength);
+        String[] tokens = methodInfo.split("\t", 2);
+        // Get methodId and record methodId -> methodName map.
+        int methodId = Integer.decode(tokens[0]);
+        String methodLine = tokens[1].replace('\t', ' ');
+        methodLine = methodLine.substring(0, methodLine.length() - 1);
+        methodIdMap.put(methodId, methodLine);
+    }
+
+    public void ProcessThreadInfoEntry() throws IOException {
+        // Read 2-byte thread id
+        int threadId = readNumber(2);
+        // Read 2-byte thread info size
+        int headerLength = readNumber(2);
+        // Read header size data.
+        String threadInfo = readString(headerLength);
+        threadIdMap.put(threadId, threadInfo);
+    }
+
+    public boolean ShouldIgnoreThread(int threadId) throws Exception {
+        if (threadIdMap.get(threadId).contains("Daemon")) {
+            return true;
+        }
+        return false;
+    }
+
+    public String eventTypeToString(int eventType, int threadId) {
+        if (!nestingLevelMap.containsKey(threadId)) {
+            nestingLevelMap.put(threadId, 0);
+        }
+
+        int nestingLevel = nestingLevelMap.get(threadId);
+        String str = "";
+        for (int i = 0; i < nestingLevel; i++) {
+            str += ".";
+        }
+        switch (eventType) {
+            case 0:
+                nestingLevel++;
+                str += ".>>";
+                break;
+            case 1:
+                nestingLevel--;
+                str += "<<";
+                break;
+            case 2:
+                nestingLevel--;
+                str += "<<E";
+                break;
+            default:
+                str += "??";
+        }
+        nestingLevelMap.put(threadId, nestingLevel);
+        return str;
+    }
+
+    public String ProcessEventEntry(int threadId) throws IOException {
+        // Read 4-byte method value
+        int methodAndEvent = readNumber(4);
+        int methodId = methodAndEvent & ~0x3;
+        int eventType = methodAndEvent & 0x3;
+
+        String str = eventTypeToString(eventType, threadId) + " " + threadIdMap.get(threadId)
+                + " " + methodIdMap.get(methodId);
+        // Depending on the version skip either one or two timestamps.
+        // TODO(mythria): Probably add a check that time stamps are always greater than initial
+        // timestamp.
+        int numBytesTimestamp = (traceFormatVersion == 2) ? 4 : 8;
+        dataStream.skipBytes(numBytesTimestamp);
+        return str;
+    }
+
+    public abstract void CheckTraceFileFormat(File traceFile, int expectedVersion)
+            throws Exception;
+
+    DataInputStream dataStream;
+    HashMap<Integer, String> methodIdMap;
+    HashMap<Integer, String> threadIdMap;
+    HashMap<Integer, Integer> nestingLevelMap;
+    int recordSize = 0;
+    int traceFormatVersion = 0;
+}

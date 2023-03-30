@@ -790,6 +790,10 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
 
 void Trace::FinishTracing() {
   size_t final_offset = 0;
+  if (trace_output_mode_ != TraceOutputMode::kStreaming) {
+    final_offset = cur_offset_.load(std::memory_order_relaxed);
+  }
+
   // Compute elapsed time.
   uint64_t elapsed = GetMicroTime(GetTimestamp()) - start_time_;
 
@@ -1242,13 +1246,20 @@ static void DumpThread(Thread* t, void* arg) {
   std::ostream& os = *reinterpret_cast<std::ostream*>(arg);
   std::string name;
   t->GetThreadName(name);
-  os << t->GetTid() << "\t" << name << "\n";
+  // We use only 16 bits to encode thread id. On Android, we don't expect to use more than
+  // 16-bits for a Tid. For 32-bit platforms it is always ensured we use less than 16 bits.
+  // See  __check_max_thread_id in bionic for more details. Even on 64-bit the max threads
+  // is currently less than 65536.
+  // TODO(mythria): On host, we know thread ids can be greater than 16 bits. Consider adding
+  // a map similar to method ids.
+  DCHECK(!kIsTargetBuild || t->GetTid() < (1 << 16));
+  os << static_cast<uint16_t>(t->GetTid()) << "\t" << name << "\n";
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
   Thread* self = Thread::Current();
   for (const auto& it : exited_threads_) {
-    os << it.first << "\t" << it.second << "\n";
+    os << static_cast<uint16_t>(it.first) << "\t" << it.second << "\n";
   }
   Locks::thread_list_lock_->AssertNotHeld(self);
   MutexLock mu(self, *Locks::thread_list_lock_);
