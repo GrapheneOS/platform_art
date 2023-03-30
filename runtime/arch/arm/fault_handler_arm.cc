@@ -46,19 +46,19 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
 }
 
 uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  if (sc->arm_sp == 0) {
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  if (mc->arm_sp == 0) {
     VLOG(signals) << "Missing SP";
     return 0u;
   }
-  return sc->arm_pc;
+  return mc->arm_pc;
 }
 
 uintptr_t FaultManager::GetFaultSp(void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  return sc->arm_sp;
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  return mc->arm_sp;
 }
 
 bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
@@ -67,9 +67,9 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
     return false;
   }
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  ArtMethod** sp = reinterpret_cast<ArtMethod**>(sc->arm_sp);
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  ArtMethod** sp = reinterpret_cast<ArtMethod**>(mc->arm_sp);
   if (!IsValidMethod(*sp)) {
     return false;
   }
@@ -87,20 +87,20 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
   // to that PC (though we're going to jump to the exception handler instead).
 
   // Need to work out the size of the instruction that caused the exception.
-  uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
-  bool in_thumb_mode = sc->arm_cpsr & (1 << 5);
+  uint8_t* ptr = reinterpret_cast<uint8_t*>(mc->arm_pc);
+  bool in_thumb_mode = mc->arm_cpsr & (1 << 5);
   uint32_t instr_size = in_thumb_mode ? GetInstructionSize(ptr) : 4;
-  uintptr_t return_pc = (sc->arm_pc + instr_size) | (in_thumb_mode ? 1 : 0);
+  uintptr_t return_pc = (mc->arm_pc + instr_size) | (in_thumb_mode ? 1 : 0);
 
   // Push the return PC to the stack and pass the fault address in LR.
-  sc->arm_sp -= sizeof(uintptr_t);
-  *reinterpret_cast<uintptr_t*>(sc->arm_sp) = return_pc;
-  sc->arm_lr = fault_address;
+  mc->arm_sp -= sizeof(uintptr_t);
+  *reinterpret_cast<uintptr_t*>(mc->arm_sp) = return_pc;
+  mc->arm_lr = fault_address;
 
   // Arrange for the signal handler to return to the NPE entrypoint.
-  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
+  mc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   // Make sure the thumb bit is set as the handler is in thumb mode.
-  sc->arm_cpsr = sc->arm_cpsr | (1 << 5);
+  mc->arm_cpsr = mc->arm_cpsr | (1 << 5);
   // Pass the faulting address as the first argument of
   // art_quick_throw_null_pointer_exception_from_signal.
   VLOG(signals) << "Generating null pointer exception";
@@ -123,9 +123,9 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
       + Thread::ThreadSuspendTriggerOffset<PointerSize::k32>().Int32Value();
   uint16_t checkinst2 = 0x6800;
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  uint8_t* ptr2 = reinterpret_cast<uint8_t*>(sc->arm_pc);
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  uint8_t* ptr2 = reinterpret_cast<uint8_t*>(mc->arm_pc);
   uint8_t* ptr1 = ptr2 - 4;
   VLOG(signals) << "checking suspend";
 
@@ -158,10 +158,10 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 
     // NB: remember that we need to set the bottom bit of the LR register
     // to switch to thumb mode.
-    VLOG(signals) << "arm lr: " << std::hex << sc->arm_lr;
-    VLOG(signals) << "arm pc: " << std::hex << sc->arm_pc;
-    sc->arm_lr = sc->arm_pc + 3;      // +2 + 1 (for thumb)
-    sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
+    VLOG(signals) << "arm lr: " << std::hex << mc->arm_lr;
+    VLOG(signals) << "arm pc: " << std::hex << mc->arm_pc;
+    mc->arm_lr = mc->arm_pc + 3;  // +2 + 1 (for thumb)
+    mc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
@@ -188,15 +188,15 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 
 bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
                                   void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
-  VLOG(signals) << "sigcontext: " << std::hex << sc;
+  VLOG(signals) << "sigcontext: " << std::hex << mc;
 
-  uintptr_t sp = sc->arm_sp;
+  uintptr_t sp = mc->arm_sp;
   VLOG(signals) << "sp: " << std::hex << sp;
 
-  uintptr_t fault_addr = sc->fault_address;
+  uintptr_t fault_addr = mc->fault_address;
   VLOG(signals) << "fault_addr: " << std::hex << fault_addr;
   VLOG(signals) << "checking for stack overflow, sp: " << std::hex << sp <<
     ", fault_addr: " << fault_addr;
@@ -215,10 +215,10 @@ bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTR
   // The value of LR must be the same as it was when we entered the code that
   // caused this fault.  This will be inserted into a callee save frame by
   // the function to which this handler returns (art_quick_throw_stack_overflow).
-  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
+  mc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   // Make sure the thumb bit is set as the handler is in thumb mode.
-  sc->arm_cpsr = sc->arm_cpsr | (1 << 5);
+  mc->arm_cpsr = mc->arm_cpsr | (1 << 5);
 
   // The kernel will now return to the address in sc->arm_pc.
   return true;
