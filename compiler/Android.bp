@@ -130,6 +130,11 @@ art_cc_defaults {
                 "utils/arm64/managed_register_arm64.cc",
             ],
         },
+        riscv64: {
+            srcs: [
+                "utils/riscv64/managed_register_riscv64.cc",
+            ],
+        },
         x86: {
             srcs: [
                 "jni/quick/x86/calling_convention_x86.cc",
@@ -440,6 +445,11 @@ art_cc_defaults {
         arm64: {
             srcs: [
                 "utils/arm64/managed_register_arm64_test.cc",
+            ],
+        },
+        riscv64: {
+            srcs: [
+                "utils/riscv64/managed_register_riscv64_test.cc",
             ],
         },
         x86: {
