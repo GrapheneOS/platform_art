@@ -31,6 +31,18 @@ public class Main {
             System.out.println("This test is not supported on " + name);
             return;
         }
+        System.out.println("***** streaming test *******");
+        StreamTraceParser stream_parser = new StreamTraceParser();
+        testTracing(
+                /* streaming=*/true, stream_parser, BaseTraceParser.STREAMING_DUAL_CLOCK_VERSION);
+
+        System.out.println("***** non streaming test *******");
+        NonStreamTraceParser non_stream_parser = new NonStreamTraceParser();
+        testTracing(/* streaming=*/false, non_stream_parser, BaseTraceParser.DUAL_CLOCK_VERSION);
+    }
+
+    public static void testTracing(boolean streaming, BaseTraceParser parser, int expected_version)
+            throws Exception {
         file = createTempFile();
         FileOutputStream out_file = new FileOutputStream(file);
         Main m = new Main();
@@ -43,52 +55,19 @@ public class Main {
                 VMDebug.$noinline$stopMethodTracing();
             }
 
-            VMDebug.startMethodTracing(file.getPath(), out_file.getFD(), 0, 0, false, 0, true);
+            VMDebug.startMethodTracing(file.getPath(), out_file.getFD(), 0, 0, false, 0, streaming);
             t.start();
             t.join();
             m.$noinline$doSomeWork();
             m.doSomeWorkThrow();
             VMDebug.$noinline$stopMethodTracing();
             out_file.close();
-            m.CheckTraceFileFormat(file);
+            parser.CheckTraceFileFormat(file, expected_version);
         } finally {
             if (out_file != null) {
                 out_file.close();
             }
         }
-    }
-
-    private void CheckTraceFileFormat(File trace_file) throws Exception {
-        StreamTraceParser parser = new StreamTraceParser(trace_file);
-        parser.validateTraceHeader(StreamTraceParser.TRACE_VERSION_DUAL_CLOCK);
-        boolean has_entries = true;
-        boolean seen_stop_tracing_method = false;
-        while (has_entries) {
-            int header_type = parser.GetEntryHeader();
-            switch (header_type) {
-                case 1:
-                    parser.ProcessMethodInfoEntry();
-                    break;
-                case 2:
-                    parser.ProcessThreadInfoEntry();
-                    break;
-                case 3:
-                    // TODO(mythria): Add test to also check format of trace summary.
-                    has_entries = false;
-                    break;
-                default:
-                    String event_string = parser.ProcessEventEntry(header_type);
-                    // Ignore events after method tracing was stopped. The code that is executed
-                    // later could be non-deterministic.
-                    if (!seen_stop_tracing_method) {
-                        System.out.println(event_string);
-                    }
-                    if (event_string.contains("Main$VMDebug $noinline$stopMethodTracing")) {
-                        seen_stop_tracing_method = true;
-                    }
-            }
-        }
-        parser.closeFile();
     }
 
     private static File createTempFile() throws Exception {
