@@ -19,12 +19,10 @@
 
 #include <android-base/logging.h>
 
-#include "base/arena_containers.h"
 #include "base/macros.h"
 #include "constants_arm.h"
 #include "dwarf/register.h"
 #include "offsets.h"
-#include "utils/arm/assembler_arm_shared.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
 
@@ -46,6 +44,26 @@ inline dwarf::Reg DWARFReg(vixl32::Register reg) {
 inline dwarf::Reg DWARFReg(vixl32::SRegister reg) {
   return dwarf::Reg::ArmFp(static_cast<int>(reg.GetCode()));
 }
+
+enum LoadOperandType {
+  kLoadSignedByte,
+  kLoadUnsignedByte,
+  kLoadSignedHalfword,
+  kLoadUnsignedHalfword,
+  kLoadWord,
+  kLoadWordPair,
+  kLoadSWord,
+  kLoadDWord
+};
+
+enum StoreOperandType {
+  kStoreByte,
+  kStoreHalfword,
+  kStoreWord,
+  kStoreWordPair,
+  kStoreSWord,
+  kStoreDWord
+};
 
 class ArmVIXLMacroAssembler final : public vixl32::MacroAssembler {
  public:
