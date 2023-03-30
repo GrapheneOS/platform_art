@@ -16,8 +16,6 @@
 
 package com.android.tests.odsign;
 
-import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -27,22 +25,17 @@ import static org.junit.Assume.assumeTrue;
 import android.cts.install.lib.host.InstallUtilsHost;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.TestDeviceOptions;
 import com.android.tradefed.invoker.TestInformation;
-import com.android.tradefed.result.FileInputStreamSource;
-import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.util.CommandResult;
 
 import com.google.common.io.ByteStreams;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,6 +51,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -377,17 +371,6 @@ public class OdsignTestUtils {
         CommandResult result = mTestInfo.getDevice().executeShellV2Command(command);
         assertWithMessage(result.toString()).that(result.getExitCode()).isEqualTo(0);
         return result.getStdout().trim();
-    }
-
-    public void archiveLogThenDelete(TestLogData logs, String remotePath, String localName)
-            throws DeviceNotAvailableException {
-        ITestDevice device = mTestInfo.getDevice();
-        File logFile = device.pullFile(remotePath);
-        if (logFile != null) {
-            logs.addTestLog(localName, LogDataType.TEXT, new FileInputStreamSource(logFile));
-            // Delete to avoid confusing logs from a previous run, just in case.
-            device.deleteFile(remotePath);
-        }
     }
 
     public File copyResourceToFile(String resourceName) throws Exception {
