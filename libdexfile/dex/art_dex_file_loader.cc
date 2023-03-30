@@ -118,4 +118,28 @@ bool ArtDexFileLoader::GetMultiDexChecksums(const char* filename,
   return false;
 }
 
+std::unique_ptr<const DexFile> ArtDexFileLoader::Open(
+    const uint8_t* base,
+    size_t size,
+    const std::string& location,
+    uint32_t location_checksum,
+    const OatDexFile* oat_dex_file,
+    bool verify,
+    bool verify_checksum,
+    std::string* error_msg,
+    std::unique_ptr<DexFileContainer> container) const {
+  return OpenCommon(base,
+                    size,
+                    /*data_base=*/nullptr,
+                    /*data_size=*/0,
+                    location,
+                    location_checksum,
+                    oat_dex_file,
+                    verify,
+                    verify_checksum,
+                    error_msg,
+                    std::move(container),
+                    /*verify_result=*/nullptr);
+}
+
 }  // namespace art
