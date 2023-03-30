@@ -23,7 +23,6 @@
 #include "base/macros.h"
 #include "constants_arm.h"
 #include "offsets.h"
-#include "utils/arm/assembler_arm_shared.h"
 #include "utils/arm/assembler_arm_vixl.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
