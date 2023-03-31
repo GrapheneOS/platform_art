@@ -4489,22 +4489,19 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, s
       mirror::Object* new_object = visitor->IsMarked(object);
       // We know the string is marked because it's a strongly-interned string that
       // is always alive (see b/117621117 for trying to make those strings weak).
-      if (new_object == nullptr) {
+      if (kIsDebugBuild && new_object == nullptr) {
         // (b/275005060) Currently the problem is reported only on CC GC.
         // Therefore we log it with more information. But since the failure rate
         // is quite high, sampling it.
         if (gUseReadBarrier) {
-          static constexpr size_t kSampleRate = 5;
-          if (MilliTime() % kSampleRate == 0) {
-            Runtime* runtime = Runtime::Current();
-            gc::collector::ConcurrentCopying* cc = runtime->GetHeap()->ConcurrentCopyingCollector();
-            CHECK_NE(cc, nullptr);
-            LOG(FATAL) << cc->DumpReferenceInfo(object, "string")
-                       << " string interned: " << std::boolalpha
-                       << runtime->GetInternTable()->LookupStrong(
-                              Thread::Current(), down_cast<mirror::String*>(object))
-                       << std::noboolalpha;
-          }
+          Runtime* runtime = Runtime::Current();
+          gc::collector::ConcurrentCopying* cc = runtime->GetHeap()->ConcurrentCopyingCollector();
+          CHECK_NE(cc, nullptr);
+          LOG(FATAL) << cc->DumpReferenceInfo(object, "string")
+                     << " string interned: " << std::boolalpha
+                     << runtime->GetInternTable()->LookupStrong(Thread::Current(),
+                                                                down_cast<mirror::String*>(object))
+                     << std::noboolalpha;
         } else {
           // Other GCs
           LOG(FATAL) << __FUNCTION__
