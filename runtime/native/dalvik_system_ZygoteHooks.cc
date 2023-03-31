@@ -168,8 +168,9 @@ static uint32_t EnableDebugFeatures(uint32_t runtime_flags) {
     if (!vm->IsCheckJniEnabled()) {
       LOG(INFO) << "Late-enabling -Xcheck:jni";
       vm->SetCheckJniEnabled(true);
-      // There's only one thread running at this point, so only one JNIEnv to fix up.
-      Thread::Current()->GetJniEnv()->SetCheckJniEnabled(true);
+      // This is the only thread that's running at this point and the above call sets
+      // the CheckJNI flag in the corresponding `JniEnvExt`.
+      DCHECK(Thread::Current()->GetJniEnv()->IsCheckJniEnabled());
     } else {
       LOG(INFO) << "Not late-enabling -Xcheck:jni (already on)";
     }

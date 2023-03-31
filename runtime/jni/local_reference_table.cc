@@ -16,6 +16,8 @@
 
 #include "local_reference_table-inl.h"
 
+#include "base/bit_utils.h"
+#include "base/casts.h"
 #include "base/globals.h"
 #include "base/mutator_locked_dumpable.h"
 #include "base/systrace.h"
@@ -26,7 +28,7 @@
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
 #include "reference_table.h"
-#include "runtime.h"
+#include "runtime-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
@@ -38,72 +40,118 @@ namespace jni {
 static constexpr bool kDumpStackOnNonLocalReference = false;
 static constexpr bool kDebugLRT = false;
 
-// Maximum table size we allow.
-static constexpr size_t kMaxTableSizeInBytes = 128 * MB;
-
-void LocalReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
-  // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  if (!vm->IsCheckJniEnabled()) {
-    // Otherwise, we want to abort rather than hand back a bad reference.
-    LOG(FATAL) << msg;
-  } else {
-    LOG(ERROR) << msg;
-  }
-}
-
 // Mmap an "indirect ref table region. Table_bytes is a multiple of a page size.
 static inline MemMap NewLRTMap(size_t table_bytes, std::string* error_msg) {
-  MemMap result = MemMap::MapAnonymous("local ref table",
-                                       table_bytes,
-                                       PROT_READ | PROT_WRITE,
-                                       /*low_4gb=*/ false,
-                                       error_msg);
-  if (!result.IsValid() && error_msg->empty()) {
-      *error_msg = "Unable to map memory for indirect ref table";
-  }
-  return result;
+  return MemMap::MapAnonymous("local ref table",
+                              table_bytes,
+                              PROT_READ | PROT_WRITE,
+                              /*low_4gb=*/ false,
+                              error_msg);
 }
 
 SmallLrtAllocator::SmallLrtAllocator()
-    : small_lrt_freelist_(nullptr), lock_("Small LRT table lock", LockLevel::kGenericBottomLock) {
+    : free_lists_(kNumSlots, nullptr),
+      shared_lrt_maps_(),
+      lock_("Small LRT allocator lock", LockLevel::kGenericBottomLock) {
 }
 
-// Allocate a LRT table for kSmallLrtEntries.
-LrtEntry* SmallLrtAllocator::Allocate(std::string* error_msg) {
+inline size_t SmallLrtAllocator::GetIndex(size_t size) {
+  DCHECK_GE(size, kSmallLrtEntries);
+  DCHECK_LT(size, kPageSize / sizeof(LrtEntry));
+  DCHECK(IsPowerOfTwo(size));
+  size_t index = WhichPowerOf2(size / kSmallLrtEntries);
+  DCHECK_LT(index, kNumSlots);
+  return index;
+}
+
+LrtEntry* SmallLrtAllocator::Allocate(size_t size, std::string* error_msg) {
+  size_t index = GetIndex(size);
   MutexLock lock(Thread::Current(), lock_);
-  if (small_lrt_freelist_ == nullptr) {
-    // Refill.
+  size_t fill_from = index;
+  while (fill_from != kNumSlots && free_lists_[fill_from] == nullptr) {
+    ++fill_from;
+  }
+  void* result = nullptr;
+  if (fill_from != kNumSlots) {
+    // We found a slot with enough memory.
+    result = free_lists_[fill_from];
+    free_lists_[fill_from] = *reinterpret_cast<void**>(result);
+  } else {
+    // We need to allocate a new page and split it into smaller pieces.
     MemMap map = NewLRTMap(kPageSize, error_msg);
-    if (map.IsValid()) {
-      small_lrt_freelist_ = reinterpret_cast<LrtEntry*>(map.Begin());
-      for (uint8_t* p = map.Begin(); p + kInitialLrtBytes < map.End(); p += kInitialLrtBytes) {
-        *reinterpret_cast<LrtEntry**>(p) = reinterpret_cast<LrtEntry*>(p + kInitialLrtBytes);
-      }
-      shared_lrt_maps_.emplace_back(std::move(map));
+    if (!map.IsValid()) {
+      return nullptr;
     }
+    result = map.Begin();
+    shared_lrt_maps_.emplace_back(std::move(map));
   }
-  if (small_lrt_freelist_ == nullptr) {
-    return nullptr;
+  while (fill_from != index) {
+    --fill_from;
+    // Store the second half of the current buffer in appropriate free list slot.
+    void* mid = reinterpret_cast<uint8_t*>(result) + (kInitialLrtBytes << fill_from);
+    DCHECK(free_lists_[fill_from] == nullptr);
+    *reinterpret_cast<void**>(mid) = nullptr;
+    free_lists_[fill_from] = mid;
   }
-  LrtEntry* result = small_lrt_freelist_;
-  small_lrt_freelist_ = *reinterpret_cast<LrtEntry**>(small_lrt_freelist_);
-  // Clear pointer in first entry.
-  new(result) LrtEntry();
-  return result;
+  // Clear the memory we return to the caller.
+  std::memset(result, 0, kInitialLrtBytes << index);
+  return reinterpret_cast<LrtEntry*>(result);
 }
 
-void SmallLrtAllocator::Deallocate(LrtEntry* unneeded) {
+void SmallLrtAllocator::Deallocate(LrtEntry* unneeded, size_t size) {
+  size_t index = GetIndex(size);
   MutexLock lock(Thread::Current(), lock_);
-  *reinterpret_cast<LrtEntry**>(unneeded) = small_lrt_freelist_;
-  small_lrt_freelist_ = unneeded;
+  while (index < kNumSlots) {
+    // Check if we can merge this free block with another block with the same size.
+    void** other = reinterpret_cast<void**>(
+        reinterpret_cast<uintptr_t>(unneeded) ^ (kInitialLrtBytes << index));
+    void** before = &free_lists_[index];
+    if (index + 1u == kNumSlots && *before == other && *other == nullptr) {
+      // Do not unmap the page if we do not have other free blocks with index `kNumSlots - 1`.
+      // (Keep at least one free block to avoid a situation where creating and destroying a single
+      // thread with no local references would map and unmap a page in the `SmallLrtAllocator`.)
+      break;
+    }
+    while (*before != nullptr && *before != other) {
+      before = reinterpret_cast<void**>(*before);
+    }
+    if (*before == nullptr) {
+      break;
+    }
+    // Remove `other` from the free list and merge it with the `unneeded` block.
+    DCHECK(*before == other);
+    *before = *reinterpret_cast<void**>(other);
+    ++index;
+    unneeded = reinterpret_cast<LrtEntry*>(
+        reinterpret_cast<uintptr_t>(unneeded) & reinterpret_cast<uintptr_t>(other));
+  }
+  if (index == kNumSlots) {
+    // Free the entire page.
+    DCHECK(free_lists_[kNumSlots - 1u] != nullptr);
+    auto match = [=](MemMap& map) { return unneeded == reinterpret_cast<LrtEntry*>(map.Begin()); };
+    auto it = std::find_if(shared_lrt_maps_.begin(), shared_lrt_maps_.end(), match);
+    DCHECK(it != shared_lrt_maps_.end());
+    shared_lrt_maps_.erase(it);
+    DCHECK(!shared_lrt_maps_.empty());
+    return;
+  }
+  *reinterpret_cast<void**>(unneeded) = free_lists_[index];
+  free_lists_[index] = unneeded;
 }
 
-LocalReferenceTable::LocalReferenceTable()
+LocalReferenceTable::LocalReferenceTable(bool check_jni)
     : segment_state_(kLRTFirstSegment),
-      table_(nullptr),
       max_entries_(0u),
-      current_num_holes_(0) {
+      free_entries_list_(
+          FirstFreeField::Update(kFreeListEnd, check_jni ? 1u << kFlagCheckJni : 0u)),
+      small_table_(nullptr),
+      tables_(),
+      table_mem_maps_() {
+}
+
+void LocalReferenceTable::SetCheckJniEnabled(bool enabled) {
+  free_entries_list_ =
+      (free_entries_list_ & ~(1u << kFlagCheckJni)) | (enabled ? 1u << kFlagCheckJni : 0u);
 }
 
 bool LocalReferenceTable::Initialize(size_t max_count, std::string* error_msg) {
@@ -111,176 +159,107 @@ bool LocalReferenceTable::Initialize(size_t max_count, std::string* error_msg) {
 
   // Overflow and maximum check.
   CHECK_LE(max_count, kMaxTableSizeInBytes / sizeof(LrtEntry));
-
-  if (max_count <= kSmallLrtEntries) {
-    table_ = Runtime::Current()->GetSmallLrtAllocator()->Allocate(error_msg);
-    if (table_ != nullptr) {
-      max_entries_ = kSmallLrtEntries;
-      // table_mem_map_ remains invalid.
-    }
+  if (IsCheckJniEnabled()) {
+    CHECK_LE(max_count, kMaxTableSizeInBytes / sizeof(LrtEntry) / kCheckJniEntriesPerReference);
+    max_count *= kCheckJniEntriesPerReference;
   }
-  if (table_ == nullptr) {
-    const size_t table_bytes = RoundUp(max_count * sizeof(LrtEntry), kPageSize);
-    table_mem_map_ = NewLRTMap(table_bytes, error_msg);
-    if (!table_mem_map_.IsValid()) {
-      DCHECK(!error_msg->empty());
-      return false;
-    }
 
-    table_ = reinterpret_cast<LrtEntry*>(table_mem_map_.Begin());
-    // Take into account the actual length.
-    max_entries_ = table_bytes / sizeof(LrtEntry);
+  SmallLrtAllocator* small_lrt_allocator = Runtime::Current()->GetSmallLrtAllocator();
+  LrtEntry* first_table = small_lrt_allocator->Allocate(kSmallLrtEntries, error_msg);
+  if (first_table == nullptr) {
+    DCHECK(!error_msg->empty());
+    return false;
   }
-  segment_state_ = kLRTFirstSegment;
-  last_known_previous_state_ = kLRTFirstSegment;
-  return true;
+  DCHECK_ALIGNED(first_table, kCheckJniEntriesPerReference * sizeof(LrtEntry));
+  small_table_ = first_table;
+  max_entries_ = kSmallLrtEntries;
+  return (max_count <= kSmallLrtEntries) || Resize(max_count, error_msg);
 }
 
 LocalReferenceTable::~LocalReferenceTable() {
-  if (table_ != nullptr && !table_mem_map_.IsValid()) {
-    Runtime::Current()->GetSmallLrtAllocator()->Deallocate(table_);
-  }
-}
-
-void LocalReferenceTable::ConstexprChecks() {
-  // Use this for some assertions. They can't be put into the header as C++ wants the class
-  // to be complete.
-
-  // Check kind.
-  static_assert((EncodeIndirectRefKind(kLocal) & (~kKindMask)) == 0, "Kind encoding error");
-  static_assert((EncodeIndirectRefKind(kGlobal) & (~kKindMask)) == 0, "Kind encoding error");
-  static_assert((EncodeIndirectRefKind(kWeakGlobal) & (~kKindMask)) == 0, "Kind encoding error");
-  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kLocal)) == kLocal,
-                "Kind encoding error");
-  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kGlobal)) == kGlobal,
-                "Kind encoding error");
-  static_assert(DecodeIndirectRefKind(EncodeIndirectRefKind(kWeakGlobal)) == kWeakGlobal,
-                "Kind encoding error");
-
-  // Check serial.
-  static_assert(DecodeSerial(EncodeSerial(0u)) == 0u, "Serial encoding error");
-  static_assert(DecodeSerial(EncodeSerial(1u)) == 1u, "Serial encoding error");
-  static_assert(DecodeSerial(EncodeSerial(2u)) == 2u, "Serial encoding error");
-  static_assert(DecodeSerial(EncodeSerial(3u)) == 3u, "Serial encoding error");
-
-  // Table index.
-  static_assert(DecodeIndex(EncodeIndex(0u)) == 0u, "Index encoding error");
-  static_assert(DecodeIndex(EncodeIndex(1u)) == 1u, "Index encoding error");
-  static_assert(DecodeIndex(EncodeIndex(2u)) == 2u, "Index encoding error");
-  static_assert(DecodeIndex(EncodeIndex(3u)) == 3u, "Index encoding error");
-}
-
-bool LocalReferenceTable::IsValid() const {
-  return table_ != nullptr;
-}
-
-// Holes:
-//
-// To keep the LRT compact, we want to fill "holes" created by non-stack-discipline Add & Remove
-// operation sequences. For simplicity and lower memory overhead, we do not use a free list or
-// similar. Instead, we scan for holes, with the expectation that we will find holes fast as they
-// are usually near the end of the table (see the header, TODO: verify this assumption). To avoid
-// scans when there are no holes, the number of known holes should be tracked.
-//
-// A previous implementation stored the top index and the number of holes as the segment state.
-// This constraints the maximum number of references to 16-bit. We want to relax this, as it
-// is easy to require more references (e.g., to list all classes in large applications). Thus,
-// the implicitly stack-stored state, the LRTSegmentState, is only the top index.
-//
-// Thus, hole count is a local property of the current segment, and needs to be recovered when
-// (or after) a frame is pushed or popped. To keep JNI transitions simple (and inlineable), we
-// cannot do work when the segment changes. Thus, Add and Remove need to ensure the current
-// hole count is correct.
-//
-// To be able to detect segment changes, we require an additional local field that can describe
-// the known segment. This is last_known_previous_state_. The requirement will become clear with
-// the following (some non-trivial) cases that have to be supported:
-//
-// 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference
-// 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
-// 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
-//    reference
-// 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference
-// 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
-//    reference
-//
-// Storing the last known *previous* state (bottom index) allows conservatively detecting all the
-// segment changes above. The condition is simply that the last known state is greater than or
-// equal to the current previous state, and smaller than the current state (top index). The
-// condition is conservative as it adds O(1) overhead to operations on an empty segment.
-
-static size_t CountNullEntries(const LrtEntry* table, size_t from, size_t to) {
-  size_t count = 0;
-  for (size_t index = from; index != to; ++index) {
-    if (table[index].GetReference()->IsNull()) {
-      count++;
+  SmallLrtAllocator* small_lrt_allocator =
+      max_entries_ != 0u ? Runtime::Current()->GetSmallLrtAllocator() : nullptr;
+  if (small_table_ != nullptr) {
+    small_lrt_allocator->Deallocate(small_table_, kSmallLrtEntries);
+    DCHECK(tables_.empty());
+  } else {
+    size_t num_small_tables = std::min(tables_.size(), MaxSmallTables());
+    for (size_t i = 0; i != num_small_tables; ++i) {
+      small_lrt_allocator->Deallocate(tables_[i], GetTableSize(i));
     }
-  }
-  return count;
-}
-
-void LocalReferenceTable::RecoverHoles(LRTSegmentState prev_state) {
-  if (last_known_previous_state_.top_index >= segment_state_.top_index ||
-      last_known_previous_state_.top_index < prev_state.top_index) {
-    const size_t top_index = segment_state_.top_index;
-    size_t count = CountNullEntries(table_, prev_state.top_index, top_index);
-
-    if (kDebugLRT) {
-      LOG(INFO) << "+++ Recovered holes: "
-                << " Current prev=" << prev_state.top_index
-                << " Current top_index=" << top_index
-                << " Old num_holes=" << current_num_holes_
-                << " New num_holes=" << count;
-    }
-
-    current_num_holes_ = count;
-    last_known_previous_state_ = prev_state;
-  } else if (kDebugLRT) {
-    LOG(INFO) << "No need to recover holes";
-  }
-}
-
-ALWAYS_INLINE
-static inline void CheckHoleCount(LrtEntry* table,
-                                  size_t exp_num_holes,
-                                  LRTSegmentState prev_state,
-                                  LRTSegmentState cur_state) {
-  if (kIsDebugBuild) {
-    size_t count = CountNullEntries(table, prev_state.top_index, cur_state.top_index);
-    CHECK_EQ(exp_num_holes, count) << "prevState=" << prev_state.top_index
-                                   << " topIndex=" << cur_state.top_index;
   }
 }
 
 bool LocalReferenceTable::Resize(size_t new_size, std::string* error_msg) {
-  CHECK_GT(new_size, max_entries_);
-
-  constexpr size_t kMaxEntries = kMaxTableSizeInBytes / sizeof(LrtEntry);
-  if (new_size > kMaxEntries) {
-    *error_msg = android::base::StringPrintf("Requested size exceeds maximum: %zu", new_size);
-    return false;
+  DCHECK_GE(max_entries_, kSmallLrtEntries);
+  DCHECK(IsPowerOfTwo(max_entries_));
+  DCHECK_GT(new_size, max_entries_);
+  DCHECK_LE(new_size, kMaxTableSizeInBytes / sizeof(LrtEntry));
+  size_t required_size = RoundUpToPowerOfTwo(new_size);
+  size_t num_required_tables = NumTablesForSize(required_size);
+  DCHECK_GE(num_required_tables, 2u);
+  // Delay moving the `small_table_` to `tables_` until after the next table allocation succeeds.
+  size_t num_tables = (small_table_ != nullptr) ? 1u : tables_.size();
+  DCHECK_EQ(num_tables, NumTablesForSize(max_entries_));
+  for (; num_tables != num_required_tables; ++num_tables) {
+    size_t new_table_size = GetTableSize(num_tables);
+    if (num_tables < MaxSmallTables()) {
+      SmallLrtAllocator* small_lrt_allocator = Runtime::Current()->GetSmallLrtAllocator();
+      LrtEntry* new_table = small_lrt_allocator->Allocate(new_table_size, error_msg);
+      if (new_table == nullptr) {
+        DCHECK(!error_msg->empty());
+        return false;
+      }
+      DCHECK_ALIGNED(new_table, kCheckJniEntriesPerReference * sizeof(LrtEntry));
+      tables_.push_back(new_table);
+    } else {
+      MemMap new_map = NewLRTMap(new_table_size * sizeof(LrtEntry), error_msg);
+      if (!new_map.IsValid()) {
+        DCHECK(!error_msg->empty());
+        return false;
+      }
+      DCHECK_ALIGNED(new_map.Begin(), kCheckJniEntriesPerReference * sizeof(LrtEntry));
+      tables_.push_back(reinterpret_cast<LrtEntry*>(new_map.Begin()));
+      table_mem_maps_.push_back(std::move(new_map));
+    }
+    DCHECK_EQ(num_tables == 1u, small_table_ != nullptr);
+    if (num_tables == 1u) {
+      tables_.insert(tables_.begin(), small_table_);
+      small_table_ = nullptr;
+    }
+    // Record the new available capacity after each successful allocation.
+    DCHECK_EQ(max_entries_, new_table_size);
+    max_entries_ = 2u * new_table_size;
   }
-  // Note: the above check also ensures that there is no overflow below.
-
-  const size_t table_bytes = RoundUp(new_size * sizeof(LrtEntry), kPageSize);
-
-  MemMap new_map = NewLRTMap(table_bytes, error_msg);
-  if (!new_map.IsValid()) {
-    return false;
-  }
-
-  memcpy(new_map.Begin(), table_, max_entries_ * sizeof(LrtEntry));
-  if (!table_mem_map_.IsValid()) {
-    // Didn't have its own map; deallocate old table.
-    Runtime::Current()->GetSmallLrtAllocator()->Deallocate(table_);
-  }
-  table_mem_map_ = std::move(new_map);
-  table_ = reinterpret_cast<LrtEntry*>(table_mem_map_.Begin());
-  const size_t real_new_size = table_bytes / sizeof(LrtEntry);
-  DCHECK_GE(real_new_size, new_size);
-  max_entries_ = real_new_size;
-
+  DCHECK_EQ(num_required_tables, tables_.size());
   return true;
+}
+
+template <typename EntryGetter>
+inline void LocalReferenceTable::PrunePoppedFreeEntries(EntryGetter&& get_entry) {
+  const uint32_t top_index = segment_state_.top_index;
+  uint32_t free_entries_list = free_entries_list_;
+  uint32_t free_entry_index = FirstFreeField::Decode(free_entries_list);
+  DCHECK_NE(free_entry_index, kFreeListEnd);
+  DCHECK_GE(free_entry_index, top_index);
+  do {
+    free_entry_index = get_entry(free_entry_index)->GetNextFree();
+  } while (free_entry_index != kFreeListEnd && free_entry_index >= top_index);
+  free_entries_list_ = FirstFreeField::Update(free_entry_index, free_entries_list);
+}
+
+inline uint32_t LocalReferenceTable::IncrementSerialNumber(LrtEntry* serial_number_entry) {
+  DCHECK_EQ(serial_number_entry, GetCheckJniSerialNumberEntry(serial_number_entry));
+  // The old serial number can be 0 if it was not used before. It can also be bits from the
+  // representation of an object reference, or a link to the next free entry written in this
+  // slot before enabling the CheckJNI. (Some gtests repeatedly enable and disable CheckJNI.)
+  uint32_t old_serial_number =
+      serial_number_entry->GetSerialNumberUnchecked() % kCheckJniEntriesPerReference;
+  uint32_t new_serial_number =
+      (old_serial_number + 1u) != kCheckJniEntriesPerReference ? old_serial_number + 1u : 1u;
+  DCHECK(IsValidSerialNumber(new_serial_number));
+  serial_number_entry->SetSerialNumber(new_serial_number);
+  return new_serial_number;
 }
 
 IndirectRef LocalReferenceTable::Add(LRTSegmentState previous_state,
@@ -288,31 +267,119 @@ IndirectRef LocalReferenceTable::Add(LRTSegmentState previous_state,
                                      std::string* error_msg) {
   if (kDebugLRT) {
     LOG(INFO) << "+++ Add: previous_state=" << previous_state.top_index
-              << " top_index=" << segment_state_.top_index
-              << " last_known_prev_top_index=" << last_known_previous_state_.top_index
-              << " holes=" << current_num_holes_;
+              << " top_index=" << segment_state_.top_index;
   }
 
-  size_t top_index = segment_state_.top_index;
-
-  CHECK(obj != nullptr);
+  DCHECK(obj != nullptr);
   VerifyObject(obj);
-  DCHECK(table_ != nullptr);
 
-  if (top_index == max_entries_) {
-    // Try to double space.
-    if (std::numeric_limits<size_t>::max() / 2 < max_entries_) {
+  DCHECK_LE(previous_state.top_index, segment_state_.top_index);
+  DCHECK(max_entries_ == kSmallLrtEntries ? small_table_ != nullptr : !tables_.empty());
+
+  auto store_obj = [obj, this](LrtEntry* free_entry, const char* tag)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    free_entry->SetReference(obj);
+    IndirectRef result = ToIndirectRef(free_entry);
+    if (kDebugLRT) {
+      LOG(INFO) << "+++ " << tag << ": added at index " << GetReferenceEntryIndex(result)
+                << ", top=" << segment_state_.top_index;
+    }
+    return result;
+  };
+
+  // Fast-path for small table with CheckJNI disabled.
+  uint32_t top_index = segment_state_.top_index;
+  LrtEntry* const small_table = small_table_;
+  if (LIKELY(small_table != nullptr)) {
+    DCHECK_EQ(max_entries_, kSmallLrtEntries);
+    DCHECK_LE(segment_state_.top_index, kSmallLrtEntries);
+    auto get_entry = [small_table](uint32_t index) ALWAYS_INLINE {
+      DCHECK_LT(index, kSmallLrtEntries);
+      return &small_table[index];
+    };
+    if (LIKELY(free_entries_list_ == kEmptyFreeListAndCheckJniDisabled)) {
+      if (LIKELY(top_index != kSmallLrtEntries)) {
+        LrtEntry* free_entry = get_entry(top_index);
+        segment_state_.top_index = top_index + 1u;
+        return store_obj(free_entry, "small_table/empty-free-list");
+      }
+    } else if (LIKELY(!IsCheckJniEnabled())) {
+      uint32_t first_free_index = GetFirstFreeIndex();
+      DCHECK_NE(first_free_index, kFreeListEnd);
+      if (UNLIKELY(first_free_index >= top_index)) {
+        PrunePoppedFreeEntries(get_entry);
+        first_free_index = GetFirstFreeIndex();
+      }
+      if (first_free_index != kFreeListEnd && first_free_index >= previous_state.top_index) {
+        DCHECK_LT(first_free_index, segment_state_.top_index);  // Popped entries pruned above.
+        LrtEntry* free_entry = get_entry(first_free_index);
+        // Use the `free_entry` only if it was created with CheckJNI disabled.
+        LrtEntry* serial_number_entry = GetCheckJniSerialNumberEntry(free_entry);
+        if (!serial_number_entry->IsSerialNumber()) {
+          free_entries_list_ = FirstFreeField::Update(free_entry->GetNextFree(), 0u);
+          return store_obj(free_entry, "small_table/reuse-empty-slot");
+        }
+      }
+      if (top_index != kSmallLrtEntries) {
+        LrtEntry* free_entry = get_entry(top_index);
+        segment_state_.top_index = top_index + 1u;
+        return store_obj(free_entry, "small_table/pruned-free-list");
+      }
+    }
+  }
+  DCHECK(IsCheckJniEnabled() || small_table == nullptr || top_index == kSmallLrtEntries);
+
+  // Process free list: prune, reuse free entry or pad for CheckJNI.
+  uint32_t first_free_index = GetFirstFreeIndex();
+  if (first_free_index != kFreeListEnd && first_free_index >= top_index) {
+    PrunePoppedFreeEntries([&](size_t index) { return GetEntry(index); });
+    first_free_index = GetFirstFreeIndex();
+  }
+  if (first_free_index != kFreeListEnd && first_free_index >= previous_state.top_index) {
+    // Reuse the free entry if it was created with the same CheckJNI setting.
+    DCHECK_LT(first_free_index, top_index);  // Popped entries have been pruned above.
+    LrtEntry* free_entry = GetEntry(first_free_index);
+    LrtEntry* serial_number_entry = GetCheckJniSerialNumberEntry(free_entry);
+    if (serial_number_entry->IsSerialNumber() == IsCheckJniEnabled()) {
+      free_entries_list_ = FirstFreeField::Update(free_entry->GetNextFree(), free_entries_list_);
+      if (UNLIKELY(IsCheckJniEnabled())) {
+        DCHECK_NE(free_entry, serial_number_entry);
+        uint32_t serial_number = IncrementSerialNumber(serial_number_entry);
+        free_entry = serial_number_entry + serial_number;
+        DCHECK_EQ(
+            free_entry,
+            GetEntry(RoundDown(first_free_index, kCheckJniEntriesPerReference) + serial_number));
+      }
+      return store_obj(free_entry, "reuse-empty-slot");
+    }
+  }
+  if (UNLIKELY(IsCheckJniEnabled()) && !IsAligned<kCheckJniEntriesPerReference>(top_index)) {
+    // Add non-CheckJNI holes up to the next serial number entry.
+    for (; !IsAligned<kCheckJniEntriesPerReference>(top_index); ++top_index) {
+      GetEntry(top_index)->SetNextFree(first_free_index);
+      first_free_index = top_index;
+    }
+    free_entries_list_ = FirstFreeField::Update(first_free_index, 1u << kFlagCheckJni);
+    segment_state_.top_index = top_index;
+  }
+
+  // Resize (double the space) if needed.
+  if (UNLIKELY(top_index == max_entries_)) {
+    static_assert(IsPowerOfTwo(kMaxTableSizeInBytes));
+    static_assert(IsPowerOfTwo(sizeof(LrtEntry)));
+    DCHECK(IsPowerOfTwo(max_entries_));
+    if (kMaxTableSizeInBytes == max_entries_ * sizeof(LrtEntry)) {
       std::ostringstream oss;
       oss << "JNI ERROR (app bug): " << kLocal << " table overflow "
           << "(max=" << max_entries_ << ")" << std::endl
           << MutatorLockedDumpable<LocalReferenceTable>(*this)
-          << " Resizing failed: exceeds size_t";
+          << " Resizing failed: Cannot resize over the maximum permitted size.";
       *error_msg = oss.str();
       return nullptr;
     }
 
     std::string inner_error_msg;
-    if (!Resize(max_entries_ * 2, &inner_error_msg)) {
+    if (!Resize(max_entries_ * 2u, &inner_error_msg)) {
       std::ostringstream oss;
       oss << "JNI ERROR (app bug): " << kLocal << " table overflow "
           << "(max=" << max_entries_ << ")" << std::endl
@@ -323,203 +390,294 @@ IndirectRef LocalReferenceTable::Add(LRTSegmentState previous_state,
     }
   }
 
-  RecoverHoles(previous_state);
-  CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
-
-  // We know there's enough room in the table.  Now we just need to find
-  // the right spot.  If there's a hole, find it and fill it; otherwise,
-  // add to the end of the list.
-  IndirectRef result;
-  size_t index;
-  if (current_num_holes_ > 0) {
-    DCHECK_GT(top_index, 1U);
-    // Find the first hole; likely to be near the end of the list.
-    LrtEntry* p_scan = &table_[top_index - 1];
-    DCHECK(!p_scan->GetReference()->IsNull());
-    --p_scan;
-    while (!p_scan->GetReference()->IsNull()) {
-      DCHECK_GE(p_scan, table_ + previous_state.top_index);
-      --p_scan;
-    }
-    index = p_scan - table_;
-    current_num_holes_--;
-  } else {
-    // Add to the end.
-    index = top_index++;
-    segment_state_.top_index = top_index;
+  // Use the next entry.
+  if (UNLIKELY(IsCheckJniEnabled())) {
+    DCHECK_ALIGNED(top_index, kCheckJniEntriesPerReference);
+    DCHECK_ALIGNED(previous_state.top_index, kCheckJniEntriesPerReference);
+    DCHECK_ALIGNED(max_entries_, kCheckJniEntriesPerReference);
+    LrtEntry* serial_number_entry = GetEntry(top_index);
+    uint32_t serial_number = IncrementSerialNumber(serial_number_entry);
+    LrtEntry* free_entry = serial_number_entry + serial_number;
+    DCHECK_EQ(free_entry, GetEntry(top_index + serial_number));
+    segment_state_.top_index = top_index + kCheckJniEntriesPerReference;
+    return store_obj(free_entry, "slow-path/check-jni");
   }
-  table_[index].Add(obj);
-  result = ToIndirectRef(index);
-  if (kDebugLRT) {
-    LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << segment_state_.top_index
-              << " holes=" << current_num_holes_;
-  }
-
-  DCHECK(result != nullptr);
-  return result;
+  LrtEntry* free_entry = GetEntry(top_index);
+  segment_state_.top_index = top_index + 1u;
+  return store_obj(free_entry, "slow-path");
 }
 
-void LocalReferenceTable::AssertEmpty() {
-  for (size_t i = 0; i < Capacity(); ++i) {
-    if (!table_[i].GetReference()->IsNull()) {
-      LOG(FATAL) << "Internal Error: non-empty local reference table\n"
-                 << MutatorLockedDumpable<LocalReferenceTable>(*this);
-      UNREACHABLE();
-    }
-  }
-}
-
-// Removes an object. We extract the table offset bits from "iref"
-// and zap the corresponding entry, leaving a hole if it's not at the top.
-// If the entry is not between the current top index and the bottom index
-// specified by the cookie, we don't remove anything. This is the behavior
-// required by JNI's DeleteLocalRef function.
+// Removes an object.
+//
 // This method is not called when a local frame is popped; this is only used
 // for explicit single removals.
+//
+// If the entry is not at the top, we just add it to the free entry list.
+// If the entry is at the top, we pop it from the top and check if there are
+// free entries under it to remove in order to reduce the size of the table.
+//
 // Returns "false" if nothing was removed.
 bool LocalReferenceTable::Remove(LRTSegmentState previous_state, IndirectRef iref) {
   if (kDebugLRT) {
     LOG(INFO) << "+++ Remove: previous_state=" << previous_state.top_index
-              << " top_index=" << segment_state_.top_index
-              << " last_known_prev_top_index=" << last_known_previous_state_.top_index
-              << " holes=" << current_num_holes_;
+              << " top_index=" << segment_state_.top_index;
   }
 
-  const uint32_t top_index = segment_state_.top_index;
+  IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(iref);
+  if (UNLIKELY(kind != kLocal)) {
+    Thread* self = Thread::Current();
+    if (kind == kJniTransition) {
+      if (self->IsJniTransitionReference(reinterpret_cast<jobject>(iref))) {
+        // Transition references count as local but they cannot be deleted.
+        // TODO: They could actually be cleared on the stack, except for the `jclass`
+        // reference for static methods that points to the method's declaring class.
+        JNIEnvExt* env = self->GetJniEnv();
+        DCHECK(env != nullptr);
+        if (env->IsCheckJniEnabled()) {
+          const char* msg = kDumpStackOnNonLocalReference
+              ? "Attempt to remove non-JNI local reference, dumping thread"
+              : "Attempt to remove non-JNI local reference";
+          LOG(WARNING) << msg;
+          if (kDumpStackOnNonLocalReference) {
+            self->Dump(LOG_STREAM(WARNING));
+          }
+        }
+        return true;
+      }
+    }
+    if (kDumpStackOnNonLocalReference && IsCheckJniEnabled()) {
+      // Log the error message and stack. Repeat the message as FATAL later.
+      LOG(ERROR) << "Attempt to delete " << kind
+                 << " reference as local JNI reference, dumping stack";
+      self->Dump(LOG_STREAM(ERROR));
+    }
+    LOG(IsCheckJniEnabled() ? ERROR : FATAL)
+        << "Attempt to delete " << kind << " reference as local JNI reference";
+    return false;
+  }
+
+  DCHECK_LE(previous_state.top_index, segment_state_.top_index);
+  DCHECK(max_entries_ == kSmallLrtEntries ? small_table_ != nullptr : !tables_.empty());
+  DCheckValidReference(iref);
+
+  LrtEntry* entry = ToLrtEntry(iref);
+  uint32_t entry_index = GetReferenceEntryIndex(iref);
+  uint32_t top_index = segment_state_.top_index;
   const uint32_t bottom_index = previous_state.top_index;
 
-  DCHECK(table_ != nullptr);
-
-  // TODO: We should eagerly check the ref kind against the `kLocal` kind instead of
-  // relying on this weak check and postponing the rest until `CheckEntry()` below.
-  // Passing the wrong kind shall currently result in misleading warnings.
-  if (GetIndirectRefKind(iref) == kJniTransition) {
-    auto* self = Thread::Current();
-    ScopedObjectAccess soa(self);
-    if (self->IsJniTransitionReference(reinterpret_cast<jobject>(iref))) {
-      auto* env = self->GetJniEnv();
-      DCHECK(env != nullptr);
-      if (env->IsCheckJniEnabled()) {
-        LOG(WARNING) << "Attempt to remove non-JNI local reference, dumping thread";
-        if (kDumpStackOnNonLocalReference) {
-          self->Dump(LOG_STREAM(WARNING));
-        }
-      }
-      return true;
-    }
-  }
-
-  const uint32_t idx = ExtractIndex(iref);
-  if (idx < bottom_index) {
+  if (entry_index < bottom_index) {
     // Wrong segment.
-    LOG(WARNING) << "Attempt to remove index outside index area (" << idx
+    LOG(WARNING) << "Attempt to remove index outside index area (" << entry_index
                  << " vs " << bottom_index << "-" << top_index << ")";
     return false;
   }
-  if (idx >= top_index) {
-    // Bad --- stale reference?
-    LOG(WARNING) << "Attempt to remove invalid index " << idx
-                 << " (bottom=" << bottom_index << " top=" << top_index << ")";
-    return false;
+
+  if (UNLIKELY(IsCheckJniEnabled())) {
+    // Ignore invalid references. CheckJNI should have aborted before passing this reference
+    // to `LocalReferenceTable::Remove()` but gtests intercept the abort and proceed anyway.
+    std::string error_msg;
+    if (!IsValidReference(iref, &error_msg)) {
+      LOG(WARNING) << "Attempt to remove invalid reference: " << error_msg;
+      return false;
+    }
+  }
+  DCHECK_LT(entry_index, top_index);
+
+  // Prune the free entry list if a segment with holes was popped before the `Remove()` call.
+  uint32_t first_free_index = GetFirstFreeIndex();
+  if (first_free_index != kFreeListEnd && first_free_index >= top_index) {
+    PrunePoppedFreeEntries([&](size_t index) { return GetEntry(index); });
   }
 
-  RecoverHoles(previous_state);
-  CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+  // Check if we're removing the top entry (created with any CheckJNI setting).
+  bool is_top_entry = false;
+  uint32_t prune_end = entry_index;
+  if (GetCheckJniSerialNumberEntry(entry)->IsSerialNumber()) {
+    LrtEntry* serial_number_entry = GetCheckJniSerialNumberEntry(entry);
+    uint32_t serial_number = dchecked_integral_cast<uint32_t>(entry - serial_number_entry);
+    DCHECK_EQ(serial_number, serial_number_entry->GetSerialNumber());
+    prune_end = entry_index - serial_number;
+    is_top_entry = (prune_end == top_index - kCheckJniEntriesPerReference);
+  } else {
+    is_top_entry = (entry_index == top_index - 1u);
+  }
+  if (is_top_entry) {
+    // Top-most entry. Scan up and consume holes created with the current CheckJNI setting.
+    constexpr uint32_t kDeadLocalValue = 0xdead10c0;
+    entry->SetReference(reinterpret_cast32<mirror::Object*>(kDeadLocalValue));
 
-  if (idx == top_index - 1) {
-    // Top-most entry.  Scan up and consume holes.
+    // TODO: Maybe we should not prune free entries from the top of the segment
+    // because it has quadratic worst-case complexity. We could still prune while
+    // the first free list entry is at the top.
+    uint32_t prune_start = prune_end;
+    size_t prune_count;
+    auto find_prune_range = [&](size_t chunk_size, auto is_prev_entry_free) {
+      while (prune_start > bottom_index && is_prev_entry_free(prune_start)) {
+        prune_start -= chunk_size;
+      }
+      prune_count = (prune_end - prune_start) / chunk_size;
+    };
 
-    if (!CheckEntry("remove", iref, idx)) {
-      return false;
+    if (UNLIKELY(IsCheckJniEnabled())) {
+      auto is_prev_entry_free = [&](size_t index) {
+        DCHECK_ALIGNED(index, kCheckJniEntriesPerReference);
+        LrtEntry* serial_number_entry = GetEntry(index - kCheckJniEntriesPerReference);
+        DCHECK_ALIGNED(serial_number_entry, kCheckJniEntriesPerReference * sizeof(LrtEntry));
+        if (!serial_number_entry->IsSerialNumber()) {
+          return false;
+        }
+        uint32_t serial_number = serial_number_entry->GetSerialNumber();
+        DCHECK(IsValidSerialNumber(serial_number));
+        LrtEntry* entry = serial_number_entry + serial_number;
+        DCHECK_EQ(entry, GetEntry(prune_start - kCheckJniEntriesPerReference + serial_number));
+        return entry->IsFree();
+      };
+      find_prune_range(kCheckJniEntriesPerReference, is_prev_entry_free);
+    } else {
+      auto is_prev_entry_free = [&](size_t index) {
+        LrtEntry* entry = GetEntry(index - 1u);
+        return entry->IsFree() && !GetCheckJniSerialNumberEntry(entry)->IsSerialNumber();
+      };
+      find_prune_range(1u, is_prev_entry_free);
     }
 
-    *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
-    if (current_num_holes_ != 0) {
-      uint32_t collapse_top_index = top_index;
-      while (--collapse_top_index > bottom_index && current_num_holes_ != 0) {
-        if (kDebugLRT) {
-          ScopedObjectAccess soa(Thread::Current());
-          LOG(INFO) << "+++ checking for hole at " << collapse_top_index - 1
-                    << " (previous_state=" << bottom_index << ") val="
-                    << table_[collapse_top_index - 1].GetReference()->Read<kWithoutReadBarrier>();
-        }
-        if (!table_[collapse_top_index - 1].GetReference()->IsNull()) {
-          break;
-        }
-        if (kDebugLRT) {
-          LOG(INFO) << "+++ ate hole at " << (collapse_top_index - 1);
-        }
-        current_num_holes_--;
+    if (prune_count != 0u) {
+      // Remove pruned entries from the free list.
+      size_t remaining = prune_count;
+      uint32_t free_index = GetFirstFreeIndex();
+      while (remaining != 0u && free_index >= prune_start) {
+        DCHECK_NE(free_index, kFreeListEnd);
+        LrtEntry* pruned_entry = GetEntry(free_index);
+        free_index = pruned_entry->GetNextFree();
+        pruned_entry->SetReference(reinterpret_cast32<mirror::Object*>(kDeadLocalValue));
+        --remaining;
       }
-      segment_state_.top_index = collapse_top_index;
-
-      CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
-    } else {
-      segment_state_.top_index = top_index - 1;
-      if (kDebugLRT) {
-        LOG(INFO) << "+++ ate last entry " << top_index - 1;
+      free_entries_list_ = FirstFreeField::Update(free_index, free_entries_list_);
+      while (remaining != 0u) {
+        DCHECK_NE(free_index, kFreeListEnd);
+        DCHECK_LT(free_index, prune_start);
+        DCHECK_GE(free_index, bottom_index);
+        LrtEntry* free_entry = GetEntry(free_index);
+        while (free_entry->GetNextFree() < prune_start) {
+          free_index = free_entry->GetNextFree();
+          DCHECK_GE(free_index, bottom_index);
+          free_entry = GetEntry(free_index);
+        }
+        LrtEntry* pruned_entry = GetEntry(free_entry->GetNextFree());
+        free_entry->SetNextFree(pruned_entry->GetNextFree());
+        pruned_entry->SetReference(reinterpret_cast32<mirror::Object*>(kDeadLocalValue));
+        --remaining;
       }
+      DCHECK(free_index == kFreeListEnd || free_index < prune_start)
+          << "free_index=" << free_index << ", prune_start=" << prune_start;
+    }
+    segment_state_.top_index = prune_start;
+    if (kDebugLRT) {
+      LOG(INFO) << "+++ removed last entry, pruned " << prune_count
+                << ", new top= " << segment_state_.top_index;
     }
   } else {
-    // Not the top-most entry.  This creates a hole.  We null out the entry to prevent somebody
-    // from deleting it twice and screwing up the hole count.
-    if (table_[idx].GetReference()->IsNull()) {
-      LOG(INFO) << "--- WEIRD: removing null entry " << idx;
-      return false;
-    }
-    if (!CheckEntry("remove", iref, idx)) {
-      return false;
-    }
-
-    *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
-    current_num_holes_++;
-    CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+    // Not the top-most entry. This creates a hole.
+    entry->SetNextFree(GetFirstFreeIndex());
+    free_entries_list_ = FirstFreeField::Update(entry_index, free_entries_list_);
     if (kDebugLRT) {
-      LOG(INFO) << "+++ left hole at " << idx << ", holes=" << current_num_holes_;
+      LOG(INFO) << "+++ removed entry and left hole at " << entry_index;
     }
   }
 
   return true;
 }
 
+void LocalReferenceTable::AssertEmpty() {
+  CHECK_EQ(Capacity(), 0u) << "Internal Error: non-empty local reference table.";
+}
+
 void LocalReferenceTable::Trim() {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-  if (!table_mem_map_.IsValid()) {
-    // Small table; nothing to do here.
+  const size_t num_mem_maps = table_mem_maps_.size();
+  if (num_mem_maps == 0u) {
+    // Only small tables; nothing to do here. (Do not unnecessarily prune popped free entries.)
     return;
   }
-  const size_t top_index = Capacity();
-  uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
-  uint8_t* release_end = static_cast<uint8_t*>(table_mem_map_.BaseEnd());
-  DCHECK_GE(reinterpret_cast<uintptr_t>(release_end), reinterpret_cast<uintptr_t>(release_start));
-  DCHECK_ALIGNED(release_end, kPageSize);
-  DCHECK_ALIGNED(release_end - release_start, kPageSize);
-  if (release_start != release_end) {
-    madvise(release_start, release_end - release_start, MADV_DONTNEED);
+  DCHECK_EQ(tables_.size(), num_mem_maps + MaxSmallTables());
+  const size_t top_index = segment_state_.top_index;
+  // Prune popped free entries before potentially losing their memory.
+  if (UNLIKELY(GetFirstFreeIndex() != kFreeListEnd) &&
+      UNLIKELY(GetFirstFreeIndex() >= segment_state_.top_index)) {
+    PrunePoppedFreeEntries([&](size_t index) { return GetEntry(index); });
+  }
+  // Small tables can hold as many entries as the next table.
+  constexpr size_t kSmallTablesCapacity = GetTableSize(MaxSmallTables());
+  size_t mem_map_index = 0u;
+  if (top_index > kSmallTablesCapacity) {
+    const size_t table_size = TruncToPowerOfTwo(top_index);
+    const size_t table_index = NumTablesForSize(table_size);
+    const size_t start_index = top_index - table_size;
+    LrtEntry* table = tables_[table_index];
+    uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table[start_index]), kPageSize);
+    uint8_t* release_end = reinterpret_cast<uint8_t*>(&table[table_size]);
+    DCHECK_GE(reinterpret_cast<uintptr_t>(release_end), reinterpret_cast<uintptr_t>(release_start));
+    DCHECK_ALIGNED(release_end, kPageSize);
+    DCHECK_ALIGNED(release_end - release_start, kPageSize);
+    if (release_start != release_end) {
+      madvise(release_start, release_end - release_start, MADV_DONTNEED);
+    }
+    mem_map_index = table_index + 1u - MaxSmallTables();
+  }
+  for (MemMap& mem_map : ArrayRef<MemMap>(table_mem_maps_).SubArray(mem_map_index)) {
+    madvise(mem_map.Begin(), mem_map.Size(), MADV_DONTNEED);
+  }
+}
+
+template <typename Visitor>
+void LocalReferenceTable::VisitRootsInternal(Visitor&& visitor) const {
+  auto visit_table = [&](LrtEntry* table, size_t count) REQUIRES_SHARED(Locks::mutator_lock_) {
+    for (size_t i = 0; i != count; ) {
+      LrtEntry* entry;
+      if (i % kCheckJniEntriesPerReference == 0u && table[i].IsSerialNumber()) {
+        entry = &table[i + table[i].GetSerialNumber()];
+        i += kCheckJniEntriesPerReference;
+        DCHECK_LE(i, count);
+      } else {
+        entry = &table[i];
+        i += 1u;
+      }
+      DCHECK(!entry->IsSerialNumber());
+      if (!entry->IsFree()) {
+        GcRoot<mirror::Object>* root = entry->GetRootAddress();
+        DCHECK(!root->IsNull());
+        visitor(root);
+      }
+    }
+  };
+
+  if (small_table_ != nullptr) {
+    visit_table(small_table_, segment_state_.top_index);
+  } else {
+    uint32_t remaining = segment_state_.top_index;
+    size_t table_index = 0u;
+    while (remaining != 0u) {
+      size_t count = std::min<size_t>(remaining, GetTableSize(table_index));
+      visit_table(tables_[table_index], count);
+      ++table_index;
+      remaining -= count;
+    }
   }
 }
 
 void LocalReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
   BufferedRootVisitor<kDefaultBufferedRootCount> root_visitor(visitor, root_info);
-  for (size_t i = 0, capacity = Capacity(); i != capacity; ++i) {
-    GcRoot<mirror::Object>* ref = table_[i].GetReference();
-    if (!ref->IsNull()) {
-      root_visitor.VisitRoot(*ref);
-      DCHECK(!ref->IsNull());
-    }
-  }
+  VisitRootsInternal([&](GcRoot<mirror::Object>* root) REQUIRES_SHARED(Locks::mutator_lock_) {
+                       root_visitor.VisitRoot(*root);
+                     });
 }
 
 void LocalReferenceTable::Dump(std::ostream& os) const {
   os << kLocal << " table dump:\n";
   ReferenceTable::Table entries;
-  for (size_t i = 0; i < Capacity(); ++i) {
-    ObjPtr<mirror::Object> obj = table_[i].GetReference()->Read<kWithoutReadBarrier>();
-    if (obj != nullptr) {
-      obj = table_[i].GetReference()->Read();
-      entries.push_back(GcRoot<mirror::Object>(obj));
-    }
-  }
+  VisitRootsInternal([&](GcRoot<mirror::Object>* root) REQUIRES_SHARED(Locks::mutator_lock_) {
+                       entries.push_back(*root);
+                     });
   ReferenceTable::Dump(os, entries);
 }
 
@@ -534,15 +692,32 @@ void LocalReferenceTable::SetSegmentState(LRTSegmentState new_state) {
 }
 
 bool LocalReferenceTable::EnsureFreeCapacity(size_t free_capacity, std::string* error_msg) {
+  // TODO: Pass `previous_state` so that we can check holes.
   DCHECK_GE(free_capacity, static_cast<size_t>(1));
-  if (free_capacity > kMaxTableSizeInBytes) {
-    // Arithmetic might even overflow.
-    *error_msg = "Requested table size implausibly large";
-    return false;
-  }
   size_t top_index = segment_state_.top_index;
-  if (top_index + free_capacity <= max_entries_) {
+  DCHECK_LE(top_index, max_entries_);
+
+  if (IsCheckJniEnabled()) {
+    // High values lead to the maximum size check failing below.
+    if (free_capacity >= std::numeric_limits<size_t>::max() / kCheckJniEntriesPerReference) {
+      free_capacity = std::numeric_limits<size_t>::max();
+    } else {
+      free_capacity *= kCheckJniEntriesPerReference;
+    }
+  }
+
+  // TODO: Include holes from the current segment in the calculation.
+  if (free_capacity <= max_entries_ - top_index) {
     return true;
+  }
+
+  if (free_capacity > kMaxTableSize - top_index) {
+    *error_msg = android::base::StringPrintf(
+        "Requested size exceeds maximum: %zu > %zu (%zu used)",
+        free_capacity,
+        kMaxTableSize - top_index,
+        top_index);
+    return false;
   }
 
   // Try to increase the table size.
@@ -557,7 +732,14 @@ bool LocalReferenceTable::EnsureFreeCapacity(size_t free_capacity, std::string* 
 }
 
 size_t LocalReferenceTable::FreeCapacity() const {
-  return max_entries_ - segment_state_.top_index;
+  // TODO: Include holes in current segment.
+  if (IsCheckJniEnabled()) {
+    DCHECK_ALIGNED(max_entries_, kCheckJniEntriesPerReference);
+    // The `segment_state_.top_index` is not necessarily aligned; rounding down.
+    return (max_entries_ - segment_state_.top_index) / kCheckJniEntriesPerReference;
+  } else {
+    return max_entries_ - segment_state_.top_index;
+  }
 }
 
 }  // namespace jni
