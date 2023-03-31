@@ -2768,27 +2768,15 @@ void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
   }
 }
 
-ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
-  if (obj == nullptr) {
-    return nullptr;
-  }
+ObjPtr<mirror::Object> Thread::DecodeGlobalJObject(jobject obj) const {
+  DCHECK(obj != nullptr);
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(ref);
+  DCHECK_NE(kind, kJniTransition);
+  DCHECK_NE(kind, kLocal);
   ObjPtr<mirror::Object> result;
   bool expect_null = false;
-  // The "kinds" below are sorted by the frequency we expect to encounter them.
-  if (kind == kLocal) {
-    jni::LocalReferenceTable& locals = tlsPtr_.jni_env->locals_;
-    // Local references do not need a read barrier.
-    result = locals.Get(ref);
-  } else if (kind == kJniTransition) {
-    // The `jclass` for a static method points to the CompressedReference<> in the
-    // `ArtMethod::declaring_class_`. Other `jobject` arguments point to spilled stack
-    // references but a StackReference<> is just a subclass of CompressedReference<>.
-    DCHECK(IsJniTransitionReference(obj));
-    result = reinterpret_cast<mirror::CompressedReference<mirror::Object>*>(obj)->AsMirrorPtr();
-    VerifyObject(result);
-  } else if (kind == kGlobal) {
+  if (kind == kGlobal) {
     result = tlsPtr_.jni_env->vm_->DecodeGlobal(ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
