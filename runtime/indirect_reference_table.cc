@@ -138,6 +138,12 @@ void IndirectReferenceTable::ConstexprChecks() {
   static_assert(DecodeIndex(EncodeIndex(1u)) == 1u, "Index encoding error");
   static_assert(DecodeIndex(EncodeIndex(2u)) == 2u, "Index encoding error");
   static_assert(DecodeIndex(EncodeIndex(3u)) == 3u, "Index encoding error");
+
+  // Distinguishing between local and (weak) global references.
+  static_assert((GetGlobalOrWeakGlobalMask() & EncodeIndirectRefKind(kJniTransition)) == 0u);
+  static_assert((GetGlobalOrWeakGlobalMask() & EncodeIndirectRefKind(kLocal)) == 0u);
+  static_assert((GetGlobalOrWeakGlobalMask() & EncodeIndirectRefKind(kGlobal)) != 0u);
+  static_assert((GetGlobalOrWeakGlobalMask() & EncodeIndirectRefKind(kWeakGlobal)) != 0u);
 }
 
 // Holes:
