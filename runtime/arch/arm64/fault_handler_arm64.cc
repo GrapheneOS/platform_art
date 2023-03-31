@@ -47,19 +47,19 @@ uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo, void* context) {
     return 0u;
   }
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  if (sc->sp == 0) {
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  if (mc->sp == 0) {
     VLOG(signals) << "Missing SP";
     return 0u;
   }
-  return sc->pc;
+  return mc->pc;
 }
 
 uintptr_t FaultManager::GetFaultSp(void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  return sc->sp;
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  return mc->sp;
 }
 
 bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
@@ -74,21 +74,21 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
   // need the return PC to recognize that this was a null check in Nterp, so
   // that the handler can get the needed data from the Nterp frame.
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  ArtMethod** sp = reinterpret_cast<ArtMethod**>(sc->sp);
-  uintptr_t return_pc = sc->pc + 4u;
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  ArtMethod** sp = reinterpret_cast<ArtMethod**>(mc->sp);
+  uintptr_t return_pc = mc->pc + 4u;
   if (!IsValidMethod(*sp) || !IsValidReturnPc(sp, return_pc)) {
     return false;
   }
 
   // Push the return PC to the stack and pass the fault address in LR.
-  sc->sp -= sizeof(uintptr_t);
-  *reinterpret_cast<uintptr_t*>(sc->sp) = return_pc;
-  sc->regs[30] = fault_address;
+  mc->sp -= sizeof(uintptr_t);
+  *reinterpret_cast<uintptr_t*>(mc->sp) = return_pc;
+  mc->regs[30] = fault_address;
 
   // Arrange for the signal handler to return to the NPE entrypoint.
-  sc->pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
+  mc->pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
@@ -102,10 +102,10 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
   constexpr uint32_t checkinst =
       0xf9400000 | (kSuspendCheckRegister << 5) | (kSuspendCheckRegister << 0);
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
 
-  uint32_t inst = *reinterpret_cast<uint32_t*>(sc->pc);
+  uint32_t inst = *reinterpret_cast<uint32_t*>(mc->pc);
   VLOG(signals) << "checking suspend; inst: " << std::hex << inst << " checkinst: " << checkinst;
   if (inst != checkinst) {
     // The instruction is not good, not ours.
@@ -117,9 +117,9 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 
   // Set LR so that after the suspend check it will resume after the
   // `ldr x21, [x21,#0]` instruction that triggered the suspend check.
-  sc->regs[30] = sc->pc + 4;
+  mc->regs[30] = mc->pc + 4;
   // Arrange for the signal handler to return to `art_quick_implicit_suspend()`.
-  sc->pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
+  mc->pc = reinterpret_cast<uintptr_t>(art_quick_implicit_suspend);
 
   // Now remove the suspend trigger that caused this fault.
   Thread::Current()->RemoveSuspendTrigger();
@@ -130,15 +130,15 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 
 bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
                                   void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
-  VLOG(signals) << "sigcontext: " << std::hex << sc;
+  VLOG(signals) << "sigcontext: " << std::hex << mc;
 
-  uintptr_t sp = sc->sp;
+  uintptr_t sp = mc->sp;
   VLOG(signals) << "sp: " << std::hex << sp;
 
-  uintptr_t fault_addr = sc->fault_address;
+  uintptr_t fault_addr = mc->fault_address;
   VLOG(signals) << "fault_addr: " << std::hex << fault_addr;
   VLOG(signals) << "checking for stack overflow, sp: " << std::hex << sp <<
       ", fault_addr: " << fault_addr;
@@ -157,7 +157,7 @@ bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTR
   // The value of LR must be the same as it was when we entered the code that
   // caused this fault.  This will be inserted into a callee save frame by
   // the function to which this handler returns (art_quick_throw_stack_overflow).
-  sc->pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
+  mc->pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   // The kernel will now return to the address in sc->pc.
   return true;
