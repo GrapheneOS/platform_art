@@ -461,12 +461,14 @@ class ImageWriter final {
   struct DirtyEntry {
     uint32_t descriptor_hash = 0;
     bool is_class = false;
+    uint32_t sort_key = 0;
   };
   // Parse dirty-image-objects into (offset->entry) map. Returns nullopt on parse error.
   static std::optional<HashMap<uint32_t, DirtyEntry>> ParseDirtyObjectOffsets(
       const HashSet<std::string>& dirty_image_objects) REQUIRES_SHARED(Locks::mutator_lock_);
   // Get all objects that match dirty_entries by offset. Returns nullopt if there is a mismatch.
-  std::optional<HashSet<mirror::Object*>> MatchDirtyObjectOffsets(
+  // Map values are sort_keys from DirtyEntry.
+  std::optional<HashMap<mirror::Object*, uint32_t>> MatchDirtyObjectOffsets(
       const HashMap<uint32_t, DirtyEntry>& dirty_entries) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
@@ -696,8 +698,8 @@ class ImageWriter final {
   // For new format -- a set of dirty object offsets and descriptor hashes.
   const HashSet<std::string>* dirty_image_objects_;
 
-  // Dirty object instances parsed from dirty_image_object_
-  HashSet<mirror::Object*> dirty_objects_;
+  // Dirty object instances and their sort keys parsed from dirty_image_object_
+  HashMap<mirror::Object*, uint32_t> dirty_objects_;
 
   // Objects are guaranteed to not cross the region size boundary.
   size_t region_size_ = 0u;
