@@ -112,6 +112,11 @@ static constexpr size_t NterpGetFrameEntrySize(InstructionSet isa) {
       core_spills = arm64::Arm64CalleeSaveFrame::GetCoreSpills(CalleeSaveType::kSaveAllCalleeSaves);
       fp_spills = arm64::Arm64CalleeSaveFrame::GetFpSpills(CalleeSaveType::kSaveAllCalleeSaves);
       break;
+    case InstructionSet::kRiscv64:
+      core_spills =
+          riscv64::Riscv64CalleeSaveFrame::GetCoreSpills(CalleeSaveType::kSaveAllCalleeSaves);
+      fp_spills = riscv64::Riscv64CalleeSaveFrame::GetFpSpills(CalleeSaveType::kSaveAllCalleeSaves);
+      break;
     default:
       InstructionSetAbort(isa);
   }
