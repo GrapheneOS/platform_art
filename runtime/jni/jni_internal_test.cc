@@ -2580,7 +2580,7 @@ TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
   // by modifying memory.
   // The parameters don't really matter here.
   std::string error_msg;
-  jni::LocalReferenceTable lrt;
+  jni::LocalReferenceTable lrt(/*check_jni=*/ true);
   bool success = lrt.Initialize(/*max_count=*/ 5, &error_msg);
   ASSERT_TRUE(success) << error_msg;
   jni::LRTSegmentState old_state = lrt.GetSegmentState();

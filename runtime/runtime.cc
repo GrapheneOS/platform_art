@@ -2178,6 +2178,9 @@ void Runtime::InitNativeMethods() {
   // com_android_art linker namespace.
   jclass java_lang_Object;
   {
+    // Use global JNI reference to keep the local references empty. If we allocated a
+    // local reference here, the `PushLocalFrame(128)` that these internal libraries do
+    // in their `JNI_OnLoad()` would reserve a lot of unnecessary space due to rounding.
     ScopedObjectAccess soa(self);
     java_lang_Object = reinterpret_cast<jclass>(
         GetJavaVM()->AddGlobalRef(self, GetClassRoot<mirror::Object>(GetClassLinker())));
