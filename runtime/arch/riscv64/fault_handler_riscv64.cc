@@ -16,6 +16,10 @@
 
 #include "fault_handler.h"
 
+#include <sys/ucontext.h>
+
+#include "base/logging.h"  // For VLOG.
+
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void art_quick_implicit_suspend();
@@ -24,14 +28,20 @@ extern "C" void art_quick_implicit_suspend();
 
 namespace art {
 
-uintptr_t FaultManager::GetFaultPc(siginfo_t*, void*) {
-  LOG(FATAL) << "FaultManager::GetFaultPc is not implemented for RISC-V";
-  return 0;
+uintptr_t FaultManager::GetFaultPc(siginfo_t*, void* context) {
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  if (mc->__gregs[REG_SP] == 0) {
+    VLOG(signals) << "Missing SP";
+    return 0u;
+  }
+  return mc->__gregs[REG_PC];
 }
 
-uintptr_t FaultManager::GetFaultSp(void*) {
-  LOG(FATAL) << "FaultManager::GetFaultSp is not implemented for RISC-V";
-  return 0;
+uintptr_t FaultManager::GetFaultSp(void* context) {
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  return mc->__gregs[REG_SP];
 }
 
 bool NullPointerHandler::Action(int, siginfo_t*, void*) {
