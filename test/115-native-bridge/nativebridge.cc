@@ -557,18 +557,18 @@ static bool StandardSignalHandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED,
                                      void* context) {
   if (sig == SIGSEGV) {
 #if defined(__arm__)
-    struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-    struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-    sc->arm_pc += 2;          // Skip instruction causing segv & sigill.
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+    mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+    mc->arm_pc += 2;          // Skip instruction causing segv & sigill.
 #elif defined(__aarch64__)
-    struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-    struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-    sc->pc += 4;          // Skip instruction causing segv & sigill.
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+    mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+    mc->pc += 4;          // Skip instruction causing segv & sigill.
 #elif defined(__i386__)
-    struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
     uc->CTX_EIP += 3;
 #elif defined(__x86_64__)
-    struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
     uc->CTX_EIP += 2;
 #else
     UNUSED(context);
