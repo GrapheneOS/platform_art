@@ -77,6 +77,7 @@
 #include "handle_scope-inl.h"
 #include "indirect_reference_table-inl.h"
 #include "instrumentation.h"
+#include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "interpreter/shadow_frame-inl.h"
 #include "java_frame_root_info.h"
@@ -4476,8 +4477,28 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, s
       mirror::Object* new_object = visitor->IsMarked(object);
       // We know the string is marked because it's a strongly-interned string that
       // is always alive (see b/117621117 for trying to make those strings weak).
-      CHECK_NE(new_object, nullptr) << "old-string:" << object;
-      if (new_object != object) {
+      if (new_object == nullptr) {
+        // (b/275005060) Currently the problem is reported only on CC GC.
+        // Therefore we log it with more information. But since the failure rate
+        // is quite high, sampling it.
+        if (gUseReadBarrier) {
+          static constexpr size_t kSampleRate = 5;
+          if (MilliTime() % kSampleRate == 0) {
+            Runtime* runtime = Runtime::Current();
+            gc::collector::ConcurrentCopying* cc = runtime->GetHeap()->ConcurrentCopyingCollector();
+            CHECK_NE(cc, nullptr);
+            LOG(FATAL) << cc->DumpReferenceInfo(object, "string")
+                       << " string interned: " << std::boolalpha
+                       << runtime->GetInternTable()->LookupStrong(
+                              Thread::Current(), down_cast<mirror::String*>(object))
+                       << std::noboolalpha;
+          }
+        } else {
+          // Other GCs
+          LOG(FATAL) << __FUNCTION__
+                     << ": IsMarked returned null for a strongly interned string: " << object;
+        }
+      } else if (new_object != object) {
         *value = reinterpret_cast<size_t>(new_object);
       }
       return;
