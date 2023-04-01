@@ -247,10 +247,10 @@ static void bad_instr_handle(int signo ATTRIBUTE_UNUSED,
                             siginfo_t* si ATTRIBUTE_UNUSED,
                             void* data) {
 #if defined(__arm__)
-  struct ucontext *uc = (struct ucontext *)data;
-  struct sigcontext *sc = &uc->uc_mcontext;
-  sc->arm_r0 = 0;     // Set R0 to #0 to signal error.
-  sc->arm_pc += 4;    // Skip offending instruction.
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(data);
+  mcontext_t* mc = &uc->uc_mcontext;
+  mc->arm_r0 = 0;   // Set R0 to #0 to signal error.
+  mc->arm_pc += 4;  // Skip offending instruction.
 #else
   UNUSED(data);
 #endif

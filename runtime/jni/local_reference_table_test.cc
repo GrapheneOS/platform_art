@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "indirect_reference_table-inl.h"
+#include "local_reference_table-inl.h"
 
 #include "android-base/stringprintf.h"
 
-#include "class_linker-inl.h"
+#include "class_root-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/object-inl.h"
@@ -34,10 +34,19 @@ class LocalReferenceTableTest : public CommonRuntimeTest {
   LocalReferenceTableTest() {
     use_boot_image_ = true;  // Make the Runtime creation cheaper.
   }
+
+  static void CheckDump(LocalReferenceTable* lrt, size_t num_objects, size_t num_unique)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void BasicTest(bool check_jni, size_t max_count);
+  void BasicHolesTest(bool check_jni, size_t max_count);
+  void BasicResizeTest(bool check_jni, size_t max_count);
+  void TestAddRemove(bool check_jni, size_t max_count, size_t fill_count = 0u);
+  void TestAddRemoveMixed(bool start_check_jni);
 };
 
-static void CheckDump(LocalReferenceTable* lrt, size_t num_objects, size_t num_unique)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+void LocalReferenceTableTest::CheckDump(
+    LocalReferenceTable* lrt, size_t num_objects, size_t num_unique) {
   std::ostringstream oss;
   lrt->Dump(oss);
   if (num_objects == 0) {
@@ -54,20 +63,13 @@ static void CheckDump(LocalReferenceTable* lrt, size_t num_objects, size_t num_u
   }
 }
 
-TEST_F(LocalReferenceTableTest, BasicTest) {
+void LocalReferenceTableTest::BasicTest(bool check_jni, size_t max_count) {
   // This will lead to error messages in the log.
   ScopedLogSeverity sls(LogSeverity::FATAL);
 
   ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableMax = 20;
-  std::string error_msg;
-  LocalReferenceTable lrt;
-  bool success = lrt.Initialize(kTableMax, &error_msg);
-  ASSERT_TRUE(success) << error_msg;
-
   StackHandleScope<5> hs(soa.Self());
-  Handle<mirror::Class> c =
-      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
+  Handle<mirror::Class> c = hs.NewHandle(GetClassRoot<mirror::Object>());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj0 != nullptr);
@@ -78,15 +80,22 @@ TEST_F(LocalReferenceTableTest, BasicTest) {
   Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj3 != nullptr);
 
+  std::string error_msg;
+  LocalReferenceTable lrt(check_jni);
+  bool success = lrt.Initialize(max_count, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+
   const LRTSegmentState cookie = kLRTFirstSegment;
 
   CheckDump(&lrt, 0, 0);
 
-  IndirectRef iref0 = (IndirectRef) 0x11110;
-  EXPECT_FALSE(lrt.Remove(cookie, iref0)) << "unexpectedly successful removal";
+  if (check_jni) {
+    IndirectRef bad_iref = (IndirectRef) 0x11110;
+    EXPECT_FALSE(lrt.Remove(cookie, bad_iref)) << "unexpectedly successful removal";
+  }
 
   // Add three, check, remove in the order in which they were added.
-  iref0 = lrt.Add(cookie, obj0.Get(), &error_msg);
+  IndirectRef iref0 = lrt.Add(cookie, obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&lrt, 1, 1);
   IndirectRef iref1 = lrt.Add(cookie, obj1.Get(), &error_msg);
@@ -147,8 +156,10 @@ TEST_F(LocalReferenceTableTest, BasicTest) {
 
   ASSERT_TRUE(lrt.Remove(cookie, iref1));
   CheckDump(&lrt, 2, 2);
-  ASSERT_FALSE(lrt.Remove(cookie, iref1));
-  CheckDump(&lrt, 2, 2);
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie, iref1));
+    CheckDump(&lrt, 2, 2);
+  }
 
   // Check that the reference to the hole is not valid.
   EXPECT_FALSE(lrt.IsValidReference(iref1, &error_msg));
@@ -208,8 +219,10 @@ TEST_F(LocalReferenceTableTest, BasicTest) {
   iref1 = lrt.Add(cookie, obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&lrt, 1, 1);
-  ASSERT_FALSE(lrt.Remove(cookie, iref0)) << "mismatched del succeeded";
-  CheckDump(&lrt, 1, 1);
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie, iref0)) << "mismatched del succeeded";
+    CheckDump(&lrt, 1, 1);
+  }
   ASSERT_TRUE(lrt.Remove(cookie, iref1)) << "switched del failed";
   ASSERT_EQ(0U, lrt.Capacity()) << "switching del not empty";
   CheckDump(&lrt, 0, 0);
@@ -242,7 +255,7 @@ TEST_F(LocalReferenceTableTest, BasicTest) {
 
   // Test table resizing.
   // These ones fit...
-  static const size_t kTableInitial = kTableMax / 2;
+  static const size_t kTableInitial = max_count / 2;
   IndirectRef manyRefs[kTableInitial];
   for (size_t i = 0; i < kTableInitial; i++) {
     manyRefs[i] = lrt.Add(cookie, obj0.Get(), &error_msg);
@@ -268,7 +281,19 @@ TEST_F(LocalReferenceTableTest, BasicTest) {
   CheckDump(&lrt, 0, 0);
 }
 
-TEST_F(LocalReferenceTableTest, Holes) {
+TEST_F(LocalReferenceTableTest, BasicTest) {
+  BasicTest(/*check_jni=*/ false, /*max_count=*/ 20u);
+  BasicTest(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
+  BasicTest(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
+}
+
+TEST_F(LocalReferenceTableTest, BasicTestCheckJNI) {
+  BasicTest(/*check_jni=*/ true, /*max_count=*/ 20u);
+  BasicTest(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
+  BasicTest(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
+}
+
+void LocalReferenceTableTest::BasicHolesTest(bool check_jni, size_t max_count) {
   // Test the explicitly named cases from the LRT implementation:
   //
   // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference
@@ -280,11 +305,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
   //    reference
 
   ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableMax = 10;
-
   StackHandleScope<6> hs(soa.Self());
-  Handle<mirror::Class> c = hs.NewHandle(
-      class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
+  Handle<mirror::Class> c = hs.NewHandle(GetClassRoot<mirror::Object>());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj0 != nullptr);
@@ -301,8 +323,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
 
   // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference.
   {
-    LocalReferenceTable lrt;
-    bool success = lrt.Initialize(kTableMax, &error_msg);
+    LocalReferenceTable lrt(check_jni);
+    bool success = lrt.Initialize(max_count, &error_msg);
     ASSERT_TRUE(success) << error_msg;
 
     const LRTSegmentState cookie0 = kLRTFirstSegment;
@@ -330,8 +352,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
 
   // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
   {
-    LocalReferenceTable lrt;
-    bool success = lrt.Initialize(kTableMax, &error_msg);
+    LocalReferenceTable lrt(check_jni);
+    bool success = lrt.Initialize(max_count, &error_msg);
     ASSERT_TRUE(success) << error_msg;
 
     const LRTSegmentState cookie0 = kLRTFirstSegment;
@@ -364,8 +386,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
   // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
   //    reference.
   {
-    LocalReferenceTable lrt;
-    bool success = lrt.Initialize(kTableMax, &error_msg);
+    LocalReferenceTable lrt(check_jni);
+    bool success = lrt.Initialize(max_count, &error_msg);
     ASSERT_TRUE(success) << error_msg;
 
     const LRTSegmentState cookie0 = kLRTFirstSegment;
@@ -393,7 +415,9 @@ TEST_F(LocalReferenceTableTest, Holes) {
     IndirectRef iref4 = lrt.Add(cookie1, obj4.Get(), &error_msg);
 
     EXPECT_EQ(lrt.Capacity(), 3u);
-    EXPECT_FALSE(lrt.IsValidReference(iref1, &error_msg));
+    if (check_jni) {
+      EXPECT_FALSE(lrt.IsValidReference(iref1, &error_msg));
+    }
     CheckDump(&lrt, 3, 3);
 
     UNUSED(iref0, iref1, iref2, iref3, iref4);
@@ -401,8 +425,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
 
   // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference.
   {
-    LocalReferenceTable lrt;
-    bool success = lrt.Initialize(kTableMax, &error_msg);
+    LocalReferenceTable lrt(check_jni);
+    bool success = lrt.Initialize(max_count, &error_msg);
     ASSERT_TRUE(success) << error_msg;
 
     const LRTSegmentState cookie0 = kLRTFirstSegment;
@@ -442,8 +466,8 @@ TEST_F(LocalReferenceTableTest, Holes) {
   // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
   //    reference
   {
-    LocalReferenceTable lrt;
-    bool success = lrt.Initialize(kTableMax, &error_msg);
+    LocalReferenceTable lrt(check_jni);
+    bool success = lrt.Initialize(max_count, &error_msg);
     ASSERT_TRUE(success) << error_msg;
 
     const LRTSegmentState cookie0 = kLRTFirstSegment;
@@ -478,30 +502,322 @@ TEST_F(LocalReferenceTableTest, Holes) {
   }
 }
 
-TEST_F(LocalReferenceTableTest, Resize) {
-  ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableMax = 512;
+TEST_F(LocalReferenceTableTest, BasicHolesTest) {
+  BasicHolesTest(/*check_jni=*/ false, 20u);
+  BasicHolesTest(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
+  BasicHolesTest(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
+}
 
+TEST_F(LocalReferenceTableTest, BasicHolesTestCheckJNI) {
+  BasicHolesTest(/*check_jni=*/ true, 20u);
+  BasicHolesTest(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
+  BasicHolesTest(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
+}
+
+void LocalReferenceTableTest::BasicResizeTest(bool check_jni, size_t max_count) {
+  ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> c = hs.NewHandle(
-      class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
+  Handle<mirror::Class> c = hs.NewHandle(GetClassRoot<mirror::Object>());
   ASSERT_TRUE(c != nullptr);
   Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj0 != nullptr);
 
   std::string error_msg;
-  LocalReferenceTable lrt;
-  bool success = lrt.Initialize(kTableMax, &error_msg);
+  LocalReferenceTable lrt(check_jni);
+  bool success = lrt.Initialize(max_count, &error_msg);
   ASSERT_TRUE(success) << error_msg;
 
   CheckDump(&lrt, 0, 0);
   const LRTSegmentState cookie = kLRTFirstSegment;
 
-  for (size_t i = 0; i != kTableMax + 1; ++i) {
+  for (size_t i = 0; i != max_count + 1; ++i) {
     lrt.Add(cookie, obj0.Get(), &error_msg);
   }
 
-  EXPECT_EQ(lrt.Capacity(), kTableMax + 1);
+  EXPECT_EQ(lrt.Capacity(), max_count + 1);
+}
+
+TEST_F(LocalReferenceTableTest, BasicResizeTest) {
+  BasicResizeTest(/*check_jni=*/ false, 20u);
+  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
+  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
+  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+}
+
+TEST_F(LocalReferenceTableTest, BasicResizeTestCheckJNI) {
+  BasicResizeTest(/*check_jni=*/ true, 20u);
+  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
+  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
+  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+}
+
+void LocalReferenceTableTest::TestAddRemove(bool check_jni, size_t max_count, size_t fill_count) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<9> hs(soa.Self());
+  Handle<mirror::Class> c = hs.NewHandle(GetClassRoot<mirror::Object>());
+  ASSERT_TRUE(c != nullptr);
+  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0 != nullptr);
+  Handle<mirror::Object> obj0x = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0x != nullptr);
+  Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj1 != nullptr);
+  Handle<mirror::Object> obj1x = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj1x != nullptr);
+  Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj2 != nullptr);
+  Handle<mirror::Object> obj2x = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj2x != nullptr);
+  Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj3 != nullptr);
+  Handle<mirror::Object> obj3x = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj3x != nullptr);
+
+  std::string error_msg;
+  LocalReferenceTable lrt(check_jni);
+  bool success = lrt.Initialize(max_count, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  for (size_t i = 0; i != fill_count; ++i) {
+    IndirectRef iref = lrt.Add(cookie0, c.Get(), &error_msg);
+    ASSERT_TRUE(iref != nullptr) << error_msg;
+    ASSERT_EQ(i + 1u, lrt.Capacity());
+    EXPECT_OBJ_PTR_EQ(c.Get(), lrt.Get(iref));
+  }
+
+  IndirectRef iref0, iref1, iref2, iref3;
+
+#define ADD_REF(iref, cookie, obj, expected_capacity)             \
+  do {                                                            \
+    (iref) = lrt.Add(cookie, (obj).Get(), &error_msg);            \
+    ASSERT_TRUE((iref) != nullptr) << error_msg;                  \
+    ASSERT_EQ(fill_count + (expected_capacity), lrt.Capacity());  \
+    EXPECT_OBJ_PTR_EQ((obj).Get(), lrt.Get(iref));                \
+  } while (false)
+#define REMOVE_REF(cookie, iref, expected_capacity)               \
+  do {                                                            \
+    ASSERT_TRUE(lrt.Remove(cookie, iref));                        \
+    ASSERT_EQ(fill_count + (expected_capacity), lrt.Capacity());  \
+  } while (false)
+#define POP_SEGMENT(cookie, expected_capacity)                    \
+  do {                                                            \
+    lrt.SetSegmentState(cookie);                                  \
+    ASSERT_EQ(fill_count + (expected_capacity), lrt.Capacity());  \
+  } while (false)
+
+  const LRTSegmentState cookie1 = lrt.GetSegmentState();
+  ADD_REF(iref0, cookie1, obj0, 1u);
+  ADD_REF(iref1, cookie1, obj1, 2u);
+  REMOVE_REF(cookie1, iref1, 1u);  // Remove top entry.
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie1, iref1));
+  }
+  ADD_REF(iref1, cookie1, obj1x, 2u);
+  REMOVE_REF(cookie1, iref0, 2u);  // Create hole.
+  IndirectRef obsolete_iref0 = iref0;
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie1, iref0));
+  }
+  ADD_REF(iref0, cookie1, obj0x, 2u);  // Reuse hole
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie1, obsolete_iref0));
+  }
+
+  // Test addition to the second segment without a hole in the first segment.
+  // Also test removal from the wrong segment here.
+  LRTSegmentState cookie2 = lrt.GetSegmentState();  // Create second segment.
+  ASSERT_FALSE(lrt.Remove(cookie2, iref0));  // Cannot remove from inactive segment.
+  ADD_REF(iref2, cookie2, obj2, 3u);
+  POP_SEGMENT(cookie2, 2u);  // Pop the second segment.
+  if (check_jni) {
+    ASSERT_FALSE(lrt.Remove(cookie1, iref2));  // Cannot remove from popped segment.
+  }
+
+  // Test addition to the second segment with a hole in the first.
+  // Use one more reference in the first segment to allow hitting the small table
+  // overflow path either above or here, based on the provided `fill_count`.
+  ADD_REF(iref2, cookie2, obj2x, 3u);
+  REMOVE_REF(cookie1, iref1, 3u);  // Create hole.
+  cookie2 = lrt.GetSegmentState();  // Create second segment.
+  ADD_REF(iref3, cookie2, obj3, 4u);
+  POP_SEGMENT(cookie2, 3u);  // Pop the second segment.
+  REMOVE_REF(cookie1, iref2, 1u);  // Remove top entry, prune previous entry.
+  ADD_REF(iref1, cookie1, obj1, 2u);
+
+  cookie2 = lrt.GetSegmentState();  // Create second segment.
+  ADD_REF(iref2, cookie2, obj2, 3u);
+  ADD_REF(iref3, cookie2, obj3, 4u);
+  REMOVE_REF(cookie2, iref2, 4u);  // Create hole in second segment.
+  POP_SEGMENT(cookie2, 2u);  // Pop the second segment with hole.
+  ADD_REF(iref2, cookie1, obj2x, 3u);  // Prune free list, use new entry.
+  REMOVE_REF(cookie1, iref2, 2u);
+
+  REMOVE_REF(cookie1, iref0, 2u);  // Create hole.
+  cookie2 = lrt.GetSegmentState();  // Create second segment.
+  ADD_REF(iref2, cookie2, obj2, 3u);
+  ADD_REF(iref3, cookie2, obj3x, 4u);
+  REMOVE_REF(cookie2, iref2, 4u);  // Create hole in second segment.
+  POP_SEGMENT(cookie2, 2u);  // Pop the second segment with hole.
+  ADD_REF(iref0, cookie1, obj0, 2u);  // Prune free list, use remaining entry from free list.
+
+  REMOVE_REF(cookie1, iref0, 2u);  // Create hole.
+  cookie2 = lrt.GetSegmentState();  // Create second segment.
+  ADD_REF(iref2, cookie2, obj2x, 3u);
+  ADD_REF(iref3, cookie2, obj3, 4u);
+  REMOVE_REF(cookie2, iref2, 4u);  // Create hole in second segment.
+  REMOVE_REF(cookie2, iref3, 2u);  // Remove top entry, prune previous entry, keep hole above.
+  POP_SEGMENT(cookie2, 2u);  // Pop the empty second segment.
+  ADD_REF(iref0, cookie1, obj0x, 2u);  // Reuse hole.
+
+#undef REMOVE_REF
+#undef ADD_REF
+}
+
+TEST_F(LocalReferenceTableTest, TestAddRemove) {
+  TestAddRemove(/*check_jni=*/ false, /*max_count=*/ 20u);
+  TestAddRemove(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
+  TestAddRemove(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
+  static_assert(kSmallLrtEntries >= 4u);
+  for (size_t fill_count = kSmallLrtEntries - 4u; fill_count != kSmallLrtEntries; ++fill_count) {
+    TestAddRemove(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries, fill_count);
+  }
+}
+
+TEST_F(LocalReferenceTableTest, TestAddRemoveCheckJNI) {
+  TestAddRemove(/*check_jni=*/ true, /*max_count=*/ 20u);
+  TestAddRemove(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
+  TestAddRemove(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
+  static_assert(kSmallLrtEntries >= 4u);
+  for (size_t fill_count = kSmallLrtEntries - 4u; fill_count != kSmallLrtEntries; ++fill_count) {
+    TestAddRemove(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries, fill_count);
+  }
+}
+
+void LocalReferenceTableTest::TestAddRemoveMixed(bool start_check_jni) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
+  ScopedObjectAccess soa(Thread::Current());
+  static constexpr size_t kMaxUniqueRefs = 16;
+  StackHandleScope<kMaxUniqueRefs + 1u> hs(soa.Self());
+  Handle<mirror::Class> c = hs.NewHandle(GetClassRoot<mirror::Object>());
+  ASSERT_TRUE(c != nullptr);
+  std::array<Handle<mirror::Object>, kMaxUniqueRefs> objs;
+  for (size_t i = 0u; i != kMaxUniqueRefs; ++i) {
+    objs[i] = hs.NewHandle(c->AllocObject(soa.Self()));
+    ASSERT_TRUE(objs[i] != nullptr);
+  }
+
+  std::string error_msg;
+  std::array<IndirectRef, kMaxUniqueRefs> irefs;
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+
+#define ADD_REF(iref, cookie, obj)                                \
+  do {                                                            \
+    (iref) = lrt.Add(cookie, (obj).Get(), &error_msg);            \
+    ASSERT_TRUE((iref) != nullptr) << error_msg;                  \
+    EXPECT_OBJ_PTR_EQ((obj).Get(), lrt.Get(iref));                \
+  } while (false)
+
+  for (size_t split = 1u; split < kMaxUniqueRefs - 1u; ++split) {
+    for (size_t total = split + 1u; total < kMaxUniqueRefs; ++total) {
+      for (size_t deleted_at_start = 0u; deleted_at_start + 1u < split; ++deleted_at_start) {
+        LocalReferenceTable lrt(/*check_jni=*/ start_check_jni);
+        bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+        ASSERT_TRUE(success) << error_msg;
+        for (size_t i = 0; i != split; ++i) {
+          ADD_REF(irefs[i], cookie0, objs[i]);
+          ASSERT_EQ(i + 1u, lrt.Capacity());
+        }
+        for (size_t i = 0; i != deleted_at_start; ++i) {
+          ASSERT_TRUE(lrt.Remove(cookie0, irefs[i]));
+          if (lrt.IsCheckJniEnabled()) {
+            ASSERT_FALSE(lrt.Remove(cookie0, irefs[i]));
+          }
+          ASSERT_EQ(split, lrt.Capacity());
+        }
+        lrt.SetCheckJniEnabled(!start_check_jni);
+        // Check top index instead of `Capacity()` after changing the CheckJNI setting.
+        uint32_t split_top_index = lrt.GetSegmentState().top_index;
+        uint32_t last_top_index = split_top_index;
+        for (size_t i = split; i != total; ++i) {
+          ADD_REF(irefs[i], cookie0, objs[i]);
+          ASSERT_LT(last_top_index, lrt.GetSegmentState().top_index);
+          last_top_index = lrt.GetSegmentState().top_index;
+        }
+        for (size_t i = split; i != total; ++i) {
+          ASSERT_TRUE(lrt.Remove(cookie0, irefs[i]));
+          if (lrt.IsCheckJniEnabled()) {
+            ASSERT_FALSE(lrt.Remove(cookie0, irefs[i]));
+          }
+          if (i + 1u != total) {
+            ASSERT_LE(last_top_index, lrt.GetSegmentState().top_index);
+          } else {
+            ASSERT_GT(last_top_index, lrt.GetSegmentState().top_index);
+            ASSERT_LE(split_top_index, lrt.GetSegmentState().top_index);
+          }
+        }
+      }
+    }
+  }
+
+#undef ADD_REF
+}
+
+TEST_F(LocalReferenceTableTest, TestAddRemoveMixed) {
+  TestAddRemoveMixed(/*start_check_jni=*/ false);
+  TestAddRemoveMixed(/*start_check_jni=*/ true);
+}
+
+TEST_F(LocalReferenceTableTest, RegressionTestB276210372) {
+  LocalReferenceTable lrt(/*check_jni=*/ false);
+  std::string error_msg;
+  bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> c = GetClassRoot<mirror::Object>();
+
+  // Create the first segment with two references.
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  IndirectRef ref0 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(ref0 != nullptr);
+  IndirectRef ref1 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(ref1 != nullptr);
+
+  // Create a second segment with a hole, then pop it.
+  const LRTSegmentState cookieA = lrt.GetSegmentState();
+  IndirectRef ref2a = lrt.Add(cookieA, c, &error_msg);
+  ASSERT_TRUE(ref2a != nullptr);
+  IndirectRef ref3a = lrt.Add(cookieA, c, &error_msg);
+  ASSERT_TRUE(ref3a != nullptr);
+  EXPECT_TRUE(lrt.Remove(cookieA, ref2a));
+  lrt.SetSegmentState(cookieA);
+
+  // Create a hole in the first segment.
+  // There was previously a bug that `Remove()` would not prune the popped free entries,
+  // so the new free entry would point to the hole in the popped segment. The code below
+  // would then overwrite that hole with a new segment, pop that segment, reuse the good
+  // free entry and then crash trying to prune the overwritten hole. b/276210372
+  EXPECT_TRUE(lrt.Remove(cookie0, ref0));
+
+  // Create a second segment again and overwite the old hole, then pop the segment.
+  const LRTSegmentState cookieB = lrt.GetSegmentState();
+  ASSERT_EQ(cookieB.top_index, cookieA.top_index);
+  IndirectRef ref2b = lrt.Add(cookieB, c, &error_msg);
+  ASSERT_TRUE(ref2b != nullptr);
+  lrt.SetSegmentState(cookieB);
+
+  // Reuse the hole in first segment.
+  IndirectRef reused0 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(reused0 != nullptr);
+
+  // Add a new reference.
+  IndirectRef new_ref = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(new_ref != nullptr);
 }
 
 }  // namespace jni
