@@ -1343,6 +1343,9 @@ class ImageWriter::LayoutHelper {
   void ProcessDexFileObjects(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
   void ProcessRoots(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
   void FinalizeInternTables() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Recreate dirty object offsets (kKnownDirty bin) with objects sorted by sort_key.
+  void SortDirtyObjects(const HashMap<mirror::Object*, uint32_t>& dirty_objects, size_t oat_index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VerifyImageBinSlotsAssigned() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1971,6 +1974,49 @@ void ImageWriter::LayoutHelper::ProcessWorkQueue() {
   }
 }
 
+void ImageWriter::LayoutHelper::SortDirtyObjects(
+    const HashMap<mirror::Object*, uint32_t>& dirty_objects, size_t oat_index) {
+  constexpr Bin bin = Bin::kKnownDirty;
+  ImageInfo& image_info = image_writer_->GetImageInfo(oat_index);
+
+  dchecked_vector<mirror::Object*>& known_dirty = bin_objects_[oat_index][enum_cast<size_t>(bin)];
+  if (known_dirty.empty()) {
+    return;
+  }
+
+  // Collect objects and their combined sort_keys.
+  // Combined key contains sort_key and original offset to ensure deterministic sorting.
+  using CombinedKey = std::pair<uint32_t, uint32_t>;
+  using ObjSortPair = std::pair<mirror::Object*, CombinedKey>;
+  dchecked_vector<ObjSortPair> objects;
+  objects.reserve(known_dirty.size());
+  for (mirror::Object* obj : known_dirty) {
+    const BinSlot bin_slot = image_writer_->GetImageBinSlot(obj, oat_index);
+    const uint32_t original_offset = bin_slot.GetOffset();
+    const auto it = dirty_objects.find(obj);
+    const uint32_t sort_key = (it != dirty_objects.end()) ? it->second : 0;
+    objects.emplace_back(obj, std::make_pair(sort_key, original_offset));
+  }
+  // Sort by combined sort_key.
+  std::sort(std::begin(objects), std::end(objects), [&](ObjSortPair& lhs, ObjSortPair& rhs) {
+    return lhs.second < rhs.second;
+  });
+
+  // Fill known_dirty objects in sorted order, update bin offsets.
+  known_dirty.clear();
+  size_t offset = 0;
+  for (const ObjSortPair& entry : objects) {
+    mirror::Object* obj = entry.first;
+
+    known_dirty.push_back(obj);
+    image_writer_->UpdateImageBinSlotOffset(obj, oat_index, offset);
+
+    const size_t aligned_object_size = RoundUp(obj->SizeOf<kVerifyNone>(), kObjectAlignment);
+    offset += aligned_object_size;
+  }
+  DCHECK_EQ(offset, image_info.GetBinSlotSize(bin));
+}
+
 void ImageWriter::LayoutHelper::VerifyImageBinSlotsAssigned() {
   dchecked_vector<mirror::Object*> carveout;
   JavaVMExt* vm = nullptr;
@@ -2293,6 +2339,13 @@ void ImageWriter::CalculateNewObjectOffsets() {
   layout_helper.ProcessRoots(self);
   layout_helper.FinalizeInternTables();
 
+  // Sort objects in dirty bin.
+  if (!dirty_objects_.empty()) {
+    for (size_t oat_index = 0; oat_index < image_infos_.size(); ++oat_index) {
+      layout_helper.SortDirtyObjects(dirty_objects_, oat_index);
+    }
+  }
+
   // Verify that all objects have assigned image bin slots.
   layout_helper.VerifyImageBinSlotsAssigned();
 
@@ -2331,9 +2384,9 @@ void ImageWriter::CalculateNewObjectOffsets() {
   }
 }
 
-std::optional<HashSet<mirror::Object*>> ImageWriter::MatchDirtyObjectOffsets(
+std::optional<HashMap<mirror::Object*, uint32_t>> ImageWriter::MatchDirtyObjectOffsets(
     const HashMap<uint32_t, DirtyEntry>& dirty_entries) REQUIRES_SHARED(Locks::mutator_lock_) {
-  HashSet<mirror::Object*> dirty_objects;
+  HashMap<mirror::Object*, uint32_t> dirty_objects;
   bool mismatch_found = false;
 
   auto visitor = [&](Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -2365,7 +2418,7 @@ std::optional<HashSet<mirror::Object*>> ImageWriter::MatchDirtyObjectOffsets(
       return;
     }
 
-    dirty_objects.insert(obj);
+    dirty_objects.insert(std::make_pair(obj, entry.sort_key));
   };
   Runtime::Current()->GetHeap()->VisitObjects(visitor);
 
@@ -2411,7 +2464,8 @@ void ImageWriter::TryRecalculateOffsetsWithDirtyObjects() {
     return;
   }
 
-  std::optional<HashSet<mirror::Object*>> dirty_objects = MatchDirtyObjectOffsets(*dirty_entries);
+  std::optional<HashMap<mirror::Object*, uint32_t>> dirty_objects =
+      MatchDirtyObjectOffsets(*dirty_entries);
   if (!dirty_objects || dirty_objects->empty()) {
     return;
   }
@@ -2427,10 +2481,11 @@ std::optional<HashMap<uint32_t, ImageWriter::DirtyEntry>> ImageWriter::ParseDirt
   HashMap<uint32_t, DirtyEntry> dirty_entries;
 
   // Go through each dirty-image-object line, parse only lines of the format:
-  // "dirty_obj: <offset> <type> <descriptor_hash>"
+  // "dirty_obj: <offset> <type> <descriptor_hash> <sort_key>"
   // <offset> -- decimal uint32.
   // <type> -- "class" or "instance" (defines if descriptor is referring to a class or an instance).
   // <descriptor_hash> -- decimal uint32 (from DescriptorHash() method).
+  // <sort_key> -- decimal uint32 (defines order of the object inside the dirty bin).
   const std::string prefix = "dirty_obj:";
   for (const std::string& entry_str : dirty_image_objects) {
     // Skip the lines of old dirty-image-object format.
@@ -2439,7 +2494,7 @@ std::optional<HashMap<uint32_t, ImageWriter::DirtyEntry>> ImageWriter::ParseDirt
     }
 
     const std::vector<std::string> tokens = android::base::Split(entry_str, " ");
-    if (tokens.size() != 4) {
+    if (tokens.size() != 5) {
       LOG(WARNING) << "Invalid dirty image objects format: \"" << entry_str << "\"";
       return {};
     }
@@ -2458,6 +2513,11 @@ std::optional<HashMap<uint32_t, ImageWriter::DirtyEntry>> ImageWriter::ParseDirt
         tokens[3].data(), tokens[3].data() + tokens[3].size(), entry.descriptor_hash);
     if (res.ec != std::errc()) {
       LOG(WARNING) << "Couldn't parse dirty object descriptor hash: \"" << entry_str << "\"";
+      return {};
+    }
+    res = std::from_chars(tokens[4].data(), tokens[4].data() + tokens[4].size(), entry.sort_key);
+    if (res.ec != std::errc()) {
+      LOG(WARNING) << "Couldn't parse dirty object marker: \"" << entry_str << "\"";
       return {};
     }
 

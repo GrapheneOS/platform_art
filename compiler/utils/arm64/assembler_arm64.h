@@ -23,7 +23,6 @@
 
 #include <android-base/logging.h>
 
-#include "base/arena_containers.h"
 #include "base/bit_utils_iterator.h"
 #include "base/macros.h"
 #include "dwarf/register.h"

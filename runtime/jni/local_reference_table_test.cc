@@ -773,5 +773,52 @@ TEST_F(LocalReferenceTableTest, TestAddRemoveMixed) {
   TestAddRemoveMixed(/*start_check_jni=*/ true);
 }
 
+TEST_F(LocalReferenceTableTest, RegressionTestB276210372) {
+  LocalReferenceTable lrt(/*check_jni=*/ false);
+  std::string error_msg;
+  bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> c = GetClassRoot<mirror::Object>();
+
+  // Create the first segment with two references.
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  IndirectRef ref0 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(ref0 != nullptr);
+  IndirectRef ref1 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(ref1 != nullptr);
+
+  // Create a second segment with a hole, then pop it.
+  const LRTSegmentState cookieA = lrt.GetSegmentState();
+  IndirectRef ref2a = lrt.Add(cookieA, c, &error_msg);
+  ASSERT_TRUE(ref2a != nullptr);
+  IndirectRef ref3a = lrt.Add(cookieA, c, &error_msg);
+  ASSERT_TRUE(ref3a != nullptr);
+  EXPECT_TRUE(lrt.Remove(cookieA, ref2a));
+  lrt.SetSegmentState(cookieA);
+
+  // Create a hole in the first segment.
+  // There was previously a bug that `Remove()` would not prune the popped free entries,
+  // so the new free entry would point to the hole in the popped segment. The code below
+  // would then overwrite that hole with a new segment, pop that segment, reuse the good
+  // free entry and then crash trying to prune the overwritten hole. b/276210372
+  EXPECT_TRUE(lrt.Remove(cookie0, ref0));
+
+  // Create a second segment again and overwite the old hole, then pop the segment.
+  const LRTSegmentState cookieB = lrt.GetSegmentState();
+  ASSERT_EQ(cookieB.top_index, cookieA.top_index);
+  IndirectRef ref2b = lrt.Add(cookieB, c, &error_msg);
+  ASSERT_TRUE(ref2b != nullptr);
+  lrt.SetSegmentState(cookieB);
+
+  // Reuse the hole in first segment.
+  IndirectRef reused0 = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(reused0 != nullptr);
+
+  // Add a new reference.
+  IndirectRef new_ref = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(new_ref != nullptr);
+}
+
 }  // namespace jni
 }  // namespace art

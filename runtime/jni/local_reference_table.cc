@@ -483,6 +483,12 @@ bool LocalReferenceTable::Remove(LRTSegmentState previous_state, IndirectRef ire
   }
   DCHECK_LT(entry_index, top_index);
 
+  // Prune the free entry list if a segment with holes was popped before the `Remove()` call.
+  uint32_t first_free_index = GetFirstFreeIndex();
+  if (first_free_index != kFreeListEnd && first_free_index >= top_index) {
+    PrunePoppedFreeEntries([&](size_t index) { return GetEntry(index); });
+  }
+
   // Check if we're removing the top entry (created with any CheckJNI setting).
   bool is_top_entry = false;
   uint32_t prune_end = entry_index;
