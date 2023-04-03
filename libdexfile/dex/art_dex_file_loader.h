@@ -72,6 +72,22 @@ class ArtDexFileLoader : public DexFileLoader {
                                       bool verify_checksum,
                                       std::string* error_msg,
                                       std::unique_ptr<DexFileContainer> container) const;
+
+  // Old signature preserved for app-compat.
+  std::unique_ptr<const DexFile> Open(const std::string& location,
+                                      uint32_t location_checksum,
+                                      MemMap&& mem_map,
+                                      bool verify,
+                                      bool verify_checksum,
+                                      std::string* error_msg) const;
+
+  // Old signature preserved for app-compat.
+  bool Open(const char* filename,
+            const std::string& location,
+            bool verify,
+            bool verify_checksum,
+            std::string* error_msg,
+            std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 };
 
 }  // namespace art
