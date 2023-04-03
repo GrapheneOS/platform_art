@@ -142,4 +142,24 @@ std::unique_ptr<const DexFile> ArtDexFileLoader::Open(
                     /*verify_result=*/nullptr);
 }
 
+std::unique_ptr<const DexFile> ArtDexFileLoader::Open(const std::string& location,
+                                                      uint32_t location_checksum,
+                                                      MemMap&& mem_map,
+                                                      bool verify,
+                                                      bool verify_checksum,
+                                                      std::string* error_msg) const {
+  ArtDexFileLoader loader(std::move(mem_map), location);
+  return loader.Open(location_checksum, verify, verify_checksum, error_msg);
+}
+
+bool ArtDexFileLoader::Open(const char* filename,
+                            const std::string& location,
+                            bool verify,
+                            bool verify_checksum,
+                            std::string* error_msg,
+                            std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
+  ArtDexFileLoader loader(filename, location);
+  return loader.Open(verify, verify_checksum, error_msg, dex_files);
+}
+
 }  // namespace art
