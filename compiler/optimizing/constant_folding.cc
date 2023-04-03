@@ -18,6 +18,7 @@
 
 #include <algorithm>
 
+#include "dex/dex_file-inl.h"
 #include "optimizing/data_type.h"
 #include "optimizing/nodes.h"
 
@@ -36,9 +37,10 @@ class HConstantFoldingVisitor : public HGraphDelegateVisitor {
   void VisitUnaryOperation(HUnaryOperation* inst) override;
   void VisitBinaryOperation(HBinaryOperation* inst) override;
 
-  void VisitTypeConversion(HTypeConversion* inst) override;
+  void VisitArrayLength(HArrayLength* inst) override;
   void VisitDivZeroCheck(HDivZeroCheck* inst) override;
   void VisitIf(HIf* inst) override;
+  void VisitTypeConversion(HTypeConversion* inst) override;
 
   void PropagateValue(HBasicBlock* starting_block, HInstruction* variable, HConstant* constant);
 
@@ -121,16 +123,6 @@ void HConstantFoldingVisitor::VisitBinaryOperation(HBinaryOperation* inst) {
   } else {
     InstructionWithAbsorbingInputSimplifier simplifier(GetGraph());
     inst->Accept(&simplifier);
-  }
-}
-
-void HConstantFoldingVisitor::VisitTypeConversion(HTypeConversion* inst) {
-  // Constant folding: replace `TypeConversion(a)' with a constant at
-  // compile time if `a' is a constant.
-  HConstant* constant = inst->TryStaticEvaluation();
-  if (constant != nullptr) {
-    inst->ReplaceWith(constant);
-    inst->GetBlock()->RemoveInstruction(inst);
   }
 }
 
@@ -272,6 +264,27 @@ void HConstantFoldingVisitor::VisitIf(HIf* inst) {
                                     GetGraph()->GetIntConstant(1);
     DCHECK_NE(other_constant, constant);
     PropagateValue(other_starting_block, variable, other_constant);
+  }
+}
+
+void HConstantFoldingVisitor::VisitArrayLength(HArrayLength* inst) {
+  HInstruction* input = inst->InputAt(0);
+  if (input->IsLoadString()) {
+    DCHECK(inst->IsStringLength());
+    HLoadString* load_string = input->AsLoadString();
+    const DexFile& dex_file = load_string->GetDexFile();
+    const dex::StringId& string_id = dex_file.GetStringId(load_string->GetStringIndex());
+    inst->ReplaceWith(GetGraph()->GetIntConstant(dex_file.GetStringLength(string_id)));
+  }
+}
+
+void HConstantFoldingVisitor::VisitTypeConversion(HTypeConversion* inst) {
+  // Constant folding: replace `TypeConversion(a)' with a constant at
+  // compile time if `a' is a constant.
+  HConstant* constant = inst->TryStaticEvaluation();
+  if (constant != nullptr) {
+    inst->ReplaceWith(constant);
+    inst->GetBlock()->RemoveInstruction(inst);
   }
 }
 
