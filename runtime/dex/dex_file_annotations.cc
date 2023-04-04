@@ -1257,17 +1257,6 @@ bool IsMethodAnnotationPresent(ArtMethod* method,
   return annotation_item != nullptr;
 }
 
-bool IsMethodAnnotationPresent(ArtMethod* method, const char* descriptor, uint32_t visibility) {
-  const AnnotationSetItem* annotation_set = FindAnnotationSetForMethod(method);
-  if (annotation_set == nullptr) {
-    return false;
-  }
-  const DexFile* dex_file = method->GetDexFile();
-  const AnnotationItem* annotation_item =
-      SearchAnnotationSet(*dex_file, annotation_set, descriptor, visibility);
-  return annotation_item != nullptr;
-}
-
 static void DCheckNativeAnnotation(const char* descriptor, jclass cls) {
   if (kIsDebugBuild) {
     ScopedObjectAccess soa(Thread::Current());
@@ -1784,6 +1773,43 @@ ObjPtr<mirror::ObjectArray<mirror::Class>> GetPermittedSubclasses(Handle<mirror:
                                                 "value");
 }
 
+ObjPtr<mirror::Object> getRecordAnnotationElement(Handle<mirror::Class> klass,
+                                                  Handle<mirror::Class> array_class,
+                                                  const char* element_name) {
+  ClassData data(klass);
+  const DexFile& dex_file = klass->GetDexFile();
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  const AnnotationItem* annotation_item = SearchAnnotationSet(
+      dex_file, annotation_set, "Ldalvik/annotation/Record;", DexFile::kDexVisibilitySystem);
+  if (annotation_item == nullptr) {
+    return nullptr;
+  }
+  const uint8_t* annotation =
+      SearchEncodedAnnotation(dex_file, annotation_item->annotation_, element_name);
+  if (annotation == nullptr) {
+    return nullptr;
+  }
+  DexFile::AnnotationValue annotation_value;
+  bool result = Runtime::Current()->IsActiveTransaction()
+      ? ProcessAnnotationValue<true>(data,
+                                     &annotation,
+                                     &annotation_value,
+                                     array_class,
+                                     DexFile::kPrimitivesOrObjects)
+      : ProcessAnnotationValue<false>(data,
+                                      &annotation,
+                                      &annotation_value,
+                                      array_class,
+                                      DexFile::kPrimitivesOrObjects);
+  if (!result) {
+    return nullptr;
+  }
+  return annotation_value.value_.GetL();
+}
+
 bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class) {
   ClassData data(klass);
   const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
@@ -1792,6 +1818,19 @@ bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class>
   }
   const AnnotationItem* annotation_item = GetAnnotationItemFromAnnotationSet(
       data, annotation_set, DexFile::kDexVisibilityRuntime, annotation_class);
+  return annotation_item != nullptr;
+}
+
+bool IsRecordClassAnnotationPresent(Handle<mirror::Class> klass) {
+  ClassData data(klass);
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
+  if (annotation_set == nullptr) {
+    return false;
+  }
+  const AnnotationItem* annotation_item = SearchAnnotationSet(data.GetDexFile(),
+                                                              annotation_set,
+                                                              "Ldalvik/annotation/Record;",
+                                                              DexFile::kDexVisibilitySystem);
   return annotation_item != nullptr;
 }
 
