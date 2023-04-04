@@ -36,10 +36,9 @@ public class Main {
         testTracing(
                 /* streaming=*/true, stream_parser, BaseTraceParser.STREAMING_DUAL_CLOCK_VERSION);
 
-        // TODO(mythria): Enable after fixing failures on the bots.
-        // System.out.println("***** non streaming test *******");
-        // NonStreamTraceParser non_stream_parser = new NonStreamTraceParser();
-        // testTracing(/* streaming=*/false, non_stream_parser, BaseTraceParser.DUAL_CLOCK_VERSION);
+        System.out.println("***** non streaming test *******");
+        NonStreamTraceParser non_stream_parser = new NonStreamTraceParser();
+        testTracing(/* streaming=*/false, non_stream_parser, BaseTraceParser.DUAL_CLOCK_VERSION);
     }
 
     public static void testTracing(boolean streaming, BaseTraceParser parser, int expected_version)
