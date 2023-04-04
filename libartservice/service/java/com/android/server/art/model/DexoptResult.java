@@ -108,6 +108,22 @@ public abstract class DexoptResult {
                 .orElse(DEXOPT_SKIPPED);
     }
 
+    /** @hide */
+    @NonNull
+    public static String dexoptResultStatusToString(@DexoptResultStatus int status) {
+        switch (status) {
+            case DexoptResult.DEXOPT_SKIPPED:
+                return "SKIPPED";
+            case DexoptResult.DEXOPT_PERFORMED:
+                return "PERFORMED";
+            case DexoptResult.DEXOPT_FAILED:
+                return "FAILED";
+            case DexoptResult.DEXOPT_CANCELLED:
+                return "CANCELLED";
+        }
+        throw new IllegalArgumentException("Unknown dexopt status " + status);
+    }
+
     /**
      * Describes the result of a package.
      *
@@ -234,5 +250,24 @@ public abstract class DexoptResult {
 
         /** @hide */
         public abstract boolean isSkippedDueToStorageLow();
+
+        @Override
+        @NonNull
+        public String toString() {
+            return String.format("DexContainerFileDexoptResult{"
+                            + "dexContainerFile=%s, "
+                            + "primaryAbi=%b, "
+                            + "abi=%s, "
+                            + "actualCompilerFilter=%s, "
+                            + "status=%s, "
+                            + "dex2oatWallTimeMillis=%d, "
+                            + "dex2oatCpuTimeMillis=%d, "
+                            + "sizeBytes=%d, "
+                            + "sizeBeforeBytes=%d}",
+                    getDexContainerFile(), isPrimaryAbi(), getAbi(), getActualCompilerFilter(),
+                    DexoptResult.dexoptResultStatusToString(getStatus()),
+                    getDex2oatWallTimeMillis(), getDex2oatCpuTimeMillis(), getSizeBytes(),
+                    getSizeBeforeBytes());
+        }
     }
 }

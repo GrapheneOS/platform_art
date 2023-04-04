@@ -1117,6 +1117,10 @@ void InstructionSimplifierVisitor::VisitIf(HIf* instruction) {
   }
 }
 
+// TODO(solanes): This optimization should be in ConstantFolding since we are folding to a constant.
+// However, we get code size regressions when we do that since we sometimes have a NullCheck between
+// HArrayLength and IsNewArray, and said NullCheck is eliminated in InstructionSimplifier. If we run
+// ConstantFolding and InstructionSimplifier in lockstep this wouldn't be an issue.
 void InstructionSimplifierVisitor::VisitArrayLength(HArrayLength* instruction) {
   HInstruction* input = instruction->InputAt(0);
   // If the array is a NewArray with constant size, replace the array length

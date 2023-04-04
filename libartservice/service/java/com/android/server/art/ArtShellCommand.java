@@ -195,6 +195,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         boolean reset = false;
         boolean forAllPackages = false;
         boolean legacyClearProfile = false;
+        boolean verbose = false;
 
         String opt;
         while ((opt = getNextOption()) != null) {
@@ -256,6 +257,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     pw.println("Warning: Ignoring obsolete flag '--check-prof'. It is "
                             + "unconditionally enabled now");
                     break;
+                case "-v":
+                    verbose = true;
+                    break;
                 default:
                     pw.println("Error: Unknown option: " + opt);
                     return 1;
@@ -307,15 +311,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
                             | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
         } else {
-            if (!reset && !legacyClearProfile) {
-                pw.println("Warning: No scope options specified. By default, this operation does "
-                        + "not dexopt secondary dex files.");
-                pw.println("- To perform a full dexopt that includes secondary dex files, add "
-                        + "'--full'.");
-                pw.println("- To keep the current behavior and suppress this warning, add "
-                        + "'--primary-dex --include-dependencies'.");
-                pw.println("See 'pm help' for details.");
-            }
             paramsBuilder.setFlags(
                     ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
                     ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
@@ -327,7 +322,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
 
         if (reset) {
-            return resetPackages(pw, snapshot, packageNames);
+            return resetPackages(pw, snapshot, packageNames, verbose);
         } else {
             if (legacyClearProfile) {
                 // For compat only. Combining this with dexopt usually produces in undesired
@@ -336,7 +331,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     mArtManagerLocal.clearAppProfiles(snapshot, packageName);
                 }
             }
-            return dexoptPackages(pw, snapshot, packageNames, paramsBuilder.build());
+            return dexoptPackages(pw, snapshot, packageNames, paramsBuilder.build(), verbose);
         }
     }
 
@@ -351,7 +346,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                                         | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
                                 ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
                                         | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
-                        .build());
+                        .build(),
+                false /* verbose */);
     }
 
     private int handleBgDexoptJob(
@@ -367,7 +363,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 pw.println("Warning: Running 'pm bg-dexopt-job' with package names is deprecated. "
                         + "Please use 'pm compile -r bg-dexopt PACKAGE_NAME' instead");
                 return dexoptPackages(pw, snapshot, packageNames,
-                        new DexoptParams.Builder(ReasonMapping.REASON_BG_DEXOPT).build());
+                        new DexoptParams.Builder(ReasonMapping.REASON_BG_DEXOPT).build(),
+                        false /* verbose */);
             }
 
             CompletableFuture<BackgroundDexoptJob.Result> runningJob =
@@ -590,13 +587,15 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
         DexoptResult result;
         ExecutorService progressCallbackExecutor = Executors.newSingleThreadExecutor();
-        try (var signal = new WithCancellationSignal(pw)) {
+        try (var signal = new WithCancellationSignal(pw, true /* verbose */)) {
             result = mArtManagerLocal.dexoptPackages(
                     snapshot, reason, signal.get(), progressCallbackExecutor, progress -> {
                         pw.println(String.format("Dexopting apps: %d%%", progress.getPercentage()));
                         pw.flush();
                     });
-            Utils.executeAndWait(progressCallbackExecutor, () -> printDexoptResult(pw, result));
+            Utils.executeAndWait(progressCallbackExecutor, () -> {
+                printDexoptResult(pw, result, true /* verbose */, true /* multiPackage */);
+            });
         } finally {
             progressCallbackExecutor.shutdown();
         }
@@ -636,13 +635,14 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    -f Force dexopt, also when the compiler filter being applied is not");
         pw.println("       better than that of the current dexopt artifacts for a package.");
         pw.println("    --reset Reset the dexopt state of the package as if the package is newly");
-        pw.println("      installed.");
-        pw.println("      More specifically, it clears reference profiles, current profiles, and");
-        pw.println("      any code compiled from those local profiles. If there is an external");
-        pw.println("      profile (e.g., a cloud profile), the code compiled from that profile");
-        pw.println("      will be kept.");
-        pw.println("      For secondary dex files, it also clears all dexopt artifacts.");
-        pw.println("      When this flag is set, all the other flags are ignored.");
+        pw.println("       installed.");
+        pw.println("       More specifically, it clears reference profiles, current profiles, and");
+        pw.println("       any code compiled from those local profiles. If there is an external");
+        pw.println("       profile (e.g., a cloud profile), the code compiled from that profile");
+        pw.println("       will be kept.");
+        pw.println("       For secondary dex files, it also clears all dexopt artifacts.");
+        pw.println("       When this flag is set, all the other flags are ignored.");
+        pw.println("    -v Verbose mode. This mode prints detailed results.");
         pw.println("  Scope options:");
         pw.println("    --primary-dex Dexopt primary dex files only.");
         pw.println("    --secondary-dex Dexopt secondary dex files only.");
@@ -815,12 +815,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     private int resetPackages(@NonNull PrintWriter pw,
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull List<String> packageNames) {
-        try (var signal = new WithCancellationSignal(pw)) {
+            @NonNull List<String> packageNames, boolean verbose) {
+        try (var signal = new WithCancellationSignal(pw, verbose)) {
             for (String packageName : packageNames) {
                 DexoptResult result =
                         mArtManagerLocal.resetDexoptStatus(snapshot, packageName, signal.get());
-                printDexoptResult(pw, result);
+                printDexoptResult(pw, result, verbose, packageNames.size() > 1);
             }
         }
         return 0;
@@ -828,41 +828,47 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     private int dexoptPackages(@NonNull PrintWriter pw,
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull List<String> packageNames, @NonNull DexoptParams params) {
-        try (var signal = new WithCancellationSignal(pw)) {
+            @NonNull List<String> packageNames, @NonNull DexoptParams params, boolean verbose) {
+        try (var signal = new WithCancellationSignal(pw, verbose)) {
             for (String packageName : packageNames) {
                 DexoptResult result =
                         mArtManagerLocal.dexoptPackage(snapshot, packageName, params, signal.get());
-                printDexoptResult(pw, result);
+                printDexoptResult(pw, result, verbose, packageNames.size() > 1);
             }
         }
         return 0;
     }
 
     @NonNull
-    private String dexoptResultStatusToString(@DexoptResultStatus int status) {
-        switch (status) {
-            case DexoptResult.DEXOPT_SKIPPED:
-                return "SKIPPED";
-            case DexoptResult.DEXOPT_PERFORMED:
-                return "PERFORMED";
-            case DexoptResult.DEXOPT_FAILED:
-                return "FAILED";
-            case DexoptResult.DEXOPT_CANCELLED:
-                return "CANCELLED";
-        }
-        throw new IllegalArgumentException("Unknown dexopt status " + status);
+    private String dexoptResultStatusToSimpleString(@DexoptResultStatus int status) {
+        return (status == DexoptResult.DEXOPT_SKIPPED || status == DexoptResult.DEXOPT_PERFORMED)
+                ? "Success"
+                : "Failure";
     }
 
-    private void printDexoptResult(@NonNull PrintWriter pw, @NonNull DexoptResult result) {
-        pw.println(dexoptResultStatusToString(result.getFinalStatus()));
+    private void printDexoptResult(@NonNull PrintWriter pw, @NonNull DexoptResult result,
+            boolean verbose, boolean multiPackage) {
         for (PackageDexoptResult packageResult : result.getPackageDexoptResults()) {
-            pw.printf("[%s]\n", packageResult.getPackageName());
-            for (DexContainerFileDexoptResult fileResult :
-                    packageResult.getDexContainerFileDexoptResults()) {
-                pw.println(fileResult);
+            if (verbose) {
+                pw.printf("[%s]\n", packageResult.getPackageName());
+                for (DexContainerFileDexoptResult fileResult :
+                        packageResult.getDexContainerFileDexoptResults()) {
+                    pw.println(fileResult);
+                }
+            } else if (multiPackage) {
+                pw.printf("[%s] %s\n", packageResult.getPackageName(),
+                        dexoptResultStatusToSimpleString(packageResult.getStatus()));
             }
         }
+
+        if (verbose) {
+            pw.println("Final Status: "
+                    + DexoptResult.dexoptResultStatusToString(result.getFinalStatus()));
+        } else if (!multiPackage) {
+            // Multi-package result is printed by the loop above.
+            pw.println(dexoptResultStatusToSimpleString(result.getFinalStatus()));
+        }
+
         pw.flush();
     }
 
@@ -899,11 +905,14 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         @NonNull private final CancellationSignal mSignal = new CancellationSignal();
         @NonNull private final String mJobId;
 
-        public WithCancellationSignal(@NonNull PrintWriter pw) {
+        public WithCancellationSignal(@NonNull PrintWriter pw, boolean verbose) {
             mJobId = UUID.randomUUID().toString();
-            pw.printf("Job running. To cancel it, run 'pm art cancel %s' in a separate shell.\n",
-                    mJobId);
-            pw.flush();
+            if (verbose) {
+                pw.printf(
+                        "Job running. To cancel it, run 'pm art cancel %s' in a separate shell.\n",
+                        mJobId);
+                pw.flush();
+            }
 
             synchronized (sCancellationSignalMap) {
                 sCancellationSignalMap.put(mJobId, mSignal);
