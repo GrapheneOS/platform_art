@@ -79,11 +79,6 @@ bool IsMethodAnnotationPresent(ArtMethod* method,
                                uint32_t visibility = DexFile::kDexVisibilityRuntime)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-bool IsMethodAnnotationPresent(ArtMethod* method,
-                               const char* descriptor,
-                               uint32_t visibility = DexFile::kDexVisibilityRuntime)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
 // Check whether a method from the `dex_file` with the given `method_index`
 // is annotated with @dalvik.annotation.optimization.FastNative or
 // @dalvik.annotation.optimization.CriticalNative with build visibility.
@@ -150,10 +145,17 @@ ObjPtr<mirror::Class> GetNestHost(Handle<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_);
 ObjPtr<mirror::ObjectArray<mirror::Class>> GetNestMembers(Handle<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_);
+ObjPtr<mirror::Object> getRecordAnnotationElement(Handle<mirror::Class> klass,
+                                                  Handle<mirror::Class> array_class,
+                                                  const char* element_name)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 ObjPtr<mirror::ObjectArray<mirror::Class>> GetPermittedSubclasses(Handle<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_);
 bool IsClassAnnotationPresent(Handle<mirror::Class> klass,
                               Handle<mirror::Class> annotation_class)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
+bool IsRecordClassAnnotationPresent(Handle<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Map back from a PC to the line number in a method.
