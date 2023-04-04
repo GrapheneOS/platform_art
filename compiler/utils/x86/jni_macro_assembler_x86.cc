@@ -18,6 +18,7 @@
 
 #include "base/casts.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "indirect_reference_table.h"
 #include "lock_word.h"
 #include "thread.h"
 #include "utils/assembler.h"
@@ -389,6 +390,20 @@ void X86JNIMacroAssembler::CreateJObject(FrameOffset out_off,
     __ leal(scratch, Address(ESP, spilled_reference_offset));
   }
   __ movl(Address(ESP, out_off), scratch);
+}
+
+void X86JNIMacroAssembler::DecodeJNITransitionOrLocalJObject(ManagedRegister reg,
+                                                             JNIMacroLabel* slow_path,
+                                                             JNIMacroLabel* resume) {
+  constexpr uint32_t kGlobalOrWeakGlobalMask =
+      dchecked_integral_cast<uint32_t>(IndirectReferenceTable::GetGlobalOrWeakGlobalMask());
+  constexpr uint32_t kIndirectRefKindMask =
+      dchecked_integral_cast<uint32_t>(IndirectReferenceTable::GetIndirectRefKindMask());
+  __ testl(reg.AsX86().AsCpuRegister(), Immediate(kGlobalOrWeakGlobalMask));
+  __ j(kNotZero, X86JNIMacroLabel::Cast(slow_path)->AsX86());
+  __ andl(reg.AsX86().AsCpuRegister(), Immediate(~kIndirectRefKindMask));
+  __ j(kZero, X86JNIMacroLabel::Cast(resume)->AsX86());  // Skip load for null.
+  __ movl(reg.AsX86().AsCpuRegister(), Address(reg.AsX86().AsCpuRegister(), /*disp=*/ 0));
 }
 
 void X86JNIMacroAssembler::VerifyObject(ManagedRegister /*src*/, bool /*could_be_null*/) {
