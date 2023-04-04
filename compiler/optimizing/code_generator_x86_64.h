@@ -53,6 +53,53 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
 // these are not clobbered by any direct call to native code (such as math intrinsics).
 static constexpr FloatRegister non_volatile_xmm_regs[] = { XMM12, XMM13, XMM14, XMM15 };
 
+#define UNIMPLEMENTED_INTRINSIC_LIST_X86_64(V) \
+  V(CRC32Update)                               \
+  V(CRC32UpdateBytes)                          \
+  V(CRC32UpdateByteBuffer)                     \
+  V(FP16ToFloat)                               \
+  V(FP16ToHalf)                                \
+  V(FP16Floor)                                 \
+  V(FP16Ceil)                                  \
+  V(FP16Rint)                                  \
+  V(FP16Greater)                               \
+  V(FP16GreaterEquals)                         \
+  V(FP16Less)                                  \
+  V(FP16LessEquals)                            \
+  V(FP16Compare)                               \
+  V(FP16Min)                                   \
+  V(FP16Max)                                   \
+  V(StringStringIndexOf)                       \
+  V(StringStringIndexOfAfter)                  \
+  V(StringBufferAppend)                        \
+  V(StringBufferLength)                        \
+  V(StringBufferToString)                      \
+  V(StringBuilderAppendObject)                 \
+  V(StringBuilderAppendString)                 \
+  V(StringBuilderAppendCharSequence)           \
+  V(StringBuilderAppendCharArray)              \
+  V(StringBuilderAppendBoolean)                \
+  V(StringBuilderAppendChar)                   \
+  V(StringBuilderAppendInt)                    \
+  V(StringBuilderAppendLong)                   \
+  V(StringBuilderAppendFloat)                  \
+  V(StringBuilderAppendDouble)                 \
+  V(StringBuilderLength)                       \
+  V(StringBuilderToString)                     \
+  /* 1.8 */                                    \
+  V(UnsafeGetAndAddInt)                        \
+  V(UnsafeGetAndAddLong)                       \
+  V(UnsafeGetAndSetInt)                        \
+  V(UnsafeGetAndSetLong)                       \
+  V(UnsafeGetAndSetObject)                     \
+  V(MethodHandleInvokeExact)                   \
+  V(MethodHandleInvoke)                        \
+  /* OpenJDK 11 */                             \
+  V(JdkUnsafeGetAndAddInt)                     \
+  V(JdkUnsafeGetAndAddLong)                    \
+  V(JdkUnsafeGetAndSetInt)                     \
+  V(JdkUnsafeGetAndSetLong)                    \
+  V(JdkUnsafeGetAndSetObject)
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
