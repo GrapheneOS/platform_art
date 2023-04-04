@@ -613,16 +613,20 @@ void LocalReferenceTable::Trim() {
     const size_t table_size = TruncToPowerOfTwo(top_index);
     const size_t table_index = NumTablesForSize(table_size);
     const size_t start_index = top_index - table_size;
-    LrtEntry* table = tables_[table_index];
-    uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table[start_index]), kPageSize);
-    uint8_t* release_end = reinterpret_cast<uint8_t*>(&table[table_size]);
-    DCHECK_GE(reinterpret_cast<uintptr_t>(release_end), reinterpret_cast<uintptr_t>(release_start));
-    DCHECK_ALIGNED(release_end, kPageSize);
-    DCHECK_ALIGNED(release_end - release_start, kPageSize);
-    if (release_start != release_end) {
-      madvise(release_start, release_end - release_start, MADV_DONTNEED);
+    mem_map_index = table_index - MaxSmallTables();
+    if (start_index != 0u) {
+      ++mem_map_index;
+      LrtEntry* table = tables_[table_index];
+      uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table[start_index]), kPageSize);
+      uint8_t* release_end = reinterpret_cast<uint8_t*>(&table[table_size]);
+      DCHECK_GE(reinterpret_cast<uintptr_t>(release_end),
+                reinterpret_cast<uintptr_t>(release_start));
+      DCHECK_ALIGNED(release_end, kPageSize);
+      DCHECK_ALIGNED(release_end - release_start, kPageSize);
+      if (release_start != release_end) {
+        madvise(release_start, release_end - release_start, MADV_DONTNEED);
+      }
     }
-    mem_map_index = table_index + 1u - MaxSmallTables();
   }
   for (MemMap& mem_map : ArrayRef<MemMap>(table_mem_maps_).SubArray(mem_map_index)) {
     madvise(mem_map.Begin(), mem_map.Size(), MADV_DONTNEED);
