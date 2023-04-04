@@ -395,8 +395,9 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Did we overflow the buffer recording traces?
   bool overflow_;
 
-  // Map of thread ids and names that have already exited.
-  SafeMap<pid_t, std::string> exited_threads_;
+  // Map of thread ids and names. We record the information when the threads are
+  // exiting and when the tracing has finished.
+  SafeMap<pid_t, std::string> threads_list_;
 
   // Sampling profiler sampling interval.
   int interval_us_;
