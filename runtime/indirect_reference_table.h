@@ -243,6 +243,10 @@ class IndirectReferenceTable {
         reinterpret_cast<uintptr_t>(iref) & ~static_cast<uintptr_t>(kKindMask));
   }
 
+  static constexpr uintptr_t GetIndirectRefKindMask() {
+    return kKindMask;
+  }
+
   /* Reference validation for CheckJNI. */
   bool IsValidReference(IndirectRef, /*out*/std::string* error_msg) const
       REQUIRES_SHARED(Locks::mutator_lock_);
