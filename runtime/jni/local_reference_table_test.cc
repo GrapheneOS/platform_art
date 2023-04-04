@@ -820,5 +820,29 @@ TEST_F(LocalReferenceTableTest, RegressionTestB276210372) {
   ASSERT_TRUE(new_ref != nullptr);
 }
 
+TEST_F(LocalReferenceTableTest, RegressionTestB276864369) {
+  LocalReferenceTable lrt(/*check_jni=*/ false);
+  std::string error_msg;
+  bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> c = GetClassRoot<mirror::Object>();
+
+  // Add refs to fill all small tables and one bigger table.
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  std::vector<IndirectRef> refs;
+  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+    refs.push_back(lrt.Add(cookie0, c, &error_msg));
+    ASSERT_TRUE(refs.back() != nullptr);
+  }
+
+  // We had a bug in `Trim()` where we would try to skip one more table than available
+  // if the capacity was exactly at the end of table. If the next table was not allocated,
+  // we would hit a `DCHECK()` in `dchecked_vector<>` in debug mode but in release
+  // mode we would proceed to use memory outside the allocated chunk. b/276864369
+  lrt.Trim();
+}
+
 }  // namespace jni
 }  // namespace art
