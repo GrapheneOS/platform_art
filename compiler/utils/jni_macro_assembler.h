@@ -158,6 +158,11 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void GetCurrentThread(ManagedRegister dest) = 0;
   virtual void GetCurrentThread(FrameOffset dest_offset) = 0;
 
+  // Decode JNI transition or local `jobject`. For (weak) global `jobject`, jump to slow path.
+  virtual void DecodeJNITransitionOrLocalJObject(ManagedRegister reg,
+                                                 JNIMacroLabel* slow_path,
+                                                 JNIMacroLabel* resume) = 0;
+
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.
   virtual void VerifyObject(ManagedRegister src, bool could_be_null) = 0;
