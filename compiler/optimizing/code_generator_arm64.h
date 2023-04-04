@@ -123,6 +123,41 @@ const vixl::aarch64::CPURegList callee_saved_fp_registers(vixl::aarch64::CPURegi
                                                           vixl::aarch64::d15.GetCode());
 Location ARM64ReturnLocation(DataType::Type return_type);
 
+#define UNIMPLEMENTED_INTRINSIC_LIST_ARM64(V) \
+  V(StringStringIndexOf)                      \
+  V(StringStringIndexOfAfter)                 \
+  V(StringBufferAppend)                       \
+  V(StringBufferLength)                       \
+  V(StringBufferToString)                     \
+  V(StringBuilderAppendObject)                \
+  V(StringBuilderAppendString)                \
+  V(StringBuilderAppendCharSequence)          \
+  V(StringBuilderAppendCharArray)             \
+  V(StringBuilderAppendBoolean)               \
+  V(StringBuilderAppendChar)                  \
+  V(StringBuilderAppendInt)                   \
+  V(StringBuilderAppendLong)                  \
+  V(StringBuilderAppendFloat)                 \
+  V(StringBuilderAppendDouble)                \
+  V(StringBuilderLength)                      \
+  V(StringBuilderToString)                    \
+  V(SystemArrayCopyByte)                      \
+  V(SystemArrayCopyInt)                       \
+  /* 1.8 */                                   \
+  V(UnsafeGetAndAddInt)                       \
+  V(UnsafeGetAndAddLong)                      \
+  V(UnsafeGetAndSetInt)                       \
+  V(UnsafeGetAndSetLong)                      \
+  V(UnsafeGetAndSetObject)                    \
+  V(MethodHandleInvokeExact)                  \
+  V(MethodHandleInvoke)                       \
+  /* OpenJDK 11 */                            \
+  V(JdkUnsafeGetAndAddInt)                    \
+  V(JdkUnsafeGetAndAddLong)                   \
+  V(JdkUnsafeGetAndSetInt)                    \
+  V(JdkUnsafeGetAndSetLong)                   \
+  V(JdkUnsafeGetAndSetObject)
+
 class SlowPathCodeARM64 : public SlowPathCode {
  public:
   explicit SlowPathCodeARM64(HInstruction* instruction)
