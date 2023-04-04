@@ -621,11 +621,6 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
           the_trace_->FlushStreamingBuffer(thread);
           thread->ResetMethodTraceBuffer();
         }
-        // Record threads here before resetting the_trace_ to prevent any races between
-        // unregistering the thread and resetting the_trace_.
-        std::string name;
-        thread->GetThreadName(name);
-        the_trace->threads_list_.Put(thread->GetTid(), name);
       }
     }
 
@@ -1247,17 +1242,28 @@ void Trace::DumpMethodList(std::ostream& os) {
   }
 }
 
+static void DumpThread(Thread* t, void* arg) {
+  std::ostream& os = *reinterpret_cast<std::ostream*>(arg);
+  std::string name;
+  t->GetThreadName(name);
+  // We use only 16 bits to encode thread id. On Android, we don't expect to use more than
+  // 16-bits for a Tid. For 32-bit platforms it is always ensured we use less than 16 bits.
+  // See  __check_max_thread_id in bionic for more details. Even on 64-bit the max threads
+  // is currently less than 65536.
+  // TODO(mythria): On host, we know thread ids can be greater than 16 bits. Consider adding
+  // a map similar to method ids.
+  DCHECK(!kIsTargetBuild || t->GetTid() < (1 << 16));
+  os << static_cast<uint16_t>(t->GetTid()) << "\t" << name << "\n";
+}
+
 void Trace::DumpThreadList(std::ostream& os) {
-  for (const auto& it : threads_list_) {
-    // We use only 16 bits to encode thread id. On Android, we don't expect to use more than
-    // 16-bits for a Tid. For 32-bit platforms it is always ensured we use less than 16 bits.
-    // See  __check_max_thread_id in bionic for more details. Even on 64-bit the max threads
-    // is currently less than 65536.
-    // TODO(mythria): On host, we know thread ids can be greater than 16 bits. Consider adding
-    // a map similar to method ids.
-    DCHECK(!kIsTargetBuild || it.first < (1 << 16));
+  Thread* self = Thread::Current();
+  for (const auto& it : exited_threads_) {
     os << static_cast<uint16_t>(it.first) << "\t" << it.second << "\n";
   }
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
 }
 
 void Trace::StoreExitingThreadInfo(Thread* thread) {
@@ -1265,7 +1271,9 @@ void Trace::StoreExitingThreadInfo(Thread* thread) {
   if (the_trace_ != nullptr) {
     std::string name;
     thread->GetThreadName(name);
-    the_trace_->threads_list_.Put(thread->GetTid(), name);
+    // The same thread/tid may be used multiple times. As SafeMap::Put does not allow to override
+    // a previous mapping, use SafeMap::Overwrite.
+    the_trace_->exited_threads_.Overwrite(thread->GetTid(), name);
   }
 }
 

@@ -52,7 +52,7 @@ public class NonStreamTraceParser extends BaseTraceParser {
 
         line = readLine();
         while (!line.startsWith(START_SECTION_ID)) {
-            String[] threadInfo = line.split("\t", 2);
+            String[] threadInfo = line.split("\t");
             threadIdMap.put(Integer.decode(threadInfo[0]), threadInfo[1]);
             line = readLine();
         }
