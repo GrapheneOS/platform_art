@@ -28,6 +28,7 @@
 #include "common_compiler_test.h"
 #include "compiler.h"
 #include "dex/dex_file.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gtest/gtest.h"
 #include "indirect_reference_table.h"
@@ -1553,6 +1554,10 @@ jobject Java_MyClassNatives_staticMethodThatShouldReturnClass(JNIEnv* env, jclas
 }
 
 void JniCompilerTest::UpcallReturnTypeChecking_InstanceImpl() {
+  // Set debuggable so that the JNI compiler does not emit a fast-path that would skip the
+  // runtime call where we do these checks. Note that while normal gtests use the debug build
+  // which disables the fast path, `art_standalone_compiler_tests` run in the release build.
+  compiler_options_->SetDebuggable(true);
   SetUpForTest(false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
@@ -1580,6 +1585,10 @@ void JniCompilerTest::UpcallReturnTypeChecking_InstanceImpl() {
 JNI_TEST(UpcallReturnTypeChecking_Instance)
 
 void JniCompilerTest::UpcallReturnTypeChecking_StaticImpl() {
+  // Set debuggable so that the JNI compiler does not emit a fast-path that would skip the
+  // runtime call where we do these checks. Note that while normal gtests use the debug build
+  // which disables the fast path, `art_standalone_compiler_tests` run in the release build.
+  compiler_options_->SetDebuggable(true);
   SetUpForTest(true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
