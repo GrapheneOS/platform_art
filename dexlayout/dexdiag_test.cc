@@ -33,9 +33,7 @@ static const char* kDexDiagBinaryName = "dexdiag";
 
 class DexDiagTest : public CommonArtTest {
  protected:
-  void SetUp() override {
-    CommonArtTest::SetUp();
-  }
+  void SetUp() override { CommonArtTest::SetUp(); }
 
   // Path to the dexdiag(d?)[32|64] binary.
   std::string GetDexDiagFilePath() {
@@ -63,11 +61,11 @@ class DexDiagTest : public CommonArtTest {
     EXPECT_TRUE(!oat_location.empty());
     std::cout << "==" << oat_location << std::endl;
     std::string error_msg;
-    std::unique_ptr<OatFile> oat(OatFile::Open(/*zip_fd=*/ -1,
-                                               oat_location.c_str(),
-                                               oat_location.c_str(),
-                                               /*executable=*/ false,
-                                               /*low_4gb=*/ false,
+    std::unique_ptr<OatFile> oat(OatFile::Open(/*zip_fd=*/-1,
+                                               oat_location,
+                                               oat_location,
+                                               /*executable=*/false,
+                                               /*low_4gb=*/false,
                                                &error_msg));
     EXPECT_TRUE(oat != nullptr) << error_msg;
     return oat;
@@ -82,8 +80,8 @@ class DexDiagTest : public CommonArtTest {
 
     // Build the command line "dexdiag <args> this_pid".
     std::string executable_path = GetDexDiagFilePath();
-    EXPECT_TRUE(OS::FileExists(executable_path.c_str())) << executable_path
-                                                         << " should be a valid file path";
+    EXPECT_TRUE(OS::FileExists(executable_path.c_str()))
+        << executable_path << " should be a valid file path";
     exec_argv.push_back(executable_path);
     for (const auto& arg : args) {
       exec_argv.push_back(arg);
@@ -102,11 +100,11 @@ class DexDiagTest : public CommonArtTest {
 TEST_F(DexDiagTest, DexDiagHelpTest) {
   // TODO: test the resulting output.
   std::string error_msg;
-  ASSERT_TRUE(Exec(getpid(), { kDexDiagHelp }, &error_msg)) << "Failed to execute -- because: "
-                                                            << error_msg;
+  ASSERT_TRUE(Exec(getpid(), {kDexDiagHelp}, &error_msg))
+      << "Failed to execute -- because: " << error_msg;
 }
 
-#if defined (ART_TARGET)
+#if defined(ART_TARGET)
 TEST_F(DexDiagTest, DexDiagContainsTest) {
 #else
 TEST_F(DexDiagTest, DISABLED_DexDiagContainsTest) {
@@ -114,11 +112,11 @@ TEST_F(DexDiagTest, DISABLED_DexDiagContainsTest) {
   std::unique_ptr<OatFile> oat = OpenOatAndVdexFiles();
   // TODO: test the resulting output.
   std::string error_msg;
-  ASSERT_TRUE(Exec(getpid(), { kDexDiagContains }, &error_msg)) << "Failed to execute -- because: "
-                                                                << error_msg;
+  ASSERT_TRUE(Exec(getpid(), {kDexDiagContains}, &error_msg))
+      << "Failed to execute -- because: " << error_msg;
 }
 
-#if defined (ART_TARGET)
+#if defined(ART_TARGET)
 TEST_F(DexDiagTest, DexDiagContainsFailsTest) {
 #else
 TEST_F(DexDiagTest, DISABLED_DexDiagContainsFailsTest) {
@@ -126,12 +124,11 @@ TEST_F(DexDiagTest, DISABLED_DexDiagContainsFailsTest) {
   std::unique_ptr<OatFile> oat = OpenOatAndVdexFiles();
   // TODO: test the resulting output.
   std::string error_msg;
-  ASSERT_FALSE(Exec(getpid(), { kDexDiagContainsFails }, &error_msg))
-      << "Failed to execute -- because: "
-      << error_msg;
+  ASSERT_FALSE(Exec(getpid(), {kDexDiagContainsFails}, &error_msg))
+      << "Failed to execute -- because: " << error_msg;
 }
 
-#if defined (ART_TARGET)
+#if defined(ART_TARGET)
 TEST_F(DexDiagTest, DexDiagVerboseTest) {
 #else
 TEST_F(DexDiagTest, DISABLED_DexDiagVerboseTest) {
@@ -139,8 +136,8 @@ TEST_F(DexDiagTest, DISABLED_DexDiagVerboseTest) {
   // TODO: test the resulting output.
   std::unique_ptr<OatFile> oat = OpenOatAndVdexFiles();
   std::string error_msg;
-  ASSERT_TRUE(Exec(getpid(), { kDexDiagVerbose }, &error_msg)) << "Failed to execute -- because: "
-                                                               << error_msg;
+  ASSERT_TRUE(Exec(getpid(), {kDexDiagVerbose}, &error_msg))
+      << "Failed to execute -- because: " << error_msg;
 }
 
 }  // namespace art
