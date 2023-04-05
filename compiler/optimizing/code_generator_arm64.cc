@@ -77,7 +77,6 @@ using helpers::InputFPRegisterAt;
 using helpers::InputOperandAt;
 using helpers::InputRegisterAt;
 using helpers::Int64FromLocation;
-using helpers::IsConstantZeroBitPattern;
 using helpers::LocationFrom;
 using helpers::OperandFromMemOperand;
 using helpers::OutputCPURegister;
@@ -2247,7 +2246,7 @@ void LocationsBuilderARM64::HandleFieldSet(HInstruction* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  if (IsConstantZeroBitPattern(instruction->InputAt(1))) {
+  if (IsZeroBitPattern(instruction->InputAt(1))) {
     locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)->AsConstant()));
   } else if (DataType::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
     locations->SetInAt(1, Location::RequiresFpuRegister());
@@ -2849,7 +2848,7 @@ void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
       needs_type_check ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-  if (IsConstantZeroBitPattern(instruction->InputAt(2))) {
+  if (IsZeroBitPattern(instruction->InputAt(2))) {
     locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)->AsConstant()));
   } else if (DataType::IsFloatingPointType(value_type)) {
     locations->SetInAt(2, Location::RequiresFpuRegister());
