@@ -3351,6 +3351,7 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
                                                Handle<mirror::ClassLoader> class_loader,
                                                const DexFile& dex_file,
                                                const dex::ClassDef& dex_class_def) {
+  ScopedTrace trace([&]() { return android::base::StringPrintf("Defining %s", descriptor); });
   ScopedDefiningClass sdc(self);
   StackHandleScope<3> hs(self);
   metrics::AutoTimer timer{GetMetrics()->ClassLoadingTotalTime()};
@@ -9381,31 +9382,8 @@ void ClassLinker::SetRecordClassFlagIfNeeded(Handle<mirror::Class> klass) {
     }
   }
 
-  // Record class should have record attributes specifying various things,
-  // including component type, name and the order of record components. The dexer
-  // should emit @dalvik.annotation.Record annotation. But before the annotation is
-  // emitted correctly b/272698028, we workaround by reading @MethodParameters annotation
-  // as a temporary replacement.
-  uint32_t num_of_fields = klass->NumInstanceFields();
-  for (ArtMethod& method : klass->GetDirectMethods(image_pointer_size_)) {
-    // JLS 8.10.2 Record body can't declare instance fields.
-    // JLS 8.10.4 Record class has only one canonical constructor.
-    // Dexer should emit @MethodParameters method annotation along with
-    // the canonical constructor.
-    if (method.IsConstructor() && method.GetNumberOfParameters() == num_of_fields) {
-      if (num_of_fields == 0 ||
-          annotations::IsMethodAnnotationPresent(
-              &method, "Ldalvik/annotation/MethodParameters;", DexFile::kDexVisibilitySystem)) {
-        // JLS 8.10.4 / 8.10.4.1 We should check if the constructor
-        // doesn't invoke other constructor in this class or invoke the super
-        // class constructor to confirm that it's the canonical constructor.
-
-        // But it's good enough until @dalvik.annotation.Record is emitted
-        // from the dexer.
-        klass->SetRecordClass();
-        return;
-      }
-    }
+  if (annotations::IsRecordClassAnnotationPresent(klass)) {
+    klass->SetRecordClass();
   }
 }
 
