@@ -4757,7 +4757,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   for (size_t arg_index = arguments_start; arg_index != number_of_arguments; ++arg_index) {
     HInstruction* arg = invoke->InputAt(arg_index);
     if (IsZeroBitPattern(arg)) {
-      locations->SetInAt(arg_index, Location::ConstantLocation(arg->AsConstant()));
+      locations->SetInAt(arg_index, Location::ConstantLocation(arg));
     } else if (DataType::IsFloatingPointType(arg->GetType())) {
       locations->SetInAt(arg_index, Location::RequiresFpuRegister());
     } else {
