@@ -132,7 +132,8 @@ void HConstantFoldingVisitor::VisitBinaryOperation(HBinaryOperation* inst) {
 void HConstantFoldingVisitor::VisitDivZeroCheck(HDivZeroCheck* inst) {
   // We can safely remove the check if the input is a non-null constant.
   HInstruction* check_input = inst->InputAt(0);
-  if (check_input->IsConstant() && !check_input->AsConstant()->IsArithmeticZero()) {
+  // TODO: Remove "OrNull".
+  if (check_input->IsConstant() && !check_input->AsConstantOrNull()->IsArithmeticZero()) {
     inst->ReplaceWith(check_input);
     inst->GetBlock()->RemoveInstruction(inst);
   }
@@ -194,7 +195,8 @@ void HConstantFoldingVisitor::VisitIf(HIf* inst) {
   if (!if_input->IsCondition()) {
     return;
   }
-  HCondition* condition = if_input->AsCondition();
+  // TODO: Remove "OrNull".
+  HCondition* condition = if_input->AsConditionOrNull();
 
   // We want either `==` or `!=`, since we cannot make assumptions for other conditions e.g. `>`
   if (!condition->IsEqual() && !condition->IsNotEqual()) {
@@ -217,7 +219,8 @@ void HConstantFoldingVisitor::VisitIf(HIf* inst) {
   // }
   // Similarly with variable != constant, except that we can make guarantees in the else case.
 
-  HConstant* constant = left->IsConstant() ? left->AsConstant() : right->AsConstant();
+  // TODO: Remove "OrNull".
+  HConstant* constant = left->IsConstant() ? left->AsConstantOrNull() : right->AsConstantOrNull();
   HInstruction* variable = left->IsConstant() ? right : left;
 
   // Don't deal with floats/doubles since they bring a lot of edge cases e.g.
@@ -238,15 +241,18 @@ void HConstantFoldingVisitor::VisitIf(HIf* inst) {
     }
 
     // Update left and right to be the ones from the HCompare.
-    left = variable->AsCompare()->GetLeft();
-    right = variable->AsCompare()->GetRight();
+    // TODO: Remove "OrNull".
+    left = variable->AsCompareOrNull()->GetLeft();
+    // TODO: Remove "OrNull".
+    right = variable->AsCompareOrNull()->GetRight();
 
     // Re-check that one of them to be a constant and not the other.
     if (left->IsConstant() == right->IsConstant()) {
       return;
     }
 
-    constant = left->IsConstant() ? left->AsConstant() : right->AsConstant();
+    // TODO: Remove "OrNull".
+    constant = left->IsConstant() ? left->AsConstantOrNull() : right->AsConstantOrNull();
     variable = left->IsConstant() ? right : left;
 
     // Re-check floating point values.
@@ -268,12 +274,14 @@ void HConstantFoldingVisitor::VisitIf(HIf* inst) {
   // we cannot make an assumption for the `else` branch.
   if (variable->GetType() == DataType::Type::kBool &&
       constant->IsIntConstant() &&
-      (constant->AsIntConstant()->IsTrue() || constant->AsIntConstant()->IsFalse())) {
+      // TODO: Remove "OrNull".
+      (constant->AsIntConstantOrNull()->IsTrue() || constant->AsIntConstantOrNull()->IsFalse())) {
     HBasicBlock* other_starting_block =
         condition->IsEqual() ? inst->IfFalseSuccessor() : inst->IfTrueSuccessor();
     DCHECK_NE(other_starting_block, starting_block);
 
-    HConstant* other_constant = constant->AsIntConstant()->IsTrue() ?
+    // TODO: Remove "OrNull".
+    HConstant* other_constant = constant->AsIntConstantOrNull()->IsTrue() ?
                                     GetGraph()->GetIntConstant(0) :
                                     GetGraph()->GetIntConstant(1);
     DCHECK_NE(other_constant, constant);
@@ -285,7 +293,8 @@ void HConstantFoldingVisitor::VisitArrayLength(HArrayLength* inst) {
   HInstruction* input = inst->InputAt(0);
   if (input->IsLoadString()) {
     DCHECK(inst->IsStringLength());
-    HLoadString* load_string = input->AsLoadString();
+    // TODO: Remove "OrNull".
+    HLoadString* load_string = input->AsLoadStringOrNull();
     const DexFile& dex_file = load_string->GetDexFile();
     const dex::StringId& string_id = dex_file.GetStringId(load_string->GetStringIndex());
     inst->ReplaceWith(GetGraph()->GetIntConstant(dex_file.GetStringLength(string_id)));
@@ -305,7 +314,8 @@ void HConstantFoldingVisitor::VisitTypeConversion(HTypeConversion* inst) {
 void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instruction) {
   DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
   HInstruction* left = instruction->GetLeft();
-  if (left->IsConstant() && left->AsConstant()->IsArithmeticZero()) {
+  // TODO: Remove "OrNull".
+  if (left->IsConstant() && left->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    SHL dst, 0, shift_amount
     // with
@@ -365,7 +375,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitAbove(HAbove* instruction) {
     instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
     instruction->GetBlock()->RemoveInstruction(instruction);
   } else if (instruction->GetLeft()->IsConstant() &&
-             instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
+             // TODO: Remove "OrNull".
+             instruction->GetLeft()->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE dst, 0, src  // unsigned 0 > src is always false
     // with
@@ -383,7 +394,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitAboveOrEqual(HAboveOrEqual* i
     instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
     instruction->GetBlock()->RemoveInstruction(instruction);
   } else if (instruction->GetRight()->IsConstant() &&
-             instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
+             // TODO: Remove "OrNull".
+             instruction->GetRight()->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    ABOVE_OR_EQUAL dst, src, 0  // unsigned src >= 0 is always true
     // with
@@ -401,7 +413,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitBelow(HBelow* instruction) {
     instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 0));
     instruction->GetBlock()->RemoveInstruction(instruction);
   } else if (instruction->GetRight()->IsConstant() &&
-             instruction->GetRight()->AsConstant()->IsArithmeticZero()) {
+             // TODO: Remove "OrNull".
+             instruction->GetRight()->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW dst, src, 0  // unsigned src < 0 is always false
     // with
@@ -419,7 +432,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitBelowOrEqual(HBelowOrEqual* i
     instruction->ReplaceWith(GetGraph()->GetConstant(DataType::Type::kBool, 1));
     instruction->GetBlock()->RemoveInstruction(instruction);
   } else if (instruction->GetLeft()->IsConstant() &&
-             instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
+             // TODO: Remove "OrNull".
+             instruction->GetLeft()->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    BELOW_OR_EQUAL dst, 0, src  // unsigned 0 <= src is always true
     // with
@@ -501,7 +515,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitAnd(HAnd* instruction) {
     //    CONSTANT 0
     HInstruction* hnot = (left->IsNot() ? left : right);
     HInstruction* hother = (left->IsNot() ? right : left);
-    HInstruction* src = hnot->AsNot()->GetInput();
+    // TODO: Remove "OrNull".
+    HInstruction* src = hnot->AsNotOrNull()->GetInput();
 
     if (src == hother) {
       instruction->ReplaceWith(GetGraph()->GetConstant(type, 0));
@@ -514,9 +529,10 @@ void InstructionWithAbsorbingInputSimplifier::VisitCompare(HCompare* instruction
   HConstant* input_cst = instruction->GetConstantRight();
   if (input_cst != nullptr) {
     HInstruction* input_value = instruction->GetLeastConstantLeft();
+    // TODO: Remove "OrNull".
     if (DataType::IsFloatingPointType(input_value->GetType()) &&
-        ((input_cst->IsFloatConstant() && input_cst->AsFloatConstant()->IsNaN()) ||
-         (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstant()->IsNaN()))) {
+        ((input_cst->IsFloatConstant() && input_cst->AsFloatConstantOrNull()->IsNaN()) ||
+         (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstantOrNull()->IsNaN()))) {
       // Replace code looking like
       //    CMP{G,L}-{FLOAT,DOUBLE} dst, src, NaN
       // with
@@ -574,7 +590,8 @@ void InstructionWithAbsorbingInputSimplifier::VisitRem(HRem* instruction) {
   HBasicBlock* block = instruction->GetBlock();
 
   if (instruction->GetLeft()->IsConstant() &&
-      instruction->GetLeft()->AsConstant()->IsArithmeticZero()) {
+      // TODO: Remove "OrNull".
+      instruction->GetLeft()->AsConstantOrNull()->IsArithmeticZero()) {
     // Replace code looking like
     //    REM dst, 0, src
     // with
@@ -583,7 +600,7 @@ void InstructionWithAbsorbingInputSimplifier::VisitRem(HRem* instruction) {
     block->RemoveInstruction(instruction);
   }
 
-  HConstant* cst_right = instruction->GetRight()->AsConstant();
+  HConstant* cst_right = instruction->GetRight()->AsConstantOrNull();
   if (((cst_right != nullptr) &&
        (cst_right->IsOne() || cst_right->IsMinusOne())) ||
       (instruction->GetLeft() == instruction->GetRight())) {

@@ -150,7 +150,8 @@ size_t SideEffectDependencyAnalysis::MemoryDependencyAnalysis::FieldAccessHeapLo
   DCHECK(heap_location_collector_ != nullptr);
 
   HInstruction* ref = instr->IsPredicatedInstanceFieldGet()
-      ? instr->AsPredicatedInstanceFieldGet()->GetTarget()
+      // TODO: Remove "OrNull".
+      ? instr->AsPredicatedInstanceFieldGetOrNull()->GetTarget()
       : instr->InputAt(0);
   size_t heap_loc = heap_location_collector_->GetFieldHeapLocation(ref, GetFieldInfo(instr));
   // This field access should be analyzed and added to HeapLocationCollector before.
@@ -490,9 +491,11 @@ SchedulingNode* CriticalPathSchedulingNodeSelector::SelectMaterializedCondition(
   DCHECK(instruction != nullptr);
 
   if (instruction->IsIf()) {
-    condition = instruction->AsIf()->InputAt(0)->AsCondition();
+    // TODO: Remove first "OrNull", keep the second.
+    condition = instruction->AsIfOrNull()->InputAt(0)->AsConditionOrNull();
   } else if (instruction->IsSelect()) {
-    condition = instruction->AsSelect()->GetCondition()->AsCondition();
+    // TODO: Remove first "OrNull", keep the second.
+    condition = instruction->AsSelectOrNull()->GetCondition()->AsConditionOrNull();
   }
 
   SchedulingNode* condition_node = (condition != nullptr) ? graph.GetNode(condition) : nullptr;
@@ -733,10 +736,15 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
          instruction->IsClassTableGet() ||
          instruction->IsCurrentMethod() ||
          instruction->IsDivZeroCheck() ||
-         (instruction->IsInstanceFieldGet() && !instruction->AsInstanceFieldGet()->IsVolatile()) ||
+         (instruction->IsInstanceFieldGet() &&
+          // TODO: Remove "OrNull".
+          !instruction->AsInstanceFieldGetOrNull()->IsVolatile()) ||
          (instruction->IsPredicatedInstanceFieldGet() &&
-          !instruction->AsPredicatedInstanceFieldGet()->IsVolatile()) ||
-         (instruction->IsInstanceFieldSet() && !instruction->AsInstanceFieldSet()->IsVolatile()) ||
+          // TODO: Remove "OrNull".
+          !instruction->AsPredicatedInstanceFieldGetOrNull()->IsVolatile()) ||
+         (instruction->IsInstanceFieldSet() &&
+          // TODO: Remove "OrNull".
+          !instruction->AsInstanceFieldSetOrNull()->IsVolatile()) ||
          instruction->IsInstanceOf() ||
          instruction->IsInvokeInterface() ||
          instruction->IsInvokeStaticOrDirect() ||
@@ -752,8 +760,12 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
          instruction->IsReturn() ||
          instruction->IsReturnVoid() ||
          instruction->IsSelect() ||
-         (instruction->IsStaticFieldGet() && !instruction->AsStaticFieldGet()->IsVolatile()) ||
-         (instruction->IsStaticFieldSet() && !instruction->AsStaticFieldSet()->IsVolatile()) ||
+         (instruction->IsStaticFieldGet() &&
+          // TODO: Remove "OrNull".
+          !instruction->AsStaticFieldGetOrNull()->IsVolatile()) ||
+         (instruction->IsStaticFieldSet() &&
+          // TODO: Remove "OrNull".
+          !instruction->AsStaticFieldSetOrNull()->IsVolatile()) ||
          instruction->IsSuspendCheck() ||
          instruction->IsTypeConversion();
 }

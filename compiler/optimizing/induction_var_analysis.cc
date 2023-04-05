@@ -89,12 +89,14 @@ static bool IsGuardedBy(const HLoopInformation* loop,
   if (!control->IsIf()) {
     return false;
   }
-  HIf* ifs = control->AsIf();
+  // TODO: Remove "OrNull".
+  HIf* ifs = control->AsIfOrNull();
   HInstruction* if_expr = ifs->InputAt(0);
   if (if_expr->IsCondition()) {
+    // TODO: Remove "OrNull".
     IfCondition other_cmp = ifs->IfTrueSuccessor() == entry
-        ? if_expr->AsCondition()->GetCondition()
-        : if_expr->AsCondition()->GetOppositeCondition();
+        ? if_expr->AsConditionOrNull()->GetCondition()
+        : if_expr->AsConditionOrNull()->GetOppositeCondition();
     if (if_expr->InputAt(0) == a && if_expr->InputAt(1) == b) {
       return cmp == other_cmp;
     } else if (if_expr->InputAt(1) == a && if_expr->InputAt(0) == b) {
@@ -435,9 +437,10 @@ void HInductionVarAnalysis::ClassifyTrivial(const HLoopInformation* loop,
   } else if (instruction->IsSelect()) {
     info = TransferPhi(loop, instruction, /*input_index*/ 0, /*adjust_input_size*/ 1);
   } else if (instruction->IsTypeConversion()) {
+    // TODO: Remove "OrNull".
     info = TransferConversion(LookupInfo(loop, instruction->InputAt(0)),
-                              instruction->AsTypeConversion()->GetInputType(),
-                              instruction->AsTypeConversion()->GetResultType());
+                              instruction->AsTypeConversionOrNull()->GetInputType(),
+                              instruction->AsTypeConversionOrNull()->GetResultType());
   } else if (instruction->IsBoundsCheck()) {
     info = LookupInfo(loop, instruction->InputAt(0));  // Pass-through.
   }
@@ -473,7 +476,8 @@ void HInductionVarAnalysis::ClassifyNonTrivial(const HLoopInformation* loop,
   // Store interesting cycle in each loop phi.
   for (size_t i = 0; i < size; i++) {
     if (scc[i]->IsLoopHeaderPhi()) {
-      AssignCycle(scc[i]->AsPhi(), ArrayRef<HInstruction* const>(scc));
+      // TODO: Remove "OrNull".
+      AssignCycle(scc[i]->AsPhiOrNull(), ArrayRef<HInstruction* const>(scc));
     }
   }
 
@@ -548,7 +552,8 @@ void HInductionVarAnalysis::ClassifyNonTrivial(const HLoopInformation* loop,
       // Select acts like Phi.
       update = SolvePhi(instruction, /*input_index=*/ 0, /*adjust_input_size=*/ 1, cycle);
     } else if (instruction->IsTypeConversion()) {
-      update = SolveConversion(loop, phi, instruction->AsTypeConversion(), cycle, &type);
+      // TODO: Remove "OrNull".
+      update = SolveConversion(loop, phi, instruction->AsTypeConversionOrNull(), cycle, &type);
     }
     if (update == nullptr) {
       return;
@@ -998,7 +1003,8 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveConversion(
 void HInductionVarAnalysis::VisitControl(const HLoopInformation* loop) {
   HInstruction* control = loop->GetHeader()->GetLastInstruction();
   if (control->IsIf()) {
-    HIf* ifs = control->AsIf();
+    // TODO: Remove "OrNull".
+    HIf* ifs = control->AsIfOrNull();
     HBasicBlock* if_true = ifs->IfTrueSuccessor();
     HBasicBlock* if_false = ifs->IfFalseSuccessor();
     HInstruction* if_expr = ifs->InputAt(0);
@@ -1006,7 +1012,8 @@ void HInductionVarAnalysis::VisitControl(const HLoopInformation* loop) {
     // loop-header: ....
     //              if (condition) goto X
     if (if_expr->IsCondition()) {
-      HCondition* condition = if_expr->AsCondition();
+      // TODO: Remove "OrNull".
+      HCondition* condition = if_expr->AsConditionOrNull();
       const HBasicBlock* context = condition->GetBlock();
       InductionInfo* a = LookupInfo(loop, condition->InputAt(0));
       InductionInfo* b = LookupInfo(loop, condition->InputAt(1));
@@ -1252,7 +1259,8 @@ bool HInductionVarAnalysis::RewriteBreakLoop(const HBasicBlock* context,
     return false;
   }
   // Simple terminating i != U condition, used nowhere else.
-  HIf* ifs = loop->GetHeader()->GetLastInstruction()->AsIf();
+  // TODO: Remove "OrNull".
+  HIf* ifs = loop->GetHeader()->GetLastInstruction()->AsIfOrNull();
   HInstruction* cond = ifs->InputAt(0);
   if (ifs->GetPrevious() != cond || !cond->HasOnlyOneNonEnvironmentUse()) {
     return false;
@@ -1515,9 +1523,11 @@ bool HInductionVarAnalysis::InductionEqual(InductionInfo* info1,
 std::string HInductionVarAnalysis::FetchToString(HInstruction* fetch) {
   DCHECK(fetch != nullptr);
   if (fetch->IsIntConstant()) {
-    return std::to_string(fetch->AsIntConstant()->GetValue());
+    // TODO: Remove "OrNull".
+    return std::to_string(fetch->AsIntConstantOrNull()->GetValue());
   } else if (fetch->IsLongConstant()) {
-    return std::to_string(fetch->AsLongConstant()->GetValue());
+    // TODO: Remove "OrNull".
+    return std::to_string(fetch->AsLongConstantOrNull()->GetValue());
   }
   return std::to_string(fetch->GetId()) + ":" + fetch->DebugName();
 }
@@ -1609,7 +1619,8 @@ void HInductionVarAnalysis::CalculateLoopHeaderPhisInARow(
       // If the input is not a loop header phi, we only have 1 (current_phi).
       int current_value = 1;
       if (current_phi->InputAt(index)->IsLoopHeaderPhi()) {
-        HPhi* loop_header_phi = current_phi->InputAt(index)->AsPhi();
+        // TODO: Remove "OrNull".
+        HPhi* loop_header_phi = current_phi->InputAt(index)->AsPhiOrNull();
         auto it = cached_values.find(loop_header_phi);
         if (it != cached_values.end()) {
           current_value += it->second;
@@ -1650,7 +1661,8 @@ bool HInductionVarAnalysis::IsPathologicalCase() {
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       DCHECK(it.Current()->IsLoopHeaderPhi());
-      HPhi* phi = it.Current()->AsPhi();
+      // TODO: Remove "OrNull".
+      HPhi* phi = it.Current()->AsPhiOrNull();
       CalculateLoopHeaderPhisInARow(phi, cached_values, local_allocator);
       DCHECK(cached_values.find(phi) != cached_values.end())
           << " we should have a value for Phi " << phi->GetId()

@@ -63,16 +63,19 @@ class IntrinsicSlowPath : public TSlowPathCode {
     Location method_loc = MoveArguments(codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
-      HInvokeStaticOrDirect* invoke_static_or_direct = invoke_->AsInvokeStaticOrDirect();
+      // TODO: Remove "OrNull".
+      HInvokeStaticOrDirect* invoke_static_or_direct = invoke_->AsInvokeStaticOrDirectOrNull();
       DCHECK_NE(invoke_static_or_direct->GetMethodLoadKind(), MethodLoadKind::kRecursive);
       DCHECK_NE(invoke_static_or_direct->GetCodePtrLocation(),
                 CodePtrLocation::kCallCriticalNative);
       codegen->GenerateStaticOrDirectCall(invoke_static_or_direct, method_loc, this);
     } else if (invoke_->IsInvokeVirtual()) {
-      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtual(), method_loc, this);
+      // TODO: Remove "OrNull".
+      codegen->GenerateVirtualCall(invoke_->AsInvokeVirtualOrNull(), method_loc, this);
     } else {
       DCHECK(invoke_->IsInvokePolymorphic());
-      codegen->GenerateInvokePolymorphicCall(invoke_->AsInvokePolymorphic(), this);
+      // TODO: Remove "OrNull".
+      codegen->GenerateInvokePolymorphicCall(invoke_->AsInvokePolymorphicOrNull(), this);
     }
 
     // Copy the result back to the expected output.
@@ -113,7 +116,8 @@ static inline size_t GetExpectedVarHandleCoordinatesCount(HInvoke *invoke) {
 static inline DataType::Type GetDataTypeFromShorty(HInvoke* invoke, uint32_t index) {
   DCHECK(invoke->IsInvokePolymorphic());
   const DexFile* dex_file = invoke->GetMethodReference().dex_file;
-  const char* shorty = dex_file->GetShorty(invoke->AsInvokePolymorphic()->GetProtoIndex());
+  // TODO: Remove "OrNull".
+  const char* shorty = dex_file->GetShorty(invoke->AsInvokePolymorphicOrNull()->GetProtoIndex());
   DCHECK_LT(index, strlen(shorty));
 
   return DataType::FromShorty(shorty[index]);
@@ -206,10 +210,12 @@ static inline ArtField* GetBootImageVarHandleField(HInvoke* invoke)
     var_handle_instruction = var_handle_instruction->InputAt(0);
   }
   DCHECK(var_handle_instruction->IsStaticFieldGet());
-  ArtField* field = var_handle_instruction->AsStaticFieldGet()->GetFieldInfo().GetField();
+  // TODO: Remove "OrNull".
+  ArtField* field = var_handle_instruction->AsStaticFieldGetOrNull()->GetFieldInfo().GetField();
   DCHECK(field->IsStatic());
   DCHECK(field->IsFinal());
-  DCHECK(var_handle_instruction->InputAt(0)->AsLoadClass()->IsInBootImage());
+  // TODO: Remove "OrNull".
+  DCHECK(var_handle_instruction->InputAt(0)->AsLoadClassOrNull()->IsInBootImage());
   ObjPtr<mirror::Object> var_handle = field->GetObject(field->GetDeclaringClass());
   DCHECK(var_handle->GetClass() ==
          (GetExpectedVarHandleCoordinatesCount(invoke) == 0u

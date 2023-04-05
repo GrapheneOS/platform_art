@@ -215,7 +215,8 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
     // Are we using an array length from memory?
     if (!length_loc.IsValid()) {
       DCHECK(instruction_->InputAt(1)->IsArrayLength());
-      HArrayLength* array_length = instruction_->InputAt(1)->AsArrayLength();
+      // TODO: Remove "OrNull".
+      HArrayLength* array_length = instruction_->InputAt(1)->AsArrayLengthOrNull();
       DCHECK(array_length->IsEmittedAtUseSite());
       uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length);
       Location array_loc = array_length->GetLocations()->InAt(0);
@@ -251,7 +252,8 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
           DataType::Type::kInt32);
     }
 
-    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
+    // TODO: Remove "OrNull".
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheckOrNull()->IsStringCharAt()
         ? kQuickThrowStringBounds
         : kQuickThrowArrayBounds;
     x86_64_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
@@ -343,7 +345,8 @@ class LoadStringSlowPathX86_64 : public SlowPathCode {
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
-    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
+    // TODO: Remove "OrNull".
+    const dex::StringIndex string_index = instruction_->AsLoadStringOrNull()->GetStringIndex();
     // Custom calling convention: RAX serves as both input and output.
     __ movl(CpuRegister(RAX), Immediate(string_index.index_));
     x86_64_codegen->InvokeRuntime(kQuickResolveString,
@@ -379,7 +382,8 @@ class TypeCheckSlowPathX86_64 : public SlowPathCode {
 
     if (kPoisonHeapReferences &&
         instruction_->IsCheckCast() &&
-        instruction_->AsCheckCast()->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) {
+        // TODO: Remove "OrNull".
+        instruction_->AsCheckCastOrNull()->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) {
       // First, unpoison the `cls` reference that was poisoned for direct memory comparison.
       __ UnpoisonHeapReference(locations->InAt(1).AsRegister<CpuRegister>());
     }
@@ -439,7 +443,8 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCode {
     InvokeRuntimeCallingConvention calling_convention;
     x86_64_codegen->Load32BitValue(
         CpuRegister(calling_convention.GetRegisterAt(0)),
-        static_cast<uint32_t>(instruction_->AsDeoptimize()->GetDeoptimizationKind()));
+        // TODO: Remove "OrNull".
+        static_cast<uint32_t>(instruction_->AsDeoptimizeOrNull()->GetDeoptimizationKind()));
     x86_64_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, DeoptimizationKind>();
   }
@@ -617,7 +622,8 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86_64 : public SlowPathCode {
     DCHECK((instruction_->IsInvoke() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
-    HInvoke* invoke = instruction_->AsInvoke();
+    // TODO: Remove "OrNull".
+    HInvoke* invoke = instruction_->AsInvokeOrNull();
     DCHECK(IsUnsafeCASObject(invoke) || IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
 
     __ Bind(GetEntryLabel());
@@ -853,13 +859,17 @@ class ReadBarrierForHeapReferenceSlowPathX86_64 : public SlowPathCode {
         // to an object field within an object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObject) ||
-               (instruction_->AsInvoke()->GetIntrinsic() ==
+        // TODO: Remove "OrNull".
+        DCHECK((instruction_->AsInvokeOrNull()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
+               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
+                    Intrinsics::kUnsafeGetObjectVolatile) ||
+               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
+                    Intrinsics::kJdkUnsafeGetObject) ||
+               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
                     Intrinsics::kJdkUnsafeGetObjectVolatile) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectAcquire))
-            << instruction_->AsInvoke()->GetIntrinsic();
+               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
+                    Intrinsics::kJdkUnsafeGetObjectAcquire))
+            << instruction_->AsInvokeOrNull()->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
         DCHECK(index_.IsRegister());
       }
@@ -1840,7 +1850,8 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
     } else if (source.IsConstant()) {
       HConstant* constant = source.GetConstant();
       if (constant->IsLongConstant()) {
-        Load64BitValue(dest, constant->AsLongConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        Load64BitValue(dest, constant->AsLongConstantOrNull()->GetValue());
       } else if (constant->IsDoubleConstant()) {
         Load64BitValue(dest, GetInt64ValueOf(constant));
       } else {
@@ -1980,7 +1991,8 @@ void InstructionCodeGeneratorX86_64::HandleGoto(HInstruction* got, HBasicBlock* 
   }
 
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
-    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
+    // TODO: Remove "OrNull".
+    GenerateSuspendCheck(previous->AsSuspendCheckOrNull(), nullptr);
   }
   if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
     __ jmp(codegen_->GetLabelOf(successor));
@@ -2052,7 +2064,8 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTest(HCondition* condition) 
       } else if (right.IsConstant()) {
         __ ucomiss(left.AsFpuRegister<XmmRegister>(),
                    codegen_->LiteralFloatAddress(
-                       right.GetConstant()->AsFloatConstant()->GetValue()));
+                       // TODO: Remove "OrNull".
+                       right.GetConstant()->AsFloatConstantOrNull()->GetValue()));
       } else {
         DCHECK(right.IsStackSlot());
         __ ucomiss(left.AsFpuRegister<XmmRegister>(),
@@ -2066,7 +2079,8 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTest(HCondition* condition) 
       } else if (right.IsConstant()) {
         __ ucomisd(left.AsFpuRegister<XmmRegister>(),
                    codegen_->LiteralDoubleAddress(
-                       right.GetConstant()->AsDoubleConstant()->GetValue()));
+                       // TODO: Remove "OrNull".
+                       right.GetConstant()->AsDoubleConstantOrNull()->GetValue()));
       } else {
         DCHECK(right.IsDoubleStackSlot());
         __ ucomisd(left.AsFpuRegister<XmmRegister>(),
@@ -2141,12 +2155,14 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
     return;
   } else if (cond->IsIntConstant()) {
     // Constant condition, statically compared against "true" (integer value 1).
-    if (cond->AsIntConstant()->IsTrue()) {
+    // TODO: Remove "OrNull".
+    if (cond->AsIntConstantOrNull()->IsTrue()) {
       if (true_target != nullptr) {
         __ jmp(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      DCHECK(cond->AsIntConstantOrNull()->IsFalse()) << cond->AsIntConstantOrNull()->GetValue();
       if (false_target != nullptr) {
         __ jmp(false_target);
       }
@@ -2165,9 +2181,12 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
   if (IsBooleanValueOrMaterializedCondition(cond)) {
     if (AreEflagsSetFrom(cond, instruction)) {
       if (true_target == nullptr) {
-        __ j(X86_64IntegerCondition(cond->AsCondition()->GetOppositeCondition()), false_target);
+        // TODO: Remove "OrNull".
+        __ j(X86_64IntegerCondition(cond->AsConditionOrNull()->GetOppositeCondition()),
+             false_target);
       } else {
-        __ j(X86_64IntegerCondition(cond->AsCondition()->GetCondition()), true_target);
+        // TODO: Remove "OrNull".
+        __ j(X86_64IntegerCondition(cond->AsConditionOrNull()->GetCondition()), true_target);
       }
     } else {
       // Materialized condition, compare against 0.
@@ -2186,7 +2205,8 @@ void InstructionCodeGeneratorX86_64::GenerateTestAndBranch(HInstruction* instruc
   } else {
     // Condition has not been materialized, use its inputs as the
     // comparison and its condition as the branch condition.
-    HCondition* condition = cond->AsCondition();
+    // TODO: Remove "OrNull".
+    HCondition* condition = cond->AsConditionOrNull();
 
     // If this is a long or FP comparison that has been folded into
     // the HCondition, generate the comparison directly.
@@ -2315,7 +2335,8 @@ void InstructionCodeGeneratorX86_64::VisitSelect(HSelect* select) {
 
     // Figure out how to test the 'condition'.
     if (select_condition->IsCondition()) {
-      HCondition* condition = select_condition->AsCondition();
+      // TODO: Remove "OrNull".
+      HCondition* condition = select_condition->AsConditionOrNull();
       if (!condition->IsEmittedAtUseSite()) {
         // This was a previously materialized condition.
         // Can we use the existing condition code?
@@ -2435,7 +2456,8 @@ void InstructionCodeGeneratorX86_64::HandleCondition(HCondition* cond) {
     case DataType::Type::kFloat32: {
       XmmRegister lhs_reg = lhs.AsFpuRegister<XmmRegister>();
       if (rhs.IsConstant()) {
-        float value = rhs.GetConstant()->AsFloatConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        float value = rhs.GetConstant()->AsFloatConstantOrNull()->GetValue();
         __ ucomiss(lhs_reg, codegen_->LiteralFloatAddress(value));
       } else if (rhs.IsStackSlot()) {
         __ ucomiss(lhs_reg, Address(CpuRegister(RSP), rhs.GetStackIndex()));
@@ -2448,7 +2470,8 @@ void InstructionCodeGeneratorX86_64::HandleCondition(HCondition* cond) {
     case DataType::Type::kFloat64: {
       XmmRegister lhs_reg = lhs.AsFpuRegister<XmmRegister>();
       if (rhs.IsConstant()) {
-        double value = rhs.GetConstant()->AsDoubleConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        double value = rhs.GetConstant()->AsDoubleConstantOrNull()->GetValue();
         __ ucomisd(lhs_reg, codegen_->LiteralDoubleAddress(value));
       } else if (rhs.IsDoubleStackSlot()) {
         __ ucomisd(lhs_reg, Address(CpuRegister(RSP), rhs.GetStackIndex()));
@@ -2609,7 +2632,8 @@ void InstructionCodeGeneratorX86_64::VisitCompare(HCompare* compare) {
     case DataType::Type::kFloat32: {
       XmmRegister left_reg = left.AsFpuRegister<XmmRegister>();
       if (right.IsConstant()) {
-        float value = right.GetConstant()->AsFloatConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        float value = right.GetConstant()->AsFloatConstantOrNull()->GetValue();
         __ ucomiss(left_reg, codegen_->LiteralFloatAddress(value));
       } else if (right.IsStackSlot()) {
         __ ucomiss(left_reg, Address(CpuRegister(RSP), right.GetStackIndex()));
@@ -2623,7 +2647,8 @@ void InstructionCodeGeneratorX86_64::VisitCompare(HCompare* compare) {
     case DataType::Type::kFloat64: {
       XmmRegister left_reg = left.AsFpuRegister<XmmRegister>();
       if (right.IsConstant()) {
-        double value = right.GetConstant()->AsDoubleConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        double value = right.GetConstant()->AsDoubleConstantOrNull()->GetValue();
         __ ucomisd(left_reg, codegen_->LiteralDoubleAddress(value));
       } else if (right.IsDoubleStackSlot()) {
         __ ucomisd(left_reg, Address(CpuRegister(RSP), right.GetStackIndex()));
@@ -3411,7 +3436,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           } else {
             DCHECK(in.IsConstant());
             DCHECK(in.GetConstant()->IsLongConstant());
-            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
             __ movl(out.AsRegister<CpuRegister>(), Immediate(static_cast<int32_t>(value)));
           }
           break;
@@ -3537,7 +3563,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsRegister()) {
             __ cvtsi2ss(out.AsFpuRegister<XmmRegister>(), in.AsRegister<CpuRegister>(), false);
           } else if (in.IsConstant()) {
-            int32_t v = in.GetConstant()->AsIntConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int32_t v = in.GetConstant()->AsIntConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
@@ -3550,7 +3577,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsRegister()) {
             __ cvtsi2ss(out.AsFpuRegister<XmmRegister>(), in.AsRegister<CpuRegister>(), true);
           } else if (in.IsConstant()) {
-            int64_t v = in.GetConstant()->AsLongConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int64_t v = in.GetConstant()->AsLongConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
@@ -3563,7 +3591,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsFpuRegister()) {
             __ cvtsd2ss(out.AsFpuRegister<XmmRegister>(), in.AsFpuRegister<XmmRegister>());
           } else if (in.IsConstant()) {
-            double v = in.GetConstant()->AsDoubleConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            double v = in.GetConstant()->AsDoubleConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load32BitValue(dest, static_cast<float>(v));
           } else {
@@ -3589,7 +3618,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsRegister()) {
             __ cvtsi2sd(out.AsFpuRegister<XmmRegister>(), in.AsRegister<CpuRegister>(), false);
           } else if (in.IsConstant()) {
-            int32_t v = in.GetConstant()->AsIntConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int32_t v = in.GetConstant()->AsIntConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
@@ -3602,7 +3632,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsRegister()) {
             __ cvtsi2sd(out.AsFpuRegister<XmmRegister>(), in.AsRegister<CpuRegister>(), true);
           } else if (in.IsConstant()) {
-            int64_t v = in.GetConstant()->AsLongConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int64_t v = in.GetConstant()->AsLongConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
@@ -3615,7 +3646,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           if (in.IsFpuRegister()) {
             __ cvtss2sd(out.AsFpuRegister<XmmRegister>(), in.AsFpuRegister<XmmRegister>());
           } else if (in.IsConstant()) {
-            float v = in.GetConstant()->AsFloatConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            float v = in.GetConstant()->AsFloatConstantOrNull()->GetValue();
             XmmRegister dest = out.AsFpuRegister<XmmRegister>();
             codegen_->Load64BitValue(dest, static_cast<double>(v));
           } else {
@@ -3688,10 +3720,13 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
       } else if (second.IsConstant()) {
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
           __ addl(out.AsRegister<CpuRegister>(),
-                  Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+                  // TODO: Remove "OrNull".
+                  Immediate(second.GetConstant()->AsIntConstantOrNull()->GetValue()));
         } else {
           __ leal(out.AsRegister<CpuRegister>(), Address(
-              first.AsRegister<CpuRegister>(), second.GetConstant()->AsIntConstant()->GetValue()));
+              first.AsRegister<CpuRegister>(),
+              // TODO: Remove "OrNull".
+              second.GetConstant()->AsIntConstantOrNull()->GetValue()));
         }
       } else {
         DCHECK(first.Equals(locations->Out()));
@@ -3712,7 +3747,8 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
         }
       } else {
         DCHECK(second.IsConstant());
-        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
         int32_t int32_value = Low32Bits(value);
         DCHECK_EQ(int32_value, value);
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
@@ -3731,7 +3767,8 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
       } else if (second.IsConstant()) {
         __ addss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     second.GetConstant()->AsFloatConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsFloatConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsStackSlot());
         __ addss(first.AsFpuRegister<XmmRegister>(),
@@ -3746,7 +3783,8 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
       } else if (second.IsConstant()) {
         __ addsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     second.GetConstant()->AsDoubleConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsDoubleConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ addsd(first.AsFpuRegister<XmmRegister>(),
@@ -3798,7 +3836,8 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
       if (second.IsRegister()) {
         __ subl(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
       } else if (second.IsConstant()) {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        Immediate imm(second.GetConstant()->AsIntConstantOrNull()->GetValue());
         __ subl(first.AsRegister<CpuRegister>(), imm);
       } else {
         __ subl(first.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), second.GetStackIndex()));
@@ -3807,7 +3846,8 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
     }
     case DataType::Type::kInt64: {
       if (second.IsConstant()) {
-        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
         DCHECK(IsInt<32>(value));
         __ subq(first.AsRegister<CpuRegister>(), Immediate(static_cast<int32_t>(value)));
       } else {
@@ -3822,7 +3862,8 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
       } else if (second.IsConstant()) {
         __ subss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     second.GetConstant()->AsFloatConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsFloatConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsStackSlot());
         __ subss(first.AsFpuRegister<XmmRegister>(),
@@ -3837,7 +3878,8 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
       } else if (second.IsConstant()) {
         __ subsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     second.GetConstant()->AsDoubleConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsDoubleConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ subsd(first.AsFpuRegister<XmmRegister>(),
@@ -3870,7 +3912,8 @@ void LocationsBuilderX86_64::VisitMul(HMul* mul) {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::Any());
       if (mul->InputAt(1)->IsLongConstant() &&
-          IsInt<32>(mul->InputAt(1)->AsLongConstant()->GetValue())) {
+          // TODO: Remove "OrNull".
+          IsInt<32>(mul->InputAt(1)->AsLongConstantOrNull()->GetValue())) {
         // Can use 3 operand multiply.
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       } else {
@@ -3901,7 +3944,8 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
       // The constant may have ended up in a register, so test explicitly to avoid
       // problems where the output may not be the same as the first operand.
       if (mul->InputAt(1)->IsIntConstant()) {
-        Immediate imm(mul->InputAt(1)->AsIntConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        Immediate imm(mul->InputAt(1)->AsIntConstantOrNull()->GetValue());
         __ imull(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>(), imm);
       } else if (second.IsRegister()) {
         DCHECK(first.Equals(out));
@@ -3917,7 +3961,8 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
       // The constant may have ended up in a register, so test explicitly to avoid
       // problems where the output may not be the same as the first operand.
       if (mul->InputAt(1)->IsLongConstant()) {
-        int64_t value = mul->InputAt(1)->AsLongConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int64_t value = mul->InputAt(1)->AsLongConstantOrNull()->GetValue();
         if (IsInt<32>(value)) {
           __ imulq(out.AsRegister<CpuRegister>(), first.AsRegister<CpuRegister>(),
                    Immediate(static_cast<int32_t>(value)));
@@ -3945,7 +3990,8 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
       } else if (second.IsConstant()) {
         __ mulss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     second.GetConstant()->AsFloatConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsFloatConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsStackSlot());
         __ mulss(first.AsFpuRegister<XmmRegister>(),
@@ -3961,7 +4007,8 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
       } else if (second.IsConstant()) {
         __ mulsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     second.GetConstant()->AsDoubleConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsDoubleConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ mulsd(first.AsFpuRegister<XmmRegister>(),
@@ -4209,7 +4256,8 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
 
   // TODO: can these branches be written as one?
   if (instruction->GetResultType() == DataType::Type::kInt32) {
-    int imm = second.GetConstant()->AsIntConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    int imm = second.GetConstant()->AsIntConstantOrNull()->GetValue();
 
     CalculateMagicAndShiftForDivRem(imm, false /* is_long= */, &magic, &shift);
 
@@ -4241,7 +4289,8 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
       __ movl(eax, edx);
     }
   } else {
-    int64_t imm = second.GetConstant()->AsLongConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    int64_t imm = second.GetConstant()->AsLongConstantOrNull()->GetValue();
 
     DCHECK_EQ(instruction->GetResultType(), DataType::Type::kInt64);
 
@@ -4317,9 +4366,11 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* in
       DivRemOneOrMinusOne(instruction);
     } else if (IsPowerOfTwo(AbsOrMin(imm))) {
       if (is_div) {
-        DivByPowerOfTwo(instruction->AsDiv());
+        // TODO: Remove "OrNull".
+        DivByPowerOfTwo(instruction->AsDivOrNull());
       } else {
-        RemByPowerOfTwo(instruction->AsRem());
+        // TODO: Remove "OrNull".
+        RemByPowerOfTwo(instruction->AsRemOrNull());
       }
     } else {
       DCHECK(imm <= -2 || imm >= 2);
@@ -4407,7 +4458,8 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
       } else if (second.IsConstant()) {
         __ divss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     second.GetConstant()->AsFloatConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsFloatConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsStackSlot());
         __ divss(first.AsFpuRegister<XmmRegister>(),
@@ -4422,7 +4474,8 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
       } else if (second.IsConstant()) {
         __ divsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     second.GetConstant()->AsDoubleConstant()->GetValue()));
+                     // TODO: Remove "OrNull".
+                     second.GetConstant()->AsDoubleConstantOrNull()->GetValue()));
       } else {
         DCHECK(second.IsDoubleStackSlot());
         __ divsd(first.AsFpuRegister<XmmRegister>(),
@@ -4752,7 +4805,8 @@ void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instructio
         __ j(kEqual, slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
+        // TODO: Remove "OrNull".
+        if (value.GetConstant()->AsIntConstantOrNull()->GetValue() == 0) {
           __ jmp(slow_path->GetEntryLabel());
         }
       }
@@ -4767,7 +4821,8 @@ void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instructio
         __ j(kEqual, slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        if (value.GetConstant()->AsLongConstant()->GetValue() == 0) {
+        // TODO: Remove "OrNull".
+        if (value.GetConstant()->AsLongConstantOrNull()->GetValue() == 0) {
           __ jmp(slow_path->GetEntryLabel());
         }
       }
@@ -4817,7 +4872,9 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrl(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
+        // TODO: Remove "OrNull".
+        Immediate imm(
+            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxIntShiftDistance);
         if (op->IsShl()) {
           __ shll(first_reg, imm);
         } else if (op->IsShr()) {
@@ -4839,7 +4896,9 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrq(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance);
+        // TODO: Remove "OrNull".
+        Immediate imm(
+            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxLongShiftDistance);
         if (op->IsShl()) {
           __ shlq(first_reg, imm);
         } else if (op->IsShr()) {
@@ -4886,7 +4945,9 @@ void InstructionCodeGeneratorX86_64::VisitRor(HRor* ror) {
         CpuRegister second_reg = second.AsRegister<CpuRegister>();
         __ rorl(first_reg, second_reg);
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
+        // TODO: Remove "OrNull".
+        Immediate imm(
+            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxIntShiftDistance);
         __ rorl(first_reg, imm);
       }
       break;
@@ -4895,7 +4956,9 @@ void InstructionCodeGeneratorX86_64::VisitRor(HRor* ror) {
         CpuRegister second_reg = second.AsRegister<CpuRegister>();
         __ rorq(first_reg, second_reg);
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance);
+        // TODO: Remove "OrNull".
+        Immediate imm(
+            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxLongShiftDistance);
         __ rorq(first_reg, imm);
       }
       break;
@@ -5415,7 +5478,9 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
   DataType::Type field_type = field_info.GetFieldType();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
   bool is_predicated =
-      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
+      instruction->IsInstanceFieldSet() &&
+      // TODO: Remove "OrNull".
+      instruction->AsInstanceFieldSetOrNull()->GetIsPredicatedSet();
 
   NearLabel pred_is_null;
   if (is_predicated) {
@@ -5667,8 +5732,9 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
       // Baker's using a slow path (and also unpoison the loaded
       // reference, if heap poisoning is enabled).
       if (index.IsConstant()) {
+        // TODO: Remove "OrNull".
         uint32_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+            (index.GetConstant()->AsIntConstantOrNull()->GetValue() << TIMES_4) + data_offset;
         codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
       } else {
         codegen_->MaybeGenerateReadBarrierSlow(
@@ -5902,7 +5968,8 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         __ movq(address, value.AsRegister<CpuRegister>());
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       } else {
-        int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int64_t v = value.GetConstant()->AsLongConstantOrNull()->GetValue();
         Address address_high =
             CodeGeneratorX86_64::ArrayAddress(array, index, TIMES_8, offset + sizeof(int32_t));
         codegen_->MoveInt64ToAddress(address, address_high, v, instruction);
@@ -5917,7 +5984,9 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         __ movss(address, value.AsFpuRegister<XmmRegister>());
       } else {
         DCHECK(value.IsConstant());
-        int32_t v = bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        int32_t v =
+            bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstantOrNull()->GetValue());
         __ movl(address, Immediate(v));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -5931,7 +6000,9 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         __ movsd(address, value.AsFpuRegister<XmmRegister>());
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       } else {
-        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        int64_t v =
+            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstantOrNull()->GetValue());
         Address address_high =
             CodeGeneratorX86_64::ArrayAddress(array, index, TIMES_8, offset + sizeof(int32_t));
         codegen_->MoveInt64ToAddress(address, address_high, v, instruction);
@@ -6018,7 +6089,9 @@ void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction)
     if (array_length->IsEmittedAtUseSite()) {
       // Address the length field in the array.
       DCHECK(array_length->IsArrayLength());
-      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLength());
+      // TODO: Remove "OrNull".
+      uint32_t len_offset =
+          CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLengthOrNull());
       Location array_loc = array_length->GetLocations()->InAt(0);
       Address array_len(array_loc.AsRegister<CpuRegister>(), len_offset);
       if (mirror::kUseStringCompression && instruction->IsStringCharAt()) {
@@ -6091,7 +6164,8 @@ void LocationsBuilderX86_64::VisitParallelMove(HParallelMove* instruction ATTRIB
 void InstructionCodeGeneratorX86_64::VisitParallelMove(HParallelMove* instruction) {
   if (instruction->GetNext()->IsSuspendCheck() &&
       instruction->GetBlock()->GetLoopInformation() != nullptr) {
-    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheck();
+    // TODO: Remove "OrNull".
+    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheckOrNull();
     // The back edge will generate the suspend check.
     codegen_->ClearSpillSlotsFromLoopPhisInStackMap(suspend_check, instruction);
   }
@@ -6222,7 +6296,8 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
         __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), Immediate(value));
       }
     } else if (constant->IsLongConstant()) {
-      int64_t value = constant->AsLongConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int64_t value = constant->AsLongConstantOrNull()->GetValue();
       if (destination.IsRegister()) {
         codegen_->Load64BitValue(destination.AsRegister<CpuRegister>(), value);
       } else {
@@ -6230,7 +6305,8 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
         codegen_->Store64BitValueToStack(destination, value);
       }
     } else if (constant->IsFloatConstant()) {
-      float fp_value = constant->AsFloatConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      float fp_value = constant->AsFloatConstantOrNull()->GetValue();
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
         codegen_->Load32BitValue(dest, fp_value);
@@ -6241,7 +6317,8 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       }
     } else {
       DCHECK(constant->IsDoubleConstant()) << constant->DebugName();
-      double fp_value =  constant->AsDoubleConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      double fp_value =  constant->AsDoubleConstantOrNull()->GetValue();
       int64_t value = bit_cast<int64_t, double>(fp_value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
@@ -7452,7 +7529,8 @@ void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* in
         __ xorl(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
       }
     } else if (second.IsConstant()) {
-      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      Immediate imm(second.GetConstant()->AsIntConstantOrNull()->GetValue());
       if (instruction->IsAnd()) {
         __ andl(first.AsRegister<CpuRegister>(), imm);
       } else if (instruction->IsOr()) {
@@ -7479,7 +7557,8 @@ void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* in
     int64_t value = 0;
     if (second.IsConstant()) {
       second_is_constant = true;
-      value = second.GetConstant()->AsLongConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
     }
     bool is_int32_value = IsInt<32>(value);
 
@@ -8024,7 +8103,8 @@ void CodeGeneratorX86_64::GenerateIntCompare(CpuRegister lhs, Location rhs) {
 void CodeGeneratorX86_64::GenerateLongCompare(Location lhs, Location rhs) {
   CpuRegister lhs_reg = lhs.AsRegister<CpuRegister>();
   if (rhs.IsConstant()) {
-    int64_t value = rhs.GetConstant()->AsLongConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    int64_t value = rhs.GetConstant()->AsLongConstantOrNull()->GetValue();
     Compare64BitValue(lhs_reg, value);
   } else if (rhs.IsDoubleStackSlot()) {
     __ cmpq(lhs_reg, Address(CpuRegister(RSP), rhs.GetStackIndex()));
@@ -8038,7 +8118,9 @@ Address CodeGeneratorX86_64::ArrayAddress(CpuRegister obj,
                                           ScaleFactor scale,
                                           uint32_t data_offset) {
   return index.IsConstant()
-      ? Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset)
+      ? Address(obj,
+                // TODO: Remove "OrNull".
+                (index.GetConstant()->AsIntConstantOrNull()->GetValue() << scale) + data_offset)
       : Address(obj, index.AsRegister<CpuRegister>(), scale, data_offset);
 }
 

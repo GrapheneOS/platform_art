@@ -2366,7 +2366,8 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     HInstruction* prev_not_move = GetPreviousDisregardingMoves();
     while (prev_not_move != nullptr && prev_not_move->IsEmittedAtUseSite()) {
       if (prev_not_move->IsNullCheck()) {
-        return prev_not_move->AsNullCheck();
+        // TODO: Remove "OrNull".
+        return prev_not_move->AsNullCheckOrNull();
       }
       prev_not_move = prev_not_move->GetPreviousDisregardingMoves();
     }
@@ -2552,8 +2553,8 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 #undef INSTRUCTION_TYPE_CHECK
 
 #define INSTRUCTION_TYPE_CAST(type, super)                                     \
-  const H##type* As##type() const;                                             \
-  H##type* As##type();
+  const H##type* As##type##OrNull() const;                                     \
+  H##type* As##type##OrNull();
 
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CAST)
 #undef INSTRUCTION_TYPE_CAST
@@ -3165,14 +3166,18 @@ class HPhi final : public HVariableInputSizeInstruction {
     return other != nullptr
         && other->IsPhi()
         && other->GetBlock() == GetBlock()
-        && other->AsPhi()->GetRegNumber() == GetRegNumber();
+        // TODO: Remove "OrNull".
+        && other->AsPhiOrNull()->GetRegNumber() == GetRegNumber();
   }
 
   bool HasEquivalentPhi() const {
-    if (GetPrevious() != nullptr && GetPrevious()->AsPhi()->GetRegNumber() == GetRegNumber()) {
+    // TODO: Remove "OrNull".
+    if (GetPrevious() != nullptr &&
+        GetPrevious()->AsPhiOrNull()->GetRegNumber() == GetRegNumber()) {
       return true;
     }
-    if (GetNext() != nullptr && GetNext()->AsPhi()->GetRegNumber() == GetRegNumber()) {
+    // TODO: Remove "OrNull".
+    if (GetNext() != nullptr && GetNext()->AsPhiOrNull()->GetRegNumber() == GetRegNumber()) {
       return true;
     }
     return false;
@@ -3183,9 +3188,11 @@ class HPhi final : public HVariableInputSizeInstruction {
   // It assumes that phis with the same dex register are adjacent.
   HPhi* GetNextEquivalentPhiWithSameType() {
     HInstruction* next = GetNext();
-    while (next != nullptr && next->AsPhi()->GetRegNumber() == reg_number_) {
+    // TODO: Remove "OrNull".
+    while (next != nullptr && next->AsPhiOrNull()->GetRegNumber() == reg_number_) {
       if (next->GetType() == GetType()) {
-        return next->AsPhi();
+        // TODO: Remove "OrNull".
+        return next->AsPhiOrNull();
       }
       next = next->GetNext();
     }
@@ -3306,7 +3313,8 @@ class HIntConstant final : public HConstant {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsIntConstant()) << other->DebugName();
-    return other->AsIntConstant()->value_ == value_;
+    // TODO: Remove "OrNull".
+    return other->AsIntConstantOrNull()->value_ == value_;
   }
 
   size_t ComputeHashCode() const override { return GetValue(); }
@@ -3350,7 +3358,8 @@ class HLongConstant final : public HConstant {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsLongConstant()) << other->DebugName();
-    return other->AsLongConstant()->value_ == value_;
+    // TODO: Remove "OrNull".
+    return other->AsLongConstantOrNull()->value_ == value_;
   }
 
   size_t ComputeHashCode() const override { return static_cast<size_t>(GetValue()); }
@@ -3386,7 +3395,8 @@ class HFloatConstant final : public HConstant {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsFloatConstant()) << other->DebugName();
-    return other->AsFloatConstant()->GetValueAsUint64() == GetValueAsUint64();
+    // TODO: Remove "OrNull".
+    return other->AsFloatConstantOrNull()->GetValueAsUint64() == GetValueAsUint64();
   }
 
   size_t ComputeHashCode() const override { return static_cast<size_t>(GetValue()); }
@@ -3443,7 +3453,8 @@ class HDoubleConstant final : public HConstant {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsDoubleConstant()) << other->DebugName();
-    return other->AsDoubleConstant()->GetValueAsUint64() == GetValueAsUint64();
+    // TODO: Remove "OrNull".
+    return other->AsDoubleConstantOrNull()->GetValueAsUint64() == GetValueAsUint64();
   }
 
   size_t ComputeHashCode() const override { return static_cast<size_t>(GetValue()); }
@@ -3640,7 +3651,8 @@ class HDeoptimize final : public HVariableInputSizeInstruction {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     return (other->CanBeMoved() == CanBeMoved()) &&
-           (other->AsDeoptimize()->GetDeoptimizationKind() == GetDeoptimizationKind());
+           // TODO: Remove "OrNull".
+           (other->AsDeoptimizeOrNull()->GetDeoptimizationKind() == GetDeoptimizationKind());
   }
 
   bool NeedsEnvironment() const override { return true; }
@@ -3749,8 +3761,9 @@ class HClassTableGet final : public HExpression<1> {
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
   bool InstructionDataEquals(const HInstruction* other) const override {
-    return other->AsClassTableGet()->GetIndex() == index_ &&
-        other->AsClassTableGet()->GetPackedFields() == GetPackedFields();
+    // TODO: Remove "OrNull".
+    return other->AsClassTableGetOrNull()->GetIndex() == index_ &&
+        other->AsClassTableGetOrNull()->GetPackedFields() == GetPackedFields();
   }
 
   TableKind GetTableKind() const { return GetPackedField<TableKindField>(); }
@@ -3986,7 +3999,8 @@ class HCondition : public HBinaryOperation {
   void SetBias(ComparisonBias bias) { SetPackedField<ComparisonBiasField>(bias); }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    return GetPackedFields() == other->AsCondition()->GetPackedFields();
+    // TODO: Remove "OrNull".
+    return GetPackedFields() == other->AsConditionOrNull()->GetPackedFields();
   }
 
   bool IsFPConditionTrueIfNaN() const {
@@ -4511,7 +4525,8 @@ class HCompare final : public HBinaryOperation {
   }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    return GetPackedFields() == other->AsCompare()->GetPackedFields();
+    // TODO: Remove "OrNull".
+    return GetPackedFields() == other->AsCompareOrNull()->GetPackedFields();
   }
 
   ComparisonBias GetBias() const { return GetPackedField<ComparisonBiasField>(); }
@@ -4611,7 +4626,8 @@ class HNewInstance final : public HExpression<1> {
       input = input->InputAt(0);
     }
     DCHECK(input->IsLoadClass());
-    return input->AsLoadClass();
+    // TODO: Remove "OrNull".
+    return input->AsLoadClassOrNull();
   }
 
   bool IsStringAlloc() const;
@@ -4743,7 +4759,8 @@ class HInvoke : public HVariableInputSizeInstruction {
   bool CanBeMoved() const override { return IsIntrinsic() && !DoesAnyWrite(); }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    return intrinsic_ != Intrinsics::kNone && intrinsic_ == other->AsInvoke()->intrinsic_;
+    // TODO: Remove "OrNull".
+    return intrinsic_ != Intrinsics::kNone && intrinsic_ == other->AsInvokeOrNull()->intrinsic_;
   }
 
   uint32_t* GetIntrinsicOptimizations() {
@@ -5348,7 +5365,8 @@ class HNewArray final : public HExpression<2> {
 
   HLoadClass* GetLoadClass() const {
     DCHECK(InputAt(0)->IsLoadClass());
-    return InputAt(0)->AsLoadClass();
+    // TODO: Remove "OrNull".
+    return InputAt(0)->AsLoadClassOrNull();
   }
 
   HInstruction* GetLength() const {
@@ -6288,7 +6306,8 @@ class HInstanceFieldGet final : public HExpression<1> {
   bool CanBeMoved() const override { return !IsVolatile(); }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    const HInstanceFieldGet* other_get = other->AsInstanceFieldGet();
+    // TODO: Remove "OrNull".
+    const HInstanceFieldGet* other_get = other->AsInstanceFieldGetOrNull();
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
@@ -6377,7 +6396,8 @@ class HPredicatedInstanceFieldGet final : public HExpression<2> {
   }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    const HPredicatedInstanceFieldGet* other_get = other->AsPredicatedInstanceFieldGet();
+    // TODO: Remove "OrNull".
+    const HPredicatedInstanceFieldGet* other_get = other->AsPredicatedInstanceFieldGetOrNull();
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue() &&
            GetDefaultValue() == other_get->GetDefaultValue();
   }
@@ -7437,7 +7457,8 @@ class HClinitCheck final : public HExpression<1> {
 
   HLoadClass* GetLoadClass() const {
     DCHECK(InputAt(0)->IsLoadClass());
-    return InputAt(0)->AsLoadClass();
+    // TODO: Remove "OrNull".
+    return InputAt(0)->AsLoadClassOrNull();
   }
 
   DECLARE_INSTRUCTION(ClinitCheck);
@@ -7477,7 +7498,8 @@ class HStaticFieldGet final : public HExpression<1> {
   bool CanBeMoved() const override { return !IsVolatile(); }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    const HStaticFieldGet* other_get = other->AsStaticFieldGet();
+    // TODO: Remove "OrNull".
+    const HStaticFieldGet* other_get = other->AsStaticFieldGetOrNull();
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
@@ -7612,7 +7634,8 @@ class HStringBuilderAppend final : public HVariableInputSizeInstruction {
   }
 
   HIntConstant* GetFormat() {
-    return InputAt(FormatIndex())->AsIntConstant();
+    // TODO: Remove "OrNull".
+    return InputAt(FormatIndex())->AsIntConstantOrNull();
   }
 
   bool NeedsEnvironment() const override { return true; }
@@ -7875,21 +7898,24 @@ class HTypeCheckInstruction : public HVariableInputSizeInstruction {
     DCHECK_NE(GetTypeCheckKind(), TypeCheckKind::kBitstringCheck);
     HInstruction* load_class = InputAt(1);
     DCHECK(load_class->IsLoadClass());
-    return load_class->AsLoadClass();
+    // TODO: Remove "OrNull".
+    return load_class->AsLoadClassOrNull();
   }
 
   uint32_t GetBitstringPathToRoot() const {
     DCHECK_EQ(GetTypeCheckKind(), TypeCheckKind::kBitstringCheck);
     HInstruction* path_to_root = InputAt(2);
     DCHECK(path_to_root->IsIntConstant());
-    return static_cast<uint32_t>(path_to_root->AsIntConstant()->GetValue());
+    // TODO: Remove "OrNull".
+    return static_cast<uint32_t>(path_to_root->AsIntConstantOrNull()->GetValue());
   }
 
   uint32_t GetBitstringMask() const {
     DCHECK_EQ(GetTypeCheckKind(), TypeCheckKind::kBitstringCheck);
     HInstruction* mask = InputAt(3);
     DCHECK(mask->IsIntConstant());
-    return static_cast<uint32_t>(mask->AsIntConstant()->GetValue());
+    // TODO: Remove "OrNull".
+    return static_cast<uint32_t>(mask->AsIntConstantOrNull()->GetValue());
   }
 
   bool IsClonable() const override { return true; }
@@ -8693,9 +8719,11 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
 // Returns int64_t value of a properly typed constant.
 inline int64_t Int64FromConstant(HConstant* constant) {
   if (constant->IsIntConstant()) {
-    return constant->AsIntConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    return constant->AsIntConstantOrNull()->GetValue();
   } else if (constant->IsLongConstant()) {
-    return constant->AsLongConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    return constant->AsLongConstantOrNull()->GetValue();
   } else {
     DCHECK(constant->IsNullConstant()) << constant->DebugName();
     return 0;
@@ -8705,10 +8733,12 @@ inline int64_t Int64FromConstant(HConstant* constant) {
 // Returns true iff instruction is an integral constant (and sets value on success).
 inline bool IsInt64AndGet(HInstruction* instruction, /*out*/ int64_t* value) {
   if (instruction->IsIntConstant()) {
-    *value = instruction->AsIntConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    *value = instruction->AsIntConstantOrNull()->GetValue();
     return true;
   } else if (instruction->IsLongConstant()) {
-    *value = instruction->AsLongConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    *value = instruction->AsLongConstantOrNull()->GetValue();
     return true;
   } else if (instruction->IsNullConstant()) {
     *value = 0;
@@ -8725,7 +8755,8 @@ inline bool IsInt64Value(HInstruction* instruction, int64_t value) {
 
 // Returns true iff instruction is a zero bit pattern.
 inline bool IsZeroBitPattern(HInstruction* instruction) {
-  return instruction->IsConstant() && instruction->AsConstant()->IsZeroBitPattern();
+  // TODO: Remove "OrNull".
+  return instruction->IsConstant() && instruction->AsConstantOrNull()->IsZeroBitPattern();
 }
 
 // Implement HInstruction::Is##type() for concrete instructions.
@@ -8752,10 +8783,10 @@ inline bool IsZeroBitPattern(HInstruction* instruction) {
 #undef INSTRUCTION_TYPE_CHECK_RESULT
 
 #define INSTRUCTION_TYPE_CAST(type, super)                                     \
-  inline const H##type* HInstruction::As##type() const {                       \
+  inline const H##type* HInstruction::As##type##OrNull() const {               \
     return Is##type() ? down_cast<const H##type*>(this) : nullptr;             \
   }                                                                            \
-  inline H##type* HInstruction::As##type() {                                   \
+  inline H##type* HInstruction::As##type##OrNull() {                           \
     return Is##type() ? down_cast<H##type*>(this) : nullptr;                   \
   }
 
@@ -8786,7 +8817,8 @@ inline HInstruction* HuntForDeclaration(HInstruction* instruction) {
          instruction->IsNullCheck() ||
          instruction->IsNewArray()) {
     instruction = instruction->IsNewArray()
-        ? instruction->AsNewArray()->GetLength()
+        // TODO: Remove "OrNull".
+        ? instruction->AsNewArrayOrNull()->GetLength()
         : instruction->InputAt(0);
   }
   return instruction;

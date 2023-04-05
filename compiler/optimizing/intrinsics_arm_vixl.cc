@@ -133,7 +133,8 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
         << "Unexpected instruction in read barrier arraycopy slow path: "
         << instruction_->DebugName();
     DCHECK(instruction_->GetLocations()->Intrinsified());
-    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
+    // TODO: Remove "OrNull".
+    DCHECK_EQ(instruction_->AsInvokeOrNull()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
 
     DataType::Type type = DataType::Type::kReference;
     const int32_t element_size = DataType::Size(type);
@@ -882,7 +883,8 @@ constexpr size_t kShortConstStringEqualsCutoffInBytes = 16;
 
 static const char* GetConstString(HInstruction* candidate, uint32_t* utf16_length) {
   if (candidate->IsLoadString()) {
-    HLoadString* load_string = candidate->AsLoadString();
+    // TODO: Remove "OrNull".
+    HLoadString* load_string = candidate->AsLoadStringOrNull();
     const DexFile& dex_file = load_string->GetDexFile();
     return dex_file.StringDataAndUtf16LengthByIdx(load_string->GetStringIndex(), utf16_length);
   }
@@ -1252,9 +1254,9 @@ void IntrinsicLocationsBuilderARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
     return;
   }
 
-  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
-  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
-  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstantOrNull();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstantOrNull();
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstantOrNull();
 
   if (src_pos != nullptr && !assembler_->ShifterOperandCanAlwaysHold(src_pos->GetValue())) {
     locations->SetInAt(1, Location::RequiresRegister());
@@ -2458,7 +2460,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitIntegerValueOf(HInvoke* invoke) {
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
   if (invoke->InputAt(0)->IsConstant()) {
-    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    int32_t value = invoke->InputAt(0)->AsIntConstantOrNull()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
       // Just embed the j.l.Integer in the code.
       DCHECK_NE(info.value_boot_image_reference, IntegerValueOfInfo::kInvalidReference);
@@ -3993,7 +3996,8 @@ class VarHandleSlowPathARMVIXL : public IntrinsicSlowPathARMVIXL {
 
  private:
   HInvoke* GetInvoke() const {
-    return GetInstruction()->AsInvoke();
+    // TODO: Remove "OrNull".
+    return GetInstruction()->AsInvokeOrNull();
   }
 
   mirror::VarHandle::AccessModeTemplate GetAccessModeTemplate() const {

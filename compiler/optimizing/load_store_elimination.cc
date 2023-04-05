@@ -736,7 +736,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
           use.GetUser()->MoveBefore(instruction);
         }
         DCHECK(use.GetUser()->StrictlyDominates(instruction));
-        return use.GetUser()->AsTypeConversion();
+        // TODO: Remove "OrNull".
+        return use.GetUser()->AsTypeConversionOrNull();
       }
     }
 
@@ -975,9 +976,13 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void HandleAcquireLoad(HInstruction* instruction) {
-    DCHECK((instruction->IsInstanceFieldGet() && instruction->AsInstanceFieldGet()->IsVolatile()) ||
-           (instruction->IsStaticFieldGet() && instruction->AsStaticFieldGet()->IsVolatile()) ||
-           (instruction->IsMonitorOperation() && instruction->AsMonitorOperation()->IsEnter()))
+    // TODO: Remove "OrNull".
+    DCHECK((instruction->IsInstanceFieldGet() &&
+            instruction->AsInstanceFieldGetOrNull()->IsVolatile()) ||
+           (instruction->IsStaticFieldGet() &&
+            instruction->AsStaticFieldGetOrNull()->IsVolatile()) ||
+           (instruction->IsMonitorOperation() &&
+            instruction->AsMonitorOperationOrNull()->IsEnter()))
         << "Unexpected instruction " << instruction->GetId() << ": " << instruction->DebugName();
 
     // Acquire operations e.g. MONITOR_ENTER change the thread's view of the memory, so we must
@@ -995,9 +1000,13 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void HandleReleaseStore(HInstruction* instruction) {
-    DCHECK((instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->IsVolatile()) ||
-           (instruction->IsStaticFieldSet() && instruction->AsStaticFieldSet()->IsVolatile()) ||
-           (instruction->IsMonitorOperation() && !instruction->AsMonitorOperation()->IsEnter()))
+    // TODO: Remove "OrNull".
+    DCHECK((instruction->IsInstanceFieldSet() &&
+            instruction->AsInstanceFieldSetOrNull()->IsVolatile()) ||
+           (instruction->IsStaticFieldSet() &&
+            instruction->AsStaticFieldSetOrNull()->IsVolatile()) ||
+           (instruction->IsMonitorOperation() &&
+            !instruction->AsMonitorOperationOrNull()->IsEnter()))
         << "Unexpected instruction " << instruction->GetId() << ": " << instruction->DebugName();
 
     // Release operations e.g. MONITOR_EXIT do not affect this thread's view of the memory, but
@@ -1105,8 +1114,9 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       if (!inside_a_try && info->IsSingleton()) {
         HInstruction* reference = info->GetReference();
         // Finalizable objects always escape.
+        // TODO: Remove "OrNull".
         const bool finalizable_object =
-            reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable();
+            reference->IsNewInstance() && reference->AsNewInstanceOrNull()->IsFinalizable();
         if (!finalizable_object && !IsEscapingObject(info, block, i)) {
           // Check whether the reference for a store is used by an environment local of
           // the HDeoptimize. If not, the singleton is not observed after deoptimization.
@@ -1331,7 +1341,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     }
     if (ref_info->IsSingletonAndRemovable()) {
       if (new_array->GetLength()->IsIntConstant() &&
-          new_array->GetLength()->AsIntConstant()->GetValue() >= 0) {
+          // TODO: Remove "OrNull".
+          new_array->GetLength()->AsIntConstantOrNull()->GetValue() >= 0) {
         // new_array can potentially be eliminated.
         singleton_new_instances_.push_back(new_array);
       } else {
@@ -1665,8 +1676,9 @@ LSEVisitor::Value LSEVisitor::PrepareLoopStoredBy(HBasicBlock* block, size_t idx
   const ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo();
   const HInstruction* reference = ref_info->GetReference();
   // Finalizable objects always escape.
+  // TODO: Remove "OrNull".
   const bool is_finalizable =
-      reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable();
+      reference->IsNewInstance() && reference->AsNewInstanceOrNull()->IsFinalizable();
   if (ref_info->IsSingleton() &&
       block->GetLoopInformation()->Contains(*reference->GetBlock()) &&
       !is_finalizable) {
@@ -2399,7 +2411,9 @@ bool LSEVisitor::MaterializeLoopPhis(ArrayRef<const size_t> phi_placeholder_inde
   for (size_t phi_placeholder_index : phi_placeholder_indexes) {
     PhiPlaceholder phi_placeholder = GetPhiPlaceholderAt(phi_placeholder_index);
     HBasicBlock* block = blocks[phi_placeholder.GetBlockId()];
-    block->AddPhi(phi_placeholder_replacements_[phi_placeholder_index].GetInstruction()->AsPhi());
+    // TODO: Remove "OrNull".
+    block->AddPhi(
+        phi_placeholder_replacements_[phi_placeholder_index].GetInstruction()->AsPhiOrNull());
   }
   if (type == DataType::Type::kReference) {
     ScopedArenaAllocator local_allocator(allocator_.GetArenaStack());
@@ -3379,7 +3393,8 @@ class PartialLoadStoreEliminationHelper {
         } else if (ins->IsInstanceFieldGet()) {
           // IFieldGet[obj] => PredicatedIFieldGet[PartialValue, obj]
           HInstruction* new_fget = new (GetGraph()->GetAllocator()) HPredicatedInstanceFieldGet(
-              ins->AsInstanceFieldGet(),
+              // TODO: Remove "OrNull".
+              ins->AsInstanceFieldGetOrNull(),
               GetMaterialization(ins->GetBlock()),
               helper_->lse_->GetPartialValueAt(OriginalNewInstance(), ins));
           MaybeRecordStat(helper_->lse_->stats_, MethodCompilationStat::kPredicatedLoadAdded);
@@ -3405,7 +3420,8 @@ class PartialLoadStoreEliminationHelper {
           ins->GetBlock()->RemoveInstruction(ins);
         } else if (ins->IsInstanceFieldSet()) {
           // Any predicated sets shouldn't require movement.
-          ins->AsInstanceFieldSet()->SetIsPredicatedSet();
+          // TODO: Remove "OrNull".
+          ins->AsInstanceFieldSetOrNull()->SetIsPredicatedSet();
           MaybeRecordStat(helper_->lse_->stats_, MethodCompilationStat::kPredicatedStoreAdded);
           HInstruction* merged_inst = GetMaterialization(ins->GetBlock());
           ins->ReplaceInput(merged_inst, idx);
@@ -3474,7 +3490,8 @@ class PartialLoadStoreEliminationHelper {
           }
         } else if (use.GetUser()->IsConstructorFence()) {
           LSE_VLOG << "User " << *use.GetUser() << " being moved to materialization!";
-          constructor_fences.push_back({use.GetUser()->AsConstructorFence(), use.GetIndex()});
+          // TODO: Remove "OrNull".
+          constructor_fences.push_back({use.GetUser()->AsConstructorFenceOrNull(), use.GetIndex()});
         } else {
           LSE_VLOG << "User " << *use.GetUser() << " not contained in cohort!";
           to_remove.push_back(use.GetUser());
@@ -3645,7 +3662,8 @@ class PartialLoadStoreEliminationHelper {
       for (HInstruction* ins :
            MakeSTLInstructionIteratorRange(HInstructionIterator(blk->GetInstructions()))) {
         if (ins->IsNewInstance()) {
-          materializations.push_back(ins->AsNewInstance());
+          // TODO: Remove "OrNull".
+          materializations.push_back(ins->AsNewInstanceOrNull());
           still_unsorted.SetBit(ins->GetId());
         }
       }
@@ -3699,7 +3717,8 @@ class PartialLoadStoreEliminationHelper {
       if (ri->IsPartialSingleton() &&
           ri->GetReference()->GetBlock() != nullptr &&
           ri->GetNoEscapeSubgraph()->ContainsBlock(ri->GetReference()->GetBlock())) {
-        RecordHeapRefField(ri->GetReference()->AsNewInstance(), i);
+        // TODO: Remove "OrNull".
+        RecordHeapRefField(ri->GetReference()->AsNewInstanceOrNull(), i);
       }
     }
   }
@@ -3725,7 +3744,8 @@ class PartialLoadStoreEliminationHelper {
 
   void NotifyNewMaterialization(HInstruction* ins) {
     if (ins->IsPhi()) {
-      new_ref_phis_.push_back(ins->AsPhi());
+      // TODO: Remove "OrNull".
+      new_ref_phis_.push_back(ins->AsPhiOrNull());
     }
   }
 
@@ -3773,7 +3793,8 @@ HInstruction* LSEVisitor::SetupPartialMaterialization(PartialLoadStoreEliminatio
   }
   HBasicBlock* bb = helper.GetOrCreateMaterializationBlock(entry, pred_idx);
   CHECK(bb != nullptr) << "entry " << entry->GetBlockId() << " -> " << old_pred->GetBlockId();
-  HNewInstance* repl_create = new_inst->Clone(GetGraph()->GetAllocator())->AsNewInstance();
+  // TODO: Remove "OrNull".
+  HNewInstance* repl_create = new_inst->Clone(GetGraph()->GetAllocator())->AsNewInstanceOrNull();
   repl_create->SetPartialMaterialization();
   bb->InsertInstructionBefore(repl_create, bb->GetLastInstruction());
   repl_create->CopyEnvironmentFrom(new_inst->GetEnvironment());

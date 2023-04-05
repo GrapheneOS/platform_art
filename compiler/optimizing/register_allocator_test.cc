@@ -338,7 +338,8 @@ void RegisterAllocatorTest::Loop3(Strategy strategy) {
   ASSERT_TRUE(register_allocator->Validate(false));
 
   HBasicBlock* loop_header = graph->GetBlocks()[2];
-  HPhi* phi = loop_header->GetFirstPhi()->AsPhi();
+  // TODO: Remove "OrNull".
+  HPhi* phi = loop_header->GetFirstPhi()->AsPhiOrNull();
 
   LiveInterval* phi_interval = phi->GetLiveInterval();
   LiveInterval* loop_update = phi->InputAt(1)->GetLiveInterval();
@@ -347,7 +348,8 @@ void RegisterAllocatorTest::Loop3(Strategy strategy) {
   ASSERT_NE(phi_interval->GetRegister(), loop_update->GetRegister());
 
   HBasicBlock* return_block = graph->GetBlocks()[3];
-  HReturn* ret = return_block->GetLastInstruction()->AsReturn();
+  // TODO: Remove "OrNull".
+  HReturn* ret = return_block->GetLastInstruction()->AsReturnOrNull();
   ASSERT_EQ(phi_interval->GetRegister(), ret->InputAt(0)->GetLiveInterval()->GetRegister());
 }
 
@@ -366,8 +368,10 @@ TEST_F(RegisterAllocatorTest, FirstRegisterUse) {
   SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
   liveness.Analyze();
 
-  HXor* first_xor = graph->GetBlocks()[1]->GetFirstInstruction()->AsXor();
-  HXor* last_xor = graph->GetBlocks()[1]->GetLastInstruction()->GetPrevious()->AsXor();
+  // TODO: Remove "OrNull".
+  HXor* first_xor = graph->GetBlocks()[1]->GetFirstInstruction()->AsXorOrNull();
+  // TODO: Remove "OrNull".
+  HXor* last_xor = graph->GetBlocks()[1]->GetLastInstruction()->GetPrevious()->AsXorOrNull();
   ASSERT_EQ(last_xor->InputAt(0), first_xor);
   LiveInterval* interval = first_xor->GetLiveInterval();
   ASSERT_EQ(interval->GetEnd(), last_xor->GetLifetimePosition());

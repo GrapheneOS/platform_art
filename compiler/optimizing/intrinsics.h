@@ -71,7 +71,8 @@ class IntrinsicVisitor : public ValueObject {
                             CodeGenerator* codegen,
                             InvokeDexCallingConventionVisitor* calling_convention_visitor) {
     if (kIsDebugBuild && invoke->IsInvokeStaticOrDirect()) {
-      HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
+      // TODO: Remove "OrNull".
+      HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirectOrNull();
       // Explicit clinit checks triggered by static invokes must have been
       // pruned by art::PrepareForRegisterAllocation.
       DCHECK(!invoke_static_or_direct->IsStaticWithExplicitClinitCheck());

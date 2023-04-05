@@ -91,7 +91,8 @@ void SchedulingLatencyVisitorARM64::VisitDiv(HDiv* instr) {
     default:
       // Follow the code path used by code generation.
       if (instr->GetRight()->IsConstant()) {
-        int64_t imm = Int64FromConstant(instr->GetRight()->AsConstant());
+        // TODO: Remove "OrNull".
+        int64_t imm = Int64FromConstant(instr->GetRight()->AsConstantOrNull());
         if (imm == 0) {
           last_visited_internal_latency_ = 0;
           last_visited_latency_ = 0;
@@ -159,7 +160,8 @@ void SchedulingLatencyVisitorARM64::VisitRem(HRem* instruction) {
   } else {
     // Follow the code path used by code generation.
     if (instruction->GetRight()->IsConstant()) {
-      int64_t imm = Int64FromConstant(instruction->GetRight()->AsConstant());
+      // TODO: Remove "OrNull".
+      int64_t imm = Int64FromConstant(instruction->GetRight()->AsConstantOrNull());
       if (imm == 0) {
         last_visited_internal_latency_ = 0;
         last_visited_latency_ = 0;

@@ -260,9 +260,11 @@ inline bool Arm64CanEncodeConstantAsImmediate(HConstant* constant, HInstruction*
     if (constant->IsLongConstant()) {
       return false;
     } else if (constant->IsFloatConstant()) {
-      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstantOrNull()->GetValue());
     } else if (constant->IsDoubleConstant()) {
-      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstantOrNull()->GetValue());
     }
     return IsUint<8>(value);
   }
@@ -312,7 +314,9 @@ inline bool Arm64CanEncodeConstantAsImmediate(HConstant* constant, HInstruction*
 }
 
 inline Location ARM64EncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
-  if (constant->IsConstant() && Arm64CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+  if (constant->IsConstant() &&
+      // TODO: Remove "OrNull".
+      Arm64CanEncodeConstantAsImmediate(constant->AsConstantOrNull(), instr)) {
     return Location::ConstantLocation(constant);
   }
 

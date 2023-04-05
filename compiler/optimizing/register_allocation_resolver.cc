@@ -76,7 +76,8 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
     } else if (instruction->IsCurrentMethod()) {
       // The current method is always at offset 0.
       DCHECK_IMPLIES(current->HasSpillSlot(), (current->GetSpillSlot() == 0));
-    } else if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
+      // TODO: Remove "OrNull".
+    } else if (instruction->IsPhi() && instruction->AsPhiOrNull()->IsCatchPhi()) {
       DCHECK(current->HasSpillSlot());
       size_t slot = current->GetSpillSlot()
                     + spill_slots
@@ -351,7 +352,8 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
             }
           } else {
             DCHECK(use.GetUser()->IsInvoke());
-            DCHECK(use.GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
+            // TODO: Remove "OrNull".
+            DCHECK(use.GetUser()->AsInvokeOrNull()->GetIntrinsic() != Intrinsics::kNone);
           }
         }
       }
@@ -538,7 +540,8 @@ void RegisterAllocationResolver::AddInputMoveFor(HInstruction* input,
     move->SetLifetimePosition(user->GetLifetimePosition());
     user->GetBlock()->InsertInstructionBefore(move, user);
   } else {
-    move = previous->AsParallelMove();
+    // TODO: Remove "OrNull".
+    move = previous->AsParallelMoveOrNull();
   }
   DCHECK_EQ(move->GetLifetimePosition(), user->GetLifetimePosition());
   AddMove(move, source, destination, nullptr, input->GetType());
@@ -587,13 +590,14 @@ void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
         at->GetBlock()->InsertInstructionBefore(move, at);
       } else {
         DCHECK(at->IsParallelMove());
-        move = at->AsParallelMove();
+        // TODO: Remove "OrNull".
+        move = at->AsParallelMoveOrNull();
       }
     }
   } else if (IsInstructionEnd(position)) {
     // Move must happen after the instruction.
     DCHECK(!at->IsControlFlow());
-    move = at->GetNext()->AsParallelMove();
+    move = at->GetNext()->AsParallelMoveOrNull();
     // This is a parallel move for connecting siblings in a same block. We need to
     // differentiate it with moves for connecting blocks, and input moves.
     if (move == nullptr || move->GetLifetimePosition() > position) {
@@ -617,7 +621,8 @@ void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at);
     } else {
-      move = previous->AsParallelMove();
+      // TODO: Remove "OrNull".
+      move = previous->AsParallelMoveOrNull();
     }
   }
   DCHECK_EQ(move->GetLifetimePosition(), position);
@@ -645,12 +650,14 @@ void RegisterAllocationResolver::InsertParallelMoveAtExitOf(HBasicBlock* block,
   size_t position = last->GetLifetimePosition();
   if (previous == nullptr ||
       !previous->IsParallelMove() ||
-      previous->AsParallelMove()->GetLifetimePosition() != position) {
+      // TODO: Remove "OrNull".
+      previous->AsParallelMoveOrNull()->GetLifetimePosition() != position) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(position);
     block->InsertInstructionBefore(move, last);
   } else {
-    move = previous->AsParallelMove();
+    // TODO: Remove "OrNull".
+    move = previous->AsParallelMoveOrNull();
   }
   AddMove(move, source, destination, instruction, instruction->GetType());
 }
@@ -663,7 +670,7 @@ void RegisterAllocationResolver::InsertParallelMoveAtEntryOf(HBasicBlock* block,
   if (source.Equals(destination)) return;
 
   HInstruction* first = block->GetFirstInstruction();
-  HParallelMove* move = first->AsParallelMove();
+  HParallelMove* move = first->AsParallelMoveOrNull();
   size_t position = block->GetLifetimeStart();
   // This is a parallel move for connecting blocks. We need to differentiate
   // it with moves for connecting siblings in a same block, and input moves.
@@ -687,7 +694,7 @@ void RegisterAllocationResolver::InsertMoveAfter(HInstruction* instruction,
   }
 
   size_t position = instruction->GetLifetimePosition() + 1;
-  HParallelMove* move = instruction->GetNext()->AsParallelMove();
+  HParallelMove* move = instruction->GetNext()->AsParallelMoveOrNull();
   // This is a parallel move for moving the output of an instruction. We need
   // to differentiate with input moves, moves for connecting siblings in a
   // and moves for connecting blocks.

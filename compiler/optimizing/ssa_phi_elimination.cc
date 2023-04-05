@@ -45,7 +45,8 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
   // Add to the worklist phis referenced by non-phi instructions.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      HPhi* phi = inst_it.Current()->AsPhi();
+      // TODO: Remove "OrNull".
+      HPhi* phi = inst_it.Current()->AsPhiOrNull();
       if (phi->IsDead()) {
         continue;
       }
@@ -76,7 +77,7 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
     HPhi* phi = worklist.back();
     worklist.pop_back();
     for (HInstruction* raw_input : phi->GetInputs()) {
-      HPhi* input = raw_input->AsPhi();
+      HPhi* input = raw_input->AsPhiOrNull();
       if (input != nullptr && input->IsDead()) {
         // Input is a dead phi. Revive it and add to the worklist. We make sure
         // that the phi was not dead initially (see definition of `initially_live`).
@@ -97,7 +98,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
     HInstruction* next = nullptr;
     HPhi* phi;
     while (current != nullptr) {
-      phi = current->AsPhi();
+      // TODO: Remove "OrNull".
+      phi = current->AsPhiOrNull();
       next = current->GetNext();
       if (phi->IsDead()) {
         // Make sure the phi is only used by other dead phis.
@@ -105,7 +107,8 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
           for (const HUseListNode<HInstruction*>& use : phi->GetUses()) {
             HInstruction* user = use.GetUser();
             DCHECK(user->IsLoopHeaderPhi());
-            DCHECK(user->AsPhi()->IsDead());
+            // TODO: Remove "OrNull".
+            DCHECK(user->AsPhiOrNull()->IsDead());
           }
         }
         // Remove the phi from use lists of its inputs.
@@ -135,7 +138,8 @@ bool SsaRedundantPhiElimination::Run() {
   // neither will necessarily converge faster.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      worklist.push_back(inst_it.Current()->AsPhi());
+      // TODO: Remove "OrNull".
+      worklist.push_back(inst_it.Current()->AsPhiOrNull());
     }
   }
 
@@ -197,9 +201,11 @@ bool SsaRedundantPhiElimination::Run() {
             continue;
           } else if (input->IsPhi()) {
             if (!visited_phis_in_cycle.IsBitSet(input->GetId())) {
-              cycle_worklist.push_back(input->AsPhi());
+              // TODO: Remove "OrNull".
+              cycle_worklist.push_back(input->AsPhiOrNull());
               visited_phis_in_cycle.SetBit(input->GetId());
-              catch_phi_in_cycle |= input->AsPhi()->IsCatchPhi();
+              // TODO: Remove "OrNull".
+              catch_phi_in_cycle |= input->AsPhiOrNull()->IsCatchPhi();
               irreducible_loop_phi_in_cycle |= input->IsIrreducibleLoopHeaderPhi();
             } else {
               // Already visited, nothing to do.
@@ -248,7 +254,8 @@ bool SsaRedundantPhiElimination::Run() {
       for (const HUseListNode<HInstruction*>& use : current->GetUses()) {
         HInstruction* user = use.GetUser();
         if (user->IsPhi() && !visited_phis_in_cycle.IsBitSet(user->GetId())) {
-          worklist.push_back(user->AsPhi());
+          // TODO: Remove "OrNull".
+          worklist.push_back(user->AsPhiOrNull());
         }
       }
       DCHECK(candidate->StrictlyDominates(current));

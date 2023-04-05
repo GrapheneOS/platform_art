@@ -259,8 +259,10 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
   current->ResetSearchCache();
   CheckForFixedOutput(instruction);
 
-  if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
-    AllocateSpillSlotForCatchPhi(instruction->AsPhi());
+  // TODO: Remove "OrNull".
+  if (instruction->IsPhi() && instruction->AsPhiOrNull()->IsCatchPhi()) {
+    // TODO: Remove "OrNull".
+    AllocateSpillSlotForCatchPhi(instruction->AsPhiOrNull());
   }
 
   // If needed, add interval to the list of unhandled intervals.
@@ -1128,11 +1130,13 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotFor(LiveInterval* interval) {
   }
 
   HInstruction* defined_by = parent->GetDefinedBy();
-  DCHECK_IMPLIES(defined_by->IsPhi(), !defined_by->AsPhi()->IsCatchPhi());
+  // TODO: Remove "OrNull".
+  DCHECK_IMPLIES(defined_by->IsPhi(), !defined_by->AsPhiOrNull()->IsCatchPhi());
 
   if (defined_by->IsParameterValue()) {
     // Parameters have their own stack slot.
-    parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValue()));
+    // TODO: Remove "OrNull".
+    parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValueOrNull()));
     return;
   }
 
@@ -1208,7 +1212,9 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotForCatchPhi(HPhi* phi) {
   LiveInterval* interval = phi->GetLiveInterval();
 
   HInstruction* previous_phi = phi->GetPrevious();
-  DCHECK(previous_phi == nullptr || previous_phi->AsPhi()->GetRegNumber() <= phi->GetRegNumber())
+  DCHECK(previous_phi == nullptr ||
+         // TODO: Remove "OrNull".
+         previous_phi->AsPhiOrNull()->GetRegNumber() <= phi->GetRegNumber())
       << "Phis expected to be sorted by vreg number, so that equivalent phis are adjacent.";
 
   if (phi->IsVRegEquivalentOf(previous_phi)) {

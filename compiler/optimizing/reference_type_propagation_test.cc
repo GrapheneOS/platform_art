@@ -333,7 +333,8 @@ void LoopReferenceTypePropagationTestGroup::RunVisitListTest(Func mutator) {
   }
   for (HBasicBlock* blk : succ_blocks) {
     CHECK(single_value[blk]->IsPhi()) << blk->GetBlockId();
-    blk->AddPhi(single_value[blk]->AsPhi());
+    // TODO: Remove "OrNull".
+    blk->AddPhi(single_value[blk]->AsPhiOrNull());
   }
   auto vals = MakeTransformRange(succ_blocks, [&](HBasicBlock* blk) {
     DCHECK(single_value[blk]->IsPhi());
@@ -421,7 +422,8 @@ void NonLoopReferenceTypePropagationTestGroup::RunVisitListTest(Func mutator) {
     for (const auto& [pred, index] : ZipCount(MakeIterationRange(blk->GetPredecessors()))) {
       my_val->SetRawInputAt(index, single_value[pred]);
     }
-    blk->AddPhi(my_val->AsPhi());
+    // TODO: Remove "OrNull".
+    blk->AddPhi(my_val->AsPhiOrNull());
   }
   auto vals = MakeTransformRange(succ_blocks, [&](HBasicBlock* blk) { return single_value[blk]; });
   std::vector<HInstruction*> ins(vals.begin(), vals.end());
@@ -485,13 +487,15 @@ TEST_P(LoopReferenceTypePropagationTestGroup, RunVisitTest) {
           return uid(g);
       }
     };
-    HPhi* nulled_phi = lo.null_insertion_ >= 0 ? lst[lo.null_insertion_]->AsPhi() : nullptr;
+    // TODO: Remove "OrNull".
+    HPhi* nulled_phi = lo.null_insertion_ >= 0 ? lst[lo.null_insertion_]->AsPhiOrNull() : nullptr;
     if (nulled_phi != nullptr) {
       nulled_phi->ReplaceInput(null_input, lo.null_phi_arg_);
     }
     MutateList(lst, lo.shuffle_);
     std::for_each(lst.begin(), lst.end(), [&](HInstruction* ins) {
-      ins->AsPhi()->SetCanBeNull(next_null());
+      // TODO: Remove "OrNull".
+      ins->AsPhiOrNull()->SetCanBeNull(next_null());
     });
   });
 }

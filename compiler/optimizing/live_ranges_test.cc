@@ -311,7 +311,8 @@ TEST_F(LiveRangesTest, Loop2) {
   liveness.Analyze();
 
   // Test for the 0 constant.
-  HIntConstant* constant = liveness.GetInstructionFromSsaIndex(0)->AsIntConstant();
+  // TODO: Remove "OrNull".
+  HIntConstant* constant = liveness.GetInstructionFromSsaIndex(0)->AsIntConstantOrNull();
   LiveInterval* interval = constant->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
@@ -321,7 +322,8 @@ TEST_F(LiveRangesTest, Loop2) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the loop phi.
-  HPhi* phi = liveness.GetInstructionFromSsaIndex(1)->AsPhi();
+  // TODO: Remove "OrNull".
+  HPhi* phi = liveness.GetInstructionFromSsaIndex(1)->AsPhiOrNull();
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(10u, range->GetStart());
@@ -332,7 +334,8 @@ TEST_F(LiveRangesTest, Loop2) {
   ASSERT_EQ(24u, range->GetEnd());
 
   // Test for the add instruction.
-  HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
+  // TODO: Remove "OrNull".
+  HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAddOrNull();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(18u, range->GetStart());
@@ -406,7 +409,8 @@ TEST_F(LiveRangesTest, CFG4) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the first add.
-  HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
+  // TODO: Remove "OrNull".
+  HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAddOrNull();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(16u, range->GetStart());
@@ -414,14 +418,16 @@ TEST_F(LiveRangesTest, CFG4) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the second add.
-  add = liveness.GetInstructionFromSsaIndex(3)->AsAdd();
+  // TODO: Remove "OrNull".
+  add = liveness.GetInstructionFromSsaIndex(3)->AsAddOrNull();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(22u, range->GetStart());
   ASSERT_EQ(26u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
-  HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhi();
+  // TODO: Remove "OrNull".
+  HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhiOrNull();
   ASSERT_TRUE(phi->GetUses().HasExactlyOneElement());
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();

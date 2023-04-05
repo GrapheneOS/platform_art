@@ -50,7 +50,8 @@ class InductionVarRangeTest : public OptimizingUnitTest {
 
   void ExpectInt(int32_t value, HInstruction* i) {
     ASSERT_TRUE(i->IsIntConstant());
-    EXPECT_EQ(value, i->AsIntConstant()->GetValue());
+    // TODO: Remove "OrNull".
+    EXPECT_EQ(value, i->AsIntConstantOrNull()->GetValue());
   }
 
   //

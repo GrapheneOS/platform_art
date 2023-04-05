@@ -37,7 +37,8 @@ class ValueBound : public ValueObject {
   ValueBound(HInstruction* instruction, int32_t constant) {
     if (instruction != nullptr && instruction->IsIntConstant()) {
       // Normalize ValueBound with constant instruction.
-      int32_t instr_const = instruction->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int32_t instr_const = instruction->AsIntConstantOrNull()->GetValue();
       if (!WouldAddOverflowOrUnderflow(instr_const, constant)) {
         instruction_ = nullptr;
         constant_ = instr_const + constant;
@@ -71,11 +72,13 @@ class ValueBound : public ValueObject {
     HInstruction* left_so_far = nullptr;
     int32_t right_so_far = 0;
     while (instruction->IsAdd() || instruction->IsSub()) {
-      HBinaryOperation* bin_op = instruction->AsBinaryOperation();
+      // TODO: Remove "OrNull".
+      HBinaryOperation* bin_op = instruction->AsBinaryOperationOrNull();
       HInstruction* left = bin_op->GetLeft();
       HInstruction* right = bin_op->GetRight();
       if (right->IsIntConstant()) {
-        int32_t v = right->AsIntConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int32_t v = right->AsIntConstantOrNull()->GetValue();
         int32_t c = instruction->IsAdd() ? v : -v;
         if (!WouldAddOverflowOrUnderflow(right_so_far, c)) {
           instruction = left;
@@ -95,7 +98,8 @@ class ValueBound : public ValueObject {
   // Expresses any instruction as a value bound.
   static ValueBound AsValueBound(HInstruction* instruction) {
     if (instruction->IsIntConstant()) {
-      return ValueBound(nullptr, instruction->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return ValueBound(nullptr, instruction->AsIntConstantOrNull()->GetValue());
     }
     HInstruction *left;
     int32_t right;
@@ -111,7 +115,8 @@ class ValueBound : public ValueObject {
     DCHECK(instruction != nullptr);
     if (instruction->IsIntConstant()) {
       *found = true;
-      return ValueBound(nullptr, instruction->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return ValueBound(nullptr, instruction->AsIntConstantOrNull()->GetValue());
     }
 
     if (instruction->IsArrayLength()) {
@@ -441,7 +446,8 @@ class MonotonicValueRange : public ValueRange {
       // Be conservative first, assume last number in the sequence hits upper.
       int32_t last_num_in_sequence = upper;
       if (initial_->IsIntConstant()) {
-        int32_t initial_constant = initial_->AsIntConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int32_t initial_constant = initial_->AsIntConstantOrNull()->GetValue();
         if (upper <= initial_constant) {
           last_num_in_sequence = upper;
         } else {
@@ -877,12 +883,14 @@ class BCEVisitor final : public HGraphVisitor {
       }
     } else {
       // Constant index.
-      int32_t constant = index->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int32_t constant = index->AsIntConstantOrNull()->GetValue();
       if (constant < 0) {
         // Will always throw exception.
         return;
       } else if (array_length->IsIntConstant()) {
-        if (constant < array_length->AsIntConstant()->GetValue()) {
+        // TODO: Remove "OrNull".
+        if (constant < array_length->AsIntConstantOrNull()->GetValue()) {
           ReplaceInstruction(bounds_check, index);
         }
         return;
@@ -1009,7 +1017,8 @@ class BCEVisitor final : public HGraphVisitor {
 
   void VisitIf(HIf* instruction) override {
     if (instruction->InputAt(0)->IsCondition()) {
-      HCondition* cond = instruction->InputAt(0)->AsCondition();
+      // TODO: Remove "OrNull".
+      HCondition* cond = instruction->InputAt(0)->AsConditionOrNull();
       HandleIf(instruction, cond->GetLeft(), cond->GetRight(), cond->GetCondition());
     }
   }
@@ -1047,41 +1056,47 @@ class BCEVisitor final : public HGraphVisitor {
 
     HDiv* div = nullptr;
     int64_t const_divisor = 0;
-    if (HMul* mul = instruction->GetRight()->AsMul()) {
+    if (HMul* mul = instruction->GetRight()->AsMulOrNull()) {
       if (!mul->GetLeft()->IsDiv() || !mul->GetRight()->IsConstant()) {
         return false;
       }
-      div = mul->GetLeft()->AsDiv();
-      const_divisor = Int64FromConstant(mul->GetRight()->AsConstant());
-    } else if (HAdd* add = instruction->GetRight()->AsAdd()) {
-      HShl* shl = add->GetRight()->AsShl();
+      // TODO: Remove "OrNull".
+      div = mul->GetLeft()->AsDivOrNull();
+      // TODO: Remove "OrNull".
+      const_divisor = Int64FromConstant(mul->GetRight()->AsConstantOrNull());
+    } else if (HAdd* add = instruction->GetRight()->AsAddOrNull()) {
+      HShl* shl = add->GetRight()->AsShlOrNull();
       if (!is_needed_shl(shl)) {
         return false;
       }
 
-      div = shl->GetLeft()->AsDiv();
+      // TODO: Remove "OrNull".
+      div = shl->GetLeft()->AsDivOrNull();
       if (add->GetLeft() != div) {
         return false;
       }
 
-      int32_t n = shl->GetRight()->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int32_t n = shl->GetRight()->AsIntConstantOrNull()->GetValue();
       if (n == BitSizeOf<int32_t>() - 1) {
         // 2^n + 1 will be negative.
         return false;
       }
       const_divisor = (1LL << n) + 1;
-    } else if (HSub* sub = instruction->GetRight()->AsSub()) {
-      HShl* shl = sub->GetLeft()->AsShl();
+    } else if (HSub* sub = instruction->GetRight()->AsSubOrNull()) {
+      HShl* shl = sub->GetLeft()->AsShlOrNull();
       if (!is_needed_shl(shl)) {
         return false;
       }
 
-      div = shl->GetLeft()->AsDiv();
+      // TODO: Remove "OrNull".
+      div = shl->GetLeft()->AsDivOrNull();
       if (sub->GetRight() != div) {
         return false;
       }
 
-      int32_t n = shl->GetRight()->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int32_t n = shl->GetRight()->AsIntConstantOrNull()->GetValue();
       const_divisor = (1LL << n) - 1;
     }
 
@@ -1118,7 +1133,8 @@ class BCEVisitor final : public HGraphVisitor {
       if (left_range == nullptr) {
         return;
       }
-      ValueRange* range = left_range->Add(right->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      ValueRange* range = left_range->Add(right->AsIntConstantOrNull()->GetValue());
       if (range != nullptr) {
         AssignRange(add->GetBlock(), add, range);
       }
@@ -1137,7 +1153,8 @@ class BCEVisitor final : public HGraphVisitor {
       if (left_range == nullptr) {
         return;
       }
-      ValueRange* range = left_range->Add(-right->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      ValueRange* range = left_range->Add(-right->AsIntConstantOrNull()->GetValue());
       if (range != nullptr) {
         AssignRange(sub->GetBlock(), sub, range);
         return;
@@ -1157,7 +1174,8 @@ class BCEVisitor final : public HGraphVisitor {
     // The value of left input of the sub equals (left + right_const).
 
     if (left->IsArrayLength()) {
-      HInstruction* array_length = left->AsArrayLength();
+      // TODO: Remove "OrNull".
+      HInstruction* array_length = left->AsArrayLengthOrNull();
       ValueRange* right_range = LookupValueRange(right, sub->GetBlock());
       if (right_range != nullptr) {
         ValueBound lower = right_range->GetLower();
@@ -1193,7 +1211,8 @@ class BCEVisitor final : public HGraphVisitor {
     HInstruction* right = instruction->GetRight();
     int32_t right_const;
     if (right->IsIntConstant()) {
-      right_const = right->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      right_const = right->AsIntConstantOrNull()->GetValue();
       // Detect division by two or more.
       if ((instruction->IsDiv() && right_const <= 1) ||
           (instruction->IsShr() && right_const < 1) ||
@@ -1245,7 +1264,8 @@ class BCEVisitor final : public HGraphVisitor {
 
   void VisitAnd(HAnd* instruction) override {
     if (instruction->GetRight()->IsIntConstant()) {
-      int32_t constant = instruction->GetRight()->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      int32_t constant = instruction->GetRight()->AsIntConstantOrNull()->GetValue();
       if (constant > 0) {
         // constant serves as a mask so any number masked with it
         // gets a [0, constant] value range.
@@ -1265,7 +1285,8 @@ class BCEVisitor final : public HGraphVisitor {
     // Handle 'i % CONST' format expression in array index, e.g:
     //   array[i % 20];
     if (right->IsIntConstant()) {
-      int32_t right_const = std::abs(right->AsIntConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      int32_t right_const = std::abs(right->AsIntConstantOrNull()->GetValue());
       if (right_const == 0) {
         return;
       }
@@ -1297,7 +1318,8 @@ class BCEVisitor final : public HGraphVisitor {
     if (right->IsDivZeroCheck()) {
       // if array_length can pass div-by-zero check,
       // array_length must be > 0.
-      right = right->AsDivZeroCheck()->InputAt(0);
+      // TODO: Remove "OrNull".
+      right = right->AsDivZeroCheckOrNull()->InputAt(0);
     }
 
     // Handle 'i % array.length' format expression in array index, e.g:
@@ -1434,7 +1456,8 @@ class BCEVisitor final : public HGraphVisitor {
         HInstruction* user = use.GetUser();
         HBasicBlock* other_block = user->GetBlock();
         if (user->IsBoundsCheck() && block->Dominates(other_block)) {
-          HBoundsCheck* other_bounds_check = user->AsBoundsCheck();
+          // TODO: Remove "OrNull".
+          HBoundsCheck* other_bounds_check = user->AsBoundsCheckOrNull();
           HInstruction* other_index = other_bounds_check->InputAt(0);
           HInstruction* other_array_length = other_bounds_check->InputAt(1);
           ValueBound other_value = ValueBound::AsValueBound(other_index);
@@ -1552,7 +1575,8 @@ class BCEVisitor final : public HGraphVisitor {
     for (const HUseListNode<HInstruction*>& use : array_length->GetUses()) {
       HInstruction* user = use.GetUser();
       if (user->IsBoundsCheck() && loop == user->GetBlock()->GetLoopInformation()) {
-        HBoundsCheck* other_bounds_check = user->AsBoundsCheck();
+        // TODO: Remove "OrNull".
+        HBoundsCheck* other_bounds_check = user->AsBoundsCheckOrNull();
         HInstruction* other_index = other_bounds_check->InputAt(0);
         HInstruction* other_array_length = other_bounds_check->InputAt(1);
         ValueBound other_value = ValueBound::AsValueBound(other_index);
@@ -1787,9 +1811,11 @@ class BCEVisitor final : public HGraphVisitor {
       // ensure upper bound cannot cause an infinite loop.
       HInstruction* control = loop->GetHeader()->GetLastInstruction();
       if (control->IsIf()) {
-        HInstruction* if_expr = control->AsIf()->InputAt(0);
+        // TODO: Remove "OrNull".
+        HInstruction* if_expr = control->AsIfOrNull()->InputAt(0);
         if (if_expr->IsCondition()) {
-          HCondition* condition = if_expr->AsCondition();
+          // TODO: Remove "OrNull".
+          HCondition* condition = if_expr->AsConditionOrNull();
           if (index == condition->InputAt(0) ||
               index == condition->InputAt(1)) {
             finite_loop_.insert(loop_id);
