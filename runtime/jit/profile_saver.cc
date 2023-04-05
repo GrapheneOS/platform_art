@@ -876,7 +876,7 @@ bool ProfileSaver::ProcessProfilingInfo(
         }
       } else {
         // Create a file if it doesn't exist.
-        unix_file::FdFile file(filename.c_str(),
+        unix_file::FdFile file(filename,
                                O_WRONLY | O_TRUNC | O_CREAT,
                                S_IRUSR | S_IWUSR,
                                /*check_usage=*/false);

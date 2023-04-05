@@ -825,7 +825,7 @@ std::string OnDeviceRefresh::GetSystemServerImagePath(bool on_system,
   } else {
     // Typically
     // "/data/misc/apexdata/.../dalvik-cache/<isa>/system@framework@services.jar@classes.art".
-    const std::string image = GetApexDataImage(jar_path.c_str());
+    const std::string image = GetApexDataImage(jar_path);
     return GetSystemImageFilename(image.c_str(), config_.GetSystemServerIsa());
   }
 }
@@ -1653,7 +1653,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     }
 
     OdrArtifacts artifacts = OdrArtifacts::ForSystemServer(image_location);
-    CHECK_EQ(artifacts.OatPath(), GetApexDataOdexFilename(jar.c_str(), isa));
+    CHECK_EQ(artifacts.OatPath(), GetApexDataOdexFilename(jar, isa));
 
     const std::pair<const std::string, const char*> location_kind_pairs[] = {
         std::make_pair(artifacts.ImagePath(), "app-image"),

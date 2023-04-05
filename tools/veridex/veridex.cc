@@ -297,7 +297,7 @@ class Veridex {
     }
 
     // TODO: once added, use an api to android::base to read a std::vector<uint8_t>.
-    if (!android::base::ReadFileToString(filename.c_str(), &content)) {
+    if (!android::base::ReadFileToString(filename, &content)) {
       *error_msg = "ReadFileToString failed for " + filename;
       return false;
     }
@@ -306,7 +306,7 @@ class Veridex {
     static constexpr bool kVerifyChecksum = true;
     static constexpr bool kRunDexFileVerifier = true;
     DexFileLoader dex_file_loader(
-        reinterpret_cast<const uint8_t*>(content.data()), content.size(), filename.c_str());
+        reinterpret_cast<const uint8_t*>(content.data()), content.size(), filename);
     if (!dex_file_loader.Open(
             kRunDexFileVerifier, kVerifyChecksum, &error_code, error_msg, dex_files)) {
       if (error_code == DexFileLoaderErrorCode::kEntryNotFound) {
