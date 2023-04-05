@@ -25,8 +25,7 @@ namespace art {
 
 SdkChecker::SdkChecker() : enabled_(true) {}
 
-SdkChecker* SdkChecker::Create(
-    const std::string& public_sdk, std::string* error_msg) {
+SdkChecker* SdkChecker::Create(const std::string& public_sdk, std::string* error_msg) {
   std::vector<std::string> dex_file_paths;
   Split(public_sdk, ':', &dex_file_paths);
 
@@ -63,9 +62,7 @@ bool SdkChecker::ShouldDenyAccess(ArtMethod* art_method) const {
     dex::TypeIndex return_type_idx;
     std::vector<dex::TypeIndex> param_type_idxs;
     if (!dex_file->CreateTypeList(
-            art_method->GetSignature().ToString().c_str(),
-            &return_type_idx,
-            &param_type_idxs)) {
+            art_method->GetSignature().ToString(), &return_type_idx, &param_type_idxs)) {
       continue;
     }
     const dex::ProtoId* proto_id = dex_file->FindProtoId(return_type_idx, param_type_idxs);
@@ -98,8 +95,8 @@ bool SdkChecker::ShouldDenyAccess(ArtField* art_field) const {
   for (const std::unique_ptr<const DexFile>& dex_file : sdk_dex_files_) {
     std::string declaring_class;
 
-    const dex::TypeId* declaring_type_id = dex_file->FindTypeId(
-        art_field->GetDeclaringClass()->GetDescriptor(&declaring_class));
+    const dex::TypeId* declaring_type_id =
+        dex_file->FindTypeId(art_field->GetDeclaringClass()->GetDescriptor(&declaring_class));
     if (declaring_type_id == nullptr) {
       continue;
     }

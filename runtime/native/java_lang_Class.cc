@@ -395,7 +395,7 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
     }
     // We may have a pending exception if we failed to resolve.
     if (!soa.Self()->IsExceptionPending()) {
-      ThrowNoSuchFieldException(h_klass.Get(), name_str.c_str());
+      ThrowNoSuchFieldException(h_klass.Get(), name_str);
     }
     return nullptr;
   }

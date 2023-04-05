@@ -85,7 +85,7 @@ class AssemblerTestBase : public testing::Test {
 
     // Assemble reference object file.
     std::string ref_obj_file = test_path(".ref.o");
-    ASSERT_TRUE(Assemble(ref_asm_file.c_str(), ref_obj_file.c_str()));
+    ASSERT_TRUE(Assemble(ref_asm_file, ref_obj_file));
 
     // Read the code produced by assembler from the ELF file.
     std::vector<uint8_t> ref_code;
