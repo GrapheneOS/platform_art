@@ -25,7 +25,7 @@ namespace art HIDDEN {
 static constexpr bool kCfreLogFenceInputCount = false;
 
 // TODO: refactor this code by reusing escape analysis.
-class CFREVisitor : public HGraphVisitor {
+class CFREVisitor final : public HGraphVisitor {
  public:
   CFREVisitor(HGraph* graph, OptimizingCompilerStats* stats)
       : HGraphVisitor(graph),
