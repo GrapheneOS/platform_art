@@ -1276,7 +1276,7 @@ static void UnstartedMemoryPeekArray(
   if (offset < 0 || offset + count > array->GetLength()) {
     std::string error_msg(StringPrintf("Array out of bounds in peekArray: %d/%d vs %d",
                                        offset, count, array->GetLength()));
-    Runtime::Current()->AbortTransactionAndThrowAbortError(self, error_msg.c_str());
+    Runtime::Current()->AbortTransactionAndThrowAbortError(self, error_msg);
     return;
   }
 
