@@ -1055,7 +1055,8 @@ CodeGenerator::CodeGenerator(HGraph* graph,
                              uint32_t core_callee_save_mask,
                              uint32_t fpu_callee_save_mask,
                              const CompilerOptions& compiler_options,
-                             OptimizingCompilerStats* stats)
+                             OptimizingCompilerStats* stats,
+                             const art::ArrayRef<const bool>& unimplemented_intrinsics)
     : frame_size_(0),
       core_spill_mask_(0),
       fpu_spill_mask_(0),
@@ -1080,7 +1081,8 @@ CodeGenerator::CodeGenerator(HGraph* graph,
       is_leaf_(true),
       needs_suspend_check_entry_(false),
       requires_current_method_(false),
-      code_generation_data_() {
+      code_generation_data_(),
+      unimplemented_intrinsics_(unimplemented_intrinsics) {
   if (GetGraph()->IsCompilingOsr()) {
     // Make OSR methods have all registers spilled, this simplifies the logic of
     // jumping to the compiled code directly.
