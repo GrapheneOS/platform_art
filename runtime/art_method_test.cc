@@ -51,7 +51,7 @@ class ArtMethodTest : public CommonRuntimeTest {
     ASSERT_STREQ(value_of->GetName(), "valueOf");
     std::string unbox_signature = std::string("()") + kPrimitive;
     ArtMethod* unbox_method = value_of->GetDeclaringClass()->FindClassMethod(
-        unbox_name, unbox_signature.c_str(), kRuntimePointerSize);
+        unbox_name, unbox_signature, kRuntimePointerSize);
     ASSERT_TRUE(unbox_method != nullptr);
     ASSERT_FALSE(unbox_method->IsStatic());
     ASSERT_TRUE(value_of->GetDeclaringClass()->IsFinal());

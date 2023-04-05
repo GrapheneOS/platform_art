@@ -48,6 +48,7 @@ art_clang_tidy_errors = [
     "performance-noexcept-move-constructor",
     "performance-unnecessary-copy-initialization",
     "performance-unnecessary-value-param",
+    "readability-redundant-string-cstr",
 ]
 
 art_clang_tidy_disabled = [
