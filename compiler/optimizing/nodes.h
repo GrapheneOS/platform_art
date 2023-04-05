@@ -8591,7 +8591,7 @@ HInstruction* ReplaceInstrOrPhiByClone(HInstruction* instr);
 // Create a clone for each clonable instructions/phis and replace the original with the clone.
 //
 // Used for testing individual instruction cloner.
-class CloneAndReplaceInstructionVisitor : public HGraphDelegateVisitor {
+class CloneAndReplaceInstructionVisitor final : public HGraphDelegateVisitor {
  public:
   explicit CloneAndReplaceInstructionVisitor(HGraph* graph)
       : HGraphDelegateVisitor(graph), instr_replaced_by_clones_count_(0) {}

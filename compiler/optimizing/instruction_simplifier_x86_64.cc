@@ -21,7 +21,7 @@ namespace art HIDDEN {
 
 namespace x86_64 {
 
-class InstructionSimplifierX86_64Visitor : public HGraphVisitor {
+class InstructionSimplifierX86_64Visitor final : public HGraphVisitor {
  public:
   InstructionSimplifierX86_64Visitor(HGraph* graph,
                                      CodeGenerator* codegen,
