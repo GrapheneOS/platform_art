@@ -49,9 +49,7 @@ void DexoptTest::PreRuntimeCreate() {
   UnreserveImageSpace();
 }
 
-void DexoptTest::PostRuntimeCreate() {
-  ReserveImageSpace();
-}
+void DexoptTest::PostRuntimeCreate() { ReserveImageSpace(); }
 
 bool DexoptTest::Dex2Oat(const std::vector<std::string>& args, std::string* error_msg) {
   std::vector<std::string> argv;
@@ -83,9 +81,9 @@ std::string DexoptTest::GenerateAlternateImage(const std::string& scratch_dir) {
   int mkdir_result = mkdir(image_dir.c_str(), 0700);
   CHECK_EQ(0, mkdir_result) << image_dir.c_str();
 
-  std::vector<std::string> extra_args {
-    "--compiler-filter=verify",
-    android::base::StringPrintf("--base=0x%08x", ART_BASE_ADDRESS),
+  std::vector<std::string> extra_args{
+      "--compiler-filter=verify",
+      android::base::StringPrintf("--base=0x%08x", ART_BASE_ADDRESS),
   };
   std::string filename_prefix = image_dir + "/boot-interpreter";
   ArrayRef<const std::string> dex_files(libcore_dex_files);
@@ -154,11 +152,11 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
   ASSERT_TRUE(Dex2Oat(args, &error_msg)) << error_msg;
 
   // Verify the odex file was generated as expected.
-  std::unique_ptr<OatFile> odex_file(OatFile::Open(/*zip_fd=*/ -1,
-                                                   oat_location.c_str(),
-                                                   oat_location.c_str(),
-                                                   /*executable=*/ false,
-                                                   /*low_4gb=*/ false,
+  std::unique_ptr<OatFile> odex_file(OatFile::Open(/*zip_fd=*/-1,
+                                                   oat_location,
+                                                   oat_location,
+                                                   /*executable=*/false,
+                                                   /*low_4gb=*/false,
                                                    dex_location,
                                                    &error_msg));
   ASSERT_TRUE(odex_file.get() != nullptr) << error_msg;
@@ -184,7 +182,7 @@ void DexoptTest::GenerateOdexForTest(const std::string& dex_location,
   GenerateOatForTest(dex_location,
                      odex_location,
                      filter,
-                     /*with_alternate_image=*/ false,
+                     /*with_alternate_image=*/false,
                      compilation_reason,
                      extra_args);
 }
@@ -195,15 +193,13 @@ void DexoptTest::GenerateOatForTest(const char* dex_location,
   std::string oat_location;
   std::string error_msg;
   ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
-        dex_location, kRuntimeISA, &oat_location, &error_msg)) << error_msg;
-  GenerateOatForTest(dex_location,
-                     oat_location,
-                     filter,
-                     with_alternate_image);
+      dex_location, kRuntimeISA, &oat_location, &error_msg))
+      << error_msg;
+  GenerateOatForTest(dex_location, oat_location, filter, with_alternate_image);
 }
 
 void DexoptTest::GenerateOatForTest(const char* dex_location, CompilerFilter::Filter filter) {
-  GenerateOatForTest(dex_location, filter, /*with_alternate_image=*/ false);
+  GenerateOatForTest(dex_location, filter, /*with_alternate_image=*/false);
 }
 
 void DexoptTest::ReserveImageSpace() {
@@ -232,19 +228,17 @@ void DexoptTest::ReserveImageSpaceChunk(uintptr_t start, uintptr_t end) {
                                                       reinterpret_cast<uint8_t*>(start),
                                                       end - start,
                                                       PROT_NONE,
-                                                      /*low_4gb=*/ false,
-                                                      /*reuse=*/ false,
-                                                      /*reservation=*/ nullptr,
+                                                      /*low_4gb=*/false,
+                                                      /*reuse=*/false,
+                                                      /*reservation=*/nullptr,
                                                       &error_msg));
     ASSERT_TRUE(image_reservation_.back().IsValid()) << error_msg;
-    LOG(INFO) << "Reserved space for image " <<
-      reinterpret_cast<void*>(image_reservation_.back().Begin()) << "-" <<
-      reinterpret_cast<void*>(image_reservation_.back().End());
+    LOG(INFO) << "Reserved space for image "
+              << reinterpret_cast<void*>(image_reservation_.back().Begin()) << "-"
+              << reinterpret_cast<void*>(image_reservation_.back().End());
   }
 }
 
-void DexoptTest::UnreserveImageSpace() {
-  image_reservation_.clear();
-}
+void DexoptTest::UnreserveImageSpace() { image_reservation_.clear(); }
 
 }  // namespace art
