@@ -37,7 +37,7 @@ namespace art HIDDEN {
 // is replaced with its copy if it is clonable.
 static constexpr bool kTestInstructionClonerExhaustively = false;
 
-class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
+class InstructionSimplifierVisitor final : public HGraphDelegateVisitor {
  public:
   InstructionSimplifierVisitor(HGraph* graph,
                                CodeGenerator* codegen,
