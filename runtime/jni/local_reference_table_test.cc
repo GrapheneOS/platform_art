@@ -844,5 +844,171 @@ TEST_F(LocalReferenceTableTest, RegressionTestB276864369) {
   lrt.Trim();
 }
 
+TEST_F(LocalReferenceTableTest, Trim) {
+  LocalReferenceTable lrt(/*check_jni=*/ false);
+  std::string error_msg;
+  bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> c = GetClassRoot<mirror::Object>();
+
+  // Add refs to fill all small tables.
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  std::vector<IndirectRef> refs0;
+  for (size_t i = 0; i != kRefsPerPage; ++i) {
+    refs0.push_back(lrt.Add(cookie0, c, &error_msg));
+    ASSERT_TRUE(refs0.back() != nullptr);
+  }
+
+  // Nothing to trim.
+  lrt.Trim();
+  ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs0.back())->IsNull());
+
+  // Add refs to fill the next, page-sized table.
+  std::vector<IndirectRef> refs1;
+  LRTSegmentState cookie1 = lrt.GetSegmentState();
+  for (size_t i = 0; i != kRefsPerPage; ++i) {
+    refs1.push_back(lrt.Add(cookie1, c, &error_msg));
+    ASSERT_TRUE(refs1.back() != nullptr);
+  }
+
+  // Nothing to trim.
+  lrt.Trim();
+  ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs1.back())->IsNull());
+
+  // Pop one reference and try to trim, there is no page to trim.
+  ASSERT_TRUE(lrt.Remove(cookie1, refs1.back()));
+  lrt.Trim();
+  ASSERT_FALSE(
+      IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs1[refs1.size() - 2u])->IsNull());
+
+  // Pop the entire segment with the page-sized table and trim, clearing the page.
+  lrt.SetSegmentState(cookie1);
+  lrt.Trim();
+  for (IndirectRef ref : refs1) {
+    ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  refs1.clear();
+
+  // Add refs to fill the page-sized table and half of the next one.
+  cookie1 = lrt.GetSegmentState();  // Push a new segment.
+  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+    refs1.push_back(lrt.Add(cookie1, c, &error_msg));
+    ASSERT_TRUE(refs1.back() != nullptr);
+  }
+
+  // Add refs to fill the other half of the table with two pages.
+  std::vector<IndirectRef> refs2;
+  const LRTSegmentState cookie2 = lrt.GetSegmentState();
+  for (size_t i = 0; i != kRefsPerPage; ++i) {
+    refs2.push_back(lrt.Add(cookie2, c, &error_msg));
+    ASSERT_TRUE(refs2.back() != nullptr);
+  }
+
+  // Nothing to trim.
+  lrt.Trim();
+  ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs1.back())->IsNull());
+
+  // Pop the last segment with one page worth of references and trim that page.
+  lrt.SetSegmentState(cookie2);
+  lrt.Trim();
+  for (IndirectRef ref : refs2) {
+    ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  refs2.clear();
+  for (IndirectRef ref : refs1) {
+    ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+
+  // Pop the middle segment with two pages worth of references, and trim those pages.
+  lrt.SetSegmentState(cookie1);
+  lrt.Trim();
+  for (IndirectRef ref : refs1) {
+    ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  refs1.clear();
+
+  // Pop the first segment with small tables and try to trim. Small tables are never trimmed.
+  lrt.SetSegmentState(cookie0);
+  lrt.Trim();
+  for (IndirectRef ref : refs0) {
+    ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  refs0.clear();
+
+  // Fill small tables and one more reference, then another segment up to 4 pages.
+  for (size_t i = 0; i != kRefsPerPage + 1u; ++i) {
+    refs0.push_back(lrt.Add(cookie0, c, &error_msg));
+    ASSERT_TRUE(refs0.back() != nullptr);
+  }
+  cookie1 = lrt.GetSegmentState();  // Push a new segment.
+  for (size_t i = 0; i != 3u * kRefsPerPage - 1u; ++i) {
+    refs1.push_back(lrt.Add(cookie1, c, &error_msg));
+    ASSERT_TRUE(refs1.back() != nullptr);
+  }
+
+  // Nothing to trim.
+  lrt.Trim();
+  ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs1.back())->IsNull());
+
+  // Pop the middle segment, trim two pages.
+  lrt.SetSegmentState(cookie1);
+  lrt.Trim();
+  for (IndirectRef ref : refs0) {
+    ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  ASSERT_EQ(refs0.size(), lrt.Capacity());
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(0u, kRefsPerPage - 1u)) {
+    // Popped but not trimmed as these are at the same page as the last entry in `refs0`.
+    ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(kRefsPerPage - 1u)) {
+    ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+}
+
+TEST_F(LocalReferenceTableTest, PruneBeforeTrim) {
+  LocalReferenceTable lrt(/*check_jni=*/ false);
+  std::string error_msg;
+  bool success = lrt.Initialize(kSmallLrtEntries, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> c = GetClassRoot<mirror::Object>();
+
+  // Add refs to fill all small tables and one bigger table.
+  const LRTSegmentState cookie0 = kLRTFirstSegment;
+  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  std::vector<IndirectRef> refs;
+  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+    refs.push_back(lrt.Add(cookie0, c, &error_msg));
+    ASSERT_TRUE(refs.back() != nullptr);
+  }
+
+  // Nothing to trim.
+  lrt.Trim();
+  ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(refs.back())->IsNull());
+
+  // Create a hole in the last page.
+  IndirectRef removed = refs[refs.size() - 2u];
+  ASSERT_TRUE(lrt.Remove(cookie0, removed));
+
+  // Pop the entire segment and trim. Small tables are not pruned.
+  lrt.SetSegmentState(cookie0);
+  lrt.Trim();
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(0u, kRefsPerPage)) {
+    ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(kRefsPerPage)) {
+    ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
+  }
+
+  // Add a new reference and check that it reused the first slot rather than the old hole.
+  IndirectRef new_ref = lrt.Add(cookie0, c, &error_msg);
+  ASSERT_TRUE(new_ref != nullptr);
+  ASSERT_NE(new_ref, removed);
+  ASSERT_EQ(new_ref, refs[0]);
+}
+
 }  // namespace jni
 }  // namespace art
