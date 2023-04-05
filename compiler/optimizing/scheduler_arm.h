@@ -47,7 +47,7 @@ static constexpr uint32_t kArmNopLatency = 2;
 static constexpr uint32_t kArmLoadWithBakerReadBarrierLatency = 18;
 static constexpr uint32_t kArmRuntimeTypeCheckLatency = 46;
 
-class SchedulingLatencyVisitorARM : public SchedulingLatencyVisitor {
+class SchedulingLatencyVisitorARM final : public SchedulingLatencyVisitor {
  public:
   explicit SchedulingLatencyVisitorARM(CodeGenerator* codegen)
       : codegen_(down_cast<CodeGeneratorARMVIXL*>(codegen)) {}

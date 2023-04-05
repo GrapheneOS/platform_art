@@ -23,7 +23,7 @@
 
 namespace art HIDDEN {
 
-class WBEVisitor : public HGraphVisitor {
+class WBEVisitor final : public HGraphVisitor {
  public:
   WBEVisitor(HGraph* graph, OptimizingCompilerStats* stats)
       : HGraphVisitor(graph),
