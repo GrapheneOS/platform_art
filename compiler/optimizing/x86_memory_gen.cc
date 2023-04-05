@@ -24,7 +24,7 @@ namespace x86 {
 /**
  * Replace instructions with memory operand forms.
  */
-class MemoryOperandVisitor : public HGraphVisitor {
+class MemoryOperandVisitor final : public HGraphVisitor {
  public:
   MemoryOperandVisitor(HGraph* graph, bool do_implicit_null_checks)
       : HGraphVisitor(graph),
