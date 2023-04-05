@@ -4590,7 +4590,7 @@ static void CreateVarHandleSetLocations(HInvoke* invoke,
     HInstruction* arg = invoke->InputAt(number_of_arguments - 1u);
     bool has_reverse_bytes_slow_path =
         (expected_coordinates_count == 2u) &&
-        !(arg->IsConstant() && arg->AsConstant()->IsZeroBitPattern());
+        !IsZeroBitPattern(arg);
     if (Use64BitExclusiveLoadStore(atomic, codegen)) {
       // We need 4 temporaries in the byte array view slow path. Otherwise, we need
       // 2 or 3 temporaries for GenerateIntrinsicSet() depending on the value type.
@@ -5517,7 +5517,7 @@ void VarHandleSlowPathARMVIXL::EmitByteArrayViewCode(CodeGenerator* codegen_in) 
     // Byte order check. For native byte order return to the main path.
     if (access_mode_template == mirror::VarHandle::AccessModeTemplate::kSet) {
       HInstruction* arg = invoke->InputAt(invoke->GetNumberOfArguments() - 1u);
-      if (arg->IsConstant() && arg->AsConstant()->IsZeroBitPattern()) {
+      if (IsZeroBitPattern(arg)) {
         // There is no reason to differentiate between native byte order and byte-swap
         // for setting a zero bit pattern. Just return to the main path.
         __ B(GetNativeByteOrderLabel());
