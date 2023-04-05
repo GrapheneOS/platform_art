@@ -148,7 +148,7 @@ The mutator lock participates in the normal ART lock ordering hierarchy, as thou
 were a regular lock. See `base/locks.h` for the hierarchy. In particular, only
 locks at or below level `kPostMutatorTopLockLevel` may be acquired after
 acquiring the mutator lock, e.g. inside the scope of a `ScopedObjectAccess`.
-Similarly only locks at level strictly above `kMutatatorLock`may be held while
+Similarly only locks at level strictly above `kMutatatorLock` may be held while
 acquiring the mutator lock, e.g. either by starting a `ScopedObjectAccess`, or
 ending a `ScopedThreadSuspension`.
 
