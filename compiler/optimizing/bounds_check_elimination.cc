@@ -490,7 +490,7 @@ class MonotonicValueRange : public ValueRange {
   DISALLOW_COPY_AND_ASSIGN(MonotonicValueRange);
 };
 
-class BCEVisitor : public HGraphVisitor {
+class BCEVisitor final : public HGraphVisitor {
  public:
   // The least number of bounds checks that should be eliminated by triggering
   // the deoptimization technique.

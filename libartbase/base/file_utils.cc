@@ -785,7 +785,7 @@ bool LocationIsOnSystem(const std::string& location) {
   LOG(FATAL) << "LocationIsOnSystem is unsupported on Windows.";
   return false;
 #else
-  return android::base::StartsWith(location, GetAndroidRoot().c_str());
+  return android::base::StartsWith(location, GetAndroidRoot());
 #endif
 }
 

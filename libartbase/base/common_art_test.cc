@@ -266,7 +266,7 @@ void CommonArtTestImpl::SetUpAndroidRootEnvVars() {
     const char* android_i18n_root_from_env = getenv("ANDROID_I18N_ROOT");
     if (android_i18n_root_from_env == nullptr) {
       // Use ${ANDROID_I18N_OUT}/com.android.i18n for ANDROID_I18N_ROOT.
-      std::string android_i18n_root = android_host_out.c_str();
+      std::string android_i18n_root = android_host_out;
       android_i18n_root += "/com.android.i18n";
       setenv("ANDROID_I18N_ROOT", android_i18n_root.c_str(), 1);
     }
@@ -277,7 +277,7 @@ void CommonArtTestImpl::SetUpAndroidRootEnvVars() {
     const char* android_art_root_from_env = getenv("ANDROID_ART_ROOT");
     if (android_art_root_from_env == nullptr) {
       // Use ${ANDROID_HOST_OUT}/com.android.art for ANDROID_ART_ROOT.
-      std::string android_art_root = android_host_out.c_str();
+      std::string android_art_root = android_host_out;
       android_art_root += "/com.android.art";
       setenv("ANDROID_ART_ROOT", android_art_root.c_str(), 1);
     }
@@ -288,7 +288,7 @@ void CommonArtTestImpl::SetUpAndroidRootEnvVars() {
     const char* android_tzdata_root_from_env = getenv("ANDROID_TZDATA_ROOT");
     if (android_tzdata_root_from_env == nullptr) {
       // Use ${ANDROID_HOST_OUT}/com.android.tzdata for ANDROID_TZDATA_ROOT.
-      std::string android_tzdata_root = android_host_out.c_str();
+      std::string android_tzdata_root = android_host_out;
       android_tzdata_root += "/com.android.tzdata";
       setenv("ANDROID_TZDATA_ROOT", android_tzdata_root.c_str(), 1);
     }
@@ -328,7 +328,7 @@ void CommonArtTestImpl::SetUp() {
   SetUpAndroidDataDir(android_data_);
 
   // Re-use the data temporary directory for /system_ext tests
-  android_system_ext_.append(android_data_.c_str());
+  android_system_ext_.append(android_data_);
   android_system_ext_.append("/system_ext");
   int mkdir_result = mkdir(android_system_ext_.c_str(), 0700);
   ASSERT_EQ(mkdir_result, 0);
@@ -338,7 +338,7 @@ void CommonArtTestImpl::SetUp() {
   mkdir_result = mkdir(system_ext_framework.c_str(), 0700);
   ASSERT_EQ(mkdir_result, 0);
 
-  dalvik_cache_.append(android_data_.c_str());
+  dalvik_cache_.append(android_data_);
   dalvik_cache_.append("/dalvik-cache");
   mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
   ASSERT_EQ(mkdir_result, 0);

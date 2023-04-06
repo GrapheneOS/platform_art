@@ -1403,7 +1403,7 @@ uint32_t Jit::CompileMethodsFromBootProfile(
     const std::string& profile_file,
     Handle<mirror::ClassLoader> class_loader,
     bool add_to_queue) {
-  unix_file::FdFile profile(profile_file.c_str(), O_RDONLY, true);
+  unix_file::FdFile profile(profile_file, O_RDONLY, true);
 
   if (profile.Fd() == -1) {
     PLOG(WARNING) << "No boot profile: " << profile_file;
@@ -1453,7 +1453,7 @@ uint32_t Jit::CompileMethodsFromProfile(
 
   // We don't generate boot profiles on device, therefore we don't
   // need to lock the file.
-  unix_file::FdFile profile(profile_file.c_str(), O_RDONLY, true);
+  unix_file::FdFile profile(profile_file, O_RDONLY, true);
 
   if (profile.Fd() == -1) {
     PLOG(WARNING) << "No profile: " << profile_file;

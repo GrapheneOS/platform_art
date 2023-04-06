@@ -203,7 +203,7 @@ class DexAnalyze {
     for (const std::string& filename : options.filenames_) {
       std::string content;
       // TODO: once added, use an API to android::base to read a std::vector<uint8_t>.
-      if (!android::base::ReadFileToString(filename.c_str(), &content)) {
+      if (!android::base::ReadFileToString(filename, &content)) {
         LOG(ERROR) << "ReadFileToString failed for " + filename << std::endl;
         return kExitCodeFailedToOpenFile;
       }

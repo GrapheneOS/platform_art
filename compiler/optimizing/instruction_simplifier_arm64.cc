@@ -31,7 +31,7 @@ namespace arm64 {
 
 using helpers::ShifterOperandSupportsExtension;
 
-class InstructionSimplifierArm64Visitor : public HGraphVisitor {
+class InstructionSimplifierArm64Visitor final : public HGraphVisitor {
  public:
   InstructionSimplifierArm64Visitor(HGraph* graph, OptimizingCompilerStats* stats)
       : HGraphVisitor(graph), stats_(stats) {}

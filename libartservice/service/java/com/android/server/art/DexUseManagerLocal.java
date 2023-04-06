@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -66,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -623,6 +625,160 @@ public class DexUseManagerLocal {
     }
 
     /**
+     * Cleans up obsolete information about dex files and packages that no longer exist.
+     *
+     * @hide
+     */
+    @SuppressLint("NewApi")
+    public void cleanup() {
+        Set<String> packageNames = mInjector.getAllPackageNames();
+        Map<String, Integer> dexFileVisibilityByName = new HashMap<>();
+
+        // Scan the data in two passes to avoid holding the lock during I/O.
+        synchronized (mLock) {
+            for (PackageDexUse packageDexUse : mDexUse.mPackageDexUseByOwningPackageName.values()) {
+                for (String dexFile : packageDexUse.mPrimaryDexUseByDexFile.keySet()) {
+                    dexFileVisibilityByName.put(dexFile, FileVisibility.NOT_FOUND);
+                }
+                for (String dexFile : packageDexUse.mSecondaryDexUseByDexFile.keySet()) {
+                    dexFileVisibilityByName.put(dexFile, FileVisibility.NOT_FOUND);
+                }
+            }
+        }
+
+        for (var entry : dexFileVisibilityByName.entrySet()) {
+            entry.setValue(getDexFileVisibility(entry.getKey()));
+        }
+
+        synchronized (mLock) {
+            for (var it = mDexUse.mPackageDexUseByOwningPackageName.entrySet().iterator();
+                    it.hasNext();) {
+                Map.Entry<String, PackageDexUse> entry = it.next();
+                String owningPackageName = entry.getKey();
+                PackageDexUse packageDexUse = entry.getValue();
+
+                if (!packageNames.contains(owningPackageName)) {
+                    // Remove information about the non-existing owning package.
+                    it.remove();
+                    mRevision++;
+                    continue;
+                }
+
+                cleanupPrimaryDexUsesLocked(packageDexUse.mPrimaryDexUseByDexFile, packageNames,
+                        dexFileVisibilityByName, owningPackageName);
+
+                cleanupSecondaryDexUsesLocked(packageDexUse.mSecondaryDexUseByDexFile, packageNames,
+                        dexFileVisibilityByName, owningPackageName);
+
+                if (packageDexUse.mPrimaryDexUseByDexFile.isEmpty()
+                        && packageDexUse.mSecondaryDexUseByDexFile.isEmpty()) {
+                    it.remove();
+                    mRevision++;
+                }
+            }
+        }
+
+        maybeSaveAsync();
+    }
+
+    @GuardedBy("mLock")
+    private void cleanupPrimaryDexUsesLocked(@NonNull Map<String, PrimaryDexUse> primaryDexUses,
+            @NonNull Set<String> packageNames,
+            @NonNull Map<String, Integer> dexFileVisibilityByName,
+            @NonNull String owningPackageName) {
+        for (var it = primaryDexUses.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, PrimaryDexUse> entry = it.next();
+            String dexFile = entry.getKey();
+            PrimaryDexUse primaryDexUse = entry.getValue();
+
+            if (!dexFileVisibilityByName.containsKey(dexFile)) {
+                // This can only happen when the file is added after the first pass. We can just
+                // keep it as-is and check it in the next `cleanup` run.
+                continue;
+            }
+
+            @FileVisibility int visibility = dexFileVisibilityByName.get(dexFile);
+
+            if (visibility == FileVisibility.NOT_FOUND) {
+                // Remove information about the non-existing dex files.
+                it.remove();
+                mRevision++;
+                continue;
+            }
+
+            cleanupRecordsLocked(
+                    primaryDexUse.mRecordByLoader, packageNames, visibility, owningPackageName);
+
+            if (primaryDexUse.mRecordByLoader.isEmpty()) {
+                it.remove();
+                mRevision++;
+            }
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void cleanupSecondaryDexUsesLocked(
+            @NonNull Map<String, SecondaryDexUse> secondaryDexUses,
+            @NonNull Set<String> packageNames,
+            @NonNull Map<String, Integer> dexFileVisibilityByName,
+            @NonNull String owningPackageName) {
+        for (var it = secondaryDexUses.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, SecondaryDexUse> entry = it.next();
+            String dexFile = entry.getKey();
+            SecondaryDexUse secondaryDexUse = entry.getValue();
+
+            if (!dexFileVisibilityByName.containsKey(dexFile)) {
+                // This can only happen when the file is added after the first pass. We can just
+                // keep it as-is and check it in the next `cleanup` run.
+                continue;
+            }
+
+            @FileVisibility int visibility = dexFileVisibilityByName.get(dexFile);
+
+            // Remove information about non-existing dex files.
+            if (visibility == FileVisibility.NOT_FOUND) {
+                it.remove();
+                mRevision++;
+                continue;
+            }
+
+            cleanupRecordsLocked(
+                    secondaryDexUse.mRecordByLoader, packageNames, visibility, owningPackageName);
+
+            if (secondaryDexUse.mRecordByLoader.isEmpty()) {
+                it.remove();
+                mRevision++;
+            }
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void cleanupRecordsLocked(@NonNull Map<DexLoader, ?> records,
+            @NonNull Set<String> packageNames, @FileVisibility int visibility,
+            @NonNull String owningPackageName) {
+        for (var it = records.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<DexLoader, ?> entry = it.next();
+            DexLoader loader = entry.getKey();
+
+            if (!packageNames.contains(loader.loadingPackageName())) {
+                // Remove information about the non-existing loading package.
+                it.remove();
+                mRevision++;
+                continue;
+            }
+
+            if (visibility == FileVisibility.NOT_OTHER_READABLE
+                    && isLoaderOtherApp(loader, owningPackageName)) {
+                // The visibility must have changed since the last load. The loader cannot load this
+                // dex file anymore.
+                it.remove();
+                mRevision++;
+                continue;
+            }
+        }
+    }
+
+    /**
      * Basic information about a secondary dex file (an APK or JAR file that an app adds to its
      * own data directory and loads dynamically).
      *
@@ -906,6 +1062,7 @@ public class DexUseManagerLocal {
 
             // Call the getters for various dependencies, to ensure correct initialization order.
             ArtModuleServiceInitializer.getArtModuleServiceManager();
+            getPackageManagerLocal();
         }
 
         @NonNull
@@ -930,6 +1087,22 @@ public class DexUseManagerLocal {
         @NonNull
         public Context getContext() {
             return mContext;
+        }
+
+        @SuppressLint("NewApi")
+        @NonNull
+        public Set<String> getAllPackageNames() {
+            try (PackageManagerLocal.UnfilteredSnapshot snapshot =
+                            getPackageManagerLocal().withUnfilteredSnapshot()) {
+                return new HashSet<>(snapshot.getPackageStates().keySet());
+            }
+        }
+
+        @SuppressLint("NewApi")
+        @NonNull
+        private PackageManagerLocal getPackageManagerLocal() {
+            return Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(PackageManagerLocal.class));
         }
     }
 }
