@@ -171,6 +171,7 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
   if (!CanReferenceBootImageObjects(invoke, compiler_options)) {
     return;
   }
+  HInstruction* const input = invoke->InputAt(0);
   if (compiler_options.IsBootImage()) {
     if (!compiler_options.IsImageClass(kIntegerCacheDescriptor) ||
         !compiler_options.IsImageClass(kIntegerDescriptor)) {
@@ -207,8 +208,8 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
         CHECK_EQ(value_field->GetInt(current_object), low + i);
       }
     }
-    if (invoke->InputAt(0)->IsIntConstant()) {
-      int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    if (input->IsIntConstant()) {
+      int32_t value = input->AsIntConstant()->GetValue();
       if (static_cast<uint32_t>(value) - static_cast<uint32_t>(low) <
           static_cast<uint32_t>(high - low + 1)) {
         // No call, we shall use direct pointer to the Integer object.
@@ -232,8 +233,8 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
     } else {
       DCHECK(compiler_options.IsAotCompiler());
       DCHECK(CheckIntegerCache(self, runtime->GetClassLinker(), boot_image_live_objects, cache));
-      if (invoke->InputAt(0)->IsIntConstant()) {
-        int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+      if (input->IsIntConstant()) {
+        int32_t value = input->AsIntConstant()->GetValue();
         // Retrieve the `value` from the lowest cached Integer.
         ObjPtr<mirror::Object> low_integer =
             IntrinsicObjects::GetIntegerValueOfObject(boot_image_live_objects, 0u);
@@ -255,11 +256,11 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
   ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations = new (allocator) LocationSummary(invoke, call_kind, kIntrinsified);
   if (call_kind == LocationSummary::kCallOnMainOnly) {
-    locations->SetInAt(0, Location::RegisterOrConstant(invoke->InputAt(0)));
+    locations->SetInAt(0, Location::RegisterOrConstant(input));
     locations->AddTemp(first_argument_location);
     locations->SetOut(return_location);
   } else {
-    locations->SetInAt(0, Location::ConstantLocation(invoke->InputAt(0)->AsConstant()));
+    locations->SetInAt(0, Location::ConstantLocation(input));
     locations->SetOut(Location::RequiresRegister());
   }
 }
