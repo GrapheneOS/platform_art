@@ -3963,7 +3963,7 @@ static void CreateVarHandleSetLocations(HInvoke* invoke) {
     case DataType::Type::kInt64:
       // We only handle constant non-atomic int64 values.
       DCHECK(value->IsConstant());
-      locations->SetInAt(value_index, Location::ConstantLocation(value->AsConstant()));
+      locations->SetInAt(value_index, Location::ConstantLocation(value));
       break;
     case DataType::Type::kReference:
       locations->SetInAt(value_index, Location::RequiresRegister());
