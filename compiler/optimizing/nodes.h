@@ -8743,7 +8743,7 @@ inline bool IsZeroBitPattern(HInstruction* instruction) {
     return Is##type() ? down_cast<const H##type*>(this) : nullptr;             \
   }                                                                            \
   inline H##type* HInstruction::As##type() {                                   \
-    return Is##type() ? static_cast<H##type*>(this) : nullptr;                 \
+    return Is##type() ? down_cast<H##type*>(this) : nullptr;                   \
   }
 
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CAST)

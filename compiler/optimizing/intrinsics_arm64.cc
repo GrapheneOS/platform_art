@@ -3009,8 +3009,8 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
         __ B(intrinsic_slow_path->GetEntryLabel(), eq);
       }
       // Checked when building locations.
-      DCHECK(!optimizations.GetDestinationIsSource()
-             || (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
+      DCHECK(!optimizations.GetDestinationIsSource() ||
+             (src_pos_constant >= dest_pos.GetConstant()->AsIntConstant()->GetValue()));
     } else {
       if (!optimizations.GetDestinationIsSource()) {
         __ Cmp(src, dest);

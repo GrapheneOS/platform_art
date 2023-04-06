@@ -54,7 +54,7 @@ inline bool HasShifterOperand(HInstruction* instr, InstructionSet isa) {
 //   t3 = Sub(*, t2)
 inline bool IsSubRightSubLeftShl(HSub *sub) {
   HInstruction* right = sub->GetRight();
-  return right->IsSub() && right->AsSub()->GetLeft()->IsShl();;
+  return right->IsSub() && right->AsSub()->GetLeft()->IsShl();
 }
 
 }  // namespace helpers

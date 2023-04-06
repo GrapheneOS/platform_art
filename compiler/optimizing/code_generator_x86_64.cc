@@ -8037,9 +8037,9 @@ Address CodeGeneratorX86_64::ArrayAddress(CpuRegister obj,
                                           Location index,
                                           ScaleFactor scale,
                                           uint32_t data_offset) {
-  return index.IsConstant() ?
-      Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset) :
-      Address(obj, index.AsRegister<CpuRegister>(), scale, data_offset);
+  return index.IsConstant()
+      ? Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset)
+      : Address(obj, index.AsRegister<CpuRegister>(), scale, data_offset);
 }
 
 void CodeGeneratorX86_64::Store64BitValueToStack(Location dest, int64_t value) {
