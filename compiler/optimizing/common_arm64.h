@@ -315,7 +315,7 @@ inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
                                                  HInstruction* instr) {
   if (constant->IsConstant()
       && Arm64CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
-    return Location::ConstantLocation(constant->AsConstant());
+    return Location::ConstantLocation(constant);
   }
 
   return Location::RequiresRegister();
