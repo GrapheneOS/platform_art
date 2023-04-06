@@ -851,6 +851,8 @@ public final class ArtManagerLocal {
      * @hide
      */
     public long cleanup(@NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        mInjector.getDexUseManager().cleanup();
+
         try {
             // For every primary dex container file or secondary dex container file of every app, if
             // it has code, we keep the following types of files:

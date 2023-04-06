@@ -44,6 +44,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.model.DexContainerFileUseInfo;
+import com.android.server.art.proto.DexUseProto;
 import com.android.server.art.testing.MockClock;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.pm.PackageManagerLocal;
@@ -61,6 +62,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -98,6 +101,8 @@ public class DexUseManagerTest {
     private String mDeDir;
     private MockClock mMockClock;
     private ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor;
+    private File mTempFile;
+    private Map<String, PackageState> mPackageStates;
 
     @Before
     public void setUp() throws Exception {
@@ -112,15 +117,17 @@ public class DexUseManagerTest {
 
         lenient().when(Process.isIsolatedUid(anyInt())).thenReturn(false);
 
-        PackageState loadingPkgState = createPackageState(LOADING_PKG_NAME, "armeabi-v7a");
-        lenient().when(mSnapshot.getPackageState(eq(LOADING_PKG_NAME))).thenReturn(loadingPkgState);
-        PackageState owningPkgState = createPackageState(OWNING_PKG_NAME, "arm64-v8a");
-        lenient().when(mSnapshot.getPackageState(eq(OWNING_PKG_NAME))).thenReturn(owningPkgState);
+        mPackageStates = new HashMap<>();
 
-        lenient()
-                .when(mSnapshot.getPackageStates())
-                .thenReturn(
-                        Map.of(LOADING_PKG_NAME, loadingPkgState, OWNING_PKG_NAME, owningPkgState));
+        PackageState loadingPkgState = createPackageState(LOADING_PKG_NAME, "armeabi-v7a");
+        addPackage(LOADING_PKG_NAME, loadingPkgState);
+        PackageState owningPkgState = createPackageState(OWNING_PKG_NAME, "arm64-v8a");
+        addPackage(OWNING_PKG_NAME, owningPkgState);
+        PackageState platformPkgState =
+                createPackageState(Utils.PLATFORM_PACKAGE_NAME, "arm64-v8a");
+        addPackage(Utils.PLATFORM_PACKAGE_NAME, platformPkgState);
+
+        lenient().when(mSnapshot.getPackageStates()).thenReturn(mPackageStates);
 
         mBroadcastReceiverCaptor = ArgumentCaptor.forClass(BroadcastReceiver.class);
         lenient()
@@ -137,16 +144,17 @@ public class DexUseManagerTest {
                          .toString();
         mMockClock = new MockClock();
 
-        File tempFile = File.createTempFile("package-dex-usage", ".pb");
-        tempFile.deleteOnExit();
+        mTempFile = File.createTempFile("package-dex-usage", ".pb");
+        mTempFile.deleteOnExit();
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
-        lenient().when(mInjector.getFilename()).thenReturn(tempFile.getPath());
+        lenient().when(mInjector.getFilename()).thenReturn(mTempFile.getPath());
         lenient()
                 .when(mInjector.createScheduledExecutor())
                 .thenAnswer(invocation -> mMockClock.createScheduledExecutor());
         lenient().when(mInjector.getContext()).thenReturn(mContext);
+        lenient().when(mInjector.getAllPackageNames()).thenReturn(mPackageStates.keySet());
 
         mDexUseManager = new DexUseManagerLocal(mInjector);
         mDexUseManager.systemReady();
@@ -212,24 +220,41 @@ public class DexUseManagerTest {
     /** Checks that it ignores and dedups things correctly. */
     @Test
     public void testPrimaryDexMultipleEntries() throws Exception {
-        verifyPrimaryDexMultipleEntries(false /* saveAndLoad */, false /* shutdown */);
+        verifyPrimaryDexMultipleEntries(
+                false /* saveAndLoad */, false /* shutdown */, false /* cleanup */);
     }
 
     /** Checks that it saves data after some time has passed and loads data correctly. */
     @Test
     public void testPrimaryDexMultipleEntriesPersisted() throws Exception {
-        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */, false /* shutdown */);
+        verifyPrimaryDexMultipleEntries(
+                true /*saveAndLoad */, false /* shutdown */, false /* cleanup */);
     }
 
     /** Checks that it saves data when the device is being shutdown and loads data correctly. */
     @Test
     public void testPrimaryDexMultipleEntriesPersistedDueToShutdown() throws Exception {
-        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */, true /* shutdown */);
+        verifyPrimaryDexMultipleEntries(
+                true /*saveAndLoad */, true /* shutdown */, false /* cleanup */);
     }
 
-    private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad, boolean shutdown)
-            throws Exception {
+    /** Checks that it doesn't accidentally cleanup any entry that is needed. */
+    @Test
+    public void testPrimaryDexMultipleEntriesSurviveCleanup() throws Exception {
+        verifyPrimaryDexMultipleEntries(
+                false /*saveAndLoad */, false /* shutdown */, true /* cleanup */);
+    }
+
+    private void verifyPrimaryDexMultipleEntries(
+            boolean saveAndLoad, boolean shutdown, boolean cleanup) throws Exception {
         when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
+
+        lenient()
+                .when(mArtd.getDexFileVisibility(BASE_APK))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        lenient()
+                .when(mArtd.getDexFileVisibility(SPLIT_APK))
+                .thenReturn(FileVisibility.OTHER_READABLE);
 
         // These should be ignored.
         mDexUseManager.notifyDexContainersLoaded(
@@ -263,6 +288,11 @@ public class DexUseManagerTest {
                 mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
             }
             mDexUseManager = new DexUseManagerLocal(mInjector);
+        }
+
+        if (cleanup) {
+            // Nothing should be cleaned up.
+            mDexUseManager.cleanup();
         }
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
@@ -359,24 +389,44 @@ public class DexUseManagerTest {
     /** Checks that it ignores and dedups things correctly. */
     @Test
     public void testSecondaryDexMultipleEntries() throws Exception {
-        verifySecondaryDexMultipleEntries(false /*saveAndLoad */, false /* shutdown */);
+        verifySecondaryDexMultipleEntries(
+                false /*saveAndLoad */, false /* shutdown */, false /* cleanup */);
     }
 
     /** Checks that it saves data after some time has passed and loads data correctly. */
     @Test
     public void testSecondaryDexMultipleEntriesPersisted() throws Exception {
-        verifySecondaryDexMultipleEntries(true /*saveAndLoad */, false /* shutdown */);
+        verifySecondaryDexMultipleEntries(
+                true /*saveAndLoad */, false /* shutdown */, false /* cleanup */);
     }
 
     /** Checks that it saves data when the device is being shutdown and loads data correctly. */
     @Test
     public void testSecondaryDexMultipleEntriesPersistedDueToShutdown() throws Exception {
-        verifySecondaryDexMultipleEntries(true /*saveAndLoad */, true /* shutdown */);
+        verifySecondaryDexMultipleEntries(
+                true /*saveAndLoad */, true /* shutdown */, false /* cleanup */);
     }
 
-    private void verifySecondaryDexMultipleEntries(boolean saveAndLoad, boolean shutdown)
-            throws Exception {
+    /** Checks that it doesn't accidentally cleanup any entry that is needed. */
+    @Test
+    public void testSecondaryDexMultipleEntriesSurviveCleanup() throws Exception {
+        verifySecondaryDexMultipleEntries(
+                false /*saveAndLoad */, false /* shutdown */, true /* cleanup */);
+    }
+
+    private void verifySecondaryDexMultipleEntries(
+            boolean saveAndLoad, boolean shutdown, boolean cleanup) throws Exception {
         when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
+
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/bar.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/baz.apk"))
+                .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
         // These should be ignored.
         mDexUseManager.notifyDexContainersLoaded(
@@ -418,6 +468,11 @@ public class DexUseManagerTest {
                 mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
             }
             mDexUseManager = new DexUseManagerLocal(mInjector);
+        }
+
+        if (cleanup) {
+            // Nothing should be cleaned up.
+            mDexUseManager.cleanup();
         }
 
         List<? extends SecondaryDexInfo> dexInfoList =
@@ -522,6 +577,110 @@ public class DexUseManagerTest {
         assertThat(mDexUseManager.getFilteredDetailedSecondaryDexInfo(OWNING_PKG_NAME)).isEmpty();
     }
 
+    @Test
+    public void testCleanup() throws Exception {
+        PackageState pkgState = createPackageState("com.example.deletedpackage", "arm64-v8a");
+        addPackage("com.example.deletedpackage", pkgState);
+        lenient()
+                .when(mArtd.getDexFileVisibility("/data/app/com.example.deletedpackage/base.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        lenient()
+                .when(mArtd.getDexFileVisibility(BASE_APK))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        // Simulate that a package loads its own dex file and another package's dex file.
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, "com.example.deletedpackage",
+                Map.of("/data/app/com.example.deletedpackage/base.apk", "CLC", BASE_APK, "CLC"));
+        // Simulate that another package loads this package's dex file.
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, LOADING_PKG_NAME,
+                Map.of("/data/app/com.example.deletedpackage/base.apk", "CLC"));
+        // Simulate that the package is then deleted.
+        removePackage("com.example.deletedpackage");
+
+        // Simulate that a primary dex file is loaded and then deleted.
+        lenient()
+                .when(mArtd.getDexFileVisibility(SPLIT_APK))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(SPLIT_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(SPLIT_APK, "CLC"));
+        lenient().when(mArtd.getDexFileVisibility(SPLIT_APK)).thenReturn(FileVisibility.NOT_FOUND);
+
+        // Simulate that a secondary dex file is loaded and then deleted.
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
+                .thenReturn(FileVisibility.NOT_OTHER_READABLE);
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
+                .thenReturn(FileVisibility.NOT_FOUND);
+
+        // Create an entry that should be kept.
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/bar.apk"))
+                .thenReturn(FileVisibility.NOT_OTHER_READABLE);
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/bar.apk", "CLC"));
+
+        // Simulate that a secondary dex file is loaded by another package and then made private.
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/baz.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/baz.apk", "CLC"));
+        lenient()
+                .when(mArtd.getDexFileVisibility(mCeDir + "/baz.apk"))
+                .thenReturn(FileVisibility.NOT_OTHER_READABLE);
+
+        // Simulate that all the files of a package are deleted. The whole container entry of the
+        // package should be cleaned up, though the package still exists.
+        lenient()
+                .when(mArtd.getDexFileVisibility("/data/app/" + LOADING_PKG_NAME + "/base.apk"))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, LOADING_PKG_NAME,
+                Map.of("/data/app/" + LOADING_PKG_NAME + "/base.apk", "CLC"));
+        lenient()
+                .when(mArtd.getDexFileVisibility("/data/app/" + LOADING_PKG_NAME + "/base.apk"))
+                .thenReturn(FileVisibility.NOT_FOUND);
+
+        // Run cleanup.
+        mDexUseManager.cleanup();
+
+        // Save.
+        mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+
+        // Check that the entries are removed from the proto. Normally, we should check the return
+        // values of the public get methods instead of checking the raw proto. However, here we want
+        // to make sure that the container entries are cleaned up when they are empty so that they
+        // don't cost extra memory or storage.
+        // Note that every repeated field must not contain more than one entry, to keep the
+        // textproto deterministic.
+        DexUseProto proto;
+        try (InputStream in = new FileInputStream(mTempFile.getPath())) {
+            proto = DexUseProto.parseFrom(in);
+        }
+        String textproto = proto.toString();
+        // Remove the first line, which is an auto-generated comment.
+        textproto = textproto.substring(textproto.indexOf('\n') + 1).trim();
+        assertThat(textproto).isEqualTo("package_dex_use {\n"
+                + "  owning_package_name: \"com.example.owningpackage\"\n"
+                + "  secondary_dex_use {\n"
+                + "    dex_file: \"/data/user/0/com.example.owningpackage/bar.apk\"\n"
+                + "    record {\n"
+                + "      abi_name: \"arm64-v8a\"\n"
+                + "      class_loader_context: \"CLC\"\n"
+                + "      last_used_at_ms: 0\n"
+                + "      loading_package_name: \"com.example.owningpackage\"\n"
+                + "    }\n"
+                + "    user_id {\n"
+                + "    }\n"
+                + "  }\n"
+                + "}");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testUnknownPackage() {
         mDexUseManager.notifyDexContainersLoaded(mSnapshot, "bogus", Map.of(BASE_APK, "CLC"));
@@ -595,5 +754,15 @@ public class DexUseManagerTest {
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn(primaryAbi);
         return pkgState;
+    }
+
+    private void addPackage(String packageName, PackageState pkgState) {
+        lenient().when(mSnapshot.getPackageState(packageName)).thenReturn(pkgState);
+        mPackageStates.put(packageName, pkgState);
+    }
+
+    private void removePackage(String packageName) {
+        lenient().when(mSnapshot.getPackageState(packageName)).thenReturn(null);
+        mPackageStates.remove(packageName);
     }
 }
