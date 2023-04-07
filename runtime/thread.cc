@@ -23,12 +23,6 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#if __has_feature(hwaddress_sanitizer)
-#include <sanitizer/hwasan_interface.h>
-#else
-#define __hwasan_tag_pointer(p, t) (p)
-#endif
-
 #include <algorithm>
 #include <atomic>
 #include <bitset>
@@ -129,6 +123,9 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic error "-Wconversion"
+
+extern "C" __attribute__((weak)) void* __hwasan_tag_pointer(const volatile void* p,
+                                                            unsigned char tag);
 
 namespace art {
 
@@ -815,7 +812,8 @@ void Thread::InstallImplicitProtection() {
       volatile char space[kPageSize - (kAsanMultiplier * 256)] __attribute__((uninitialized));
       char sink ATTRIBUTE_UNUSED = space[zero];  // NOLINT
       // Remove tag from the pointer. Nop in non-hwasan builds.
-      uintptr_t addr = reinterpret_cast<uintptr_t>(__hwasan_tag_pointer(space, 0));
+      uintptr_t addr = reinterpret_cast<uintptr_t>(
+          __hwasan_tag_pointer != nullptr ? __hwasan_tag_pointer(space, 0) : space);
       if (addr >= target + kPageSize) {
         Touch(target);
       }
