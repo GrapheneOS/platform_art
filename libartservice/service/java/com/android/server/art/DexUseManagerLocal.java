@@ -18,7 +18,6 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -90,6 +89,7 @@ import java.util.stream.Collectors;
  * @hide
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class DexUseManagerLocal {
     private static final String TAG = ArtManagerLocal.TAG;
     private static final String FILENAME = "/data/system/package-dex-usage.pb";
@@ -366,7 +366,6 @@ public class DexUseManagerLocal {
      * @throws IllegalArgumentException if {@code classLoaderContextByDexContainerFile} contains
      *         invalid entries
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     public void notifyDexContainersLoaded(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String loadingPackageName,
             @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
@@ -629,7 +628,6 @@ public class DexUseManagerLocal {
      *
      * @hide
      */
-    @SuppressLint("NewApi")
     public void cleanup() {
         Set<String> packageNames = mInjector.getAllPackageNames();
         Map<String, Integer> dexFileVisibilityByName = new HashMap<>();
@@ -1089,7 +1087,6 @@ public class DexUseManagerLocal {
             return mContext;
         }
 
-        @SuppressLint("NewApi")
         @NonNull
         public Set<String> getAllPackageNames() {
             try (PackageManagerLocal.UnfilteredSnapshot snapshot =
@@ -1098,7 +1095,6 @@ public class DexUseManagerLocal {
             }
         }
 
-        @SuppressLint("NewApi")
         @NonNull
         private PackageManagerLocal getPackageManagerLocal() {
             return Objects.requireNonNull(

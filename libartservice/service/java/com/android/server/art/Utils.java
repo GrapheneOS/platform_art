@@ -21,10 +21,10 @@ import static com.android.server.art.ProfilePath.TmpProfilePath;
 import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
 import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
+import android.os.Build;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
@@ -35,6 +35,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.DexoptParams;
@@ -63,6 +65,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 /** @hide */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public final class Utils {
     public static final String TAG = ArtManagerLocal.TAG;
     public static final String PLATFORM_PACKAGE_NAME = "android";
@@ -300,7 +303,6 @@ public final class Utils {
      * @param appHibernationManager the {@link AppHibernationManager} instance for checking
      *         hibernation status, or null to skip the check
      */
-    @SuppressLint("NewApi")
     public static boolean canDexoptPackage(
             @NonNull PackageState pkgState, @Nullable AppHibernationManager appHibernationManager) {
         if (!PackageStateModulesUtils.isDexoptable(pkgState)) {
