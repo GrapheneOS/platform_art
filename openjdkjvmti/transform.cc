@@ -29,13 +29,13 @@
  * questions.
  */
 
+#include "transform.h"
+
 #include <stddef.h>
 #include <sys/types.h>
 
 #include <unordered_map>
 #include <unordered_set>
-
-#include "transform.h"
 
 #include "art_method.h"
 #include "base/array_ref.h"
@@ -64,9 +64,8 @@
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread_list.h"
-#include "ti_redefine.h"
 #include "ti_logging.h"
-#include "transform.h"
+#include "ti_redefine.h"
 
 namespace openjdkjvmti {
 
