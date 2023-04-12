@@ -598,6 +598,10 @@ class Generator:
         for t in mainline_presubmit_tests
     ]
 
+    # Android Virtualization Framework presubmits
+    avf_presubmit_tests = ["ComposHostTestCases"]
+    avf_presubmit_tests_dict = [{"name": t} for t in avf_presubmit_tests]
+
     # Presubmits.
     other_presubmit_tests = [
         "ArtServiceTests",
@@ -620,6 +624,7 @@ class Generator:
             ("mainline-presubmit", mainline_presubmit_tests_dict),
             ("presubmit", presubmit_tests_dict),
             ("hwasan-presubmit", hwasan_presubmit_tests_dict),
+            ("avf-presubmit", avf_presubmit_tests_dict),
         ]
         if test_group_dict
     ])
