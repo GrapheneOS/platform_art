@@ -29,7 +29,6 @@
 
 #if defined(__linux__)
 
-#include <memory>
 #include <vector>
 
 #include <linux/unistd.h>
