@@ -26,10 +26,13 @@ import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
+import android.os.Build;
 import android.os.CancellationSignal;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.WorkSource;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
@@ -65,6 +68,7 @@ import java.util.stream.Collectors;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class DexoptHelper {
     private static final String TAG = ArtManagerLocal.TAG;
 

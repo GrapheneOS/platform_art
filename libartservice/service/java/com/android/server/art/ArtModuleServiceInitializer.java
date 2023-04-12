@@ -20,6 +20,9 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.os.ArtModuleServiceManager;
+import android.os.Build;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -31,6 +34,7 @@ import java.util.Objects;
  * @hide
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class ArtModuleServiceInitializer {
     private ArtModuleServiceInitializer() {}
 

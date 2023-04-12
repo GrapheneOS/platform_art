@@ -21,8 +21,11 @@ import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 import android.annotation.NonNull;
 import android.annotation.StringDef;
 import android.annotation.SystemApi;
+import android.os.Build;
 import android.os.SystemProperties;
 import android.text.TextUtils;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.server.art.model.ArtFlags;
 import com.android.server.pm.PackageManagerLocal;
@@ -39,6 +42,7 @@ import java.util.Set;
  * @hide
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class ReasonMapping {
     private ReasonMapping() {}
 
