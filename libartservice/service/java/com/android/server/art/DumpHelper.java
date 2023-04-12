@@ -21,9 +21,12 @@ import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import android.annotation.NonNull;
+import android.os.Build;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.util.Log;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class DumpHelper {
     private static final String TAG = ArtManagerLocal.TAG;
 
