@@ -16,8 +16,6 @@
 
 #include <sys/mman.h>  // For the PROT_NONE constant.
 
-#include "elf_file.h"
-
 #include "base/file_utils.h"
 #include "base/mem_map.h"
 #include "base/unix_file/fd_file.h"

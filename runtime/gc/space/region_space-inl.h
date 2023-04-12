@@ -17,8 +17,6 @@
 #ifndef ART_RUNTIME_GC_SPACE_REGION_SPACE_INL_H_
 #define ART_RUNTIME_GC_SPACE_REGION_SPACE_INL_H_
 
-#include "region_space.h"
-
 #include "base/mutex-inl.h"
 #include "mirror/object-inl.h"
 #include "region_space.h"
