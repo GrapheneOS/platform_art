@@ -23,8 +23,8 @@ import static com.android.server.art.Utils.Abi;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Build;
 import android.os.CancellationSignal;
 import android.os.Process;
 import android.os.RemoteException;
@@ -32,6 +32,8 @@ import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.modules.utils.pm.PackageStateModulesUtils;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** @hide */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
     private static final String TAG = ArtManagerLocal.TAG;
 
@@ -178,7 +181,6 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
         return AidlUtils.buildDexMetadataPath(dexInfo.dexPath());
     }
 
-    @SuppressLint("NewApi")
     private boolean isSharedLibrary() {
         return PackageStateModulesUtils.isLoadableInOtherProcesses(mPkgState, true /* codeOnly */);
     }
