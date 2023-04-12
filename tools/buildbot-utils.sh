@@ -80,10 +80,10 @@ if [[ -n "$ART_TEST_ON_VM" ]]; then
 
   export ART_TEST_CHROOT="/home/$ART_TEST_SSH_USER/art-test-chroot"
   export ART_CHROOT_CMD="unshare --user --map-root-user chroot art-test-chroot"
-  export ART_SSH_CMD="ssh -q -p $ART_TEST_SSH_PORT $ART_TEST_SSH_USER@$ART_TEST_SSH_HOST"
-  export ART_SCP_CMD="scp -P $ART_TEST_SSH_PORT -p -r"
+  export ART_SSH_CMD="ssh -q -p $ART_TEST_SSH_PORT $ART_TEST_SSH_USER@$ART_TEST_SSH_HOST -o IdentityAgent=none"
+  export ART_SCP_CMD="scp -P $ART_TEST_SSH_PORT -p -r -o IdentityAgent=none"
   export ART_RSYNC_CMD="rsync -az"
-  export RSYNC_RSH="ssh -p $ART_TEST_SSH_PORT" # don't prefix with "ART_", rsync expects this name
+  export RSYNC_RSH="ssh -p $ART_TEST_SSH_PORT -o IdentityAgent=none" # don't prefix with "ART_", rsync expects this name
 
   if [[ "$TARGET_ARCH" =~ ^(arm64|riscv64)$ ]]; then
     export ART_TEST_VM_IMG="ubuntu-22.04-server-cloudimg-$TARGET_ARCH.img"
