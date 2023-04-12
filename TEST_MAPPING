@@ -425,6 +425,12 @@
       "name": "art-run-test-2044-get-stack-traces[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2046-checker-comparison[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2047-checker-const-string-length[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning[com.google.android.art.apex]"
     },
     {
@@ -483,6 +489,9 @@
     },
     {
       "name": "art-run-test-2259-checker-code-sinking-infinite-try-catch[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2260-checker-inline-unimplemented-intrinsics[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-300-package-override[com.google.android.art.apex]"
@@ -1841,6 +1850,12 @@
       "name": "art-run-test-2044-get-stack-traces"
     },
     {
+      "name": "art-run-test-2046-checker-comparison"
+    },
+    {
+      "name": "art-run-test-2047-checker-const-string-length"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -1899,6 +1914,9 @@
     },
     {
       "name": "art-run-test-2259-checker-code-sinking-infinite-try-catch"
+    },
+    {
+      "name": "art-run-test-2260-checker-inline-unimplemented-intrinsics"
     },
     {
       "name": "art-run-test-300-package-override"
@@ -3241,6 +3259,12 @@
       "name": "art-run-test-2044-get-stack-traces"
     },
     {
+      "name": "art-run-test-2046-checker-comparison"
+    },
+    {
+      "name": "art-run-test-2047-checker-const-string-length"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -3299,6 +3323,9 @@
     },
     {
       "name": "art-run-test-2259-checker-code-sinking-infinite-try-catch"
+    },
+    {
+      "name": "art-run-test-2260-checker-inline-unimplemented-intrinsics"
     },
     {
       "name": "art-run-test-300-package-override"
@@ -4205,6 +4232,11 @@
     },
     {
       "name": "libnativeloader_test"
+    }
+  ],
+  "avf-presubmit": [
+    {
+      "name": "ComposHostTestCases"
     }
   ]
 }
