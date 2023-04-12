@@ -19,6 +19,9 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.app.job.JobParameters;
 import android.app.job.JobService;
+import android.os.Build;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.server.LocalManagerRegistry;
 
@@ -28,6 +31,7 @@ import com.android.server.LocalManagerRegistry;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class BackgroundDexoptJobService extends JobService {
     @Override
     public boolean onStartJob(@NonNull JobParameters params) {
