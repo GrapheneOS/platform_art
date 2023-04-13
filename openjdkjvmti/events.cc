@@ -29,25 +29,24 @@
  * questions.
  */
 
-#include <android-base/thread_annotations.h>
+#include "events.h"
 
-#include "alloc_manager.h"
-#include "base/locks.h"
-#include "base/mutex.h"
-#include "events-inl.h"
+#include <sys/time.h>
 
 #include <array>
 #include <functional>
-#include <sys/time.h>
 
+#include "alloc_manager.h"
+#include "android-base/thread_annotations.h"
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_jvmti.h"
 #include "art_method-inl.h"
+#include "base/locks.h"
 #include "base/mutex.h"
 #include "deopt_manager.h"
 #include "dex/dex_file_types.h"
-#include "events.h"
+#include "events-inl.h"
 #include "gc/allocation_listener.h"
 #include "gc/gc_pause_listener.h"
 #include "gc/heap.h"
@@ -71,8 +70,8 @@
 #include "scoped_thread_state_change-inl.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"
-#include "thread.h"
 #include "thread-inl.h"
+#include "thread.h"
 #include "thread_list.h"
 #include "ti_phase.h"
 #include "ti_thread.h"

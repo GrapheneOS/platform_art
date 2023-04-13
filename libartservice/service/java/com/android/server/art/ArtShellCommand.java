@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
  *
  * @hide
  */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public final class ArtShellCommand extends BasicShellCommandHandler {
     private static final String TAG = ArtManagerLocal.TAG;
 
@@ -97,7 +98,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         mPackageManagerLocal = packageManagerLocal;
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Override
     public int onCommand(String cmd) {
         // Apps shouldn't call ART Service shell commands, not even for dexopting themselves.
@@ -138,7 +138,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private int handleArtCommand(
             @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         String subcmd = getNextArgRequired();

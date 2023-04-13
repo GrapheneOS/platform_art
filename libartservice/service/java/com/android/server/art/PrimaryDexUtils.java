@@ -18,9 +18,12 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.os.Build;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.Immutable;
 import com.android.server.art.model.DetailedDexInfo;
@@ -41,6 +44,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /** @hide */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class PrimaryDexUtils {
     public static final String PROFILE_PRIMARY = "primary";
     private static final String SHARED_LIBRARY_LOADER_TYPE = PathClassLoader.class.getName();

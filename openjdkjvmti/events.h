@@ -21,9 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <android-base/logging.h>
-#include <android-base/thread_annotations.h>
-
+#include "android-base/logging.h"
 #include "android-base/thread_annotations.h"
 #include "base/macros.h"
 #include "base/mutex.h"
