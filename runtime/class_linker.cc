@@ -3351,7 +3351,6 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
                                                Handle<mirror::ClassLoader> class_loader,
                                                const DexFile& dex_file,
                                                const dex::ClassDef& dex_class_def) {
-  ScopedTrace trace([&]() { return android::base::StringPrintf("Defining %s", descriptor); });
   ScopedDefiningClass sdc(self);
   StackHandleScope<3> hs(self);
   metrics::AutoTimer timer{GetMetrics()->ClassLoadingTotalTime()};
