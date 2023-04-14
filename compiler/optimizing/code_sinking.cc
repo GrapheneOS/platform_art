@@ -29,11 +29,19 @@
 namespace art HIDDEN {
 
 bool CodeSinking::Run() {
-  HBasicBlock* exit = graph_->GetExitBlock();
-  if (exit == nullptr) {
+  if (graph_->GetExitBlock() == nullptr) {
     // Infinite loop, just bail.
     return false;
   }
+
+  UncommonBranchSinking();
+  ReturnSinking();
+  return true;
+}
+
+void CodeSinking::UncommonBranchSinking() {
+  HBasicBlock* exit = graph_->GetExitBlock();
+  DCHECK(exit != nullptr);
   // TODO(ngeoffray): we do not profile branches yet, so use throw instructions
   // as an indicator of an uncommon branch.
   for (HBasicBlock* exit_predecessor : exit->GetPredecessors()) {
@@ -60,7 +68,6 @@ bool CodeSinking::Run() {
       SinkCodeToUncommonBranch(exit_predecessor);
     }
   }
-  return true;
 }
 
 static bool IsInterestingInstruction(HInstruction* instruction) {
@@ -529,6 +536,81 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
     MaybeRecordStat(stats_, MethodCompilationStat::kInstructionSunk);
     instruction->MoveBefore(position, /* do_checks= */ false);
   }
+}
+
+void CodeSinking::ReturnSinking() {
+  HBasicBlock* exit = graph_->GetExitBlock();
+  DCHECK(exit != nullptr);
+
+  int number_of_returns = 0;
+  bool saw_return = false;
+  for (HBasicBlock* pred : exit->GetPredecessors()) {
+    // TODO(solanes): We might have Return/ReturnVoid->TryBoundary->Exit. We can theoretically
+    // handle them and move them out of the TryBoundary. However, it is a border case and it adds
+    // codebase complexity.
+    if (pred->GetLastInstruction()->IsReturn() || pred->GetLastInstruction()->IsReturnVoid()) {
+      saw_return |= pred->GetLastInstruction()->IsReturn();
+      ++number_of_returns;
+    }
+  }
+
+  if (number_of_returns < 2) {
+    // Nothing to do.
+    return;
+  }
+
+  // `new_block` will coalesce the Return instructions into Phi+Return, or the ReturnVoid
+  // instructions into a ReturnVoid.
+  HBasicBlock* new_block = new (graph_->GetAllocator()) HBasicBlock(graph_, exit->GetDexPc());
+  if (saw_return) {
+    HPhi* new_phi = nullptr;
+    for (size_t i = 0; i < exit->GetPredecessors().size(); /*++i in loop*/) {
+      HBasicBlock* pred = exit->GetPredecessors()[i];
+      if (!pred->GetLastInstruction()->IsReturn()) {
+        ++i;
+        continue;
+      }
+
+      HReturn* ret = pred->GetLastInstruction()->AsReturn();
+      if (new_phi == nullptr) {
+        // Create the new_phi, if we haven't done so yet. We do it here since we need to know the
+        // type to assign to it.
+        new_phi = new (graph_->GetAllocator()) HPhi(graph_->GetAllocator(),
+                                                    kNoRegNumber,
+                                                    /*number_of_inputs=*/0,
+                                                    ret->InputAt(0)->GetType());
+        new_block->AddPhi(new_phi);
+      }
+      new_phi->AddInput(ret->InputAt(0));
+      pred->ReplaceAndRemoveInstructionWith(ret,
+                                            new (graph_->GetAllocator()) HGoto(ret->GetDexPc()));
+      pred->ReplaceSuccessor(exit, new_block);
+      // Since we are removing a predecessor, there's no need to increment `i`.
+    }
+    new_block->AddInstruction(new (graph_->GetAllocator()) HReturn(new_phi, exit->GetDexPc()));
+  } else {
+    for (size_t i = 0; i < exit->GetPredecessors().size(); /*++i in loop*/) {
+      HBasicBlock* pred = exit->GetPredecessors()[i];
+      if (!pred->GetLastInstruction()->IsReturnVoid()) {
+        ++i;
+        continue;
+      }
+
+      HReturnVoid* ret = pred->GetLastInstruction()->AsReturnVoid();
+      pred->ReplaceAndRemoveInstructionWith(ret,
+                                            new (graph_->GetAllocator()) HGoto(ret->GetDexPc()));
+      pred->ReplaceSuccessor(exit, new_block);
+      // Since we are removing a predecessor, there's no need to increment `i`.
+    }
+    new_block->AddInstruction(new (graph_->GetAllocator()) HReturnVoid(exit->GetDexPc()));
+  }
+
+  new_block->AddSuccessor(exit);
+  graph_->AddBlock(new_block);
+
+  // Recompute dominance since we added a new block.
+  graph_->ClearDominanceInformation();
+  graph_->ComputeDominanceInformation();
 }
 
 }  // namespace art
