@@ -117,7 +117,7 @@ elif [[ $action = boot ]]; then
 elif [[ $action = setup-ssh ]]; then
     # Clean up mentions of this VM from known_hosts
     sed -i -E "/\[$ART_TEST_SSH_HOST.*\]:$ART_TEST_SSH_PORT .*/d" $HOME/.ssh/known_hosts
-    ssh-copy-id -p "$ART_TEST_SSH_PORT" "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST -o IdentityAgent=none"
+    ssh-copy-id -p "$ART_TEST_SSH_PORT" -o IdentityAgent=none "$ART_TEST_SSH_USER@$ART_TEST_SSH_HOST"
 
 elif [[ $action = connect ]]; then
     $ART_SSH_CMD
