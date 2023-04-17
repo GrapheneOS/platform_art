@@ -89,12 +89,17 @@ public class NonStreamTraceParser extends BaseTraceParser {
             // Ignore events after method tracing was stopped. The code that is executed
             // later could be non-deterministic.
             if (!seenStopTracingMethod) {
-                System.out.println(eventString);
+                UpdateThreadEvents(threadId, eventString);
             }
             if (eventString.contains("Main$VMDebug $noinline$stopMethodTracing")) {
                 seenStopTracingMethod = true;
             }
         }
         closeFile();
+
+        // Printout the events.
+        for (String str : threadEventsMap.values()) {
+            System.out.println(str);
+        }
     }
 }
