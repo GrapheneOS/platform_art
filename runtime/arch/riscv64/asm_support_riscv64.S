@@ -111,32 +111,33 @@
 // FP callee-saves shall be preserved by whatever runtime function we call, so they do not need
 // to be saved.
 .macro SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL
-#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 8*(1 + 8 + 7 + 10 + 1 + 1))
+#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 8*(1 + 8 + 7 + 11 + 1))
 #error "FRAME_SIZE_SAVE_REFS_AND_ARGS(RISCV64) size not as expected."
 #endif
     // stack slot (0*8)(sp) is for ArtMethod*
-    // stack slot (1*8)(sp) is for padding
 
-    SAVE_FPR fa0, (2*8)
-    SAVE_FPR fa1, (3*8)
-    SAVE_FPR fa2, (4*8)
-    SAVE_FPR fa3, (5*8)
-    SAVE_FPR fa4, (6*8)
-    SAVE_FPR fa5, (7*8)
-    SAVE_FPR fa6, (8*8)
-    SAVE_FPR fa7, (9*8)
+    SAVE_FPR fa0, (1*8)
+    SAVE_FPR fa1, (2*8)
+    SAVE_FPR fa2, (3*8)
+    SAVE_FPR fa3, (4*8)
+    SAVE_FPR fa4, (5*8)
+    SAVE_FPR fa5, (6*8)
+    SAVE_FPR fa6, (7*8)
+    SAVE_FPR fa7, (8*8)
 
-    SAVE_GPR fp,  (10*8)  // x8, frame pointer
+    SAVE_GPR fp,  (9*8)  // x8, frame pointer
 
     // a0 is the method pointer
-    SAVE_GPR a1,  (11*8)  // x11
-    SAVE_GPR a2,  (12*8)  // x12
-    SAVE_GPR a3,  (13*8)  // x13
-    SAVE_GPR a4,  (14*8)  // x14
-    SAVE_GPR a5,  (15*8)  // x15
-    SAVE_GPR a6,  (16*8)  // x16
-    SAVE_GPR a7,  (17*8)  // x17
+    SAVE_GPR a1,  (10*8)  // x11
+    SAVE_GPR a2,  (11*8)  // x12
+    SAVE_GPR a3,  (12*8)  // x13
+    SAVE_GPR a4,  (13*8)  // x14
+    SAVE_GPR a5,  (14*8)  // x15
+    SAVE_GPR a6,  (15*8)  // x16
+    SAVE_GPR a7,  (16*8)  // x17
 
+    // s1 is the ART thread register
+    SAVE_GPR s2,  (17*8)  // x18
     SAVE_GPR s3,  (18*8)  // x19
     SAVE_GPR s4,  (19*8)  // x20
     SAVE_GPR s5,  (20*8)  // x21
@@ -153,28 +154,29 @@
 
 .macro RESTORE_SAVE_REFS_AND_ARGS_FRAME_INTERNAL base
     // stack slot (0*8)(sp) is for ArtMethod*
-    // stack slot (1*8)(sp) is for padding
 
-    RESTORE_FPR fa0, (2*8)
-    RESTORE_FPR fa1, (3*8)
-    RESTORE_FPR fa2, (4*8)
-    RESTORE_FPR fa3, (5*8)
-    RESTORE_FPR fa4, (6*8)
-    RESTORE_FPR fa5, (7*8)
-    RESTORE_FPR fa6, (8*8)
-    RESTORE_FPR fa7, (9*8)
+    RESTORE_FPR fa0, (1*8)
+    RESTORE_FPR fa1, (2*8)
+    RESTORE_FPR fa2, (3*8)
+    RESTORE_FPR fa3, (4*8)
+    RESTORE_FPR fa4, (5*8)
+    RESTORE_FPR fa5, (6*8)
+    RESTORE_FPR fa6, (7*8)
+    RESTORE_FPR fa7, (8*8)
 
-    RESTORE_GPR fp,  (10*8)  // x8, frame pointer
+    RESTORE_GPR fp,  (9*8)  // x8, frame pointer
 
     // a0 is the method pointer
-    RESTORE_GPR a1,  (11*8)  // x11
-    RESTORE_GPR a2,  (12*8)  // x12
-    RESTORE_GPR a3,  (13*8)  // x13
-    RESTORE_GPR a4,  (14*8)  // x14
-    RESTORE_GPR a5,  (15*8)  // x15
-    RESTORE_GPR a6,  (16*8)  // x16
-    RESTORE_GPR a7,  (17*8)  // x17
+    RESTORE_GPR a1,  (10*8)  // x11
+    RESTORE_GPR a2,  (11*8)  // x12
+    RESTORE_GPR a3,  (12*8)  // x13
+    RESTORE_GPR a4,  (13*8)  // x14
+    RESTORE_GPR a5,  (14*8)  // x15
+    RESTORE_GPR a6,  (15*8)  // x16
+    RESTORE_GPR a7,  (16*8)  // x17
 
+    // s1 is the ART thread register
+    RESTORE_GPR s2,  (17*8)  // x18
     RESTORE_GPR s3,  (18*8)  // x19
     RESTORE_GPR s4,  (19*8)  // x20
     RESTORE_GPR s5,  (20*8)  // x21
@@ -230,38 +232,41 @@
 
 
 .macro SAVE_ALL_CALLEE_SAVES
-#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVES != 8*(1 + 12 + 10 + 1))
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVES != 8*(12 + 11 + 1 + 1 + 1))
 #error "FRAME_SIZE_SAVE_ALL_CALLEE_SAVES(RISCV64) size not as expected."
 #endif
     // stack slot (0*8)(sp) is for ArtMethod*
+    // stack slot (1*8)(sp) is for padding
 
     // FP callee-saves.
-    SAVE_FPR fs0,  (8*1)   // f8
-    SAVE_FPR fs1,  (8*2)   // f9
-    SAVE_FPR fs2,  (8*3)   // f18
-    SAVE_FPR fs3,  (8*4)   // f19
-    SAVE_FPR fs4,  (8*5)   // f20
-    SAVE_FPR fs5,  (8*6)   // f21
-    SAVE_FPR fs6,  (8*7)   // f22
-    SAVE_FPR fs7,  (8*8)   // f23
-    SAVE_FPR fs8,  (8*9)   // f24
-    SAVE_FPR fs9,  (8*10)  // f25
-    SAVE_FPR fs10, (8*11)  // f26
-    SAVE_FPR fs11, (8*12)  // f27
+    SAVE_FPR fs0,  (8*2)   // f8
+    SAVE_FPR fs1,  (8*3)   // f9
+    SAVE_FPR fs2,  (8*4)   // f18
+    SAVE_FPR fs3,  (8*5)   // f19
+    SAVE_FPR fs4,  (8*6)   // f20
+    SAVE_FPR fs5,  (8*7)   // f21
+    SAVE_FPR fs6,  (8*8)   // f22
+    SAVE_FPR fs7,  (8*9)   // f23
+    SAVE_FPR fs8,  (8*10)  // f24
+    SAVE_FPR fs9,  (8*11)  // f25
+    SAVE_FPR fs10, (8*12)  // f26
+    SAVE_FPR fs11, (8*13)  // f27
 
     // GP callee-saves
-    SAVE_GPR s0,  (8*13)  // x8/fp, frame pointer
-    SAVE_GPR s3,  (8*14)  // x19
-    SAVE_GPR s4,  (8*15)  // x20
-    SAVE_GPR s5,  (8*16)  // x21
-    SAVE_GPR s6,  (8*17)  // x22
-    SAVE_GPR s7,  (8*18)  // x23
-    SAVE_GPR s8,  (8*19)  // x24
-    SAVE_GPR s9,  (8*20)  // x25
-    SAVE_GPR s10, (8*21)  // x26
-    SAVE_GPR s11, (8*22)  // x27
+    SAVE_GPR s0,  (8*14)  // x8/fp, frame pointer
+    // s1 is the ART thread register
+    SAVE_GPR s2,  (8*15)  // x18
+    SAVE_GPR s3,  (8*16)  // x19
+    SAVE_GPR s4,  (8*17)  // x20
+    SAVE_GPR s5,  (8*18)  // x21
+    SAVE_GPR s6,  (8*19)  // x22
+    SAVE_GPR s7,  (8*20)  // x23
+    SAVE_GPR s8,  (8*21)  // x24
+    SAVE_GPR s9,  (8*22)  // x25
+    SAVE_GPR s10, (8*23)  // x26
+    SAVE_GPR s11, (8*24)  // x27
 
-    SAVE_GPR ra,  (8*23)  // x1, return address
+    SAVE_GPR ra,  (8*25)  // x1, return address
 .endm
 
 
@@ -273,63 +278,63 @@
 
 
 .macro SETUP_SAVE_EVERYTHING_FRAME
-#if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 26 + 1))
+#if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
 #error "FRAME_SIZE_SAVE_EVERYTHING(ARM64) size not as expected."
 #endif
     INCREASE_FRAME FRAME_SIZE_SAVE_EVERYTHING
 
     // stack slot (8*0)(sp) is for ArtMethod*
-    // stack slot (8*1)(sp) is for padding
 
     // 32 slots for FPRs
-    SAVE_FPR ft0,  8*2   // f0
-    SAVE_FPR ft1,  8*3   // f1
-    SAVE_FPR ft2,  8*4   // f2
-    SAVE_FPR ft3,  8*5   // f3
-    SAVE_FPR ft4,  8*6   // f4
-    SAVE_FPR ft5,  8*7   // f5
-    SAVE_FPR ft6,  8*8   // f6
-    SAVE_FPR ft7,  8*9   // f7
-    SAVE_FPR fs0,  8*10  // f8
-    SAVE_FPR fs1,  8*11  // f9
-#define SAVE_EVERYTHING_FRAME_OFFSET_FA0 (8*12)
-    SAVE_FPR fa0,  8*12  // f10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
-    SAVE_FPR fa1,  8*13  // f11
-    SAVE_FPR fa2,  8*14  // f12
-    SAVE_FPR fa3,  8*15  // f13
-    SAVE_FPR fa4,  8*16  // f14
-    SAVE_FPR fa5,  8*17  // f15
-    SAVE_FPR fa6,  8*18  // f16
-    SAVE_FPR fa7,  8*19  // f17
-    SAVE_FPR fs2,  8*20  // f18
-    SAVE_FPR fs3,  8*21  // f19
-    SAVE_FPR fs4,  8*22  // f20
-    SAVE_FPR fs5,  8*23  // f21
-    SAVE_FPR fs6,  8*24  // f22
-    SAVE_FPR fs7,  8*25  // f23
-    SAVE_FPR fs8,  8*26  // f24
-    SAVE_FPR fs9,  8*27  // f25
-    SAVE_FPR fs10, 8*28  // f26
-    SAVE_FPR fs11, 8*29  // f27
-    SAVE_FPR ft8,  8*30  // f28
-    SAVE_FPR ft9,  8*31  // f29
-    SAVE_FPR ft10, 8*32  // f30
-    SAVE_FPR ft11, 8*33  // f31
+    SAVE_FPR ft0,  8*1   // f0
+    SAVE_FPR ft1,  8*2   // f1
+    SAVE_FPR ft2,  8*3   // f2
+    SAVE_FPR ft3,  8*4   // f3
+    SAVE_FPR ft4,  8*5   // f4
+    SAVE_FPR ft5,  8*6   // f5
+    SAVE_FPR ft6,  8*7   // f6
+    SAVE_FPR ft7,  8*8   // f7
+    SAVE_FPR fs0,  8*9   // f8
+    SAVE_FPR fs1,  8*10  // f9
+#define SAVE_EVERYTHING_FRAME_OFFSET_FA0 (8*11)
+    SAVE_FPR fa0,  8*11  // f10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
+    SAVE_FPR fa1,  8*12  // f11
+    SAVE_FPR fa2,  8*13  // f12
+    SAVE_FPR fa3,  8*14  // f13
+    SAVE_FPR fa4,  8*15  // f14
+    SAVE_FPR fa5,  8*16  // f15
+    SAVE_FPR fa6,  8*17  // f16
+    SAVE_FPR fa7,  8*18  // f17
+    SAVE_FPR fs2,  8*19  // f18
+    SAVE_FPR fs3,  8*20  // f19
+    SAVE_FPR fs4,  8*21  // f20
+    SAVE_FPR fs5,  8*22  // f21
+    SAVE_FPR fs6,  8*23  // f22
+    SAVE_FPR fs7,  8*24  // f23
+    SAVE_FPR fs8,  8*25  // f24
+    SAVE_FPR fs9,  8*26  // f25
+    SAVE_FPR fs10, 8*27  // f26
+    SAVE_FPR fs11, 8*28  // f27
+    SAVE_FPR ft8,  8*29  // f28
+    SAVE_FPR ft9,  8*30  // f29
+    SAVE_FPR ft10, 8*31  // f30
+    SAVE_FPR ft11, 8*32  // f31
 
-    // 26 slots for GPRs (excluded: zero/x0, sp/x2, tp/x3, gp/x4, s1/x9, s2/x18)
-    SAVE_GPR t0,  8*34  // x5
-    SAVE_GPR t1,  8*35  // x6
-    SAVE_GPR t2,  8*36  // x7
-    SAVE_GPR s0,  8*37  // x8
-#define SAVE_EVERYTHING_FRAME_OFFSET_A0 (8*38)
-    SAVE_GPR a0,  8*38  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
-    SAVE_GPR a1,  8*39  // x11
-    SAVE_GPR a2,  8*40  // x12
-    SAVE_GPR a3,  8*41  // x13
-    SAVE_GPR a4,  8*42  // x14
-    SAVE_GPR a5,  8*43  // x15
-    SAVE_GPR a6,  8*44  // x16
-    SAVE_GPR a7,  8*45  // x17
+    // 27 slots for GPRs (excluded: zero/x0, sp/x2, gp/x3, tp/x4, s1/x9 -- the ART thread register)
+    SAVE_GPR t0,  8*33  // x5
+    SAVE_GPR t1,  8*34  // x6
+    SAVE_GPR t2,  8*35  // x7
+    SAVE_GPR s0,  8*36  // x8
+#define SAVE_EVERYTHING_FRAME_OFFSET_A0 (8*37)
+    SAVE_GPR a0,  8*37  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
+    SAVE_GPR a1,  8*38  // x11
+    SAVE_GPR a2,  8*39  // x12
+    SAVE_GPR a3,  8*40  // x13
+    SAVE_GPR a4,  8*41  // x14
+    SAVE_GPR a5,  8*42  // x15
+    SAVE_GPR a6,  8*43  // x16
+    SAVE_GPR a7,  8*44  // x17
+    SAVE_GPR s2,  8*45  // x18
     SAVE_GPR s3,  8*46  // x19
     SAVE_GPR s4,  8*47  // x20
     SAVE_GPR s5,  8*48  // x21
@@ -352,61 +357,61 @@
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
     // stack slot (8*0)(sp) is for ArtMethod*
-    // stack slot (8*1)(sp) is for padding
 
     // 32 slots for FPRs
-    RESTORE_FPR ft0,  (8*2)   // f0
-    RESTORE_FPR ft1,  (8*3)   // f1
-    RESTORE_FPR ft2,  (8*4)   // f2
-    RESTORE_FPR ft3,  (8*5)   // f3
-    RESTORE_FPR ft4,  (8*6)   // f4
-    RESTORE_FPR ft5,  (8*7)   // f5
-    RESTORE_FPR ft6,  (8*8)   // f6
-    RESTORE_FPR ft7,  (8*9)   // f7
-    RESTORE_FPR fs0,  (8*10)  // f8
-    RESTORE_FPR fs1,  (8*11)  // f9
-#if SAVE_EVERYTHING_FRAME_OFFSET_FA0 != (8*12)
+    RESTORE_FPR ft0,  (8*1)   // f0
+    RESTORE_FPR ft1,  (8*2)   // f1
+    RESTORE_FPR ft2,  (8*3)   // f2
+    RESTORE_FPR ft3,  (8*4)   // f3
+    RESTORE_FPR ft4,  (8*5)   // f4
+    RESTORE_FPR ft5,  (8*6)   // f5
+    RESTORE_FPR ft6,  (8*7)   // f6
+    RESTORE_FPR ft7,  (8*8)   // f7
+    RESTORE_FPR fs0,  (8*9)   // f8
+    RESTORE_FPR fs1,  (8*10)  // f9
+#if SAVE_EVERYTHING_FRAME_OFFSET_FA0 != (8*11)
 #error "unexpected SAVE_EVERYTHING_FRAME_OFFSET_FA0"
 #endif
-    RESTORE_FPR fa0,  (8*12)  // f10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
-    RESTORE_FPR fa1,  (8*13)  // f11
-    RESTORE_FPR fa2,  (8*14)  // f12
-    RESTORE_FPR fa3,  (8*15)  // f13
-    RESTORE_FPR fa4,  (8*16)  // f14
-    RESTORE_FPR fa5,  (8*17)  // f15
-    RESTORE_FPR fa6,  (8*18)  // f16
-    RESTORE_FPR fa7,  (8*19)  // f17
-    RESTORE_FPR fs2,  (8*20)  // f18
-    RESTORE_FPR fs3,  (8*21)  // f19
-    RESTORE_FPR fs4,  (8*22)  // f20
-    RESTORE_FPR fs5,  (8*23)  // f21
-    RESTORE_FPR fs6,  (8*24)  // f22
-    RESTORE_FPR fs7,  (8*25)  // f23
-    RESTORE_FPR fs8,  (8*26)  // f24
-    RESTORE_FPR fs9,  (8*27)  // f25
-    RESTORE_FPR fs10, (8*28)  // f26
-    RESTORE_FPR fs11, (8*29)  // f27
-    RESTORE_FPR ft8,  (8*30)  // f28
-    RESTORE_FPR ft9,  (8*31)  // f29
-    RESTORE_FPR ft10, (8*32)  // f30
-    RESTORE_FPR ft11, (8*33)  // f31
+    RESTORE_FPR fa0,  (8*11)  // f10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
+    RESTORE_FPR fa1,  (8*12)  // f11
+    RESTORE_FPR fa2,  (8*13)  // f12
+    RESTORE_FPR fa3,  (8*14)  // f13
+    RESTORE_FPR fa4,  (8*15)  // f14
+    RESTORE_FPR fa5,  (8*16)  // f15
+    RESTORE_FPR fa6,  (8*17)  // f16
+    RESTORE_FPR fa7,  (8*18)  // f17
+    RESTORE_FPR fs2,  (8*19)  // f18
+    RESTORE_FPR fs3,  (8*20)  // f19
+    RESTORE_FPR fs4,  (8*21)  // f20
+    RESTORE_FPR fs5,  (8*22)  // f21
+    RESTORE_FPR fs6,  (8*23)  // f22
+    RESTORE_FPR fs7,  (8*24)  // f23
+    RESTORE_FPR fs8,  (8*25)  // f24
+    RESTORE_FPR fs9,  (8*26)  // f25
+    RESTORE_FPR fs10, (8*27)  // f26
+    RESTORE_FPR fs11, (8*28)  // f27
+    RESTORE_FPR ft8,  (8*29)  // f28
+    RESTORE_FPR ft9,  (8*30)  // f29
+    RESTORE_FPR ft10, (8*31)  // f30
+    RESTORE_FPR ft11, (8*32)  // f31
 
-    // 26 slots for GPRs (excluded: zero/x0, sp/x2, tp/x3, gp/x4, s1/x9, s2/x18)
-    RESTORE_GPR t0,  (8*34)  // x5
-    RESTORE_GPR t1,  (8*35)  // x6
-    RESTORE_GPR t2,  (8*36)  // x7
-    RESTORE_GPR s0,  (8*37)  // x8
-#if SAVE_EVERYTHING_FRAME_OFFSET_A0 != (8*38)
+    // 26 slots for GPRs (excluded: zero/x0, sp/x2, gp/x3, tp/x4, s1/x9 -- the ART thread register)
+    RESTORE_GPR t0,  (8*33)  // x5
+    RESTORE_GPR t1,  (8*34)  // x6
+    RESTORE_GPR t2,  (8*35)  // x7
+    RESTORE_GPR s0,  (8*36)  // x8
+#if SAVE_EVERYTHING_FRAME_OFFSET_A0 != (8*37)
 #error "unexpected SAVE_EVERYTHING_FRAME_OFFSET_A0"
 #endif
-    RESTORE_GPR a0,  (8*38)  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
-    RESTORE_GPR a1,  (8*39)  // x11
-    RESTORE_GPR a2,  (8*40)  // x12
-    RESTORE_GPR a3,  (8*41)  // x13
-    RESTORE_GPR a4,  (8*42)  // x14
-    RESTORE_GPR a5,  (8*43)  // x15
-    RESTORE_GPR a6,  (8*44)  // x16
-    RESTORE_GPR a7,  (8*45)  // x17
+    RESTORE_GPR a0,  (8*37)  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
+    RESTORE_GPR a1,  (8*38)  // x11
+    RESTORE_GPR a2,  (8*39)  // x12
+    RESTORE_GPR a3,  (8*40)  // x13
+    RESTORE_GPR a4,  (8*41)  // x14
+    RESTORE_GPR a5,  (8*42)  // x15
+    RESTORE_GPR a6,  (8*43)  // x16
+    RESTORE_GPR a7,  (8*44)  // x17
+    RESTORE_GPR s2,  (8*45)  // x18
     RESTORE_GPR s3,  (8*46)  // x19
     RESTORE_GPR s4,  (8*47)  // x20
     RESTORE_GPR s5,  (8*48)  // x21
