@@ -35,6 +35,7 @@ abstract class BaseTraceParser {
         methodIdMap = new HashMap<Integer, String>();
         threadIdMap = new HashMap<Integer, String>();
         nestingLevelMap = new HashMap<Integer, Integer>();
+        threadEventsMap = new HashMap<String, String>();
     }
 
     public void closeFile() throws IOException {
@@ -186,6 +187,15 @@ abstract class BaseTraceParser {
         return str;
     }
 
+    public void UpdateThreadEvents(int threadId, String entry) {
+        String threadName = threadIdMap.get(threadId);
+        if (!threadEventsMap.containsKey(threadName)) {
+            threadEventsMap.put(threadName, entry);
+            return;
+        }
+        threadEventsMap.put(threadName, threadEventsMap.get(threadName) + "\n" + entry);
+    }
+
     public abstract void CheckTraceFileFormat(File traceFile, int expectedVersion)
             throws Exception;
 
@@ -193,6 +203,7 @@ abstract class BaseTraceParser {
     HashMap<Integer, String> methodIdMap;
     HashMap<Integer, String> threadIdMap;
     HashMap<Integer, Integer> nestingLevelMap;
+    HashMap<String, String> threadEventsMap;
     int recordSize = 0;
     int traceFormatVersion = 0;
 }
