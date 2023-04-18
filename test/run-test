@@ -353,7 +353,7 @@ if True:
     elif arg == "--gdb-dex2oat-args":
       shift()
       gdb_dex2oat_args = arg
-      run_args += ['--gdb-dex2oat-args "{gdb_dex2oat_args}"']
+      run_args += [f'--gdb-dex2oat-args="{gdb_dex2oat_args}"']
       shift()
     elif arg == "--debug":
       run_args += ["--debug"]
@@ -801,14 +801,14 @@ if True:
         "    --with-agent <agent>  Run the test with the given agent loaded with -agentpath:\n"
         "    --debuggable          Whether to compile Java code for a debugger.\n"
         "    --gdb                 Run under gdb; incompatible with some tests.\n"
-        "    --gdb-dex2oat         Run dex2oat under the prebuilt lldb.\n"
+        "    --gdb-dex2oat         Run dex2oat under the prebuilt gdb.\n"
         "    --gdbserver           Start gdbserver (defaults to port :5039).\n"
         "    --gdbserver-port <port>\n"
         "                          Start gdbserver with the given COMM (see man gdbserver).\n"
         "    --gdbserver-bin <binary>\n"
         "                          Use the given binary as gdbserver.\n"
         "    --gdb-arg             Pass an option to gdb or gdbserver.\n"
-        "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat.\n"
+        "    --gdb-dex2oat-args    Pass options separated by ';' to gdb for dex2oat.\n"
         "    --simpleperf          Wraps the dalvikvm invocation in 'simpleperf record ...\n"
         "                          ... simpleperf report' and dumps stats to stdout.\n"
         "    --temp-path [path]    Location where to execute the tests.\n"
