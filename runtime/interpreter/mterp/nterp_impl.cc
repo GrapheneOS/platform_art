@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arch/instruction_set.h"
 #include "interpreter/interpreter_common.h"
 #include "nterp.h"
 
@@ -25,7 +26,10 @@ namespace art {
 
 namespace interpreter {
 
-bool IsNterpSupported() { return !kPoisonHeapReferences && kReserveMarkingRegister; }
+bool IsNterpSupported() {
+  return !kPoisonHeapReferences && kReserveMarkingRegister &&
+         kRuntimeISA != InstructionSet::kRiscv64;
+}
 
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
