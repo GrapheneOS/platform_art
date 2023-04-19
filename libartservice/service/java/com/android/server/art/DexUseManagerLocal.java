@@ -49,6 +49,7 @@ import com.android.server.art.proto.SecondaryDexUseProto;
 import com.android.server.art.proto.SecondaryDexUseRecordProto;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
 
 import com.google.auto.value.AutoValue;
@@ -60,6 +61,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -75,7 +77,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -116,6 +118,10 @@ public class DexUseManagerLocal {
     @GuardedBy("mLock") @NonNull private DexUse mDexUse; // Initialized by `load`.
     @GuardedBy("mLock") private int mRevision = 0;
     @GuardedBy("mLock") private int mLastCommittedRevision = 0;
+    @GuardedBy("mLock")
+    @NonNull
+    private SecondaryDexLocationManager mSecondaryDexLocationManager =
+            new SecondaryDexLocationManager();
 
     /**
      * Creates the singleton instance.
@@ -386,15 +392,18 @@ public class DexUseManagerLocal {
         for (var entry : classLoaderContextByDexContainerFile.entrySet()) {
             String dexPath = Utils.assertNonEmpty(entry.getKey());
             String classLoaderContext = Utils.assertNonEmpty(entry.getValue());
-            String owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
-                    DexUseManagerLocal::isOwningPackageForPrimaryDex);
+            String owningPackageName = findOwningPackage(snapshot, loadingPackageName,
+                    (pkgState) -> isOwningPackageForPrimaryDex(pkgState, dexPath));
             if (owningPackageName != null) {
                 addPrimaryDexUse(owningPackageName, dexPath, loadingPackageName, isolatedProcess,
                         lastUsedAtMs);
                 continue;
             }
-            owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
-                    DexUseManagerLocal::isOwningPackageForSecondaryDex);
+            Path path = Paths.get(dexPath);
+            synchronized (mLock) {
+                owningPackageName = findOwningPackage(snapshot, loadingPackageName,
+                        (pkgState) -> isOwningPackageForSecondaryDexLocked(pkgState, path));
+            }
             if (owningPackageName != null) {
                 PackageState loadingPkgState =
                         Utils.getPackageStateOrThrow(snapshot, loadingPackageName);
@@ -404,56 +413,53 @@ public class DexUseManagerLocal {
                         classLoaderContext, abi.name(), lastUsedAtMs);
                 continue;
             }
-            // It is expected that a dex file isn't owned by any package. For example, the dex file
-            // could be a shared library jar.
+            // It is expected that a dex file isn't owned by any package. For example, the dex
+            // file could be a shared library jar.
         }
     }
 
     @Nullable
     private static String findOwningPackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull String loadingPackageName, @NonNull String dexPath,
-            @NonNull BiFunction<PackageState, String, Boolean> predicate) {
+            @NonNull String loadingPackageName,
+            @NonNull Function<PackageState, Boolean> predicate) {
         // Most likely, the package is loading its own dex file, so we check this first as an
         // optimization.
         PackageState loadingPkgState = Utils.getPackageStateOrThrow(snapshot, loadingPackageName);
-        if (predicate.apply(loadingPkgState, dexPath)) {
+        if (predicate.apply(loadingPkgState)) {
             return loadingPkgState.getPackageName();
         }
 
-        return snapshot.getPackageStates()
-                .values()
-                .stream()
-                .filter(packageState -> predicate.apply(packageState, dexPath))
-                .map(PackageState::getPackageName)
-                .findFirst()
-                .orElse(null);
+        for (PackageState pkgState : snapshot.getPackageStates().values()) {
+            if (predicate.apply(pkgState)) {
+                return pkgState.getPackageName();
+            }
+        }
+
+        return null;
     }
 
     private static boolean isOwningPackageForPrimaryDex(
             @NonNull PackageState pkgState, @NonNull String dexPath) {
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-        return PrimaryDexUtils.getDexInfo(pkg).stream().anyMatch(
-                dexInfo -> dexInfo.dexPath().equals(dexPath));
+        List<AndroidPackageSplit> splits = pkg.getSplits();
+        for (int i = 0; i < splits.size(); i++) {
+            if (splits.get(i).getPath().equals(dexPath)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private static boolean isOwningPackageForSecondaryDex(
-            @NonNull PackageState pkgState, @NonNull String dexPath) {
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-        UUID storageUuid = pkg.getStorageUuid();
-        UserHandle handle = Binder.getCallingUserHandle();
-
-        File ceDir = Environment.getDataCePackageDirectoryForUser(
-                storageUuid, handle, pkgState.getPackageName());
-        if (Paths.get(dexPath).startsWith(ceDir.toPath())) {
-            return true;
+    @GuardedBy("mLock")
+    private boolean isOwningPackageForSecondaryDexLocked(
+            @NonNull PackageState pkgState, @NonNull Path dexPath) {
+        UserHandle userHandle = Binder.getCallingUserHandle();
+        List<Path> locations = mSecondaryDexLocationManager.getLocations(pkgState, userHandle);
+        for (int i = 0; i < locations.size(); i++) {
+            if (dexPath.startsWith(locations.get(i))) {
+                return true;
+            }
         }
-
-        File deDir = Environment.getDataDePackageDirectoryForUser(
-                storageUuid, handle, pkgState.getPackageName());
-        if (Paths.get(dexPath).startsWith(deDir.toPath())) {
-            return true;
-        }
-
         return false;
     }
 
@@ -1043,6 +1049,58 @@ public class DexUseManagerLocal {
             mAbiName = Utils.assertNonEmpty(proto.getAbiName());
             mLastUsedAtMs = proto.getLastUsedAtMs();
             Utils.check(mLastUsedAtMs > 0);
+        }
+    }
+
+    // TODO(b/278697552): Consider removing the cache or moving it to `Environment`.
+    static class SecondaryDexLocationManager {
+        private @NonNull Map<CacheKey, CacheValue> mCache = new HashMap<>();
+
+        public @NonNull List<Path> getLocations(
+                @NonNull PackageState pkgState, @NonNull UserHandle userHandle) {
+            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            UUID storageUuid = pkg.getStorageUuid();
+            String packageName = pkgState.getPackageName();
+
+            CacheKey cacheKey = CacheKey.create(packageName, userHandle);
+            CacheValue cacheValue = mCache.get(cacheKey);
+            if (cacheValue != null && cacheValue.storageUuid().equals(storageUuid)) {
+                return cacheValue.locations();
+            }
+
+            File ceDir = Environment.getDataCePackageDirectoryForUser(
+                    storageUuid, userHandle, packageName);
+            File deDir = Environment.getDataDePackageDirectoryForUser(
+                    storageUuid, userHandle, packageName);
+            List<Path> locations = List.of(ceDir.toPath(), deDir.toPath());
+            mCache.put(cacheKey, CacheValue.create(locations, storageUuid));
+            return locations;
+        }
+
+        @Immutable
+        @AutoValue
+        abstract static class CacheKey {
+            static CacheKey create(@NonNull String packageName, @NonNull UserHandle userHandle) {
+                return new AutoValue_DexUseManagerLocal_SecondaryDexLocationManager_CacheKey(
+                        packageName, userHandle);
+            }
+
+            abstract @NonNull String packageName();
+
+            abstract @NonNull UserHandle userHandle();
+        }
+
+        @Immutable
+        @AutoValue
+        abstract static class CacheValue {
+            static CacheValue create(@NonNull List<Path> locations, @NonNull UUID storageUuid) {
+                return new AutoValue_DexUseManagerLocal_SecondaryDexLocationManager_CacheValue(
+                        locations, storageUuid);
+            }
+
+            abstract @NonNull List<Path> locations();
+
+            abstract @NonNull UUID storageUuid();
         }
     }
 
