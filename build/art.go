@@ -121,15 +121,6 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	return cflags, asflags
 }
 
-func debugFlags(ctx android.LoadHookContext) []string {
-	var cflags []string
-
-	opt := ctx.Config().GetenvWithDefault("ART_DEBUG_OPT_FLAG", "-O2")
-	cflags = append(cflags, opt)
-
-	return cflags
-}
-
 func deviceFlags(ctx android.LoadHookContext) []string {
 	var cflags []string
 	deviceFrameSizeLimit := 1736
@@ -236,16 +227,6 @@ func addImplicitFlags(ctx android.LoadHookContext) {
 	ctx.AppendProperties(p)
 }
 
-func debugDefaults(ctx android.LoadHookContext) {
-	type props struct {
-		Cflags []string
-	}
-
-	p := &props{}
-	p.Cflags = debugFlags(ctx)
-	ctx.AppendProperties(p)
-}
-
 func customLinker(ctx android.LoadHookContext) {
 	linker := ctx.Config().Getenv("CUSTOM_TARGET_LINKER")
 	type props struct {
@@ -348,10 +329,7 @@ func init() {
 		"art_cc_test",
 		"art_cc_test_library",
 		"art_cc_defaults",
-		"libart_cc_defaults",
-		"libart_static_cc_defaults",
 		"art_global_defaults",
-		"art_debug_defaults",
 		"art_apex_test_host",
 	}
 	android.AddNeverAllowRules(
@@ -365,10 +343,7 @@ func init() {
 	android.RegisterModuleType("art_cc_test", artTest)
 	android.RegisterModuleType("art_cc_test_library", artTestLibrary)
 	android.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
-	android.RegisterModuleType("libart_cc_defaults", libartDefaultsFactory)
-	android.RegisterModuleType("libart_static_cc_defaults", libartStaticDefaultsFactory)
 	android.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
-	android.RegisterModuleType("art_debug_defaults", artDebugDefaultsFactory)
 
 	// TODO: This makes the module disable itself for host if HOST_PREFER_32_BIT is
 	// set. We need this because the multilib types of binaries listed in the apex
@@ -409,33 +384,10 @@ func artGlobalDefaultsFactory() android.Module {
 	return module
 }
 
-func artDebugDefaultsFactory() android.Module {
-	module := artDefaultsFactory()
-	android.AddLoadHook(module, debugDefaults)
-
-	return module
-}
-
 func artDefaultsFactory() android.Module {
 	c := &codegenProperties{}
 	module := cc.DefaultsFactory(c)
 	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, staticAndSharedLibrary) })
-
-	return module
-}
-
-func libartDefaultsFactory() android.Module {
-	c := &codegenProperties{}
-	module := cc.DefaultsFactory(c)
-	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, staticAndSharedLibrary) })
-
-	return module
-}
-
-func libartStaticDefaultsFactory() android.Module {
-	c := &codegenProperties{}
-	module := cc.DefaultsFactory(c)
-	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, staticLibrary) })
 
 	return module
 }
