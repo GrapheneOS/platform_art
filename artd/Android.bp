@@ -68,6 +68,8 @@ art_cc_defaults {
     ],
 }
 
+// TODO(b/247785938) Change the above art_cc_defaults to a regular cc_defaults (currently kept due to a merge conflict)
+
 // Version of ART gtest `art_artd_tests` bundled with the ART APEX on target.
 //
 // This test requires the full libbinder_ndk implementation on host, which is
