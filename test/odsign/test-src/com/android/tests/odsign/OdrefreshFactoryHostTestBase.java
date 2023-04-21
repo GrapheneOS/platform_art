@@ -33,7 +33,7 @@ import java.util.Set;
 
 /**
  * This class tests odrefresh for the cases where all the APEXes are initially factory-installed.
- * Similar to OdrefreshHostTest, it does not involve odsign, fs-verity, and ART runtime.
+ * Similar to OdrefreshHostTest, it does not involve odsign and fs-verity.
  *
  * The tests are run by derived classes with different conditions: with and without the cache info.
  */
@@ -46,7 +46,7 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
     public static void beforeClassWithDeviceBase(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         assumeTrue(testUtils.areAllApexesFactoryInstalled());
-        testUtils.assertCommandSucceeds("disable-verity");
+        testUtils.maybeDisableVerity();
         testUtils.removeCompilationLogToAvoidBackoff();
         testUtils.reboot();
         testUtils.assertCommandSucceeds("remount");
@@ -55,7 +55,7 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
     @AfterClassWithInfo
     public static void afterClassWithDeviceBase(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
-        testUtils.assertCommandSucceeds("enable-verity");
+        testUtils.maybeEnableVerity();
         testUtils.removeCompilationLogToAvoidBackoff();
         testUtils.reboot();
     }
@@ -80,15 +80,23 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
 
         // It should recompile everything.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
+
+        // Generated artifacts should be loaded.
+        mTestUtils.restartZygote();
+        mTestUtils.verifyZygotesLoadedPrimaryBootImage();
+        mTestUtils.verifyZygotesLoadedBootImageMainlineExtension();
+        mTestUtils.verifySystemServerLoadedArtifacts();
 
         mDeviceState.simulateArtApexUninstall();
         mTestUtils.runOdrefresh();
 
         // It should delete all compilation artifacts and update the cache info.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
     }
 
@@ -98,17 +106,24 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        // It should only recompile system server.
+        // It should only recompile boot image mainline extension and system server.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
+
+        // Generated artifacts should be loaded.
+        mTestUtils.restartZygote();
+        mTestUtils.verifyZygotesLoadedBootImageMainlineExtension();
+        mTestUtils.verifySystemServerLoadedArtifacts();
 
         mDeviceState.simulateApexUninstall();
         mTestUtils.runOdrefresh();
 
         // It should delete all compilation artifacts and update the cache info.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
     }
 
@@ -126,7 +141,8 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
                 "/system/framework/services.jar", mTestUtils.getSystemServerIsa());
 
         Set<String> nonExpectedArtifacts = new HashSet<>();
-        nonExpectedArtifacts.addAll(mTestUtils.getZygotesExpectedArtifacts());
+        nonExpectedArtifacts.addAll(mTestUtils.getExpectedPrimaryBootImage());
+        nonExpectedArtifacts.addAll(mTestUtils.getExpectedBootImageMainlineExtension());
         nonExpectedArtifacts.addAll(mTestUtils.getSystemServerExpectedArtifacts());
         nonExpectedArtifacts.removeAll(expectedArtifacts);
 
@@ -135,13 +151,18 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
         mTestUtils.assertFilesNotExist(nonExpectedArtifacts);
         mTestUtils.assertModifiedAfter(expectedArtifacts, timeMs);
 
+        // Generated artifacts should be loaded.
+        mTestUtils.restartZygote();
+        mTestUtils.verifySystemServerLoadedArtifacts(expectedArtifacts);
+
         mDeviceState.simulateArtApexUpgrade();
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
         // It should recompile everything.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.simulateArtApexUninstall();
@@ -163,7 +184,8 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
 
         // It should recompile everything.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run odrefresh again with the flag unchanged.
@@ -172,7 +194,9 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
 
         // Nothing should change.
         mTestUtils.assertNotModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.setPhenotypeFlag("enable_uffd_gc", null);
@@ -181,7 +205,8 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
 
         // It should delete all compilation artifacts and update the cache info.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
     }
 }
