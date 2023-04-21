@@ -69,34 +69,20 @@ void OdrMetrics::CaptureSpaceFreeEnd() {
   cache_space_free_end_mib_ = GetFreeSpaceMiB(cache_directory_);
 }
 
-void OdrMetrics::SetCompilationTime(int32_t millis) {
-  switch (stage_) {
+void OdrMetrics::SetDex2OatResult(Stage stage,
+                                  int64_t compilation_time_ms,
+                                  const std::optional<ExecResult>& dex2oat_result) {
+  switch (stage) {
     case Stage::kPrimaryBootClasspath:
-      primary_bcp_compilation_millis_ = millis;
-      break;
-    case Stage::kSecondaryBootClasspath:
-      secondary_bcp_compilation_millis_ = millis;
-      break;
-    case Stage::kSystemServerClasspath:
-      system_server_compilation_millis_ = millis;
-      break;
-    case Stage::kCheck:
-    case Stage::kComplete:
-    case Stage::kPreparation:
-    case Stage::kUnknown:
-      LOG(FATAL) << "Unexpected stage " << stage_ << " when setting compilation time";
-  }
-}
-
-void OdrMetrics::SetDex2OatResult(const ExecResult& dex2oat_result) {
-  switch (stage_) {
-    case Stage::kPrimaryBootClasspath:
+      primary_bcp_compilation_millis_ = compilation_time_ms;
       primary_bcp_dex2oat_result_ = dex2oat_result;
       break;
     case Stage::kSecondaryBootClasspath:
+      secondary_bcp_compilation_millis_ = compilation_time_ms;
       secondary_bcp_dex2oat_result_ = dex2oat_result;
       break;
     case Stage::kSystemServerClasspath:
+      system_server_compilation_millis_ = compilation_time_ms;
       system_server_dex2oat_result_ = dex2oat_result;
       break;
     case Stage::kCheck:
