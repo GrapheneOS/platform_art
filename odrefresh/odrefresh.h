@@ -39,12 +39,30 @@
 namespace art {
 namespace odrefresh {
 
+// TODO(jiakaiz): Remove this.
+void TestOnlyEnableMainlineExtension();
+
+class OnDeviceRefresh;
+
+struct BootImages {
+  static constexpr int kMaxCount = 2;
+
+  bool primary_boot_image : 1;
+  bool boot_image_mainline_extension : 1;
+
+  int Count() const;
+};
+
 struct CompilationOptions {
-  // If not empty, compile the bootclasspath jars for ISAs in the list.
-  std::vector<InstructionSet> compile_boot_classpath_for_isas;
+  // If not empty, generate the boot images for ISAs in the list.
+  std::vector<std::pair<InstructionSet, BootImages>> boot_images_to_generate_for_isas;
 
   // If not empty, compile the system server jars in the list.
   std::set<std::string> system_server_jars_to_compile;
+
+  static CompilationOptions CompileAll(const OnDeviceRefresh& odr);
+
+  int CompilationUnitCount() const;
 };
 
 struct CompilationResult {
@@ -151,6 +169,8 @@ class OnDeviceRefresh final {
     return {all_systemserver_jars_.begin(), all_systemserver_jars_.end()};
   }
 
+  const OdrConfig& Config() const { return config_; }
+
  private:
   time_t GetExecutionTimeUsed() const;
 
@@ -179,6 +199,9 @@ class OnDeviceRefresh final {
   // Returns the list of BCP jars for the boot image framework extension.
   std::vector<std::string> GetFrameworkBcpJars() const;
 
+  // Returns the list of BCP jars for the boot image mainline extension.
+  std::vector<std::string> GetMainlineBcpJars() const;
+
   // Returns the symbolic primary boot image location (without ISA). If `minimal` is true, returns
   // the symbolic location of the minimal boot image.
   std::string GetPrimaryBootImage(bool on_system, bool minimal) const;
@@ -195,9 +218,16 @@ class OnDeviceRefresh final {
   // applies to boot images on /system.
   std::string GetSystemBootImageFrameworkExtensionPath(InstructionSet isa) const;
 
+  // Returns the symbolic boot image mainline extension location (without ISA).
+  std::string GetBootImageMainlineExtension(bool on_system) const;
+
+  // Returns the real boot image mainline extension location (with ISA).
+  std::string GetBootImageMainlineExtensionPath(bool on_system, InstructionSet isa) const;
+
   // Returns the best combination of symbolic boot image locations (without ISA) based on file
   // existence.
-  std::vector<std::string> GetBestBootImages(InstructionSet isa) const;
+  std::vector<std::string> GetBestBootImages(InstructionSet isa,
+                                             bool include_mainline_extension) const;
 
   std::string GetSystemServerImagePath(bool on_system, const std::string& jar_path) const;
 
@@ -218,6 +248,13 @@ class OnDeviceRefresh final {
   WARN_UNUSED bool PrimaryBootImageExist(
       bool on_system,
       bool minimal,
+      InstructionSet isa,
+      /*out*/ std::string* error_msg,
+      /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
+
+  // Returns whether the boot image mainline extension exists.
+  WARN_UNUSED bool BootImageMainlineExtensionExist(
+      bool on_system,
       InstructionSet isa,
       /*out*/ std::string* error_msg,
       /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
@@ -293,11 +330,13 @@ class OnDeviceRefresh final {
                              InstructionSet isa,
                              const std::vector<std::string>& dex_files,
                              const std::vector<std::string>& boot_classpath,
+                             const std::vector<std::string>& input_boot_images,
                              const std::string& output_path) const;
 
   WARN_UNUSED CompilationResult
   CompileBootClasspath(const std::string& staging_dir,
                        InstructionSet isa,
+                       BootImages boot_images,
                        const std::function<void()>& on_dex2oat_success) const;
 
   WARN_UNUSED CompilationResult
