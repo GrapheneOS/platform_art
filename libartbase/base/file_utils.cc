@@ -362,6 +362,8 @@ static std::string GetFirstMainlineFrameworkLibraryName(std::string* error_msg) 
 
 // Returns true when no error occurs, even if the extension doesn't exist.
 static bool MaybeAppendBootImageMainlineExtension(const std::string& android_root,
+                                                  bool deny_system_files,
+                                                  bool deny_art_apex_data_files,
                                                   /*inout*/ std::string* location,
                                                   /*out*/ std::string* error_msg) {
   if (!kIsTargetAndroid) {
@@ -374,16 +376,34 @@ static bool MaybeAppendBootImageMainlineExtension(const std::string& android_roo
   if (library_name.empty()) {
     return false;
   }
-  std::string mainline_extension_location = StringPrintf(
-      "%s/framework/%s-%s.art", android_root.c_str(), kBootImageStem, library_name.c_str());
-  std::string mainline_extension_path =
-      GetSystemImageFilename(mainline_extension_location.c_str(), kRuntimeISA);
-  if (!OS::FileExists(mainline_extension_path.c_str(), /*check_file_type=*/true)) {
-    // This is expected when the ART module is preloaded on an old source tree that doesn't
-    // dexpreopt mainline BCP jars, so it shouldn't be considered as an error.
-    return true;
+
+  if (!deny_art_apex_data_files) {
+    std::string mainline_extension_location =
+        StringPrintf("%s/%s-%s.art",
+                     GetApexDataDalvikCacheDirectory(InstructionSet::kNone).c_str(),
+                     kBootImageStem,
+                     library_name.c_str());
+    std::string mainline_extension_path =
+        GetSystemImageFilename(mainline_extension_location.c_str(), kRuntimeISA);
+    if (OS::FileExists(mainline_extension_path.c_str(), /*check_file_type=*/true)) {
+      *location += ":" + mainline_extension_location;
+      return true;
+    }
   }
-  *location += ":" + mainline_extension_location;
+
+  if (!deny_system_files) {
+    std::string mainline_extension_location = StringPrintf(
+        "%s/framework/%s-%s.art", android_root.c_str(), kBootImageStem, library_name.c_str());
+    std::string mainline_extension_path =
+        GetSystemImageFilename(mainline_extension_location.c_str(), kRuntimeISA);
+    // It is expected that the file doesn't exist when the ART module is preloaded on an old source
+    // tree that doesn't dexpreopt mainline BCP jars, so it shouldn't be considered as an error.
+    if (OS::FileExists(mainline_extension_path.c_str(), /*check_file_type=*/true)) {
+      *location += ":" + mainline_extension_location;
+      return true;
+    }
+  }
+
   return true;
 }
 
@@ -400,14 +420,27 @@ std::string GetDefaultBootImageLocationSafe(const std::string& android_root,
         GetApexDataDalvikCacheDirectory(InstructionSet::kNone) + "/" + kBootImageStem + ".art";
     const std::string boot_image_filename = GetSystemImageFilename(boot_image.c_str(), kRuntimeISA);
     if (OS::FileExists(boot_image_filename.c_str(), /*check_file_type=*/true)) {
-      // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot.art!/apex/com.android.art
-      // /etc/boot-image.prof!/system/etc/boot-image.prof".
-      return StringPrintf("%s!%s/%s!%s/%s",
-                          boot_image.c_str(),
-                          kAndroidArtApexDefaultPath,
-                          kEtcBootImageProf,
-                          android_root.c_str(),
-                          kEtcBootImageProf);
+      // Boot image consists of two parts:
+      //  - the primary boot image (contains the Core Libraries and framework libraries)
+      //  - the boot image mainline extension (contains mainline framework libraries)
+      // Typically
+      // "/data/misc/apexdata/com.android.art/dalvik-cache/boot.art!/apex/com.android.art
+      // /etc/boot-image.prof!/system/etc/boot-image.prof:
+      // /data/misc/apexdata/com.android.art/dalvik-cache/boot-framework-adservices.art".
+      std::string location = StringPrintf("%s!%s/%s!%s/%s",
+                                          boot_image.c_str(),
+                                          kAndroidArtApexDefaultPath,
+                                          kEtcBootImageProf,
+                                          android_root.c_str(),
+                                          kEtcBootImageProf);
+      if (!MaybeAppendBootImageMainlineExtension(android_root,
+                                                 /*deny_system_files=*/true,
+                                                 deny_art_apex_data_files,
+                                                 &location,
+                                                 error_msg)) {
+        return "";
+      }
+      return location;
     } else if (errno == EACCES) {
       // Additional warning for potential SELinux misconfiguration.
       PLOG(ERROR) << "Default boot image check failed, could not stat: " << boot_image_filename;
@@ -454,7 +487,11 @@ std::string GetDefaultBootImageLocationSafe(const std::string& android_root,
                                       kBootImageStem,
                                       android_root.c_str(),
                                       kEtcBootImageProf);
-  if (!MaybeAppendBootImageMainlineExtension(android_root, &location, error_msg)) {
+  if (!MaybeAppendBootImageMainlineExtension(android_root,
+                                             /*deny_system_files=*/false,
+                                             deny_art_apex_data_files,
+                                             &location,
+                                             error_msg)) {
     return "";
   }
   return location;
