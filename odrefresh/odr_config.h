@@ -136,10 +136,13 @@ class OdrConfig final {
         CHECK_NE(isa32, art::InstructionSet::kNone);
         return {isa32};
       case ZygoteKind::kZygote32_64:
-      case ZygoteKind::kZygote64_32:
         CHECK_NE(isa32, art::InstructionSet::kNone);
         CHECK_NE(isa64, art::InstructionSet::kNone);
         return {isa32, isa64};
+      case ZygoteKind::kZygote64_32:
+        CHECK_NE(isa32, art::InstructionSet::kNone);
+        CHECK_NE(isa64, art::InstructionSet::kNone);
+        return {isa64, isa32};
       case ZygoteKind::kZygote64:
         CHECK_NE(isa64, art::InstructionSet::kNone);
         return {isa64};
