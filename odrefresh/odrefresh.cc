@@ -1783,7 +1783,6 @@ OnDeviceRefresh::CompileSystemServer(const std::string& staging_dir,
         on_dex2oat_success();
       } else {
         LOG(ERROR) << "Compilation of {} failed: {}"_format(Basename(jar), result.error_msg);
-        return result;
       }
     }
 
@@ -1847,8 +1846,9 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
 
   const std::vector<InstructionSet>& bcp_instruction_sets = config_.GetBootClasspathIsas();
   DCHECK(!bcp_instruction_sets.empty() && bcp_instruction_sets.size() <= 2);
+  InstructionSet system_server_isa = config_.GetSystemServerIsa();
 
-  bool full_compilation_failed = false;
+  bool system_server_isa_failed = false;
   std::optional<std::pair<OdrMetrics::Stage, OdrMetrics::Status>> first_failure;
 
   for (InstructionSet isa : compilation_options.compile_boot_classpath_for_isas) {
@@ -1859,13 +1859,15 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
         CompileBootClasspath(staging_dir, isa, advance_animation_progress);
     metrics.SetDex2OatResult(stage, bcp_result.elapsed_time_ms, bcp_result.dex2oat_result);
     if (!bcp_result.IsOk()) {
-      full_compilation_failed = true;
+      if (isa == system_server_isa) {
+        system_server_isa_failed = true;
+      }
       first_failure = first_failure.value_or(std::make_pair(stage, bcp_result.status));
     }
   }
 
   // Don't compile system server if the compilation of BCP failed.
-  if (!full_compilation_failed && !compilation_options.system_server_jars_to_compile.empty()) {
+  if (!system_server_isa_failed && !compilation_options.system_server_jars_to_compile.empty()) {
     OdrMetrics::Stage stage = OdrMetrics::Stage::kSystemServerClasspath;
     CompilationResult ss_result = CompileSystemServer(
         staging_dir, compilation_options.system_server_jars_to_compile, advance_animation_progress);

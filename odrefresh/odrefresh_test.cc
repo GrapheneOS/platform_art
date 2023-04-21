@@ -412,6 +412,65 @@ TEST_F(OdRefreshTest, MissingStandaloneSystemServerJars) {
       ExitCode::kCompilationSuccess);
 }
 
+TEST_F(OdRefreshTest, ContinueWhenBcpCompilationFailed) {
+  // Simulate that the compilation of BCP for the system server ISA succeeds.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86_64"),
+                                        Contains(Flag("--dex-file=", core_oj_jar_)))))
+      .WillOnce(Return(0));
+
+  // Simulate that the compilation of BCP for the other ISA fails.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86"),
+                                        Contains(Flag("--dex-file=", core_oj_jar_)))))
+      .Times(2)
+      .WillRepeatedly(Return(1));
+
+  // It should still compile system server.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", location_provider_jar_))))
+      .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(Contains(Flag("--dex-file=", services_jar_))))
+      .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", services_foo_jar_))))
+      .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", services_bar_jar_))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(
+      odrefresh_->Compile(
+          *metrics_,
+          CompilationOptions{
+              .compile_boot_classpath_for_isas = {InstructionSet::kX86, InstructionSet::kX86_64},
+              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+          }),
+      ExitCode::kCompilationFailed);
+}
+
+TEST_F(OdRefreshTest, ContinueWhenSystemServerCompilationFailed) {
+  // Simulate that the compilation of "services.jar" fails, while others still succeed.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", location_provider_jar_))))
+      .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(Contains(Flag("--dex-file=", services_jar_))))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", services_foo_jar_))))
+      .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(Contains(Flag("--dex-file=", services_bar_jar_))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(
+      odrefresh_->Compile(*metrics_,
+                          CompilationOptions{
+                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                          }),
+      ExitCode::kCompilationFailed);
+}
+
 // Test setup: The compiler filter is explicitly set to "speed-profile". Use it regardless of
 // whether the profile exists or not. Dex2oat will fall back to "verify" if the profile doesn't
 // exist.
