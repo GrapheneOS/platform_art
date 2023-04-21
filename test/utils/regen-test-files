@@ -211,8 +211,11 @@ known_failing_tests = frozenset([
   "844-exception2",
   # 966-default-conflict: Dependency on `libarttest`.
   "966-default-conflict",
-  # 993-breakpoints-non-debuggable: This test needs native code.
+  # These tests need native code.
   "993-breakpoints-non-debuggable",
+  "2243-single-step-default",
+  "2262-miranda-methods",
+  "2262-default-conflict-methods"
 ])
 
 known_failing_on_hwasan_tests = frozenset([
