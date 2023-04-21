@@ -752,6 +752,7 @@ art_cc_defaults {
         "2005-pause-all-redefine-multithreaded/pause-all.cc",
         "2009-structural-local-ref/local-ref.cc",
         "2035-structural-native-method/structural-native.cc",
+	"2243-single-step-default/single_step_helper.cc"
     ],
     // Use NDK-compatible headers for ctstiagent.
     header_libs: [
@@ -989,6 +990,7 @@ cc_defaults {
         "2037-thread-name-inherit/thread_name_inherit.cc",
         "2040-huge-native-alloc/huge_native_buf.cc",
         "2235-JdkUnsafeTest/unsafe_test.cc",
+	"2262-miranda-methods/jni_invoke.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],
