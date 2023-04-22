@@ -93,3 +93,11 @@ soong_config_module_type {
     bool_variables: ["source_build"],
     properties: ["enabled"],
 }
+
+soong_config_module_type {
+    name: "art_debug_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "art_module",
+    value_variables: ["art_debug_opt_flag"],
+    properties: ["cflags"],
+}
