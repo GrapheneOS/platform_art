@@ -155,9 +155,6 @@ bool IsClassAnnotationPresent(Handle<mirror::Class> klass,
                               Handle<mirror::Class> annotation_class)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-bool IsRecordClassAnnotationPresent(Handle<mirror::Class> klass)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
 // Map back from a PC to the line number in a method.
 int32_t GetLineNumFromPC(const DexFile* dex_file, ArtMethod* method, uint32_t rel_pc)
     REQUIRES_SHARED(Locks::mutator_lock_);
@@ -186,6 +183,26 @@ class RuntimeEncodedStaticFieldValueIterator : public EncodedStaticFieldValueIte
   ClassLinker* const linker_;  // Linker to resolve literal objects.
   DISALLOW_IMPLICIT_CONSTRUCTORS(RuntimeEncodedStaticFieldValueIterator);
 };
+
+enum class VisitorStatus : uint8_t { kVisitBreak, kVisitNext, kVisitInner };
+
+class AnnotationVisitor {
+ public:
+  virtual ~AnnotationVisitor() {}
+  virtual VisitorStatus VisitAnnotation(const char* annotation_descriptor, uint8_t visibility) = 0;
+  virtual VisitorStatus VisitAnnotationElement(const char* element_name,
+                                               uint8_t type,
+                                               const JValue& value) = 0;
+  virtual VisitorStatus VisitArrayElement(uint8_t depth,
+                                          uint32_t index,
+                                          uint8_t type,
+                                          const JValue& value) = 0;
+};
+
+// Visit all annotation elements and array elements without creating
+// Arrays or Objects in the managed heap.
+void VisitClassAnnotations(Handle<mirror::Class> klass, AnnotationVisitor* visitor)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace annotations
 
