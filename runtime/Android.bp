@@ -34,7 +34,7 @@ JIT_DEBUG_REGISTER_CODE_LDFLAGS = [
 
 // These are defaults for native shared libaries that are expected to be
 // in stack traces often.
-libart_cc_defaults {
+cc_defaults {
     name: "libart_nativeunwind_defaults",
     target: {
         host: {
@@ -109,7 +109,7 @@ cc_library_headers {
     ],
 }
 
-libart_cc_defaults {
+cc_defaults {
     name: "libart_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
@@ -535,7 +535,7 @@ libart_cc_defaults {
     ],
 }
 
-libart_static_cc_defaults {
+cc_defaults {
     name: "libart_static_base_defaults",
     whole_static_libs: [
         "libartpalette",
