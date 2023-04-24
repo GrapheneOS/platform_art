@@ -147,8 +147,6 @@ class OdRefreshTest : public CommonArtTest {
   void SetUp() override {
     CommonArtTest::SetUp();
 
-    TestOnlyEnableMainlineExtension();
-
     temp_dir_ = std::make_unique<ScratchDir>();
     std::string temp_dir_path = temp_dir_->GetPath();
     // Remove the trailing '/';
