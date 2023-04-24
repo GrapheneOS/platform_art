@@ -81,7 +81,8 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
         // artifacts compiled and signed by odrefresh and odsign. We check both here rather than
         // having a separate test because the device reboots between each @Test method and
         // that is an expensive use of time.
-        mTestUtils.verifyZygotesLoadedArtifacts("boot");
+        mTestUtils.verifyZygotesLoadedPrimaryBootImage();
+        mTestUtils.verifyZygotesLoadedBootImageMainlineExtension();
         mTestUtils.verifySystemServerLoadedArtifacts();
     }
 
