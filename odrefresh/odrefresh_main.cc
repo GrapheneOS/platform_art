@@ -313,11 +313,7 @@ int main(int argc, char** argv) {
       metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
     }
-    return odr.Compile(metrics,
-                       CompilationOptions{
-                           .compile_boot_classpath_for_isas = config.GetBootClasspathIsas(),
-                           .system_server_jars_to_compile = odr.AllSystemServerJars(),
-                       });
+    return odr.Compile(metrics, CompilationOptions::CompileAll(odr));
   } else if (action == "--help") {
     UsageHelp(argv[0]);
   } else {
