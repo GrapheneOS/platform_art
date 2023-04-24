@@ -2260,9 +2260,7 @@ size_t OatWriter::InitOatCode(size_t offset) {
   oat_header_->SetExecutableOffset(offset);
   size_executable_offset_alignment_ = offset - old_offset;
   InstructionSet instruction_set = compiler_options_.GetInstructionSet();
-  if (GetCompilerOptions().IsBootImage() && primary_oat_file_ &&
-      // TODO(riscv64): remove this when we have compiler support for RISC-V.
-      instruction_set != InstructionSet::kRiscv64) {
+  if (GetCompilerOptions().IsBootImage() && primary_oat_file_) {
     const bool generate_debug_info = GetCompilerOptions().GenerateAnyDebugInfo();
     size_t adjusted_offset = offset;
 
@@ -3068,9 +3066,7 @@ size_t OatWriter::WriteBcpBssInfo(OutputStream* out, size_t file_offset, size_t 
 
 size_t OatWriter::WriteCode(OutputStream* out, size_t file_offset, size_t relative_offset) {
   InstructionSet instruction_set = compiler_options_.GetInstructionSet();
-  if (GetCompilerOptions().IsBootImage() && primary_oat_file_ &&
-      // TODO(riscv64): remove this when we have compiler support for RISC-V.
-      instruction_set != InstructionSet::kRiscv64) {
+  if (GetCompilerOptions().IsBootImage() && primary_oat_file_) {
     #define DO_TRAMPOLINE(field) \
       do { \
         /* Pad with at least four 0xFFs so we can do DCHECKs in OatQuickMethodHeader */ \
