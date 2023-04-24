@@ -17,5 +17,13 @@
 public class Main {
   public static void main(String[] args) throws Exception {
     art.Test988.run();
+
+    // Test calls to intrinsics from JITed code.
+    ensureJitCompiled(art.Test988Intrinsics.class, "test");
+    art.Test988.testJitIntrinsics();
+
+    art.Test988.printResults();
   }
+
+  public static native void ensureJitCompiled(Class<?> cls, String methodName);
 }
