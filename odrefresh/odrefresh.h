@@ -39,9 +39,6 @@
 namespace art {
 namespace odrefresh {
 
-// TODO(jiakaiz): Remove this.
-void TestOnlyEnableMainlineExtension();
-
 class OnDeviceRefresh;
 
 struct BootImages {
@@ -112,36 +109,49 @@ class PreconditionCheckResult {
  public:
   static PreconditionCheckResult NoneOk(OdrMetrics::Trigger trigger) {
     return PreconditionCheckResult(trigger,
-                                   /*boot_classpath_ok=*/false,
+                                   /*primary_boot_image_ok=*/false,
+                                   /*boot_image_mainline_extension_ok=*/false,
+                                   /*system_server_ok=*/false);
+  }
+  static PreconditionCheckResult BootImageMainlineExtensionNotOk(OdrMetrics::Trigger trigger) {
+    return PreconditionCheckResult(trigger,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/false,
                                    /*system_server_ok=*/false);
   }
   static PreconditionCheckResult SystemServerNotOk(OdrMetrics::Trigger trigger) {
     return PreconditionCheckResult(trigger,
-                                   /*boot_classpath_ok=*/true,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/true,
                                    /*system_server_ok=*/false);
   }
   static PreconditionCheckResult AllOk() {
     return PreconditionCheckResult(/*trigger=*/std::nullopt,
-                                   /*boot_classpath_ok=*/true,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/true,
                                    /*system_server_ok=*/true);
   }
   bool IsAllOk() const { return !trigger_.has_value(); }
   OdrMetrics::Trigger GetTrigger() const { return trigger_.value(); }
-  bool IsBootClasspathOk() const { return boot_classpath_ok_; }
+  bool IsPrimaryBootImageOk() const { return primary_boot_image_ok_; }
+  bool IsBootImageMainlineExtensionOk() const { return boot_image_mainline_extension_ok_; }
   bool IsSystemServerOk() const { return system_server_ok_; }
 
  private:
   // Use static factory methods instead.
   PreconditionCheckResult(std::optional<OdrMetrics::Trigger> trigger,
-                          bool boot_classpath_ok,
+                          bool primary_boot_image_ok,
+                          bool boot_image_mainline_extension_ok,
                           bool system_server_ok)
       : trigger_(trigger),
-        boot_classpath_ok_(boot_classpath_ok),
+        primary_boot_image_ok_(primary_boot_image_ok),
+        boot_image_mainline_extension_ok_(boot_image_mainline_extension_ok),
         system_server_ok_(system_server_ok) {}
 
   // Indicates why the precondition is not okay, or `std::nullopt` if it's okay.
   std::optional<OdrMetrics::Trigger> trigger_;
-  bool boot_classpath_ok_;
+  bool primary_boot_image_ok_;
+  bool boot_image_mainline_extension_ok_;
   bool system_server_ok_;
 };
 
@@ -292,25 +302,23 @@ class OnDeviceRefresh final {
   WARN_UNUSED PreconditionCheckResult
   CheckPreconditionForData(const std::vector<com::android::apex::ApexInfo>& apex_info_list) const;
 
-  // Checks whether all boot classpath artifacts are up to date. Returns true if all are present,
-  // false otherwise.
-  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  WARN_UNUSED bool CheckBootClasspathArtifactsAreUpToDate(
-      OdrMetrics& metrics,
-      const InstructionSet isa,
-      const PreconditionCheckResult& system_result,
-      const PreconditionCheckResult& data_result,
-      /*out*/ std::vector<std::string>* checked_artifacts) const;
+  // Checks whether all boot classpath artifacts are up to date. Returns the boot images that need
+  // to be (re-)generated. If `checked_artifacts` is present, adds checked artifacts to
+  // `checked_artifacts`.
+  WARN_UNUSED BootImages
+  CheckBootClasspathArtifactsAreUpToDate(OdrMetrics& metrics,
+                                         InstructionSet isa,
+                                         const PreconditionCheckResult& system_result,
+                                         const PreconditionCheckResult& data_result,
+                                         /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   // Checks whether all system_server artifacts are up to date. The artifacts are checked in their
-  // order of compilation. Returns true if all are present, false otherwise.
-  // Adds the paths to the jars that needs to be compiled in `jars_to_compile`.
+  // order of compilation. Returns the paths to the jars that need to be compiled.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  bool CheckSystemServerArtifactsAreUpToDate(
+  WARN_UNUSED std::set<std::string> CheckSystemServerArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const PreconditionCheckResult& system_result,
       const PreconditionCheckResult& data_result,
-      /*out*/ std::set<std::string>* jars_to_compile,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   WARN_UNUSED CompilationResult
