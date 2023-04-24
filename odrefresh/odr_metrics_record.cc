@@ -141,6 +141,8 @@ android::base::Result<void> OdrMetricsRecord::ReadFromFile(const std::string& fi
   primary_bcp_dex2oat_result = OR_RETURN(ReadExecResult(metrics, "primary_bcp_dex2oat_result"));
   secondary_bcp_dex2oat_result = OR_RETURN(ReadExecResult(metrics, "secondary_bcp_dex2oat_result"));
   system_server_dex2oat_result = OR_RETURN(ReadExecResult(metrics, "system_server_dex2oat_result"));
+  primary_bcp_compilation_type = OR_RETURN(ReadInt32(metrics, "primary_bcp_compilation_type"));
+  secondary_bcp_compilation_type = OR_RETURN(ReadInt32(metrics, "secondary_bcp_compilation_type"));
 
   return {};
 }
@@ -164,6 +166,8 @@ android::base::Result<void> OdrMetricsRecord::WriteToFile(const std::string& fil
   AddResult(metrics, "primary_bcp_dex2oat_result", primary_bcp_dex2oat_result);
   AddResult(metrics, "secondary_bcp_dex2oat_result", secondary_bcp_dex2oat_result);
   AddResult(metrics, "system_server_dex2oat_result", system_server_dex2oat_result);
+  AddMetric(metrics, "primary_bcp_compilation_type", primary_bcp_compilation_type);
+  AddMetric(metrics, "secondary_bcp_compilation_type", secondary_bcp_compilation_type);
 
   tinyxml2::XMLError result = xml_document.SaveFile(filename.data(), /*compact=*/true);
   if (result == tinyxml2::XML_SUCCESS) {

@@ -632,6 +632,17 @@ int BootImages::Count() const {
   return count;
 }
 
+OdrMetrics::BcpCompilationType BootImages::GetTypeForMetrics() const {
+  if (primary_boot_image && boot_image_mainline_extension) {
+    return OdrMetrics::BcpCompilationType::kPrimaryAndMainline;
+  }
+  if (boot_image_mainline_extension) {
+    return OdrMetrics::BcpCompilationType::kMainline;
+  }
+  LOG(FATAL) << "Unexpected BCP compilation type";
+  UNREACHABLE();
+}
+
 int CompilationOptions::CompilationUnitCount() const {
   int count = 0;
   for (const auto& [isa, boot_images] : boot_images_to_generate_for_isas) {
@@ -2034,6 +2045,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
     CompilationResult bcp_result =
         CompileBootClasspath(staging_dir, isa, boot_images_to_generate, advance_animation_progress);
     metrics.SetDex2OatResult(stage, bcp_result.elapsed_time_ms, bcp_result.dex2oat_result);
+    metrics.SetBcpCompilationType(stage, boot_images_to_generate.GetTypeForMetrics());
     if (!bcp_result.IsOk()) {
       if (isa == system_server_isa) {
         system_server_isa_failed = true;
