@@ -1901,7 +1901,8 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
   InstructionSet isa = config_.GetSystemServerIsa();
   std::string output_path = GetSystemServerImagePath(/*on_system=*/false, dex_file);
 
-  std::string profile = dex_file + ".prof";
+  std::string actual_jar_path = RewriteParentDirectoryIfNeeded(dex_file);
+  std::string profile = actual_jar_path + ".prof";
   const std::string& compiler_filter = config_.GetSystemServerCompilerFilter();
   bool maybe_add_profile = !compiler_filter.empty() || HasVettedDeviceSystemServerProfiles();
   bool has_added_profile =
