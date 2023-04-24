@@ -69,6 +69,7 @@
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "base/os.h"
 #include "base/stl_util.h"
@@ -131,6 +132,13 @@ constexpr mode_t kFileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
 constexpr const char* kFirstBootImageBasename = "boot.art";
 constexpr const char* kMinimalBootImageBasename = "boot_minimal.art";
+
+// The default compiler filter for primary boot image.
+constexpr const char* kPrimaryCompilerFilter = "speed-profile";
+
+// The compiler filter for boot image mainline extension. We don't have profiles for mainline BCP
+// jars, so we always use "verify".
+constexpr const char* kMainlineCompilerFilter = "verify";
 
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
@@ -603,6 +611,47 @@ bool HasVettedDeviceSystemServerProfiles() {
 
 }  // namespace
 
+CompilationOptions CompilationOptions::CompileAll(const OnDeviceRefresh& odr) {
+  CompilationOptions options;
+  for (InstructionSet isa : odr.Config().GetBootClasspathIsas()) {
+    options.boot_images_to_generate_for_isas.emplace_back(
+        isa, BootImages{.primary_boot_image = true, .boot_image_mainline_extension = true});
+  }
+  options.system_server_jars_to_compile = odr.AllSystemServerJars();
+  return options;
+}
+
+int BootImages::Count() const {
+  int count = 0;
+  if (primary_boot_image) {
+    count++;
+  }
+  if (boot_image_mainline_extension) {
+    count++;
+  }
+  return count;
+}
+
+OdrMetrics::BcpCompilationType BootImages::GetTypeForMetrics() const {
+  if (primary_boot_image && boot_image_mainline_extension) {
+    return OdrMetrics::BcpCompilationType::kPrimaryAndMainline;
+  }
+  if (boot_image_mainline_extension) {
+    return OdrMetrics::BcpCompilationType::kMainline;
+  }
+  LOG(FATAL) << "Unexpected BCP compilation type";
+  UNREACHABLE();
+}
+
+int CompilationOptions::CompilationUnitCount() const {
+  int count = 0;
+  for (const auto& [isa, boot_images] : boot_images_to_generate_for_isas) {
+    count += boot_images.Count();
+  }
+  count += system_server_jars_to_compile.size();
+  return count;
+}
+
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
     : OnDeviceRefresh(config,
                       config.GetArtifactDirectory() + "/" + kCacheInfoFile,
@@ -798,6 +847,18 @@ std::vector<std::string> OnDeviceRefresh::GetFrameworkBcpJars() const {
   return framework_bcp_jars;
 }
 
+std::vector<std::string> OnDeviceRefresh::GetMainlineBcpJars() const {
+  // Elements in `dex2oat_boot_classpath_jars_` should be at the beginning of
+  // `boot_classpath_jars_`, followed by mainline BCP jars.
+  CHECK_LT(dex2oat_boot_classpath_jars_.size(), boot_classpath_jars_.size());
+  CHECK(std::equal(dex2oat_boot_classpath_jars_.begin(),
+                   dex2oat_boot_classpath_jars_.end(),
+                   boot_classpath_jars_.begin(),
+                   boot_classpath_jars_.begin() + dex2oat_boot_classpath_jars_.size()));
+  return {boot_classpath_jars_.begin() + dex2oat_boot_classpath_jars_.size(),
+          boot_classpath_jars_.end()};
+}
+
 std::string OnDeviceRefresh::GetPrimaryBootImage(bool on_system, bool minimal) const {
   DCHECK(!on_system || !minimal);
   const char* basename = minimal ? kMinimalBootImageBasename : kFirstBootImageBasename;
@@ -830,15 +891,49 @@ std::string OnDeviceRefresh::GetSystemBootImageFrameworkExtensionPath(Instructio
   return GetSystemImageFilename(GetSystemBootImageFrameworkExtension().c_str(), isa);
 }
 
-std::vector<std::string> OnDeviceRefresh::GetBestBootImages(InstructionSet isa) const {
+std::string OnDeviceRefresh::GetBootImageMainlineExtension(bool on_system) const {
+  std::vector<std::string> mainline_bcp_jars = GetMainlineBcpJars();
+  std::string basename =
+      GetBootImageComponentBasename(mainline_bcp_jars[0], /*is_first_jar=*/false);
+  if (on_system) {
+    // Typically "/system/framework/boot-framework-adservices.art".
+    return "{}/framework/{}"_format(GetAndroidRoot(), basename);
+  } else {
+    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework-adservices.art".
+    return "{}/{}"_format(config_.GetArtifactDirectory(), basename);
+  }
+}
+
+std::string OnDeviceRefresh::GetBootImageMainlineExtensionPath(bool on_system,
+                                                               InstructionSet isa) const {
+  // Typically
+  // "/data/misc/apexdata/com.android.art/dalvik-cache/<isa>/boot-framework-adservices.art".
+  return GetSystemImageFilename(GetBootImageMainlineExtension(on_system).c_str(), isa);
+}
+
+std::vector<std::string> OnDeviceRefresh::GetBestBootImages(InstructionSet isa,
+                                                            bool include_mainline_extension) const {
   std::vector<std::string> locations;
   std::string unused_error_msg;
+  bool primary_on_data = false;
   if (PrimaryBootImageExist(
           /*on_system=*/false, /*minimal=*/false, isa, &unused_error_msg)) {
+    primary_on_data = true;
     locations.push_back(GetPrimaryBootImage(/*on_system=*/false, /*minimal=*/false));
   } else {
     locations.push_back(GetPrimaryBootImage(/*on_system=*/true, /*minimal=*/false));
     locations.push_back(GetSystemBootImageFrameworkExtension());
+  }
+  if (include_mainline_extension) {
+    if (BootImageMainlineExtensionExist(/*on_system=*/false, isa, &unused_error_msg)) {
+      locations.push_back(GetBootImageMainlineExtension(/*on_system=*/false));
+    } else {
+      // If the primary boot image is on /data, it means we have regenerated all boot images, so the
+      // mainline extension must be on /data too.
+      CHECK(!primary_on_data)
+          << "Mainline extension not found while primary boot image is on /data";
+      locations.push_back(GetBootImageMainlineExtension(/*on_system=*/true));
+    }
   }
   return locations;
 }
@@ -893,6 +988,16 @@ WARN_UNUSED bool OnDeviceRefresh::PrimaryBootImageExist(
     }
   }
   return true;
+}
+
+WARN_UNUSED bool OnDeviceRefresh::BootImageMainlineExtensionExist(
+    bool on_system,
+    InstructionSet isa,
+    /*out*/ std::string* error_msg,
+    /*out*/ std::vector<std::string>* checked_artifacts) const {
+  std::string path = GetBootImageMainlineExtensionPath(on_system, isa);
+  OdrArtifacts artifacts = OdrArtifacts::ForBootImage(path);
+  return ArtifactsExist(artifacts, /*check_art_file=*/true, error_msg, checked_artifacts);
 }
 
 bool OnDeviceRefresh::SystemServerArtifactsExist(
@@ -1021,7 +1126,8 @@ WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForSystem(
                   apex_info_list.end(),
                   [](const apex::ApexInfo& apex_info) { return !apex_info.getIsFactory(); })) {
     LOG(INFO) << "Updated APEXes mounted";
-    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
+    return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+        OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   return PreconditionCheckResult::AllOk();
@@ -1128,7 +1234,8 @@ WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForData(
   const art_apex::ModuleInfoList* cached_module_info_list = cache_info->getFirstModuleInfoList();
   if (cached_module_info_list == nullptr) {
     LOG(ERROR) << "Missing APEX info list from cache-info.";
-    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
+    return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+        OdrMetrics::Trigger::kApexVersionMismatch);
   }
 
   std::unordered_map<std::string, const art_apex::ModuleInfo*> cached_module_info_map;
@@ -1145,13 +1252,33 @@ WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForData(
     auto it = cached_module_info_map.find(apex_name);
     if (it == cached_module_info_map.end()) {
       LOG(INFO) << "Missing APEX info from cache-info (" << apex_name << ").";
-      return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
+      return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+          OdrMetrics::Trigger::kApexVersionMismatch);
     }
 
     const art_apex::ModuleInfo* cached_module_info = it->second;
     if (!CheckModuleInfo(*cached_module_info, current_apex_info)) {
-      return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
+      return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+          OdrMetrics::Trigger::kApexVersionMismatch);
     }
+  }
+
+  const std::vector<art_apex::Component> current_bcp_components = GenerateBootClasspathComponents();
+
+  const art_apex::Classpath* cached_bcp_components = cache_info->getFirstBootClasspath();
+  if (cached_bcp_components == nullptr) {
+    LOG(INFO) << "Missing BootClasspath components.";
+    return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+        OdrMetrics::Trigger::kApexVersionMismatch);
+  }
+
+  result = CheckComponents(current_bcp_components, cached_bcp_components->getComponent());
+  if (!result.ok()) {
+    LOG(INFO) << "BootClasspath components mismatch: " << result.error();
+    // Boot classpath components can be dependencies of system_server components, so system_server
+    // components need to be recompiled if boot classpath components are changed.
+    return PreconditionCheckResult::BootImageMainlineExtensionNotOk(
+        OdrMetrics::Trigger::kDexFilesChanged);
   }
 
   // Check system server components.
@@ -1180,84 +1307,115 @@ WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForData(
     return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kDexFilesChanged);
   }
 
-  const std::vector<art_apex::Component> current_bcp_components = GenerateBootClasspathComponents();
-
-  const art_apex::Classpath* cached_bcp_components = cache_info->getFirstBootClasspath();
-  if (cached_bcp_components == nullptr) {
-    LOG(INFO) << "Missing BootClasspath components.";
-    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kApexVersionMismatch);
-  }
-
-  result = CheckComponents(current_bcp_components, cached_bcp_components->getComponent());
-  if (!result.ok()) {
-    LOG(INFO) << "BootClasspath components mismatch: " << result.error();
-    // Boot classpath components can be dependencies of system_server components, so system_server
-    // components need to be recompiled if boot classpath components are changed.
-    return PreconditionCheckResult::SystemServerNotOk(OdrMetrics::Trigger::kDexFilesChanged);
-  }
-
   return PreconditionCheckResult::AllOk();
 }
 
-WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
+WARN_UNUSED BootImages OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
     OdrMetrics& metrics,
-    const InstructionSet isa,
+    InstructionSet isa,
     const PreconditionCheckResult& system_result,
     const PreconditionCheckResult& data_result,
     /*out*/ std::vector<std::string>* checked_artifacts) const {
-  if (system_result.IsBootClasspathOk()) {
+  const char* isa_str = GetInstructionSetString(isa);
+
+  BootImages boot_images_on_system{.primary_boot_image = false,
+                                   .boot_image_mainline_extension = false};
+  if (system_result.IsPrimaryBootImageOk()) {
     // We can use the artifacts on /system. Check if they exist.
     std::string error_msg;
     if (PrimaryBootImageExist(/*on_system=*/true, /*minimal=*/false, isa, &error_msg)) {
-      return true;
+      boot_images_on_system.primary_boot_image = true;
+    } else {
+      LOG(INFO) << "Incomplete primary boot image or framework extension on /system: " << error_msg;
     }
-
-    LOG(INFO) << "Incomplete boot classpath artifacts on /system: " << error_msg;
-    LOG(INFO) << "Checking /data";
   }
 
-  if (!data_result.IsBootClasspathOk()) {
-    metrics.SetTrigger(data_result.GetTrigger());
-    return false;
+  if (boot_images_on_system.primary_boot_image && system_result.IsBootImageMainlineExtensionOk()) {
+    std::string error_msg;
+    if (BootImageMainlineExtensionExist(/*on_system=*/true, isa, &error_msg)) {
+      boot_images_on_system.boot_image_mainline_extension = true;
+    } else {
+      LOG(INFO) << "Incomplete boot image mainline extension on /system: " << error_msg;
+    }
   }
 
-  // Cache info looks good, check all compilation artifacts exist.
-  std::string error_msg;
-  if (!PrimaryBootImageExist(
-          /*on_system=*/false, /*minimal=*/false, isa, &error_msg, checked_artifacts)) {
-    LOG(INFO) << "Incomplete boot classpath artifacts on /data: " << error_msg;
-    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
-    // Add the minimal boot image to `checked_artifacts` if exists. This is to prevent the minimal
-    // boot image from being deleted. It does not affect the return value because we should still
-    // attempt to generate a full boot image even if the minimal one exists.
+  if (boot_images_on_system.Count() == BootImages::kMaxCount) {
+    LOG(INFO) << "Boot images on /system OK ({})"_format(isa_str);
+    // Nothing to compile.
+    return BootImages{.primary_boot_image = false, .boot_image_mainline_extension = false};
+  }
+
+  LOG(INFO) << "Checking boot images /data ({})"_format(isa_str);
+  BootImages boot_images_on_data{.primary_boot_image = false,
+                                 .boot_image_mainline_extension = false};
+
+  if (data_result.IsPrimaryBootImageOk()) {
+    std::string error_msg;
     if (PrimaryBootImageExist(
-            /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
-      LOG(INFO) << "Found minimal boot classpath artifacts";
+            /*on_system=*/false, /*minimal=*/false, isa, &error_msg, checked_artifacts)) {
+      boot_images_on_data.primary_boot_image = true;
+    } else {
+      LOG(INFO) << "Incomplete primary boot image on /data: " << error_msg;
+      metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+      // Add the minimal boot image to `checked_artifacts` if exists. This is to prevent the minimal
+      // boot image from being deleted. It does not affect the return value because we should still
+      // attempt to generate a full boot image even if the minimal one exists.
+      if (PrimaryBootImageExist(
+              /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
+        LOG(INFO) << "Found minimal primary boot image ({})"_format(isa_str);
+      }
     }
-    return false;
+  } else {
+    metrics.SetTrigger(data_result.GetTrigger());
   }
 
-  LOG(INFO) << "Boot classpath artifacts on /data OK";
-  return true;
+  if (boot_images_on_data.primary_boot_image) {
+    if (data_result.IsBootImageMainlineExtensionOk()) {
+      std::string error_msg;
+      if (BootImageMainlineExtensionExist(
+              /*on_system=*/false, isa, &error_msg, checked_artifacts)) {
+        boot_images_on_data.boot_image_mainline_extension = true;
+      } else {
+        LOG(INFO) << "Incomplete boot image mainline extension on /data: " << error_msg;
+        metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+      }
+    } else {
+      metrics.SetTrigger(data_result.GetTrigger());
+    }
+  }
+
+  BootImages boot_images_to_generate{
+      .primary_boot_image =
+          !boot_images_on_system.primary_boot_image && !boot_images_on_data.primary_boot_image,
+      .boot_image_mainline_extension = !boot_images_on_system.boot_image_mainline_extension &&
+                                       !boot_images_on_data.boot_image_mainline_extension,
+  };
+
+  if (boot_images_to_generate.Count() == 0) {
+    LOG(INFO) << "Boot images on /data OK ({})"_format(isa_str);
+  }
+
+  return boot_images_to_generate;
 }
 
-bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
+std::set<std::string> OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
     OdrMetrics& metrics,
     const PreconditionCheckResult& system_result,
     const PreconditionCheckResult& data_result,
-    /*out*/ std::set<std::string>* jars_to_compile,
     /*out*/ std::vector<std::string>* checked_artifacts) const {
+  std::set<std::string> jars_to_compile;
   std::set<std::string> jars_missing_artifacts_on_system;
   if (system_result.IsSystemServerOk()) {
     // We can use the artifacts on /system. Check if they exist.
     std::string error_msg;
     if (SystemServerArtifactsExist(
             /*on_system=*/true, &error_msg, &jars_missing_artifacts_on_system)) {
-      return true;
+      LOG(INFO) << "system_server artifacts on /system OK";
+      return {};
     }
 
     LOG(INFO) << "Incomplete system server artifacts on /system: " << error_msg;
-    LOG(INFO) << "Checking /data";
+    LOG(INFO) << "Checking system server artifacts /data";
   } else {
     jars_missing_artifacts_on_system = AllSystemServerJars();
   }
@@ -1275,19 +1433,19 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
                         jars_missing_artifacts_on_system.end(),
                         jars_missing_artifacts_on_data.begin(),
                         jars_missing_artifacts_on_data.end(),
-                        std::inserter(*jars_to_compile, jars_to_compile->end()));
-  if (!jars_to_compile->empty()) {
+                        std::inserter(jars_to_compile, jars_to_compile.end()));
+  if (!jars_to_compile.empty()) {
     if (data_result.IsSystemServerOk()) {
       LOG(INFO) << "Incomplete system_server artifacts on /data: " << error_msg;
       metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
     } else {
       metrics.SetTrigger(data_result.GetTrigger());
     }
-    return false;
+    return jars_to_compile;
   }
 
   LOG(INFO) << "system_server artifacts on /data OK";
-  return true;
+  return {};
 }
 
 Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
@@ -1388,8 +1546,7 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
 
   // Clean-up helper used to simplify clean-ups and handling failures there.
   auto cleanup_and_compile_all = [&, this]() {
-    compilation_options->compile_boot_classpath_for_isas = config_.GetBootClasspathIsas();
-    compilation_options->system_server_jars_to_compile = AllSystemServerJars();
+    *compilation_options = CompilationOptions::CompileAll(*this);
     if (!RemoveArtifactsDirectory()) {
       metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
@@ -1428,10 +1585,12 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   PreconditionCheckResult system_result = CheckPreconditionForSystem(apex_info_list.value());
   PreconditionCheckResult data_result = CheckPreconditionForData(apex_info_list.value());
 
-  for (const InstructionSet isa : config_.GetBootClasspathIsas()) {
-    if (!CheckBootClasspathArtifactsAreUpToDate(
-            metrics, isa, system_result, data_result, &checked_artifacts)) {
-      compilation_options->compile_boot_classpath_for_isas.push_back(isa);
+  for (InstructionSet isa : config_.GetBootClasspathIsas()) {
+    BootImages boot_images_to_generate = CheckBootClasspathArtifactsAreUpToDate(
+        metrics, isa, system_result, data_result, &checked_artifacts);
+    if (boot_images_to_generate.Count() > 0) {
+      compilation_options->boot_images_to_generate_for_isas.emplace_back(isa,
+                                                                         boot_images_to_generate);
       // system_server artifacts are invalid without valid boot classpath artifacts.
       if (isa == system_server_isa) {
         compilation_options->system_server_jars_to_compile = AllSystemServerJars();
@@ -1440,15 +1599,11 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   }
 
   if (compilation_options->system_server_jars_to_compile.empty()) {
-    CheckSystemServerArtifactsAreUpToDate(metrics,
-                                          system_result,
-                                          data_result,
-                                          &compilation_options->system_server_jars_to_compile,
-                                          &checked_artifacts);
+    compilation_options->system_server_jars_to_compile = CheckSystemServerArtifactsAreUpToDate(
+        metrics, system_result, data_result, &checked_artifacts);
   }
 
-  bool compilation_required = !compilation_options->compile_boot_classpath_for_isas.empty() ||
-                              !compilation_options->system_server_jars_to_compile.empty();
+  bool compilation_required = compilation_options->CompilationUnitCount() > 0;
 
   if (!compilation_required && !data_result.IsAllOk()) {
     // Return kCompilationRequired to generate the cache info even if there's nothing to compile.
@@ -1581,6 +1736,7 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
                                             InstructionSet isa,
                                             const std::vector<std::string>& dex_files,
                                             const std::vector<std::string>& boot_classpath,
+                                            const std::vector<std::string>& input_boot_images,
                                             const std::string& output_path) const {
   std::vector<std::string> args;
   std::vector<std::unique_ptr<File>> readonly_files_raii;
@@ -1588,38 +1744,44 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
   // Compile as a single image for fewer files and slightly less memory overhead.
   args.emplace_back("--single-image");
 
-  std::string art_boot_profile_file = GetArtRoot() + "/etc/boot-image.prof";
-  std::string framework_boot_profile_file = GetAndroidRoot() + "/etc/boot-image.prof";
-  bool has_any_profile = AddDex2OatProfile(
-      args, readonly_files_raii, {art_boot_profile_file, framework_boot_profile_file});
-  if (!has_any_profile) {
-    return CompilationResult::Error(OdrMetrics::Status::kIoError, "Missing boot image profile");
-  }
-  const std::string& compiler_filter = config_.GetBootImageCompilerFilter();
-  if (!compiler_filter.empty()) {
-    args.emplace_back("--compiler-filter=" + compiler_filter);
-  } else {
-    args.emplace_back("--compiler-filter=speed-profile");
-  }
+  if (input_boot_images.empty()) {
+    // Primary boot image.
+    std::string art_boot_profile_file = GetArtRoot() + "/etc/boot-image.prof";
+    std::string framework_boot_profile_file = GetAndroidRoot() + "/etc/boot-image.prof";
+    bool has_any_profile = AddDex2OatProfile(
+        args, readonly_files_raii, {art_boot_profile_file, framework_boot_profile_file});
+    if (!has_any_profile) {
+      return CompilationResult::Error(OdrMetrics::Status::kIoError, "Missing boot image profile");
+    }
+    const std::string& compiler_filter = config_.GetBootImageCompilerFilter();
+    if (!compiler_filter.empty()) {
+      args.emplace_back("--compiler-filter=" + compiler_filter);
+    } else {
+      args.emplace_back(StringPrintf("--compiler-filter=%s", kPrimaryCompilerFilter));
+    }
 
-  args.emplace_back(StringPrintf("--base=0x%08x", ART_BASE_ADDRESS));
+    args.emplace_back(StringPrintf("--base=0x%08x", ART_BASE_ADDRESS));
 
-  std::string dirty_image_objects_file(GetAndroidRoot() + "/etc/dirty-image-objects");
-  if (OS::FileExists(dirty_image_objects_file.c_str())) {
-    std::unique_ptr<File> file(OS::OpenFileForReading(dirty_image_objects_file.c_str()));
-    args.emplace_back(StringPrintf("--dirty-image-objects-fd=%d", file->Fd()));
-    readonly_files_raii.push_back(std::move(file));
-  } else {
-    LOG(WARNING) << "Missing dirty objects file: '{}'"_format(dirty_image_objects_file);
-  }
+    std::string dirty_image_objects_file(GetAndroidRoot() + "/etc/dirty-image-objects");
+    if (OS::FileExists(dirty_image_objects_file.c_str())) {
+      std::unique_ptr<File> file(OS::OpenFileForReading(dirty_image_objects_file.c_str()));
+      args.emplace_back(StringPrintf("--dirty-image-objects-fd=%d", file->Fd()));
+      readonly_files_raii.push_back(std::move(file));
+    } else {
+      LOG(WARNING) << "Missing dirty objects file: '{}'"_format(dirty_image_objects_file);
+    }
 
-  std::string preloaded_classes_file(GetAndroidRoot() + "/etc/preloaded-classes");
-  if (OS::FileExists(preloaded_classes_file.c_str())) {
-    std::unique_ptr<File> file(OS::OpenFileForReading(preloaded_classes_file.c_str()));
-    args.emplace_back(StringPrintf("--preloaded-classes-fds=%d", file->Fd()));
-    readonly_files_raii.push_back(std::move(file));
+    std::string preloaded_classes_file(GetAndroidRoot() + "/etc/preloaded-classes");
+    if (OS::FileExists(preloaded_classes_file.c_str())) {
+      std::unique_ptr<File> file(OS::OpenFileForReading(preloaded_classes_file.c_str()));
+      args.emplace_back(StringPrintf("--preloaded-classes-fds=%d", file->Fd()));
+      readonly_files_raii.push_back(std::move(file));
+    } else {
+      LOG(WARNING) << "Missing preloaded classes file: '{}'"_format(preloaded_classes_file);
+    }
   } else {
-    LOG(WARNING) << "Missing preloaded classes file: '{}'"_format(preloaded_classes_file);
+    // Mainline extension.
+    args.emplace_back(StringPrintf("--compiler-filter=%s", kMainlineCompilerFilter));
   }
 
   return RunDex2oat(
@@ -1628,7 +1790,7 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
       isa,
       dex_files,
       boot_classpath,
-      /*input_boot_images=*/{},
+      input_boot_images,
       OdrArtifacts::ForBootImage(output_path),
       args,
       readonly_files_raii);
@@ -1637,7 +1799,11 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
 WARN_UNUSED CompilationResult
 OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
                                       InstructionSet isa,
+                                      BootImages boot_images,
                                       const std::function<void()>& on_dex2oat_success) const {
+  DCHECK_GT(boot_images.Count(), 0);
+  DCHECK_IMPLIES(boot_images.primary_boot_image, boot_images.boot_image_mainline_extension);
+
   CompilationResult result = CompilationResult::Ok();
 
   if (config_.GetMinimal()) {
@@ -1649,13 +1815,14 @@ OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
     result.Merge(CompilationResult::Error(OdrMetrics::Status::kNoSpace, "Insufficient space"));
   }
 
-  if (result.IsOk()) {
+  if (result.IsOk() && boot_images.primary_boot_image) {
     CompilationResult primary_result = RunDex2oatForBootClasspath(
         staging_dir,
         "primary",
         isa,
         dex2oat_boot_classpath_jars_,
         dex2oat_boot_classpath_jars_,
+        /*input_boot_images=*/{},
         GetPrimaryBootImagePath(/*on_system=*/false, /*minimal=*/false, isa));
     result.Merge(primary_result);
 
@@ -1671,7 +1838,7 @@ OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
     }
   }
 
-  if (!result.IsOk()) {
+  if (!result.IsOk() && boot_images.primary_boot_image) {
     LOG(ERROR) << "Compilation of primary BCP failed: " << result.error_msg;
 
     // Fall back to generating a minimal boot image.
@@ -1691,6 +1858,7 @@ OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
         isa,
         art_bcp_jars,
         art_bcp_jars,
+        /*input_boot_images=*/{},
         GetPrimaryBootImagePath(/*on_system=*/false, /*minimal=*/true, isa));
     result.Merge(minimal_result);
 
@@ -1699,6 +1867,26 @@ OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
     }
 
     return result;
+  }
+
+  if (result.IsOk() && boot_images.boot_image_mainline_extension) {
+    CompilationResult mainline_result =
+        RunDex2oatForBootClasspath(staging_dir,
+                                   "mainline",
+                                   isa,
+                                   GetMainlineBcpJars(),
+                                   boot_classpath_jars_,
+                                   GetBestBootImages(isa, /*include_mainline_extension=*/false),
+                                   GetBootImageMainlineExtensionPath(/*on_system=*/false, isa));
+    result.Merge(mainline_result);
+
+    if (mainline_result.IsOk()) {
+      on_dex2oat_success();
+    }
+  }
+
+  if (!result.IsOk() && boot_images.boot_image_mainline_extension) {
+    LOG(ERROR) << "Compilation of mainline BCP failed: " << result.error_msg;
   }
 
   return result;
@@ -1713,7 +1901,8 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
   InstructionSet isa = config_.GetSystemServerIsa();
   std::string output_path = GetSystemServerImagePath(/*on_system=*/false, dex_file);
 
-  std::string profile = dex_file + ".prof";
+  std::string actual_jar_path = RewriteParentDirectoryIfNeeded(dex_file);
+  std::string profile = actual_jar_path + ".prof";
   const std::string& compiler_filter = config_.GetSystemServerCompilerFilter();
   bool maybe_add_profile = !compiler_filter.empty() || HasVettedDeviceSystemServerProfiles();
   bool has_added_profile =
@@ -1753,7 +1942,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
                     isa,
                     {dex_file},
                     boot_classpath_jars_,
-                    GetBestBootImages(isa),
+                    GetBestBootImages(isa, /*include_mainline_extension=*/true),
                     OdrArtifacts::ForSystemServer(output_path),
                     args,
                     readonly_files_raii);
@@ -1836,9 +2025,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   std::string error_msg;
 
   uint32_t dex2oat_invocation_count = 0;
-  uint32_t total_dex2oat_invocation_count =
-      compilation_options.compile_boot_classpath_for_isas.size() +
-      compilation_options.system_server_jars_to_compile.size();
+  uint32_t total_dex2oat_invocation_count = compilation_options.CompilationUnitCount();
   ReportNextBootAnimationProgress(dex2oat_invocation_count, total_dex2oat_invocation_count);
   auto advance_animation_progress = [&]() {
     ReportNextBootAnimationProgress(++dex2oat_invocation_count, total_dex2oat_invocation_count);
@@ -1851,13 +2038,15 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   bool system_server_isa_failed = false;
   std::optional<std::pair<OdrMetrics::Stage, OdrMetrics::Status>> first_failure;
 
-  for (InstructionSet isa : compilation_options.compile_boot_classpath_for_isas) {
+  for (const auto& [isa, boot_images_to_generate] :
+       compilation_options.boot_images_to_generate_for_isas) {
     OdrMetrics::Stage stage = (isa == bcp_instruction_sets.front()) ?
                                   OdrMetrics::Stage::kPrimaryBootClasspath :
                                   OdrMetrics::Stage::kSecondaryBootClasspath;
     CompilationResult bcp_result =
-        CompileBootClasspath(staging_dir, isa, advance_animation_progress);
+        CompileBootClasspath(staging_dir, isa, boot_images_to_generate, advance_animation_progress);
     metrics.SetDex2OatResult(stage, bcp_result.elapsed_time_ms, bcp_result.dex2oat_result);
+    metrics.SetBcpCompilationType(stage, boot_images_to_generate.GetTypeForMetrics());
     if (!bcp_result.IsOk()) {
       if (isa == system_server_isa) {
         system_server_isa_failed = true;
