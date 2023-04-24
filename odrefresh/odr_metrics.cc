@@ -93,6 +93,23 @@ void OdrMetrics::SetDex2OatResult(Stage stage,
   }
 }
 
+void OdrMetrics::SetBcpCompilationType(Stage stage, BcpCompilationType type) {
+  switch (stage) {
+    case Stage::kPrimaryBootClasspath:
+      primary_bcp_compilation_type_ = type;
+      break;
+    case Stage::kSecondaryBootClasspath:
+      secondary_bcp_compilation_type_ = type;
+      break;
+    case Stage::kSystemServerClasspath:
+    case Stage::kCheck:
+    case Stage::kComplete:
+    case Stage::kPreparation:
+    case Stage::kUnknown:
+      LOG(FATAL) << "Unexpected stage " << stage_ << " when setting BCP compilation type";
+  }
+}
+
 int32_t OdrMetrics::GetFreeSpaceMiB(const std::string& path) {
   static constexpr uint32_t kBytesPerMiB = 1024 * 1024;
   static constexpr uint64_t kNominalMaximumCacheBytes = 1024 * kBytesPerMiB;
@@ -121,19 +138,21 @@ int32_t OdrMetrics::GetFreeSpaceMiB(const std::string& path) {
 
 OdrMetricsRecord OdrMetrics::ToRecord() const {
   return {
-    .odrefresh_metrics_version = kOdrefreshMetricsVersion,
-    .art_apex_version = art_apex_version_,
-    .trigger = static_cast<int32_t>(trigger_),
-    .stage_reached = static_cast<int32_t>(stage_),
-    .status = static_cast<int32_t>(status_),
-    .cache_space_free_start_mib = cache_space_free_start_mib_,
-    .cache_space_free_end_mib = cache_space_free_end_mib_,
-    .primary_bcp_compilation_millis = primary_bcp_compilation_millis_,
-    .secondary_bcp_compilation_millis = secondary_bcp_compilation_millis_,
-    .system_server_compilation_millis = system_server_compilation_millis_,
-    .primary_bcp_dex2oat_result = ConvertExecResult(primary_bcp_dex2oat_result_),
-    .secondary_bcp_dex2oat_result = ConvertExecResult(secondary_bcp_dex2oat_result_),
-    .system_server_dex2oat_result = ConvertExecResult(system_server_dex2oat_result_),
+      .odrefresh_metrics_version = kOdrefreshMetricsVersion,
+      .art_apex_version = art_apex_version_,
+      .trigger = static_cast<int32_t>(trigger_),
+      .stage_reached = static_cast<int32_t>(stage_),
+      .status = static_cast<int32_t>(status_),
+      .cache_space_free_start_mib = cache_space_free_start_mib_,
+      .cache_space_free_end_mib = cache_space_free_end_mib_,
+      .primary_bcp_compilation_millis = primary_bcp_compilation_millis_,
+      .secondary_bcp_compilation_millis = secondary_bcp_compilation_millis_,
+      .system_server_compilation_millis = system_server_compilation_millis_,
+      .primary_bcp_dex2oat_result = ConvertExecResult(primary_bcp_dex2oat_result_),
+      .secondary_bcp_dex2oat_result = ConvertExecResult(secondary_bcp_dex2oat_result_),
+      .system_server_dex2oat_result = ConvertExecResult(system_server_dex2oat_result_),
+      .primary_bcp_compilation_type = static_cast<int32_t>(primary_bcp_compilation_type_),
+      .secondary_bcp_compilation_type = static_cast<int32_t>(secondary_bcp_compilation_type_),
   };
 }
 
