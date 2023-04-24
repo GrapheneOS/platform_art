@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -101,15 +102,21 @@ TEST_F(OdrMetricsTest, PrimaryBcpResultWithValue) {
       OdrMetrics::Stage::kPrimaryBootClasspath,
       100,
       ExecResult{.status = ExecResult::Status::kExited, .exit_code = 0, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kPrimaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kMainline);
   OdrMetricsRecord record = metrics.ToRecord();
 
   EXPECT_EQ(record.primary_bcp_compilation_millis, 100);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.primary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kMainline));
 
   EXPECT_EQ(record.secondary_bcp_compilation_millis, 0);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, kExecResultNotRun);
+  EXPECT_EQ(record.secondary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kUnknown));
 
   EXPECT_EQ(record.system_server_compilation_millis, 0);
   EXPECT_EQ(record.system_server_dex2oat_result.status, kExecResultNotRun);
@@ -130,21 +137,29 @@ TEST_F(OdrMetricsTest, SecondaryBcpResultWithValue) {
       OdrMetrics::Stage::kPrimaryBootClasspath,
       100,
       ExecResult{.status = ExecResult::Status::kExited, .exit_code = 0, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kPrimaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kMainline);
   metrics.SetDex2OatResult(
       OdrMetrics::Stage::kSecondaryBootClasspath,
       200,
       ExecResult{.status = ExecResult::Status::kTimedOut, .exit_code = 3, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kSecondaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kPrimaryAndMainline);
   OdrMetricsRecord record = metrics.ToRecord();
 
   EXPECT_EQ(record.primary_bcp_compilation_millis, 100);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.primary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kMainline));
 
   EXPECT_EQ(record.secondary_bcp_compilation_millis, 200);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, ExecResult::Status::kTimedOut);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.exit_code, 3);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.secondary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kPrimaryAndMainline));
 
   EXPECT_EQ(record.system_server_compilation_millis, 0);
   EXPECT_EQ(record.system_server_dex2oat_result.status, kExecResultNotRun);

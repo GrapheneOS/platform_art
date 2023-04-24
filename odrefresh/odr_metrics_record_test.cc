@@ -91,6 +91,8 @@ TEST_F(OdrMetricsRecordTest, HappyPath) {
   expected.primary_bcp_dex2oat_result = OdrMetricsRecord::Dex2OatExecResult(1, -1, 0);
   expected.secondary_bcp_dex2oat_result = OdrMetricsRecord::Dex2OatExecResult(2, 15, 0);
   expected.system_server_dex2oat_result = OdrMetricsRecord::Dex2OatExecResult(3, -1, 9);
+  expected.primary_bcp_compilation_type = 0x82837192;
+  expected.secondary_bcp_compilation_type = 0x91827312;
 
   ASSERT_THAT(expected.WriteToFile(file_path_), Ok());
 
@@ -123,6 +125,8 @@ TEST_F(OdrMetricsRecordTest, HappyPath) {
             actual.system_server_dex2oat_result.exit_code);
   ASSERT_EQ(expected.system_server_dex2oat_result.signal,
             actual.system_server_dex2oat_result.signal);
+  ASSERT_EQ(expected.primary_bcp_compilation_type, actual.primary_bcp_compilation_type);
+  ASSERT_EQ(expected.secondary_bcp_compilation_type, actual.secondary_bcp_compilation_type);
   ASSERT_EQ(0, memcmp(&expected, &actual, sizeof(expected)));
 }
 
