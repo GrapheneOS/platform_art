@@ -34,8 +34,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Test to check end-to-end odrefresh invocations, but without odsign, fs-verity, and ART runtime
- * involved.
+ * Test to check end-to-end odrefresh invocations, but without odsign amd fs-verity involved.
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class OdrefreshHostTest extends BaseHostJUnit4Test {
@@ -74,7 +73,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -84,7 +84,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -94,7 +95,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -104,7 +106,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -112,7 +116,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyMissingArtifactTriggersCompilation() throws Exception {
         Set<String> missingArtifacts = simulateMissingArtifacts();
         Set<String> remainingArtifacts = new HashSet<>();
-        remainingArtifacts.addAll(mTestUtils.getZygotesExpectedArtifacts());
+        remainingArtifacts.addAll(mTestUtils.getExpectedPrimaryBootImage());
+        remainingArtifacts.addAll(mTestUtils.getExpectedBootImageMainlineExtension());
         remainingArtifacts.addAll(mTestUtils.getSystemServerExpectedArtifacts());
         remainingArtifacts.removeAll(missingArtifacts);
 
@@ -132,7 +137,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.setPhenotypeFlag("enable_uffd_gc", "true");
@@ -141,7 +147,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run odrefresh again with the flag unchanged.
@@ -149,7 +156,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.setPhenotypeFlag("enable_uffd_gc", null);
@@ -158,7 +167,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -171,7 +181,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.setPhenotypeFlag("systemservercompilerfilter_override", "speed");
@@ -180,7 +192,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run odrefresh again with the flag unchanged.
@@ -188,7 +201,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         mDeviceState.setPhenotypeFlag("systemservercompilerfilter_override", "verify");
@@ -197,7 +212,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -209,7 +225,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run again with the same value.
@@ -217,7 +234,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Change the system property to another value.
@@ -226,7 +245,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run again with the same value.
@@ -234,7 +254,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Change the system property to empty.
@@ -243,7 +265,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         // Run again with the same value.
@@ -251,7 +274,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // Artifacts should not be re-compiled.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -261,7 +286,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -295,7 +322,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh("--compilation-os-mode");
 
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
         String cacheInfo = getDevice().pullFileContents(OdsignTestUtils.CACHE_INFO_FILE);
@@ -309,7 +337,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.runOdrefresh();
 
         // odrefresh should not re-compile anything.
-        mTestUtils.assertNotModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
     }
 
@@ -323,14 +353,14 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.restartZygote();
 
         // The minimal boot image should be loaded.
-        mTestUtils.verifyZygotesLoadedArtifacts("boot_minimal");
+        mTestUtils.verifyZygotesLoadedMinimalBootImage();
 
         // Running the command again should not overwrite the minimal boot image.
         mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh("--minimal");
 
-        Set<String> minimalZygoteArtifacts = mTestUtils.getZygotesExpectedArtifacts("boot_minimal");
+        Set<String> minimalZygoteArtifacts = mTestUtils.getExpectedMinimalBootImage();
         mTestUtils.assertNotModifiedAfter(minimalZygoteArtifacts, timeMs);
 
         // A normal odrefresh invocation should replace the minimal boot image with a full one.
@@ -346,7 +376,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                     .isFalse();
         }
 
-        mTestUtils.assertModifiedAfter(mTestUtils.getZygotesExpectedArtifacts(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
     }
 
     @Test
@@ -360,7 +391,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
         // Artifacts don't exist because the compilation failed.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
 
         // Run odrefresh again.
