@@ -48,6 +48,8 @@ struct BootImages {
   bool boot_image_mainline_extension : 1;
 
   int Count() const;
+
+  OdrMetrics::BcpCompilationType GetTypeForMetrics() const;
 };
 
 struct CompilationOptions {

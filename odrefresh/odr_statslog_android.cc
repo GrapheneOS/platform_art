@@ -133,6 +133,8 @@ bool ReadValues(const char* metrics_file,
     return false;
   }
 
+  // TODO(b/279004055): Translate BCP compilation types.
+
   return true;
 }
 
@@ -146,6 +148,7 @@ bool UploadStatsIfAvailable(/*out*/std::string* error_msg) {
 
   // Write values to statsd. The order of values passed is the same as the order of the
   // fields in OdrMetricsRecord.
+  // TODO(b/279004055): Write BCP compilation types.
   int bytes_written = art::metrics::statsd::stats_write(
       metrics::statsd::ODREFRESH_REPORTED,
       record.art_apex_version,
