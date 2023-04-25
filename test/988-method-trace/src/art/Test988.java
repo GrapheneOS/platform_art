@@ -377,19 +377,7 @@ public class Test988 {
         sMethodTracingIgnore = false;
         // Turn off method tracing so we don't have to deal with print internals.
         Trace.disableTracing(Thread.currentThread());
-    }
-
-    public static void testJitIntrinsics() throws Exception {
-        Trace.enableMethodTracing(
-            Test988.class,
-            Test988.class.getDeclaredMethod("notifyMethodEntry", Executable.class),
-            Test988.class.getDeclaredMethod(
-                "notifyMethodExit", Executable.class, Boolean.TYPE, Object.class),
-            Thread.currentThread());
-        sMethodTracingIgnore = true;
-        IntrinsicsTest.doTest();
-        sMethodTracingIgnore = false;
-        Trace.disableTracing(Thread.currentThread());
+        printResults();
     }
 
     // This ensures that all classes we touch are loaded before we start recording traces. This
