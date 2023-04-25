@@ -258,7 +258,8 @@ public class DexoptHelper {
                                 .dexopt());
             }
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return null;
         }
 
         return createResult.get();
