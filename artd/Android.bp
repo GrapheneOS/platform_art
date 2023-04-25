@@ -61,13 +61,6 @@ art_cc_binary {
     ],
 }
 
-prebuilt_etc {
-    name: "com.android.art.artd.init.rc",
-    src: "artd.rc",
-    filename: "init.rc",
-    installable: false,
-}
-
 art_cc_defaults {
     name: "art_artd_tests_defaults",
     defaults: ["artd_defaults"],
