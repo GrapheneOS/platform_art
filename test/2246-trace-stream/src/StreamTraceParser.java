@@ -26,32 +26,36 @@ public class StreamTraceParser extends BaseTraceParser {
         boolean hasEntries = true;
         boolean seenStopTracingMethod = false;
         while (hasEntries) {
-            int headerType = GetEntryHeader();
-            switch (headerType) {
+            int threadId = GetThreadID();
+            if (threadId != 0) {
+              String eventString = ProcessEventEntry(threadId);
+              if (ShouldIgnoreThread(threadId)) {
+                break;
+              }
+              // Ignore events after method tracing was stopped. The code that is executed
+              // later could be non-deterministic.
+              if (!seenStopTracingMethod) {
+                UpdateThreadEvents(threadId, eventString);
+              }
+              if (eventString.contains("Main$VMDebug $noinline$stopMethodTracing")) {
+                seenStopTracingMethod = true;
+              }
+            } else {
+              int headerType = GetEntryHeader();
+              switch (headerType) {
                 case 1:
-                    ProcessMethodInfoEntry();
-                    break;
+                  ProcessMethodInfoEntry();
+                  break;
                 case 2:
-                    ProcessThreadInfoEntry();
-                    break;
+                  ProcessThreadInfoEntry();
+                  break;
                 case 3:
-                    // TODO(mythria): Add test to also check format of trace summary.
-                    hasEntries = false;
-                    break;
+                  // TODO(mythria): Add test to also check format of trace summary.
+                  hasEntries = false;
+                  break;
                 default:
-                    int threadId = headerType;
-                    String eventString = ProcessEventEntry(threadId);
-                    if (ShouldIgnoreThread(threadId)) {
-                        break;
-                    }
-                    // Ignore events after method tracing was stopped. The code that is executed
-                    // later could be non-deterministic.
-                    if (!seenStopTracingMethod) {
-                        UpdateThreadEvents(threadId, eventString);
-                    }
-                    if (eventString.contains("Main$VMDebug $noinline$stopMethodTracing")) {
-                        seenStopTracingMethod = true;
-                    }
+                  System.out.println("Unexpected header in the trace " + headerType);
+              }
             }
         }
         closeFile();
