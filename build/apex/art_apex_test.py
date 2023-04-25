@@ -550,6 +550,7 @@ class ReleaseTargetChecker:
     # removed in Android R.
 
     # Check binaries for ART.
+    self._checker.check_executable('art_boot')
     self._checker.check_executable('art_exec')
     self._checker.check_executable('artd')
     self._checker.check_executable('oatdump')
