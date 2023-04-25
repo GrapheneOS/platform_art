@@ -155,14 +155,12 @@ inline vixl::aarch32::DRegister DRegisterFromS(vixl::aarch32::SRegister s) {
 
 inline int32_t Int32ConstantFrom(HInstruction* instr) {
   if (instr->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    return instr->AsIntConstantOrNull()->GetValue();
+    return instr->AsIntConstant()->GetValue();
   } else if (instr->IsNullConstant()) {
     return 0;
   } else {
     DCHECK(instr->IsLongConstant()) << instr->DebugName();
-    // TODO: Remove "OrNull".
-    const int64_t ret = instr->AsLongConstantOrNull()->GetValue();
+    const int64_t ret = instr->AsLongConstant()->GetValue();
     DCHECK_GE(ret, std::numeric_limits<int32_t>::min());
     DCHECK_LE(ret, std::numeric_limits<int32_t>::max());
     return ret;
@@ -176,21 +174,18 @@ inline int32_t Int32ConstantFrom(Location location) {
 inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    return instr->AsIntConstantOrNull()->GetValue();
+    return instr->AsIntConstant()->GetValue();
   } else if (instr->IsNullConstant()) {
     return 0;
   } else {
     DCHECK(instr->IsLongConstant()) << instr->DebugName();
-    // TODO: Remove "OrNull".
-    return instr->AsLongConstantOrNull()->GetValue();
+    return instr->AsLongConstant()->GetValue();
   }
 }
 
 inline uint64_t Uint64ConstantFrom(HInstruction* instr) {
   DCHECK(instr->IsConstant()) << instr->DebugName();
-  // TODO: Remove "OrNull".
-  return instr->AsConstantOrNull()->GetValueAsUint64();
+  return instr->AsConstant()->GetValueAsUint64();
 }
 
 inline vixl::aarch32::Operand OperandFrom(Location location, DataType::Type type) {

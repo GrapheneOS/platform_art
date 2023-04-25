@@ -467,8 +467,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
   ArtMethod* resolved_method = invoke_instruction->GetResolvedMethod();
   if (resolved_method == nullptr) {
     DCHECK(invoke_instruction->IsInvokeStaticOrDirect());
-    // TODO: Remove "OrNull".
-    DCHECK(invoke_instruction->AsInvokeStaticOrDirectOrNull()->IsStringInit());
+    DCHECK(invoke_instruction->AsInvokeStaticOrDirect()->IsStringInit());
     LOG_FAIL_NO_STAT() << "Not inlining a String.<init> method";
     return false;
   }
@@ -1147,10 +1146,9 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
   PointerSize pointer_size = class_linker->GetImagePointerSize();
 
   ArtMethod* actual_method = nullptr;
-  // TODO: Remove "OrNull".
   size_t method_index = invoke_instruction->IsInvokeVirtual()
-      ? invoke_instruction->AsInvokeVirtualOrNull()->GetVTableIndex()
-      : invoke_instruction->AsInvokeInterfaceOrNull()->GetImtIndex();
+      ? invoke_instruction->AsInvokeVirtual()->GetVTableIndex()
+      : invoke_instruction->AsInvokeInterface()->GetImtIndex();
 
   // Check whether we are actually calling the same method among
   // the different types seen.
@@ -1466,8 +1464,7 @@ bool HInliner::IsInliningSupported(const HInvoke* invoke_instruction,
   }
 
   if (invoke_instruction->IsInvokeStaticOrDirect() &&
-      // TODO: Remove "OrNull".
-      invoke_instruction->AsInvokeStaticOrDirectOrNull()->IsStaticWithImplicitClinitCheck()) {
+      invoke_instruction->AsInvokeStaticOrDirect()->IsStaticWithImplicitClinitCheck()) {
     // Case of a static method that cannot be inlined because it implicitly
     // requires an initialization check of its declaring class.
     LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedDexCacheClinitCheck)
@@ -1853,21 +1850,15 @@ void HInliner::SubstituteArguments(HGraph* callee_graph,
       if (argument->IsNullConstant()) {
         current->ReplaceWith(callee_graph->GetNullConstant());
       } else if (argument->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        current->ReplaceWith(
-            callee_graph->GetIntConstant(argument->AsIntConstantOrNull()->GetValue()));
+        current->ReplaceWith(callee_graph->GetIntConstant(argument->AsIntConstant()->GetValue()));
       } else if (argument->IsLongConstant()) {
-        // TODO: Remove "OrNull".
-        current->ReplaceWith(
-            callee_graph->GetLongConstant(argument->AsLongConstantOrNull()->GetValue()));
+        current->ReplaceWith(callee_graph->GetLongConstant(argument->AsLongConstant()->GetValue()));
       } else if (argument->IsFloatConstant()) {
-        // TODO: Remove "OrNull".
         current->ReplaceWith(
-            callee_graph->GetFloatConstant(argument->AsFloatConstantOrNull()->GetValue()));
+            callee_graph->GetFloatConstant(argument->AsFloatConstant()->GetValue()));
       } else if (argument->IsDoubleConstant()) {
-        // TODO: Remove "OrNull".
         current->ReplaceWith(
-            callee_graph->GetDoubleConstant(argument->AsDoubleConstantOrNull()->GetValue()));
+            callee_graph->GetDoubleConstant(argument->AsDoubleConstant()->GetValue()));
       } else if (argument->GetType() == DataType::Type::kReference) {
         if (!resolved_method->IsStatic() && parameter_index == 0 && receiver_type.IsValid()) {
           run_rtp = true;
@@ -1875,8 +1866,7 @@ void HInliner::SubstituteArguments(HGraph* callee_graph,
         } else {
           current->SetReferenceTypeInfoIfValid(argument->GetReferenceTypeInfo());
         }
-        // TODO: Remove "OrNull".
-        current->AsParameterValueOrNull()->SetCanBeNull(argument->CanBeNull());
+        current->AsParameterValue()->SetCanBeNull(argument->CanBeNull());
       }
       ++parameter_index;
     }
@@ -2337,8 +2327,7 @@ bool HInliner::ReturnTypeMoreSpecific(HInstruction* return_replacement,
                                     return_replacement)) {
         return true;
       } else if (return_replacement->IsInstanceFieldGet()) {
-        // TODO: Remove "OrNull".
-        HInstanceFieldGet* field_get = return_replacement->AsInstanceFieldGetOrNull();
+        HInstanceFieldGet* field_get = return_replacement->AsInstanceFieldGet();
         if (field_get->GetFieldInfo().GetField() ==
                 GetClassRoot<mirror::Object>()->GetInstanceField(0)) {
           return true;

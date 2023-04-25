@@ -392,21 +392,17 @@ class PartialComparisonTestGroup
     PartialComparisonKind kind = GetParam();
     if (ins->IsIntConstant()) {
       if (kind.IsDefinitelyTrue()) {
-        // TODO: Remove "OrNull".
-        EXPECT_TRUE(ins->AsIntConstantOrNull()->IsTrue()) << kind << " " << *ins;
+        EXPECT_TRUE(ins->AsIntConstant()->IsTrue()) << kind << " " << *ins;
       } else if (kind.IsDefinitelyFalse()) {
-        // TODO: Remove "OrNull".
-        EXPECT_TRUE(ins->AsIntConstantOrNull()->IsFalse()) << kind << " " << *ins;
+        EXPECT_TRUE(ins->AsIntConstant()->IsFalse()) << kind << " " << *ins;
       } else {
         EXPECT_EQ(placement, ComparisonPlacement::kBeforeEscape);
         EXPECT_EQ(kind.target_, Target::kValue);
         // We are before escape so value is not the object
         if (kind.type_ == Type::kEquals) {
-          // TODO: Remove "OrNull".
-          EXPECT_TRUE(ins->AsIntConstantOrNull()->IsFalse()) << kind << " " << *ins;
+          EXPECT_TRUE(ins->AsIntConstant()->IsFalse()) << kind << " " << *ins;
         } else {
-          // TODO: Remove "OrNull".
-          EXPECT_TRUE(ins->AsIntConstantOrNull()->IsTrue()) << kind << " " << *ins;
+          EXPECT_TRUE(ins->AsIntConstant()->IsTrue()) << kind << " " << *ins;
         }
       }
       return;
@@ -417,14 +413,10 @@ class PartialComparisonTestGroup
     if (placement == ComparisonPlacement::kInEscape) {
       // Should be the same type.
       ASSERT_TRUE(ins->IsEqual() || ins->IsNotEqual()) << *ins;
-      // TODO: Remove "OrNull".
-      HInstruction* other = kind.position_ == Position::kLeft
-          ? ins->AsBinaryOperationOrNull()->GetRight()
-          : ins->AsBinaryOperationOrNull()->GetLeft();
+      HInstruction* other = kind.position_ == Position::kLeft ? ins->AsBinaryOperation()->GetRight()
+                                                              : ins->AsBinaryOperation()->GetLeft();
       if (kind.target_ == Target::kSelf) {
-        // TODO: Remove "OrNull".
-        EXPECT_INS_EQ(ins->AsBinaryOperationOrNull()->GetLeft(),
-                      ins->AsBinaryOperationOrNull()->GetRight())
+        EXPECT_INS_EQ(ins->AsBinaryOperation()->GetLeft(), ins->AsBinaryOperation()->GetRight())
             << " ins is: " << *ins;
       } else if (kind.target_ == Target::kNull) {
         EXPECT_INS_EQ(other, graph_->GetNullConstant()) << " ins is: " << *ins;

@@ -133,8 +133,7 @@ class ReadBarrierSystemArrayCopySlowPathARMVIXL : public SlowPathCodeARMVIXL {
         << "Unexpected instruction in read barrier arraycopy slow path: "
         << instruction_->DebugName();
     DCHECK(instruction_->GetLocations()->Intrinsified());
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(instruction_->AsInvokeOrNull()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
+    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
 
     DataType::Type type = DataType::Type::kReference;
     const int32_t element_size = DataType::Size(type);
@@ -883,8 +882,7 @@ constexpr size_t kShortConstStringEqualsCutoffInBytes = 16;
 
 static const char* GetConstString(HInstruction* candidate, uint32_t* utf16_length) {
   if (candidate->IsLoadString()) {
-    // TODO: Remove "OrNull".
-    HLoadString* load_string = candidate->AsLoadStringOrNull();
+    HLoadString* load_string = candidate->AsLoadString();
     const DexFile& dex_file = load_string->GetDexFile();
     return dex_file.StringDataAndUtf16LengthByIdx(load_string->GetStringIndex(), utf16_length);
   }
@@ -2460,8 +2458,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitIntegerValueOf(HInvoke* invoke) {
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
   if (invoke->InputAt(0)->IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t value = invoke->InputAt(0)->AsIntConstantOrNull()->GetValue();
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
       // Just embed the j.l.Integer in the code.
       DCHECK_NE(info.value_boot_image_reference, IntegerValueOfInfo::kInvalidReference);
@@ -3996,8 +3993,7 @@ class VarHandleSlowPathARMVIXL : public IntrinsicSlowPathARMVIXL {
 
  private:
   HInvoke* GetInvoke() const {
-    // TODO: Remove "OrNull".
-    return GetInstruction()->AsInvokeOrNull();
+    return GetInstruction()->AsInvoke();
   }
 
   mirror::VarHandle::AccessModeTemplate GetAccessModeTemplate() const {

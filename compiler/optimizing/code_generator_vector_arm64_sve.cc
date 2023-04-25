@@ -45,11 +45,9 @@ static bool SVECanEncodeConstantAsImmediate(HConstant* constant, HInstruction* i
     if (constant->IsLongConstant()) {
       return false;
     } else if (constant->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
-      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstantOrNull()->GetValue());
+      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstant()->GetValue());
     } else if (constant->IsDoubleConstant()) {
-      // TODO: Remove "OrNull".
-      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstantOrNull()->GetValue());
+      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstant()->GetValue());
     }
     // TODO: Make use of shift part of DUP instruction.
     int64_t value = CodeGenerator::GetInt64ValueOf(constant);
@@ -64,9 +62,7 @@ static bool SVECanEncodeConstantAsImmediate(HConstant* constant, HInstruction* i
 //    encoded into the instruction.
 //  - register location otherwise.
 inline Location SVEEncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
-  if (constant->IsConstant() &&
-      // TODO: Remove "OrNull".
-      SVECanEncodeConstantAsImmediate(constant->AsConstantOrNull(), instr)) {
+  if (constant->IsConstant() && SVECanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
     return Location::ConstantLocation(constant);
   }
 
@@ -95,8 +91,7 @@ void LocationsBuilderARM64Sve::VisitVecReplicateScalar(HVecReplicateScalar* inst
     case DataType::Type::kFloat32:
     case DataType::Type::kFloat64:
       if (input->IsConstant() &&
-          // TODO: Remove "OrNull".
-          SVECanEncodeConstantAsImmediate(input->AsConstantOrNull(), instruction)) {
+          SVECanEncodeConstantAsImmediate(input->AsConstant(), instruction)) {
         locations->SetInAt(0, Location::ConstantLocation(input));
         locations->SetOut(Location::RequiresFpuRegister());
       } else {
@@ -150,16 +145,14 @@ void InstructionCodeGeneratorARM64Sve::VisitVecReplicateScalar(HVecReplicateScal
       break;
     case DataType::Type::kFloat32:
       if (src_loc.IsConstant()) {
-        // TODO: Remove "OrNull".
-        __ Fdup(dst.VnS(), src_loc.GetConstant()->AsFloatConstantOrNull()->GetValue());
+        __ Fdup(dst.VnS(), src_loc.GetConstant()->AsFloatConstant()->GetValue());
       } else {
         __ Dup(dst.VnS(), ZRegisterFrom(src_loc).VnS(), 0);
       }
       break;
     case DataType::Type::kFloat64:
       if (src_loc.IsConstant()) {
-        // TODO: Remove "OrNull".
-        __ Fdup(dst.VnD(), src_loc.GetConstant()->AsDoubleConstantOrNull()->GetValue());
+        __ Fdup(dst.VnD(), src_loc.GetConstant()->AsDoubleConstant()->GetValue());
       } else {
         __ Dup(dst.VnD(), ZRegisterFrom(src_loc).VnD(), 0);
       }
@@ -776,8 +769,7 @@ void InstructionCodeGeneratorARM64Sve::VisitVecShl(HVecShl* instruction) {
   const ZRegister lhs = ZRegisterFrom(locations->InAt(0));
   const ZRegister dst = ZRegisterFrom(locations->Out());
   const PRegisterM p_reg = LoopPReg().Merging();
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   ValidateVectorLength(instruction);
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
@@ -810,8 +802,7 @@ void InstructionCodeGeneratorARM64Sve::VisitVecShr(HVecShr* instruction) {
   const ZRegister lhs = ZRegisterFrom(locations->InAt(0));
   const ZRegister dst = ZRegisterFrom(locations->Out());
   const PRegisterM p_reg = LoopPReg().Merging();
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   ValidateVectorLength(instruction);
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
@@ -844,8 +835,7 @@ void InstructionCodeGeneratorARM64Sve::VisitVecUShr(HVecUShr* instruction) {
   const ZRegister lhs = ZRegisterFrom(locations->InAt(0));
   const ZRegister dst = ZRegisterFrom(locations->Out());
   const PRegisterM p_reg = LoopPReg().Merging();
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   ValidateVectorLength(instruction);
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
@@ -1039,10 +1029,8 @@ void InstructionCodeGeneratorARM64Sve::VisitVecDotProd(HVecDotProd* instruction)
   const ZRegister left = ZRegisterFrom(locations->InAt(1));
   const ZRegister right = ZRegisterFrom(locations->InAt(2));
   const PRegisterM p_reg = LoopPReg().Merging();
-  // TODO: Remove "OrNull".
-  HVecOperation* a = instruction->InputAt(1)->AsVecOperationOrNull();
-  // TODO: Remove "OrNull".
-  HVecOperation* b = instruction->InputAt(2)->AsVecOperationOrNull();
+  HVecOperation* a = instruction->InputAt(1)->AsVecOperation();
+  HVecOperation* b = instruction->InputAt(2)->AsVecOperation();
   DCHECK_EQ(HVecOperation::ToSignedType(a->GetPackedType()),
             HVecOperation::ToSignedType(b->GetPackedType()));
   DCHECK_EQ(instruction->GetPackedType(), DataType::Type::kInt32);

@@ -53,8 +53,7 @@ void CodeSinking::UncommonBranchSinking() {
     // actual last instruction.
     if (last->IsTryBoundary()) {
       // We have an exit try boundary. Fetch the previous instruction.
-      // TODO: Remove "OrNull".
-      DCHECK(!last->AsTryBoundaryOrNull()->IsEntry());
+      DCHECK(!last->AsTryBoundary()->IsEntry());
       if (last->GetPrevious() == nullptr) {
         DCHECK(exit_predecessor->IsSingleTryBoundary());
         exit_predecessor = exit_predecessor->GetSinglePredecessor();
@@ -81,8 +80,7 @@ static bool IsInterestingInstruction(HInstruction* instruction) {
 
   // Volatile stores cannot be moved.
   if (instruction->IsInstanceFieldSet()) {
-    // TODO: Remove "OrNull".
-    if (instruction->AsInstanceFieldSetOrNull()->IsVolatile()) {
+    if (instruction->AsInstanceFieldSet()->IsVolatile()) {
       return false;
     }
   }
@@ -95,8 +93,7 @@ static bool IsInterestingInstruction(HInstruction* instruction) {
   // Check it is safe to move ConstructorFence.
   // (Safe to move ConstructorFence for only protecting the new-instance but not for finals.)
   if (instruction->IsConstructorFence()) {
-    // TODO: Remove "OrNull".
-    HConstructorFence* ctor_fence = instruction->AsConstructorFenceOrNull();
+    HConstructorFence* ctor_fence = instruction->AsConstructorFence();
 
     // A fence with "0" inputs is dead and should've been removed in a prior pass.
     DCHECK_NE(0u, ctor_fence->InputCount());
@@ -218,8 +215,7 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
       if (user->IsPhi()) {
         // Special case phis by taking the incoming block for regular ones,
         // or the dominator for catch phis.
-        // TODO: Remove "OrNull".
-        block = user->AsPhiOrNull()->IsCatchPhi()
+        block = user->AsPhi()->IsCatchPhi()
             ? block->GetDominator()
             : block->GetPredecessors()[use.GetIndex()];
       }
@@ -318,8 +314,7 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
     DCHECK(insert_pos->IsControlFlow());
     // Avoid splitting HCondition from HIf to prevent unnecessary materialization.
     if (insert_pos->IsIf()) {
-      // TODO: Remove "OrNull".
-      HInstruction* if_input = insert_pos->AsIfOrNull()->InputAt(0);
+      HInstruction* if_input = insert_pos->AsIf()->InputAt(0);
       if (if_input == insert_pos->GetPrevious()) {
         insert_pos = if_input;
       }
@@ -386,9 +381,7 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
       // If we sink to these basic blocks we would be sinking inside of the try so we would like
       // to check the catch block for post dominance.
       const bool ends_with_try_boundary_entry =
-          block->EndsWithTryBoundary() &&
-          // TODO: Remove "OrNull".
-          block->GetLastInstruction()->AsTryBoundaryOrNull()->IsEntry();
+          block->EndsWithTryBoundary() && block->GetLastInstruction()->AsTryBoundary()->IsEntry();
       ArrayRef<HBasicBlock* const> successors =
           ends_with_try_boundary_entry ? block->GetNormalSuccessors() :
                                          ArrayRef<HBasicBlock* const>(block->GetSuccessors());
@@ -578,8 +571,7 @@ void CodeSinking::ReturnSinking() {
         continue;
       }
 
-      // TODO: Remove "OrNull".
-      HReturn* ret = pred->GetLastInstruction()->AsReturnOrNull();
+      HReturn* ret = pred->GetLastInstruction()->AsReturn();
       if (new_phi == nullptr) {
         // Create the new_phi, if we haven't done so yet. We do it here since we need to know the
         // type to assign to it.
@@ -604,8 +596,7 @@ void CodeSinking::ReturnSinking() {
         continue;
       }
 
-      // TODO: Remove "OrNull".
-      HReturnVoid* ret = pred->GetLastInstruction()->AsReturnVoidOrNull();
+      HReturnVoid* ret = pred->GetLastInstruction()->AsReturnVoid();
       pred->ReplaceAndRemoveInstructionWith(ret,
                                             new (graph_->GetAllocator()) HGoto(ret->GetDexPc()));
       pred->ReplaceSuccessor(exit, new_block);

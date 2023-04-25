@@ -997,8 +997,7 @@ void LocationsBuilderX86::VisitVecShl(HVecShl* instruction) {
 void InstructionCodeGeneratorX86::VisitVecShl(HVecShl* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   DCHECK(locations->InAt(0).Equals(locations->Out()));
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint16:
@@ -1027,8 +1026,7 @@ void LocationsBuilderX86::VisitVecShr(HVecShr* instruction) {
 void InstructionCodeGeneratorX86::VisitVecShr(HVecShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   DCHECK(locations->InAt(0).Equals(locations->Out()));
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint16:
@@ -1053,8 +1051,7 @@ void LocationsBuilderX86::VisitVecUShr(HVecUShr* instruction) {
 void InstructionCodeGeneratorX86::VisitVecUShr(HVecUShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   DCHECK(locations->InAt(0).Equals(locations->Out()));
-  // TODO: Remove "OrNull".
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   XmmRegister dst = locations->Out().AsFpuRegister<XmmRegister>();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint16:

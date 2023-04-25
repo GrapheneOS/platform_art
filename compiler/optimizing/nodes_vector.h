@@ -142,8 +142,7 @@ class HVecOperation : public HVariableInputSizeInstruction {
     DCHECK(IsPredicated());
     HInstruction* pred_input = InputAt(InputCount() - 1);
     DCHECK(pred_input->IsVecPredSetOperation());
-    // TODO: Remove "OrNull".
-    return pred_input->AsVecPredSetOperationOrNull();
+    return pred_input->AsVecPredSetOperation();
   }
 
   // Returns whether two vector operations are predicated by the same vector predicate
@@ -189,8 +188,7 @@ class HVecOperation : public HVariableInputSizeInstruction {
   // those fields in its own method *and* call all super methods.
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecOperation());
-    // TODO: Remove "OrNull".
-    const HVecOperation* o = other->AsVecOperationOrNull();
+    const HVecOperation* o = other->AsVecOperation();
     return GetVectorLength() == o->GetVectorLength() && GetPackedType() == o->GetPackedType();
   }
 
@@ -352,8 +350,7 @@ class HVecMemoryOperation : public HVecOperation {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecMemoryOperation());
-    // TODO: Remove "OrNull".
-    const HVecMemoryOperation* o = other->AsVecMemoryOperationOrNull();
+    const HVecMemoryOperation* o = other->AsVecMemoryOperation();
     return HVecOperation::InstructionDataEquals(o) && GetAlignment() == o->GetAlignment();
   }
 
@@ -374,8 +371,7 @@ inline static bool HasConsistentPackedTypes(HInstruction* input, DataType::Type 
     return input->GetType() == HVecOperation::kSIMDType;  // carries SIMD
   }
   DCHECK(input->IsVecOperation());
-  // TODO: Remove "OrNull".
-  DataType::Type input_type = input->AsVecOperationOrNull()->GetPackedType();
+  DataType::Type input_type = input->AsVecOperation()->GetPackedType();
   DCHECK_EQ(HVecOperation::ToUnsignedType(input_type) == HVecOperation::ToUnsignedType(type),
             HVecOperation::ToSignedType(input_type) == HVecOperation::ToSignedType(type));
   return HVecOperation::ToSignedType(input_type) == HVecOperation::ToSignedType(type);
@@ -469,8 +465,7 @@ class HVecReduce final : public HVecUnaryOperation {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecReduce());
-    // TODO: Remove "OrNull".
-    const HVecReduce* o = other->AsVecReduceOrNull();
+    const HVecReduce* o = other->AsVecReduce();
     return HVecOperation::InstructionDataEquals(o) && GetReductionKind() == o->GetReductionKind();
   }
 
@@ -497,10 +492,7 @@ class HVecCnv final : public HVecUnaryOperation {
     DCHECK_NE(GetInputType(), GetResultType());  // actual convert
   }
 
-  DataType::Type GetInputType() const {
-    // TODO: Remove "OrNull".
-    return InputAt(0)->AsVecOperationOrNull()->GetPackedType();
-  }
+  DataType::Type GetInputType() const { return InputAt(0)->AsVecOperation()->GetPackedType(); }
   DataType::Type GetResultType() const { return GetPackedType(); }
 
   bool CanBeMoved() const override { return true; }
@@ -654,8 +646,7 @@ class HVecHalvingAdd final : public HVecBinaryOperation {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecHalvingAdd());
-    // TODO: Remove "OrNull".
-    const HVecHalvingAdd* o = other->AsVecHalvingAddOrNull();
+    const HVecHalvingAdd* o = other->AsVecHalvingAdd();
     return HVecOperation::InstructionDataEquals(o) && IsRounded() == o->IsRounded();
   }
 
@@ -1045,8 +1036,7 @@ class HVecMultiplyAccumulate final : public HVecOperation {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecMultiplyAccumulate());
-    // TODO: Remove "OrNull".
-    const HVecMultiplyAccumulate* o = other->AsVecMultiplyAccumulateOrNull();
+    const HVecMultiplyAccumulate* o = other->AsVecMultiplyAccumulate();
     return HVecOperation::InstructionDataEquals(o) && GetOpKind() == o->GetOpKind();
   }
 
@@ -1086,9 +1076,8 @@ class HVecSADAccumulate final : public HVecOperation {
     DCHECK(HasConsistentPackedTypes(accumulator, packed_type));
     DCHECK(sad_left->IsVecOperation());
     DCHECK(sad_right->IsVecOperation());
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(ToSignedType(sad_left->AsVecOperationOrNull()->GetPackedType()),
-              ToSignedType(sad_right->AsVecOperationOrNull()->GetPackedType()));
+    DCHECK_EQ(ToSignedType(sad_left->AsVecOperation()->GetPackedType()),
+              ToSignedType(sad_right->AsVecOperation()->GetPackedType()));
     SetRawInputAt(0, accumulator);
     SetRawInputAt(1, sad_left);
     SetRawInputAt(2, sad_right);
@@ -1135,9 +1124,8 @@ class HVecDotProd final : public HVecOperation {
     DCHECK(DataType::IsIntegralType(packed_type));
     DCHECK(left->IsVecOperation());
     DCHECK(right->IsVecOperation());
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(ToSignedType(left->AsVecOperationOrNull()->GetPackedType()),
-              ToSignedType(right->AsVecOperationOrNull()->GetPackedType()));
+    DCHECK_EQ(ToSignedType(left->AsVecOperation()->GetPackedType()),
+              ToSignedType(right->AsVecOperation()->GetPackedType()));
     SetRawInputAt(0, accumulator);
     SetRawInputAt(1, left);
     SetRawInputAt(2, right);
@@ -1191,8 +1179,7 @@ class HVecLoad final : public HVecMemoryOperation {
 
   bool InstructionDataEquals(const HInstruction* other) const override {
     DCHECK(other->IsVecLoad());
-    // TODO: Remove "OrNull".
-    const HVecLoad* o = other->AsVecLoadOrNull();
+    const HVecLoad* o = other->AsVecLoad();
     return HVecMemoryOperation::InstructionDataEquals(o) && IsStringCharAt() == o->IsStringCharAt();
   }
 
@@ -1323,10 +1310,7 @@ class HVecPredSetAll final : public HVecPredSetOperation {
   // Having governing predicate doesn't make sense for set all TRUE/FALSE instruction.
   bool MustBePredicatedInPredicatedSIMDMode() override { return false; }
 
-  bool IsSetTrue() const {
-    // TODO: Remove "OrNull".
-    return InputAt(0)->AsIntConstantOrNull()->IsTrue();
-  }
+  bool IsSetTrue() const { return InputAt(0)->AsIntConstant()->IsTrue(); }
 
   // Vector predicates are not kept alive across vector loop boundaries.
   bool CanBeMoved() const override { return false; }
