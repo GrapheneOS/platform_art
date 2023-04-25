@@ -2465,7 +2465,7 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
       DCHECK(method != nullptr);
       DCHECK(method->IsStatic());
       DCHECK(method->GetDeclaringClass() == system);
-      invoke->SetResolvedMethod(method);
+      invoke->SetResolvedMethod(method, !codegen_->GetGraph()->IsDebuggable());
       // Sharpen the new invoke. Note that we do not update the dex method index of
       // the invoke, as we would need to look it up in the current dex file, and it
       // is unlikely that it exists. The most usual situation for such typed
