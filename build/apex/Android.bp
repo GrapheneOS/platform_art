@@ -252,6 +252,13 @@ art_module_apex_defaults {
     },
 }
 
+prebuilt_etc {
+    name: "com.android.art.init.rc",
+    src: "art.rc",
+    filename: "init.rc",
+    installable: false,
+}
+
 // Default values shared by device ART APEXes.
 apex_defaults {
     name: "com.android.art-device-defaults-minus-odrefresh",
@@ -271,6 +278,7 @@ apex_defaults {
         "libartservice",
     ],
     binaries: [
+        "art_boot",
         "art_exec",
         "artd",
     ],
@@ -291,7 +299,7 @@ apex_defaults {
     ],
     prebuilts: [
         "art-linker-config",
-        "com.android.art.artd.init.rc",
+        "com.android.art.init.rc",
         "current_sdkinfo",
     ],
     // ART APEXes depend on bouncycastle which is disabled for PDK builds.
