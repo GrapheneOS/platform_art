@@ -944,8 +944,7 @@ static bool IsSameSizeConstant(const HInstruction* insn1, const HInstruction* in
 static bool IsConstantEquivalent(const HInstruction* insn1,
                                  const HInstruction* insn2,
                                  BitVector* visited) {
-  if (insn1->IsPhi() &&
-      insn1->AsPhi()->IsVRegEquivalentOf(insn2)) {
+  if (insn1->IsPhi() && insn1->AsPhi()->IsVRegEquivalentOf(insn2)) {
     HConstInputsRef insn1_inputs = insn1->GetInputs();
     HConstInputsRef insn2_inputs = insn2->GetInputs();
     if (insn1_inputs.size() != insn2_inputs.size()) {

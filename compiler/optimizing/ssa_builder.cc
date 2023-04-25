@@ -652,16 +652,16 @@ HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, DataType::
 
   // We place the floating point /reference phi next to this phi.
   HInstruction* next = phi->GetNext();
-  if (next != nullptr
-      && next->AsPhi()->GetRegNumber() == phi->GetRegNumber()
-      && next->GetType() != type) {
+  if (next != nullptr &&
+      next->AsPhi()->GetRegNumber() == phi->GetRegNumber() &&
+      next->GetType() != type) {
     // Move to the next phi to see if it is the one we are looking for.
     next = next->GetNext();
   }
 
-  if (next == nullptr
-      || (next->AsPhi()->GetRegNumber() != phi->GetRegNumber())
-      || (next->GetType() != type)) {
+  if (next == nullptr ||
+      (next->AsPhi()->GetRegNumber() != phi->GetRegNumber()) ||
+      (next->GetType() != type)) {
     ArenaAllocator* allocator = graph_->GetAllocator();
     HInputsRef inputs = phi->GetInputs();
     HPhi* new_phi = new (allocator) HPhi(allocator, phi->GetRegNumber(), inputs.size(), type);

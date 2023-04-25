@@ -1655,7 +1655,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
   Location srcBegin = locations->InAt(1);
   int srcBegin_value =
-    srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
+      srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
   CpuRegister srcEnd = locations->InAt(2).AsRegister<CpuRegister>();
   CpuRegister dst = locations->InAt(3).AsRegister<CpuRegister>();
   CpuRegister dstBegin = locations->InAt(4).AsRegister<CpuRegister>();
