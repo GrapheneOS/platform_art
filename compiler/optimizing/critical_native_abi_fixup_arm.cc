@@ -74,7 +74,8 @@ static void FixUpArguments(HInvokeStaticOrDirect* invoke) {
           dispatch_info,
           kStatic,
           target_method,
-          HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+          HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+          !block->GetGraph()->IsDebuggable());
       // The intrinsic has no side effects and does not need environment or dex cache on ARM.
       new_input->SetSideEffects(SideEffects::None());
       IntrinsicOptimizations opt(new_input);
