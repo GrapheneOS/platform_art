@@ -701,7 +701,7 @@ TEST_F(LoadStoreEliminationTest, StoreAfterSIMDLoopWithSideEffects) {
   // b[phi,phi+1,phi+2,phi+3] = a[phi,phi+1,phi+2,phi+3];
   AddVecStore(loop_, array_, phi_);
   HInstruction* vload = AddVecLoad(loop_, array_, phi_);
-  AddVecStore(loop_, array_b, phi_, vload->AsVecLoad());
+  AddVecStore(loop_, array_b, phi_, vload);
 
   // a[j] = 0;
   HInstruction* a_set = AddArraySet(return_block_, array_, j_, c0);
@@ -740,7 +740,7 @@ TEST_F(LoadStoreEliminationTest, LoadAfterSIMDLoopWithSideEffects) {
   // b[phi,phi+1,phi+2,phi+3] = a[phi,phi+1,phi+2,phi+3];
   AddVecStore(loop_, array_, phi_);
   HInstruction* vload = AddVecLoad(loop_, array_, phi_);
-  AddVecStore(loop_, array_b, phi_, vload->AsVecLoad());
+  AddVecStore(loop_, array_b, phi_, vload);
 
   // x = a[j];
   HInstruction* load = AddArrayGet(return_block_, array_, j_);
@@ -874,7 +874,7 @@ TEST_F(LoadStoreEliminationTest, RedundantVStoreVLoadInLoop) {
   //    a[i,... i + 3] = [1,...1]
   HInstruction* vstore1 = AddVecStore(loop_, array_a, phi_);
   HInstruction* vload = AddVecLoad(loop_, array_a, phi_);
-  HInstruction* vstore2 = AddVecStore(loop_, array_b, phi_, vload->AsVecLoad());
+  HInstruction* vstore2 = AddVecStore(loop_, array_b, phi_, vload);
   HInstruction* vstore3 = AddVecStore(loop_, array_a, phi_, vstore1->InputAt(2));
 
   graph_->SetHasSIMD(true);
@@ -963,7 +963,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueInLoopWithoutWriteSideEffects)
   //    v = a[i,... i + 3]
   // array[0,... 3] = v
   HInstruction* vload = AddVecLoad(loop_, array_a, phi_);
-  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
+  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload);
 
   graph_->SetHasSIMD(true);
   PerformLSE();
@@ -987,7 +987,7 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValue) {
   // v = a[0,... 3]
   // array[0,... 3] = v
   HInstruction* vload = AddVecLoad(pre_header_, array_a, c0);
-  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
+  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload);
 
   graph_->SetHasSIMD(true);
   PerformLSE();
@@ -1063,7 +1063,7 @@ TEST_F(LoadStoreEliminationTest, VLoadAndLoadDefaultValueInLoopWithoutWriteSideE
   // array[0] = v1
   HInstruction* vload = AddVecLoad(loop_, array_a, phi_);
   HInstruction* load = AddArrayGet(loop_, array_a, phi_);
-  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
+  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload);
   HInstruction* store = AddArraySet(return_block_, array_, c0, load);
 
   graph_->SetHasSIMD(true);
@@ -1094,7 +1094,7 @@ TEST_F(LoadStoreEliminationTest, VLoadAndLoadDefaultValue) {
   // array[0] = v1
   HInstruction* vload = AddVecLoad(pre_header_, array_a, c0);
   HInstruction* load = AddArrayGet(pre_header_, array_a, c0);
-  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload->AsVecLoad());
+  HInstruction* vstore = AddVecStore(return_block_, array_, c0, vload);
   HInstruction* store = AddArraySet(return_block_, array_, c0, load);
 
   graph_->SetHasSIMD(true);
@@ -1126,8 +1126,8 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueAndVLoadInLoopWithoutWriteSide
   // array[128,... 131] = v1
   HInstruction* vload1 = AddVecLoad(loop_, array_a, phi_);
   HInstruction* vload2 = AddVecLoad(loop_, array_a, phi_);
-  HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1->AsVecLoad());
-  HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2->AsVecLoad());
+  HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1);
+  HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2);
 
   graph_->SetHasSIMD(true);
   PerformLSE();
@@ -1157,8 +1157,8 @@ TEST_F(LoadStoreEliminationTest, VLoadDefaultValueAndVLoad) {
   // array[128,... 131] = v1
   HInstruction* vload1 = AddVecLoad(pre_header_, array_a, c0);
   HInstruction* vload2 = AddVecLoad(pre_header_, array_a, c0);
-  HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1->AsVecLoad());
-  HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2->AsVecLoad());
+  HInstruction* vstore1 = AddVecStore(return_block_, array_, c0, vload1);
+  HInstruction* vstore2 = AddVecStore(return_block_, array_, c128, vload2);
 
   graph_->SetHasSIMD(true);
   PerformLSE();
@@ -2139,9 +2139,9 @@ TEST_F(LoadStoreEliminationTest, PartialLoadElimination) {
   right->AddInstruction(read_right);
   right->AddInstruction(goto_right);
 
-  HInstruction* phi_final = MakePhi({read_left, read_right});
+  HPhi* phi_final = MakePhi({read_left, read_right});
   HInstruction* return_exit = new (GetAllocator()) HReturn(phi_final);
-  exit->AddPhi(phi_final->AsPhi());
+  exit->AddPhi(phi_final);
   exit->AddInstruction(return_exit);
 
   // PerformLSE expects this to be empty.
@@ -5153,7 +5153,7 @@ TEST_P(PartialComparisonTestGroup, PartialComparisonAfterCohort) {
   CheckFinalInstruction(if_merge->InputAt(0), ComparisonPlacement::kAfterEscape);
   EXPECT_INS_EQ(init_set->InputAt(1), c3);
   ASSERT_TRUE(write_partial->InputAt(0)->IsPhi());
-  EXPECT_INS_EQ(write_partial->InputAt(0)->AsPhi()->InputAt(0), init_set->InputAt(0));
+  EXPECT_INS_EQ(write_partial->InputAt(0)->InputAt(0), init_set->InputAt(0));
   EXPECT_INS_EQ(write_partial->InputAt(1), c4);
   EXPECT_INS_EQ(pred_get->GetTarget(), merge_alloc);
   EXPECT_INS_EQ(pred_get->GetDefaultValue(), merge_value_return);
@@ -5225,14 +5225,14 @@ TEST_P(PartialComparisonTestGroup, PartialComparisonInCohortAfterEscape) {
 
   HInstruction* call_left = MakeInvoke(DataType::Type::kVoid, { new_inst });
   ComparisonInstructions cmp_instructions = GetComparisonInstructions(new_inst);
-  HInstruction* if_left = new (GetAllocator()) HIf(cmp_instructions.cmp_);
+  HIf* if_left = new (GetAllocator()) HIf(cmp_instructions.cmp_);
   left->AddInstruction(call_left);
   cmp_instructions.AddSetup(left);
   left->AddInstruction(cmp_instructions.cmp_);
   left->AddInstruction(if_left);
   call_left->CopyEnvironmentFrom(cls->GetEnvironment());
   cmp_instructions.AddEnvironment(cls->GetEnvironment());
-  if (if_left->AsIf()->IfTrueSuccessor() != partial) {
+  if (if_left->IfTrueSuccessor() != partial) {
     left->SwapSuccessors();
   }
 
@@ -5381,7 +5381,7 @@ TEST_F(LoadStoreEliminationTest, PredicatedStore1) {
   right->AddInstruction(write_right);
   right->AddInstruction(goto_right);
 
-  HInstruction* write_bottom = MakeIFieldSet(new_inst, c3, MemberOffset(32));
+  HInstanceFieldSet* write_bottom = MakeIFieldSet(new_inst, c3, MemberOffset(32));
   HInstruction* return_exit = new (GetAllocator()) HReturnVoid();
   breturn->AddInstruction(write_bottom);
   breturn->AddInstruction(return_exit);
@@ -5391,7 +5391,7 @@ TEST_F(LoadStoreEliminationTest, PredicatedStore1) {
   PerformLSEWithPartial(blks);
 
   EXPECT_INS_RETAINED(write_bottom);
-  EXPECT_TRUE(write_bottom->AsInstanceFieldSet()->GetIsPredicatedSet());
+  EXPECT_TRUE(write_bottom->GetIsPredicatedSet());
   EXPECT_INS_REMOVED(write_right);
   EXPECT_INS_RETAINED(call_left);
   HPhi* merge_alloc = FindSingleInstruction<HPhi>(graph_, breturn);
@@ -5491,7 +5491,7 @@ TEST_F(LoadStoreEliminationTest, PredicatedStore2) {
   non_escape->AddInstruction(non_escape_goto);
   non_escape_call->CopyEnvironmentFrom(cls->GetEnvironment());
 
-  HInstruction* write_bottom = MakeIFieldSet(new_inst, c4, MemberOffset(32));
+  HInstanceFieldSet* write_bottom = MakeIFieldSet(new_inst, c4, MemberOffset(32));
   HInstruction* return_exit = new (GetAllocator()) HReturnVoid();
   breturn->AddInstruction(write_bottom);
   breturn->AddInstruction(return_exit);
@@ -5501,7 +5501,7 @@ TEST_F(LoadStoreEliminationTest, PredicatedStore2) {
   PerformLSEWithPartial(blks);
 
   EXPECT_INS_RETAINED(write_bottom);
-  EXPECT_TRUE(write_bottom->AsInstanceFieldSet()->GetIsPredicatedSet()) << *write_bottom;
+  EXPECT_TRUE(write_bottom->GetIsPredicatedSet()) << *write_bottom;
   EXPECT_INS_REMOVED(write_right);
   EXPECT_INS_RETAINED(call_left);
   HInstanceFieldSet* pred_set = FindSingleInstruction<HInstanceFieldSet>(graph_, breturn);
@@ -7213,7 +7213,7 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis4) {
   HInstruction* goto_no_escape = new (GetAllocator()) HGoto();
   no_escape->AddInstruction(goto_no_escape);
 
-  HInstruction* write_pre_header = MakeIFieldSet(new_inst, c3, MemberOffset(32));
+  HInstanceFieldSet* write_pre_header = MakeIFieldSet(new_inst, c3, MemberOffset(32));
   HInstruction* goto_preheader = new (GetAllocator()) HGoto();
   loop_pre_header->AddInstruction(write_pre_header);
   loop_pre_header->AddInstruction(goto_preheader);
@@ -7236,7 +7236,7 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis4) {
   HInstruction* goto_loop_left = new (GetAllocator()) HGoto();
   loop_if_left->AddInstruction(goto_loop_left);
 
-  HInstruction* write_loop_right = MakeIFieldSet(new_inst, c5, MemberOffset(32));
+  HInstanceFieldSet* write_loop_right = MakeIFieldSet(new_inst, c5, MemberOffset(32));
   HInstruction* goto_loop_right = new (GetAllocator()) HGoto();
   loop_if_right->AddInstruction(write_loop_right);
   loop_if_right->AddInstruction(goto_loop_right);
@@ -7272,9 +7272,9 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis4) {
   EXPECT_INS_EQ(loop_merge_phi->InputAt(0), loop_header_phi);
   EXPECT_INS_EQ(loop_merge_phi->InputAt(1), c5);
   EXPECT_INS_RETAINED(write_loop_right) << *write_loop_right;
-  EXPECT_TRUE(write_loop_right->AsInstanceFieldSet()->GetIsPredicatedSet()) << *write_loop_right;
+  EXPECT_TRUE(write_loop_right->GetIsPredicatedSet()) << *write_loop_right;
   EXPECT_INS_RETAINED(write_pre_header) << *write_pre_header;
-  EXPECT_TRUE(write_pre_header->AsInstanceFieldSet()->GetIsPredicatedSet()) << *write_pre_header;
+  EXPECT_TRUE(write_pre_header->GetIsPredicatedSet()) << *write_pre_header;
 }
 
 // // ENTRY
@@ -8268,13 +8268,13 @@ TEST_P(UsesOrderDependentTestGroup, RecordPredicatedReplacements1) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, middle);
   ASSERT_NE(replacement_middle_read, nullptr);
   ASSERT_TRUE(replacement_middle_read->GetTarget()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle_read->GetTarget()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->AsPhi()->InputAt(0), replacement_new_inst);
-  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->AsPhi()->InputAt(1), cnull);
+  ASSERT_EQ(2u, replacement_middle_read->GetTarget()->InputCount());
+  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->InputAt(0), replacement_new_inst);
+  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->InputAt(1), cnull);
   ASSERT_TRUE(replacement_middle_read->GetDefaultValue()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle_read->GetDefaultValue()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->AsPhi()->InputAt(0), c0);
-  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->AsPhi()->InputAt(1), c11);
+  ASSERT_EQ(2u, replacement_middle_read->GetDefaultValue()->InputCount());
+  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->InputAt(0), c0);
+  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->InputAt(1), c11);
 
   EXPECT_INS_RETAINED(left2_write);
   ASSERT_TRUE(left2_write->GetIsPredicatedSet());
@@ -8285,9 +8285,9 @@ TEST_P(UsesOrderDependentTestGroup, RecordPredicatedReplacements1) {
   ASSERT_NE(replacement_breturn_read, nullptr);
   ASSERT_INS_EQ(replacement_breturn_read->GetTarget(), replacement_middle_read->GetTarget());
   ASSERT_TRUE(replacement_breturn_read->GetDefaultValue()->IsPhi());
-  ASSERT_EQ(2u, replacement_breturn_read->GetDefaultValue()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->AsPhi()->InputAt(0), c33);
-  HInstruction* other_input = replacement_breturn_read->GetDefaultValue()->AsPhi()->InputAt(1);
+  ASSERT_EQ(2u, replacement_breturn_read->GetDefaultValue()->InputCount());
+  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->InputAt(0), c33);
+  HInstruction* other_input = replacement_breturn_read->GetDefaultValue()->InputAt(1);
   ASSERT_NE(other_input->GetBlock(), nullptr) << GetParam();
   ASSERT_INS_EQ(other_input, replacement_middle_read);
 }
@@ -8423,13 +8423,13 @@ TEST_P(UsesOrderDependentTestGroup, RecordPredicatedReplacements2) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, middle);
   ASSERT_NE(replacement_middle_read, nullptr);
   ASSERT_TRUE(replacement_middle_read->GetTarget()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle_read->GetTarget()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->AsPhi()->InputAt(0), replacement_new_inst);
-  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->AsPhi()->InputAt(1), cnull);
+  ASSERT_EQ(2u, replacement_middle_read->GetTarget()->InputCount());
+  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->InputAt(0), replacement_new_inst);
+  ASSERT_INS_EQ(replacement_middle_read->GetTarget()->InputAt(1), cnull);
   ASSERT_TRUE(replacement_middle_read->GetDefaultValue()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle_read->GetDefaultValue()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->AsPhi()->InputAt(0), c0);
-  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->AsPhi()->InputAt(1), c11);
+  ASSERT_EQ(2u, replacement_middle_read->GetDefaultValue()->InputCount());
+  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->InputAt(0), c0);
+  ASSERT_INS_EQ(replacement_middle_read->GetDefaultValue()->InputAt(1), c11);
 
   EXPECT_INS_RETAINED(left2_call);
 
@@ -8627,13 +8627,13 @@ TEST_P(UsesOrderDependentTestGroupForThreeItems, RecordPredicatedReplacements3) 
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, middle1);
   ASSERT_NE(replacement_middle1_read, nullptr);
   ASSERT_TRUE(replacement_middle1_read->GetTarget()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle1_read->GetTarget()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle1_read->GetTarget()->AsPhi()->InputAt(0), replacement_new_inst);
-  ASSERT_INS_EQ(replacement_middle1_read->GetTarget()->AsPhi()->InputAt(1), cnull);
+  ASSERT_EQ(2u, replacement_middle1_read->GetTarget()->InputCount());
+  ASSERT_INS_EQ(replacement_middle1_read->GetTarget()->InputAt(0), replacement_new_inst);
+  ASSERT_INS_EQ(replacement_middle1_read->GetTarget()->InputAt(1), cnull);
   ASSERT_TRUE(replacement_middle1_read->GetDefaultValue()->IsPhi());
-  ASSERT_EQ(2u, replacement_middle1_read->GetDefaultValue()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_middle1_read->GetDefaultValue()->AsPhi()->InputAt(0), c0);
-  ASSERT_INS_EQ(replacement_middle1_read->GetDefaultValue()->AsPhi()->InputAt(1), c11);
+  ASSERT_EQ(2u, replacement_middle1_read->GetDefaultValue()->InputCount());
+  ASSERT_INS_EQ(replacement_middle1_read->GetDefaultValue()->InputAt(0), c0);
+  ASSERT_INS_EQ(replacement_middle1_read->GetDefaultValue()->InputAt(1), c11);
 
   EXPECT_INS_RETAINED(left2_call);
 
@@ -8652,11 +8652,10 @@ TEST_P(UsesOrderDependentTestGroupForThreeItems, RecordPredicatedReplacements3) 
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   ASSERT_NE(replacement_breturn_read, nullptr);
   ASSERT_INS_EQ(replacement_breturn_read->GetTarget(), replacement_middle1_read->GetTarget());
-  ASSERT_EQ(2u, replacement_breturn_read->GetDefaultValue()->AsPhi()->InputCount());
-  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->AsPhi()->InputAt(0),
-                replacement_left3_read);
-  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->AsPhi()->InputAt(1),
-                replacement_middle1_read);
+  ASSERT_TRUE(replacement_breturn_read->GetDefaultValue()->IsPhi());
+  ASSERT_EQ(2u, replacement_breturn_read->GetDefaultValue()->InputCount());
+  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->InputAt(0), replacement_left3_read);
+  ASSERT_INS_EQ(replacement_breturn_read->GetDefaultValue()->InputAt(1), replacement_middle1_read);
   EXPECT_INS_RETAINED(breturn_add1);
   ASSERT_INS_EQ(breturn_add1->InputAt(0), replacement_middle1_read);
   ASSERT_INS_EQ(breturn_add1->InputAt(1), replacement_breturn_read);
