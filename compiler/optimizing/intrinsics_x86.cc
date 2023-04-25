@@ -1445,7 +1445,7 @@ void IntrinsicCodeGeneratorX86::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register obj = locations->InAt(0).AsRegister<Register>();
   Location srcBegin = locations->InAt(1);
   int srcBegin_value =
-    srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
+      srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
   Register srcEnd = locations->InAt(2).AsRegister<Register>();
   Register dst = locations->InAt(3).AsRegister<Register>();
   Register dstBegin = locations->InAt(4).AsRegister<Register>();

@@ -8968,9 +8968,9 @@ Address CodeGeneratorX86::ArrayAddress(Register obj,
                                        Location index,
                                        ScaleFactor scale,
                                        uint32_t data_offset) {
-  return index.IsConstant() ?
-      Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset) :
-      Address(obj, index.AsRegister<Register>(), scale, data_offset);
+  return index.IsConstant()
+      ? Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset)
+      : Address(obj, index.AsRegister<Register>(), scale, data_offset);
 }
 
 Address CodeGeneratorX86::LiteralCaseTable(HX86PackedSwitch* switch_instr,
