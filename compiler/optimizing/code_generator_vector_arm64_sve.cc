@@ -62,8 +62,7 @@ static bool SVECanEncodeConstantAsImmediate(HConstant* constant, HInstruction* i
 //    encoded into the instruction.
 //  - register location otherwise.
 inline Location SVEEncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
-  if (constant->IsConstant()
-      && SVECanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+  if (constant->IsConstant() && SVECanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
     return Location::ConstantLocation(constant);
   }
 

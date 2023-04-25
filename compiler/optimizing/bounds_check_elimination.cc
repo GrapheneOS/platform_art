@@ -1378,8 +1378,7 @@ class BCEVisitor final : public HGraphVisitor {
                                     HInstruction* array_length,
                                     HInstruction* base,
                                     int32_t min_c, int32_t max_c) {
-    HBoundsCheck* bounds_check =
-        first_index_bounds_check_map_.Get(array_length->GetId())->AsBoundsCheck();
+    HBoundsCheck* bounds_check = first_index_bounds_check_map_.Get(array_length->GetId());
     // Construct deoptimization on single or double bounds on range [base-min_c,base+max_c],
     // for example either for a[0]..a[3] just 3 or for a[base-1]..a[base+3] both base-1
     // and base+3, since we made the assumption any in between value may occur too.

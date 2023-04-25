@@ -61,10 +61,8 @@ inline bool NEONCanEncodeConstantAsImmediate(HConstant* constant, HInstruction* 
 //  - constant location - if 'constant' is an actual constant and its value can be
 //    encoded into the instruction.
 //  - register location otherwise.
-inline Location NEONEncodableConstantOrRegister(HInstruction* constant,
-                                                HInstruction* instr) {
-  if (constant->IsConstant()
-      && NEONCanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+inline Location NEONEncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
+  if (constant->IsConstant() && NEONCanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
     return Location::ConstantLocation(constant);
   }
 

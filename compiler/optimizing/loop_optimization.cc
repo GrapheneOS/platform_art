@@ -2026,7 +2026,7 @@ HInstruction* HLoopOptimization::ReduceAndExtractIfNeeded(HInstruction* instruct
       //    x = REDUCE( [x_1, .., x_n] )
       //    y = x_1
       // along the exit of the defining loop.
-      HInstruction* reduce = new (global_allocator_) HVecReduce(
+      HVecReduce* reduce = new (global_allocator_) HVecReduce(
           global_allocator_, instruction, type, vector_length, kind, kNoDexPc);
       exit->InsertInstructionBefore(reduce, exit->GetFirstInstruction());
       instruction = new (global_allocator_) HVecExtractScalar(
@@ -2040,7 +2040,7 @@ HInstruction* HLoopOptimization::ReduceAndExtractIfNeeded(HInstruction* instruct
                                                                           vector_length,
                                                                           0u);
         exit->InsertInstructionBefore(set_pred, reduce);
-        reduce->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
+        reduce->SetMergingGoverningPredicate(set_pred);
         instruction->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
       }
     }
