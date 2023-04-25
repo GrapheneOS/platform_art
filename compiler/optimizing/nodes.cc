@@ -3571,8 +3571,8 @@ static inline IntrinsicExceptions GetExceptionsIntrinsic(Intrinsics i) {
   return kCanThrow;
 }
 
-void HInvoke::SetResolvedMethod(ArtMethod* method, bool enable_intrinsic_opt) {
-  if (method != nullptr && method->IsIntrinsic() && enable_intrinsic_opt) {
+void HInvoke::SetResolvedMethod(ArtMethod* method) {
+  if (method != nullptr && method->IsIntrinsic()) {
     Intrinsics intrinsic = static_cast<Intrinsics>(method->GetIntrinsic());
     SetIntrinsic(intrinsic,
                  NeedsEnvironmentIntrinsic(intrinsic),
