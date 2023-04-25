@@ -101,12 +101,14 @@ abstract class BaseTraceParser {
         }
     }
 
-    public int GetEntryHeader() throws IOException {
-        // Read 2-byte thread-id. On host thread-ids can be greater than 16-bit.
+    public int GetThreadID() throws IOException {
+        // Read 2-byte thread-id. On host thread-ids can be greater than 16-bit but it is truncated
+        // to 16-bits in the trace.
         int threadId = readNumber(2);
-        if (threadId != 0) {
-            return threadId;
-        }
+        return threadId;
+    }
+
+    public int GetEntryHeader() throws IOException {
         // Read 1-byte header type
         return readNumber(1);
     }
@@ -135,10 +137,15 @@ abstract class BaseTraceParser {
     }
 
     public boolean ShouldIgnoreThread(int threadId) throws Exception {
-        if (threadIdMap.get(threadId).contains("Daemon")) {
-            return true;
+        if (!threadIdMap.containsKey(threadId)) {
+          System.out.println("no threadId -> name  mapping for thread " + threadId);
+          // TODO(b/279547877): Ideally we should throw here, since it isn't expected. Just
+          // continuing to get more logs from the bots to see what's happening here. The
+          // test will fail anyway because the diff will be different.
+          return false;
         }
-        return false;
+
+        return threadIdMap.get(threadId).contains("Daemon");
     }
 
     public String eventTypeToString(int eventType, int threadId) {

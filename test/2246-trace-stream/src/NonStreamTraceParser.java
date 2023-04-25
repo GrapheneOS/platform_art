@@ -79,7 +79,7 @@ public class NonStreamTraceParser extends BaseTraceParser {
         boolean hasEntries = true;
         boolean seenStopTracingMethod = false;
         for (int i = 0; i < numEntries; i++) {
-            int threadId = GetEntryHeader();
+            int threadId = GetThreadID();
             String eventString = ProcessEventEntry(threadId);
             // Ignore daemons (ex: heap task daemon, reference queue daemon) because they may not
             // be deterministic.
