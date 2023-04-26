@@ -1715,7 +1715,7 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
   const char* DebugName() const override { return #type; }                \
   HInstruction* Clone(ArenaAllocator* arena) const override {             \
     DCHECK(IsClonable());                                                 \
-    return new (arena) H##type(*this->As##type());                        \
+    return new (arena) H##type(*this);                                    \
   }                                                                       \
   void Accept(HGraphVisitor* visitor) override
 
@@ -3164,7 +3164,7 @@ class HPhi final : public HVariableInputSizeInstruction {
   bool IsVRegEquivalentOf(const HInstruction* other) const {
     return other != nullptr
         && other->IsPhi()
-        && other->AsPhi()->GetBlock() == GetBlock()
+        && other->GetBlock() == GetBlock()
         && other->AsPhi()->GetRegNumber() == GetRegNumber();
   }
 
