@@ -839,7 +839,8 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObject) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectVolatile) ||
+               (instruction_->AsInvoke()->GetIntrinsic() ==
+                    Intrinsics::kJdkUnsafeGetObjectVolatile) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectAcquire))
             << instruction_->AsInvoke()->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
@@ -8782,13 +8783,15 @@ void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromCons
     case DataType::Type::kFloat32:
       __ movss(out.AsFpuRegister<XmmRegister>(),
                codegen_->LiteralFloatAddress(
-                  value->AsFloatConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
+                   value->AsFloatConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     case DataType::Type::kFloat64:
       __ movsd(out.AsFpuRegister<XmmRegister>(),
                codegen_->LiteralDoubleAddress(
-                  value->AsDoubleConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
+                   value->AsDoubleConstant()->GetValue(),
+                   insn->GetBaseMethodAddress(),
+                   const_area));
       break;
 
     case DataType::Type::kInt32:
