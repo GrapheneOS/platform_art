@@ -46,8 +46,7 @@ static bool IsSimpleBlock(HBasicBlock* block) {
     } else if (instruction->CanBeMoved() &&
                !instruction->HasSideEffects() &&
                !instruction->CanThrow()) {
-      if (instruction->IsSelect() &&
-          instruction->AsSelect()->GetCondition()->GetBlock() == block) {
+      if (instruction->IsSelect() && instruction->AsSelect()->GetCondition()->GetBlock() == block) {
         // Count one HCondition and HSelect in the same block as a single instruction.
         // This enables finding nested selects.
         continue;
