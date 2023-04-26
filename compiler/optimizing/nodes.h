@@ -3639,7 +3639,8 @@ class HDeoptimize final : public HVariableInputSizeInstruction {
   bool CanBeMoved() const override { return GetPackedFlag<kFieldCanBeMoved>(); }
 
   bool InstructionDataEquals(const HInstruction* other) const override {
-    return (other->CanBeMoved() == CanBeMoved()) && (other->AsDeoptimize()->GetKind() == GetKind());
+    return (other->CanBeMoved() == CanBeMoved()) &&
+           (other->AsDeoptimize()->GetDeoptimizationKind() == GetDeoptimizationKind());
   }
 
   bool NeedsEnvironment() const override { return true; }
