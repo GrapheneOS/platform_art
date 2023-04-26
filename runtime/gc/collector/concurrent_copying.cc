@@ -1899,7 +1899,10 @@ void ConcurrentCopying::PushOntoMarkStack(Thread* const self, mirror::Object* to
         << " cc->is_marking=" << is_marking_;
     CHECK(self == thread_running_gc_)
         << "Only GC-running thread should access the mark stack "
-        << "in the GC exclusive mark stack mode";
+        << "in the GC exclusive mark stack mode. "
+        << "ref=" << to_ref
+        << " self->gc_marking=" << self->GetIsGcMarking()
+        << " cc->is_marking=" << is_marking_;
     // Access the GC mark stack without a lock.
     if (UNLIKELY(gc_mark_stack_->IsFull())) {
       ExpandGcMarkStack();
