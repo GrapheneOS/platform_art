@@ -31,7 +31,7 @@ namespace odrefresh {
 constexpr const char* kOdrefreshMetricsFile = "/data/misc/odrefresh/odrefresh-metrics.xml";
 
 // Initial OdrefreshMetrics version
-static constexpr int32_t kOdrefreshMetricsVersion = 3;
+static constexpr int32_t kOdrefreshMetricsVersion = 4;
 
 // Constant value used in ExecResult when the process was not run at all.
 // Mirrors EXEC_RESULT_STATUS_NOT_RUN contained in frameworks/proto_logging/atoms.proto.
