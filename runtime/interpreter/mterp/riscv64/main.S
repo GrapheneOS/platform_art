@@ -22,6 +22,39 @@
 #include "asm_support.h"
 #include "arch/riscv64/asm_support_riscv64.S"
 
+/**
+ * RISC-V 64 ABI general notes
+ *
+ * References
+ * - https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-cc.adoc
+ * - runtime/arch/riscv64/registers_riscv64.h
+ *
+ * 32 general purposes registers
+ * - fixed purpose: zero, ra, sp, gp, tp, s1
+ *     gp/scs: shadow call stack - do not use!
+ *     s1/tr: ART thread register - do not use!
+ * - temporaries: t0-t6
+ * - arguments: a0-a7
+ * - return: a0, a1
+ * - callee saved: ra, s0/fp, s2-s11
+ *     s0 is flexible, available to use as a frame pointer if needed.
+ *
+ * 32 floating point registers
+ * - temporaries: ft0-ft11
+ * - arguments: fa0-fa7
+ * - return: fa0, fa1
+ * - callee saved: fs0-fs11
+ */
+
+// Fixed register usages in Nterp.
+//    nickname  ABI    reg   purpose
+#define xSELF    s1  // x9,   Thread* self pointer
+#define xFP      s3  // x19,  interpreted frame pointer: to access locals and args
+#define xPC      s4  // x20,  interpreted program counter: to fetch instructions
+#define xINST    s5  // x21,  first 16-bit code unit of current instruction
+#define xIBASE   s6  // x22,  interpreted instruction base pointer: for computed goto
+#define xREFS    s7  // x23,  base of object references of dex registers
+
 // An assembly entry that has a OatQuickMethodHeader prefix.
 .macro OAT_ENTRY name, end
     .type \name, @function
