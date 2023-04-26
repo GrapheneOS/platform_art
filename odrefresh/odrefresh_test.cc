@@ -174,6 +174,10 @@ class OdRefreshTest : public CommonArtTest {
     ASSERT_TRUE(EnsureDirectoryExists(system_etc_dir));
     framework_profile_ = system_etc_dir + "/boot-image.prof";
     CreateEmptyFile(framework_profile_);
+    dirty_image_objects_file_ = system_etc_dir + "/dirty-image-objects";
+    CreateEmptyFile(dirty_image_objects_file_);
+    preloaded_classes_file_ = system_etc_dir + "/preloaded-classes";
+    CreateEmptyFile(preloaded_classes_file_);
     std::string art_etc_dir = android_art_root_path + "/etc";
     ASSERT_TRUE(EnsureDirectoryExists(art_etc_dir));
     art_profile_ = art_etc_dir + "/boot-image.prof";
@@ -188,6 +192,10 @@ class OdRefreshTest : public CommonArtTest {
     services_jar_profile_ = framework_dir_ + "/services.jar.prof";
     std::string art_javalib_dir = android_art_root_path + "/javalib";
     core_oj_jar_ = art_javalib_dir + "/core-oj.jar";
+    std::string conscrypt_javalib_dir = temp_dir_path + "/apex/com.android.conscrypt/javalib";
+    conscrypt_jar_ = conscrypt_javalib_dir + "/conscrypt.jar";
+    std::string wifi_javalib_dir = temp_dir_path + "/apex/com.android.wifi/javalib";
+    framework_wifi_jar_ = wifi_javalib_dir + "/framework-wifi.jar";
 
     // Create placeholder files.
     ASSERT_TRUE(EnsureDirectoryExists(framework_dir_ + "/x86_64"));
@@ -199,13 +207,18 @@ class OdRefreshTest : public CommonArtTest {
     CreateEmptyFile(services_jar_profile_);
     ASSERT_TRUE(EnsureDirectoryExists(art_javalib_dir));
     CreateEmptyFile(core_oj_jar_);
+    ASSERT_TRUE(EnsureDirectoryExists(conscrypt_javalib_dir));
+    CreateEmptyFile(conscrypt_jar_);
+    ASSERT_TRUE(EnsureDirectoryExists(wifi_javalib_dir));
+    CreateEmptyFile(framework_wifi_jar_);
 
     std::string apex_info_filename = temp_dir_path + "/apex-info-list.xml";
     WriteFakeApexInfoList(apex_info_filename);
     config_.SetApexInfoListFile(apex_info_filename);
 
     config_.SetArtBinDir(temp_dir_path + "/bin");
-    config_.SetBootClasspath(core_oj_jar_ + ":" + framework_jar_);
+    config_.SetBootClasspath(core_oj_jar_ + ":" + framework_jar_ + ":" + conscrypt_jar_ + ":" +
+                             framework_wifi_jar_);
     config_.SetDex2oatBootclasspath(core_oj_jar_ + ":" + framework_jar_);
     config_.SetSystemServerClasspath(location_provider_jar_ + ":" + services_jar_);
     config_.SetStandaloneSystemServerJars(services_foo_jar_ + ":" + services_bar_jar_);
@@ -246,6 +259,8 @@ class OdRefreshTest : public CommonArtTest {
   std::unique_ptr<OdrMetrics> metrics_;
   std::string core_oj_jar_;
   std::string framework_jar_;
+  std::string conscrypt_jar_;
+  std::string framework_wifi_jar_;
   std::string location_provider_jar_;
   std::string services_jar_;
   std::string services_foo_jar_;
@@ -255,56 +270,129 @@ class OdRefreshTest : public CommonArtTest {
   std::string framework_profile_;
   std::string art_profile_;
   std::string services_jar_profile_;
+  std::string dirty_image_objects_file_;
+  std::string preloaded_classes_file_;
 };
 
-TEST_F(OdRefreshTest, BootClasspathJars) {
+TEST_F(OdRefreshTest, PrimaryBootImage) {
   EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(
-                  AllOf(Contains(Flag("--dex-file=", core_oj_jar_)),
-                        Contains(Flag("--dex-file=", framework_jar_)),
-                        Contains(Flag("--dex-fd=", FdOf(core_oj_jar_))),
-                        Contains(Flag("--dex-fd=", FdOf(framework_jar_))),
-                        Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot.oat")),
-                        Contains(Flag("--base=", _)))))
+              DoExecAndReturnCode(AllOf(
+                  Contains(Flag("--dex-file=", core_oj_jar_)),
+                  Contains(Flag("--dex-file=", framework_jar_)),
+                  Not(Contains(Flag("--dex-file=", conscrypt_jar_))),
+                  Not(Contains(Flag("--dex-file=", framework_wifi_jar_))),
+                  Contains(Flag("--dex-fd=", FdOf(core_oj_jar_))),
+                  Contains(Flag("--dex-fd=", FdOf(framework_jar_))),
+                  Not(Contains(Flag("--dex-fd=", FdOf(conscrypt_jar_)))),
+                  Not(Contains(Flag("--dex-fd=", FdOf(framework_wifi_jar_)))),
+                  Contains(ListFlag("-Xbootclasspath:", ElementsAre(core_oj_jar_, framework_jar_))),
+                  Contains(ListFlag("-Xbootclasspathfds:",
+                                    ElementsAre(FdOf(core_oj_jar_), FdOf(framework_jar_)))),
+                  Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot.oat")),
+                  Contains(Flag("--base=", _)),
+                  Not(Contains(Flag("--boot-image=", _))))))
       .WillOnce(Return(0));
 
-  EXPECT_EQ(odrefresh_->Compile(*metrics_,
-                                CompilationOptions{
-                                    .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
-                                }),
+  // Ignore the invocation for the mainline extension.
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(Contains(Flag("--dex-file=", conscrypt_jar_))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                }),
+            ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, BootImageMainlineExtension) {
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(AllOf(
+          Not(Contains(Flag("--dex-file=", core_oj_jar_))),
+          Not(Contains(Flag("--dex-file=", framework_jar_))),
+          Contains(Flag("--dex-file=", conscrypt_jar_)),
+          Contains(Flag("--dex-file=", framework_wifi_jar_)),
+          Not(Contains(Flag("--dex-fd=", FdOf(core_oj_jar_)))),
+          Not(Contains(Flag("--dex-fd=", FdOf(framework_jar_)))),
+          Contains(Flag("--dex-fd=", FdOf(conscrypt_jar_))),
+          Contains(Flag("--dex-fd=", FdOf(framework_wifi_jar_))),
+          Contains(ListFlag(
+              "-Xbootclasspath:",
+              ElementsAre(core_oj_jar_, framework_jar_, conscrypt_jar_, framework_wifi_jar_))),
+          Contains(ListFlag("-Xbootclasspathfds:",
+                            ElementsAre(FdOf(core_oj_jar_),
+                                        FdOf(framework_jar_),
+                                        FdOf(conscrypt_jar_),
+                                        FdOf(framework_wifi_jar_)))),
+          Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot-conscrypt.oat")),
+          Not(Contains(Flag("--base=", _))),
+          Contains(Flag("--boot-image=", _)))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64, {.boot_image_mainline_extension = true}}},
+                }),
             ExitCode::kCompilationSuccess);
 }
 
 TEST_F(OdRefreshTest, BootClasspathJarsWithExplicitCompilerFilter) {
   config_.SetBootImageCompilerFilter("speed");
 
-  // Profiles should still be passed.
+  // Profiles should still be passed for primary boot image.
   EXPECT_CALL(
       *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Flag("--profile-file-fd=", FdOf(art_profile_))),
+      DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", core_oj_jar_)),
+                                Contains(Flag("--profile-file-fd=", FdOf(art_profile_))),
                                 Contains(Flag("--profile-file-fd=", FdOf(framework_profile_))),
                                 Contains("--compiler-filter=speed"))))
       .WillOnce(Return(0));
 
-  EXPECT_EQ(odrefresh_->Compile(*metrics_,
-                                CompilationOptions{
-                                    .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
-                                }),
+  // "verify" should always be used for boot image mainline extension.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", conscrypt_jar_)),
+                                        Not(Contains(Flag("--profile-file-fd=", _))),
+                                        Contains("--compiler-filter=verify"))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                }),
             ExitCode::kCompilationSuccess);
 }
 
 TEST_F(OdRefreshTest, BootClasspathJarsWithDefaultCompilerFilter) {
   EXPECT_CALL(
       *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Flag("--profile-file-fd=", FdOf(art_profile_))),
+      DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", core_oj_jar_)),
+                                Contains(Flag("--profile-file-fd=", FdOf(art_profile_))),
                                 Contains(Flag("--profile-file-fd=", FdOf(framework_profile_))),
                                 Contains("--compiler-filter=speed-profile"))))
       .WillOnce(Return(0));
 
-  EXPECT_EQ(odrefresh_->Compile(*metrics_,
-                                CompilationOptions{
-                                    .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
-                                }),
+  // "verify" should always be used for boot image mainline extension.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", conscrypt_jar_)),
+                                        Not(Contains(Flag("--profile-file-fd=", _))),
+                                        Contains("--compiler-filter=verify"))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                }),
             ExitCode::kCompilationSuccess);
 }
 
@@ -323,14 +411,17 @@ TEST_F(OdRefreshTest, BootClasspathJarsFallback) {
       .Times(2)
       .WillOnce(Return(0));
 
-  EXPECT_EQ(
-      odrefresh_->Compile(
-          *metrics_,
-          CompilationOptions{
-              .compile_boot_classpath_for_isas = {InstructionSet::kX86, InstructionSet::kX86_64},
-              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
-          }),
-      ExitCode::kCompilationFailed);
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}},
+                        {InstructionSet::kX86,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                    .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                }),
+            ExitCode::kCompilationFailed);
 }
 
 TEST_F(OdRefreshTest, AllSystemServerJars) {
@@ -418,6 +509,10 @@ TEST_F(OdRefreshTest, ContinueWhenBcpCompilationFailed) {
               DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86_64"),
                                         Contains(Flag("--dex-file=", core_oj_jar_)))))
       .WillOnce(Return(0));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86_64"),
+                                        Contains(Flag("--dex-file=", conscrypt_jar_)))))
+      .WillOnce(Return(0));
 
   // Simulate that the compilation of BCP for the other ISA fails.
   EXPECT_CALL(*mock_exec_utils_,
@@ -439,14 +534,17 @@ TEST_F(OdRefreshTest, ContinueWhenBcpCompilationFailed) {
               DoExecAndReturnCode(Contains(Flag("--dex-file=", services_bar_jar_))))
       .WillOnce(Return(0));
 
-  EXPECT_EQ(
-      odrefresh_->Compile(
-          *metrics_,
-          CompilationOptions{
-              .compile_boot_classpath_for_isas = {InstructionSet::kX86, InstructionSet::kX86_64},
-              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
-          }),
-      ExitCode::kCompilationFailed);
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}},
+                        {InstructionSet::kX86,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                    .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                }),
+            ExitCode::kCompilationFailed);
 }
 
 TEST_F(OdRefreshTest, ContinueWhenSystemServerCompilationFailed) {
@@ -544,6 +642,7 @@ TEST_F(OdRefreshTest, OutputFilesAndIsa) {
                                         Contains(Flag("--image-fd=", FdOf(_))),
                                         Contains(Flag("--output-vdex-fd=", FdOf(_))),
                                         Contains(Flag("--oat-fd=", FdOf(_))))))
+      .Times(2)
       .WillOnce(Return(0));
 
   EXPECT_CALL(*mock_exec_utils_,
@@ -554,43 +653,47 @@ TEST_F(OdRefreshTest, OutputFilesAndIsa) {
       .Times(odrefresh_->AllSystemServerJars().size())
       .WillRepeatedly(Return(0));
 
-  EXPECT_EQ(
-      odrefresh_->Compile(*metrics_,
-                          CompilationOptions{
-                              .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
-                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
-                          }),
-      ExitCode::kCompilationSuccess);
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                    .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                }),
+            ExitCode::kCompilationSuccess);
 }
 
-TEST_F(OdRefreshTest, CompileChoosesBootImage_OnData) {
-  // Boot image is on /data.
-  OdrArtifacts artifacts = OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot.art");
-  auto file1 = ScopedCreateEmptyFile(artifacts.ImagePath());
-  auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
-  auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
+TEST_F(OdRefreshTest, GenerateBootImageMainlineExtensionChoosesBootImage_OnData) {
+  // Primary boot image is on /data.
+  OdrArtifacts primary = OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot.art");
+  auto file1 = ScopedCreateEmptyFile(primary.ImagePath());
+  auto file2 = ScopedCreateEmptyFile(primary.VdexPath());
+  auto file3 = ScopedCreateEmptyFile(primary.OatPath());
 
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Flag("--boot-image=", dalvik_cache_dir_ + "/boot.art")),
-                                Contains(ListFlag("-Xbootclasspathimagefds:",
-                                                  ElementsAre(FdOf(artifacts.ImagePath()), "-1"))),
-                                Contains(ListFlag("-Xbootclasspathvdexfds:",
-                                                  ElementsAre(FdOf(artifacts.VdexPath()), "-1"))),
-                                Contains(ListFlag("-Xbootclasspathoatfds:",
-                                                  ElementsAre(FdOf(artifacts.OatPath()), "-1"))))))
-      .Times(odrefresh_->AllSystemServerJars().size())
-      .WillRepeatedly(Return(0));
-  EXPECT_EQ(
-      odrefresh_->Compile(*metrics_,
-                          CompilationOptions{
-                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
-                          }),
-      ExitCode::kCompilationSuccess);
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(
+                  Contains(Flag("--dex-file=", conscrypt_jar_)),
+                  Contains(Flag("--boot-image=", dalvik_cache_dir_ + "/boot.art")),
+                  Contains(ListFlag("-Xbootclasspathimagefds:",
+                                    ElementsAre(FdOf(primary.ImagePath()), "-1", "-1", "-1"))),
+                  Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                    ElementsAre(FdOf(primary.VdexPath()), "-1", "-1", "-1"))),
+                  Contains(ListFlag("-Xbootclasspathoatfds:",
+                                    ElementsAre(FdOf(primary.OatPath()), "-1", "-1", "-1"))))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64, {.boot_image_mainline_extension = true}}},
+                }),
+            ExitCode::kCompilationSuccess);
 }
 
-TEST_F(OdRefreshTest, CompileChoosesBootImage_OnSystem) {
-  // Boot images are on /system.
+TEST_F(OdRefreshTest, GenerateBootImageMainlineExtensionChoosesBootImage_OnSystem) {
+  // Primary boot image and framework extension are on /system.
   OdrArtifacts primary = OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot.art");
   auto file1 = ScopedCreateEmptyFile(primary.ImagePath());
   auto file2 = ScopedCreateEmptyFile(primary.VdexPath());
@@ -604,16 +707,153 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage_OnSystem) {
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(AllOf(
+          Contains(Flag("--dex-file=", conscrypt_jar_)),
+          Contains(ListFlag(
+              "--boot-image=",
+              ElementsAre(framework_dir_ + "/boot.art", framework_dir_ + "/boot-framework.art"))),
+          Contains(ListFlag(
+              "-Xbootclasspathimagefds:",
+              ElementsAre(FdOf(primary.ImagePath()), FdOf(framework_ext.ImagePath()), "-1", "-1"))),
+          Contains(ListFlag(
+              "-Xbootclasspathvdexfds:",
+              ElementsAre(FdOf(primary.VdexPath()), FdOf(framework_ext.VdexPath()), "-1", "-1"))),
+          Contains(ListFlag(
+              "-Xbootclasspathoatfds:",
+              ElementsAre(FdOf(primary.OatPath()), FdOf(framework_ext.OatPath()), "-1", "-1"))))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64, {.boot_image_mainline_extension = true}}},
+                }),
+            ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, CompileSystemServerChoosesBootImage_OnData) {
+  // Boot images are on /data.
+  OdrArtifacts primary = OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot.art");
+  auto file1 = ScopedCreateEmptyFile(primary.ImagePath());
+  auto file2 = ScopedCreateEmptyFile(primary.VdexPath());
+  auto file3 = ScopedCreateEmptyFile(primary.OatPath());
+  OdrArtifacts mainline_ext =
+      OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot-conscrypt.art");
+  auto file4 = ScopedCreateEmptyFile(mainline_ext.ImagePath());
+  auto file5 = ScopedCreateEmptyFile(mainline_ext.VdexPath());
+  auto file6 = ScopedCreateEmptyFile(mainline_ext.OatPath());
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(AllOf(
           Contains(ListFlag("--boot-image=",
-                            ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
-                                        framework_dir_ + "/boot-framework.art"))),
-          Contains(
-              ListFlag("-Xbootclasspathimagefds:",
-                       ElementsAre(FdOf(primary.ImagePath()), FdOf(framework_ext.ImagePath())))),
-          Contains(ListFlag("-Xbootclasspathvdexfds:",
-                            ElementsAre(FdOf(primary.VdexPath()), FdOf(framework_ext.VdexPath())))),
-          Contains(ListFlag("-Xbootclasspathoatfds:",
-                            ElementsAre(FdOf(primary.OatPath()), FdOf(framework_ext.OatPath())))))))
+                            ElementsAre(dalvik_cache_dir_ + "/boot.art",
+                                        dalvik_cache_dir_ + "/boot-conscrypt.art"))),
+          Contains(ListFlag(
+              "-Xbootclasspathimagefds:",
+              ElementsAre(FdOf(primary.ImagePath()), "-1", FdOf(mainline_ext.ImagePath()), "-1"))),
+          Contains(ListFlag(
+              "-Xbootclasspathvdexfds:",
+              ElementsAre(FdOf(primary.VdexPath()), "-1", FdOf(mainline_ext.VdexPath()), "-1"))),
+          Contains(ListFlag(
+              "-Xbootclasspathoatfds:",
+              ElementsAre(FdOf(primary.OatPath()), "-1", FdOf(mainline_ext.OatPath()), "-1"))))))
+      .Times(odrefresh_->AllSystemServerJars().size())
+      .WillRepeatedly(Return(0));
+  EXPECT_EQ(
+      odrefresh_->Compile(*metrics_,
+                          CompilationOptions{
+                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                          }),
+      ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, CompileSystemServerChoosesBootImage_OnSystemAndData) {
+  // The mainline extension is on /data, while others are on /system.
+  OdrArtifacts primary = OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot.art");
+  auto file1 = ScopedCreateEmptyFile(primary.ImagePath());
+  auto file2 = ScopedCreateEmptyFile(primary.VdexPath());
+  auto file3 = ScopedCreateEmptyFile(primary.OatPath());
+  OdrArtifacts framework_ext =
+      OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot-framework.art");
+  auto file4 = ScopedCreateEmptyFile(framework_ext.ImagePath());
+  auto file5 = ScopedCreateEmptyFile(framework_ext.VdexPath());
+  auto file6 = ScopedCreateEmptyFile(framework_ext.OatPath());
+  OdrArtifacts mainline_ext =
+      OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot-conscrypt.art");
+  auto file7 = ScopedCreateEmptyFile(mainline_ext.ImagePath());
+  auto file8 = ScopedCreateEmptyFile(mainline_ext.VdexPath());
+  auto file9 = ScopedCreateEmptyFile(mainline_ext.OatPath());
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(
+                  Contains(ListFlag("--boot-image=",
+                                    ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                framework_dir_ + "/boot-framework.art",
+                                                dalvik_cache_dir_ + "/boot-conscrypt.art"))),
+                  Contains(ListFlag("-Xbootclasspathimagefds:",
+                                    ElementsAre(FdOf(primary.ImagePath()),
+                                                FdOf(framework_ext.ImagePath()),
+                                                FdOf(mainline_ext.ImagePath()),
+                                                "-1"))),
+                  Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                    ElementsAre(FdOf(primary.VdexPath()),
+                                                FdOf(framework_ext.VdexPath()),
+                                                FdOf(mainline_ext.VdexPath()),
+                                                "-1"))),
+                  Contains(ListFlag("-Xbootclasspathoatfds:",
+                                    ElementsAre(FdOf(primary.OatPath()),
+                                                FdOf(framework_ext.OatPath()),
+                                                FdOf(mainline_ext.OatPath()),
+                                                "-1"))))))
+      .Times(odrefresh_->AllSystemServerJars().size())
+      .WillRepeatedly(Return(0));
+  EXPECT_EQ(
+      odrefresh_->Compile(*metrics_,
+                          CompilationOptions{
+                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                          }),
+      ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, CompileSystemServerChoosesBootImage_OnSystem) {
+  // Boot images are on /system.
+  OdrArtifacts primary = OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot.art");
+  auto file1 = ScopedCreateEmptyFile(primary.ImagePath());
+  auto file2 = ScopedCreateEmptyFile(primary.VdexPath());
+  auto file3 = ScopedCreateEmptyFile(primary.OatPath());
+  OdrArtifacts framework_ext =
+      OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot-framework.art");
+  auto file4 = ScopedCreateEmptyFile(framework_ext.ImagePath());
+  auto file5 = ScopedCreateEmptyFile(framework_ext.VdexPath());
+  auto file6 = ScopedCreateEmptyFile(framework_ext.OatPath());
+  OdrArtifacts mainline_ext =
+      OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot-conscrypt.art");
+  auto file7 = ScopedCreateEmptyFile(mainline_ext.ImagePath());
+  auto file8 = ScopedCreateEmptyFile(mainline_ext.VdexPath());
+  auto file9 = ScopedCreateEmptyFile(mainline_ext.OatPath());
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(
+                  Contains(ListFlag("--boot-image=",
+                                    ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                framework_dir_ + "/boot-framework.art",
+                                                framework_dir_ + "/boot-conscrypt.art"))),
+                  Contains(ListFlag("-Xbootclasspathimagefds:",
+                                    ElementsAre(FdOf(primary.ImagePath()),
+                                                FdOf(framework_ext.ImagePath()),
+                                                FdOf(mainline_ext.ImagePath()),
+                                                "-1"))),
+                  Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                    ElementsAre(FdOf(primary.VdexPath()),
+                                                FdOf(framework_ext.VdexPath()),
+                                                FdOf(mainline_ext.VdexPath()),
+                                                "-1"))),
+                  Contains(ListFlag("-Xbootclasspathoatfds:",
+                                    ElementsAre(FdOf(primary.OatPath()),
+                                                FdOf(framework_ext.OatPath()),
+                                                FdOf(mainline_ext.OatPath()),
+                                                "-1"))))))
       .Times(odrefresh_->AllSystemServerJars().size())
       .WillRepeatedly(Return(0));
   EXPECT_EQ(

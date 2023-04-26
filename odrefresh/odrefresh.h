@@ -39,12 +39,29 @@
 namespace art {
 namespace odrefresh {
 
+class OnDeviceRefresh;
+
+struct BootImages {
+  static constexpr int kMaxCount = 2;
+
+  bool primary_boot_image : 1;
+  bool boot_image_mainline_extension : 1;
+
+  int Count() const;
+
+  OdrMetrics::BcpCompilationType GetTypeForMetrics() const;
+};
+
 struct CompilationOptions {
-  // If not empty, compile the bootclasspath jars for ISAs in the list.
-  std::vector<InstructionSet> compile_boot_classpath_for_isas;
+  // If not empty, generate the boot images for ISAs in the list.
+  std::vector<std::pair<InstructionSet, BootImages>> boot_images_to_generate_for_isas;
 
   // If not empty, compile the system server jars in the list.
   std::set<std::string> system_server_jars_to_compile;
+
+  static CompilationOptions CompileAll(const OnDeviceRefresh& odr);
+
+  int CompilationUnitCount() const;
 };
 
 struct CompilationResult {
@@ -94,36 +111,49 @@ class PreconditionCheckResult {
  public:
   static PreconditionCheckResult NoneOk(OdrMetrics::Trigger trigger) {
     return PreconditionCheckResult(trigger,
-                                   /*boot_classpath_ok=*/false,
+                                   /*primary_boot_image_ok=*/false,
+                                   /*boot_image_mainline_extension_ok=*/false,
+                                   /*system_server_ok=*/false);
+  }
+  static PreconditionCheckResult BootImageMainlineExtensionNotOk(OdrMetrics::Trigger trigger) {
+    return PreconditionCheckResult(trigger,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/false,
                                    /*system_server_ok=*/false);
   }
   static PreconditionCheckResult SystemServerNotOk(OdrMetrics::Trigger trigger) {
     return PreconditionCheckResult(trigger,
-                                   /*boot_classpath_ok=*/true,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/true,
                                    /*system_server_ok=*/false);
   }
   static PreconditionCheckResult AllOk() {
     return PreconditionCheckResult(/*trigger=*/std::nullopt,
-                                   /*boot_classpath_ok=*/true,
+                                   /*primary_boot_image_ok=*/true,
+                                   /*boot_image_mainline_extension_ok=*/true,
                                    /*system_server_ok=*/true);
   }
   bool IsAllOk() const { return !trigger_.has_value(); }
   OdrMetrics::Trigger GetTrigger() const { return trigger_.value(); }
-  bool IsBootClasspathOk() const { return boot_classpath_ok_; }
+  bool IsPrimaryBootImageOk() const { return primary_boot_image_ok_; }
+  bool IsBootImageMainlineExtensionOk() const { return boot_image_mainline_extension_ok_; }
   bool IsSystemServerOk() const { return system_server_ok_; }
 
  private:
   // Use static factory methods instead.
   PreconditionCheckResult(std::optional<OdrMetrics::Trigger> trigger,
-                          bool boot_classpath_ok,
+                          bool primary_boot_image_ok,
+                          bool boot_image_mainline_extension_ok,
                           bool system_server_ok)
       : trigger_(trigger),
-        boot_classpath_ok_(boot_classpath_ok),
+        primary_boot_image_ok_(primary_boot_image_ok),
+        boot_image_mainline_extension_ok_(boot_image_mainline_extension_ok),
         system_server_ok_(system_server_ok) {}
 
   // Indicates why the precondition is not okay, or `std::nullopt` if it's okay.
   std::optional<OdrMetrics::Trigger> trigger_;
-  bool boot_classpath_ok_;
+  bool primary_boot_image_ok_;
+  bool boot_image_mainline_extension_ok_;
   bool system_server_ok_;
 };
 
@@ -150,6 +180,8 @@ class OnDeviceRefresh final {
   std::set<std::string> AllSystemServerJars() const {
     return {all_systemserver_jars_.begin(), all_systemserver_jars_.end()};
   }
+
+  const OdrConfig& Config() const { return config_; }
 
  private:
   time_t GetExecutionTimeUsed() const;
@@ -179,6 +211,9 @@ class OnDeviceRefresh final {
   // Returns the list of BCP jars for the boot image framework extension.
   std::vector<std::string> GetFrameworkBcpJars() const;
 
+  // Returns the list of BCP jars for the boot image mainline extension.
+  std::vector<std::string> GetMainlineBcpJars() const;
+
   // Returns the symbolic primary boot image location (without ISA). If `minimal` is true, returns
   // the symbolic location of the minimal boot image.
   std::string GetPrimaryBootImage(bool on_system, bool minimal) const;
@@ -195,9 +230,16 @@ class OnDeviceRefresh final {
   // applies to boot images on /system.
   std::string GetSystemBootImageFrameworkExtensionPath(InstructionSet isa) const;
 
+  // Returns the symbolic boot image mainline extension location (without ISA).
+  std::string GetBootImageMainlineExtension(bool on_system) const;
+
+  // Returns the real boot image mainline extension location (with ISA).
+  std::string GetBootImageMainlineExtensionPath(bool on_system, InstructionSet isa) const;
+
   // Returns the best combination of symbolic boot image locations (without ISA) based on file
   // existence.
-  std::vector<std::string> GetBestBootImages(InstructionSet isa) const;
+  std::vector<std::string> GetBestBootImages(InstructionSet isa,
+                                             bool include_mainline_extension) const;
 
   std::string GetSystemServerImagePath(bool on_system, const std::string& jar_path) const;
 
@@ -218,6 +260,13 @@ class OnDeviceRefresh final {
   WARN_UNUSED bool PrimaryBootImageExist(
       bool on_system,
       bool minimal,
+      InstructionSet isa,
+      /*out*/ std::string* error_msg,
+      /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
+
+  // Returns whether the boot image mainline extension exists.
+  WARN_UNUSED bool BootImageMainlineExtensionExist(
+      bool on_system,
       InstructionSet isa,
       /*out*/ std::string* error_msg,
       /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
@@ -255,25 +304,23 @@ class OnDeviceRefresh final {
   WARN_UNUSED PreconditionCheckResult
   CheckPreconditionForData(const std::vector<com::android::apex::ApexInfo>& apex_info_list) const;
 
-  // Checks whether all boot classpath artifacts are up to date. Returns true if all are present,
-  // false otherwise.
-  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  WARN_UNUSED bool CheckBootClasspathArtifactsAreUpToDate(
-      OdrMetrics& metrics,
-      const InstructionSet isa,
-      const PreconditionCheckResult& system_result,
-      const PreconditionCheckResult& data_result,
-      /*out*/ std::vector<std::string>* checked_artifacts) const;
+  // Checks whether all boot classpath artifacts are up to date. Returns the boot images that need
+  // to be (re-)generated. If `checked_artifacts` is present, adds checked artifacts to
+  // `checked_artifacts`.
+  WARN_UNUSED BootImages
+  CheckBootClasspathArtifactsAreUpToDate(OdrMetrics& metrics,
+                                         InstructionSet isa,
+                                         const PreconditionCheckResult& system_result,
+                                         const PreconditionCheckResult& data_result,
+                                         /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   // Checks whether all system_server artifacts are up to date. The artifacts are checked in their
-  // order of compilation. Returns true if all are present, false otherwise.
-  // Adds the paths to the jars that needs to be compiled in `jars_to_compile`.
+  // order of compilation. Returns the paths to the jars that need to be compiled.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  bool CheckSystemServerArtifactsAreUpToDate(
+  WARN_UNUSED std::set<std::string> CheckSystemServerArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const PreconditionCheckResult& system_result,
       const PreconditionCheckResult& data_result,
-      /*out*/ std::set<std::string>* jars_to_compile,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   WARN_UNUSED CompilationResult
@@ -293,11 +340,13 @@ class OnDeviceRefresh final {
                              InstructionSet isa,
                              const std::vector<std::string>& dex_files,
                              const std::vector<std::string>& boot_classpath,
+                             const std::vector<std::string>& input_boot_images,
                              const std::string& output_path) const;
 
   WARN_UNUSED CompilationResult
   CompileBootClasspath(const std::string& staging_dir,
                        InstructionSet isa,
+                       BootImages boot_images,
                        const std::function<void()>& on_dex2oat_success) const;
 
   WARN_UNUSED CompilationResult

@@ -74,6 +74,14 @@ class OdrMetrics final {
     kMissingArtifacts = 3,
   };
 
+  enum class BcpCompilationType : uint8_t {
+    kUnknown = 0,
+    // Compiles for both the primary boot image and the mainline extension.
+    kPrimaryAndMainline = 1,
+    // Only compiles for the mainline extension.
+    kMainline = 2,
+  };
+
   explicit OdrMetrics(const std::string& cache_directory,
                       const std::string& metrics_file = kOdrefreshMetricsFile);
   ~OdrMetrics();
@@ -115,6 +123,9 @@ class OdrMetrics final {
                         int64_t compilation_time,
                         const std::optional<ExecResult>& dex2oat_result);
 
+  // Sets the BCP compilation type.
+  void SetBcpCompilationType(Stage stage, BcpCompilationType type);
+
   // Captures the current free space as the end free space.
   void CaptureSpaceFreeEnd();
 
@@ -152,12 +163,16 @@ class OdrMetrics final {
   // not invoked.
   std::optional<ExecResult> primary_bcp_dex2oat_result_;
 
+  BcpCompilationType primary_bcp_compilation_type_ = BcpCompilationType::kUnknown;
+
   // The total time spent on compiling secondary BCP.
   int32_t secondary_bcp_compilation_millis_ = 0;
 
   // The result of the dex2oat invocation for compiling secondary BCP, or `std::nullopt` if dex2oat
   // is not invoked.
   std::optional<ExecResult> secondary_bcp_dex2oat_result_;
+
+  BcpCompilationType secondary_bcp_compilation_type_ = BcpCompilationType::kUnknown;
 
   // The total time spent on compiling system server.
   int32_t system_server_compilation_millis_ = 0;
