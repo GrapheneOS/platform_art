@@ -125,6 +125,11 @@ public class CompOsTestUtils {
         assumeTrue(mDevice.doesFileExist("/apex/com.android.compos/"));
     }
 
+    public void assumeNotOnCuttlefish() throws Exception {
+        String product = mDevice.getProperty("ro.build.product");
+        assumeTrue(product != null && !product.startsWith("vsoc_"));
+    }
+
     private String assertCommandSucceeds(String command) throws DeviceNotAvailableException {
         CommandResult result = mDevice.executeShellV2Command(command);
         assertWithMessage(result.toString()).that(result.getExitCode()).isEqualTo(0);
