@@ -278,7 +278,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
           image_space = gc::space::ImageSpace::CreateFromAppImage(
               art_file.c_str(), oat_file.get(), &error_msg);
           if (image_space == nullptr) {
-            VLOG(image) << "Could not load runtime generated app image: " << error_msg;
+            (OS::FileExists(art_file.c_str()) ? LOG_STREAM(INFO) : VLOG_STREAM(image))
+                << "Could not load runtime generated app image: " << error_msg;
           }
         }
       }
