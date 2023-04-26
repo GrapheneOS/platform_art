@@ -74,14 +74,16 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
 
-        // Remove all test states.
-        testInfo.getDevice().executeShellV2Command("rm -rf " + PENDING_ARTIFACTS_DIR);
-        testInfo.getDevice().executeShellV2Command("rm -rf " + PENDING_ARTIFACTS_BACKUP_DIR);
-        testUtils.removeCompilationLogToAvoidBackoff();
-        testUtils.uninstallTestApex();
-
-        // Reboot should restore the device back to a good state.
-        testUtils.reboot();
+        try {
+            // Remove all test states.
+            testInfo.getDevice().executeShellV2Command("rm -rf " + PENDING_ARTIFACTS_DIR);
+            testInfo.getDevice().executeShellV2Command("rm -rf " + PENDING_ARTIFACTS_BACKUP_DIR);
+            testUtils.removeCompilationLogToAvoidBackoff();
+            testUtils.uninstallTestApex();
+        } finally {
+            // Reboot should restore the device back to a good state.
+            testUtils.reboot();
+        }
     }
 
     @Before
