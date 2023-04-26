@@ -856,7 +856,8 @@ class ReadBarrierForHeapReferenceSlowPathX86_64 : public SlowPathCode {
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObject) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectVolatile) ||
+               (instruction_->AsInvoke()->GetIntrinsic() ==
+                    Intrinsics::kJdkUnsafeGetObjectVolatile) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectAcquire))
             << instruction_->AsInvoke()->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
@@ -2051,7 +2052,7 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTest(HCondition* condition) 
       } else if (right.IsConstant()) {
         __ ucomiss(left.AsFpuRegister<XmmRegister>(),
                    codegen_->LiteralFloatAddress(
-                     right.GetConstant()->AsFloatConstant()->GetValue()));
+                       right.GetConstant()->AsFloatConstant()->GetValue()));
       } else {
         DCHECK(right.IsStackSlot());
         __ ucomiss(left.AsFpuRegister<XmmRegister>(),
@@ -2065,7 +2066,7 @@ void InstructionCodeGeneratorX86_64::GenerateCompareTest(HCondition* condition) 
       } else if (right.IsConstant()) {
         __ ucomisd(left.AsFpuRegister<XmmRegister>(),
                    codegen_->LiteralDoubleAddress(
-                     right.GetConstant()->AsDoubleConstant()->GetValue()));
+                       right.GetConstant()->AsDoubleConstant()->GetValue()));
       } else {
         DCHECK(right.IsDoubleStackSlot());
         __ ucomisd(left.AsFpuRegister<XmmRegister>(),
@@ -5930,8 +5931,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         __ movsd(address, value.AsFpuRegister<XmmRegister>());
         codegen_->MaybeRecordImplicitNullCheck(instruction);
       } else {
-        int64_t v =
-            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
         Address address_high =
             CodeGeneratorX86_64::ArrayAddress(array, index, TIMES_8, offset + sizeof(int32_t));
         codegen_->MoveInt64ToAddress(address, address_high, v, instruction);
