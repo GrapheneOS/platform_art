@@ -1208,8 +1208,7 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotForCatchPhi(HPhi* phi) {
   LiveInterval* interval = phi->GetLiveInterval();
 
   HInstruction* previous_phi = phi->GetPrevious();
-  DCHECK(previous_phi == nullptr ||
-         previous_phi->AsPhi()->GetRegNumber() <= phi->GetRegNumber())
+  DCHECK(previous_phi == nullptr || previous_phi->AsPhi()->GetRegNumber() <= phi->GetRegNumber())
       << "Phis expected to be sorted by vreg number, so that equivalent phis are adjacent.";
 
   if (phi->IsVRegEquivalentOf(previous_phi)) {

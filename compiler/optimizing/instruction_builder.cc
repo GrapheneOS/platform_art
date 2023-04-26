@@ -2348,9 +2348,9 @@ void HInstructionBuilder::BuildCheckedDivRem(uint16_t out_vreg,
     second = LoadLocal(second_vreg_or_constant, type);
   }
 
-  if (!second_is_constant
-      || (type == DataType::Type::kInt32 && second->AsIntConstant()->GetValue() == 0)
-      || (type == DataType::Type::kInt64 && second->AsLongConstant()->GetValue() == 0)) {
+  if (!second_is_constant ||
+      (type == DataType::Type::kInt32 && second->AsIntConstant()->GetValue() == 0) ||
+      (type == DataType::Type::kInt64 && second->AsLongConstant()->GetValue() == 0)) {
     second = new (allocator_) HDivZeroCheck(second, dex_pc);
     AppendInstruction(second);
   }
