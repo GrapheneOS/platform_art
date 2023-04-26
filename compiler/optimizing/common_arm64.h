@@ -311,10 +311,8 @@ inline bool Arm64CanEncodeConstantAsImmediate(HConstant* constant, HInstruction*
   }
 }
 
-inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
-                                                 HInstruction* instr) {
-  if (constant->IsConstant()
-      && Arm64CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+inline Location ARM64EncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
+  if (constant->IsConstant() && Arm64CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
     return Location::ConstantLocation(constant);
   }
 
