@@ -154,7 +154,7 @@ bool EnsureIdsArray(Thread* self, ObjPtr<mirror::Class> k, ArtMethod* method) {
       LOG(INFO) << "jmethodID for Obsolete / Default conflicting method " << method->PrettyMethod()
                 << " requested!";
     }
-    // No ids array for obsolete methods. Just do a linear scan.
+    // No ids array for obsolete / default conflicting methods. Just do a linear scan.
     return false;
   }
   StackHandleScope<1> hs(self);
