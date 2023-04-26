@@ -127,6 +127,54 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 }  // namespace arm64
 #endif  // ART_ENABLE_CODEGEN_arm64
 
+#ifdef ART_ENABLE_CODEGEN_riscv64
+namespace riscv64 {
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
+    ArenaAllocator* /*allocator*/, EntryPointCallingConvention abi, ThreadOffset64 offset) {
+  if (abi == kJniAbi) {
+    // TODO(riscv64): implement this properly once we have macro-assembler for RISC-V.
+    std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(2));
+    uint8_t* bytes = entry_stub->data();
+
+    // 0000    unimp
+    bytes[0] = 0x00;
+    bytes[1] = 0x00;
+
+    return std::move(entry_stub);
+  } else {
+    CHECK_LE(offset.Int32Value(), 0x7ff);
+    uint8_t offset_hi = (offset.Int32Value() & 0x7ff) >> 4;
+    uint8_t offset_lo = (offset.Int32Value() & 0xf) << 4;
+
+    std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(6));
+    uint8_t* bytes = entry_stub->data();
+
+    if (abi == kInterpreterAbi) {
+      // Thread* is first argument (A0) in interpreter ABI.
+      // xxx53283     ld t0, xxx(a0)
+      bytes[0] = 0x83;
+      bytes[1] = 0x32;
+      bytes[2] = offset_lo | 0x05;
+      bytes[3] = offset_hi;
+    } else {
+      // abi == kQuickAbi: TR holds Thread*.
+      // xxx4b283     ld t0, xxx(s1)
+      bytes[0] = 0x83;
+      bytes[1] = 0xb2;
+      bytes[2] = offset_lo | 0x04;
+      bytes[3] = offset_hi;
+    }
+
+    // 8282    jr t0
+    bytes[4] = 0x82;
+    bytes[5] = 0x82;
+
+    return std::move(entry_stub);
+  }
+}
+}  // namespace riscv64
+#endif  // ART_ENABLE_CODEGEN_riscv64
+
 #ifdef ART_ENABLE_CODEGEN_x86
 namespace x86 {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* allocator,
@@ -178,6 +226,10 @@ std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet is
 #ifdef ART_ENABLE_CODEGEN_arm64
     case InstructionSet::kArm64:
       return arm64::CreateTrampoline(&allocator, abi, offset);
+#endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return riscv64::CreateTrampoline(&allocator, abi, offset);
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case InstructionSet::kX86_64:
