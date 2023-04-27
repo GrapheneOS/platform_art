@@ -47,9 +47,11 @@ inline bool NEONCanEncodeConstantAsImmediate(HConstant* constant, HInstruction* 
     if (constant->IsLongConstant()) {
       return false;
     } else if (constant->IsFloatConstant()) {
-      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return vixl::aarch64::Assembler::IsImmFP32(constant->AsFloatConstantOrNull()->GetValue());
     } else if (constant->IsDoubleConstant()) {
-      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstant()->GetValue());
+      // TODO: Remove "OrNull".
+      return vixl::aarch64::Assembler::IsImmFP64(constant->AsDoubleConstantOrNull()->GetValue());
     }
     int64_t value = CodeGenerator::GetInt64ValueOf(constant);
     return IsUint<8>(value);
@@ -62,7 +64,9 @@ inline bool NEONCanEncodeConstantAsImmediate(HConstant* constant, HInstruction* 
 //    encoded into the instruction.
 //  - register location otherwise.
 inline Location NEONEncodableConstantOrRegister(HInstruction* constant, HInstruction* instr) {
-  if (constant->IsConstant() && NEONCanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+  if (constant->IsConstant() &&
+      // TODO: Remove "OrNull".
+      NEONCanEncodeConstantAsImmediate(constant->AsConstantOrNull(), instr)) {
     return Location::ConstantLocation(constant);
   }
 
@@ -91,7 +95,8 @@ void LocationsBuilderARM64Neon::VisitVecReplicateScalar(HVecReplicateScalar* ins
     case DataType::Type::kFloat32:
     case DataType::Type::kFloat64:
       if (input->IsConstant() &&
-          NEONCanEncodeConstantAsImmediate(input->AsConstant(), instruction)) {
+          // TODO: Remove "OrNull".
+          NEONCanEncodeConstantAsImmediate(input->AsConstantOrNull(), instruction)) {
         locations->SetInAt(0, Location::ConstantLocation(input));
         locations->SetOut(Location::RequiresFpuRegister());
       } else {
@@ -148,7 +153,8 @@ void InstructionCodeGeneratorARM64Neon::VisitVecReplicateScalar(HVecReplicateSca
     case DataType::Type::kFloat32:
       DCHECK_EQ(4u, instruction->GetVectorLength());
       if (src_loc.IsConstant()) {
-        __ Fmov(dst.V4S(), src_loc.GetConstant()->AsFloatConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        __ Fmov(dst.V4S(), src_loc.GetConstant()->AsFloatConstantOrNull()->GetValue());
       } else {
         __ Dup(dst.V4S(), VRegisterFrom(src_loc).V4S(), 0);
       }
@@ -156,7 +162,8 @@ void InstructionCodeGeneratorARM64Neon::VisitVecReplicateScalar(HVecReplicateSca
     case DataType::Type::kFloat64:
       DCHECK_EQ(2u, instruction->GetVectorLength());
       if (src_loc.IsConstant()) {
-        __ Fmov(dst.V2D(), src_loc.GetConstant()->AsDoubleConstant()->GetValue());
+        // TODO: Remove "OrNull".
+        __ Fmov(dst.V2D(), src_loc.GetConstant()->AsDoubleConstantOrNull()->GetValue());
       } else {
         __ Dup(dst.V2D(), VRegisterFrom(src_loc).V2D(), 0);
       }
@@ -896,7 +903,8 @@ void InstructionCodeGeneratorARM64Neon::VisitVecShl(HVecShl* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   VRegister lhs = VRegisterFrom(locations->InAt(0));
   VRegister dst = VRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -930,7 +938,8 @@ void InstructionCodeGeneratorARM64Neon::VisitVecShr(HVecShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   VRegister lhs = VRegisterFrom(locations->InAt(0));
   VRegister dst = VRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -964,7 +973,8 @@ void InstructionCodeGeneratorARM64Neon::VisitVecUShr(HVecUShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   VRegister lhs = VRegisterFrom(locations->InAt(0));
   VRegister dst = VRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -1136,8 +1146,10 @@ void LocationsBuilderARM64Neon::VisitVecSADAccumulate(HVecSADAccumulate* instruc
   CreateVecAccumLocations(GetGraph()->GetAllocator(), instruction);
   // Some conversions require temporary registers.
   LocationSummary* locations = instruction->GetLocations();
-  HVecOperation* a = instruction->InputAt(1)->AsVecOperation();
-  HVecOperation* b = instruction->InputAt(2)->AsVecOperation();
+  // TODO: Remove "OrNull".
+  HVecOperation* a = instruction->InputAt(1)->AsVecOperationOrNull();
+  // TODO: Remove "OrNull".
+  HVecOperation* b = instruction->InputAt(2)->AsVecOperationOrNull();
   DCHECK_EQ(HVecOperation::ToSignedType(a->GetPackedType()),
             HVecOperation::ToSignedType(b->GetPackedType()));
   switch (a->GetPackedType()) {
@@ -1183,8 +1195,10 @@ void InstructionCodeGeneratorARM64Neon::VisitVecSADAccumulate(HVecSADAccumulate*
   DCHECK(locations->InAt(0).Equals(locations->Out()));
 
   // Handle all feasible acc_T += sad(a_S, b_S) type combinations (T x S).
-  HVecOperation* a = instruction->InputAt(1)->AsVecOperation();
-  HVecOperation* b = instruction->InputAt(2)->AsVecOperation();
+  // TODO: Remove "OrNull".
+  HVecOperation* a = instruction->InputAt(1)->AsVecOperationOrNull();
+  // TODO: Remove "OrNull".
+  HVecOperation* b = instruction->InputAt(2)->AsVecOperationOrNull();
   DCHECK_EQ(HVecOperation::ToSignedType(a->GetPackedType()),
             HVecOperation::ToSignedType(b->GetPackedType()));
   switch (a->GetPackedType()) {
@@ -1323,7 +1337,8 @@ void LocationsBuilderARM64Neon::VisitVecDotProd(HVecDotProd* instruction) {
   locations->SetOut(Location::SameAsFirstInput());
 
   // For Int8 and Uint8 general case we need a temp register.
-  if ((DataType::Size(instruction->InputAt(1)->AsVecOperation()->GetPackedType()) == 1) &&
+  // TODO: Remove "OrNull".
+  if ((DataType::Size(instruction->InputAt(1)->AsVecOperationOrNull()->GetPackedType()) == 1) &&
       !ShouldEmitDotProductInstructions(codegen_)) {
     locations->AddTemp(Location::RequiresFpuRegister());
   }
@@ -1335,8 +1350,10 @@ void InstructionCodeGeneratorARM64Neon::VisitVecDotProd(HVecDotProd* instruction
   VRegister acc = VRegisterFrom(locations->InAt(0));
   VRegister left = VRegisterFrom(locations->InAt(1));
   VRegister right = VRegisterFrom(locations->InAt(2));
-  HVecOperation* a = instruction->InputAt(1)->AsVecOperation();
-  HVecOperation* b = instruction->InputAt(2)->AsVecOperation();
+  // TODO: Remove "OrNull".
+  HVecOperation* a = instruction->InputAt(1)->AsVecOperationOrNull();
+  // TODO: Remove "OrNull".
+  HVecOperation* b = instruction->InputAt(2)->AsVecOperationOrNull();
   DCHECK_EQ(HVecOperation::ToSignedType(a->GetPackedType()),
             HVecOperation::ToSignedType(b->GetPackedType()));
   DCHECK_EQ(instruction->GetPackedType(), DataType::Type::kInt32);

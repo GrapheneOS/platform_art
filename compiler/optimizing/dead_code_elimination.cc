@@ -47,23 +47,29 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
     ArrayRef<HBasicBlock* const> live_successors(block->GetSuccessors());
     HInstruction* last_instruction = block->GetLastInstruction();
     if (last_instruction->IsIf()) {
-      HIf* if_instruction = last_instruction->AsIf();
+      // TODO: Remove "OrNull".
+      HIf* if_instruction = last_instruction->AsIfOrNull();
       HInstruction* condition = if_instruction->InputAt(0);
       if (condition->IsIntConstant()) {
-        if (condition->AsIntConstant()->IsTrue()) {
+        // TODO: Remove "OrNull".
+        if (condition->AsIntConstantOrNull()->IsTrue()) {
           live_successors = live_successors.SubArray(0u, 1u);
           DCHECK_EQ(live_successors[0], if_instruction->IfTrueSuccessor());
         } else {
-          DCHECK(condition->AsIntConstant()->IsFalse()) << condition->AsIntConstant()->GetValue();
+          // TODO: Remove "OrNull".
+          DCHECK(condition->AsIntConstantOrNull()->IsFalse())
+              << condition->AsIntConstantOrNull()->GetValue();
           live_successors = live_successors.SubArray(1u, 1u);
           DCHECK_EQ(live_successors[0], if_instruction->IfFalseSuccessor());
         }
       }
     } else if (last_instruction->IsPackedSwitch()) {
-      HPackedSwitch* switch_instruction = last_instruction->AsPackedSwitch();
+      // TODO: Remove "OrNull".
+      HPackedSwitch* switch_instruction = last_instruction->AsPackedSwitchOrNull();
       HInstruction* switch_input = switch_instruction->InputAt(0);
       if (switch_input->IsIntConstant()) {
-        int32_t switch_value = switch_input->AsIntConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        int32_t switch_value = switch_input->AsIntConstantOrNull()->GetValue();
         int32_t start_value = switch_instruction->GetStartValue();
         // Note: Though the spec forbids packed-switch values to wrap around, we leave
         // that task to the verifier and use unsigned arithmetic with it's "modulo 2^32"
@@ -136,16 +142,21 @@ static HConstant* Evaluate(HCondition* condition, HInstruction* left, HInstructi
   }
 
   if (left->IsIntConstant()) {
-    return condition->Evaluate(left->AsIntConstant(), right->AsIntConstant());
+    // TODO: Remove "OrNull".
+    return condition->Evaluate(left->AsIntConstantOrNull(), right->AsIntConstantOrNull());
   } else if (left->IsNullConstant()) {
-    return condition->Evaluate(left->AsNullConstant(), right->AsNullConstant());
+    // TODO: Remove "OrNull".
+    return condition->Evaluate(left->AsNullConstantOrNull(), right->AsNullConstantOrNull());
   } else if (left->IsLongConstant()) {
-    return condition->Evaluate(left->AsLongConstant(), right->AsLongConstant());
+    // TODO: Remove "OrNull".
+    return condition->Evaluate(left->AsLongConstantOrNull(), right->AsLongConstantOrNull());
   } else if (left->IsFloatConstant()) {
-    return condition->Evaluate(left->AsFloatConstant(), right->AsFloatConstant());
+    // TODO: Remove "OrNull".
+    return condition->Evaluate(left->AsFloatConstantOrNull(), right->AsFloatConstantOrNull());
   } else {
     DCHECK(left->IsDoubleConstant());
-    return condition->Evaluate(left->AsDoubleConstant(), right->AsDoubleConstant());
+    // TODO: Remove "OrNull".
+    return condition->Evaluate(left->AsDoubleConstantOrNull(), right->AsDoubleConstantOrNull());
   }
 }
 
@@ -154,7 +165,8 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
   if (!block->EndsWithIf()) {
     return false;
   }
-  HIf* ifs = block->GetLastInstruction()->AsIf();
+  // TODO: Remove "OrNull".
+  HIf* ifs = block->GetLastInstruction()->AsIfOrNull();
   // Find either:
   //   if obj == null
   //     throws
@@ -267,7 +279,8 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
     // throw, the first one will throw and the second one will never be reached.
     HInstruction* throwing_invoke = nullptr;
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      if (it.Current()->IsInvoke() && it.Current()->AsInvoke()->AlwaysThrows()) {
+      // TODO: Remove "OrNull".
+      if (it.Current()->IsInvoke() && it.Current()->AsInvokeOrNull()->AlwaysThrows()) {
         throwing_invoke = it.Current();
         break;
       }
@@ -362,13 +375,15 @@ bool HDeadCodeElimination::SimplifyIfs() {
       bool has_only_phi_condition_and_if =
           !has_only_phi_and_if &&
           first->IsCondition() &&
-          HasInput(first->AsCondition(), block->GetFirstPhi()) &&
+          // TODO: Remove "OrNull".
+          HasInput(first->AsConditionOrNull(), block->GetFirstPhi()) &&
           (first->GetNext() == last) &&
           (last->InputAt(0) == first) &&
           first->HasOnlyOneNonEnvironmentUse();
 
       if (has_only_phi_and_if || has_only_phi_condition_and_if) {
-        HPhi* phi = block->GetFirstPhi()->AsPhi();
+        // TODO: Remove "OrNull".
+        HPhi* phi = block->GetFirstPhi()->AsPhiOrNull();
         bool phi_input_is_left = (first->InputAt(0) == phi);
 
         // Walk over all inputs of the phis and update the control flow of
@@ -384,9 +399,11 @@ bool HDeadCodeElimination::SimplifyIfs() {
           } else {
             DCHECK(has_only_phi_condition_and_if);
             if (phi_input_is_left) {
-              value_to_check = Evaluate(first->AsCondition(), input, first->InputAt(1));
+              // TODO: Remove "OrNull".
+              value_to_check = Evaluate(first->AsConditionOrNull(), input, first->InputAt(1));
             } else {
-              value_to_check = Evaluate(first->AsCondition(), first->InputAt(0), input);
+              // TODO: Remove "OrNull".
+              value_to_check = Evaluate(first->AsConditionOrNull(), first->InputAt(0), input);
             }
           }
           if (value_to_check == nullptr) {
@@ -395,12 +412,16 @@ bool HDeadCodeElimination::SimplifyIfs() {
           } else {
             HBasicBlock* predecessor_to_update = block->GetPredecessors()[i];
             HBasicBlock* successor_to_update = nullptr;
-            if (value_to_check->AsIntConstant()->IsTrue()) {
-              successor_to_update = last->AsIf()->IfTrueSuccessor();
+            // TODO: Remove "OrNull".
+            if (value_to_check->AsIntConstantOrNull()->IsTrue()) {
+              // TODO: Remove "OrNull".
+              successor_to_update = last->AsIfOrNull()->IfTrueSuccessor();
             } else {
-              DCHECK(value_to_check->AsIntConstant()->IsFalse())
-                  << value_to_check->AsIntConstant()->GetValue();
-              successor_to_update = last->AsIf()->IfFalseSuccessor();
+              // TODO: Remove "OrNull".
+              DCHECK(value_to_check->AsIntConstantOrNull()->IsFalse())
+                  << value_to_check->AsIntConstantOrNull()->GetValue();
+              // TODO: Remove "OrNull".
+              successor_to_update = last->AsIfOrNull()->IfFalseSuccessor();
             }
             predecessor_to_update->ReplaceSuccessor(block, successor_to_update);
             phi->RemoveInputAt(i);
@@ -421,7 +442,8 @@ bool HDeadCodeElimination::SimplifyIfs() {
           if (has_only_phi_condition_and_if) {
             // Evaluate here (and not wait for a constant folding pass) to open
             // more opportunities for DCE.
-            HInstruction* result = first->AsCondition()->TryStaticEvaluation();
+            // TODO: Remove "OrNull".
+            HInstruction* result = first->AsConditionOrNull()->TryStaticEvaluation();
             if (result != nullptr) {
               first->ReplaceWith(result);
               block->RemoveInstruction(first);
@@ -454,7 +476,8 @@ bool HDeadCodeElimination::SimplifyIfs() {
 
 void HDeadCodeElimination::MaybeAddPhi(HBasicBlock* block) {
   DCHECK(block->GetLastInstruction()->IsIf());
-  HIf* if_instruction = block->GetLastInstruction()->AsIf();
+  // TODO: Remove "OrNull".
+  HIf* if_instruction = block->GetLastInstruction()->AsIfOrNull();
   if (if_instruction->InputAt(0)->IsConstant()) {
     // Constant values are handled in RemoveDeadBlocks.
     return;
@@ -477,7 +500,8 @@ void HDeadCodeElimination::MaybeAddPhi(HBasicBlock* block) {
   }
 
   HInstruction* input = if_instruction->InputAt(0);
-  HInstruction* dominator_input = dominator->GetLastInstruction()->AsIf()->InputAt(0);
+  // TODO: Remove "OrNull".
+  HInstruction* dominator_input = dominator->GetLastInstruction()->AsIfOrNull()->InputAt(0);
   const bool same_input = dominator_input == input;
   if (!same_input) {
     // Try to see if the dominator has the opposite input (e.g. if(cond) and if(!cond)). If that's
@@ -486,8 +510,10 @@ void HDeadCodeElimination::MaybeAddPhi(HBasicBlock* block) {
       return;
     }
 
-    HCondition* block_cond = input->AsCondition();
-    HCondition* dominator_cond = dominator_input->AsCondition();
+    // TODO: Remove "OrNull".
+    HCondition* block_cond = input->AsConditionOrNull();
+    // TODO: Remove "OrNull".
+    HCondition* dominator_cond = dominator_input->AsConditionOrNull();
 
     if (block_cond->GetLeft() != dominator_cond->GetLeft() ||
         block_cond->GetRight() != dominator_cond->GetRight() ||
@@ -510,10 +536,12 @@ void HDeadCodeElimination::MaybeAddPhi(HBasicBlock* block) {
 
   for (size_t index = 0; index < pred_size; index++) {
     HBasicBlock* pred = block->GetPredecessors()[index];
+    // TODO: Remove "OrNull".
     const bool dominated_by_true =
-        dominator->GetLastInstruction()->AsIf()->IfTrueSuccessor()->Dominates(pred);
+        dominator->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor()->Dominates(pred);
+    // TODO: Remove "OrNull".
     const bool dominated_by_false =
-        dominator->GetLastInstruction()->AsIf()->IfFalseSuccessor()->Dominates(pred);
+        dominator->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor()->Dominates(pred);
     if (dominated_by_true == dominated_by_false) {
       // In this case, we can't know if we are coming from the true branch, or the false branch. It
       // happens in cases like:
@@ -644,12 +672,14 @@ void HDeadCodeElimination::RemoveTry(HBasicBlock* try_entry,
                                      /* out */ bool* any_block_in_loop) {
   // Update all try entries.
   DCHECK(try_entry->EndsWithTryBoundary());
-  DCHECK(try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
+  // TODO: Remove "OrNull".
+  DCHECK(try_entry->GetLastInstruction()->AsTryBoundaryOrNull()->IsEntry());
   DisconnectHandlersAndUpdateTryBoundary(try_entry, any_block_in_loop);
 
   for (HBasicBlock* other_try_entry : try_belonging_info.coalesced_try_entries) {
     DCHECK(other_try_entry->EndsWithTryBoundary());
-    DCHECK(other_try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
+    // TODO: Remove "OrNull".
+    DCHECK(other_try_entry->GetLastInstruction()->AsTryBoundaryOrNull()->IsEntry());
     DisconnectHandlersAndUpdateTryBoundary(other_try_entry, any_block_in_loop);
   }
 
@@ -663,7 +693,8 @@ void HDeadCodeElimination::RemoveTry(HBasicBlock* try_entry,
 
     if (block->EndsWithTryBoundary()) {
       // Try exits.
-      DCHECK(!block->GetLastInstruction()->AsTryBoundary()->IsEntry());
+      // TODO: Remove "OrNull".
+      DCHECK(!block->GetLastInstruction()->AsTryBoundaryOrNull()->IsEntry());
       DisconnectHandlersAndUpdateTryBoundary(block, any_block_in_loop);
 
       if (block->GetSingleSuccessor()->IsExitBlock()) {
@@ -712,10 +743,13 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
   // Deduplicate the tries which have different try entries but they are really the same try.
   for (auto it = tries.begin(); it != tries.end(); it++) {
     DCHECK(it->first->EndsWithTryBoundary());
-    HTryBoundary* try_boundary = it->first->GetLastInstruction()->AsTryBoundary();
+    // TODO: Remove "OrNull".
+    HTryBoundary* try_boundary = it->first->GetLastInstruction()->AsTryBoundaryOrNull();
     for (auto other_it = next(it); other_it != tries.end(); /*other_it++ in the loop*/) {
       DCHECK(other_it->first->EndsWithTryBoundary());
-      HTryBoundary* other_try_boundary = other_it->first->GetLastInstruction()->AsTryBoundary();
+      // TODO: Remove "OrNull".
+      HTryBoundary* other_try_boundary =
+          other_it->first->GetLastInstruction()->AsTryBoundaryOrNull();
       if (try_boundary->HasSameExceptionHandlersAs(*other_try_boundary)) {
         // Merge the entries as they are really the same one.
         // Block merging.
@@ -855,7 +889,8 @@ void HDeadCodeElimination::UpdateGraphFlags() {
         has_simd = true;
       } else if (instruction->IsBoundsCheck()) {
         has_bounds_checks = true;
-      } else if (instruction->IsInvoke() && instruction->AsInvoke()->AlwaysThrows()) {
+        // TODO: Remove "OrNull".
+      } else if (instruction->IsInvoke() && instruction->AsInvokeOrNull()->AlwaysThrows()) {
         has_always_throwing_invokes = true;
       }
     }
