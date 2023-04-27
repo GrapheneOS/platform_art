@@ -732,8 +732,7 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   // Examples: for (int i = 0; x != null;   i++) { .... no i .... }
   //           for (int i = 0; i < 10; i++, k++) { .... no k .... } return k;
   for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* phi = it.Current()->AsPhiOrNull();
+    HPhi* phi = it.Current()->AsPhi();
     if (TrySetPhiInduction(phi, /*restrict_uses*/ true) &&
         TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ false)) {
       // Note that it's ok to have replaced uses after the loop with the last value, without
@@ -892,9 +891,8 @@ bool HLoopOptimization::TryUnrollingForBranchPenaltyReduction(LoopAnalysisInfo* 
     helper.DoUnrolling();
 
     // Remove the redundant loop check after unrolling.
-    // TODO: Remove "OrNull".
     HIf* copy_hif =
-        helper.GetBasicBlockMap()->Get(loop_info->GetHeader())->GetLastInstruction()->AsIfOrNull();
+        helper.GetBasicBlockMap()->Get(loop_info->GetHeader())->GetLastInstruction()->AsIf();
     int32_t constant = loop_info->Contains(*copy_hif->IfTrueSuccessor()) ? 1 : 0;
     copy_hif->ReplaceInput(graph_->GetIntConstant(constant), 0u);
   }
@@ -922,8 +920,7 @@ bool HLoopOptimization::TryPeelingForLoopInvariantExitsElimination(LoopAnalysisI
     for (auto entry : *hir_map) {
       HInstruction* copy = entry.second;
       if (copy->IsIf()) {
-        // TODO: Remove "OrNull".
-        TryToEvaluateIfCondition(copy->AsIfOrNull(), graph_);
+        TryToEvaluateIfCondition(copy->AsIf(), graph_);
       }
     }
   }
@@ -962,8 +959,7 @@ bool HLoopOptimization::TryFullUnrolling(LoopAnalysisInfo* analysis_info, bool g
     //
     HLoopInformation* loop_info = analysis_info->GetLoopInfo();
     PeelByCount(loop_info, trip_count, &induction_range_);
-    // TODO: Remove "OrNull".
-    HIf* loop_hif = loop_info->GetHeader()->GetLastInstruction()->AsIfOrNull();
+    HIf* loop_hif = loop_info->GetHeader()->GetLastInstruction()->AsIf();
     int32_t constant = loop_info->Contains(*loop_hif->IfTrueSuccessor()) ? 0 : 1;
     loop_hif->ReplaceInput(graph_->GetIntConstant(constant), 0u);
   }
@@ -1371,8 +1367,7 @@ void HLoopOptimization::GenerateNewLoop(LoopNode* node,
       if (i != vector_map_->end() && !i->second->IsInBlock()) {
         Insert(vector_body_, i->second);
         if (IsInPredicatedVectorizationMode() && i->second->IsVecOperation()) {
-          // TODO: Remove "OrNull".
-          HVecOperation* op = i->second->AsVecOperationOrNull();
+          HVecOperation* op = i->second->AsVecOperation();
           op->SetMergingGoverningPredicate(set_pred);
         }
         // Deal with instructions that need an environment, such as the scalar intrinsics.
@@ -1389,8 +1384,7 @@ void HLoopOptimization::GenerateNewLoop(LoopNode* node,
   for (auto i = reductions_->begin(); i != reductions_->end(); ++i) {
     if (!i->first->IsPhi()) {
       DCHECK(i->second->IsPhi());
-      // TODO: Remove "OrNull".
-      GenerateVecReductionPhiInputs(i->second->AsPhiOrNull(), i->first);
+      GenerateVecReductionPhiInputs(i->second->AsPhi(), i->first);
     }
   }
   // Finalize phi inputs for the loop index.
@@ -1413,8 +1407,7 @@ bool HLoopOptimization::VectorizeDef(LoopNode* node,
     return false;
   }
   if (instruction->IsArraySet()) {
-    // TODO: Remove "OrNull".
-    DataType::Type type = instruction->AsArraySetOrNull()->GetComponentType();
+    DataType::Type type = instruction->AsArraySet()->GetComponentType();
     HInstruction* base = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     HInstruction* value = instruction->InputAt(2);
@@ -1490,8 +1483,7 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
     return true;
   } else if (instruction->IsArrayGet()) {
     // Deal with vector restrictions.
-    // TODO: Remove "OrNull".
-    bool is_string_char_at = instruction->AsArrayGetOrNull()->IsStringCharAt();
+    bool is_string_char_at = instruction->AsArrayGet()->IsStringCharAt();
 
     if (is_string_char_at && (HasVectorRestrictions(restrictions, kNoStringCharAt) ||
                               IsInPredicatedVectorizationMode())) {
@@ -1526,8 +1518,7 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
       }
       // Accept a reduction.
       if (generate_code) {
-        // TODO: Remove "OrNull".
-        GenerateVecReductionPhi(instruction->AsPhiOrNull());
+        GenerateVecReductionPhi(instruction->AsPhi());
       }
       return true;
     }
@@ -1535,8 +1526,7 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
     return false;
   } else if (instruction->IsTypeConversion()) {
     // Accept particular type conversions.
-    // TODO: Remove "OrNull".
-    HTypeConversion* conversion = instruction->AsTypeConversionOrNull();
+    HTypeConversion* conversion = instruction->AsTypeConversion();
     HInstruction* opa = conversion->InputAt(0);
     DataType::Type from = conversion->GetInputType();
     DataType::Type to = conversion->GetResultType();
@@ -1872,8 +1862,7 @@ void HLoopOptimization::GenerateVecInv(HInstruction* org, DataType::Type type) {
                                                                           vector_length_,
                                                                           0u);
         vector_preheader_->InsertInstructionBefore(set_pred, vector);
-        // TODO: Remove "OrNull".
-        vector->AsVecOperationOrNull()->SetMergingGoverningPredicate(set_pred);
+        vector->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
       }
     }
     vector_map_->Put(org, vector);
@@ -1909,8 +1898,7 @@ void HLoopOptimization::GenerateVecMem(HInstruction* org,
       vector = new (global_allocator_) HVecStore(
           global_allocator_, base, opa, opb, type, org->GetSideEffects(), vector_length_, dex_pc);
     } else  {
-      // TODO: Remove "OrNull".
-      is_string_char_at = org->AsArrayGetOrNull()->IsStringCharAt();
+      is_string_char_at = org->AsArrayGet()->IsStringCharAt();
       vector = new (global_allocator_) HVecLoad(global_allocator_,
                                                 base,
                                                 opa,
@@ -1925,26 +1913,22 @@ void HLoopOptimization::GenerateVecMem(HInstruction* org,
       if (vector_dynamic_peeling_candidate_->offset == offset &&  // TODO: diffs too?
           DataType::Size(vector_dynamic_peeling_candidate_->type) == DataType::Size(type) &&
           vector_dynamic_peeling_candidate_->is_string_char_at == is_string_char_at) {
-        // TODO: Remove "OrNull".
-        vector->AsVecMemoryOperationOrNull()->SetAlignment(  // forced
+        vector->AsVecMemoryOperation()->SetAlignment(  // forced
             Alignment(GetVectorSizeInBytes(), 0));
       }
     } else {
-      // TODO: Remove "OrNull".
-      vector->AsVecMemoryOperationOrNull()->SetAlignment(  // adjusted/original
+      vector->AsVecMemoryOperation()->SetAlignment(  // adjusted/original
           ComputeAlignment(offset, type, is_string_char_at, vector_static_peeling_factor_));
     }
   } else {
     // Scalar store or load.
     DCHECK(vector_mode_ == kSequential);
     if (opb != nullptr) {
-      // TODO: Remove "OrNull".
-      DataType::Type component_type = org->AsArraySetOrNull()->GetComponentType();
+      DataType::Type component_type = org->AsArraySet()->GetComponentType();
       vector = new (global_allocator_) HArraySet(
           org->InputAt(0), opa, opb, component_type, org->GetSideEffects(), dex_pc);
     } else  {
-      // TODO: Remove "OrNull".
-      bool is_string_char_at = org->AsArrayGetOrNull()->IsStringCharAt();
+      bool is_string_char_at = org->AsArrayGet()->IsStringCharAt();
       vector = new (global_allocator_) HArrayGet(
           org->InputAt(0), opa, org->GetType(), org->GetSideEffects(), dex_pc, is_string_char_at);
     }
@@ -1988,8 +1972,7 @@ void HLoopOptimization::GenerateVecReductionPhiInputs(HPhi* phi, HInstruction* r
   if (vector_mode_ == kVector) {
     // Generate a [initial, 0, .., 0] vector for add or
     // a [initial, initial, .., initial] vector for min/max.
-    // TODO: Remove "OrNull".
-    HVecOperation* red_vector = new_red->AsVecOperationOrNull();
+    HVecOperation* red_vector = new_red->AsVecOperation();
     HVecReduce::ReductionKind kind = GetReductionKind(red_vector);
     uint32_t vector_length = red_vector->GetVectorLength();
     DataType::Type type = red_vector->GetPackedType();
@@ -2016,18 +1999,15 @@ void HLoopOptimization::GenerateVecReductionPhiInputs(HPhi* phi, HInstruction* r
                                                                         vector_length,
                                                                         0u);
       vector_preheader_->InsertInstructionBefore(set_pred, new_init);
-      // TODO: Remove "OrNull".
-      new_init->AsVecOperationOrNull()->SetMergingGoverningPredicate(set_pred);
+      new_init->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
     }
   } else {
     new_init = ReduceAndExtractIfNeeded(new_init);
   }
   // Set the phi inputs.
   DCHECK(new_phi->IsPhi());
-  // TODO: Remove "OrNull".
-  new_phi->AsPhiOrNull()->AddInput(new_init);
-  // TODO: Remove "OrNull".
-  new_phi->AsPhiOrNull()->AddInput(new_red);
+  new_phi->AsPhi()->AddInput(new_init);
+  new_phi->AsPhi()->AddInput(new_red);
   // New feed value for next phi (safe mutation in iteration).
   reductions_->find(phi)->second = new_phi;
 }
@@ -2037,8 +2017,7 @@ HInstruction* HLoopOptimization::ReduceAndExtractIfNeeded(HInstruction* instruct
     HInstruction* input = instruction->InputAt(1);
     if (HVecOperation::ReturnsSIMDValue(input)) {
       DCHECK(!input->IsPhi());
-      // TODO: Remove "OrNull".
-      HVecOperation* input_vector = input->AsVecOperationOrNull();
+      HVecOperation* input_vector = input->AsVecOperation();
       uint32_t vector_length = input_vector->GetVectorLength();
       DataType::Type type = input_vector->GetPackedType();
       HVecReduce::ReductionKind kind = GetReductionKind(input_vector);
@@ -2062,8 +2041,7 @@ HInstruction* HLoopOptimization::ReduceAndExtractIfNeeded(HInstruction* instruct
                                                                           0u);
         exit->InsertInstructionBefore(set_pred, reduce);
         reduce->SetMergingGoverningPredicate(set_pred);
-        // TODO: Remove "OrNull".
-        instruction->AsVecOperationOrNull()->SetMergingGoverningPredicate(set_pred);
+        instruction->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
       }
     }
   }
@@ -2543,13 +2521,11 @@ bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block, /*out*/ HPhi*
   // (2) the main induction, used in loop control.
   HPhi* phi = nullptr;
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    if (TrySetPhiReduction(it.Current()->AsPhiOrNull())) {
+    if (TrySetPhiReduction(it.Current()->AsPhi())) {
       continue;
     } else if (phi == nullptr) {
       // Found the first candidate for main induction.
-      // TODO: Remove "OrNull".
-      phi = it.Current()->AsPhiOrNull();
+      phi = it.Current()->AsPhi();
     } else {
       return false;
     }

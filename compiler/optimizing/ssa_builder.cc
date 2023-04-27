@@ -56,8 +56,7 @@ void SsaBuilder::FixNullConstantType() {
       // Both type propagation and redundant phi elimination ensure `int_operand`
       // can only be the 0 constant.
       DCHECK(int_operand->IsIntConstant()) << int_operand->DebugName();
-      // TODO: Remove "OrNull".
-      DCHECK_EQ(0, int_operand->AsIntConstantOrNull()->GetValue());
+      DCHECK_EQ(0, int_operand->AsIntConstant()->GetValue());
       equality_instr->ReplaceInput(graph_->GetNullConstant(), int_operand == right ? 1 : 0);
     }
   }
@@ -67,8 +66,7 @@ void SsaBuilder::EquivalentPhisCleanup() {
   // The order doesn't matter here.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* phi = it.Current()->AsPhiOrNull();
+      HPhi* phi = it.Current()->AsPhi();
       HPhi* next = phi->GetNextEquivalentPhiWithSameType();
       if (next != nullptr) {
         // Make sure we do not replace a live phi with a dead phi. A live phi
@@ -90,21 +88,18 @@ void SsaBuilder::EquivalentPhisCleanup() {
 void SsaBuilder::FixEnvironmentPhis() {
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     for (HInstructionIterator it_phis(block->GetPhis()); !it_phis.Done(); it_phis.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* phi = it_phis.Current()->AsPhiOrNull();
+      HPhi* phi = it_phis.Current()->AsPhi();
       // If the phi is not dead, or has no environment uses, there is nothing to do.
       if (!phi->IsDead() || !phi->HasEnvironmentUses()) continue;
       HInstruction* next = phi->GetNext();
       if (!phi->IsVRegEquivalentOf(next)) continue;
-      // TODO: Remove "OrNull".
-      if (next->AsPhiOrNull()->IsDead()) {
+      if (next->AsPhi()->IsDead()) {
         // If the phi equivalent is dead, check if there is another one.
         next = next->GetNext();
         if (!phi->IsVRegEquivalentOf(next)) continue;
         // There can be at most two phi equivalents.
         DCHECK(!phi->IsVRegEquivalentOf(next->GetNext()));
-        // TODO: Remove "OrNull".
-        if (next->AsPhiOrNull()->IsDead()) continue;
+        if (next->AsPhi()->IsDead()) continue;
       }
       // We found a live phi equivalent. Update the environment uses of `phi` with it.
       phi->ReplaceWith(next);
@@ -118,15 +113,12 @@ static void AddDependentInstructionsToWorklist(HInstruction* instruction,
   // live phi users, and transitively users of those users, therefore need to be
   // marked dead/conflicting too, so we add them to the worklist. Otherwise we
   // add users whose type does not match and needs to be updated.
-  // TODO: Remove "OrNull".
-  bool add_all_live_phis = instruction->IsPhi() && instruction->AsPhiOrNull()->IsDead();
+  bool add_all_live_phis = instruction->IsPhi() && instruction->AsPhi()->IsDead();
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
-    // TODO: Remove "OrNull".
-    if (user->IsPhi() && user->AsPhiOrNull()->IsLive()) {
+    if (user->IsPhi() && user->AsPhi()->IsLive()) {
       if (add_all_live_phis || user->GetType() != instruction->GetType()) {
-        // TODO: Remove "OrNull".
-        worklist->push_back(user->AsPhiOrNull());
+        worklist->push_back(user->AsPhi());
       }
     }
   }
@@ -138,8 +130,7 @@ static bool TypePhiFromInputs(HPhi* phi) {
   DataType::Type common_type = phi->GetType();
 
   for (HInstruction* input : phi->GetInputs()) {
-    // TODO: Remove "OrNull".
-    if (input->IsPhi() && input->AsPhiOrNull()->IsDead()) {
+    if (input->IsPhi() && input->AsPhi()->IsDead()) {
       // Phis are constructed live so if an input is a dead phi, it must have
       // been made dead due to type conflict. Mark this phi conflicting too.
       return false;
@@ -213,8 +204,7 @@ bool SsaBuilder::TypeInputsOfPhi(HPhi* phi, ScopedArenaVector<HPhi*>* worklist) 
 
         phi->ReplaceInput(equivalent, i);
         if (equivalent->IsPhi()) {
-          // TODO: Remove "OrNull".
-          worklist->push_back(equivalent->AsPhiOrNull());
+          worklist->push_back(equivalent->AsPhi());
         }
       }
     }
@@ -251,8 +241,7 @@ void SsaBuilder::RunPrimitiveTypePropagation() {
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     if (block->IsLoopHeader()) {
       for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-        // TODO: Remove "OrNull".
-        HPhi* phi = phi_it.Current()->AsPhiOrNull();
+        HPhi* phi = phi_it.Current()->AsPhi();
         if (phi->IsLive()) {
           worklist.push_back(phi);
         }
@@ -264,8 +253,7 @@ void SsaBuilder::RunPrimitiveTypePropagation() {
         // doing a reverse post-order visit, therefore either the phi users are
         // non-loop phi and will be visited later in the visit, or are loop-phis,
         // and they are already in the work list.
-        // TODO: Remove "OrNull".
-        HPhi* phi = phi_it.Current()->AsPhiOrNull();
+        HPhi* phi = phi_it.Current()->AsPhi();
         if (phi->IsLive()) {
           UpdatePrimitiveType(phi, &worklist);
         }
@@ -295,8 +283,7 @@ static HArrayGet* FindFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget) {
   DCHECK(DataType::IsIntOrLongType(type));
   HInstruction* next = aget->GetNext();
   if (next != nullptr && next->IsArrayGet()) {
-    // TODO: Remove "OrNull".
-    HArrayGet* next_aget = next->AsArrayGetOrNull();
+    HArrayGet* next_aget = next->AsArrayGet();
     if (next_aget->IsEquivalentOf(aget)) {
       return next_aget;
     }
@@ -408,8 +395,7 @@ bool SsaBuilder::FixAmbiguousArrayOps() {
           if (equivalent->IsPhi()) {
             // Returned equivalent is a phi which may not have had its inputs
             // replaced yet. We need to run primitive type propagation on it.
-            // TODO: Remove "OrNull".
-            worklist.push_back(equivalent->AsPhiOrNull());
+            worklist.push_back(equivalent->AsPhi());
           }
         }
         // Refine the side effects of this floating point aset. Note that we do this even if
@@ -456,8 +442,7 @@ bool SsaBuilder::ReplaceUninitializedStringPhis() {
       return false;
     }
     DCHECK(str->IsNewInstance());
-    // TODO: Remove "OrNull".
-    AddUninitializedString(str->AsNewInstanceOrNull());
+    AddUninitializedString(str->AsNewInstance());
     str->ReplaceUsesDominatedBy(invoke, invoke);
     str->ReplaceEnvUsesDominatedBy(invoke, invoke);
     invoke->RemoveInputAt(invoke->InputCount() - 1);
@@ -493,13 +478,11 @@ void SsaBuilder::RemoveRedundantUninitializedStrings() {
       // class is always initialized at the point of running Java code, we can remove
       // that check.
       if (input->IsClinitCheck()) {
-        // TODO: Remove "OrNull".
-        load_class = input->InputAt(0)->AsLoadClassOrNull();
+        load_class = input->InputAt(0)->AsLoadClass();
         input->ReplaceWith(load_class);
         input->GetBlock()->RemoveInstruction(input);
       } else {
-        // TODO: Remove "OrNull".
-        load_class = input->AsLoadClassOrNull();
+        load_class = input->AsLoadClass();
         DCHECK(new_instance->IsStringAlloc());
         DCHECK(!load_class->NeedsAccessCheck()) << "String class is always accessible";
       }
@@ -520,8 +503,7 @@ static bool HasPhiEquivalentAtLoopEntry(HGraph* graph) {
   for (HBasicBlock* block : graph->GetReversePostOrder()) {
     if (block->IsLoopHeader()) {
       for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-        // TODO: Remove "OrNull".
-        if (it.Current()->AsPhiOrNull()->HasEquivalentPhi()) {
+        if (it.Current()->AsPhi()->HasEquivalentPhi()) {
           return true;
         }
       }
@@ -671,16 +653,14 @@ HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, DataType::
   // We place the floating point /reference phi next to this phi.
   HInstruction* next = phi->GetNext();
   if (next != nullptr &&
-      // TODO: Remove "OrNull".
-      next->AsPhiOrNull()->GetRegNumber() == phi->GetRegNumber() &&
+      next->AsPhi()->GetRegNumber() == phi->GetRegNumber() &&
       next->GetType() != type) {
     // Move to the next phi to see if it is the one we are looking for.
     next = next->GetNext();
   }
 
   if (next == nullptr ||
-      // TODO: Remove "OrNull".
-      (next->AsPhiOrNull()->GetRegNumber() != phi->GetRegNumber()) ||
+      (next->AsPhi()->GetRegNumber() != phi->GetRegNumber()) ||
       (next->GetType() != type)) {
     ArenaAllocator* allocator = graph_->GetAllocator();
     HInputsRef inputs = phi->GetInputs();
@@ -697,8 +677,7 @@ HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, DataType::
   } else {
     // An existing equivalent was found. If it is dead, conflict was previously
     // identified and we return nullptr instead.
-    // TODO: Remove "OrNull".
-    HPhi* next_phi = next->AsPhiOrNull();
+    HPhi* next_phi = next->AsPhi();
     DCHECK_EQ(next_phi->GetType(), type);
     return next_phi->IsLive() ? next_phi : nullptr;
   }
@@ -731,30 +710,23 @@ HArrayGet* SsaBuilder::GetFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget) {
 
 HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* value, DataType::Type type) {
   if (value->IsArrayGet()) {
-    // TODO: Remove "OrNull".
-    return GetFloatOrDoubleEquivalentOfArrayGet(value->AsArrayGetOrNull());
+    return GetFloatOrDoubleEquivalentOfArrayGet(value->AsArrayGet());
   } else if (value->IsLongConstant()) {
-    // TODO: Remove "OrNull".
-    return GetDoubleEquivalent(value->AsLongConstantOrNull());
+    return GetDoubleEquivalent(value->AsLongConstant());
   } else if (value->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    return GetFloatEquivalent(value->AsIntConstantOrNull());
+    return GetFloatEquivalent(value->AsIntConstant());
   } else if (value->IsPhi()) {
-    // TODO: Remove "OrNull".
-    return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhiOrNull(), type);
+    return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhi(), type);
   } else {
     return nullptr;
   }
 }
 
 HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
-  // TODO: Remove "OrNull".
-  if (value->IsIntConstant() && value->AsIntConstantOrNull()->GetValue() == 0) {
+  if (value->IsIntConstant() && value->AsIntConstant()->GetValue() == 0) {
     return graph_->GetNullConstant();
   } else if (value->IsPhi()) {
-    // TODO: Remove "OrNull".
-    return GetFloatDoubleOrReferenceEquivalentOfPhi(
-        value->AsPhiOrNull(), DataType::Type::kReference);
+    return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhi(), DataType::Type::kReference);
   } else {
     return nullptr;
   }

@@ -552,45 +552,37 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   static int8_t GetInt8ValueOf(HConstant* constant) {
     DCHECK(constant->IsIntConstant());
-    // TODO: Remove "OrNull".
-    return constant->AsIntConstantOrNull()->GetValue();
+    return constant->AsIntConstant()->GetValue();
   }
 
   static int16_t GetInt16ValueOf(HConstant* constant) {
     DCHECK(constant->IsIntConstant());
-    // TODO: Remove "OrNull".
-    return constant->AsIntConstantOrNull()->GetValue();
+    return constant->AsIntConstant()->GetValue();
   }
 
   static int32_t GetInt32ValueOf(HConstant* constant) {
     if (constant->IsIntConstant()) {
-      // TODO: Remove "OrNull".
-      return constant->AsIntConstantOrNull()->GetValue();
+      return constant->AsIntConstant()->GetValue();
     } else if (constant->IsNullConstant()) {
       return 0;
     } else {
       DCHECK(constant->IsFloatConstant());
-      // TODO: Remove "OrNull".
-      return bit_cast<int32_t, float>(constant->AsFloatConstantOrNull()->GetValue());
+      return bit_cast<int32_t, float>(constant->AsFloatConstant()->GetValue());
     }
   }
 
   static int64_t GetInt64ValueOf(HConstant* constant) {
     if (constant->IsIntConstant()) {
-      // TODO: Remove "OrNull".
-      return constant->AsIntConstantOrNull()->GetValue();
+      return constant->AsIntConstant()->GetValue();
     } else if (constant->IsNullConstant()) {
       return 0;
     } else if (constant->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
-      return bit_cast<int32_t, float>(constant->AsFloatConstantOrNull()->GetValue());
+      return bit_cast<int32_t, float>(constant->AsFloatConstant()->GetValue());
     } else if (constant->IsLongConstant()) {
-      // TODO: Remove "OrNull".
-      return constant->AsLongConstantOrNull()->GetValue();
+      return constant->AsLongConstant()->GetValue();
     } else {
       DCHECK(constant->IsDoubleConstant());
-      // TODO: Remove "OrNull".
-      return bit_cast<int64_t, double>(constant->AsDoubleConstantOrNull()->GetValue());
+      return bit_cast<int64_t, double>(constant->AsDoubleConstant()->GetValue());
     }
   }
 
