@@ -1321,7 +1321,8 @@ bool HInliner::TryDevirtualize(HInvoke* invoke_instruction,
       dispatch_info,
       kDirect,
       MethodReference(method->GetDexFile(), method->GetDexMethodIndex()),
-      HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+      HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+      !graph_->IsDebuggable());
   HInputsRef inputs = invoke_instruction->GetInputs();
   DCHECK_EQ(inputs.size(), invoke_instruction->GetNumberOfArguments());
   for (size_t index = 0; index != inputs.size(); ++index) {
@@ -1527,7 +1528,8 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
         invoke_instruction->GetMethodReference(),  // Use existing invoke's method's reference.
         method,
         MethodReference(method->GetDexFile(), method->GetDexMethodIndex()),
-        method->GetMethodIndex());
+        method->GetMethodIndex(),
+        !graph_->IsDebuggable());
     DCHECK_NE(new_invoke->GetIntrinsic(), Intrinsics::kNone);
     HInputsRef inputs = invoke_instruction->GetInputs();
     for (size_t index = 0; index != inputs.size(); ++index) {
