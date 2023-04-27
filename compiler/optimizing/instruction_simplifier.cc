@@ -1456,24 +1456,26 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     }
   }
 
-  HNeg* neg = left_is_neg ? left->AsNeg() : right->AsNegOrNull();
-  if (left_is_neg != right_is_neg && neg->HasOnlyOneNonEnvironmentUse()) {
-    // Replace code looking like
-    //    NEG tmp, b
-    //    ADD dst, a, tmp
-    // with
-    //    SUB dst, a, b
-    // We do not perform the optimization if the input negation has environment
-    // uses or multiple non-environment uses as it could lead to worse code. In
-    // particular, we do not want the live range of `b` to be extended if we are
-    // not sure the initial 'NEG' instruction can be removed.
-    HInstruction* other = left_is_neg ? right : left;
-    HSub* sub =
-        new(GetGraph()->GetAllocator()) HSub(instruction->GetType(), other, neg->GetInput());
-    instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, sub);
-    RecordSimplification();
-    neg->GetBlock()->RemoveInstruction(neg);
-    return;
+  if (left_is_neg != right_is_neg) {
+    HNeg* neg = left_is_neg ? left->AsNeg() : right->AsNeg();
+    if (neg->HasOnlyOneNonEnvironmentUse()) {
+      // Replace code looking like
+      //    NEG tmp, b
+      //    ADD dst, a, tmp
+      // with
+      //    SUB dst, a, b
+      // We do not perform the optimization if the input negation has environment
+      // uses or multiple non-environment uses as it could lead to worse code. In
+      // particular, we do not want the live range of `b` to be extended if we are
+      // not sure the initial 'NEG' instruction can be removed.
+      HInstruction* other = left_is_neg ? right : left;
+      HSub* sub =
+          new(GetGraph()->GetAllocator()) HSub(instruction->GetType(), other, neg->GetInput());
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, sub);
+      RecordSimplification();
+      neg->GetBlock()->RemoveInstruction(neg);
+      return;
+    }
   }
 
   if (TryReplaceWithRotate(instruction)) {
