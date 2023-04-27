@@ -432,7 +432,8 @@ TEST_F(SuperblockClonerTest, LoopPeelingMultipleBackEdges) {
 
   HInstructionIterator it(header->GetPhis());
   DCHECK(!it.Done());
-  HPhi* loop_phi = it.Current()->AsPhi();
+  // TODO: Remove "OrNull".
+  HPhi* loop_phi = it.Current()->AsPhiOrNull();
   HInstruction* temp_add = new (GetAllocator()) HAdd(DataType::Type::kInt32,
                                                      loop_phi,
                                                      graph_->GetIntConstant(2));

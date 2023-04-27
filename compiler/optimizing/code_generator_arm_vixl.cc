@@ -492,7 +492,8 @@ class BoundsCheckSlowPathARMVIXL : public SlowPathCodeARMVIXL {
         locations->InAt(1),
         LocationFrom(calling_convention.GetRegisterAt(1)),
         DataType::Type::kInt32);
-    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
+    // TODO: Remove "OrNull".
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheckOrNull()->IsStringCharAt()
         ? kQuickThrowStringBounds
         : kQuickThrowArrayBounds;
     arm_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
@@ -578,10 +579,12 @@ class LoadStringSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
   void EmitNativeCode(CodeGenerator* codegen) override {
     DCHECK(instruction_->IsLoadString());
-    DCHECK_EQ(instruction_->AsLoadString()->GetLoadKind(), HLoadString::LoadKind::kBssEntry);
+    // TODO: Remove "OrNull".
+    DCHECK_EQ(instruction_->AsLoadStringOrNull()->GetLoadKind(), HLoadString::LoadKind::kBssEntry);
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
+    // TODO: Remove "OrNull".
+    const dex::StringIndex string_index = instruction_->AsLoadStringOrNull()->GetStringIndex();
 
     CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
     __ Bind(GetEntryLabel());
@@ -675,7 +678,8 @@ class DeoptimizationSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     SaveLiveRegisters(codegen, locations);
     InvokeRuntimeCallingConventionARMVIXL calling_convention;
     __ Mov(calling_convention.GetRegisterAt(0),
-           static_cast<uint32_t>(instruction_->AsDeoptimize()->GetDeoptimizationKind()));
+           // TODO: Remove "OrNull".
+           static_cast<uint32_t>(instruction_->AsDeoptimizeOrNull()->GetDeoptimizationKind()));
 
     arm_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, DeoptimizationKind>();
@@ -776,7 +780,8 @@ class ReadBarrierForHeapReferenceSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     // instructions does not support the HIntermediateAddress
     // instruction.
     DCHECK(!(instruction_->IsArrayGet() &&
-             instruction_->AsArrayGet()->GetArray()->IsIntermediateAddress()));
+             // TODO: Remove "OrNull".
+             instruction_->AsArrayGetOrNull()->GetArray()->IsIntermediateAddress()));
 
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
@@ -839,7 +844,8 @@ class ReadBarrierForHeapReferenceSlowPathARMVIXL : public SlowPathCodeARMVIXL {
         // object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        HInvoke* invoke = instruction_->AsInvoke();
+        // TODO: Remove "OrNull".
+        HInvoke* invoke = instruction_->AsInvokeOrNull();
         DCHECK(IsUnsafeGetObject(invoke) || IsVarHandleGet(invoke) || IsVarHandleCASFamily(invoke))
             << invoke->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
@@ -1847,7 +1853,8 @@ static bool CanEncodeConstantAs8BitImmediate(HConstant* constant) {
 static Location Arm8BitEncodableConstantOrRegister(HInstruction* constant) {
   DCHECK(!DataType::IsFloatingPointType(constant->GetType()));
 
-  if (constant->IsConstant() && CanEncodeConstantAs8BitImmediate(constant->AsConstant())) {
+  // TODO: Remove "OrNull".
+  if (constant->IsConstant() && CanEncodeConstantAs8BitImmediate(constant->AsConstantOrNull())) {
     return Location::ConstantLocation(constant);
   }
 
@@ -1901,7 +1908,8 @@ vixl32::Label* CodeGeneratorARMVIXL::GetFinalLabel(HInstruction* instruction,
   if (next->IsGoto() && (info == nullptr ||
                          !info->IsBackEdge(*block) ||
                          !info->HasSuspendCheck())) {
-    final_label = GetLabelOf(next->AsGoto()->GetSuccessor());
+    // TODO: Remove "OrNull".
+    final_label = GetLabelOf(next->AsGotoOrNull()->GetSuccessor());
   }
 
   return final_label;
@@ -2793,7 +2801,8 @@ void InstructionCodeGeneratorARMVIXL::HandleGoto(HInstruction* got, HBasicBlock*
     return;
   }
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
-    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
+    // TODO: Remove "OrNull".
+    GenerateSuspendCheck(previous->AsSuspendCheckOrNull(), nullptr);
     codegen_->MaybeGenerateMarkingRegisterCheck(/* code= */ 2);
   }
   if (!codegen_->GoesToNextBlock(block, successor)) {
@@ -2877,12 +2886,14 @@ void InstructionCodeGeneratorARMVIXL::GenerateTestAndBranch(HInstruction* instru
     return;
   } else if (cond->IsIntConstant()) {
     // Constant condition, statically compared against "true" (integer value 1).
-    if (cond->AsIntConstant()->IsTrue()) {
+    // TODO: Remove "OrNull".
+    if (cond->AsIntConstantOrNull()->IsTrue()) {
       if (true_target != nullptr) {
         __ B(true_target);
       }
     } else {
-      DCHECK(cond->AsIntConstant()->IsFalse()) << Int32ConstantFrom(cond);
+      // TODO: Remove "OrNull".
+      DCHECK(cond->AsIntConstantOrNull()->IsFalse()) << Int32ConstantFrom(cond);
       if (false_target != nullptr) {
         __ B(false_target);
       }
@@ -2916,7 +2927,8 @@ void InstructionCodeGeneratorARMVIXL::GenerateTestAndBranch(HInstruction* instru
   } else {
     // Condition has not been materialized. Use its inputs as the comparison and
     // its condition as the branch condition.
-    HCondition* condition = cond->AsCondition();
+    // TODO: Remove "OrNull".
+    HCondition* condition = cond->AsConditionOrNull();
 
     // If this is a long or FP comparison that has been folded into
     // the HCondition, generate the comparison directly.
@@ -3059,7 +3071,8 @@ void InstructionCodeGeneratorARMVIXL::VisitSelect(HSelect* select) {
   Location src;
 
   if (condition->IsIntConstant()) {
-    if (condition->AsIntConstant()->IsFalse()) {
+    // TODO: Remove "OrNull".
+    if (condition->AsIntConstantOrNull()->IsFalse()) {
       src = first;
     } else {
       src = second;
@@ -3099,7 +3112,8 @@ void InstructionCodeGeneratorARMVIXL::VisitSelect(HSelect* select) {
         __ Cmp(InputRegisterAt(select, 2), 0);
         cond = invert ? std::make_pair(eq, ne) : std::make_pair(ne, eq);
       } else {
-        cond = GenerateTest(condition->AsCondition(), invert, codegen_);
+        // TODO: Remove "OrNull".
+        cond = GenerateTest(condition->AsConditionOrNull(), invert, codegen_);
       }
 
       const size_t instr_count = out.IsRegisterPair() ? 4 : 2;
@@ -4054,7 +4068,8 @@ void InstructionCodeGeneratorARMVIXL::VisitTypeConversion(HTypeConversion* conve
           } else {
             DCHECK(in.IsConstant());
             DCHECK(in.GetConstant()->IsLongConstant());
-            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
+            // TODO: Remove "OrNull".
+            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
             __ Mov(OutputRegister(conversion), static_cast<int32_t>(value));
           }
           break;
@@ -5896,7 +5911,9 @@ void InstructionCodeGeneratorARMVIXL::HandleFieldSet(HInstruction* instruction,
   std::optional<vixl::aarch32::Label> pred_is_null;
 
   bool is_predicated =
-      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
+      instruction->IsInstanceFieldSet() &&
+      // TODO: Remove "OrNull".
+      instruction->AsInstanceFieldSetOrNull()->GetIsPredicatedSet();
   bool is_volatile = field_info.IsVolatile();
   bool atomic_ldrd_strd = codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   DataType::Type field_type = field_info.GetFieldType();
@@ -6093,8 +6110,9 @@ void LocationsBuilderARMVIXL::HandleFieldGet(HInstruction* instruction,
 
 Location LocationsBuilderARMVIXL::ArithmeticZeroOrFpuRegister(HInstruction* input) {
   DCHECK(DataType::IsFloatingPointType(input->GetType())) << input->GetType();
-  if ((input->IsFloatConstant() && (input->AsFloatConstant()->IsArithmeticZero())) ||
-      (input->IsDoubleConstant() && (input->AsDoubleConstant()->IsArithmeticZero()))) {
+  // TODO: Remove "OrNull".
+  if ((input->IsFloatConstant() && (input->AsFloatConstantOrNull()->IsArithmeticZero())) ||
+      (input->IsDoubleConstant() && (input->AsDoubleConstantOrNull()->IsArithmeticZero()))) {
     return Location::ConstantLocation(input);
   } else {
     return Location::RequiresFpuRegister();
@@ -6104,7 +6122,9 @@ Location LocationsBuilderARMVIXL::ArithmeticZeroOrFpuRegister(HInstruction* inpu
 Location LocationsBuilderARMVIXL::ArmEncodableConstantOrRegister(HInstruction* constant,
                                                                  Opcode opcode) {
   DCHECK(!DataType::IsFloatingPointType(constant->GetType()));
-  if (constant->IsConstant() && CanEncodeConstantAsImmediate(constant->AsConstant(), opcode)) {
+  if (constant->IsConstant() &&
+      // TODO: Remove "OrNull".
+      CanEncodeConstantAsImmediate(constant->AsConstantOrNull(), opcode)) {
     return Location::ConstantLocation(constant);
   }
   return Location::RequiresRegister();
@@ -6539,7 +6559,8 @@ void LocationsBuilderARMVIXL::VisitArrayGet(HArrayGet* instruction) {
       // CodeGeneratorARMVIXL::GenerateFieldLoadWithBakerReadBarrier()
       // only if the offset is too big.
       uint32_t offset = CodeGenerator::GetArrayDataOffset(instruction);
-      uint32_t index = instruction->GetIndex()->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      uint32_t index = instruction->GetIndex()->AsIntConstantOrNull()->GetValue();
       offset += index << DataType::SizeShift(DataType::Type::kReference);
       if (offset >= kReferenceLoadMinFarOffset) {
         locations->AddTemp(Location::RequiresRegister());
@@ -6624,7 +6645,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
           // input instruction has done it already. See the comment in
           // `TryExtractArrayAccessAddress()`.
           if (kIsDebugBuild) {
-            HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+            // TODO: Remove "OrNull".
+            HIntermediateAddress* tmp = array_instr->AsIntermediateAddressOrNull();
             DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
           }
           temp = obj;
@@ -6709,7 +6731,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
             // input instruction has done it already. See the comment in
             // `TryExtractArrayAccessAddress()`.
             if (kIsDebugBuild) {
-              HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+              // TODO: Remove "OrNull".
+              HIntermediateAddress* tmp = array_instr->AsIntermediateAddressOrNull();
               DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
             }
             temp = obj;
@@ -6860,7 +6883,8 @@ void InstructionCodeGeneratorARMVIXL::VisitArraySet(HArraySet* instruction) {
           // input instruction has done it already. See the comment in
           // `TryExtractArrayAccessAddress()`.
           if (kIsDebugBuild) {
-            HIntermediateAddress* tmp = array_instr->AsIntermediateAddress();
+            // TODO: Remove "OrNull".
+            HIntermediateAddress* tmp = array_instr->AsIntermediateAddressOrNull();
             DCHECK_EQ(Uint64ConstantFrom(tmp->GetOffset()), data_offset);
           }
           temp = array;
@@ -7240,7 +7264,8 @@ void LocationsBuilderARMVIXL::VisitParallelMove(HParallelMove* instruction ATTRI
 void InstructionCodeGeneratorARMVIXL::VisitParallelMove(HParallelMove* instruction) {
   if (instruction->GetNext()->IsSuspendCheck() &&
       instruction->GetBlock()->GetLoopInformation() != nullptr) {
-    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheck();
+    // TODO: Remove "OrNull".
+    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheckOrNull();
     // The back edge will generate the suspend check.
     codegen_->ClearSpillSlotsFromLoopPhisInStackMap(suspend_check, instruction);
   }
@@ -7410,7 +7435,8 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
                                       destination.GetHighStackIndex(kArmWordSize));
       }
     } else if (constant->IsDoubleConstant()) {
-      double value = constant->AsDoubleConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      double value = constant->AsDoubleConstantOrNull()->GetValue();
       if (destination.IsFpuRegisterPair()) {
         __ Vmov(DRegisterFrom(destination), value);
       } else {
@@ -7427,7 +7453,8 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
       }
     } else {
       DCHECK(constant->IsFloatConstant()) << constant->DebugName();
-      float value = constant->AsFloatConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      float value = constant->AsFloatConstantOrNull()->GetValue();
       if (destination.IsFpuRegister()) {
         __ Vmov(SRegisterFrom(destination), value);
       } else {

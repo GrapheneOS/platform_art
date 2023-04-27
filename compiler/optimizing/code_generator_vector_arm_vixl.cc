@@ -657,7 +657,8 @@ void InstructionCodeGeneratorARMVIXL::VisitVecShl(HVecShl* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   vixl32::DRegister lhs = DRegisterFrom(locations->InAt(0));
   vixl32::DRegister dst = DRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -687,7 +688,8 @@ void InstructionCodeGeneratorARMVIXL::VisitVecShr(HVecShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   vixl32::DRegister lhs = DRegisterFrom(locations->InAt(0));
   vixl32::DRegister dst = DRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -717,7 +719,8 @@ void InstructionCodeGeneratorARMVIXL::VisitVecUShr(HVecUShr* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   vixl32::DRegister lhs = DRegisterFrom(locations->InAt(0));
   vixl32::DRegister dst = DRegisterFrom(locations->Out());
-  int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+  // TODO: Remove "OrNull".
+  int32_t value = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
   switch (instruction->GetPackedType()) {
     case DataType::Type::kUint8:
     case DataType::Type::kInt8:
@@ -827,8 +830,10 @@ void InstructionCodeGeneratorARMVIXL::VisitVecSADAccumulate(HVecSADAccumulate* i
   DCHECK(locations->InAt(0).Equals(locations->Out()));
 
   // Handle all feasible acc_T += sad(a_S, b_S) type combinations (T x S).
-  HVecOperation* a = instruction->InputAt(1)->AsVecOperation();
-  HVecOperation* b = instruction->InputAt(2)->AsVecOperation();
+  // TODO: Remove "OrNull".
+  HVecOperation* a = instruction->InputAt(1)->AsVecOperationOrNull();
+  // TODO: Remove "OrNull".
+  HVecOperation* b = instruction->InputAt(2)->AsVecOperationOrNull();
   DCHECK_EQ(a->GetPackedType(), b->GetPackedType());
   switch (a->GetPackedType()) {
     case DataType::Type::kInt32:

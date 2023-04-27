@@ -139,7 +139,8 @@ class InductionVarRange {
   void ReVisit(const HLoopInformation* loop) {
     induction_analysis_->induction_.erase(loop);
     for (HInstructionIterator it(loop->GetHeader()->GetPhis()); !it.Done(); it.Advance()) {
-      induction_analysis_->cycles_.erase(it.Current()->AsPhi());
+      // TODO: Remove "OrNull".
+      induction_analysis_->cycles_.erase(it.Current()->AsPhiOrNull());
     }
     induction_analysis_->VisitLoop(loop);
   }

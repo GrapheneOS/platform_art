@@ -53,7 +53,8 @@ static bool IsExitTryBoundaryIntoExitBlock(HBasicBlock* block) {
     return false;
   }
 
-  HTryBoundary* boundary = block->GetLastInstruction()->AsTryBoundary();
+  // TODO: Remove "OrNull".
+  HTryBoundary* boundary = block->GetLastInstruction()->AsTryBoundaryOrNull();
   return block->GetPredecessors().size() == 1u &&
          boundary->GetNormalFlowSuccessor()->IsExitBlock() &&
          !boundary->IsEntry();
@@ -247,7 +248,8 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
       AddError(StringPrintf("Block %d doesn't have a Nop as its first instruction.",
                             current_block_->GetBlockId()));
     } else {
-      HNop* nop = block->GetFirstInstruction()->AsNop();
+      // TODO: Remove "OrNull".
+      HNop* nop = block->GetFirstInstruction()->AsNopOrNull();
       if (!nop->NeedsEnvironment()) {
         AddError(
             StringPrintf("%s:%d is a Nop and the first instruction of block %d, but it doesn't "
@@ -658,7 +660,8 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     for (HBasicBlock* catch_block : entry.GetExceptionHandlers()) {
       const HEnvironment* environment = catch_block->GetFirstInstruction()->GetEnvironment();
       for (HInstructionIterator phi_it(catch_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-        HPhi* catch_phi = phi_it.Current()->AsPhi();
+        // TODO: Remove "OrNull".
+        HPhi* catch_phi = phi_it.Current()->AsPhiOrNull();
         if (environment->GetInstructionAt(catch_phi->GetRegNumber()) == nullptr) {
           AddError(StringPrintf("Instruction %s:%d throws into catch block %d "
                                 "with catch phi %d for vreg %d but its "
@@ -747,8 +750,9 @@ void GraphChecker::CheckTypeCheckBitstringInput(HTypeCheckInstruction* check,
                           check->InputAt(2)->DebugName(),
                           check->InputAt(2)->GetId()));
   } else if (check_value) {
+    // TODO: Remove "OrNull".
     uint32_t actual_value =
-        static_cast<uint32_t>(check->InputAt(input_pos)->AsIntConstant()->GetValue());
+        static_cast<uint32_t>(check->InputAt(input_pos)->AsIntConstantOrNull()->GetValue());
     if (actual_value != expected_value) {
       AddError(StringPrintf("%s:%d (bitstring) has %s 0x%x, not 0x%x as expected.",
                             check->DebugName(),
@@ -944,7 +948,8 @@ static bool IsSameSizeConstant(const HInstruction* insn1, const HInstruction* in
 static bool IsConstantEquivalent(const HInstruction* insn1,
                                  const HInstruction* insn2,
                                  BitVector* visited) {
-  if (insn1->IsPhi() && insn1->AsPhi()->IsVRegEquivalentOf(insn2)) {
+  // TODO: Remove "OrNull".
+  if (insn1->IsPhi() && insn1->AsPhiOrNull()->IsVRegEquivalentOf(insn2)) {
     HConstInputsRef insn1_inputs = insn1->GetInputs();
     HConstInputsRef insn2_inputs = insn2->GetInputs();
     if (insn1_inputs.size() != insn2_inputs.size()) {
@@ -964,7 +969,9 @@ static bool IsConstantEquivalent(const HInstruction* insn1,
     }
     return true;
   } else if (IsSameSizeConstant(insn1, insn2)) {
-    return insn1->AsConstant()->GetValueAsUint64() == insn2->AsConstant()->GetValueAsUint64();
+    // TODO: Remove "OrNull".
+    return insn1->AsConstantOrNull()->GetValueAsUint64() ==
+           insn2->AsConstantOrNull()->GetValueAsUint64();
   } else {
     return false;
   }
@@ -1058,7 +1065,8 @@ void GraphChecker::VisitPhi(HPhi* phi) {
   // phis which can be constructed artifically.
   if (phi->IsCatchPhi()) {
     HInstruction* next_phi = phi->GetNext();
-    if (next_phi != nullptr && phi->GetRegNumber() > next_phi->AsPhi()->GetRegNumber()) {
+    // TODO: Remove "OrNull".
+    if (next_phi != nullptr && phi->GetRegNumber() > next_phi->AsPhiOrNull()->GetRegNumber()) {
       AddError(StringPrintf("Catch phis %d and %d in block %d are not sorted by their "
                             "vreg numbers.",
                             phi->GetId(),
@@ -1074,7 +1082,8 @@ void GraphChecker::VisitPhi(HPhi* phi) {
     for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis());
          !phi_it.Done();
          phi_it.Advance()) {
-      HPhi* other_phi = phi_it.Current()->AsPhi();
+      // TODO: Remove "OrNull".
+      HPhi* other_phi = phi_it.Current()->AsPhiOrNull();
       if (phi != other_phi && phi->GetRegNumber() == other_phi->GetRegNumber()) {
         if (phi->GetType() == other_phi->GetType()) {
           std::stringstream type_str;
@@ -1117,7 +1126,8 @@ void GraphChecker::VisitPhi(HPhi* phi) {
 void GraphChecker::HandleBooleanInput(HInstruction* instruction, size_t input_index) {
   HInstruction* input = instruction->InputAt(input_index);
   if (input->IsIntConstant()) {
-    int32_t value = input->AsIntConstant()->GetValue();
+    // TODO: Remove "OrNull".
+    int32_t value = input->AsIntConstantOrNull()->GetValue();
     if (value != 0 && value != 1) {
       AddError(StringPrintf(
           "%s instruction %d has a non-Boolean constant input %d whose value is: %d.",
