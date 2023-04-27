@@ -140,8 +140,7 @@ bool UnsignedUseAnalyzer::IsComparedValueNonNegativeInBlock(HInstruction* value,
 
   // We need to find a successor basic block of HIf for the case when instr is non-negative.
   // If the successor dominates target_block, instructions in target_block see a non-negative value.
-  // TODO: Remove "OrNull".
-  HIf* if_instr = cond->GetBlock()->GetLastInstruction()->AsIfOrNull();
+  HIf* if_instr = cond->GetBlock()->GetLastInstruction()->AsIf();
   HBasicBlock* successor = nullptr;
   switch (cond->GetCondition()) {
     case kCondGT:
@@ -228,9 +227,7 @@ bool UnsignedUseAnalyzer::IsNonNegativeUse(HInstruction* target_user, HInstructi
       // The condition must dominate target_user to guarantee that the value is always checked
       // before it is used by target_user.
       if (user->GetBlock()->Dominates(target_user->GetBlock()) &&
-          // TODO: Remove "OrNull".
-          IsComparedValueNonNegativeInBlock(
-              value, user->AsConditionOrNull(), target_user->GetBlock())) {
+          IsComparedValueNonNegativeInBlock(value, user->AsCondition(), target_user->GetBlock())) {
         return true;
       }
     }

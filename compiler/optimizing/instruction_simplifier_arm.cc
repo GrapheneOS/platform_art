@@ -105,8 +105,7 @@ bool InstructionSimplifierArmVisitor::TryMergeIntoShifterOperand(HInstruction* u
     return false;
   }
 
-  // TODO: Remove "OrNull".
-  bool is_commutative = use->AsBinaryOperationOrNull()->IsCommutative();
+  bool is_commutative = use->AsBinaryOperation()->IsCommutative();
   HInstruction* other_input;
   if (bitfield_op == right) {
     other_input = left;

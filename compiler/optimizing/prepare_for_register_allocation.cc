@@ -58,8 +58,7 @@ void PrepareForRegisterAllocation::VisitNullCheck(HNullCheck* check) {
     // so do it ourselves now to not prevent optimizations.
     while (next->IsBoundType()) {
       next = next->GetNext();
-      // TODO: Remove "OrNull".
-      VisitBoundType(next->GetPrevious()->AsBoundTypeOrNull());
+      VisitBoundType(next->GetPrevious()->AsBoundType());
     }
     if (next->CanDoImplicitNullCheckOn(check->InputAt(0))) {
       check->MarkEmittedAtUseSite();
@@ -124,18 +123,14 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
         CanMoveClinitCheck(check, user)) {
       implicit_clinit = user;
       if (user->IsInvokeStaticOrDirect()) {
-        // TODO: Remove "OrNull".
-        DCHECK(user->AsInvokeStaticOrDirectOrNull()->IsStaticWithExplicitClinitCheck());
-        // TODO: Remove "OrNull".
-        user->AsInvokeStaticOrDirectOrNull()->RemoveExplicitClinitCheck(
+        DCHECK(user->AsInvokeStaticOrDirect()->IsStaticWithExplicitClinitCheck());
+        user->AsInvokeStaticOrDirect()->RemoveExplicitClinitCheck(
             HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
       } else {
         DCHECK(user->IsNewInstance());
         // We delegate the initialization duty to the allocation.
-        // TODO: Remove "OrNull".
-        if (user->AsNewInstanceOrNull()->GetEntrypoint() == kQuickAllocObjectInitialized) {
-          // TODO: Remove "OrNull".
-          user->AsNewInstanceOrNull()->SetEntrypoint(kQuickAllocObjectResolved);
+        if (user->AsNewInstance()->GetEntrypoint() == kQuickAllocObjectInitialized) {
+          user->AsNewInstance()->SetEntrypoint(kQuickAllocObjectResolved);
         }
       }
       break;
@@ -151,8 +146,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
       DCHECK(implicit_clinit->StrictlyDominates(user) || (implicit_clinit == user));
       ++it;  // Advance before we remove the node, reference to the next node is preserved.
       if (user->IsInvokeStaticOrDirect()) {
-        // TODO: Remove "OrNull".
-        user->AsInvokeStaticOrDirectOrNull()->RemoveExplicitClinitCheck(
+        user->AsInvokeStaticOrDirect()->RemoveExplicitClinitCheck(
             HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
       }
     }
@@ -190,8 +184,7 @@ bool PrepareForRegisterAllocation::CanEmitConditionAt(HCondition* condition,
     return true;
   }
 
-  // TODO: Remove "OrNull".
-  if (user->IsSelect() && user->AsSelectOrNull()->GetCondition() == condition) {
+  if (user->IsSelect() && user->AsSelect()->GetCondition() == condition) {
     return true;
   }
 
@@ -219,8 +212,7 @@ void PrepareForRegisterAllocation::VisitConstructorFence(HConstructorFence* cons
   // TODO: Move this to a separate pass.
   HInstruction* allocation_inst = constructor_fence->GetAssociatedAllocation();
   if (allocation_inst != nullptr && allocation_inst->IsNewInstance()) {
-    // TODO: Remove "OrNull".
-    HNewInstance* new_inst = allocation_inst->AsNewInstanceOrNull();
+    HNewInstance* new_inst = allocation_inst->AsNewInstance();
     // This relies on the entrypoint already being set to the more optimized version;
     // as that happens in this pass, this redundancy removal also cannot happen any earlier.
     if (new_inst != nullptr && new_inst->GetEntrypoint() == kQuickAllocObjectResolved) {
@@ -276,8 +268,7 @@ bool PrepareForRegisterAllocation::CanMoveClinitCheck(HInstruction* input,
     return false;
   }
 
-  // TODO: Remove "OrNull".
-  if (user->IsNewInstance() && user->AsNewInstanceOrNull()->IsPartialMaterialization()) {
+  if (user->IsNewInstance() && user->AsNewInstance()->IsPartialMaterialization()) {
     return false;
   }
 

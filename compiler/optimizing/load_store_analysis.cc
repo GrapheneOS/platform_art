@@ -51,10 +51,9 @@ static bool CanBinaryOpAndIndexAlias(const HBinaryOperation* idx1,
 
   // Since 'i' are the same in [i+CONST] and [i],
   // further compare [CONST] and [0].
-  // TODO: Remove "OrNull".
   int64_t l1 = idx1->IsAdd()
-      ? idx1->GetConstantRight()->AsIntConstantOrNull()->GetValue()
-      : -idx1->GetConstantRight()->AsIntConstantOrNull()->GetValue();
+      ? idx1->GetConstantRight()->AsIntConstant()->GetValue()
+      : -idx1->GetConstantRight()->AsIntConstant()->GetValue();
   int64_t l2 = 0;
   int64_t h1 = l1 + (vector_length1 - 1);
   int64_t h2 = l2 + (vector_length2 - 1);
@@ -80,14 +79,12 @@ static bool CanBinaryOpsAlias(const HBinaryOperation* idx1,
 
   // Since 'i' are the same in [i+CONST1] and [i+CONST2],
   // further compare [CONST1] and [CONST2].
-  // TODO: Remove "OrNull".
   int64_t l1 = idx1->IsAdd()
-      ? idx1->GetConstantRight()->AsIntConstantOrNull()->GetValue()
-      : -idx1->GetConstantRight()->AsIntConstantOrNull()->GetValue();
-  // TODO: Remove "OrNull".
+      ? idx1->GetConstantRight()->AsIntConstant()->GetValue()
+      : -idx1->GetConstantRight()->AsIntConstant()->GetValue();
   int64_t l2 = idx2->IsAdd()
-      ? idx2->GetConstantRight()->AsIntConstantOrNull()->GetValue()
-      : -idx2->GetConstantRight()->AsIntConstantOrNull()->GetValue();
+      ? idx2->GetConstantRight()->AsIntConstant()->GetValue()
+      : -idx2->GetConstantRight()->AsIntConstant()->GetValue();
   int64_t h1 = l1 + (vector_length1 - 1);
   int64_t h2 = l2 + (vector_length2 - 1);
   return CanIntegerRangesOverlap(l1, h1, l2, h2);
@@ -132,14 +129,11 @@ void ReferenceInfo::PrunePartialEscapeWrites() {
 
 bool HeapLocationCollector::InstructionEligibleForLSERemoval(HInstruction* inst) const {
   if (inst->IsNewInstance()) {
-    // TODO: Remove "OrNull".
-    return !inst->AsNewInstanceOrNull()->NeedsChecks();
+    return !inst->AsNewInstance()->NeedsChecks();
   } else if (inst->IsNewArray()) {
-    // TODO: Remove "OrNull".
-    HInstruction* array_length = inst->AsNewArrayOrNull()->GetLength();
-    // TODO: Remove "OrNull".
+    HInstruction* array_length = inst->AsNewArray()->GetLength();
     bool known_array_length =
-        array_length->IsIntConstant() && array_length->AsIntConstantOrNull()->GetValue() >= 0;
+        array_length->IsIntConstant() && array_length->AsIntConstant()->GetValue() >= 0;
     return known_array_length &&
            std::all_of(inst->GetUses().cbegin(),
                        inst->GetUses().cend(),
@@ -229,10 +223,8 @@ bool HeapLocationCollector::CanArrayElementsAlias(const HInstruction* idx1,
 
   // [CONST1] and [CONST2].
   if (idx1->IsIntConstant() && idx2->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    int64_t l1 = idx1->AsIntConstantOrNull()->GetValue();
-    // TODO: Remove "OrNull".
-    int64_t l2 = idx2->AsIntConstantOrNull()->GetValue();
+    int64_t l1 = idx1->AsIntConstant()->GetValue();
+    int64_t l2 = idx2->AsIntConstant()->GetValue();
     // To avoid any overflow in following CONST+vector_length calculation,
     // use int64_t instead of int32_t.
     int64_t h1 = l1 + (vector_length1 - 1);
@@ -241,39 +233,33 @@ bool HeapLocationCollector::CanArrayElementsAlias(const HInstruction* idx1,
   }
 
   // [i+CONST] and [i].
-  // TODO: Remove "OrNull".
   if (idx1->IsBinaryOperation() &&
-      idx1->AsBinaryOperationOrNull()->GetConstantRight() != nullptr &&
-      idx1->AsBinaryOperationOrNull()->GetLeastConstantLeft() == idx2) {
-    // TODO: Remove "OrNull".
-    return CanBinaryOpAndIndexAlias(idx1->AsBinaryOperationOrNull(),
+      idx1->AsBinaryOperation()->GetConstantRight() != nullptr &&
+      idx1->AsBinaryOperation()->GetLeastConstantLeft() == idx2) {
+    return CanBinaryOpAndIndexAlias(idx1->AsBinaryOperation(),
                                     vector_length1,
                                     idx2,
                                     vector_length2);
   }
 
   // [i] and [i+CONST].
-  // TODO: Remove "OrNull".
   if (idx2->IsBinaryOperation() &&
-      idx2->AsBinaryOperationOrNull()->GetConstantRight() != nullptr &&
-      idx2->AsBinaryOperationOrNull()->GetLeastConstantLeft() == idx1) {
-    // TODO: Remove "OrNull".
-    return CanBinaryOpAndIndexAlias(idx2->AsBinaryOperationOrNull(),
+      idx2->AsBinaryOperation()->GetConstantRight() != nullptr &&
+      idx2->AsBinaryOperation()->GetLeastConstantLeft() == idx1) {
+    return CanBinaryOpAndIndexAlias(idx2->AsBinaryOperation(),
                                     vector_length2,
                                     idx1,
                                     vector_length1);
   }
 
   // [i+CONST1] and [i+CONST2].
-  // TODO: Remove "OrNull".
   if (idx1->IsBinaryOperation() &&
-      idx1->AsBinaryOperationOrNull()->GetConstantRight() != nullptr &&
+      idx1->AsBinaryOperation()->GetConstantRight() != nullptr &&
       idx2->IsBinaryOperation() &&
-      idx2->AsBinaryOperationOrNull()->GetConstantRight() != nullptr) {
-    // TODO: Remove "OrNull".
-    return CanBinaryOpsAlias(idx1->AsBinaryOperationOrNull(),
+      idx2->AsBinaryOperation()->GetConstantRight() != nullptr) {
+    return CanBinaryOpsAlias(idx1->AsBinaryOperation(),
                              vector_length1,
-                             idx2->AsBinaryOperationOrNull(),
+                             idx2->AsBinaryOperation(),
                              vector_length2);
   }
 

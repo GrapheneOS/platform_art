@@ -46,9 +46,7 @@ static bool IsSimpleBlock(HBasicBlock* block) {
     } else if (instruction->CanBeMoved() &&
                !instruction->HasSideEffects() &&
                !instruction->CanThrow()) {
-      if (instruction->IsSelect() &&
-          // TODO: Remove "OrNull".
-          instruction->AsSelectOrNull()->GetCondition()->GetBlock() == block) {
+      if (instruction->IsSelect() && instruction->AsSelect()->GetCondition()->GetBlock() == block) {
         // Count one HCondition and HSelect in the same block as a single instruction.
         // This enables finding nested selects.
         continue;
@@ -77,8 +75,7 @@ static HPhi* GetSinglePhi(HBasicBlock* block, size_t index1, size_t index2) {
 
   HPhi* select_phi = nullptr;
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* phi = it.Current()->AsPhiOrNull();
+    HPhi* phi = it.Current()->AsPhi();
     if (select_phi == nullptr) {
       // First phi found.
       select_phi = phi;
@@ -93,8 +90,7 @@ static HPhi* GetSinglePhi(HBasicBlock* block, size_t index1, size_t index2) {
 bool HSelectGenerator::TryGenerateSelectSimpleDiamondPattern(
     HBasicBlock* block, ScopedArenaSafeMap<HInstruction*, HSelect*>* cache) {
   DCHECK(block->GetLastInstruction()->IsIf());
-  // TODO: Remove "OrNull".
-  HIf* if_instruction = block->GetLastInstruction()->AsIfOrNull();
+  HIf* if_instruction = block->GetLastInstruction()->AsIf();
   HBasicBlock* true_block = if_instruction->IfTrueSuccessor();
   HBasicBlock* false_block = if_instruction->IfFalseSuccessor();
   DCHECK_NE(true_block, false_block);
@@ -220,8 +216,7 @@ bool HSelectGenerator::TryGenerateSelectSimpleDiamondPattern(
 
 HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) {
   DCHECK(block->GetLastInstruction()->IsIf());
-  // TODO: Remove "OrNull".
-  HIf* if_instruction = block->GetLastInstruction()->AsIfOrNull();
+  HIf* if_instruction = block->GetLastInstruction()->AsIf();
   HBasicBlock* true_block = if_instruction->IfTrueSuccessor();
   HBasicBlock* false_block = if_instruction->IfFalseSuccessor();
   DCHECK_NE(true_block, false_block);
@@ -236,8 +231,7 @@ HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) 
 
   // The innner if branch has to be a block with just a comparison and an if.
   if (!inner_if_block->EndsWithIf() ||
-      // TODO: Remove "OrNull".
-      inner_if_block->GetLastInstruction()->AsIfOrNull()->InputAt(0) !=
+      inner_if_block->GetLastInstruction()->AsIf()->InputAt(0) !=
           inner_if_block->GetFirstInstruction() ||
       inner_if_block->GetLastInstruction()->GetPrevious() !=
           inner_if_block->GetFirstInstruction() ||
@@ -245,8 +239,7 @@ HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) 
     return nullptr;
   }
 
-  // TODO: Remove "OrNull".
-  HIf* inner_if_instruction = inner_if_block->GetLastInstruction()->AsIfOrNull();
+  HIf* inner_if_instruction = inner_if_block->GetLastInstruction()->AsIf();
   HBasicBlock* inner_if_true_block = inner_if_instruction->IfTrueSuccessor();
   HBasicBlock* inner_if_false_block = inner_if_instruction->IfFalseSuccessor();
   if (!inner_if_true_block->IsSingleGoto() || !inner_if_false_block->IsSingleGoto()) {
@@ -269,8 +262,7 @@ HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) 
     return nullptr;
   }
 
-  // TODO: Remove "OrNull".
-  HPhi* first_phi = first_merge->GetFirstPhi()->AsPhiOrNull();
+  HPhi* first_phi = first_merge->GetFirstPhi()->AsPhi();
 
   // Second merge is first_merge and the remainder branch merging. It must be phi + goto, or phi +
   // return. Depending on the first merge, we define the second merge.
@@ -292,8 +284,7 @@ HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) 
   }
 
   size_t index = second_merge->GetPredecessorIndexOf(merges_into_second_merge);
-  // TODO: Remove "OrNull".
-  HPhi* second_phi = second_merge->GetFirstPhi()->AsPhiOrNull();
+  HPhi* second_phi = second_merge->GetFirstPhi()->AsPhi();
 
   // Merge the phis.
   first_phi->AddInput(second_phi->InputAt(index));

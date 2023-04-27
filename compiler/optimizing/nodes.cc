@@ -183,8 +183,7 @@ static void RemoveCatchPhiUsesOfDeadInstruction(HInstruction* insn) {
     DCHECK(use.GetUser()->IsPhi());
     DCHECK(user_block->IsCatchBlock());
     for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-      // TODO: Remove "OrNull".
-      phi_it.Current()->AsPhiOrNull()->RemoveInputAt(use_index);
+      phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
     }
   }
 }
@@ -583,8 +582,7 @@ HBasicBlock* HGraph::SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* succ
 // Reorder phi inputs to match reordering of the block's predecessors.
 static void FixPhisAfterPredecessorsReodering(HBasicBlock* block, size_t first, size_t second) {
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* phi = it.Current()->AsPhiOrNull();
+    HPhi* phi = it.Current()->AsPhi();
     HInstruction* first_instr = phi->InputAt(first);
     HInstruction* second_instr = phi->InputAt(second);
     phi->ReplaceInput(first_instr, second);
@@ -683,8 +681,7 @@ void HGraph::TransformLoopToSinglePreheaderFormat(HBasicBlock* header) {
 
   // Fix the data-flow.
   for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* header_phi = it.Current()->AsPhiOrNull();
+    HPhi* header_phi = it.Current()->AsPhi();
 
     HPhi* preheader_phi = new (GetAllocator()) HPhi(GetAllocator(),
                                                     header_phi->GetRegNumber(),
@@ -739,8 +736,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   HInstruction* first_instruction = header->GetFirstInstruction();
   if (first_instruction != nullptr && first_instruction->IsSuspendCheck()) {
     // Called from DeadBlockElimination. Update SuspendCheck pointer.
-    // TODO: Remove "OrNull".
-    info->SetSuspendCheck(first_instruction->AsSuspendCheckOrNull());
+    info->SetSuspendCheck(first_instruction->AsSuspendCheck());
   }
 }
 
@@ -1287,8 +1283,7 @@ void HBasicBlock::RemovePhi(HPhi* phi, bool ensure_safety) {
 
 void HBasicBlock::RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_safety) {
   if (instruction->IsPhi()) {
-    // TODO: Remove "OrNull".
-    RemovePhi(instruction->AsPhiOrNull(), ensure_safety);
+    RemovePhi(instruction->AsPhi(), ensure_safety);
   } else {
     RemoveInstruction(instruction, ensure_safety);
   }
@@ -1326,8 +1321,7 @@ void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
     if (instruction->IsLoopHeaderPhi() && (instruction->GetBlock() == loop_header)) {
       // At the end of the loop pre-header, the corresponding value for instruction
       // is the first input of the phi.
-      // TODO: Remove "OrNull".
-      HInstruction* initial = instruction->AsPhiOrNull()->InputAt(0);
+      HInstruction* initial = instruction->AsPhi()->InputAt(0);
       SetRawEnvAt(i, initial);
       initial->AddEnvUseAt(this, i);
     } else {
@@ -1582,8 +1576,7 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
 
     if (dominated) {
       user->ReplaceInput(replacement, index);
-      // TODO: Remove "OrNull".
-    } else if (user->IsPhi() && !user->AsPhiOrNull()->IsCatchPhi()) {
+    } else if (user->IsPhi() && !user->AsPhi()->IsCatchPhi()) {
       // If the input flows from a block dominated by `dominator`, we can replace it.
       // We do not perform this for catch phis as we don't have control flow support
       // for their inputs.
@@ -1689,8 +1682,7 @@ size_t HConstructorFence::RemoveConstructorFences(HInstruction* instruction) {
     ++it;
 
     if (use_instruction->IsConstructorFence()) {
-      // TODO: Remove "OrNull".
-      HConstructorFence* ctor_fence = use_instruction->AsConstructorFenceOrNull();
+      HConstructorFence* ctor_fence = use_instruction->AsConstructorFence();
       size_t input_index = use_node.GetIndex();
 
       // Process the candidate instruction for removal
@@ -1826,8 +1818,7 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
 HConstant* HTypeConversion::TryStaticEvaluation() const {
   HGraph* graph = GetBlock()->GetGraph();
   if (GetInput()->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t value = GetInput()->AsIntConstantOrNull()->GetValue();
+    int32_t value = GetInput()->AsIntConstant()->GetValue();
     switch (GetResultType()) {
       case DataType::Type::kInt8:
         return graph->GetIntConstant(static_cast<int8_t>(value), GetDexPc());
@@ -1847,8 +1838,7 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
         return nullptr;
     }
   } else if (GetInput()->IsLongConstant()) {
-    // TODO: Remove "OrNull".
-    int64_t value = GetInput()->AsLongConstantOrNull()->GetValue();
+    int64_t value = GetInput()->AsLongConstant()->GetValue();
     switch (GetResultType()) {
       case DataType::Type::kInt8:
         return graph->GetIntConstant(static_cast<int8_t>(value), GetDexPc());
@@ -1868,8 +1858,7 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
         return nullptr;
     }
   } else if (GetInput()->IsFloatConstant()) {
-    // TODO: Remove "OrNull".
-    float value = GetInput()->AsFloatConstantOrNull()->GetValue();
+    float value = GetInput()->AsFloatConstant()->GetValue();
     switch (GetResultType()) {
       case DataType::Type::kInt32:
         if (std::isnan(value))
@@ -1893,8 +1882,7 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
         return nullptr;
     }
   } else if (GetInput()->IsDoubleConstant()) {
-    // TODO: Remove "OrNull".
-    double value = GetInput()->AsDoubleConstantOrNull()->GetValue();
+    double value = GetInput()->AsDoubleConstant()->GetValue();
     switch (GetResultType()) {
       case DataType::Type::kInt32:
         if (std::isnan(value))
@@ -1923,18 +1911,14 @@ HConstant* HTypeConversion::TryStaticEvaluation() const {
 
 HConstant* HUnaryOperation::TryStaticEvaluation() const {
   if (GetInput()->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    return Evaluate(GetInput()->AsIntConstantOrNull());
+    return Evaluate(GetInput()->AsIntConstant());
   } else if (GetInput()->IsLongConstant()) {
-    // TODO: Remove "OrNull".
-    return Evaluate(GetInput()->AsLongConstantOrNull());
+    return Evaluate(GetInput()->AsLongConstant());
   } else if (kEnableFloatingPointStaticEvaluation) {
     if (GetInput()->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
-      return Evaluate(GetInput()->AsFloatConstantOrNull());
+      return Evaluate(GetInput()->AsFloatConstant());
     } else if (GetInput()->IsDoubleConstant()) {
-      // TODO: Remove "OrNull".
-      return Evaluate(GetInput()->AsDoubleConstantOrNull());
+      return Evaluate(GetInput()->AsDoubleConstant());
     }
   }
   return nullptr;
@@ -1942,30 +1926,24 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
 
 HConstant* HBinaryOperation::TryStaticEvaluation() const {
   if (GetLeft()->IsIntConstant() && GetRight()->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    return Evaluate(GetLeft()->AsIntConstantOrNull(), GetRight()->AsIntConstantOrNull());
+    return Evaluate(GetLeft()->AsIntConstant(), GetRight()->AsIntConstant());
   } else if (GetLeft()->IsLongConstant()) {
     if (GetRight()->IsIntConstant()) {
       // The binop(long, int) case is only valid for shifts and rotations.
       DCHECK(IsShl() || IsShr() || IsUShr() || IsRor()) << DebugName();
-      // TODO: Remove "OrNull".
-      return Evaluate(GetLeft()->AsLongConstantOrNull(), GetRight()->AsIntConstantOrNull());
+      return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsIntConstant());
     } else if (GetRight()->IsLongConstant()) {
-      // TODO: Remove "OrNull".
-      return Evaluate(GetLeft()->AsLongConstantOrNull(), GetRight()->AsLongConstantOrNull());
+      return Evaluate(GetLeft()->AsLongConstant(), GetRight()->AsLongConstant());
     }
   } else if (GetLeft()->IsNullConstant() && GetRight()->IsNullConstant()) {
     // The binop(null, null) case is only valid for equal and not-equal conditions.
     DCHECK(IsEqual() || IsNotEqual()) << DebugName();
-    // TODO: Remove "OrNull".
-    return Evaluate(GetLeft()->AsNullConstantOrNull(), GetRight()->AsNullConstantOrNull());
+    return Evaluate(GetLeft()->AsNullConstant(), GetRight()->AsNullConstant());
   } else if (kEnableFloatingPointStaticEvaluation) {
     if (GetLeft()->IsFloatConstant() && GetRight()->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
-      return Evaluate(GetLeft()->AsFloatConstantOrNull(), GetRight()->AsFloatConstantOrNull());
+      return Evaluate(GetLeft()->AsFloatConstant(), GetRight()->AsFloatConstant());
     } else if (GetLeft()->IsDoubleConstant() && GetRight()->IsDoubleConstant()) {
-      // TODO: Remove "OrNull".
-      return Evaluate(GetLeft()->AsDoubleConstantOrNull(), GetRight()->AsDoubleConstantOrNull());
+      return Evaluate(GetLeft()->AsDoubleConstant(), GetRight()->AsDoubleConstant());
     }
   }
   return nullptr;
@@ -1973,11 +1951,9 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
 
 HConstant* HBinaryOperation::GetConstantRight() const {
   if (GetRight()->IsConstant()) {
-    // TODO: Remove "OrNull".
-    return GetRight()->AsConstantOrNull();
+    return GetRight()->AsConstant();
   } else if (IsCommutative() && GetLeft()->IsConstant()) {
-    // TODO: Remove "OrNull".
-    return GetLeft()->AsConstantOrNull();
+    return GetLeft()->AsConstant();
   } else {
     return nullptr;
   }
@@ -2172,8 +2148,7 @@ void HInstruction::MoveBeforeFirstUserAndOutOfLoops() {
     DCHECK(insert_pos->IsControlFlow());
     // Avoid splitting HCondition from HIf to prevent unnecessary materialization.
     if (insert_pos->IsIf()) {
-      // TODO: Remove "OrNull".
-      HInstruction* if_input = insert_pos->AsIfOrNull()->InputAt(0);
+      HInstruction* if_input = insert_pos->AsIf()->InputAt(0);
       if (if_input == insert_pos->GetPrevious()) {
         insert_pos = if_input;
       }
@@ -2290,8 +2265,7 @@ HBasicBlock* HBasicBlock::SplitAfterForInlining(HInstruction* cursor) {
 
 const HTryBoundary* HBasicBlock::ComputeTryEntryOfSuccessors() const {
   if (EndsWithTryBoundary()) {
-    // TODO: Remove "OrNull".
-    HTryBoundary* try_boundary = GetLastInstruction()->AsTryBoundaryOrNull();
+    HTryBoundary* try_boundary = GetLastInstruction()->AsTryBoundary();
     if (try_boundary->IsEntry()) {
       DCHECK(!IsTryBlock());
       return try_boundary;
@@ -2363,9 +2337,7 @@ bool HBasicBlock::HasSinglePhi() const {
 ArrayRef<HBasicBlock* const> HBasicBlock::GetNormalSuccessors() const {
   if (EndsWithTryBoundary()) {
     // The normal-flow successor of HTryBoundary is always stored at index zero.
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(successors_[0],
-              GetLastInstruction()->AsTryBoundaryOrNull()->GetNormalFlowSuccessor());
+    DCHECK_EQ(successors_[0], GetLastInstruction()->AsTryBoundary()->GetNormalFlowSuccessor());
     return ArrayRef<HBasicBlock* const>(successors_).SubArray(0u, 1u);
   } else {
     // All successors of blocks not ending with TryBoundary are normal.
@@ -2375,8 +2347,7 @@ ArrayRef<HBasicBlock* const> HBasicBlock::GetNormalSuccessors() const {
 
 ArrayRef<HBasicBlock* const> HBasicBlock::GetExceptionalSuccessors() const {
   if (EndsWithTryBoundary()) {
-    // TODO: Remove "OrNull".
-    return GetLastInstruction()->AsTryBoundaryOrNull()->GetExceptionHandlers();
+    return GetLastInstruction()->AsTryBoundary()->GetExceptionHandlers();
   } else {
     // Blocks not ending with TryBoundary do not have exceptional successors.
     return ArrayRef<HBasicBlock* const>();
@@ -2501,8 +2472,7 @@ void HBasicBlock::DisconnectAndDelete() {
       // exception handlers of this TryBoundary were already visited and any
       // remaining handlers therefore must be live. We remove `predecessor` from
       // their list of predecessors.
-      // TODO: Remove "OrNull".
-      DCHECK_EQ(last_instruction->AsTryBoundaryOrNull()->GetNormalFlowSuccessor(), this);
+      DCHECK_EQ(last_instruction->AsTryBoundary()->GetNormalFlowSuccessor(), this);
       while (predecessor->GetSuccessors().size() > 1) {
         HBasicBlock* handler = predecessor->GetSuccessors()[1];
         DCHECK(handler->IsCatchBlock());
@@ -2582,15 +2552,13 @@ void HBasicBlock::DisconnectFromSuccessors(const ArenaBitVector* visited) {
         // The successor has just one predecessor left. Replace phis with the only
         // remaining input.
         for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          // TODO: Remove "OrNull".
-          HPhi* phi = phi_it.Current()->AsPhiOrNull();
+          HPhi* phi = phi_it.Current()->AsPhi();
           phi->ReplaceWith(phi->InputAt(1 - this_index));
           successor->RemovePhi(phi);
         }
       } else {
         for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          // TODO: Remove "OrNull".
-          phi_it.Current()->AsPhiOrNull()->RemoveInputAt(this_index);
+          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
         }
       }
     }
@@ -2613,8 +2581,7 @@ void HBasicBlock::RemoveCatchPhiUsesAndInstruction(bool building_dominator_tree)
     RemoveInstruction(insn, /* ensure_safety= */ !building_dominator_tree);
   }
   for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* insn = it.Current()->AsPhiOrNull();
+    HPhi* insn = it.Current()->AsPhi();
     RemoveCatchPhiUsesOfDeadInstruction(insn);
 
     // If we are building the dominator tree, we removed all input records previously.
@@ -2941,8 +2908,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       const bool saw_try_boundary = last->IsTryBoundary();
       if (saw_try_boundary) {
         DCHECK(predecessor->IsSingleTryBoundary());
-        // TODO: Remove "OrNull".
-        DCHECK(!last->AsTryBoundaryOrNull()->IsEntry());
+        DCHECK(!last->AsTryBoundary()->IsEntry());
         predecessor = predecessor->GetSinglePredecessor();
         last = predecessor->GetLastInstruction();
       }
@@ -2964,9 +2930,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
                try_catch_info->GetTryEntry().GetBlock()->GetExceptionalSuccessors()) {
             new_block->AddSuccessor(xhandler);
           }
-          // TODO: Remove "OrNull".
           DCHECK(try_catch_info->GetTryEntry().HasSameExceptionHandlersAs(
-              *new_block->GetLastInstruction()->AsTryBoundaryOrNull()));
+              *new_block->GetLastInstruction()->AsTryBoundary()));
         } else {
           // We either have `Throw->TryBoundary` or `Throw`. We want to point the whole chain to the
           // exit, so we recompute `predecessor`
@@ -3049,26 +3014,21 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     if (current->IsNullConstant()) {
       replacement = outer_graph->GetNullConstant(current->GetDexPc());
     } else if (current->IsIntConstant()) {
-      // TODO: Remove "OrNull".
       replacement = outer_graph->GetIntConstant(
-          current->AsIntConstantOrNull()->GetValue(), current->GetDexPc());
+          current->AsIntConstant()->GetValue(), current->GetDexPc());
     } else if (current->IsLongConstant()) {
-      // TODO: Remove "OrNull".
       replacement = outer_graph->GetLongConstant(
-          current->AsLongConstantOrNull()->GetValue(), current->GetDexPc());
+          current->AsLongConstant()->GetValue(), current->GetDexPc());
     } else if (current->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
       replacement = outer_graph->GetFloatConstant(
-          current->AsFloatConstantOrNull()->GetValue(), current->GetDexPc());
+          current->AsFloatConstant()->GetValue(), current->GetDexPc());
     } else if (current->IsDoubleConstant()) {
-      // TODO: Remove "OrNull".
       replacement = outer_graph->GetDoubleConstant(
-          current->AsDoubleConstantOrNull()->GetValue(), current->GetDexPc());
+          current->AsDoubleConstant()->GetValue(), current->GetDexPc());
     } else if (current->IsParameterValue()) {
       if (kIsDebugBuild &&
           invoke->IsInvokeStaticOrDirect() &&
-          // TODO: Remove "OrNull".
-          invoke->AsInvokeStaticOrDirectOrNull()->IsStaticWithExplicitClinitCheck()) {
+          invoke->AsInvokeStaticOrDirect()->IsStaticWithExplicitClinitCheck()) {
         // Ensure we do not use the last input of `invoke`, as it
         // contains a clinit check which is not an actual argument.
         size_t last_input_index = invoke->InputCount() - 1;
@@ -3248,8 +3208,7 @@ void HInstruction::SetReferenceTypeInfo(ReferenceTypeInfo rti) {
     if (IsBoundType()) {
       // Having the test here spares us from making the method virtual just for
       // the sake of a DCHECK.
-      // TODO: Remove "OrNull".
-      CheckAgainstUpperBound(rti, AsBoundTypeOrNull()->GetUpperBound());
+      CheckAgainstUpperBound(rti, AsBoundType()->GetUpperBound());
     }
   }
   reference_type_handle_ = rti.GetTypeHandle();
@@ -3263,8 +3222,7 @@ void HInstruction::SetReferenceTypeInfoIfValid(ReferenceTypeInfo rti) {
 }
 
 bool HBoundType::InstructionDataEquals(const HInstruction* other) const {
-  // TODO: Remove "OrNull".
-  const HBoundType* other_bt = other->AsBoundTypeOrNull();
+  const HBoundType* other_bt = other->AsBoundType();
   ScopedObjectAccess soa(Thread::Current());
   return GetUpperBound().IsEqual(other_bt->GetUpperBound()) &&
          GetUpperCanBeNull() == other_bt->GetUpperCanBeNull() &&
@@ -3404,8 +3362,7 @@ bool HInvokeVirtual::CanDoImplicitNullCheckOn(HInstruction* obj) const {
 }
 
 bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
-  // TODO: Remove "OrNull".
-  const HLoadClass* other_load_class = other->AsLoadClassOrNull();
+  const HLoadClass* other_load_class = other->AsLoadClass();
   // TODO: To allow GVN for HLoadClass from different dex files, we should compare the type
   // names rather than type indexes. However, we shall also have to re-think the hash code.
   if (type_index_ != other_load_class->type_index_ ||
@@ -3426,8 +3383,7 @@ bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
 }
 
 bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
-  // TODO: Remove "OrNull".
-  const HLoadString* other_load_string = other->AsLoadStringOrNull();
+  const HLoadString* other_load_string = other->AsLoadString();
   // TODO: To allow GVN for HLoadString from different dex files, we should compare the strings
   // rather than their indexes. However, we shall also have to re-think the hash code.
   if (string_index_ != other_load_string->string_index_ ||
@@ -3459,11 +3415,9 @@ HInstruction* ReplaceInstrOrPhiByClone(HInstruction* instr) {
   HBasicBlock* block = instr->GetBlock();
 
   if (instr->IsPhi()) {
-    // TODO: Remove "OrNull".
-    HPhi* phi = instr->AsPhiOrNull();
+    HPhi* phi = instr->AsPhi();
     DCHECK(!phi->HasEnvironment());
-    // TODO: Remove "OrNull".
-    HPhi* phi_clone = clone->AsPhiOrNull();
+    HPhi* phi_clone = clone->AsPhi();
     block->ReplaceAndRemovePhiWith(phi, phi_clone);
   } else {
     block->ReplaceAndRemoveInstructionWith(instr, clone);
@@ -3471,8 +3425,7 @@ HInstruction* ReplaceInstrOrPhiByClone(HInstruction* instr) {
       clone->CopyEnvironmentFrom(instr->GetEnvironment());
       HLoopInformation* loop_info = block->GetLoopInformation();
       if (instr->IsSuspendCheck() && loop_info != nullptr) {
-        // TODO: Remove "OrNull".
-        loop_info->SetSuspendCheck(clone->AsSuspendCheckOrNull());
+        loop_info->SetSuspendCheck(clone->AsSuspendCheck());
       }
     }
   }
@@ -3489,8 +3442,7 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
     HInstruction* lhs = cond->InputAt(0);
     HInstruction* rhs = cond->InputAt(1);
     HInstruction* replacement = nullptr;
-    // TODO: Remove "OrNull".
-    switch (cond->AsConditionOrNull()->GetOppositeCondition()) {  // get *opposite*
+    switch (cond->AsCondition()->GetOppositeCondition()) {  // get *opposite*
       case kCondEQ: replacement = new (allocator) HEqual(lhs, rhs); break;
       case kCondNE: replacement = new (allocator) HNotEqual(lhs, rhs); break;
       case kCondLT: replacement = new (allocator) HLessThan(lhs, rhs); break;
@@ -3508,8 +3460,7 @@ HInstruction* HGraph::InsertOppositeCondition(HInstruction* cond, HInstruction* 
     cursor->GetBlock()->InsertInstructionBefore(replacement, cursor);
     return replacement;
   } else if (cond->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    HIntConstant* int_const = cond->AsIntConstantOrNull();
+    HIntConstant* int_const = cond->AsIntConstant();
     if (int_const->IsFalse()) {
       return GetIntConstant(1);
     } else {

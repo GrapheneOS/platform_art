@@ -87,8 +87,7 @@ class ReadBarrierSystemArrayCopySlowPathX86 : public SlowPathCode {
         << "Unexpected instruction in read barrier arraycopy slow path: "
         << instruction_->DebugName();
     DCHECK(instruction_->GetLocations()->Intrinsified());
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(instruction_->AsInvokeOrNull()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
+    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
 
     int32_t element_size = DataType::Size(DataType::Type::kReference);
     uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
@@ -120,8 +119,7 @@ class ReadBarrierSystemArrayCopySlowPathX86 : public SlowPathCode {
     __ Bind(&loop);
     // value = src_array[i + src_pos]
     if (src_pos.IsConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t constant = src_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+      int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
       int32_t adjusted_offset = offset + constant * element_size;
       __ movl(temp2, Address(src, temp1, ScaleFactor::TIMES_4, adjusted_offset));
     } else {
@@ -144,8 +142,7 @@ class ReadBarrierSystemArrayCopySlowPathX86 : public SlowPathCode {
     __ MaybePoisonHeapReference(temp2);
     // dest_array[i + dest_pos] = value
     if (dest_pos.IsConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t constant = dest_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+      int32_t constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
       int32_t adjusted_offset = offset + constant * element_size;
       __ movl(Address(dest, temp1, ScaleFactor::TIMES_4, adjusted_offset), temp2);
     } else {
@@ -396,9 +393,7 @@ void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
     return;
   }
 
-  // TODO: Remove "OrNull".
-  HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirectOrNull();
-  DCHECK(static_or_direct != nullptr);
+  HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
   LocationSummary* locations =
       new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
@@ -433,9 +428,8 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   __ subss(t2, t1);
   if (locations->GetInputCount() == 2 && locations->InAt(1).IsValid()) {
     // Direct constant area available.
-    // TODO: Remove "OrNull".
     HX86ComputeBaseMethodAddress* method_address =
-        invoke->InputAt(1)->AsX86ComputeBaseMethodAddressOrNull();
+        invoke->InputAt(1)->AsX86ComputeBaseMethodAddress();
     Register constant_area = locations->InAt(1).AsRegister<Register>();
     __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f),
                                                 method_address,
@@ -528,8 +522,7 @@ static void GenLowestOneBit(X86Assembler* assembler,
 
   if (invoke->InputAt(0)->IsConstant()) {
     // Evaluate this at compile time.
-    // TODO: Remove "OrNull".
-    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstantOrNull());
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
     if (value == 0) {
       if (is_long) {
         __ xorl(out_loc.AsRegisterPairLow<Register>(), out_loc.AsRegisterPairLow<Register>());
@@ -839,15 +832,13 @@ static void CheckPosition(X86Assembler* assembler,
   const uint32_t length_offset = mirror::Array::LengthOffset().Uint32Value();
 
   if (pos.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t pos_const = pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
     if (pos_const == 0) {
       if (!length_is_input_length) {
         // Check that length(input) >= length.
         if (length.IsConstant()) {
           __ cmpl(Address(input, length_offset),
-                  // TODO: Remove "OrNull".
-                  Immediate(length.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                  Immediate(length.GetConstant()->AsIntConstant()->GetValue()));
         } else {
           __ cmpl(Address(input, length_offset), length.AsRegister<Register>());
         }
@@ -861,8 +852,7 @@ static void CheckPosition(X86Assembler* assembler,
 
       // Check that (length(input) - pos) >= length.
       if (length.IsConstant()) {
-        // TODO: Remove "OrNull".
-        __ cmpl(temp, Immediate(length.GetConstant()->AsIntConstantOrNull()->GetValue()));
+        __ cmpl(temp, Immediate(length.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ cmpl(temp, length.AsRegister<Register>());
       }
@@ -887,8 +877,7 @@ static void CheckPosition(X86Assembler* assembler,
     __ movl(temp, Address(input, length_offset));
     __ subl(temp, pos_reg);
     if (length.IsConstant()) {
-      // TODO: Remove "OrNull".
-      __ cmpl(temp, Immediate(length.GetConstant()->AsIntConstantOrNull()->GetValue()));
+      __ cmpl(temp, Immediate(length.GetConstant()->AsIntConstant()->GetValue()));
     } else {
       __ cmpl(temp, length.AsRegister<Register>());
     }
@@ -939,8 +928,7 @@ static void SystemArrayCopyPrimitive(HInvoke* invoke,
 
   // We need the count in ECX.
   if (length.IsConstant()) {
-    // TODO: Remove "OrNull".
-    __ movl(count, Immediate(length.GetConstant()->AsIntConstantOrNull()->GetValue()));
+    __ movl(count, Immediate(length.GetConstant()->AsIntConstant()->GetValue()));
   } else {
     __ movl(count, length.AsRegister<Register>());
   }
@@ -958,15 +946,13 @@ static void SystemArrayCopyPrimitive(HInvoke* invoke,
   const uint32_t data_offset = mirror::Array::DataOffset(data_size).Uint32Value();
 
   if (src_pos.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t src_pos_const = src_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t src_pos_const = src_pos.GetConstant()->AsIntConstant()->GetValue();
     __ leal(src_base, Address(src, data_size * src_pos_const + data_offset));
   } else {
     __ leal(src_base, Address(src, src_pos.AsRegister<Register>(), scale_factor, data_offset));
   }
   if (dest_pos.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t dest_pos_const = dest_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t dest_pos_const = dest_pos.GetConstant()->AsIntConstant()->GetValue();
     __ leal(dest_base, Address(dest, data_size * dest_pos_const + data_offset));
   } else {
     __ leal(dest_base, Address(dest, dest_pos.AsRegister<Register>(), scale_factor, data_offset));
@@ -1217,8 +1203,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   SlowPathCode* slow_path = nullptr;
   HInstruction* code_point = invoke->InputAt(1);
   if (code_point->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    if (static_cast<uint32_t>(code_point->AsIntConstantOrNull()->GetValue()) >
+    if (static_cast<uint32_t>(code_point->AsIntConstant()->GetValue()) >
         std::numeric_limits<uint16_t>::max()) {
       // Always needs the slow-path. We could directly dispatch to it, but this case should be
       // rare, so for simplicity just put the full slow-path down and branch unconditionally.
@@ -1458,9 +1443,8 @@ void IntrinsicCodeGeneratorX86::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   // public void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin);
   Register obj = locations->InAt(0).AsRegister<Register>();
   Location srcBegin = locations->InAt(1);
-  // TODO: Remove "OrNull".
   int srcBegin_value =
-      srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstantOrNull()->GetValue() : 0;
+      srcBegin.IsConstant() ? srcBegin.GetConstant()->AsIntConstant()->GetValue() : 0;
   Register srcEnd = locations->InAt(2).AsRegister<Register>();
   Register dst = locations->InAt(3).AsRegister<Register>();
   Register dstBegin = locations->InAt(4).AsRegister<Register>();
@@ -1613,8 +1597,7 @@ static void GenPoke(LocationSummary* locations, DataType::Type size, X86Assemble
     case DataType::Type::kInt8:
       if (value_loc.IsConstant()) {
         __ movb(Address(address, 0),
-                // TODO: Remove "OrNull".
-                Immediate(value_loc.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(value_loc.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ movb(Address(address, 0), value_loc.AsRegister<ByteRegister>());
       }
@@ -1622,8 +1605,7 @@ static void GenPoke(LocationSummary* locations, DataType::Type size, X86Assemble
     case DataType::Type::kInt16:
       if (value_loc.IsConstant()) {
         __ movw(Address(address, 0),
-                // TODO: Remove "OrNull".
-                Immediate(value_loc.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(value_loc.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ movw(Address(address, 0), value_loc.AsRegister<Register>());
       }
@@ -1631,16 +1613,14 @@ static void GenPoke(LocationSummary* locations, DataType::Type size, X86Assemble
     case DataType::Type::kInt32:
       if (value_loc.IsConstant()) {
         __ movl(Address(address, 0),
-                // TODO: Remove "OrNull".
-                Immediate(value_loc.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(value_loc.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ movl(Address(address, 0), value_loc.AsRegister<Register>());
       }
       break;
     case DataType::Type::kInt64:
       if (value_loc.IsConstant()) {
-        // TODO: Remove "OrNull".
-        int64_t value = value_loc.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t value = value_loc.GetConstant()->AsLongConstant()->GetValue();
         __ movl(Address(address, 0), Immediate(Low32Bits(value)));
         __ movl(Address(address, 4), Immediate(High32Bits(value)));
       } else {
@@ -2570,8 +2550,7 @@ static void GenBitCount(X86Assembler* assembler,
 
   if (invoke->InputAt(0)->IsConstant()) {
     // Evaluate this at compile time.
-    // TODO: Remove "OrNull".
-    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstantOrNull());
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
     int32_t result = is_long
         ? POPCOUNT(static_cast<uint64_t>(value))
         : POPCOUNT(static_cast<uint32_t>(value));
@@ -2638,8 +2617,7 @@ static void GenLeadingZeros(X86Assembler* assembler,
 
   if (invoke->InputAt(0)->IsConstant()) {
     // Evaluate this at compile time.
-    // TODO: Remove "OrNull".
-    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstantOrNull());
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
     if (value == 0) {
       value = is_long ? 64 : 32;
     } else {
@@ -2743,8 +2721,7 @@ static void GenTrailingZeros(X86Assembler* assembler,
 
   if (invoke->InputAt(0)->IsConstant()) {
     // Evaluate this at compile time.
-    // TODO: Remove "OrNull".
-    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstantOrNull());
+    int64_t value = Int64FromConstant(invoke->InputAt(0)->AsConstant());
     if (value == 0) {
       value = is_long ? 64 : 32;
     } else {
@@ -2834,8 +2811,7 @@ static void GenSystemArrayCopyBaseAddress(X86Assembler* assembler,
   const uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
 
   if (pos.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t constant = pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t constant = pos.GetConstant()->AsIntConstant()->GetValue();
     __ leal(base, Address(array, element_size * constant + data_offset));
   } else {
     __ leal(base, Address(array, pos.AsRegister<Register>(), scale_factor, data_offset));
@@ -2856,8 +2832,7 @@ static void GenSystemArrayCopyEndAddress(X86Assembler* assembler,
   const ScaleFactor scale_factor = static_cast<ScaleFactor>(DataType::SizeShift(type));
 
   if (copy_length.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t constant = copy_length.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
     __ leal(end, Address(base, element_size * constant));
   } else {
     __ leal(end, Address(base, copy_length.AsRegister<Register>(), scale_factor, 0));
@@ -2931,11 +2906,9 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   // If source and destination are the same, we go to slow path if we need to do
   // forward copying.
   if (src_pos.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+    int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
     if (dest_pos.IsConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
       if (optimizations.GetDestinationIsSource()) {
         // Checked when building locations.
         DCHECK_GE(src_pos_constant, dest_pos_constant);
@@ -2957,8 +2930,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
       __ j(kNotEqual, &conditions_on_positions_validated);
     }
     if (dest_pos.IsConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstantOrNull()->GetValue();
+      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
       __ cmpl(src_pos.AsRegister<Register>(), Immediate(dest_pos_constant));
       __ j(kLess, intrinsic_slow_path->GetEntryLabel());
     } else {
@@ -3294,8 +3266,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
 static void RequestBaseMethodAddressInRegister(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
   if (locations != nullptr) {
-    // TODO: Remove "OrNull".
-    HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirectOrNull();
+    HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
     // Note: The base method address is not present yet when this is called from the
     // PCRelativeHandlerVisitor via IsCallFreeIntrinsic() to determine whether to insert it.
     if (invoke_static_or_direct->HasSpecialInput()) {
@@ -3328,20 +3299,17 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
   Register out = locations->Out().AsRegister<Register>();
   auto allocate_instance = [&]() {
     DCHECK_EQ(out, InvokeRuntimeCallingConvention().GetRegisterAt(0));
-    // TODO: Remove "OrNull".
-    codegen_->LoadIntrinsicDeclaringClass(out, invoke->AsInvokeStaticOrDirectOrNull());
+    codegen_->LoadIntrinsicDeclaringClass(out, invoke->AsInvokeStaticOrDirect());
     codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
   if (invoke->InputAt(0)->IsConstant()) {
-    // TODO: Remove "OrNull".
-    int32_t value = invoke->InputAt(0)->AsIntConstantOrNull()->GetValue();
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
       // Just embed the j.l.Integer in the code.
       DCHECK_NE(info.value_boot_image_reference, IntegerValueOfInfo::kInvalidReference);
       codegen_->LoadBootImageAddress(
-          // TODO: Remove "OrNull".
-          out, info.value_boot_image_reference, invoke->AsInvokeStaticOrDirectOrNull());
+          out, info.value_boot_image_reference, invoke->AsInvokeStaticOrDirect());
     } else {
       DCHECK(locations->CanCall());
       // Allocate and initialize a new j.l.Integer.
@@ -3364,11 +3332,9 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
                   "Check heap reference size.");
     if (codegen_->GetCompilerOptions().IsBootImage()) {
       DCHECK_EQ(invoke->InputCount(), invoke->GetNumberOfArguments() + 1u);
-      // TODO: Remove "OrNull".
-      size_t method_address_index = invoke->AsInvokeStaticOrDirectOrNull()->GetSpecialInputIndex();
-      // TODO: Remove "OrNull".
+      size_t method_address_index = invoke->AsInvokeStaticOrDirect()->GetSpecialInputIndex();
       HX86ComputeBaseMethodAddress* method_address =
-          invoke->InputAt(method_address_index)->AsX86ComputeBaseMethodAddressOrNull();
+          invoke->InputAt(method_address_index)->AsX86ComputeBaseMethodAddress();
       DCHECK(method_address != nullptr);
       Register method_address_reg =
           invoke->GetLocations()->InAt(method_address_index).AsRegister<Register>();
@@ -3380,9 +3346,8 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
       // adjust the offset accordingly.
       uint32_t mid_array_boot_image_offset =
               info.array_data_boot_image_reference - info.low * kElementSize;
-      // TODO: Remove "OrNull".
       codegen_->LoadBootImageAddress(
-          out, mid_array_boot_image_offset, invoke->AsInvokeStaticOrDirectOrNull());
+          out, mid_array_boot_image_offset, invoke->AsInvokeStaticOrDirect());
       DCHECK_NE(out, in);
       __ movl(out, Address(out, in, TIMES_4, 0));
     }
@@ -3421,8 +3386,7 @@ void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
 
   // Load the java.lang.ref.Reference class, use the output register as a temporary.
   codegen_->LoadIntrinsicDeclaringClass(out.AsRegister<Register>(),
-                                        // TODO: Remove "OrNull".
-                                        invoke->AsInvokeStaticOrDirectOrNull());
+                                        invoke->AsInvokeStaticOrDirect());
 
   // Check static fields java.lang.ref.Reference.{disableIntrinsic,slowPathEnabled} together.
   MemberOffset disable_intrinsic_offset = IntrinsicVisitor::GetReferenceDisableIntrinsicOffset();
