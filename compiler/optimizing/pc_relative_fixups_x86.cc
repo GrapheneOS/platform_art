@@ -62,7 +62,7 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
   }
 
   void VisitReturn(HReturn* ret) override {
-    HConstant* value = ret->InputAt(0)->AsConstant();
+    HConstant* value = ret->InputAt(0)->AsConstantOrNull();
     if ((value != nullptr && DataType::IsFloatingPointType(value->GetType()))) {
       ReplaceInput(ret, value, 0, true);
     }
@@ -95,7 +95,7 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
   }
 
   void BinaryFP(HBinaryOperation* bin) {
-    HConstant* rhs = bin->InputAt(1)->AsConstant();
+    HConstant* rhs = bin->InputAt(1)->AsConstantOrNull();
     if (rhs != nullptr && DataType::IsFloatingPointType(rhs->GetType())) {
       ReplaceInput(bin, rhs, 1, false);
     }
@@ -193,7 +193,7 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
   }
 
   void HandleInvoke(HInvoke* invoke) {
-    HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirect();
+    HInvokeStaticOrDirect* invoke_static_or_direct = invoke->AsInvokeStaticOrDirectOrNull();
 
     // If this is an invoke-static/-direct with PC-relative addressing (within boot image
     // or using .bss or .data.bimg.rel.ro), we need the PC-relative address base.
@@ -207,7 +207,7 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
       base_added = true;
     }
 
-    HInvokeInterface* invoke_interface = invoke->AsInvokeInterface();
+    HInvokeInterface* invoke_interface = invoke->AsInvokeInterfaceOrNull();
     if (invoke_interface != nullptr &&
         IsPcRelativeMethodLoadKind(invoke_interface->GetHiddenArgumentLoadKind())) {
       HX86ComputeBaseMethodAddress* method_address = GetPCRelativeBasePointer(invoke);
@@ -219,7 +219,7 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
     // Ensure that we can load FP arguments from the constant area.
     HInputsRef inputs = invoke->GetInputs();
     for (size_t i = 0; i < inputs.size(); i++) {
-      HConstant* input = inputs[i]->AsConstant();
+      HConstant* input = inputs[i]->AsConstantOrNull();
       if (input != nullptr && DataType::IsFloatingPointType(input->GetType())) {
         ReplaceInput(invoke, input, i, true);
       }

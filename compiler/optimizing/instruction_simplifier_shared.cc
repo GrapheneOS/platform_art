@@ -52,7 +52,8 @@ bool TrySimpleMultiplyAccumulatePatterns(HMul* mul,
   } else {
     DCHECK(input_binop->IsSub());
     if (input_binop->GetRight()->IsConstant() &&
-        input_binop->GetRight()->AsConstant()->IsMinusOne()) {
+        // TODO: Remove "OrNull".
+        input_binop->GetRight()->AsConstantOrNull()->IsMinusOne()) {
       // Interpret
       //    a * (b - (-1))
       // as
@@ -60,7 +61,8 @@ bool TrySimpleMultiplyAccumulatePatterns(HMul* mul,
       input_b = input_binop->GetLeft();
       op_kind = HInstruction::kAdd;
     } else if (input_binop->GetLeft()->IsConstant() &&
-               input_binop->GetLeft()->AsConstant()->IsOne()) {
+               // TODO: Remove "OrNull".
+               input_binop->GetLeft()->AsConstantOrNull()->IsOne()) {
       // Interpret
       //    a * (1 - b)
       // as
@@ -122,7 +124,8 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa) {
       // whether all uses are on different control-flow paths (using dominance and
       // reverse-dominance information) and only perform the merge when they are.
       HInstruction* accumulator = nullptr;
-      HBinaryOperation* binop = use->AsBinaryOperation();
+      // TODO: Remove "OrNull".
+      HBinaryOperation* binop = use->AsBinaryOperationOrNull();
       HInstruction* binop_left = binop->GetLeft();
       HInstruction* binop_right = binop->GetRight();
       // Be careful after GVN. This should not happen since the `HMul` has only
@@ -175,11 +178,13 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa) {
   HInstruction* left = mul->GetLeft();
   HInstruction* right = mul->GetRight();
   if ((right->IsAdd() || right->IsSub()) &&
-      TrySimpleMultiplyAccumulatePatterns(mul, right->AsBinaryOperation(), left)) {
+      // TODO: Remove "OrNull".
+      TrySimpleMultiplyAccumulatePatterns(mul, right->AsBinaryOperationOrNull(), left)) {
     return true;
   }
   if ((left->IsAdd() || left->IsSub()) &&
-      TrySimpleMultiplyAccumulatePatterns(mul, left->AsBinaryOperation(), right)) {
+      // TODO: Remove "OrNull".
+      TrySimpleMultiplyAccumulatePatterns(mul, left->AsBinaryOperationOrNull(), right)) {
     return true;
   }
   return false;
@@ -214,7 +219,8 @@ bool TryMergeNegatedInput(HBinaryOperation* op) {
       //    AND dst, src, tmp   (respectively ORR, EOR)
       // with
       //    BIC dst, src, mask  (respectively ORN, EON)
-      HInstruction* src = hnot->AsNot()->GetInput();
+      // TODO: Remove "OrNull".
+      HInstruction* src = hnot->AsNotOrNull()->GetInput();
 
       HBitwiseNegatedRight* neg_op = new (hnot->GetBlock()->GetGraph()->GetAllocator())
           HBitwiseNegatedRight(op->GetType(), op->GetKind(), hother, src, op->GetDexPc());
@@ -234,13 +240,15 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
                                   HInstruction* index,
                                   size_t data_offset) {
   if (index->IsConstant() ||
-      (index->IsBoundsCheck() && index->AsBoundsCheck()->GetIndex()->IsConstant())) {
+      // TODO: Remove "OrNull".
+      (index->IsBoundsCheck() && index->AsBoundsCheckOrNull()->GetIndex()->IsConstant())) {
     // When the index is a constant all the addressing can be fitted in the
     // memory access instruction, so do not split the access.
     return false;
   }
   if (access->IsArraySet() &&
-      access->AsArraySet()->GetValue()->GetType() == DataType::Type::kReference) {
+      // TODO: Remove "OrNull".
+      access->AsArraySetOrNull()->GetValue()->GetType() == DataType::Type::kReference) {
     // The access may require a runtime call or the original array pointer.
     return false;
   }
@@ -300,7 +308,8 @@ bool TryExtractVecArrayAccessAddress(HVecMemoryOperation* access, HInstruction* 
   for (const HUseListNode<HInstruction*>& use : index->GetUses()) {
     HInstruction* user = use.GetUser();
     if (user->IsVecMemoryOperation() && user != access) {
-      HVecMemoryOperation* another_access = user->AsVecMemoryOperation();
+      // TODO: Remove "OrNull".
+      HVecMemoryOperation* another_access = user->AsVecMemoryOperationOrNull();
       DataType::Type another_packed_type = another_access->GetPackedType();
       uint32_t another_data_offset = mirror::Array::DataOffset(
           DataType::Size(another_packed_type)).Uint32Value();
@@ -310,9 +319,13 @@ bool TryExtractVecArrayAccessAddress(HVecMemoryOperation* access, HInstruction* 
         break;
       }
     } else if (user->IsIntermediateAddressIndex()) {
-      HIntermediateAddressIndex* another_access = user->AsIntermediateAddressIndex();
-      uint32_t another_data_offset = another_access->GetOffset()->AsIntConstant()->GetValue();
-      size_t another_component_shift = another_access->GetShift()->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      HIntermediateAddressIndex* another_access = user->AsIntermediateAddressIndexOrNull();
+      // TODO: Remove "OrNull".
+      uint32_t another_data_offset = another_access->GetOffset()->AsIntConstantOrNull()->GetValue();
+      // TODO: Remove "OrNull".
+      size_t another_component_shift =
+          another_access->GetShift()->AsIntConstantOrNull()->GetValue();
       if (another_data_offset == data_offset && another_component_shift == component_shift) {
         is_extracting_beneficial = true;
         break;

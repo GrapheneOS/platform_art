@@ -26,16 +26,18 @@ namespace helpers {
 
 inline bool CanFitInShifterOperand(HInstruction* instruction) {
   if (instruction->IsTypeConversion()) {
-    HTypeConversion* conversion = instruction->AsTypeConversion();
+    // TODO: Remove "OrNull".
+    HTypeConversion* conversion = instruction->AsTypeConversionOrNull();
     DataType::Type result_type = conversion->GetResultType();
     DataType::Type input_type = conversion->GetInputType();
     // We don't expect to see the same type as input and result.
     return DataType::IsIntegralType(result_type) && DataType::IsIntegralType(input_type) &&
         (result_type != input_type);
   } else {
-    return (instruction->IsShl() && instruction->AsShl()->InputAt(1)->IsIntConstant()) ||
-        (instruction->IsShr() && instruction->AsShr()->InputAt(1)->IsIntConstant()) ||
-        (instruction->IsUShr() && instruction->AsUShr()->InputAt(1)->IsIntConstant());
+    // TODO: Remove "OrNull".
+    return (instruction->IsShl() && instruction->AsShlOrNull()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsShr() && instruction->AsShrOrNull()->InputAt(1)->IsIntConstant()) ||
+        (instruction->IsUShr() && instruction->AsUShrOrNull()->InputAt(1)->IsIntConstant());
   }
 }
 
@@ -54,7 +56,8 @@ inline bool HasShifterOperand(HInstruction* instr, InstructionSet isa) {
 //   t3 = Sub(*, t2)
 inline bool IsSubRightSubLeftShl(HSub *sub) {
   HInstruction* right = sub->GetRight();
-  return right->IsSub() && right->AsSub()->GetLeft()->IsShl();
+  // TODO: Remove "OrNull".
+  return right->IsSub() && right->AsSubOrNull()->GetLeft()->IsShl();
 }
 
 }  // namespace helpers

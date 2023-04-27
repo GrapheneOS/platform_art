@@ -1044,13 +1044,16 @@ void RegisterAllocatorGraphColor::SplitAtRegisterUses(LiveInterval* interval) {
 }
 
 void RegisterAllocatorGraphColor::AllocateSpillSlotForCatchPhi(HInstruction* instruction) {
-  if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
-    HPhi* phi = instruction->AsPhi();
+  // TODO: Remove "OrNull".
+  if (instruction->IsPhi() && instruction->AsPhiOrNull()->IsCatchPhi()) {
+    // TODO: Remove "OrNull".
+    HPhi* phi = instruction->AsPhiOrNull();
     LiveInterval* interval = phi->GetLiveInterval();
 
     HInstruction* previous_phi = phi->GetPrevious();
     DCHECK(previous_phi == nullptr ||
-           previous_phi->AsPhi()->GetRegNumber() <= phi->GetRegNumber())
+           // TODO: Remove "OrNull".
+           previous_phi->AsPhiOrNull()->GetRegNumber() <= phi->GetRegNumber())
         << "Phis expected to be sorted by vreg number, "
         << "so that equivalent phis are adjacent.";
 
@@ -1953,7 +1956,8 @@ void RegisterAllocatorGraphColor::AllocateSpillSlots(ArrayRef<InterferenceNode* 
       // We already have a spill slot for this value that we can reuse.
     } else if (defined_by->IsParameterValue()) {
       // Parameters already have a stack slot.
-      parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValue()));
+      // TODO: Remove "OrNull".
+      parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValueOrNull()));
     } else if (defined_by->IsCurrentMethod()) {
       // The current method is always at stack slot 0.
       parent->SetSpillSlot(0);

@@ -24,7 +24,8 @@ void VisitEscapes(HInstruction* reference, EscapeVisitor& escape_visitor) {
   // References not allocated in the method are intrinsically escaped.
   // Finalizable references are always escaping since they end up in FinalizerQueues.
   if ((!reference->IsNewInstance() && !reference->IsNewArray()) ||
-      (reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable())) {
+      // TODO: Remove "OrNull".
+      (reference->IsNewInstance() && reference->AsNewInstanceOrNull()->IsFinalizable())) {
     if (!escape_visitor(reference)) {
       return;
     }
@@ -105,7 +106,8 @@ void CalculateEscape(HInstruction* reference,
   *is_singleton_and_not_returned = true;
   *is_singleton_and_not_deopt_visible = true;
 
-  if (reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable()) {
+  // TODO: Remove "OrNull".
+  if (reference->IsNewInstance() && reference->AsNewInstanceOrNull()->IsFinalizable()) {
     // Finalizable reference is treated as being returned in the end.
     *is_singleton_and_not_returned = false;
   }
