@@ -54,6 +54,7 @@ public class CompOsSigningHostTest extends ActivationTest {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         CompOsTestUtils compOsTestUtils = new CompOsTestUtils(device);
 
+        compOsTestUtils.assumeNotOnCuttlefish();
         compOsTestUtils.assumeCompOsPresent();
 
         testInfo.properties().put(ORIGINAL_CHECKSUMS_KEY,
