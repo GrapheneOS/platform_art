@@ -334,11 +334,9 @@ class HeapLocationCollector : public HGraphVisitor {
     size_t vector_length = HeapLocation::kScalar;
     const bool is_vec_op = instruction->IsVecStore() || instruction->IsVecLoad();
     if (instruction->IsArraySet()) {
-      // TODO: Remove "OrNull".
-      type = instruction->AsArraySetOrNull()->GetComponentType();
+      type = instruction->AsArraySet()->GetComponentType();
     } else if (is_vec_op) {
-      // TODO: Remove "OrNull".
-      HVecOperation* vec_op = instruction->AsVecOperationOrNull();
+      HVecOperation* vec_op = instruction->AsVecOperation();
       type = vec_op->GetPackedType();
       vector_length = vec_op->GetVectorLength();
     } else {

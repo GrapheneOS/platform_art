@@ -52,13 +52,11 @@ class HX86LoadFromConstantTable final : public HExpression<2> {
   }
 
   HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
-    // TODO: Remove "OrNull".
-    return InputAt(0)->AsX86ComputeBaseMethodAddressOrNull();
+    return InputAt(0)->AsX86ComputeBaseMethodAddress();
   }
 
   HConstant* GetConstant() const {
-    // TODO: Remove "OrNull".
-    return InputAt(1)->AsConstantOrNull();
+    return InputAt(1)->AsConstant();
   }
 
   DECLARE_INSTRUCTION(X86LoadFromConstantTable);
@@ -81,8 +79,7 @@ class HX86FPNeg final : public HExpression<2> {
   }
 
   HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
-    // TODO: Remove "OrNull".
-    return InputAt(1)->AsX86ComputeBaseMethodAddressOrNull();
+    return InputAt(1)->AsX86ComputeBaseMethodAddress();
   }
 
   DECLARE_INSTRUCTION(X86FPNeg);
@@ -113,8 +110,7 @@ class HX86PackedSwitch final : public HExpression<2> {
   int32_t GetNumEntries() const { return num_entries_; }
 
   HX86ComputeBaseMethodAddress* GetBaseMethodAddress() const {
-    // TODO: Remove "OrNull".
-    return InputAt(1)->AsX86ComputeBaseMethodAddressOrNull();
+    return InputAt(1)->AsX86ComputeBaseMethodAddress();
   }
 
   HBasicBlock* GetDefaultBlock() const {

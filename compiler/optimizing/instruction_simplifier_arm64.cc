@@ -107,8 +107,7 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction*
     right = use->InputAt(1);
   } else {
     DCHECK(use->IsNeg());
-    // TODO: Remove "OrNull".
-    right = use->AsNegOrNull()->InputAt(0);
+    right = use->AsNeg()->InputAt(0);
     left = GetGraph()->GetConstant(right->GetType(), 0);
   }
   DCHECK(left == bitfield_op || right == bitfield_op);
@@ -120,8 +119,7 @@ bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction*
     return false;
   }
 
-  // TODO: Remove "OrNull".
-  bool is_commutative = use->IsBinaryOperation() && use->AsBinaryOperationOrNull()->IsCommutative();
+  bool is_commutative = use->IsBinaryOperation() && use->AsBinaryOperation()->IsCommutative();
   HInstruction* other_input;
   if (bitfield_op == right) {
     other_input = left;

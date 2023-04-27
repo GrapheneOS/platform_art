@@ -33,22 +33,17 @@ void HDataProcWithShifterOp::GetOpInfoFromInstruction(HInstruction* instruction,
   DCHECK(CanFitInShifterOperand(instruction));
   if (instruction->IsShl()) {
     *op_kind = kLSL;
-    // TODO: Remove "OrNull".
-    *shift_amount = instruction->AsShlOrNull()->GetRight()->AsIntConstantOrNull()->GetValue();
+    *shift_amount = instruction->AsShl()->GetRight()->AsIntConstant()->GetValue();
   } else if (instruction->IsShr()) {
     *op_kind = kASR;
-    // TODO: Remove "OrNull".
-    *shift_amount = instruction->AsShrOrNull()->GetRight()->AsIntConstantOrNull()->GetValue();
+    *shift_amount = instruction->AsShr()->GetRight()->AsIntConstant()->GetValue();
   } else if (instruction->IsUShr()) {
     *op_kind = kLSR;
-    // TODO: Remove "OrNull".
-    *shift_amount = instruction->AsUShrOrNull()->GetRight()->AsIntConstantOrNull()->GetValue();
+    *shift_amount = instruction->AsUShr()->GetRight()->AsIntConstant()->GetValue();
   } else {
     DCHECK(instruction->IsTypeConversion());
-    // TODO: Remove "OrNull".
-    DataType::Type result_type = instruction->AsTypeConversionOrNull()->GetResultType();
-    // TODO: Remove "OrNull".
-    DataType::Type input_type = instruction->AsTypeConversionOrNull()->GetInputType();
+    DataType::Type result_type = instruction->AsTypeConversion()->GetResultType();
+    DataType::Type input_type = instruction->AsTypeConversion()->GetInputType();
     int result_size = DataType::Size(result_type);
     int input_size = DataType::Size(input_type);
     int min_size = std::min(result_size, input_size);

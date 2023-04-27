@@ -109,8 +109,7 @@ void SchedulingLatencyVisitorARM::VisitRor(HRor* instr) {
       // HandleLongRotate
       HInstruction* rhs = instr->GetRight();
       if (rhs->IsConstant()) {
-        // TODO: Remove "OrNull".
-        uint64_t rot = Uint64ConstantFrom(rhs->AsConstantOrNull()) & kMaxLongShiftDistance;
+        uint64_t rot = Uint64ConstantFrom(rhs->AsConstant()) & kMaxLongShiftDistance;
         if (rot != 0u) {
           last_visited_internal_latency_ = 3 * kArmIntegerOpLatency;
           last_visited_latency_ = kArmIntegerOpLatency;
@@ -144,8 +143,7 @@ void SchedulingLatencyVisitorARM::HandleShiftLatencies(HBinaryOperation* instr) 
       if (!rhs->IsConstant()) {
         last_visited_internal_latency_ = 8 * kArmIntegerOpLatency;
       } else {
-        // TODO: Remove "OrNull".
-        uint32_t shift_value = Int32ConstantFrom(rhs->AsConstantOrNull()) & kMaxLongShiftDistance;
+        uint32_t shift_value = Int32ConstantFrom(rhs->AsConstant()) & kMaxLongShiftDistance;
         if (shift_value == 1 || shift_value >= 32) {
           last_visited_internal_latency_ = kArmIntegerOpLatency;
         } else {
@@ -835,8 +833,7 @@ void SchedulingLatencyVisitorARM::VisitDiv(HDiv* instruction) {
     case DataType::Type::kInt32: {
       HInstruction* rhs = instruction->GetRight();
       if (rhs->IsConstant()) {
-        // TODO: Remove "OrNull".
-        int32_t imm = Int32ConstantFrom(rhs->AsConstantOrNull());
+        int32_t imm = Int32ConstantFrom(rhs->AsConstant());
         HandleDivRemConstantIntegralLatencies(imm);
       } else {
         last_visited_latency_ = kArmDivIntegerLatency;
@@ -904,8 +901,7 @@ void SchedulingLatencyVisitorARM::VisitRem(HRem* instruction) {
     case DataType::Type::kInt32: {
       HInstruction* rhs = instruction->GetRight();
       if (rhs->IsConstant()) {
-        // TODO: Remove "OrNull".
-        int32_t imm = Int32ConstantFrom(rhs->AsConstantOrNull());
+        int32_t imm = Int32ConstantFrom(rhs->AsConstant());
         HandleDivRemConstantIntegralLatencies(imm);
       } else {
         last_visited_internal_latency_ = kArmDivIntegerLatency;

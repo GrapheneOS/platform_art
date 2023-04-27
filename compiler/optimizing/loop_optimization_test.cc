@@ -324,8 +324,7 @@ TEST_F(LoopOptimizationTest, SimplifyLoopSinglePreheader) {
   EXPECT_EQ(preheader1->GetSingleSuccessor(), new_preheader);
 
   EXPECT_EQ(new_preheader->GetPhis().CountSize(), 1u);
-  // TODO: Remove "OrNull".
-  HPhi* new_preheader_phi = new_preheader->GetFirstPhi()->AsPhiOrNull();
+  HPhi* new_preheader_phi = new_preheader->GetFirstPhi()->AsPhi();
   EXPECT_EQ(new_preheader_phi->InputCount(), 2u);
   EXPECT_EQ(new_preheader_phi->InputAt(0), preheader0_add);
   EXPECT_EQ(new_preheader_phi->InputAt(1), preheader1_add);

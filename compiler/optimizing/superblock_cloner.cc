@@ -175,10 +175,8 @@ void SuperblockCloner::RemapOrigInternalOrIncomingEdge(HBasicBlock* orig_block,
   // of copy successor's predecessors.
   bool first_phi_met = false;
   for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* orig_phi = it.Current()->AsPhiOrNull();
-    // TODO: Remove "OrNull".
-    HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhiOrNull();
+    HPhi* orig_phi = it.Current()->AsPhi();
+    HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(this_index);
     // Remove corresponding input for original phi.
     orig_phi->RemoveInputAt(this_index);
@@ -207,10 +205,8 @@ void SuperblockCloner::AddCopyInternalEdge(HBasicBlock* orig_block,
 
   size_t orig_index = orig_succ->GetPredecessorIndexOf(orig_block);
   for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* orig_phi = it.Current()->AsPhiOrNull();
-    // TODO: Remove "OrNull".
-    HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhiOrNull();
+    HPhi* orig_phi = it.Current()->AsPhi();
+    HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(orig_index);
     copy_phi->AddInput(orig_phi_input);
   }
@@ -225,8 +221,7 @@ void SuperblockCloner::RemapCopyInternalEdge(HBasicBlock* orig_block,
 
   size_t orig_index = orig_succ->GetPredecessorIndexOf(orig_block);
   for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    HPhi* orig_phi = it.Current()->AsPhiOrNull();
+    HPhi* orig_phi = it.Current()->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(orig_index);
     orig_phi->AddInput(orig_phi_input);
   }
@@ -254,10 +249,8 @@ void SuperblockCloner::CopyIncomingEdgesForVersioning() {
       // TODO: remove this requirement.
       DCHECK_EQ(orig_block->GetPredecessorIndexOf(orig_pred), incoming_edge_count);
       for (HInstructionIterator it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
-        // TODO: Remove "OrNull".
-        HPhi* orig_phi = it.Current()->AsPhiOrNull();
-        // TODO: Remove "OrNull".
-        HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhiOrNull();
+        HPhi* orig_phi = it.Current()->AsPhi();
+        HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
         HInstruction* orig_phi_input = orig_phi->InputAt(incoming_edge_count);
         // Add the corresponding input of the original phi to the copy one.
         copy_phi->AddInput(orig_phi_input);
@@ -554,10 +547,8 @@ void SuperblockCloner::ResolveDataFlow() {
     HBasicBlock* orig_block = entry.first;
 
     for (HInstructionIterator it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* orig_phi = it.Current()->AsPhiOrNull();
-      // TODO: Remove "OrNull".
-      HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhiOrNull();
+      HPhi* orig_phi = it.Current()->AsPhi();
+      HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
       ResolvePhi(orig_phi);
       ResolvePhi(copy_phi);
     }
@@ -678,8 +669,7 @@ void SuperblockCloner::FixSubgraphClosedSSAAfterCloning() {
   for (auto it : live_outs_) {
     DCHECK(it.first != it.second);
     HInstruction* orig_value = it.first;
-    // TODO: Remove "OrNull".
-    HPhi* phi = it.second->AsPhiOrNull();
+    HPhi* phi = it.second->AsPhi();
     HInstruction* copy_value = GetInstrCopy(orig_value);
     // Copy edges are inserted after the original so we can just add new input to the phi.
     phi->AddInput(copy_value);
@@ -1011,8 +1001,7 @@ void SuperblockCloner::CleanUp() {
   for (auto entry : *bb_map_) {
     HBasicBlock* orig_block = entry.first;
     for (HInstructionIterator inst_it(orig_block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* phi = inst_it.Current()->AsPhiOrNull();
+      HPhi* phi = inst_it.Current()->AsPhi();
       if (ArePhiInputsTheSame(phi)) {
         phi->ReplaceWith(phi->InputAt(0));
         orig_block->RemovePhi(phi);
@@ -1021,8 +1010,7 @@ void SuperblockCloner::CleanUp() {
 
     HBasicBlock* copy_block = GetBlockCopy(orig_block);
     for (HInstructionIterator inst_it(copy_block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* phi = inst_it.Current()->AsPhiOrNull();
+      HPhi* phi = inst_it.Current()->AsPhi();
       if (ArePhiInputsTheSame(phi)) {
         phi->ReplaceWith(phi->InputAt(0));
         copy_block->RemovePhi(phi);
@@ -1044,10 +1032,8 @@ HBasicBlock* SuperblockCloner::CloneBasicBlock(const HBasicBlock* orig_block) {
   for (HInstructionIterator it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
     HInstruction* orig_instr = it.Current();
     HInstruction* copy_instr = orig_instr->Clone(arena_);
-    // TODO: Remove "OrNull".
-    copy_block->AddPhi(copy_instr->AsPhiOrNull());
-    // TODO: Remove "OrNull".
-    copy_instr->AsPhiOrNull()->RemoveAllInputs();
+    copy_block->AddPhi(copy_instr->AsPhi());
+    copy_instr->AsPhi()->RemoveAllInputs();
     DCHECK(!orig_instr->HasEnvironment());
     hir_map_->Put(orig_instr, copy_instr);
   }

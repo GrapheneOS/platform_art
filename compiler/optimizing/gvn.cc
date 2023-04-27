@@ -498,12 +498,10 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     // Deoptimize is a special case since even though we don't want to move it we can still remove
     // it for GVN.
     if (current->CanBeMoved() || current->IsBoundType() || current->IsDeoptimize()) {
-      // TODO: Remove "OrNull".
-      if (current->IsBinaryOperation() && current->AsBinaryOperationOrNull()->IsCommutative()) {
+      if (current->IsBinaryOperation() && current->AsBinaryOperation()->IsCommutative()) {
         // For commutative ops, (x op y) will be treated the same as (y op x)
         // after fixed ordering.
-        // TODO: Remove "OrNull".
-        current->AsBinaryOperationOrNull()->OrderInputs();
+        current->AsBinaryOperation()->OrderInputs();
       }
       HInstruction* existing = set->Lookup(current);
       if (existing != nullptr) {
