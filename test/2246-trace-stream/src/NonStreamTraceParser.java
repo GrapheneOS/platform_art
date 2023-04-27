@@ -19,7 +19,8 @@ import java.io.IOException;
 
 public class NonStreamTraceParser extends BaseTraceParser {
 
-    public void CheckTraceFileFormat(File file, int expectedVersion) throws Exception {
+    public void CheckTraceFileFormat(File file,
+        int expectedVersion, String threadName) throws Exception {
         InitializeParser(file);
 
         // On non-streaming formats, the file starts with information about options and threads and
@@ -83,7 +84,7 @@ public class NonStreamTraceParser extends BaseTraceParser {
             String eventString = ProcessEventEntry(threadId);
             // Ignore daemons (ex: heap task daemon, reference queue daemon) because they may not
             // be deterministic.
-            if (ShouldIgnoreThread(threadId)) {
+            if (!ShouldCheckThread(threadId, threadName)) {
                 continue;
             }
             // Ignore events after method tracing was stopped. The code that is executed

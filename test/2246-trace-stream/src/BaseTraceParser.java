@@ -136,16 +136,16 @@ abstract class BaseTraceParser {
         threadIdMap.put(threadId, threadInfo);
     }
 
-    public boolean ShouldIgnoreThread(int threadId) throws Exception {
+    public boolean ShouldCheckThread(int threadId, String threadName) throws Exception {
         if (!threadIdMap.containsKey(threadId)) {
           System.out.println("no threadId -> name  mapping for thread " + threadId);
           // TODO(b/279547877): Ideally we should throw here, since it isn't expected. Just
           // continuing to get more logs from the bots to see what's happening here. The
-          // test will fail anyway because the diff will be different.
-          return false;
+          // test will fail anyway because the expected output will be different.
+          return true;
         }
 
-        return threadIdMap.get(threadId).contains("Daemon");
+        return threadIdMap.get(threadId).equals(threadName);
     }
 
     public String eventTypeToString(int eventType, int threadId) {
@@ -203,8 +203,8 @@ abstract class BaseTraceParser {
         threadEventsMap.put(threadName, threadEventsMap.get(threadName) + "\n" + entry);
     }
 
-    public abstract void CheckTraceFileFormat(File traceFile, int expectedVersion)
-            throws Exception;
+    public abstract void CheckTraceFileFormat(File traceFile,
+        int expectedVersion, String threadName) throws Exception;
 
     DataInputStream dataStream;
     HashMap<Integer, String> methodIdMap;
