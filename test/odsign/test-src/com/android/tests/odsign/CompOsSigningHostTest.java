@@ -61,26 +61,32 @@ public class CompOsSigningHostTest extends ActivationTest {
                 compOsTestUtils.checksumDirectoryContentPartial(
                         OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME));
 
-        testUtils.installTestApex();
+        try {
+            testUtils.installTestApex();
 
-        testInfo.properties().put(TIMESTAMP_VM_START_KEY,
-                        String.valueOf(testUtils.getCurrentTimeMs()));
+            testInfo.properties().put(TIMESTAMP_VM_START_KEY,
+                    String.valueOf(testUtils.getCurrentTimeMs()));
 
-        compOsTestUtils.runCompilationJobEarlyAndWait();
+            compOsTestUtils.runCompilationJobEarlyAndWait();
 
-        testInfo.properties().put(PENDING_CHECKSUMS_KEY,
-                compOsTestUtils.checksumDirectoryContentPartial(PENDING_ARTIFACTS_DIR));
-
-        testInfo.properties().put(TIMESTAMP_REBOOT_KEY,
-                        String.valueOf(testUtils.getCurrentTimeMs()));
-        testUtils.reboot();
+            testInfo.properties().put(PENDING_CHECKSUMS_KEY,
+                    compOsTestUtils.checksumDirectoryContentPartial(PENDING_ARTIFACTS_DIR));
+            testInfo.properties().put(TIMESTAMP_REBOOT_KEY,
+                    String.valueOf(testUtils.getCurrentTimeMs()));
+        } finally {
+            // Make sure to reboot after installTestApex.
+            testUtils.reboot();
+        }
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
-        testUtils.uninstallTestApex();
-        testUtils.reboot();
+        try {
+            testUtils.uninstallTestApex();
+        } finally {
+            testUtils.reboot();  // must happen
+        }
     }
 
     @Test
