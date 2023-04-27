@@ -56,6 +56,7 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         CompOsTestUtils compOsTestUtils = new CompOsTestUtils(device);
 
+        compOsTestUtils.assumeNotOnCuttlefish();
         compOsTestUtils.assumeCompOsPresent();
 
         testUtils.installTestApex();
