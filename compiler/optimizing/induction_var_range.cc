@@ -171,9 +171,8 @@ bool UseFullTripCount(const HBasicBlock* context, const HLoopInformation* loop, 
   // one edge leaving the loop. The loop header is the only block that's both inside
   // the loop and not in the loop body.
   DCHECK(GetLoopControl(loop)->IsIf());
-  // TODO: Remove "OrNull".
-  DCHECK_NE(loop->Contains(*GetLoopControl(loop)->AsIfOrNull()->IfTrueSuccessor()),
-            loop->Contains(*GetLoopControl(loop)->AsIfOrNull()->IfFalseSuccessor()));
+  DCHECK_NE(loop->Contains(*GetLoopControl(loop)->AsIf()->IfTrueSuccessor()),
+            loop->Contains(*GetLoopControl(loop)->AsIf()->IfFalseSuccessor()));
   if (loop->Contains(*context)) {
     // Use the full trip count if determining the maximum and context is not in the loop body.
     DCHECK_NE(context == loop->GetHeader(), IsContextInBody(context, loop));
@@ -183,10 +182,8 @@ bool UseFullTripCount(const HBasicBlock* context, const HLoopInformation* loop, 
     // as long as the `context` is dominated by the loop control exit block.
     // If there are additional exit edges, the value is unknown on those paths.
     HInstruction* loop_control = GetLoopControl(loop);
-    // TODO: Remove "OrNull".
-    HBasicBlock* then_block = loop_control->AsIfOrNull()->IfTrueSuccessor();
-    // TODO: Remove "OrNull".
-    HBasicBlock* else_block = loop_control->AsIfOrNull()->IfFalseSuccessor();
+    HBasicBlock* then_block = loop_control->AsIf()->IfTrueSuccessor();
+    HBasicBlock* else_block = loop_control->AsIf()->IfFalseSuccessor();
     HBasicBlock* loop_exit_block = loop->Contains(*then_block) ? else_block : then_block;
     return loop_exit_block->Dominates(context);
   }
@@ -738,15 +735,13 @@ InductionVarRange::Value InductionVarRange::GetFetch(const HBasicBlock* context,
       return is_min ? Value(0) : Value(std::numeric_limits<int32_t>::max());
     } else if (instruction->InputAt(0)->IsNewArray()) {
       return GetFetch(
-          // TODO: Remove "OrNull".
-          context, loop, instruction->InputAt(0)->AsNewArrayOrNull()->GetLength(), trip, is_min);
+          context, loop, instruction->InputAt(0)->AsNewArray()->GetLength(), trip, is_min);
     }
   } else if (instruction->IsTypeConversion()) {
     // Since analysis is 32-bit (or narrower), chase beyond widening along the path.
     // For example, this discovers the length in: for (long i = 0; i < a.length; i++);
-    // TODO: Remove "OrNull".
-    if (instruction->AsTypeConversionOrNull()->GetInputType() == DataType::Type::kInt32 &&
-        instruction->AsTypeConversionOrNull()->GetResultType() == DataType::Type::kInt64) {
+    if (instruction->AsTypeConversion()->GetInputType() == DataType::Type::kInt32 &&
+        instruction->AsTypeConversion()->GetResultType() == DataType::Type::kInt64) {
       return GetFetch(context, loop, instruction->InputAt(0), trip, is_min);
     }
   }

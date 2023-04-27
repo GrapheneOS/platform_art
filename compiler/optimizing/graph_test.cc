@@ -92,20 +92,16 @@ TEST_F(GraphTest, IfSuccessorSimpleJoinBlock1) {
   if_block->AddSuccessor(return_block);
   return_block->AddSuccessor(exit_block);
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), if_true);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), if_true);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
 
   graph->SimplifyCFG();
 
   // Ensure we still have the same if true block.
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), if_true);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), if_true);
 
   // Ensure the critical edge has been removed.
-  // TODO: Remove "OrNull".
-  HBasicBlock* false_block = if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor();
+  HBasicBlock* false_block = if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor();
   ASSERT_NE(false_block, return_block);
 
   // Ensure the new block branches to the join block.
@@ -128,20 +124,16 @@ TEST_F(GraphTest, IfSuccessorSimpleJoinBlock2) {
   if_block->AddSuccessor(if_false);
   return_block->AddSuccessor(exit_block);
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), return_block);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), if_false);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), if_false);
 
   graph->SimplifyCFG();
 
   // Ensure we still have the same if true block.
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), if_false);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), if_false);
 
   // Ensure the critical edge has been removed.
-  // TODO: Remove "OrNull".
-  HBasicBlock* true_block = if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor();
+  HBasicBlock* true_block = if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor();
   ASSERT_NE(true_block, return_block);
 
   // Ensure the new block branches to the join block.
@@ -162,16 +154,13 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges1) {
   if_block->AddSuccessor(return_block);
   return_block->AddSuccessor(exit_block);
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), if_block);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), if_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
 
   graph->BuildDominatorTree();
 
   // Ensure we still have the same if false block.
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
 
   // Ensure there is only one back edge.
   ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
@@ -180,8 +169,7 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges1) {
 
   // Ensure the new block is the back edge.
   ASSERT_EQ(if_block->GetPredecessors()[1],
-            // TODO: Remove "OrNull".
-            if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor());
+            if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor());
 }
 
 // Test that the successors of an if block stay consistent after a SimplifyCFG.
@@ -198,16 +186,13 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges2) {
   if_block->AddSuccessor(if_block);
   return_block->AddSuccessor(exit_block);
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), return_block);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), if_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), if_block);
 
   graph->BuildDominatorTree();
 
   // Ensure we still have the same if true block.
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
 
   // Ensure there is only one back edge.
   ASSERT_EQ(if_block->GetPredecessors().size(), 2u);
@@ -216,8 +201,7 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges2) {
 
   // Ensure the new block is the back edge.
   ASSERT_EQ(if_block->GetPredecessors()[1],
-            // TODO: Remove "OrNull".
-            if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor());
+            if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor());
 }
 
 // Test that the successors of an if block stay consistent after a SimplifyCFG.
@@ -238,15 +222,12 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders1) {
   if_block->AddSuccessor(return_block);
 
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), loop_block);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), loop_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
 
   graph->BuildDominatorTree();
 
-  // TODO: Remove "OrNull".
-  HIf* if_instr = if_block->GetLastInstruction()->AsIfOrNull();
+  HIf* if_instr = if_block->GetLastInstruction()->AsIf();
   // Ensure we still have the same if false block.
   ASSERT_EQ(if_instr->IfFalseSuccessor(), return_block);
 
@@ -276,15 +257,12 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders2) {
   if_block->AddSuccessor(return_block);
   if_block->AddSuccessor(loop_block);
 
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfTrueSuccessor(), return_block);
-  // TODO: Remove "OrNull".
-  ASSERT_EQ(if_block->GetLastInstruction()->AsIfOrNull()->IfFalseSuccessor(), loop_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
+  ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), loop_block);
 
   graph->BuildDominatorTree();
 
-  // TODO: Remove "OrNull".
-  HIf* if_instr = if_block->GetLastInstruction()->AsIfOrNull();
+  HIf* if_instr = if_block->GetLastInstruction()->AsIf();
   // Ensure we still have the same if true block.
   ASSERT_EQ(if_instr->IfTrueSuccessor(), return_block);
 

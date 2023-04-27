@@ -268,14 +268,12 @@ void HInstructionBuilder::PropagateLocalsToCatchBlocks() {
       if (local_value == nullptr) {
         // This is the first instruction throwing into `catch_block` where
         // `vreg` is undefined. Delete the catch phi.
-        // TODO: Remove "OrNull".
-        catch_block->RemovePhi(handler_value->AsPhiOrNull());
+        catch_block->RemovePhi(handler_value->AsPhi());
         (*handler_locals)[vreg] = nullptr;
       } else {
         // Vreg has been defined at all instructions throwing into `catch_block`
         // encountered so far. Record the local value in the catch phi.
-        // TODO: Remove "OrNull".
-        handler_value->AsPhiOrNull()->AddInput(local_value);
+        handler_value->AsPhi()->AddInput(local_value);
       }
     }
   }
@@ -323,8 +321,7 @@ void HInstructionBuilder::SetLoopHeaderPhiInputs() {
   for (size_t i = loop_headers_.size(); i > 0; --i) {
     HBasicBlock* block = loop_headers_[i - 1];
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      // TODO: Remove "OrNull".
-      HPhi* phi = it.Current()->AsPhiOrNull();
+      HPhi* phi = it.Current()->AsPhi();
       size_t vreg = phi->GetRegNumber();
       for (HBasicBlock* predecessor : block->GetPredecessors()) {
         HInstruction* value = ValueOfLocalAt(predecessor, vreg);
@@ -1470,8 +1467,7 @@ void HInstructionBuilder::BuildConstructorFenceForAllocation(HInstruction* alloc
     //
     // Do not emit an HConstructorFence here since it can inhibit some String new-instance
     // optimizations (to pass checker tests that rely on those optimizations).
-    // TODO: Remove "OrNull".
-    HNewInstance* new_inst = allocation->AsNewInstanceOrNull();
+    HNewInstance* new_inst = allocation->AsNewInstance();
     HLoadClass* load_class = new_inst->GetLoadClass();
 
     Thread* self = Thread::Current();
@@ -1840,20 +1836,15 @@ bool HInstructionBuilder::SetupInvokeArguments(HInstruction* invoke,
 
   if (invoke->IsInvokeStaticOrDirect() &&
       HInvokeStaticOrDirect::NeedsCurrentMethodInput(
-          // TODO: Remove "OrNull".
-          invoke->AsInvokeStaticOrDirectOrNull()->GetDispatchInfo())) {
-    // TODO: Remove "OrNull".
-    DCHECK_EQ(argument_index, invoke->AsInvokeStaticOrDirectOrNull()->GetCurrentMethodIndex());
+          invoke->AsInvokeStaticOrDirect()->GetDispatchInfo())) {
+    DCHECK_EQ(argument_index, invoke->AsInvokeStaticOrDirect()->GetCurrentMethodIndex());
     DCHECK(invoke->InputAt(argument_index) == nullptr);
     invoke->SetRawInputAt(argument_index, graph_->GetCurrentMethod());
   }
 
   if (invoke->IsInvokeInterface() &&
-      // TODO: Remove "OrNull".
-      (invoke->AsInvokeInterfaceOrNull()->GetHiddenArgumentLoadKind() ==
-           MethodLoadKind::kRecursive)) {
-    // TODO: Remove "OrNull".
-    invoke->SetRawInputAt(invoke->AsInvokeInterfaceOrNull()->GetNumberOfArguments() - 1,
+      (invoke->AsInvokeInterface()->GetHiddenArgumentLoadKind() == MethodLoadKind::kRecursive)) {
+    invoke->SetRawInputAt(invoke->AsInvokeInterface()->GetNumberOfArguments() - 1,
                           graph_->GetCurrentMethod());
   }
 
@@ -1865,8 +1856,7 @@ bool HInstructionBuilder::HandleInvoke(HInvoke* invoke,
                                        const char* shorty,
                                        bool is_unresolved) {
   DCHECK_IMPLIES(invoke->IsInvokeStaticOrDirect(),
-                 // TODO: Remove "OrNull".
-                 !invoke->AsInvokeStaticOrDirectOrNull()->IsStringInit());
+                 !invoke->AsInvokeStaticOrDirect()->IsStringInit());
 
   ReceiverArg receiver_arg = (invoke->GetInvokeType() == InvokeType::kStatic)
       ? ReceiverArg::kNone
@@ -1924,8 +1914,7 @@ bool HInstructionBuilder::BuildSimpleIntrinsic(ArtMethod* method,
     case Intrinsics::kDoubleIsNaN: {
       // IsNaN(x) is the same as x != x.
       instruction = new (allocator_) HNotEqual(/*first=*/ nullptr, /*second=*/ nullptr, dex_pc);
-      // TODO: Remove "OrNull".
-      instruction->AsConditionOrNull()->SetBias(ComparisonBias::kLtBias);
+      instruction->AsCondition()->SetBias(ComparisonBias::kLtBias);
       break;
     }
     case Intrinsics::kStringCharAt:
@@ -2072,8 +2061,7 @@ bool HInstructionBuilder::HandleStringInit(HInvoke* invoke,
                                            const InstructionOperands& operands,
                                            const char* shorty) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
-  // TODO: Remove "OrNull".
-  DCHECK(invoke->AsInvokeStaticOrDirectOrNull()->IsStringInit());
+  DCHECK(invoke->AsInvokeStaticOrDirect()->IsStringInit());
 
   if (!SetupInvokeArguments(invoke, operands, shorty, ReceiverArg::kIgnored)) {
     return false;
@@ -2089,8 +2077,7 @@ bool HInstructionBuilder::HandleStringInit(HInvoke* invoke,
   // Replacing the NewInstance might render it redundant. Keep a list of these
   // to be visited once it is clear whether it has remaining uses.
   if (arg_this->IsNewInstance()) {
-    // TODO: Remove "OrNull".
-    ssa_builder_->AddUninitializedString(arg_this->AsNewInstanceOrNull());
+    ssa_builder_->AddUninitializedString(arg_this->AsNewInstance());
   } else {
     DCHECK(arg_this->IsPhi());
     // We can get a phi as input of a String.<init> if there is a loop between the
@@ -2379,10 +2366,8 @@ void HInstructionBuilder::BuildCheckedDivRem(uint16_t out_vreg,
   }
 
   if (!second_is_constant ||
-      // TODO: Remove "OrNull".
-      (type == DataType::Type::kInt32 && second->AsIntConstantOrNull()->GetValue() == 0) ||
-      // TODO: Remove "OrNull".
-      (type == DataType::Type::kInt64 && second->AsLongConstantOrNull()->GetValue() == 0)) {
+      (type == DataType::Type::kInt32 && second->AsIntConstant()->GetValue() == 0) ||
+      (type == DataType::Type::kInt64 && second->AsLongConstant()->GetValue() == 0)) {
     second = new (allocator_) HDivZeroCheck(second, dex_pc);
     AppendInstruction(second);
   }
@@ -2878,8 +2863,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
       uint32_t reg_number = instruction.VRegB();
       HInstruction* value = (*current_locals_)[reg_number];
       if (value->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        DCHECK_EQ(value->AsIntConstantOrNull()->GetValue(), 0);
+        DCHECK_EQ(value->AsIntConstant()->GetValue(), 0);
       } else if (value->IsPhi()) {
         DCHECK(value->GetType() == DataType::Type::kInt32 ||
                value->GetType() == DataType::Type::kReference);

@@ -496,8 +496,7 @@ size_t LiveInterval::NumberOfSpillSlotsNeeded() const {
     if (definition->IsPhi()) {
       definition = definition->InputAt(1);  // SIMD always appears on back-edge
     }
-    // TODO: Remove "OrNull".
-    return definition->AsVecOperationOrNull()->GetVectorNumberOfBytes() / kVRegSize;
+    return definition->AsVecOperation()->GetVectorNumberOfBytes() / kVRegSize;
   }
   // Return number of needed spill slots based on type.
   return (type_ == DataType::Type::kInt64 || type_ == DataType::Type::kFloat64) ? 2 : 1;

@@ -47,8 +47,7 @@ class HMultiplyAccumulate final : public HExpression<3> {
 
   bool CanBeMoved() const override { return true; }
   bool InstructionDataEquals(const HInstruction* other) const override {
-    // TODO: Remove "OrNull".
-    return op_kind_ == other->AsMultiplyAccumulateOrNull()->op_kind_;
+    return op_kind_ == other->AsMultiplyAccumulate()->op_kind_;
   }
 
   InstructionKind GetOpKind() const { return op_kind_; }
@@ -216,8 +215,7 @@ class HDataProcWithShifterOp final : public HExpression<2> {
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
   bool InstructionDataEquals(const HInstruction* other_instr) const override {
-    // TODO: Remove "OrNull".
-    const HDataProcWithShifterOp* other = other_instr->AsDataProcWithShifterOpOrNull();
+    const HDataProcWithShifterOp* other = other_instr->AsDataProcWithShifterOp();
     return instr_kind_ == other->instr_kind_ &&
         op_kind_ == other->op_kind_ &&
         shift_amount_ == other->shift_amount_;

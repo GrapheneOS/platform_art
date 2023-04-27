@@ -99,8 +99,7 @@ void Location::DCheckInstructionIsConstant(HInstruction* instruction) {
   DCHECK(instruction != nullptr);
   DCHECK(instruction->IsConstant());
   DCHECK_EQ(reinterpret_cast<uintptr_t>(instruction),
-            // TODO: Remove "OrNull".
-            reinterpret_cast<uintptr_t>(instruction->AsConstantOrNull()));
+            reinterpret_cast<uintptr_t>(instruction->AsConstant()));
 }
 
 std::ostream& operator<<(std::ostream& os, const Location& location) {

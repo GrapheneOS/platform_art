@@ -97,11 +97,9 @@ bool CriticalNativeAbiFixupArm::Run() {
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInvokeStaticOrDirect() &&
-          // TODO: Remove "OrNull".
-          instruction->AsInvokeStaticOrDirectOrNull()->GetCodePtrLocation() ==
+          instruction->AsInvokeStaticOrDirect()->GetCodePtrLocation() ==
               CodePtrLocation::kCallCriticalNative) {
-        // TODO: Remove "OrNull".
-        FixUpArguments(instruction->AsInvokeStaticOrDirectOrNull());
+        FixUpArguments(instruction->AsInvokeStaticOrDirect());
       }
     }
   }
