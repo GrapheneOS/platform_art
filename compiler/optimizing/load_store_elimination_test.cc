@@ -392,17 +392,21 @@ class PartialComparisonTestGroup
     PartialComparisonKind kind = GetParam();
     if (ins->IsIntConstant()) {
       if (kind.IsDefinitelyTrue()) {
-        EXPECT_TRUE(ins->AsIntConstant()->IsTrue()) << kind << " " << *ins;
+        // TODO: Remove "OrNull".
+        EXPECT_TRUE(ins->AsIntConstantOrNull()->IsTrue()) << kind << " " << *ins;
       } else if (kind.IsDefinitelyFalse()) {
-        EXPECT_TRUE(ins->AsIntConstant()->IsFalse()) << kind << " " << *ins;
+        // TODO: Remove "OrNull".
+        EXPECT_TRUE(ins->AsIntConstantOrNull()->IsFalse()) << kind << " " << *ins;
       } else {
         EXPECT_EQ(placement, ComparisonPlacement::kBeforeEscape);
         EXPECT_EQ(kind.target_, Target::kValue);
         // We are before escape so value is not the object
         if (kind.type_ == Type::kEquals) {
-          EXPECT_TRUE(ins->AsIntConstant()->IsFalse()) << kind << " " << *ins;
+          // TODO: Remove "OrNull".
+          EXPECT_TRUE(ins->AsIntConstantOrNull()->IsFalse()) << kind << " " << *ins;
         } else {
-          EXPECT_TRUE(ins->AsIntConstant()->IsTrue()) << kind << " " << *ins;
+          // TODO: Remove "OrNull".
+          EXPECT_TRUE(ins->AsIntConstantOrNull()->IsTrue()) << kind << " " << *ins;
         }
       }
       return;
@@ -413,10 +417,14 @@ class PartialComparisonTestGroup
     if (placement == ComparisonPlacement::kInEscape) {
       // Should be the same type.
       ASSERT_TRUE(ins->IsEqual() || ins->IsNotEqual()) << *ins;
-      HInstruction* other = kind.position_ == Position::kLeft ? ins->AsBinaryOperation()->GetRight()
-                                                              : ins->AsBinaryOperation()->GetLeft();
+      // TODO: Remove "OrNull".
+      HInstruction* other = kind.position_ == Position::kLeft
+          ? ins->AsBinaryOperationOrNull()->GetRight()
+          : ins->AsBinaryOperationOrNull()->GetLeft();
       if (kind.target_ == Target::kSelf) {
-        EXPECT_INS_EQ(ins->AsBinaryOperation()->GetLeft(), ins->AsBinaryOperation()->GetRight())
+        // TODO: Remove "OrNull".
+        EXPECT_INS_EQ(ins->AsBinaryOperationOrNull()->GetLeft(),
+                      ins->AsBinaryOperationOrNull()->GetRight())
             << " ins is: " << *ins;
       } else if (kind.target_ == Target::kNull) {
         EXPECT_INS_EQ(other, graph_->GetNullConstant()) << " ins is: " << *ins;
@@ -6786,14 +6794,14 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis1) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0),
                 FindSingleInstruction<HNewInstance>(graph_, case1->GetSinglePredecessor()));
   EXPECT_INS_EQ(inst_return_phi->InputAt(1),
                 FindSingleInstruction<HNewInstance>(graph_, case2->GetSinglePredecessor()));
   EXPECT_INS_EQ(inst_return_phi->InputAt(2), graph_->GetNullConstant());
-  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
+  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhiOrNull();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
   EXPECT_INS_EQ(inst_value_phi->InputAt(0), graph_->GetIntConstant(0));
   EXPECT_INS_EQ(inst_value_phi->InputAt(1), graph_->GetIntConstant(0));
@@ -6966,14 +6974,14 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis2) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0),
                 FindSingleInstruction<HNewInstance>(graph_, case1->GetSinglePredecessor()));
   EXPECT_INS_EQ(inst_return_phi->InputAt(1),
                 FindSingleInstruction<HNewInstance>(graph_, case2->GetSinglePredecessor()));
   EXPECT_INS_EQ(inst_return_phi->InputAt(2), graph_->GetNullConstant());
-  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
+  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhiOrNull();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
   EXPECT_INS_EQ(inst_value_phi->InputAt(0), graph_->GetIntConstant(0));
   EXPECT_INS_EQ(inst_value_phi->InputAt(1), graph_->GetIntConstant(0));
@@ -7113,12 +7121,12 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis3) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0), graph_->GetNullConstant());
   EXPECT_INS_EQ(inst_return_phi->InputAt(1),
                 FindSingleInstruction<HNewInstance>(graph_, escape->GetSinglePredecessor()));
-  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
+  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhiOrNull();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
   HPhi* loop_header_phi = FindSingleInstruction<HPhi>(graph_, loop_header);
   HPhi* loop_merge_phi = FindSingleInstruction<HPhi>(graph_, loop_merge);
@@ -7257,12 +7265,12 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis4) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0), graph_->GetNullConstant());
   EXPECT_INS_EQ(inst_return_phi->InputAt(1),
                 FindSingleInstruction<HNewInstance>(graph_, escape->GetSinglePredecessor()));
-  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
+  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhiOrNull();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
   HPhi* loop_header_phi = FindSingleInstruction<HPhi>(graph_, loop_header);
   HPhi* loop_merge_phi = FindSingleInstruction<HPhi>(graph_, loop_merge);
@@ -7401,12 +7409,12 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis5) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0), graph_->GetNullConstant());
   EXPECT_INS_EQ(inst_return_phi->InputAt(1),
                 FindSingleInstruction<HNewInstance>(graph_, escape->GetSinglePredecessor()));
-  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
+  HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhiOrNull();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
   HPhi* loop_header_phi = FindSingleInstruction<HPhi>(graph_, loop_header);
   HPhi* loop_merge_phi = FindSingleInstruction<HPhi>(graph_, loop_merge);
@@ -7562,7 +7570,7 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis6) {
       FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
   EXPECT_INS_REMOVED(read_bottom) << *read_bottom;
   ASSERT_TRUE(pred_get != nullptr);
-  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhi();
+  HPhi* inst_return_phi = pred_get->GetTarget()->AsPhiOrNull();
   ASSERT_TRUE(inst_return_phi != nullptr) << pred_get->GetTarget()->DumpWithArgs();
   EXPECT_INS_EQ(inst_return_phi->InputAt(0),
                 FindSingleInstruction<HNewInstance>(graph_, escape->GetSinglePredecessor()));

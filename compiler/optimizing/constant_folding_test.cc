@@ -128,7 +128,8 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingNegation) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
-    ASSERT_EQ(inst->AsIntConstant()->GetValue(), -1);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsIntConstantOrNull()->GetValue(), -1);
   };
 
   // Expected difference after dead code elimination.
@@ -189,7 +190,8 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingNegation) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsLongConstant());
-    ASSERT_EQ(inst->AsLongConstant()->GetValue(), INT64_C(-4294967296));
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsLongConstantOrNull()->GetValue(), INT64_C(-4294967296));
   };
 
   // Expected difference after dead code elimination.
@@ -250,7 +252,8 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition1) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
-    ASSERT_EQ(inst->AsIntConstant()->GetValue(), 3);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsIntConstantOrNull()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -329,13 +332,16 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnAddition2) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst1 = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst1->IsIntConstant());
-    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 12);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst1->AsIntConstantOrNull()->GetValue(), 12);
     HInstruction* inst2 = inst1->GetPrevious();
     ASSERT_TRUE(inst2->IsIntConstant());
-    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 9);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst2->AsIntConstantOrNull()->GetValue(), 9);
     HInstruction* inst3 = inst2->GetPrevious();
     ASSERT_TRUE(inst3->IsIntConstant());
-    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 3);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst3->AsIntConstantOrNull()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -400,7 +406,8 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingOnSubtraction) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
-    ASSERT_EQ(inst->AsIntConstant()->GetValue(), 1);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsIntConstantOrNull()->GetValue(), 1);
   };
 
   // Expected difference after dead code elimination.
@@ -463,7 +470,8 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnAddition) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsLongConstant());
-    ASSERT_EQ(inst->AsLongConstant()->GetValue(), 3);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsLongConstantOrNull()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -527,7 +535,8 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnSubtraction) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsLongConstant());
-    ASSERT_EQ(inst->AsLongConstant()->GetValue(), 1);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsLongConstantOrNull()->GetValue(), 1);
   };
 
   // Expected difference after dead code elimination.
@@ -627,16 +636,20 @@ TEST_F(ConstantFoldingTest, IntConstantFoldingAndJumps) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst1 = graph->GetBlocks()[4]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst1->IsIntConstant());
-    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 20);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst1->AsIntConstantOrNull()->GetValue(), 20);
     HInstruction* inst2 = inst1->GetPrevious();
     ASSERT_TRUE(inst2->IsIntConstant());
-    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 12);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst2->AsIntConstantOrNull()->GetValue(), 12);
     HInstruction* inst3 = inst2->GetPrevious();
     ASSERT_TRUE(inst3->IsIntConstant());
-    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 7);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst3->AsIntConstantOrNull()->GetValue(), 7);
     HInstruction* inst4 = inst3->GetPrevious();
     ASSERT_TRUE(inst4->IsIntConstant());
-    ASSERT_EQ(inst4->AsIntConstant()->GetValue(), 3);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst4->AsIntConstantOrNull()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -712,7 +725,8 @@ TEST_F(ConstantFoldingTest, ConstantCondition) {
   auto check_after_cf = [](HGraph* graph) {
     HInstruction* inst = graph->GetBlocks()[1]->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
-    ASSERT_EQ(inst->AsIntConstant()->GetValue(), 1);
+    // TODO: Remove "OrNull".
+    ASSERT_EQ(inst->AsIntConstantOrNull()->GetValue(), 1);
   };
 
   // Expected graph after dead code elimination.
