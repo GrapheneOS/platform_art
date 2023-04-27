@@ -461,7 +461,8 @@ class OptimizingUnitTestHelper {
                               HInvokeStaticOrDirect::DispatchInfo{},
                               InvokeType::kStatic,
                               /* resolved_method_reference= */ method_reference,
-                              HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                              HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                              !graph_->IsDebuggable());
     for (auto [ins, idx] : ZipCount(MakeIterationRange(args))) {
       res->SetRawInputAt(idx, ins);
     }
