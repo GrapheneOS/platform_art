@@ -514,7 +514,8 @@ void CodeGenerator::CreateCommonInvokeLocationSummary(
   locations->SetOut(visitor->GetReturnLocation(invoke->GetType()));
 
   if (invoke->IsInvokeStaticOrDirect()) {
-    HInvokeStaticOrDirect* call = invoke->AsInvokeStaticOrDirect();
+    // TODO: Remove "OrNull".
+    HInvokeStaticOrDirect* call = invoke->AsInvokeStaticOrDirectOrNull();
     MethodLoadKind method_load_kind = call->GetMethodLoadKind();
     CodePtrLocation code_ptr_location = call->GetCodePtrLocation();
     if (code_ptr_location == CodePtrLocation::kCallCriticalNative) {
@@ -998,7 +999,8 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
         }
       } else if (locations->Intrinsified() &&
                  instruction->IsInvokeStaticOrDirect() &&
-                 !instruction->AsInvokeStaticOrDirect()->HasCurrentMethodInput()) {
+                 // TODO: Remove "OrNull".
+                 !instruction->AsInvokeStaticOrDirectOrNull()->HasCurrentMethodInput()) {
         // A static method call that has been fully intrinsified, and cannot call on the slow
         // path or refer to the current method directly, no longer needs current method.
         return;
@@ -1232,7 +1234,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
       return;
     }
     if (instruction->IsRem()) {
-      DataType::Type type = instruction->AsRem()->GetResultType();
+      // TODO: Remove "OrNull".
+      DataType::Type type = instruction->AsRemOrNull()->GetResultType();
       if ((type == DataType::Type::kFloat32) || (type == DataType::Type::kFloat64)) {
         return;
       }
@@ -1355,7 +1358,8 @@ void CodeGenerator::RecordCatchBlockInfo() {
       dex_pc_list_for_verification.push_back(block->GetDexPc());
     }
     DCHECK(block->GetFirstInstruction()->IsNop());
-    DCHECK(block->GetFirstInstruction()->AsNop()->NeedsEnvironment());
+    // TODO: Remove "OrNull".
+    DCHECK(block->GetFirstInstruction()->AsNopOrNull()->NeedsEnvironment());
     HEnvironment* const environment = block->GetFirstInstruction()->GetEnvironment();
     DCHECK(environment != nullptr);
     HEnvironment* outer_environment = environment;
@@ -1414,25 +1418,29 @@ void CodeGenerator::EmitVRegInfo(HEnvironment* environment,
       case Location::kConstant: {
         DCHECK_EQ(current, location.GetConstant());
         if (current->IsLongConstant()) {
-          int64_t value = current->AsLongConstant()->GetValue();
+          // TODO: Remove "OrNull".
+          int64_t value = current->AsLongConstantOrNull()->GetValue();
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, Low32Bits(value));
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, High32Bits(value));
           ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsDoubleConstant()) {
-          int64_t value = bit_cast<int64_t, double>(current->AsDoubleConstant()->GetValue());
+          // TODO: Remove "OrNull".
+          int64_t value = bit_cast<int64_t, double>(current->AsDoubleConstantOrNull()->GetValue());
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, Low32Bits(value));
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, High32Bits(value));
           ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsIntConstant()) {
-          int32_t value = current->AsIntConstant()->GetValue();
+          // TODO: Remove "OrNull".
+          int32_t value = current->AsIntConstantOrNull()->GetValue();
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, value);
         } else if (current->IsNullConstant()) {
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, 0);
         } else {
           DCHECK(current->IsFloatConstant()) << current->DebugName();
-          int32_t value = bit_cast<int32_t, float>(current->AsFloatConstant()->GetValue());
+          // TODO: Remove "OrNull".
+          int32_t value = bit_cast<int32_t, float>(current->AsFloatConstantOrNull()->GetValue());
           stack_map_stream->AddDexRegisterEntry(Kind::kConstant, value);
         }
         break;
@@ -1556,15 +1564,18 @@ void CodeGenerator::EmitVRegInfoOnlyCatchPhis(HEnvironment* environment) {
   DCHECK_EQ(environment->GetHolder()->GetBlock()->GetFirstInstruction(), environment->GetHolder());
   HInstruction* current_phi = environment->GetHolder()->GetBlock()->GetFirstPhi();
   for (size_t vreg = 0; vreg < environment->Size(); ++vreg) {
-    while (current_phi != nullptr && current_phi->AsPhi()->GetRegNumber() < vreg) {
+    // TODO: Remove "OrNull".
+    while (current_phi != nullptr && current_phi->AsPhiOrNull()->GetRegNumber() < vreg) {
       HInstruction* next_phi = current_phi->GetNext();
       DCHECK(next_phi == nullptr ||
-             current_phi->AsPhi()->GetRegNumber() <= next_phi->AsPhi()->GetRegNumber())
+             // TODO: Remove "OrNull".
+             current_phi->AsPhiOrNull()->GetRegNumber() <= next_phi->AsPhiOrNull()->GetRegNumber())
           << "Phis need to be sorted by vreg number to keep this a linear-time loop.";
       current_phi = next_phi;
     }
 
-    if (current_phi == nullptr || current_phi->AsPhi()->GetRegNumber() != vreg) {
+    // TODO: Remove "OrNull".
+    if (current_phi == nullptr || current_phi->AsPhiOrNull()->GetRegNumber() != vreg) {
       stack_map_stream->AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
     } else {
       Location location = current_phi->GetLocations()->Out();
@@ -1834,8 +1845,8 @@ void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary*
 void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   // Check to see if we have known failures that will cause us to have to bail out
   // to the runtime, and just generate the runtime call directly.
-  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
-  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstant();
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstantOrNull();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstantOrNull();
 
   // The positions must be non-negative.
   if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
@@ -1845,7 +1856,7 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   }
 
   // The length must be >= 0.
-  HIntConstant* length = invoke->InputAt(4)->AsIntConstant();
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstantOrNull();
   if (length != nullptr) {
     int32_t len = length->GetValue();
     if (len < 0) {

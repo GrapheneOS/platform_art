@@ -323,13 +323,17 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       stream << "#";
       HConstant* constant = location.GetConstant();
       if (constant->IsIntConstant()) {
-        stream << constant->AsIntConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        stream << constant->AsIntConstantOrNull()->GetValue();
       } else if (constant->IsLongConstant()) {
-        stream << constant->AsLongConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        stream << constant->AsLongConstantOrNull()->GetValue();
       } else if (constant->IsFloatConstant()) {
-        stream << constant->AsFloatConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        stream << constant->AsFloatConstantOrNull()->GetValue();
       } else if (constant->IsDoubleConstant()) {
-        stream << constant->AsDoubleConstant()->GetValue();
+        // TODO: Remove "OrNull".
+        stream << constant->AsDoubleConstantOrNull()->GetValue();
       } else if (constant->IsNullConstant()) {
         stream << "null";
       }
@@ -625,7 +629,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitVecDotProd(HVecDotProd* instruction) override {
     VisitVecOperation(instruction);
-    DataType::Type arg_type = instruction->InputAt(1)->AsVecOperation()->GetPackedType();
+    // TODO: Remove "OrNull".
+    DataType::Type arg_type = instruction->InputAt(1)->AsVecOperationOrNull()->GetPackedType();
     StartAttributeStream("type") << (instruction->IsZeroExtending() ?
                                     DataType::ToUnsigned(arg_type) :
                                     DataType::ToSigned(arg_type));
@@ -747,13 +752,14 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         && (instruction->GetType() == DataType::Type::kReference ||
             instruction->IsInstanceOf() ||
             instruction->IsCheckCast())) {
+      // TODO: Remove "OrNull".
       ReferenceTypeInfo info = (instruction->GetType() == DataType::Type::kReference)
           ? instruction->IsLoadClass()
-              ? instruction->AsLoadClass()->GetLoadedClassRTI()
+              ? instruction->AsLoadClassOrNull()->GetLoadedClassRTI()
               : instruction->GetReferenceTypeInfo()
           : instruction->IsInstanceOf()
-              ? instruction->AsInstanceOf()->GetTargetClassRTI()
-              : instruction->AsCheckCast()->GetTargetClassRTI();
+              ? instruction->AsInstanceOfOrNull()->GetTargetClassRTI()
+              : instruction->AsCheckCastOrNull()->GetTargetClassRTI();
       ScopedObjectAccess soa(Thread::Current());
       if (info.IsValid()) {
         StartAttributeStream("klass")

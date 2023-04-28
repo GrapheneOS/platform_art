@@ -192,8 +192,10 @@ bool AreAllBitsSet(HConstant* constant) {
 bool InstructionSimplifierVisitor::TryMoveNegOnInputsAfterBinop(HBinaryOperation* binop) {
   DCHECK(binop->IsAdd() || binop->IsSub());
   DCHECK(binop->GetLeft()->IsNeg() && binop->GetRight()->IsNeg());
-  HNeg* left_neg = binop->GetLeft()->AsNeg();
-  HNeg* right_neg = binop->GetRight()->AsNeg();
+  // TODO: Remove "OrNull".
+  HNeg* left_neg = binop->GetLeft()->AsNegOrNull();
+  // TODO: Remove "OrNull".
+  HNeg* right_neg = binop->GetRight()->AsNegOrNull();
   if (!left_neg->HasOnlyOneNonEnvironmentUse() ||
       !right_neg->HasOnlyOneNonEnvironmentUse()) {
     return false;
@@ -313,7 +315,8 @@ bool InstructionSimplifierVisitor::TryCombineVecMultiplyAccumulate(HVecMul* mul)
   // whether all uses are on different control-flow paths (using dominance and
   // reverse-dominance information) and only perform the merge when they are.
   HInstruction* accumulator = nullptr;
-  HVecBinaryOperation* vec_binop = binop->AsVecBinaryOperation();
+  // TODO: Remove "OrNull".
+  HVecBinaryOperation* vec_binop = binop->AsVecBinaryOperationOrNull();
   HInstruction* binop_left = vec_binop->GetLeft();
   HInstruction* binop_right = vec_binop->GetRight();
   // This is always true since the `HVecMul` has only one use (which is checked above).
@@ -371,7 +374,8 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
       : kMaxIntShiftDistance;
 
   if (shift_amount->IsConstant()) {
-    int64_t cst = Int64FromConstant(shift_amount->AsConstant());
+    // TODO: Remove "OrNull".
+    int64_t cst = Int64FromConstant(shift_amount->AsConstantOrNull());
     int64_t masked_cst = cst & implicit_mask;
     if (masked_cst == 0) {
       // Replace code looking like
@@ -412,7 +416,8 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
       shift_amount->IsAdd() ||
       shift_amount->IsSub()) {
     int64_t required_result = shift_amount->IsAnd() ? implicit_mask : 0;
-    HBinaryOperation* bin_op = shift_amount->AsBinaryOperation();
+    // TODO: Remove "OrNull".
+    HBinaryOperation* bin_op = shift_amount->AsBinaryOperationOrNull();
     HConstant* mask = bin_op->GetConstantRight();
     if (mask != nullptr && (Int64FromConstant(mask) & implicit_mask) == required_result) {
       instruction->ReplaceInput(bin_op->GetLeastConstantLeft(), 1);
@@ -424,7 +429,8 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
     DataType::Type source_type = shift_amount->InputAt(0)->GetType();
     // Non-integral and 64-bit source types require an explicit type conversion.
     if (DataType::IsIntegralType(source_type) && !DataType::Is64BitType(source_type)) {
-      instruction->ReplaceInput(shift_amount->AsTypeConversion()->GetInput(), 1);
+      // TODO: Remove "OrNull".
+      instruction->ReplaceInput(shift_amount->AsTypeConversionOrNull()->GetInput(), 1);
       RecordSimplification();
       return;
     }
@@ -434,7 +440,8 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
 static bool IsSubRegBitsMinusOther(HSub* sub, size_t reg_bits, HInstruction* other) {
   return (sub->GetRight() == other &&
           sub->GetLeft()->IsConstant() &&
-          (Int64FromConstant(sub->GetLeft()->AsConstant()) & (reg_bits - 1)) == 0);
+          // TODO: Remove "OrNull".
+          (Int64FromConstant(sub->GetLeft()->AsConstantOrNull()) & (reg_bits - 1)) == 0);
 }
 
 bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
@@ -467,8 +474,10 @@ bool InstructionSimplifierVisitor::TryReplaceWithRotate(HBinaryOperation* op) {
   HInstruction* right = op->GetRight();
   // If we have an UShr and a Shl (in either order).
   if ((left->IsUShr() && right->IsShl()) || (left->IsShl() && right->IsUShr())) {
-    HUShr* ushr = left->IsUShr() ? left->AsUShr() : right->AsUShr();
-    HShl* shl = left->IsShl() ? left->AsShl() : right->AsShl();
+    // TODO: Remove "OrNull".
+    HUShr* ushr = left->IsUShr() ? left->AsUShrOrNull() : right->AsUShrOrNull();
+    // TODO: Remove "OrNull".
+    HShl* shl = left->IsShl() ? left->AsShlOrNull() : right->AsShlOrNull();
     DCHECK(DataType::IsIntOrLongType(ushr->GetType()));
     if (ushr->GetType() == shl->GetType() &&
         ushr->GetLeft() == shl->GetLeft()) {
@@ -503,8 +512,10 @@ bool InstructionSimplifierVisitor::TryReplaceWithRotateConstantPattern(HBinaryOp
                                                                        HShl* shl) {
   DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
   size_t reg_bits = DataType::Size(ushr->GetType()) * kBitsPerByte;
-  size_t rdist = Int64FromConstant(ushr->GetRight()->AsConstant());
-  size_t ldist = Int64FromConstant(shl->GetRight()->AsConstant());
+  // TODO: Remove "OrNull".
+  size_t rdist = Int64FromConstant(ushr->GetRight()->AsConstantOrNull());
+  // TODO: Remove "OrNull".
+  size_t ldist = Int64FromConstant(shl->GetRight()->AsConstantOrNull());
   if (((ldist + rdist) & (reg_bits - 1)) == 0) {
     ReplaceRotateWithRor(op, ushr, shl);
     return true;
@@ -534,7 +545,8 @@ bool InstructionSimplifierVisitor::TryReplaceWithRotateRegisterNegPattern(HBinar
   DCHECK(op->IsAdd() || op->IsXor() || op->IsOr());
   DCHECK(ushr->GetRight()->IsNeg() || shl->GetRight()->IsNeg());
   bool neg_is_left = shl->GetRight()->IsNeg();
-  HNeg* neg = neg_is_left ? shl->GetRight()->AsNeg() : ushr->GetRight()->AsNeg();
+  // TODO: Remove "OrNull".
+  HNeg* neg = neg_is_left ? shl->GetRight()->AsNegOrNull() : ushr->GetRight()->AsNegOrNull();
   // And the shift distance being negated is the distance being shifted the other way.
   if (neg->InputAt(0) == (neg_is_left ? ushr->GetRight() : shl->GetRight())) {
     ReplaceRotateWithRor(op, ushr, shl);
@@ -566,8 +578,12 @@ bool InstructionSimplifierVisitor::TryReplaceWithRotateRegisterSubPattern(HBinar
   size_t reg_bits = DataType::Size(ushr->GetType()) * kBitsPerByte;
   HInstruction* shl_shift = shl->GetRight();
   HInstruction* ushr_shift = ushr->GetRight();
-  if ((shl_shift->IsSub() && IsSubRegBitsMinusOther(shl_shift->AsSub(), reg_bits, ushr_shift)) ||
-      (ushr_shift->IsSub() && IsSubRegBitsMinusOther(ushr_shift->AsSub(), reg_bits, shl_shift))) {
+  if ((shl_shift->IsSub() &&
+       // TODO: Remove "OrNull".
+       IsSubRegBitsMinusOther(shl_shift->AsSubOrNull(), reg_bits, ushr_shift)) ||
+      (ushr_shift->IsSub() &&
+       // TODO: Remove "OrNull".
+       IsSubRegBitsMinusOther(ushr_shift->AsSubOrNull(), reg_bits, shl_shift))) {
     return ReplaceRotateWithRor(op, ushr, shl);
   }
   return false;
@@ -789,12 +805,14 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
       HBasicBlock* block = equal->GetBlock();
       // We are comparing the boolean to a constant which is of type int and can
       // be any constant.
-      if (input_const->AsIntConstant()->IsTrue()) {
+      // TODO: Remove "OrNull".
+      if (input_const->AsIntConstantOrNull()->IsTrue()) {
         // Replace (bool_value == true) with bool_value
         equal->ReplaceWith(input_value);
         block->RemoveInstruction(equal);
         RecordSimplification();
-      } else if (input_const->AsIntConstant()->IsFalse()) {
+        // TODO: Remove "OrNull".
+      } else if (input_const->AsIntConstantOrNull()->IsFalse()) {
         // Replace (bool_value == false) with !bool_value
         equal->ReplaceWith(GetGraph()->InsertOppositeCondition(input_value, equal));
         block->RemoveInstruction(equal);
@@ -821,12 +839,14 @@ void InstructionSimplifierVisitor::VisitNotEqual(HNotEqual* not_equal) {
       HBasicBlock* block = not_equal->GetBlock();
       // We are comparing the boolean to a constant which is of type int and can
       // be any constant.
-      if (input_const->AsIntConstant()->IsTrue()) {
+      // TODO: Remove "OrNull".
+      if (input_const->AsIntConstantOrNull()->IsTrue()) {
         // Replace (bool_value != true) with !bool_value
         not_equal->ReplaceWith(GetGraph()->InsertOppositeCondition(input_value, not_equal));
         block->RemoveInstruction(not_equal);
         RecordSimplification();
-      } else if (input_const->AsIntConstant()->IsFalse()) {
+        // TODO: Remove "OrNull".
+      } else if (input_const->AsIntConstantOrNull()->IsFalse()) {
         // Replace (bool_value != false) with bool_value
         not_equal->ReplaceWith(input_value);
         block->RemoveInstruction(not_equal);
@@ -851,10 +871,12 @@ void InstructionSimplifierVisitor::VisitBooleanNot(HBooleanNot* bool_not) {
 
   if (input->IsIntConstant()) {
     // Replace !(true/false) with false/true.
-    if (input->AsIntConstant()->IsTrue()) {
+    // TODO: Remove "OrNull".
+    if (input->AsIntConstantOrNull()->IsTrue()) {
       replace_with = GetGraph()->GetIntConstant(0);
     } else {
-      DCHECK(input->AsIntConstant()->IsFalse()) << input->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      DCHECK(input->AsIntConstantOrNull()->IsFalse()) << input->AsIntConstantOrNull()->GetValue();
       replace_with = GetGraph()->GetIntConstant(1);
     }
   } else if (input->IsBooleanNot()) {
@@ -865,7 +887,8 @@ void InstructionSimplifierVisitor::VisitBooleanNot(HBooleanNot* bool_not) {
              // NaNs forces the compares to be done as written by the user.
              !DataType::IsFloatingPointType(input->InputAt(0)->GetType())) {
     // Replace condition with its opposite.
-    replace_with = GetGraph()->InsertOppositeCondition(input->AsCondition(), bool_not);
+    // TODO: Remove "OrNull".
+    replace_with = GetGraph()->InsertOppositeCondition(input->AsConditionOrNull(), bool_not);
   }
 
   if (replace_with != nullptr) {
@@ -933,8 +956,10 @@ static HInstruction* AllowInMinMax(IfCondition cmp,
   if (IsInt64AndGet(b, /*out*/ &value) &&
       (((cmp == kCondLT || cmp == kCondLE) && c->IsMax()) ||
        ((cmp == kCondGT || cmp == kCondGE) && c->IsMin()))) {
-    HConstant* other = c->AsBinaryOperation()->GetConstantRight();
-    if (other != nullptr && a == c->AsBinaryOperation()->GetLeastConstantLeft()) {
+    // TODO: Remove "OrNull".
+    HConstant* other = c->AsBinaryOperationOrNull()->GetConstantRight();
+    // TODO: Remove "OrNull".
+    if (other != nullptr && a == c->AsBinaryOperationOrNull()->GetLeastConstantLeft()) {
       int64_t other_value = Int64FromConstant(other);
       bool is_max = (cmp == kCondLT || cmp == kCondLE);
       // Allow the max for a <  100 ? max(a, -100) : ..
@@ -1028,24 +1053,32 @@ void InstructionSimplifierVisitor::VisitSelect(HSelect* select) {
     // Replace (cond ? x : x) with (x).
     replace_with = true_value;
   } else if (condition->IsIntConstant()) {
-    if (condition->AsIntConstant()->IsTrue()) {
+    // TODO: Remove "OrNull".
+    if (condition->AsIntConstantOrNull()->IsTrue()) {
       // Replace (true ? x : y) with (x).
       replace_with = true_value;
     } else {
       // Replace (false ? x : y) with (y).
-      DCHECK(condition->AsIntConstant()->IsFalse()) << condition->AsIntConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      DCHECK(condition->AsIntConstantOrNull()->IsFalse())
+          << condition->AsIntConstantOrNull()->GetValue();
       replace_with = false_value;
     }
   } else if (true_value->IsIntConstant() && false_value->IsIntConstant()) {
-    if (true_value->AsIntConstant()->IsTrue() && false_value->AsIntConstant()->IsFalse()) {
+    // TODO: Remove "OrNull".
+    if (true_value->AsIntConstantOrNull()->IsTrue() &&
+        false_value->AsIntConstantOrNull()->IsFalse()) {
       // Replace (cond ? true : false) with (cond).
       replace_with = condition;
-    } else if (true_value->AsIntConstant()->IsFalse() && false_value->AsIntConstant()->IsTrue()) {
+      // TODO: Remove "OrNull".
+    } else if (true_value->AsIntConstantOrNull()->IsFalse() &&
+        false_value->AsIntConstantOrNull()->IsTrue()) {
       // Replace (cond ? false : true) with (!cond).
       replace_with = GetGraph()->InsertOppositeCondition(condition, select);
     }
   } else if (condition->IsCondition()) {
-    IfCondition cmp = condition->AsCondition()->GetCondition();
+    // TODO: Remove "OrNull".
+    IfCondition cmp = condition->AsConditionOrNull()->GetCondition();
     HInstruction* a = condition->InputAt(0);
     HInstruction* b = condition->InputAt(1);
     DataType::Type t_type = true_value->GetType();
@@ -1126,7 +1159,8 @@ void InstructionSimplifierVisitor::VisitArrayLength(HArrayLength* instruction) {
   // If the array is a NewArray with constant size, replace the array length
   // with the constant instruction. This helps the bounds check elimination phase.
   if (input->IsNewArray()) {
-    input = input->AsNewArray()->GetLength();
+    // TODO: Remove "OrNull".
+    input = input->AsNewArrayOrNull()->GetLength();
     if (input->IsIntConstant()) {
       instruction->ReplaceWith(input);
     }
@@ -1144,7 +1178,8 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   }
 
   if (value->IsArrayGet()) {
-    if (value->AsArrayGet()->GetArray() == instruction->GetArray()) {
+    // TODO: Remove "OrNull".
+    if (value->AsArrayGetOrNull()->GetArray() == instruction->GetArray()) {
       // If the code is just swapping elements in the array, no need for a type check.
       instruction->ClearTypeCheck();
       return;
@@ -1220,16 +1255,21 @@ static bool CanRemoveRedundantAnd(HConstant* and_right,
 
 static inline bool TryReplaceFieldOrArrayGetType(HInstruction* maybe_get, DataType::Type new_type) {
   if (maybe_get->IsInstanceFieldGet()) {
-    maybe_get->AsInstanceFieldGet()->SetType(new_type);
+    // TODO: Remove "OrNull".
+    maybe_get->AsInstanceFieldGetOrNull()->SetType(new_type);
     return true;
   } else if (maybe_get->IsPredicatedInstanceFieldGet()) {
-    maybe_get->AsPredicatedInstanceFieldGet()->SetType(new_type);
+    // TODO: Remove "OrNull".
+    maybe_get->AsPredicatedInstanceFieldGetOrNull()->SetType(new_type);
     return true;
   } else if (maybe_get->IsStaticFieldGet()) {
-    maybe_get->AsStaticFieldGet()->SetType(new_type);
+    // TODO: Remove "OrNull".
+    maybe_get->AsStaticFieldGetOrNull()->SetType(new_type);
     return true;
-  } else if (maybe_get->IsArrayGet() && !maybe_get->AsArrayGet()->IsStringCharAt()) {
-    maybe_get->AsArrayGet()->SetType(new_type);
+    // TODO: Remove "OrNull".
+  } else if (maybe_get->IsArrayGet() && !maybe_get->AsArrayGetOrNull()->IsStringCharAt()) {
+    // TODO: Remove "OrNull".
+    maybe_get->AsArrayGetOrNull()->SetType(new_type);
     return true;
   } else {
     return false;
@@ -1264,20 +1304,27 @@ static bool IsTypeConversionForStoringIntoNoWiderFieldOnly(HTypeConversion* type
   for (const HUseListNode<HInstruction*>& use : type_conversion->GetUses()) {
     HInstruction* instruction = use.GetUser();
     if (instruction->IsInstanceFieldSet() &&
-        instruction->AsInstanceFieldSet()->GetFieldType() == result_type) {
-      DCHECK_EQ(instruction->AsInstanceFieldSet()->GetValue(), type_conversion);
+        // TODO: Remove "OrNull".
+        instruction->AsInstanceFieldSetOrNull()->GetFieldType() == result_type) {
+      // TODO: Remove "OrNull".
+      DCHECK_EQ(instruction->AsInstanceFieldSetOrNull()->GetValue(), type_conversion);
       continue;
     }
     if (instruction->IsStaticFieldSet() &&
-        instruction->AsStaticFieldSet()->GetFieldType() == result_type) {
-      DCHECK_EQ(instruction->AsStaticFieldSet()->GetValue(), type_conversion);
+        // TODO: Remove "OrNull".
+        instruction->AsStaticFieldSetOrNull()->GetFieldType() == result_type) {
+      // TODO: Remove "OrNull".
+      DCHECK_EQ(instruction->AsStaticFieldSetOrNull()->GetValue(), type_conversion);
       continue;
     }
     if (instruction->IsArraySet() &&
-        instruction->AsArraySet()->GetComponentType() == result_type &&
+        // TODO: Remove "OrNull".
+        instruction->AsArraySetOrNull()->GetComponentType() == result_type &&
         // not index use.
-        instruction->AsArraySet()->GetIndex() != type_conversion) {
-      DCHECK_EQ(instruction->AsArraySet()->GetValue(), type_conversion);
+        // TODO: Remove "OrNull".
+        instruction->AsArraySetOrNull()->GetIndex() != type_conversion) {
+      // TODO: Remove "OrNull".
+      DCHECK_EQ(instruction->AsArraySetOrNull()->GetValue(), type_conversion);
       continue;
     }
     // The use is not as a store value, or the field/element type is not the
@@ -1300,7 +1347,8 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
   }
 
   if (input->IsTypeConversion()) {
-    HTypeConversion* input_conversion = input->AsTypeConversion();
+    // TODO: Remove "OrNull".
+    HTypeConversion* input_conversion = input->AsTypeConversionOrNull();
     HInstruction* original_input = input_conversion->GetInput();
     DataType::Type original_type = original_input->GetType();
 
@@ -1342,12 +1390,14 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
             // Optimization only applies to lossy Type Conversions.
             !IsTypeConversionLossless(input_type, result_type)) {
     DCHECK(DataType::IsIntegralType(input_type));
-    HShr* shr_op = input->AsShr();
+    // TODO: Remove "OrNull".
+    HShr* shr_op = input->AsShrOrNull();
     HConstant* shr_right = shr_op->GetConstantRight();
     HInstruction* shr_left = shr_op->GetLeastConstantLeft();
     if (shr_right != nullptr && shr_left->IsAnd()) {
       // Optimization needs AND -> SHR -> TypeConversion pattern.
-      HAnd* and_op = shr_left->AsAnd();
+      // TODO: Remove "OrNull".
+      HAnd* and_op = shr_left->AsAndOrNull();
       HConstant* and_right = and_op->GetConstantRight();
       HInstruction* and_left = and_op->GetLeastConstantLeft();
       if (and_right != nullptr &&
@@ -1370,7 +1420,8 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
     }
   } else if (input->IsAnd() && DataType::IsIntegralType(result_type)) {
     DCHECK(DataType::IsIntegralType(input_type));
-    HAnd* input_and = input->AsAnd();
+    // TODO: Remove "OrNull".
+    HAnd* input_and = input->AsAndOrNull();
     HConstant* constant = input_and->GetConstantRight();
     if (constant != nullptr) {
       int64_t value = Int64FromConstant(constant);
@@ -1456,7 +1507,8 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     }
   }
 
-  HNeg* neg = left_is_neg ? left->AsNeg() : right->AsNeg();
+  // TODO: Remove first "OrNull", keep the second.
+  HNeg* neg = left_is_neg ? left->AsNegOrNull() : right->AsNegOrNull();
   if (left_is_neg != right_is_neg && neg->HasOnlyOneNonEnvironmentUse()) {
     // Replace code looking like
     //    NEG tmp, b
@@ -1567,7 +1619,9 @@ void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
     // precisely clears the shifted-in sign bits.
     if ((input_other->IsUShr() || input_other->IsShr()) && input_other->InputAt(1)->IsConstant()) {
       size_t reg_bits = (instruction->GetResultType() == DataType::Type::kInt64) ? 64 : 32;
-      size_t shift = Int64FromConstant(input_other->InputAt(1)->AsConstant()) & (reg_bits - 1);
+      // TODO: Remove "OrNull".
+      size_t shift =
+          Int64FromConstant(input_other->InputAt(1)->AsConstantOrNull()) & (reg_bits - 1);
       size_t num_tail_bits_set = CTZ(value + 1);
       if ((num_tail_bits_set >= reg_bits - shift) && input_other->IsUShr()) {
         // This AND clears only bits known to be clear, for example "(x >>> 24) & 0xff".
@@ -1675,8 +1729,9 @@ static bool RecognizeAndSimplifyClassCheck(HCondition* condition) {
   HInstruction* input_one = condition->InputAt(0);
   HInstruction* input_two = condition->InputAt(1);
   HLoadClass* load_class = input_one->IsLoadClass()
-      ? input_one->AsLoadClass()
-      : input_two->AsLoadClass();
+      // TODO: Remove "OrNull".
+      ? input_one->AsLoadClassOrNull()
+      : input_two->AsLoadClassOrNull();
   if (load_class == nullptr) {
     return false;
   }
@@ -1688,8 +1743,8 @@ static bool RecognizeAndSimplifyClassCheck(HCondition* condition) {
   }
 
   HInstanceFieldGet* field_get = (load_class == input_one)
-      ? input_two->AsInstanceFieldGet()
-      : input_one->AsInstanceFieldGet();
+      ? input_two->AsInstanceFieldGetOrNull()
+      : input_one->AsInstanceFieldGetOrNull();
   if (field_get == nullptr) {
     return false;
   }
@@ -1755,7 +1810,8 @@ void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   // We can only replace an HCondition which compares a Compare to 0.
   // Both 'dx' and 'jack' generate a compare to 0 when compiling a
   // condition with a long, float or double comparison as input.
-  if (!left->IsCompare() || !right->IsConstant() || right->AsIntConstant()->GetValue() != 0) {
+  // TODO: Remove "OrNull".
+  if (!left->IsCompare() || !right->IsConstant() || right->AsIntConstantOrNull()->GetValue() != 0) {
     // Conversion is not possible.
     return;
   }
@@ -1782,7 +1838,8 @@ void InstructionSimplifierVisitor::VisitCondition(HCondition* condition) {
   left->RemoveEnvironmentUsers();
 
   // We have decided to fold the HCompare into the HCondition. Transfer the information.
-  condition->SetBias(left->AsCompare()->GetBias());
+  // TODO: Remove "OrNull".
+  condition->SetBias(left->AsCompareOrNull()->GetBias());
 
   // Replace the operands of the HCondition.
   condition->ReplaceInput(left->InputAt(0), 0);
@@ -1840,13 +1897,15 @@ void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
     //    MUL dst, src, 1 / constant
     HConstant* reciprocal = nullptr;
     if (type == DataType::Type::kFloat64) {
-      double value = input_cst->AsDoubleConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      double value = input_cst->AsDoubleConstantOrNull()->GetValue();
       if (CanDivideByReciprocalMultiplyDouble(bit_cast<int64_t, double>(value))) {
         reciprocal = GetGraph()->GetDoubleConstant(1.0 / value);
       }
     } else {
       DCHECK_EQ(type, DataType::Type::kFloat32);
-      float value = input_cst->AsFloatConstant()->GetValue();
+      // TODO: Remove "OrNull".
+      float value = input_cst->AsFloatConstantOrNull()->GetValue();
       if (CanDivideByReciprocalMultiplyFloat(bit_cast<int32_t, float>(value))) {
         reciprocal = GetGraph()->GetFloatConstant(1.0f / value);
       }
@@ -1873,7 +1932,8 @@ static HDiv* FindDivWithInputsInBasicBlock(HInstruction* dividend,
         user->IsDiv() &&
         user->InputAt(0) == dividend &&
         user->InputAt(1) == divisor) {
-      return user->AsDiv();
+      // TODO: Remove "OrNull".
+      return user->AsDivOrNull();
     }
   }
   return nullptr;
@@ -1963,9 +2023,10 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
     return;
   }
 
+  // TODO: Remove "OrNull".
   if (DataType::IsFloatingPointType(type) &&
-      ((input_cst->IsFloatConstant() && input_cst->AsFloatConstant()->GetValue() == 2.0f) ||
-       (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstant()->GetValue() == 2.0))) {
+      ((input_cst->IsFloatConstant() && input_cst->AsFloatConstantOrNull()->GetValue() == 2.0f) ||
+       (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstantOrNull()->GetValue() == 2.0))) {
     // Replace code looking like
     //    FP_MUL dst, src, 2.0
     // with
@@ -2046,7 +2107,8 @@ void InstructionSimplifierVisitor::VisitNeg(HNeg* instruction) {
     //    NEG dst, tmp
     // with
     //    src
-    HNeg* previous_neg = input->AsNeg();
+    // TODO: Remove "OrNull".
+    HNeg* previous_neg = input->AsNegOrNull();
     instruction->ReplaceWith(previous_neg->GetInput());
     instruction->GetBlock()->RemoveInstruction(instruction);
     // We perform the optimization even if the input negation has environment
@@ -2072,7 +2134,8 @@ void InstructionSimplifierVisitor::VisitNeg(HNeg* instruction) {
     // to be extended if we are not sure the initial 'SUB' instruction can be
     // removed.
     // We do not perform optimization for fp because we could lose the sign of zero.
-    HSub* sub = input->AsSub();
+    // TODO: Remove "OrNull".
+    HSub* sub = input->AsSubOrNull();
     HSub* new_sub = new (GetGraph()->GetAllocator()) HSub(
         instruction->GetType(), sub->GetRight(), sub->GetLeft());
     instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, new_sub);
@@ -2094,7 +2157,8 @@ void InstructionSimplifierVisitor::VisitNot(HNot* instruction) {
     // We perform the optimization even if the input negation has environment
     // uses since it allows removing the current instruction. But we only delete
     // the input negation only if it is does not have any uses left.
-    HNot* previous_not = input->AsNot();
+    // TODO: Remove "OrNull".
+    HNot* previous_not = input->AsNotOrNull();
     instruction->ReplaceWith(previous_not->GetInput());
     instruction->GetBlock()->RemoveInstruction(instruction);
     if (!previous_not->HasUses()) {
@@ -2181,7 +2245,8 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
   HInstruction* left = instruction->GetLeft();
   HInstruction* right = instruction->GetRight();
   if (left->IsConstant()) {
-    if (Int64FromConstant(left->AsConstant()) == 0) {
+    // TODO: Remove "OrNull".
+    if (Int64FromConstant(left->AsConstantOrNull()) == 0) {
       // Replace code looking like
       //    SUB dst, 0, src
       // with
@@ -2208,7 +2273,8 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
     //    SUB dst, a, tmp
     // with
     //    ADD dst, a, b
-    HAdd* add = new(GetGraph()->GetAllocator()) HAdd(type, left, right->AsNeg()->GetInput());
+    // TODO: Remove "OrNull".
+    HAdd* add = new(GetGraph()->GetAllocator()) HAdd(type, left, right->AsNegOrNull()->GetInput());
     instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, add);
     RecordSimplification();
     right->GetBlock()->RemoveInstruction(right);
@@ -2224,7 +2290,8 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
     //    NEG dst, tmp
     // The second version is not intrinsically better, but enables more
     // transformations.
-    HAdd* add = new(GetGraph()->GetAllocator()) HAdd(type, left->AsNeg()->GetInput(), right);
+    // TODO: Remove "OrNull".
+    HAdd* add = new(GetGraph()->GetAllocator()) HAdd(type, left->AsNegOrNull()->GetInput(), right);
     instruction->GetBlock()->InsertInstructionBefore(add, instruction);
     HNeg* neg = new (GetGraph()->GetAllocator()) HNeg(instruction->GetType(), add);
     instruction->GetBlock()->InsertInstructionBefore(neg, instruction);
@@ -2364,7 +2431,8 @@ static bool IsArrayLengthOf(HInstruction* potential_length, HInstruction* potent
   }
 
   if (potential_array->IsNewArray()) {
-    return potential_array->AsNewArray()->GetLength() == potential_length;
+    // TODO: Remove "OrNull".
+    return potential_array->AsNewArrayOrNull()->GetLength() == potential_length;
   }
 
   return false;
@@ -2431,7 +2499,8 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
         (source_component_type == destination_component_type)) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       PointerSize image_size = class_linker->GetImagePointerSize();
-      HInvokeStaticOrDirect* invoke = instruction->AsInvokeStaticOrDirect();
+      // TODO: Remove "OrNull".
+      HInvokeStaticOrDirect* invoke = instruction->AsInvokeStaticOrDirectOrNull();
       ObjPtr<mirror::Class> system = invoke->GetResolvedMethod()->GetDeclaringClass();
       ArtMethod* method = nullptr;
       switch (source_component_type) {
@@ -2547,7 +2616,8 @@ void InstructionSimplifierVisitor::SimplifyStringIndexOf(HInvoke* invoke) {
   DCHECK(invoke->GetIntrinsic() == Intrinsics::kStringIndexOf ||
          invoke->GetIntrinsic() == Intrinsics::kStringIndexOfAfter);
   if (invoke->InputAt(0)->IsLoadString()) {
-    HLoadString* load_string = invoke->InputAt(0)->AsLoadString();
+    // TODO: Remove "OrNull".
+    HLoadString* load_string = invoke->InputAt(0)->AsLoadStringOrNull();
     const DexFile& dex_file = load_string->GetDexFile();
     uint32_t utf16_length;
     const char* data =
@@ -2603,11 +2673,13 @@ void InstructionSimplifierVisitor::SimplifyReturnThis(HInvoke* invoke) {
 static bool NoEscapeForStringBufferReference(HInstruction* reference, HInstruction* user) {
   if (user->IsInvokeStaticOrDirect()) {
     // Any constructor on StringBuffer is okay.
-    return user->AsInvokeStaticOrDirect()->GetResolvedMethod() != nullptr &&
-           user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
+    // TODO: Remove "OrNull".
+    return user->AsInvokeStaticOrDirectOrNull()->GetResolvedMethod() != nullptr &&
+           user->AsInvokeStaticOrDirectOrNull()->GetResolvedMethod()->IsConstructor() &&
            user->InputAt(0) == reference;
   } else if (user->IsInvokeVirtual()) {
-    switch (user->AsInvokeVirtual()->GetIntrinsic()) {
+    // TODO: Remove "OrNull".
+    switch (user->AsInvokeVirtualOrNull()->GetIntrinsic()) {
       case Intrinsics::kStringBufferLength:
       case Intrinsics::kStringBufferToString:
         DCHECK_EQ(user->InputAt(0), reference);
@@ -2678,7 +2750,8 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
     }
     // Then we should see the arguments.
     if (user->IsInvokeVirtual()) {
-      HInvokeVirtual* as_invoke_virtual = user->AsInvokeVirtual();
+      // TODO: Remove "OrNull".
+      HInvokeVirtual* as_invoke_virtual = user->AsInvokeVirtualOrNull();
       DCHECK(!seen_constructor);
       DCHECK(!seen_constructor_fence);
       StringBuilderAppend::Argument arg;
@@ -2714,7 +2787,8 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
           has_fp_args = true;
           break;
         case Intrinsics::kStringBuilderAppendCharSequence: {
-          ReferenceTypeInfo rti = user->AsInvokeVirtual()->InputAt(1)->GetReferenceTypeInfo();
+          // TODO: Remove "OrNull".
+          ReferenceTypeInfo rti = user->AsInvokeVirtualOrNull()->InputAt(1)->GetReferenceTypeInfo();
           if (!rti.IsValid()) {
             return false;
           }
@@ -2746,9 +2820,12 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
       args[num_args] = as_invoke_virtual->InputAt(1u);
       ++num_args;
     } else if (user->IsInvokeStaticOrDirect() &&
-               user->AsInvokeStaticOrDirect()->GetResolvedMethod() != nullptr &&
-               user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
-               user->AsInvokeStaticOrDirect()->GetNumberOfArguments() == 1u) {
+               // TODO: Remove "OrNull".
+               user->AsInvokeStaticOrDirectOrNull()->GetResolvedMethod() != nullptr &&
+               // TODO: Remove "OrNull".
+               user->AsInvokeStaticOrDirectOrNull()->GetResolvedMethod()->IsConstructor() &&
+               // TODO: Remove "OrNull".
+               user->AsInvokeStaticOrDirectOrNull()->GetNumberOfArguments() == 1u) {
       // After arguments, we should see the constructor.
       // We accept only the constructor with no extra arguments.
       DCHECK(!seen_constructor);
@@ -2887,7 +2964,8 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
   if (!var_handle_instruction->IsStaticFieldGet()) {
     return false;
   }
-  ArtField* field = var_handle_instruction->AsStaticFieldGet()->GetFieldInfo().GetField();
+  // TODO: Remove "OrNull".
+  ArtField* field = var_handle_instruction->AsStaticFieldGetOrNull()->GetFieldInfo().GetField();
   DCHECK(field->IsStatic());
   if (!field->IsFinal()) {
     return false;
@@ -2910,9 +2988,11 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
       is_in_boot_image = compiler_options.IsImageClass(descriptor);
     }
     CHECK_EQ(is_in_boot_image,
-             load_class->IsLoadClass() && load_class->AsLoadClass()->IsInBootImage());
+             // TODO: Remove "OrNull".
+             load_class->IsLoadClass() && load_class->AsLoadClassOrNull()->IsInBootImage());
   }
-  if (!load_class->IsLoadClass() || !load_class->AsLoadClass()->IsInBootImage()) {
+  // TODO: Remove "OrNull".
+  if (!load_class->IsLoadClass() || !load_class->AsLoadClassOrNull()->IsInBootImage()) {
     return false;
   }
 
@@ -3108,7 +3188,8 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
 void InstructionSimplifierVisitor::VisitDeoptimize(HDeoptimize* deoptimize) {
   HInstruction* cond = deoptimize->InputAt(0);
   if (cond->IsConstant()) {
-    if (cond->AsIntConstant()->IsFalse()) {
+    // TODO: Remove "OrNull".
+    if (cond->AsIntConstantOrNull()->IsFalse()) {
       // Never deopt: instruction can be removed.
       if (deoptimize->GuardsAnInput()) {
         deoptimize->ReplaceWith(deoptimize->GuardedInput());
@@ -3141,11 +3222,15 @@ bool InstructionSimplifierVisitor::TryHandleAssociativeAndCommutativeOperation(
   HBinaryOperation* y;
 
   if (instruction->GetKind() == left->GetKind() && right->IsConstant()) {
-    const2 = right->AsConstant();
-    y = left->AsBinaryOperation();
+    // TODO: Remove "OrNull".
+    const2 = right->AsConstantOrNull();
+    // TODO: Remove "OrNull".
+    y = left->AsBinaryOperationOrNull();
   } else if (left->IsConstant() && instruction->GetKind() == right->GetKind()) {
-    const2 = left->AsConstant();
-    y = right->AsBinaryOperation();
+    // TODO: Remove "OrNull".
+    const2 = left->AsConstantOrNull();
+    // TODO: Remove "OrNull".
+    y = right->AsBinaryOperationOrNull();
   } else {
     // The node does not match the pattern.
     return false;
@@ -3176,7 +3261,8 @@ bool InstructionSimplifierVisitor::TryHandleAssociativeAndCommutativeOperation(
 }
 
 static HBinaryOperation* AsAddOrSub(HInstruction* binop) {
-  return (binop->IsAdd() || binop->IsSub()) ? binop->AsBinaryOperation() : nullptr;
+  // TODO: Remove "OrNull".
+  return (binop->IsAdd() || binop->IsSub()) ? binop->AsBinaryOperationOrNull() : nullptr;
 }
 
 // Helper function that performs addition statically, considering the result type.
@@ -3215,13 +3301,15 @@ bool InstructionSimplifierVisitor::TrySubtractionChainSimplification(
   HInstruction* left = instruction->GetLeft();
   HInstruction* right = instruction->GetRight();
   // Variable names as described above.
-  HConstant* const2 = right->IsConstant() ? right->AsConstant() : left->AsConstant();
+  // TODO: Remove first "OrNull", keep the second.
+  HConstant* const2 = right->IsConstant() ? right->AsConstantOrNull() : left->AsConstantOrNull();
   if (const2 == nullptr) {
     return false;
   }
 
   HBinaryOperation* y = (AsAddOrSub(left) != nullptr)
-      ? left->AsBinaryOperation()
+      // TODO: Remove "OrNull".
+      ? left->AsBinaryOperationOrNull()
       : AsAddOrSub(right);
   // If y has more than one use, we do not perform the optimization because
   // it might increase code size (e.g. if the new constant is no longer
@@ -3231,7 +3319,9 @@ bool InstructionSimplifierVisitor::TrySubtractionChainSimplification(
   }
 
   left = y->GetLeft();
-  HConstant* const1 = left->IsConstant() ? left->AsConstant() : y->GetRight()->AsConstant();
+  // TODO: Remove first "OrNull", keep the second.
+  HConstant* const1 =
+      left->IsConstant() ? left->AsConstantOrNull() : y->GetRight()->AsConstantOrNull();
   if (const1 == nullptr) {
     return false;
   }
