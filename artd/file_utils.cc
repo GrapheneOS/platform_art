@@ -50,10 +50,9 @@ using ::fmt::literals::operator""_format;  // NOLINT
 
 void UnlinkIfExists(const std::string& path) {
   std::error_code ec;
-  if (!std::filesystem::remove(path, ec)) {
-    if (ec.value() != ENOENT) {
-      LOG(WARNING) << "Failed to remove file '{}': {}"_format(path, ec.message());
-    }
+  std::filesystem::remove(path, ec);
+  if (ec) {
+    LOG(WARNING) << "Failed to remove file '{}': {}"_format(path, ec.message());
   }
 }
 
