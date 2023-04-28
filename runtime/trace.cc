@@ -567,7 +567,7 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
 
 namespace {
 
-bool IsShutdownThread(std::string name) {
+bool IsShutdownThread(const std::string& name) {
   return (name.compare("Shutdown thread") == 0);
 }
 
@@ -626,7 +626,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
       MutexLock tl_lock(Thread::Current(), *Locks::thread_list_lock_);
       for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
         if (thread->GetMethodTraceBuffer() != nullptr) {
-          the_trace_->FlushStreamingBuffer(thread);
+          the_trace->FlushStreamingBuffer(thread);
           thread->ResetMethodTraceBuffer();
         }
         // Record threads here before resetting the_trace_ to prevent any races between
