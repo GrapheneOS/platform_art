@@ -407,9 +407,8 @@ class OptimizingUnitTestHelper {
 
   HNewInstance* MakeNewInstance(HInstruction* cls, uint32_t dex_pc = 0u) {
     EXPECT_TRUE(cls->IsLoadClass() || cls->IsClinitCheck()) << *cls;
-    // TODO: Remove "OrNull".
     HLoadClass* load =
-        cls->IsLoadClass() ? cls->AsLoadClassOrNull() : cls->AsClinitCheckOrNull()->GetLoadClass();
+        cls->IsLoadClass() ? cls->AsLoadClass() : cls->AsClinitCheck()->GetLoadClass();
     return new (GetAllocator()) HNewInstance(cls,
                                              dex_pc,
                                              load->GetTypeIndex(),
@@ -593,8 +592,7 @@ class PatternMatchGraphVisitor final : public HGraphVisitor {
     explicit KindWrapper(F f) : f_(f) {}                                                \
     void operator()(HInstruction* h) override {                                         \
       if constexpr (std::is_invocable_v<F, H##nm*>) {                                   \
-        /* TODO: Remove "OrNull". */                                                    \
-        f_(h->As##nm##OrNull());                                                        \
+        f_(h->As##nm());                                                                \
       } else {                                                                          \
         LOG(FATAL) << "Incorrect call with " << #nm;                                    \
       }                                                                                 \

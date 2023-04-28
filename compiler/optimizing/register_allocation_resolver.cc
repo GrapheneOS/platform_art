@@ -76,8 +76,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
     } else if (instruction->IsCurrentMethod()) {
       // The current method is always at offset 0.
       DCHECK_IMPLIES(current->HasSpillSlot(), (current->GetSpillSlot() == 0));
-      // TODO: Remove "OrNull".
-    } else if (instruction->IsPhi() && instruction->AsPhiOrNull()->IsCatchPhi()) {
+    } else if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
       DCHECK(current->HasSpillSlot());
       size_t slot = current->GetSpillSlot()
                     + spill_slots
@@ -352,8 +351,7 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
             }
           } else {
             DCHECK(use.GetUser()->IsInvoke());
-            // TODO: Remove "OrNull".
-            DCHECK(use.GetUser()->AsInvokeOrNull()->GetIntrinsic() != Intrinsics::kNone);
+            DCHECK(use.GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
           }
         }
       }
@@ -540,8 +538,7 @@ void RegisterAllocationResolver::AddInputMoveFor(HInstruction* input,
     move->SetLifetimePosition(user->GetLifetimePosition());
     user->GetBlock()->InsertInstructionBefore(move, user);
   } else {
-    // TODO: Remove "OrNull".
-    move = previous->AsParallelMoveOrNull();
+    move = previous->AsParallelMove();
   }
   DCHECK_EQ(move->GetLifetimePosition(), user->GetLifetimePosition());
   AddMove(move, source, destination, nullptr, input->GetType());
@@ -590,8 +587,7 @@ void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
         at->GetBlock()->InsertInstructionBefore(move, at);
       } else {
         DCHECK(at->IsParallelMove());
-        // TODO: Remove "OrNull".
-        move = at->AsParallelMoveOrNull();
+        move = at->AsParallelMove();
       }
     }
   } else if (IsInstructionEnd(position)) {
@@ -621,8 +617,7 @@ void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at);
     } else {
-      // TODO: Remove "OrNull".
-      move = previous->AsParallelMoveOrNull();
+      move = previous->AsParallelMove();
     }
   }
   DCHECK_EQ(move->GetLifetimePosition(), position);
@@ -650,14 +645,12 @@ void RegisterAllocationResolver::InsertParallelMoveAtExitOf(HBasicBlock* block,
   size_t position = last->GetLifetimePosition();
   if (previous == nullptr ||
       !previous->IsParallelMove() ||
-      // TODO: Remove "OrNull".
-      previous->AsParallelMoveOrNull()->GetLifetimePosition() != position) {
+      previous->AsParallelMove()->GetLifetimePosition() != position) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(position);
     block->InsertInstructionBefore(move, last);
   } else {
-    // TODO: Remove "OrNull".
-    move = previous->AsParallelMoveOrNull();
+    move = previous->AsParallelMove();
   }
   AddMove(move, source, destination, instruction, instruction->GetType());
 }

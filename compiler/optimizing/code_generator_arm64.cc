@@ -225,8 +225,7 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
                                locations->InAt(1),
                                LocationFrom(calling_convention.GetRegisterAt(1)),
                                DataType::Type::kInt32);
-    // TODO: Remove "OrNull".
-    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheckOrNull()->IsStringCharAt()
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
         ? kQuickThrowStringBounds
         : kQuickThrowArrayBounds;
     arm64_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
@@ -341,8 +340,7 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    // TODO: Remove "OrNull".
-    const dex::StringIndex string_index = instruction_->AsLoadStringOrNull()->GetStringIndex();
+    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
     __ Mov(calling_convention.GetRegisterAt(0).W(), string_index.index_);
     arm64_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -494,8 +492,7 @@ class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
     SaveLiveRegisters(codegen, locations);
     InvokeRuntimeCallingConvention calling_convention;
     __ Mov(calling_convention.GetRegisterAt(0),
-           // TODO: Remove "OrNull".
-           static_cast<uint32_t>(instruction_->AsDeoptimizeOrNull()->GetDeoptimizationKind()));
+           static_cast<uint32_t>(instruction_->AsDeoptimize()->GetDeoptimizationKind()));
     arm64_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, DeoptimizationKind>();
   }
@@ -618,8 +615,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
     // instructions does not support the HIntermediateAddress
     // instruction.
     DCHECK(!(instruction_->IsArrayGet() &&
-             // TODO: Remove "OrNull".
-             instruction_->AsArrayGetOrNull()->GetArray()->IsIntermediateAddress()));
+             instruction_->AsArrayGet()->GetArray()->IsIntermediateAddress()));
 
     __ Bind(GetEntryLabel());
 
@@ -683,8 +679,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
         // object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        // TODO: Remove "OrNull".
-        HInvoke* invoke = instruction_->AsInvokeOrNull();
+        HInvoke* invoke = instruction_->AsInvoke();
         DCHECK(IsUnsafeGetObject(invoke) ||
                IsVarHandleGet(invoke) ||
                IsUnsafeCASObject(invoke) ||
@@ -1565,20 +1560,16 @@ const Arm64InstructionSetFeatures& CodeGeneratorARM64::GetInstructionSetFeatures
 
 void CodeGeneratorARM64::MoveConstant(CPURegister destination, HConstant* constant) {
   if (constant->IsIntConstant()) {
-    // TODO: Remove "OrNull".
-    __ Mov(Register(destination), constant->AsIntConstantOrNull()->GetValue());
+    __ Mov(Register(destination), constant->AsIntConstant()->GetValue());
   } else if (constant->IsLongConstant()) {
-    // TODO: Remove "OrNull".
-    __ Mov(Register(destination), constant->AsLongConstantOrNull()->GetValue());
+    __ Mov(Register(destination), constant->AsLongConstant()->GetValue());
   } else if (constant->IsNullConstant()) {
     __ Mov(Register(destination), 0);
   } else if (constant->IsFloatConstant()) {
-    // TODO: Remove "OrNull".
-    __ Fmov(VRegister(destination), constant->AsFloatConstantOrNull()->GetValue());
+    __ Fmov(VRegister(destination), constant->AsFloatConstant()->GetValue());
   } else {
     DCHECK(constant->IsDoubleConstant());
-    // TODO: Remove "OrNull".
-    __ Fmov(VRegister(destination), constant->AsDoubleConstantOrNull()->GetValue());
+    __ Fmov(VRegister(destination), constant->AsDoubleConstant()->GetValue());
   }
 }
 
@@ -2271,9 +2262,7 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
                                                    WriteBarrierKind write_barrier_kind) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
   bool is_predicated =
-      instruction->IsInstanceFieldSet() &&
-      // TODO: Remove "OrNull".
-      instruction->AsInstanceFieldSetOrNull()->GetIsPredicatedSet();
+      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
 
   Register obj = InputRegisterAt(instruction, 0);
   CPURegister value = InputCPURegisterOrZeroRegAt(instruction, 1);
@@ -2540,8 +2529,7 @@ void InstructionCodeGeneratorARM64::VisitDataProcWithShifterOp(
       __ And(out, left, right_operand);
       break;
     case HInstruction::kNeg:
-      // TODO: Remove "OrNull".
-      DCHECK(instruction->InputAt(0)->AsConstantOrNull()->IsArithmeticZero());
+      DCHECK(instruction->InputAt(0)->AsConstant()->IsArithmeticZero());
       __ Neg(out, right_operand);
       break;
     case HInstruction::kOr:
@@ -2577,8 +2565,7 @@ void LocationsBuilderARM64::VisitIntermediateAddressIndex(HIntermediateAddressIn
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
 
-  // TODO: Remove "OrNull".
-  HIntConstant* shift = instruction->GetShift()->AsIntConstantOrNull();
+  HIntConstant* shift = instruction->GetShift()->AsIntConstant();
 
   locations->SetInAt(0, Location::RequiresRegister());
   // For byte case we don't need to shift the index variable so we can encode the data offset into
@@ -2596,8 +2583,7 @@ void InstructionCodeGeneratorARM64::VisitIntermediateAddressIndex(
     HIntermediateAddressIndex* instruction) {
   Register index_reg = InputRegisterAt(instruction, 0);
   uint32_t shift = Int64FromLocation(instruction->GetLocations()->InAt(2));
-  // TODO: Remove "OrNull".
-  uint32_t offset = instruction->GetOffset()->AsIntConstantOrNull()->GetValue();
+  uint32_t offset = instruction->GetOffset()->AsIntConstant()->GetValue();
 
   if (shift == 0) {
     __ Add(OutputRegister(instruction), index_reg, offset);
@@ -2613,8 +2599,7 @@ void LocationsBuilderARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* instr) 
   HInstruction* accumulator = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
   if (instr->GetOpKind() == HInstruction::kSub &&
       accumulator->IsConstant() &&
-      // TODO: Remove "OrNull".
-      accumulator->AsConstantOrNull()->IsArithmeticZero()) {
+      accumulator->AsConstant()->IsArithmeticZero()) {
     // Don't allocate register for Mneg instruction.
   } else {
     locations->SetInAt(HMultiplyAccumulate::kInputAccumulatorIndex,
@@ -2651,8 +2636,7 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
   } else {
     DCHECK(instr->GetOpKind() == HInstruction::kSub);
     HInstruction* accum_instr = instr->InputAt(HMultiplyAccumulate::kInputAccumulatorIndex);
-    // TODO: Remove "OrNull".
-    if (accum_instr->IsConstant() && accum_instr->AsConstantOrNull()->IsArithmeticZero()) {
+    if (accum_instr->IsConstant() && accum_instr->AsConstant()->IsArithmeticZero()) {
       __ Mneg(res, mul_left, mul_right);
     } else {
       Register accumulator = InputRegisterAt(instr, HMultiplyAccumulate::kInputAccumulatorIndex);
@@ -2677,8 +2661,7 @@ void LocationsBuilderARM64::VisitArrayGet(HArrayGet* instruction) {
       // CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier()
       // only if the offset is too big.
       uint32_t offset = CodeGenerator::GetArrayDataOffset(instruction);
-      // TODO: Remove "OrNull".
-      uint32_t index = instruction->GetIndex()->AsIntConstantOrNull()->GetValue();
+      uint32_t index = instruction->GetIndex()->AsIntConstant()->GetValue();
       offset += index << DataType::SizeShift(DataType::Type::kReference);
       if (offset >= kReferenceLoadMinFarOffset) {
         locations->AddTemp(FixedTempLocation());
@@ -2792,11 +2775,8 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
         // input instruction has done it already. See the comment in
         // `TryExtractArrayAccessAddress()`.
         if (kIsDebugBuild) {
-          // TODO: Remove "OrNull".
-          HIntermediateAddress* interm_addr =
-              instruction->GetArray()->AsIntermediateAddressOrNull();
-          // TODO: Remove "OrNull".
-          DCHECK_EQ(interm_addr->GetOffset()->AsIntConstantOrNull()->GetValueAsUint64(), offset);
+          HIntermediateAddress* interm_addr = instruction->GetArray()->AsIntermediateAddress();
+          DCHECK_EQ(interm_addr->GetOffset()->AsIntConstant()->GetValueAsUint64(), offset);
         }
         temp = obj;
       } else {
@@ -2907,11 +2887,8 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
         // input instruction has done it already. See the comment in
         // `TryExtractArrayAccessAddress()`.
         if (kIsDebugBuild) {
-          // TODO: Remove "OrNull".
-          HIntermediateAddress* interm_addr =
-              instruction->GetArray()->AsIntermediateAddressOrNull();
-          // TODO: Remove "OrNull".
-          DCHECK(interm_addr->GetOffset()->AsIntConstantOrNull()->GetValueAsUint64() == offset);
+          HIntermediateAddress* interm_addr = instruction->GetArray()->AsIntermediateAddress();
+          DCHECK(interm_addr->GetOffset()->AsIntConstant()->GetValueAsUint64() == offset);
         }
         temp = array;
       } else {
@@ -3122,9 +3099,8 @@ void InstructionCodeGeneratorARM64::VisitClinitCheck(HClinitCheck* check) {
 }
 
 static bool IsFloatingPointZeroConstant(HInstruction* inst) {
-  // TODO: Remove "OrNull".
-  return (inst->IsFloatConstant() && (inst->AsFloatConstantOrNull()->IsArithmeticZero()))
-      || (inst->IsDoubleConstant() && (inst->AsDoubleConstantOrNull()->IsArithmeticZero()));
+  return (inst->IsFloatConstant() && (inst->AsFloatConstant()->IsArithmeticZero()))
+      || (inst->IsDoubleConstant() && (inst->AsDoubleConstant()->IsArithmeticZero()));
 }
 
 void InstructionCodeGeneratorARM64::GenerateFcmp(HInstruction* instruction) {
@@ -3708,8 +3684,7 @@ void InstructionCodeGeneratorARM64::HandleGoto(HInstruction* got, HBasicBlock* s
     return;  // `GenerateSuspendCheck()` emitted the jump.
   }
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
-    // TODO: Remove "OrNull".
-    GenerateSuspendCheck(previous->AsSuspendCheckOrNull(), nullptr);
+    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
     codegen_->MaybeGenerateMarkingRegisterCheck(/* code= */ __LINE__);
   }
   if (!codegen_->GoesToNextBlock(block, successor)) {
@@ -3747,14 +3722,12 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
     return;
   } else if (cond->IsIntConstant()) {
     // Constant condition, statically compared against "true" (integer value 1).
-    // TODO: Remove "OrNull".
-    if (cond->AsIntConstantOrNull()->IsTrue()) {
+    if (cond->AsIntConstant()->IsTrue()) {
       if (true_target != nullptr) {
         __ B(true_target);
       }
     } else {
-      // TODO: Remove "OrNull".
-      DCHECK(cond->AsIntConstantOrNull()->IsFalse()) << cond->AsIntConstantOrNull()->GetValue();
+      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
       if (false_target != nullptr) {
         __ B(false_target);
       }
@@ -3782,8 +3755,7 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
   } else {
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
-    // TODO: Remove "OrNull".
-    HCondition* condition = cond->AsConditionOrNull();
+    HCondition* condition = cond->AsCondition();
 
     DataType::Type type = condition->InputAt(0)->GetType();
     if (DataType::IsFloatingPointType(type)) {
@@ -3952,20 +3924,17 @@ void InstructionCodeGeneratorARM64::VisitSelect(HSelect* select) {
   if (IsBooleanValueOrMaterializedCondition(cond)) {
     if (cond->IsCondition() && cond->GetNext() == select) {
       // Use the condition flags set by the previous instruction.
-      // TODO: Remove "OrNull".
-      csel_cond = GetConditionForSelect(cond->AsConditionOrNull());
+      csel_cond = GetConditionForSelect(cond->AsCondition());
     } else {
       __ Cmp(InputRegisterAt(select, 2), 0);
       csel_cond = ne;
     }
   } else if (IsConditionOnFloatingPointValues(cond)) {
     GenerateFcmp(cond);
-    // TODO: Remove "OrNull".
-    csel_cond = GetConditionForSelect(cond->AsConditionOrNull());
+    csel_cond = GetConditionForSelect(cond->AsCondition());
   } else {
     __ Cmp(InputRegisterAt(cond, 0), InputOperandAt(cond, 1));
-    // TODO: Remove "OrNull".
-    csel_cond = GetConditionForSelect(cond->AsConditionOrNull());
+    csel_cond = GetConditionForSelect(cond->AsCondition());
   }
 
   if (DataType::IsFloatingPointType(select->GetType())) {
@@ -5968,8 +5937,7 @@ void LocationsBuilderARM64::VisitParallelMove(HParallelMove* instruction ATTRIBU
 void InstructionCodeGeneratorARM64::VisitParallelMove(HParallelMove* instruction) {
   if (instruction->GetNext()->IsSuspendCheck() &&
       instruction->GetBlock()->GetLoopInformation() != nullptr) {
-    // TODO: Remove "OrNull".
-    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheckOrNull();
+    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheck();
     // The back edge will generate the suspend check.
     codegen_->ClearSpillSlotsFromLoopPhisInStackMap(suspend_check, instruction);
   }
@@ -6909,10 +6877,8 @@ void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HArrayGet* instru
     // input instruction has done it already. See the comment in
     // `TryExtractArrayAccessAddress()`.
     if (kIsDebugBuild) {
-      // TODO: Remove "OrNull".
-      HIntermediateAddress* interm_addr = instruction->GetArray()->AsIntermediateAddressOrNull();
-      // TODO: Remove "OrNull".
-      DCHECK_EQ(interm_addr->GetOffset()->AsIntConstantOrNull()->GetValueAsUint64(), data_offset);
+      HIntermediateAddress* interm_addr = instruction->GetArray()->AsIntermediateAddress();
+      DCHECK_EQ(interm_addr->GetOffset()->AsIntConstant()->GetValueAsUint64(), data_offset);
     }
     temp = obj;
   } else {

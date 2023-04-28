@@ -52,13 +52,10 @@ class WBEVisitor final : public HGraphVisitor {
     auto it = current_write_barriers_.find(obj);
     if (it != current_write_barriers_.end()) {
       DCHECK(it->second->IsInstanceFieldSet());
-      // TODO: Remove "OrNull".
-      DCHECK(it->second->AsInstanceFieldSetOrNull()->GetWriteBarrierKind() !=
+      DCHECK(it->second->AsInstanceFieldSet()->GetWriteBarrierKind() !=
              WriteBarrierKind::kDontEmit);
       DCHECK_EQ(it->second->GetBlock(), instruction->GetBlock());
-      // TODO: Remove "OrNull".
-      it->second->AsInstanceFieldSetOrNull()->SetWriteBarrierKind(
-          WriteBarrierKind::kEmitNoNullCheck);
+      it->second->AsInstanceFieldSet()->SetWriteBarrierKind(WriteBarrierKind::kEmitNoNullCheck);
       instruction->SetWriteBarrierKind(WriteBarrierKind::kDontEmit);
       MaybeRecordStat(stats_, MethodCompilationStat::kRemovedWriteBarrier);
     } else {
@@ -82,12 +79,9 @@ class WBEVisitor final : public HGraphVisitor {
     auto it = current_write_barriers_.find(cls);
     if (it != current_write_barriers_.end()) {
       DCHECK(it->second->IsStaticFieldSet());
-      // TODO: Remove "OrNull".
-      DCHECK(it->second->AsStaticFieldSetOrNull()->GetWriteBarrierKind() !=
-             WriteBarrierKind::kDontEmit);
+      DCHECK(it->second->AsStaticFieldSet()->GetWriteBarrierKind() != WriteBarrierKind::kDontEmit);
       DCHECK_EQ(it->second->GetBlock(), instruction->GetBlock());
-      // TODO: Remove "OrNull".
-      it->second->AsStaticFieldSetOrNull()->SetWriteBarrierKind(WriteBarrierKind::kEmitNoNullCheck);
+      it->second->AsStaticFieldSet()->SetWriteBarrierKind(WriteBarrierKind::kEmitNoNullCheck);
       instruction->SetWriteBarrierKind(WriteBarrierKind::kDontEmit);
       MaybeRecordStat(stats_, MethodCompilationStat::kRemovedWriteBarrier);
     } else {
@@ -113,13 +107,10 @@ class WBEVisitor final : public HGraphVisitor {
     auto it = current_write_barriers_.find(arr);
     if (it != current_write_barriers_.end()) {
       DCHECK(it->second->IsArraySet());
-      // TODO: Remove "OrNull".
-      DCHECK(it->second->AsArraySetOrNull()->GetWriteBarrierKind() != WriteBarrierKind::kDontEmit);
+      DCHECK(it->second->AsArraySet()->GetWriteBarrierKind() != WriteBarrierKind::kDontEmit);
       DCHECK_EQ(it->second->GetBlock(), instruction->GetBlock());
       // We never skip the null check in ArraySets so that value is already set.
-      // TODO: Remove "OrNull".
-      DCHECK(it->second->AsArraySetOrNull()->GetWriteBarrierKind() ==
-             WriteBarrierKind::kEmitNoNullCheck);
+      DCHECK(it->second->AsArraySet()->GetWriteBarrierKind() == WriteBarrierKind::kEmitNoNullCheck);
       instruction->SetWriteBarrierKind(WriteBarrierKind::kDontEmit);
       MaybeRecordStat(stats_, MethodCompilationStat::kRemovedWriteBarrier);
     } else {

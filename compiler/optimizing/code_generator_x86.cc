@@ -164,8 +164,7 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
     // Are we using an array length from memory?
     if (!length_loc.IsValid()) {
       DCHECK(instruction_->InputAt(1)->IsArrayLength());
-      // TODO: Remove "OrNull".
-      HArrayLength* array_length = instruction_->InputAt(1)->AsArrayLengthOrNull();
+      HArrayLength* array_length = instruction_->InputAt(1)->AsArrayLength();
       DCHECK(array_length->IsEmittedAtUseSite());
       uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length);
       Location array_loc = array_length->GetLocations()->InAt(0);
@@ -207,8 +206,7 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
           DataType::Type::kInt32);
     }
 
-    // TODO: Remove "OrNull".
-    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheckOrNull()->IsStringCharAt()
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
         ? kQuickThrowStringBounds
         : kQuickThrowArrayBounds;
     x86_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
@@ -275,8 +273,7 @@ class LoadStringSlowPathX86 : public SlowPathCode {
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    // TODO: Remove "OrNull".
-    const dex::StringIndex string_index = instruction_->AsLoadStringOrNull()->GetStringIndex();
+    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
     __ movl(calling_convention.GetRegisterAt(0), Immediate(string_index.index_));
     x86_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
@@ -370,8 +367,7 @@ class TypeCheckSlowPathX86 : public SlowPathCode {
 
     if (kPoisonHeapReferences &&
         instruction_->IsCheckCast() &&
-        // TODO: Remove "OrNull".
-        instruction_->AsCheckCastOrNull()->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) {
+        instruction_->AsCheckCast()->GetTypeCheckKind() == TypeCheckKind::kInterfaceCheck) {
       // First, unpoison the `cls` reference that was poisoned for direct memory comparison.
       __ UnpoisonHeapReference(locations->InAt(1).AsRegister<Register>());
     }
@@ -436,8 +432,7 @@ class DeoptimizationSlowPathX86 : public SlowPathCode {
     InvokeRuntimeCallingConvention calling_convention;
     x86_codegen->Load32BitValue(
         calling_convention.GetRegisterAt(0),
-        // TODO: Remove "OrNull".
-        static_cast<uint32_t>(instruction_->AsDeoptimizeOrNull()->GetDeoptimizationKind()));
+        static_cast<uint32_t>(instruction_->AsDeoptimize()->GetDeoptimizationKind()));
     x86_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, DeoptimizationKind>();
   }
@@ -608,8 +603,7 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
     DCHECK((instruction_->IsInvoke() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
-    // TODO: Remove "OrNull".
-    HInvoke* invoke = instruction_->AsInvokeOrNull();
+    HInvoke* invoke = instruction_->AsInvoke();
     DCHECK(IsUnsafeCASObject(invoke) || IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
 
     __ Bind(GetEntryLabel());
@@ -842,17 +836,13 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
         // to an object field within an object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        // TODO: Remove "OrNull".
-        DCHECK((instruction_->AsInvokeOrNull()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
-               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
-                    Intrinsics::kUnsafeGetObjectVolatile) ||
-               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
-                    Intrinsics::kJdkUnsafeGetObject) ||
-               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
+        DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile) ||
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObject) ||
+               (instruction_->AsInvoke()->GetIntrinsic() ==
                     Intrinsics::kJdkUnsafeGetObjectVolatile) ||
-               (instruction_->AsInvokeOrNull()->GetIntrinsic() ==
-                    Intrinsics::kJdkUnsafeGetObjectAcquire))
-            << instruction_->AsInvokeOrNull()->GetIntrinsic();
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectAcquire))
+            << instruction_->AsInvoke()->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
         DCHECK(index_.IsRegisterPair());
         // UnsafeGet's offset location is a register pair, the low
@@ -1846,8 +1836,7 @@ void InstructionCodeGeneratorX86::HandleGoto(HInstruction* got, HBasicBlock* suc
   }
 
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
-    // TODO: Remove "OrNull".
-    GenerateSuspendCheck(previous->AsSuspendCheckOrNull(), nullptr);
+    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
   }
   if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
     __ jmp(codegen_->GetLabelOf(successor));
@@ -1941,8 +1930,7 @@ void InstructionCodeGeneratorX86::GenerateLongComparesAndJumps(HCondition* cond,
   }
 
   if (right.IsConstant()) {
-    // TODO: Remove "OrNull".
-    int64_t value = right.GetConstant()->AsLongConstantOrNull()->GetValue();
+    int64_t value = right.GetConstant()->AsLongConstant()->GetValue();
     int32_t val_high = High32Bits(value);
     int32_t val_low = Low32Bits(value);
 
@@ -2002,8 +1990,7 @@ void InstructionCodeGeneratorX86::GenerateFPCompare(Location lhs,
       DCHECK(const_area->IsEmittedAtUseSite());
       __ ucomisd(lhs.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsDoubleConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
     } else {
@@ -2017,8 +2004,7 @@ void InstructionCodeGeneratorX86::GenerateFPCompare(Location lhs,
       DCHECK(const_area->IsEmittedAtUseSite());
       __ ucomiss(lhs.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsFloatConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
     } else {
@@ -2090,14 +2076,12 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
     return;
   } else if (cond->IsIntConstant()) {
     // Constant condition, statically compared against "true" (integer value 1).
-    // TODO: Remove "OrNull".
-    if (cond->AsIntConstantOrNull()->IsTrue()) {
+    if (cond->AsIntConstant()->IsTrue()) {
       if (true_target != nullptr) {
         __ jmp(true_target);
       }
     } else {
-      // TODO: Remove "OrNull".
-      DCHECK(cond->AsIntConstantOrNull()->IsFalse()) << cond->AsIntConstantOrNull()->GetValue();
+      DCHECK(cond->AsIntConstant()->IsFalse()) << cond->AsIntConstant()->GetValue();
       if (false_target != nullptr) {
         __ jmp(false_target);
       }
@@ -2116,11 +2100,9 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
   if (IsBooleanValueOrMaterializedCondition(cond)) {
     if (AreEflagsSetFrom(cond, instruction)) {
       if (true_target == nullptr) {
-        // TODO: Remove "OrNull".
-        __ j(X86Condition(cond->AsConditionOrNull()->GetOppositeCondition()), false_target);
+        __ j(X86Condition(cond->AsCondition()->GetOppositeCondition()), false_target);
       } else {
-        // TODO: Remove "OrNull".
-        __ j(X86Condition(cond->AsConditionOrNull()->GetCondition()), true_target);
+        __ j(X86Condition(cond->AsCondition()->GetCondition()), true_target);
       }
     } else {
       // Materialized condition, compare against 0.
@@ -2139,8 +2121,7 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
   } else {
     // Condition has not been materialized, use its inputs as the comparison and
     // its condition as the branch condition.
-    // TODO: Remove "OrNull".
-    HCondition* condition = cond->AsConditionOrNull();
+    HCondition* condition = cond->AsCondition();
 
     // If this is a long or FP comparison that has been folded into
     // the HCondition, generate the comparison directly.
@@ -2273,8 +2254,7 @@ void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
 
     // Figure out how to test the 'condition'.
     if (select_condition->IsCondition()) {
-      // TODO: Remove "OrNull".
-      HCondition* condition = select_condition->AsConditionOrNull();
+      HCondition* condition = select_condition->AsCondition();
       if (!condition->IsEmittedAtUseSite()) {
         // This was a previously materialized condition.
         // Can we use the existing condition code?
@@ -3172,8 +3152,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movzxb(out.AsRegister<Register>(), in.AsRegister<ByteRegister>());
           } else {
             DCHECK(in.GetConstant()->IsIntConstant());
-            // TODO: Remove "OrNull".
-            int32_t value = in.GetConstant()->AsIntConstantOrNull()->GetValue();
+            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint8_t>(value)));
           }
           break;
@@ -3182,8 +3161,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movzxb(out.AsRegister<Register>(), in.AsRegisterPairLow<ByteRegister>());
           } else {
             DCHECK(in.GetConstant()->IsLongConstant());
-            // TODO: Remove "OrNull".
-            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint8_t>(value)));
           }
           break;
@@ -3204,8 +3182,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movsxb(out.AsRegister<Register>(), in.AsRegister<ByteRegister>());
           } else {
             DCHECK(in.GetConstant()->IsIntConstant());
-            // TODO: Remove "OrNull".
-            int32_t value = in.GetConstant()->AsIntConstantOrNull()->GetValue();
+            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<int8_t>(value)));
           }
           break;
@@ -3214,8 +3191,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movsxb(out.AsRegister<Register>(), in.AsRegisterPairLow<ByteRegister>());
           } else {
             DCHECK(in.GetConstant()->IsLongConstant());
-            // TODO: Remove "OrNull".
-            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<int8_t>(value)));
           }
           break;
@@ -3237,8 +3213,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movzxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
           } else {
             DCHECK(in.GetConstant()->IsIntConstant());
-            // TODO: Remove "OrNull".
-            int32_t value = in.GetConstant()->AsIntConstantOrNull()->GetValue();
+            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint16_t>(value)));
           }
           break;
@@ -3249,8 +3224,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movzxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
           } else {
             DCHECK(in.GetConstant()->IsLongConstant());
-            // TODO: Remove "OrNull".
-            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<uint16_t>(value)));
           }
           break;
@@ -3271,8 +3245,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movsxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
           } else {
             DCHECK(in.GetConstant()->IsIntConstant());
-            // TODO: Remove "OrNull".
-            int32_t value = in.GetConstant()->AsIntConstantOrNull()->GetValue();
+            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<int16_t>(value)));
           }
           break;
@@ -3283,8 +3256,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
             __ movsxw(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
           } else {
             DCHECK(in.GetConstant()->IsLongConstant());
-            // TODO: Remove "OrNull".
-            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<int16_t>(value)));
           }
           break;
@@ -3305,8 +3277,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           } else {
             DCHECK(in.IsConstant());
             DCHECK(in.GetConstant()->IsLongConstant());
-            // TODO: Remove "OrNull".
-            int64_t value = in.GetConstant()->AsLongConstantOrNull()->GetValue();
+            int64_t value = in.GetConstant()->AsLongConstant()->GetValue();
             __ movl(out.AsRegister<Register>(), Immediate(static_cast<int32_t>(value)));
           }
           break;
@@ -3557,8 +3528,7 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
               first.AsRegister<Register>(), second.AsRegister<Register>(), TIMES_1, 0));
           }
       } else if (second.IsConstant()) {
-        // TODO: Remove "OrNull".
-        int32_t value = second.GetConstant()->AsIntConstantOrNull()->GetValue();
+        int32_t value = second.GetConstant()->AsIntConstant()->GetValue();
         if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
           __ addl(out.AsRegister<Register>(), Immediate(value));
         } else {
@@ -3581,8 +3551,7 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
                 Address(ESP, second.GetHighStackIndex(kX86WordSize)));
       } else {
         DCHECK(second.IsConstant()) << second;
-        // TODO: Remove "OrNull".
-        int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
         __ addl(first.AsRegisterPairLow<Register>(), Immediate(Low32Bits(value)));
         __ adcl(first.AsRegisterPairHigh<Register>(), Immediate(High32Bits(value)));
       }
@@ -3593,13 +3562,11 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
       if (second.IsFpuRegister()) {
         __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ addss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsFloatConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -3613,13 +3580,11 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
       if (second.IsFpuRegister()) {
         __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (add->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = add->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ addsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsDoubleConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -3675,8 +3640,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
         __ subl(first.AsRegister<Register>(), second.AsRegister<Register>());
       } else if (second.IsConstant()) {
         __ subl(first.AsRegister<Register>(),
-                // TODO: Remove "OrNull".
-                Immediate(second.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ subl(first.AsRegister<Register>(), Address(ESP, second.GetStackIndex()));
       }
@@ -3693,8 +3657,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
                 Address(ESP, second.GetHighStackIndex(kX86WordSize)));
       } else {
         DCHECK(second.IsConstant()) << second;
-        // TODO: Remove "OrNull".
-        int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
         __ subl(first.AsRegisterPairLow<Register>(), Immediate(Low32Bits(value)));
         __ sbbl(first.AsRegisterPairHigh<Register>(), Immediate(High32Bits(value)));
       }
@@ -3705,13 +3668,11 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
       if (second.IsFpuRegister()) {
         __ subss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ subss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsFloatConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -3725,13 +3686,11 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
       if (second.IsFpuRegister()) {
         __ subsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (sub->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = sub->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ subsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsDoubleConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -3799,8 +3758,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
       // The constant may have ended up in a register, so test explicitly to avoid
       // problems where the output may not be the same as the first operand.
       if (mul->InputAt(1)->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        Immediate imm(mul->InputAt(1)->AsIntConstantOrNull()->GetValue());
+        Immediate imm(mul->InputAt(1)->AsIntConstant()->GetValue());
         __ imull(out.AsRegister<Register>(), first.AsRegister<Register>(), imm);
       } else if (second.IsRegister()) {
         DCHECK(first.Equals(out));
@@ -3829,8 +3787,7 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
       if (second.IsConstant()) {
         DCHECK(second.GetConstant()->IsLongConstant());
 
-        // TODO: Remove "OrNull".
-        int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
         int32_t low_value = Low32Bits(value);
         int32_t high_value = High32Bits(value);
         Immediate low(low_value);
@@ -3900,13 +3857,11 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
       if (second.IsFpuRegister()) {
         __ mulss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ mulss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsFloatConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsFloatConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -3921,13 +3876,11 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
       if (second.IsFpuRegister()) {
         __ mulsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (mul->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = mul->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ mulsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsDoubleConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -4047,8 +4000,7 @@ void InstructionCodeGeneratorX86::DivRemOneOrMinusOne(HBinaryOperation* instruct
 
   Register out_register = locations->Out().AsRegister<Register>();
   Register input_register = locations->InAt(0).AsRegister<Register>();
-  // TODO: Remove "OrNull".
-  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
 
   DCHECK(imm == 1 || imm == -1);
 
@@ -4089,8 +4041,7 @@ void InstructionCodeGeneratorX86::DivByPowerOfTwo(HDiv* instruction) {
 
   Register out_register = locations->Out().AsRegister<Register>();
   Register input_register = locations->InAt(0).AsRegister<Register>();
-  // TODO: Remove "OrNull".
-  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int32_t imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
   DCHECK(IsPowerOfTwo(AbsOrMin(imm)));
   uint32_t abs_imm = static_cast<uint32_t>(AbsOrMin(imm));
 
@@ -4113,8 +4064,7 @@ void InstructionCodeGeneratorX86::GenerateDivRemWithAnyConstant(HBinaryOperation
   DCHECK(instruction->IsDiv() || instruction->IsRem());
 
   LocationSummary* locations = instruction->GetLocations();
-  // TODO: Remove "OrNull".
-  int imm = locations->InAt(1).GetConstant()->AsIntConstantOrNull()->GetValue();
+  int imm = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
 
   Register eax = locations->InAt(0).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
@@ -4192,8 +4142,7 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
       DCHECK_EQ(is_div ? EAX : EDX, out.AsRegister<Register>());
 
       if (second.IsConstant()) {
-        // TODO: Remove "OrNull".
-        int32_t imm = second.GetConstant()->AsIntConstantOrNull()->GetValue();
+        int32_t imm = second.GetConstant()->AsIntConstant()->GetValue();
 
         if (imm == 0) {
           // Do not generate anything for 0. DivZeroCheck would forbid any generated code.
@@ -4201,11 +4150,9 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
           DivRemOneOrMinusOne(instruction);
         } else if (IsPowerOfTwo(AbsOrMin(imm))) {
           if (is_div) {
-            // TODO: Remove "OrNull".
-            DivByPowerOfTwo(instruction->AsDivOrNull());
+            DivByPowerOfTwo(instruction->AsDiv());
           } else {
-            // TODO: Remove "OrNull".
-            RemByPowerOfTwo(instruction->AsRemOrNull());
+            RemByPowerOfTwo(instruction->AsRem());
           }
         } else {
           DCHECK(imm <= -2 || imm >= 2);
@@ -4323,13 +4270,11 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
       if (second.IsFpuRegister()) {
         __ divss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ divss(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralFloatAddress(
-                   // TODO: Remove "OrNull".
-                   const_area->GetConstant()->AsFloatConstantOrNull()->GetValue(),
+                   const_area->GetConstant()->AsFloatConstant()->GetValue(),
                    const_area->GetBaseMethodAddress(),
                    const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -4343,13 +4288,11 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
       if (second.IsFpuRegister()) {
         __ divsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
       } else if (div->InputAt(1)->IsX86LoadFromConstantTable()) {
-        // TODO: Remove "OrNull".
-        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTableOrNull();
+        HX86LoadFromConstantTable* const_area = div->InputAt(1)->AsX86LoadFromConstantTable();
         DCHECK(const_area->IsEmittedAtUseSite());
         __ divsd(first.AsFpuRegister<XmmRegister>(),
                  codegen_->LiteralDoubleAddress(
-                     // TODO: Remove "OrNull".
-                     const_area->GetConstant()->AsDoubleConstantOrNull()->GetValue(),
+                     const_area->GetConstant()->AsDoubleConstant()->GetValue(),
                      const_area->GetBaseMethodAddress(),
                      const_area->GetLocations()->InAt(0).AsRegister<Register>()));
       } else {
@@ -4769,8 +4712,7 @@ void InstructionCodeGeneratorX86::VisitDivZeroCheck(HDivZeroCheck* instruction) 
         __ j(kEqual, slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        // TODO: Remove "OrNull".
-        if (value.GetConstant()->AsIntConstantOrNull()->GetValue() == 0) {
+        if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
           __ jmp(slow_path->GetEntryLabel());
         }
       }
@@ -4784,8 +4726,7 @@ void InstructionCodeGeneratorX86::VisitDivZeroCheck(HDivZeroCheck* instruction) 
         __ j(kEqual, slow_path->GetEntryLabel());
       } else {
         DCHECK(value.IsConstant()) << value;
-        // TODO: Remove "OrNull".
-        if (value.GetConstant()->AsLongConstantOrNull()->GetValue() == 0) {
+        if (value.GetConstant()->AsLongConstant()->GetValue() == 0) {
           __ jmp(slow_path->GetEntryLabel());
         }
       }
@@ -4840,9 +4781,7 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
           __ shrl(first_reg, second_reg);
         }
       } else {
-        // TODO: Remove "OrNull".
-        int32_t shift =
-            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxIntShiftDistance;
+        int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance;
         if (shift == 0) {
           return;
         }
@@ -4870,9 +4809,7 @@ void InstructionCodeGeneratorX86::HandleShift(HBinaryOperation* op) {
         }
       } else {
         // Shift by a constant.
-        // TODO: Remove "OrNull".
-        int32_t shift =
-            second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxLongShiftDistance;
+        int32_t shift = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance;
         // Nothing to do if the shift is 0, as the input is already the output.
         if (shift != 0) {
           if (op->IsShl()) {
@@ -5029,9 +4966,7 @@ void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
       Register second_reg = second.AsRegister<Register>();
       __ rorl(first_reg, second_reg);
     } else {
-      // TODO: Remove "OrNull".
-      Immediate imm(
-          second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxIntShiftDistance);
+      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftDistance);
       __ rorl(first_reg, imm);
     }
     return;
@@ -5052,9 +4987,7 @@ void InstructionCodeGeneratorX86::VisitRor(HRor* ror) {
     __ cmovl(kNotEqual, first_reg_hi, first_reg_lo);
     __ cmovl(kNotEqual, first_reg_lo, temp_reg);
   } else {
-    // TODO: Remove "OrNull".
-    int32_t shift_amt =
-        second.GetConstant()->AsIntConstantOrNull()->GetValue() & kMaxLongShiftDistance;
+    int32_t shift_amt = second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftDistance;
     if (shift_amt == 0) {
       // Already fine.
       return;
@@ -5297,8 +5230,7 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
       if (right.IsConstant()) {
         DCHECK(right.GetConstant()->IsLongConstant());
         right_is_const = true;
-        // TODO: Remove "OrNull".
-        int64_t val = right.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t val = right.GetConstant()->AsLongConstant()->GetValue();
         val_low = Low32Bits(val);
         val_high = High32Bits(val);
       }
@@ -5399,13 +5331,11 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOr
 
 Register CodeGeneratorX86::GetInvokeExtraParameter(HInvoke* invoke, Register temp) {
   if (invoke->IsInvokeStaticOrDirect()) {
-    // TODO: Remove "OrNull".
-    return GetInvokeStaticOrDirectExtraParameter(invoke->AsInvokeStaticOrDirectOrNull(), temp);
+    return GetInvokeStaticOrDirectExtraParameter(invoke->AsInvokeStaticOrDirect(), temp);
   }
   DCHECK(invoke->IsInvokeInterface());
-  // TODO: Remove "OrNull".
   Location location =
-      invoke->GetLocations()->InAt(invoke->AsInvokeInterfaceOrNull()->GetSpecialInputIndex());
+      invoke->GetLocations()->InAt(invoke->AsInvokeInterface()->GetSpecialInputIndex());
   return location.AsRegister<Register>();
 }
 
@@ -5445,15 +5375,13 @@ void CodeGeneratorX86::LoadMethod(MethodLoadKind load_kind, Location temp, HInvo
       break;
     }
     case MethodLoadKind::kBootImageRelRo: {
-      // TODO: Remove "OrNull".
       size_t index = invoke->IsInvokeInterface()
-          ? invoke->AsInvokeInterfaceOrNull()->GetSpecialInputIndex()
-          : invoke->AsInvokeStaticOrDirectOrNull()->GetSpecialInputIndex();
+          ? invoke->AsInvokeInterface()->GetSpecialInputIndex()
+          : invoke->AsInvokeStaticOrDirect()->GetSpecialInputIndex();
       Register base_reg = GetInvokeExtraParameter(invoke, temp.AsRegister<Register>());
       __ movl(temp.AsRegister<Register>(), Address(base_reg, kPlaceholder32BitOffset));
       RecordBootImageRelRoPatch(
-          // TODO: Remove "OrNull".
-          invoke->InputAt(index)->AsX86ComputeBaseMethodAddressOrNull(),
+          invoke->InputAt(index)->AsX86ComputeBaseMethodAddress(),
           GetBootImageOffset(invoke));
       break;
     }
@@ -5634,13 +5562,11 @@ void CodeGeneratorX86::RecordBootImageRelRoPatch(HX86ComputeBaseMethodAddress* m
 }
 
 void CodeGeneratorX86::RecordBootImageMethodPatch(HInvoke* invoke) {
-  // TODO: Remove "OrNull".
   size_t index = invoke->IsInvokeInterface()
-      ? invoke->AsInvokeInterfaceOrNull()->GetSpecialInputIndex()
-      : invoke->AsInvokeStaticOrDirectOrNull()->GetSpecialInputIndex();
-  // TODO: Remove "OrNull".
+      ? invoke->AsInvokeInterface()->GetSpecialInputIndex()
+      : invoke->AsInvokeStaticOrDirect()->GetSpecialInputIndex();
   HX86ComputeBaseMethodAddress* method_address =
-      invoke->InputAt(index)->AsX86ComputeBaseMethodAddressOrNull();
+      invoke->InputAt(index)->AsX86ComputeBaseMethodAddress();
   boot_image_method_patches_.emplace_back(
       method_address,
       invoke->GetResolvedMethodReference().dex_file,
@@ -5649,17 +5575,15 @@ void CodeGeneratorX86::RecordBootImageMethodPatch(HInvoke* invoke) {
 }
 
 void CodeGeneratorX86::RecordMethodBssEntryPatch(HInvoke* invoke) {
-  // TODO: Remove "OrNull".
   size_t index = invoke->IsInvokeInterface()
-      ? invoke->AsInvokeInterfaceOrNull()->GetSpecialInputIndex()
-      : invoke->AsInvokeStaticOrDirectOrNull()->GetSpecialInputIndex();
+      ? invoke->AsInvokeInterface()->GetSpecialInputIndex()
+      : invoke->AsInvokeStaticOrDirect()->GetSpecialInputIndex();
   DCHECK(IsSameDexFile(GetGraph()->GetDexFile(), *invoke->GetMethodReference().dex_file) ||
          GetCompilerOptions().WithinOatFile(invoke->GetMethodReference().dex_file) ||
          ContainsElement(Runtime::Current()->GetClassLinker()->GetBootClassPath(),
                          invoke->GetMethodReference().dex_file));
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      invoke->InputAt(index)->AsX86ComputeBaseMethodAddressOrNull();
+      invoke->InputAt(index)->AsX86ComputeBaseMethodAddress();
   // Add the patch entry and bind its label at the end of the instruction.
   method_bss_entry_patches_.emplace_back(
       method_address,
@@ -5669,18 +5593,16 @@ void CodeGeneratorX86::RecordMethodBssEntryPatch(HInvoke* invoke) {
 }
 
 void CodeGeneratorX86::RecordBootImageTypePatch(HLoadClass* load_class) {
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      load_class->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull();
+      load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
   boot_image_type_patches_.emplace_back(
       method_address, &load_class->GetDexFile(), load_class->GetTypeIndex().index_);
   __ Bind(&boot_image_type_patches_.back().label);
 }
 
 Label* CodeGeneratorX86::NewTypeBssEntryPatch(HLoadClass* load_class) {
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      load_class->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull();
+      load_class->InputAt(0)->AsX86ComputeBaseMethodAddress();
   ArenaDeque<X86PcRelativePatchInfo>* patches = nullptr;
   switch (load_class->GetLoadKind()) {
     case HLoadClass::LoadKind::kBssEntry:
@@ -5702,27 +5624,24 @@ Label* CodeGeneratorX86::NewTypeBssEntryPatch(HLoadClass* load_class) {
 }
 
 void CodeGeneratorX86::RecordBootImageStringPatch(HLoadString* load_string) {
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      load_string->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull();
+      load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
   boot_image_string_patches_.emplace_back(
       method_address, &load_string->GetDexFile(), load_string->GetStringIndex().index_);
   __ Bind(&boot_image_string_patches_.back().label);
 }
 
 Label* CodeGeneratorX86::NewStringBssEntryPatch(HLoadString* load_string) {
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      load_string->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull();
+      load_string->InputAt(0)->AsX86ComputeBaseMethodAddress();
   string_bss_entry_patches_.emplace_back(
       method_address, &load_string->GetDexFile(), load_string->GetStringIndex().index_);
   return &string_bss_entry_patches_.back().label;
 }
 
 void CodeGeneratorX86::RecordBootImageJniEntrypointPatch(HInvokeStaticOrDirect* invoke) {
-  // TODO: Remove "OrNull".
   HX86ComputeBaseMethodAddress* method_address =
-      invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddressOrNull();
+      invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress();
   boot_image_jni_entrypoint_patches_.emplace_back(
       method_address,
       invoke->GetResolvedMethodReference().dex_file,
@@ -5734,18 +5653,16 @@ void CodeGeneratorX86::LoadBootImageAddress(Register reg,
                                             uint32_t boot_image_reference,
                                             HInvokeStaticOrDirect* invoke) {
   if (GetCompilerOptions().IsBootImage()) {
-    // TODO: Remove "OrNull".
     HX86ComputeBaseMethodAddress* method_address =
-        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddressOrNull();
+        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress();
     DCHECK(method_address != nullptr);
     Register method_address_reg =
         invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex()).AsRegister<Register>();
     __ leal(reg, Address(method_address_reg, CodeGeneratorX86::kPlaceholder32BitOffset));
     RecordBootImageIntrinsicPatch(method_address, boot_image_reference);
   } else if (GetCompilerOptions().GetCompilePic()) {
-    // TODO: Remove "OrNull".
     HX86ComputeBaseMethodAddress* method_address =
-        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddressOrNull();
+        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress();
     DCHECK(method_address != nullptr);
     Register method_address_reg =
         invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex()).AsRegister<Register>();
@@ -5764,9 +5681,8 @@ void CodeGeneratorX86::LoadIntrinsicDeclaringClass(Register reg, HInvokeStaticOr
   DCHECK_NE(invoke->GetIntrinsic(), Intrinsics::kNone);
   if (GetCompilerOptions().IsBootImage()) {
     // Load the class the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
-    // TODO: Remove "OrNull".
     HX86ComputeBaseMethodAddress* method_address =
-        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddressOrNull();
+        invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress();
     DCHECK(method_address != nullptr);
     Register method_address_reg =
         invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex()).AsRegister<Register>();
@@ -6185,9 +6101,7 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
   DataType::Type field_type = field_info.GetFieldType();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
   bool is_predicated =
-      instruction->IsInstanceFieldSet() &&
-      // TODO: Remove "OrNull".
-      instruction->AsInstanceFieldSetOrNull()->GetIsPredicatedSet();
+      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
 
   Address field_addr(base, offset);
 
@@ -6441,9 +6355,8 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
       // Baker's using a slow path (and also unpoison the loaded
       // reference, if heap poisoning is enabled).
       if (index.IsConstant()) {
-        // TODO: Remove "OrNull".
         uint32_t offset =
-            (index.GetConstant()->AsIntConstantOrNull()->GetValue() << TIMES_4) + data_offset;
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
         codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
       } else {
         codegen_->MaybeGenerateReadBarrierSlow(
@@ -6682,8 +6595,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
                 value.AsRegisterPairHigh<Register>());
       } else {
         DCHECK(value.IsConstant());
-        // TODO: Remove "OrNull".
-        int64_t val = value.GetConstant()->AsLongConstantOrNull()->GetValue();
+        int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
         __ movl(CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, data_offset),
                 Immediate(Low32Bits(val)));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -6700,9 +6612,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
         __ movss(address, value.AsFpuRegister<XmmRegister>());
       } else {
         DCHECK(value.IsConstant());
-        // TODO: Remove "OrNull".
-        int32_t v =
-            bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstantOrNull()->GetValue());
+        int32_t v = bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
         __ movl(address, Immediate(v));
       }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -6718,9 +6628,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
         DCHECK(value.IsConstant());
         Address address_hi =
             CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, offset + kX86WordSize);
-        // TODO: Remove "OrNull".
-        int64_t v =
-            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstantOrNull()->GetValue());
+        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
         __ movl(address, Immediate(Low32Bits(v)));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         __ movl(address_hi, Immediate(High32Bits(v)));
@@ -6812,9 +6720,7 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
     if (array_length->IsEmittedAtUseSite()) {
       // Address the length field in the array.
       DCHECK(array_length->IsArrayLength());
-      // TODO: Remove "OrNull".
-      uint32_t len_offset =
-          CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLengthOrNull());
+      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLength());
       Location array_loc = array_length->GetLocations()->InAt(0);
       Address array_len(array_loc.AsRegister<Register>(), len_offset);
       if (is_string_compressed_char_at) {
@@ -6851,8 +6757,7 @@ void LocationsBuilderX86::VisitParallelMove(HParallelMove* instruction ATTRIBUTE
 void InstructionCodeGeneratorX86::VisitParallelMove(HParallelMove* instruction) {
   if (instruction->GetNext()->IsSuspendCheck() &&
       instruction->GetBlock()->GetLoopInformation() != nullptr) {
-    // TODO: Remove "OrNull".
-    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheckOrNull();
+    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheck();
     // The back edge will generate the suspend check.
     codegen_->ClearSpillSlotsFromLoopPhisInStackMap(suspend_check, instruction);
   }
@@ -7031,8 +6936,7 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
         __ movl(Address(ESP, destination.GetStackIndex()), Immediate(value));
       }
     } else if (constant->IsFloatConstant()) {
-      // TODO: Remove "OrNull".
-      float fp_value = constant->AsFloatConstantOrNull()->GetValue();
+      float fp_value = constant->AsFloatConstant()->GetValue();
       int32_t value = bit_cast<int32_t, float>(fp_value);
       Immediate imm(value);
       if (destination.IsFpuRegister()) {
@@ -7052,8 +6956,7 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
         __ movl(Address(ESP, destination.GetStackIndex()), imm);
       }
     } else if (constant->IsLongConstant()) {
-      // TODO: Remove "OrNull".
-      int64_t value = constant->AsLongConstantOrNull()->GetValue();
+      int64_t value = constant->AsLongConstant()->GetValue();
       int32_t low_value = Low32Bits(value);
       int32_t high_value = High32Bits(value);
       Immediate low(low_value);
@@ -7067,8 +6970,7 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
       }
     } else {
       DCHECK(constant->IsDoubleConstant());
-      // TODO: Remove "OrNull".
-      double dbl_value = constant->AsDoubleConstantOrNull()->GetValue();
+      double dbl_value = constant->AsDoubleConstant()->GetValue();
       int64_t value = bit_cast<int64_t, double>(dbl_value);
       int32_t low_value = Low32Bits(value);
       int32_t high_value = High32Bits(value);
@@ -7342,8 +7244,7 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFE
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       Register method_address = locations->InAt(0).AsRegister<Register>();
       __ movl(out, Address(method_address, CodeGeneratorX86::kPlaceholder32BitOffset));
-      // TODO: Remove "OrNull".
-      codegen_->RecordBootImageRelRoPatch(cls->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull(),
+      codegen_->RecordBootImageRelRoPatch(cls->InputAt(0)->AsX86ComputeBaseMethodAddress(),
                                           CodeGenerator::GetBootImageOffset(cls));
       break;
     }
@@ -7536,8 +7437,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) NO_THREAD_S
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       Register method_address = locations->InAt(0).AsRegister<Register>();
       __ movl(out, Address(method_address, CodeGeneratorX86::kPlaceholder32BitOffset));
-      // TODO: Remove "OrNull".
-      codegen_->RecordBootImageRelRoPatch(load->InputAt(0)->AsX86ComputeBaseMethodAddressOrNull(),
+      codegen_->RecordBootImageRelRoPatch(load->InputAt(0)->AsX86ComputeBaseMethodAddress(),
                                           CodeGenerator::GetBootImageOffset(load));
       return;
     }
@@ -8293,17 +8193,14 @@ void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instr
     } else if (second.IsConstant()) {
       if (instruction->IsAnd()) {
         __ andl(first.AsRegister<Register>(),
-                // TODO: Remove "OrNull".
-                Immediate(second.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else if (instruction->IsOr()) {
         __ orl(first.AsRegister<Register>(),
-               // TODO: Remove "OrNull".
-               Immediate(second.GetConstant()->AsIntConstantOrNull()->GetValue()));
+               Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         DCHECK(instruction->IsXor());
         __ xorl(first.AsRegister<Register>(),
-                // TODO: Remove "OrNull".
-                Immediate(second.GetConstant()->AsIntConstantOrNull()->GetValue()));
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       }
     } else {
       if (instruction->IsAnd()) {
@@ -8346,8 +8243,7 @@ void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instr
       }
     } else {
       DCHECK(second.IsConstant()) << second;
-      // TODO: Remove "OrNull".
-      int64_t value = second.GetConstant()->AsLongConstantOrNull()->GetValue();
+      int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
       int32_t low_value = Low32Bits(value);
       int32_t high_value = High32Bits(value);
       Immediate low(low_value);
@@ -8887,17 +8783,13 @@ void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromCons
     case DataType::Type::kFloat32:
       __ movss(out.AsFpuRegister<XmmRegister>(),
                codegen_->LiteralFloatAddress(
-                   // TODO: Remove "OrNull".
-                   value->AsFloatConstantOrNull()->GetValue(),
-                   insn->GetBaseMethodAddress(),
-                   const_area));
+                   value->AsFloatConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     case DataType::Type::kFloat64:
       __ movsd(out.AsFpuRegister<XmmRegister>(),
                codegen_->LiteralDoubleAddress(
-                   // TODO: Remove "OrNull".
-                   value->AsDoubleConstantOrNull()->GetValue(),
+                   value->AsDoubleConstant()->GetValue(),
                    insn->GetBaseMethodAddress(),
                    const_area));
       break;
@@ -8905,10 +8797,7 @@ void InstructionCodeGeneratorX86::VisitX86LoadFromConstantTable(HX86LoadFromCons
     case DataType::Type::kInt32:
       __ movl(out.AsRegister<Register>(),
               codegen_->LiteralInt32Address(
-                  // TODO: Remove "OrNull".
-                  value->AsIntConstantOrNull()->GetValue(),
-                  insn->GetBaseMethodAddress(),
-                  const_area));
+                  value->AsIntConstant()->GetValue(), insn->GetBaseMethodAddress(), const_area));
       break;
 
     default:
@@ -9083,9 +8972,7 @@ Address CodeGeneratorX86::ArrayAddress(Register obj,
                                        ScaleFactor scale,
                                        uint32_t data_offset) {
   return index.IsConstant()
-      ? Address(obj,
-                // TODO: Remove "OrNull".
-                (index.GetConstant()->AsIntConstantOrNull()->GetValue() << scale) + data_offset)
+      ? Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset)
       : Address(obj, index.AsRegister<Register>(), scale, data_offset);
 }
 

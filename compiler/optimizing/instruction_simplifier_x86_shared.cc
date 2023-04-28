@@ -37,8 +37,7 @@ bool TryCombineAndNot(HAnd* instruction) {
   if (left->IsNot() ^ right->IsNot()) {
     bool left_is_not = left->IsNot();
     HInstruction* other_ins = (left_is_not ? right : left);
-    // TODO: Remove "OrNull".
-    HNot* not_ins = (left_is_not ? left : right)->AsNotOrNull();
+    HNot* not_ins = (left_is_not ? left : right)->AsNot();
     // Only do the simplification if instruction has only one use
     // and thus can be safely removed.
     if (not_ins->HasOnlyOneNonEnvironmentUse()) {
@@ -124,14 +123,12 @@ bool TryGenerateMaskUptoLeastSetBit(HXor* instruction) {
 
 bool AreLeastSetBitInputs(HInstruction* to_test, HInstruction* other) {
   if (to_test->IsAdd()) {
-    // TODO: Remove "OrNull".
-    HAdd* add = to_test->AsAddOrNull();
+    HAdd* add = to_test->AsAdd();
     HConstant* cst = add->GetConstantRight();
     return cst != nullptr && cst->IsMinusOne() && other == add->GetLeastConstantLeft();
   }
   if (to_test->IsSub()) {
-    // TODO: Remove "OrNull".
-    HSub* sub = to_test->AsSubOrNull();
+    HSub* sub = to_test->AsSub();
     HConstant* cst = sub->GetConstantRight();
     return cst != nullptr && cst->IsOne() && other == sub->GetLeastConstantLeft();
   }

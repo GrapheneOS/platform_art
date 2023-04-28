@@ -151,8 +151,7 @@ static bool CanReferenceBootImageObjects(HInvoke* invoke, const CompilerOptions&
   // for AOT. This should cover both the testing config (non-PIC boot image) and codegens that
   // reject PC-relative load kinds and fall back to the runtime call.
   if (compiler_options.IsAotCompiler() &&
-      // TODO: Remove "OrNull".
-      !invoke->AsInvokeStaticOrDirectOrNull()->HasPcRelativeMethodLoadKind()) {
+      !invoke->AsInvokeStaticOrDirect()->HasPcRelativeMethodLoadKind()) {
     return false;
   }
   if (!compiler_options.IsBootImage() &&
@@ -210,8 +209,7 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
       }
     }
     if (input->IsIntConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t value = input->AsIntConstantOrNull()->GetValue();
+      int32_t value = input->AsIntConstant()->GetValue();
       if (static_cast<uint32_t>(value) - static_cast<uint32_t>(low) <
           static_cast<uint32_t>(high - low + 1)) {
         // No call, we shall use direct pointer to the Integer object.
@@ -236,8 +234,7 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
       DCHECK(compiler_options.IsAotCompiler());
       DCHECK(CheckIntegerCache(self, runtime->GetClassLinker(), boot_image_live_objects, cache));
       if (input->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        int32_t value = input->AsIntConstantOrNull()->GetValue();
+        int32_t value = input->AsIntConstant()->GetValue();
         // Retrieve the `value` from the lowest cached Integer.
         ObjPtr<mirror::Object> low_integer =
             IntrinsicObjects::GetIntegerValueOfObject(boot_image_live_objects, 0u);
@@ -311,8 +308,7 @@ IntrinsicVisitor::IntegerValueOfInfo IntrinsicVisitor::ComputeIntegerValueOfInfo
     info.length = dchecked_integral_cast<uint32_t>(high - info.low + 1);
 
     if (invoke->InputAt(0)->IsIntConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t input_value = invoke->InputAt(0)->AsIntConstantOrNull()->GetValue();
+      int32_t input_value = invoke->InputAt(0)->AsIntConstant()->GetValue();
       uint32_t index = static_cast<uint32_t>(input_value) - static_cast<uint32_t>(info.low);
       if (index < static_cast<uint32_t>(info.length)) {
         info.value_boot_image_reference = IntrinsicObjects::EncodePatch(
@@ -347,8 +343,7 @@ IntrinsicVisitor::IntegerValueOfInfo IntrinsicVisitor::ComputeIntegerValueOfInfo
         IntrinsicObjects::GetIntegerValueOfCache(boot_image_live_objects)->GetLength());
 
     if (invoke->InputAt(0)->IsIntConstant()) {
-      // TODO: Remove "OrNull".
-      int32_t input_value = invoke->InputAt(0)->AsIntConstantOrNull()->GetValue();
+      int32_t input_value = invoke->InputAt(0)->AsIntConstant()->GetValue();
       uint32_t index = static_cast<uint32_t>(input_value) - static_cast<uint32_t>(info.low);
       if (index < static_cast<uint32_t>(info.length)) {
         ObjPtr<mirror::Object> integer =

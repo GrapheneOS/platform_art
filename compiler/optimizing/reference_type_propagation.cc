@@ -132,8 +132,7 @@ void ReferenceTypePropagation::Visit(ArrayRef<HInstruction* const> instructions)
   for (HInstruction* instruction : instructions) {
     if (instruction->IsPhi()) {
       // Need to force phis to recalculate null-ness.
-      // TODO: Remove "OrNull".
-      instruction->AsPhiOrNull()->SetCanBeNull(false);
+      instruction->AsPhi()->SetCanBeNull(false);
     }
   }
   for (HInstruction* instruction : instructions) {
@@ -164,8 +163,7 @@ static bool ShouldCreateBoundType(HInstruction* position,
     return true;
   }
 
-  // TODO: Remove "OrNull".
-  HBoundType* existing_bound_type = position->AsBoundTypeOrNull();
+  HBoundType* existing_bound_type = position->AsBoundType();
   if (existing_bound_type->GetUpperBound().IsSupertypeOf(upper_bound)) {
     if (kIsDebugBuild) {
       // Check that the existing HBoundType dominates all the uses.
@@ -255,8 +253,7 @@ static void BoundTypeForClassCheck(HInstruction* check) {
   HInstruction* input_one = compare->InputAt(0);
   HInstruction* input_two = compare->InputAt(1);
   HLoadClass* load_class = input_one->IsLoadClass()
-      // TODO: Remove "OrNull".
-      ? input_one->AsLoadClassOrNull()
+      ? input_one->AsLoadClass()
       : input_two->AsLoadClassOrNull();
   if (load_class == nullptr) {
     return;
@@ -289,15 +286,13 @@ static void BoundTypeForClassCheck(HInstruction* check) {
   }
 
   if (check->IsIf()) {
-    // TODO: Remove "OrNull".
     HBasicBlock* trueBlock = compare->IsEqual()
-        ? check->AsIfOrNull()->IfTrueSuccessor()
-        : check->AsIfOrNull()->IfFalseSuccessor();
+        ? check->AsIf()->IfTrueSuccessor()
+        : check->AsIf()->IfFalseSuccessor();
     BoundTypeIn(receiver, trueBlock, /* start_instruction= */ nullptr, class_rti);
   } else {
     DCHECK(check->IsDeoptimize());
-    // TODO: Remove "OrNull".
-    if (compare->IsEqual() && check->AsDeoptimizeOrNull()->GuardsAnInput()) {
+    if (compare->IsEqual() && check->AsDeoptimize()->GuardsAnInput()) {
       check->SetReferenceTypeInfo(class_rti);
     }
   }
@@ -323,8 +318,7 @@ bool ReferenceTypePropagation::Run() {
 void ReferenceTypePropagation::RTPVisitor::VisitBasicBlock(HBasicBlock* block) {
   // Handle Phis first as there might be instructions in the same block who depend on them.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-    // TODO: Remove "OrNull".
-    VisitPhi(it.Current()->AsPhiOrNull());
+    VisitPhi(it.Current()->AsPhi());
   }
 
   // Handle instructions. Since RTP may add HBoundType instructions just after the
@@ -397,18 +391,14 @@ static bool MatchIfInstanceOf(HIf* ifInstruction,
   HInstruction* input = ifInstruction->InputAt(0);
 
   if (input->IsEqual()) {
-    // TODO: Remove "OrNull".
-    HInstruction* rhs = input->AsEqualOrNull()->GetConstantRight();
+    HInstruction* rhs = input->AsEqual()->GetConstantRight();
     if (rhs != nullptr) {
-      // TODO: Remove "OrNull".
-      HInstruction* lhs = input->AsEqualOrNull()->GetLeastConstantLeft();
+      HInstruction* lhs = input->AsEqual()->GetLeastConstantLeft();
       if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        if (rhs->AsIntConstantOrNull()->IsTrue()) {
+        if (rhs->AsIntConstant()->IsTrue()) {
           // Case (1a)
           *trueBranch = ifInstruction->IfTrueSuccessor();
-          // TODO: Remove "OrNull".
-        } else if (rhs->AsIntConstantOrNull()->IsFalse()) {
+        } else if (rhs->AsIntConstant()->IsFalse()) {
           // Case (2a)
           *trueBranch = ifInstruction->IfFalseSuccessor();
         } else {
@@ -416,24 +406,19 @@ static bool MatchIfInstanceOf(HIf* ifInstruction,
           // In those cases, we cannot do the match if+instance-of.
           return false;
         }
-        // TODO: Remove "OrNull".
-        *instanceOf = lhs->AsInstanceOfOrNull();
+        *instanceOf = lhs->AsInstanceOf();
         return true;
       }
     }
   } else if (input->IsNotEqual()) {
-    // TODO: Remove "OrNull".
-    HInstruction* rhs = input->AsNotEqualOrNull()->GetConstantRight();
+    HInstruction* rhs = input->AsNotEqual()->GetConstantRight();
     if (rhs != nullptr) {
-      // TODO: Remove "OrNull".
-      HInstruction* lhs = input->AsNotEqualOrNull()->GetLeastConstantLeft();
+      HInstruction* lhs = input->AsNotEqual()->GetLeastConstantLeft();
       if (lhs->IsInstanceOf() && rhs->IsIntConstant()) {
-        // TODO: Remove "OrNull".
-        if (rhs->AsIntConstantOrNull()->IsFalse()) {
+        if (rhs->AsIntConstant()->IsFalse()) {
           // Case (1b)
           *trueBranch = ifInstruction->IfTrueSuccessor();
-          // TODO: Remove "OrNull".
-        } else if (rhs->AsIntConstantOrNull()->IsTrue()) {
+        } else if (rhs->AsIntConstant()->IsTrue()) {
           // Case (2b)
           *trueBranch = ifInstruction->IfFalseSuccessor();
         } else {
@@ -441,23 +426,20 @@ static bool MatchIfInstanceOf(HIf* ifInstruction,
           // In those cases, we cannot do the match if+instance-of.
           return false;
         }
-        // TODO: Remove "OrNull".
-        *instanceOf = lhs->AsInstanceOfOrNull();
+        *instanceOf = lhs->AsInstanceOf();
         return true;
       }
     }
   } else if (input->IsInstanceOf()) {
     // Case (1c)
-    // TODO: Remove "OrNull".
-    *instanceOf = input->AsInstanceOfOrNull();
+    *instanceOf = input->AsInstanceOf();
     *trueBranch = ifInstruction->IfTrueSuccessor();
     return true;
   } else if (input->IsBooleanNot()) {
     HInstruction* not_input = input->InputAt(0);
     if (not_input->IsInstanceOf()) {
       // Case (2c)
-      // TODO: Remove "OrNull".
-      *instanceOf = not_input->AsInstanceOfOrNull();
+      *instanceOf = not_input->AsInstanceOf();
       *trueBranch = ifInstruction->IfFalseSuccessor();
       return true;
     }
@@ -512,12 +494,10 @@ void ReferenceTypePropagation::RTPVisitor::BoundTypeForIfInstanceOf(HBasicBlock*
 void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
                                                               ObjPtr<mirror::Class> klass,
                                                               bool is_exact) {
-  // TODO: Remove "OrNull".
-  if (instr->IsInvokeStaticOrDirect() && instr->AsInvokeStaticOrDirectOrNull()->IsStringInit()) {
+  if (instr->IsInvokeStaticOrDirect() && instr->AsInvokeStaticOrDirect()->IsStringInit()) {
     // Calls to String.<init> are replaced with a StringFactory.
     if (kIsDebugBuild) {
-      // TODO: Remove "OrNull".
-      HInvokeStaticOrDirect* invoke = instr->AsInvokeStaticOrDirectOrNull();
+      HInvokeStaticOrDirect* invoke = instr->AsInvokeStaticOrDirect();
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
       Thread* self = Thread::Current();
       StackHandleScope<2> hs(self);
@@ -779,8 +759,7 @@ void ReferenceTypePropagation::FixUpInstructionType(HInstruction* instruction,
                                                     HandleCache* handle_cache) {
   if (instruction->IsSelect()) {
     ScopedObjectAccess soa(Thread::Current());
-    // TODO: Remove "OrNull".
-    HSelect* select = instruction->AsSelectOrNull();
+    HSelect* select = instruction->AsSelect();
     ReferenceTypeInfo false_rti = select->GetFalseValue()->GetReferenceTypeInfo();
     ReferenceTypeInfo true_rti = select->GetTrueValue()->GetReferenceTypeInfo();
     select->SetReferenceTypeInfo(MergeTypes(false_rti, true_rti, handle_cache));
@@ -858,11 +837,9 @@ bool ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
 
   ReferenceTypeInfo previous_rti = instr->GetReferenceTypeInfo();
   if (instr->IsBoundType()) {
-    // TODO: Remove "OrNull".
-    UpdateBoundType(instr->AsBoundTypeOrNull());
+    UpdateBoundType(instr->AsBoundType());
   } else if (instr->IsPhi()) {
-    // TODO: Remove "OrNull".
-    UpdatePhi(instr->AsPhiOrNull());
+    UpdatePhi(instr->AsPhi());
   } else if (instr->IsNullCheck()) {
     ReferenceTypeInfo parent_rti = instr->InputAt(0)->GetReferenceTypeInfo();
     if (parent_rti.IsValid()) {
@@ -871,8 +848,7 @@ bool ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
   } else if (instr->IsArrayGet()) {
     // TODO: consider if it's worth "looking back" and binding the input object
     // to an array type.
-    // TODO: Remove "OrNull".
-    UpdateArrayGet(instr->AsArrayGetOrNull());
+    UpdateArrayGet(instr->AsArrayGet());
   } else {
     LOG(FATAL) << "Invalid instruction (should not get here)";
   }
@@ -973,8 +949,7 @@ void ReferenceTypePropagation::RTPVisitor::UpdatePhi(HPhi* instr) {
 }
 
 constexpr bool ReferenceTypePropagation::RTPVisitor::IsUpdateable(const HInstruction* instr) {
-  // TODO: Remove "OrNull".
-  return (instr->IsPhi() && instr->AsPhiOrNull()->IsLive()) ||
+  return (instr->IsPhi() && instr->AsPhi()->IsLive()) ||
          instr->IsBoundType() ||
          instr->IsNullCheck() ||
          instr->IsArrayGet();
@@ -991,8 +966,7 @@ bool ReferenceTypePropagation::RTPVisitor::UpdateNullability(HInstruction* instr
 
   bool existing_can_be_null = instr->CanBeNull();
   if (instr->IsPhi()) {
-    // TODO: Remove "OrNull".
-    HPhi* phi = instr->AsPhiOrNull();
+    HPhi* phi = instr->AsPhi();
     bool new_can_be_null = false;
     for (HInstruction* input : phi->GetInputs()) {
       if (input->CanBeNull()) {
@@ -1002,8 +976,7 @@ bool ReferenceTypePropagation::RTPVisitor::UpdateNullability(HInstruction* instr
     }
     phi->SetCanBeNull(new_can_be_null);
   } else if (instr->IsBoundType()) {
-    // TODO: Remove "OrNull".
-    HBoundType* bound_type = instr->AsBoundTypeOrNull();
+    HBoundType* bound_type = instr->AsBoundType();
     bound_type->SetCanBeNull(instr->InputAt(0)->CanBeNull() && bound_type->GetUpperCanBeNull());
   }
   return existing_can_be_null != instr->CanBeNull();
@@ -1031,8 +1004,7 @@ void ReferenceTypePropagation::RTPVisitor::AddDependentInstructionsToWorklist(
     HInstruction* instruction) {
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
-    // TODO: Remove "OrNull".
-    if ((user->IsPhi() && user->AsPhiOrNull()->IsLive())
+    if ((user->IsPhi() && user->AsPhi()->IsLive())
        || user->IsBoundType()
        || user->IsNullCheck()
        || (user->IsArrayGet() && (user->GetType() == DataType::Type::kReference))) {
