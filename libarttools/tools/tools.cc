@@ -100,8 +100,8 @@ void MatchGlobRecursive(const std::vector<std::filesystem::path>& patterns,
   std::error_code ec;
   for (auto it = std::filesystem::recursive_directory_iterator(
            root_dir, std::filesystem::directory_options::skip_permission_denied, ec);
-       it != std::filesystem::end(it);
-       it++) {
+       !ec && it != std::filesystem::end(it);
+       it.increment(ec)) {
     const std::filesystem::directory_entry& entry = *it;
     if (std::none_of(patterns.begin(), patterns.end(), std::bind(PartialMatch, _1, entry.path()))) {
       // Avoid unnecessary I/O and SELinux denials.
