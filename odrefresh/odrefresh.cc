@@ -55,6 +55,7 @@
 
 #include "android-base/chrono_utils.h"
 #include "android-base/file.h"
+#include "android-base/function_ref.h"
 #include "android-base/logging.h"
 #include "android-base/macros.h"
 #include "android-base/parsebool.h"
@@ -655,15 +656,18 @@ int CompilationOptions::CompilationUnitCount() const {
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
     : OnDeviceRefresh(config,
                       config.GetArtifactDirectory() + "/" + kCacheInfoFile,
-                      std::make_unique<ExecUtils>()) {}
+                      std::make_unique<ExecUtils>(),
+                      CheckCompilationSpace) {}
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
                                  const std::string& cache_info_filename,
-                                 std::unique_ptr<ExecUtils> exec_utils)
-    : config_{config},
-      cache_info_filename_{cache_info_filename},
-      start_time_{time(nullptr)},
-      exec_utils_{std::move(exec_utils)} {
+                                 std::unique_ptr<ExecUtils> exec_utils,
+                                 android::base::function_ref<bool()> check_compilation_space)
+    : config_(config),
+      cache_info_filename_(cache_info_filename),
+      start_time_(time(nullptr)),
+      exec_utils_(std::move(exec_utils)),
+      check_compilation_space_(check_compilation_space) {
   // Updatable APEXes should not have DEX files in the DEX2OATBOOTCLASSPATH. At the time of
   // writing i18n is a non-updatable APEX and so does appear in the DEX2OATBOOTCLASSPATH.
   dex2oat_boot_classpath_jars_ = Split(config_.GetDex2oatBootClasspath(), ":");
@@ -1811,7 +1815,7 @@ OnDeviceRefresh::CompileBootClasspath(const std::string& staging_dir,
         CompilationResult::Error(OdrMetrics::Status::kUnknown, "Minimal boot image requested"));
   }
 
-  if (!CheckCompilationSpace()) {
+  if (!check_compilation_space_()) {
     result.Merge(CompilationResult::Error(OdrMetrics::Status::kNoSpace, "Insufficient space"));
   }
 
@@ -1957,7 +1961,7 @@ OnDeviceRefresh::CompileSystemServer(const std::string& staging_dir,
   CompilationResult result = CompilationResult::Ok();
   std::vector<std::string> classloader_context;
 
-  if (!CheckCompilationSpace()) {
+  if (!check_compilation_space_()) {
     LOG(ERROR) << "Compilation of system_server failed: Insufficient space";
     return CompilationResult::Error(OdrMetrics::Status::kNoSpace, "Insufficient space");
   }
