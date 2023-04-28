@@ -19,7 +19,8 @@ import java.io.IOException;
 
 public class StreamTraceParser extends BaseTraceParser {
 
-    public void CheckTraceFileFormat(File file, int expectedVersion) throws Exception {
+    public void CheckTraceFileFormat(File file,
+        int expectedVersion, String threadName) throws Exception {
         InitializeParser(file);
 
         validateTraceHeader(expectedVersion);
@@ -29,8 +30,8 @@ public class StreamTraceParser extends BaseTraceParser {
             int threadId = GetThreadID();
             if (threadId != 0) {
               String eventString = ProcessEventEntry(threadId);
-              if (ShouldIgnoreThread(threadId)) {
-                break;
+              if (!ShouldCheckThread(threadId, threadName)) {
+                continue;
               }
               // Ignore events after method tracing was stopped. The code that is executed
               // later could be non-deterministic.
