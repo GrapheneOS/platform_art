@@ -235,8 +235,10 @@ class OdRefreshTest : public CommonArtTest {
     mock_exec_utils_ = mock_exec_utils.get();
 
     metrics_ = std::make_unique<OdrMetrics>(dalvik_cache_dir_);
-    odrefresh_ = std::make_unique<OnDeviceRefresh>(
-        config_, dalvik_cache_dir_ + "/cache-info.xml", std::move(mock_exec_utils));
+    odrefresh_ = std::make_unique<OnDeviceRefresh>(config_,
+                                                   dalvik_cache_dir_ + "/cache-info.xml",
+                                                   std::move(mock_exec_utils),
+                                                   /*check_compilation_space=*/[] { return true; });
   }
 
   void TearDown() override {
