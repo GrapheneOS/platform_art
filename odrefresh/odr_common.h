@@ -26,9 +26,6 @@
 namespace art {
 namespace odrefresh {
 
-// Concatenates a list of strings into a single string.
-std::string Concatenate(std::initializer_list<std::string_view> args);
-
 // Quotes a path with single quotes (').
 std::string QuotePath(std::string_view path);
 

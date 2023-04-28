@@ -158,29 +158,30 @@ public class Main {
   }
 
   // The throw gets eliminated by `SimplifyIfs` in DCE, so we can detect that nothing can throw in
-  // the graph and eliminate the `TryBoundary` instructions.
+  // the graph and eliminate the `TryBoundary` instructions. It does so in `after_gvn` since it
+  // requires the VisitIf optimization which happens later in the graph.
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (before)
   /// CHECK:     Throw
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (before)
   /// CHECK:     TryBoundary
   /// CHECK:     TryBoundary
   /// CHECK:     TryBoundary
   /// CHECK:     TryBoundary
   /// CHECK-NOT: TryBoundary
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (before)
   /// CHECK:     flags "catch_block"
   /// CHECK-NOT: flags "catch_block"
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (after)
   /// CHECK-NOT: Throw
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (after)
   /// CHECK-NOT: TryBoundary
 
-  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$testOptimizeAfterOneBranchDisappears(int, boolean) dead_code_elimination$after_gvn (after)
   /// CHECK-NOT: flags "catch_block"
   public static int $noinline$testOptimizeAfterOneBranchDisappears(int a, boolean val) {
     try {

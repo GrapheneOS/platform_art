@@ -34,14 +34,23 @@ import java.lang.annotation.RetentionPolicy;
 public class ArtFlags {
     // Common flags.
 
-    /** Whether the operation is applied for primary dex'es. */
+    /**
+     * Whether the operation is applied for primary dex'es (all APKs that are installed as part of
+     * the package, including the base APK and all other split APKs).
+     */
     public static final int FLAG_FOR_PRIMARY_DEX = 1 << 0;
-    /** Whether the operation is applied for secondary dex'es. */
+    /**
+     * Whether the operation is applied for secondary dex'es (APKs/JARs that the app puts in its
+     * own data directory at runtime and loads with custom classloaders).
+     */
     public static final int FLAG_FOR_SECONDARY_DEX = 1 << 1;
 
     // Flags specific to `dexoptPackage`.
 
-    /** Whether to dexopt dependency libraries as well. */
+    /**
+     * Whether to dexopt dependency libraries as well (dependencies that are declared by the app
+     * with <uses-library> tags and transitive dependencies).
+     */
     public static final int FLAG_SHOULD_INCLUDE_DEPENDENCIES = 1 << 2;
     /**
      * Whether the intention is to downgrade the compiler filter. If true, the dexopt will

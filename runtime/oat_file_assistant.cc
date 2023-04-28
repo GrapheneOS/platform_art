@@ -1292,16 +1292,30 @@ void OatFileAssistant::GetOptimizationStatus(std::string* out_odex_location,
   const OatFile* oat_file = GetBestInfo().GetFile();
 
   if (oat_file == nullptr) {
-    *out_odex_location = "error";
-    *out_compilation_filter = "run-from-apk";
-    *out_compilation_reason = "unknown";
-    // This mostly happens when we cannot open the oat file.
-    // Note that it's different than kOatCannotOpen.
-    // TODO: The design of getting the BestInfo is not ideal,
-    // as it's not very clear what's the difference between
-    // a nullptr and kOatcannotOpen. The logic should be revised
-    // and improved.
-    *out_odex_status = "io-error-no-oat";
+    std::string error_msg;
+    std::optional<bool> has_dex_files = HasDexFiles(&error_msg);
+    if (!has_dex_files.has_value()) {
+      *out_odex_location = "error";
+      *out_compilation_filter = "unknown";
+      *out_compilation_reason = "unknown";
+      // This happens when we cannot open the APK/JAR.
+      *out_odex_status = "io-error-no-apk";
+    } else if (!has_dex_files.value()) {
+      *out_odex_location = "none";
+      *out_compilation_filter = "unknown";
+      *out_compilation_reason = "unknown";
+      // This happens when the APK/JAR doesn't contain any DEX file.
+      *out_odex_status = "no-dex-code";
+    } else {
+      *out_odex_location = "error";
+      *out_compilation_filter = "run-from-apk";
+      *out_compilation_reason = "unknown";
+      // This mostly happens when we cannot open the oat file.
+      // Note that it's different than kOatCannotOpen.
+      // TODO: The design of getting the BestInfo is not ideal, as it's not very clear what's the
+      // difference between a nullptr and kOatcannotOpen. The logic should be revised and improved.
+      *out_odex_status = "io-error-no-oat";
+    }
     return;
   }
 

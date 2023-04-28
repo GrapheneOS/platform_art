@@ -66,8 +66,10 @@ void StartupCompletedTask::Run(Thread* self) {
     return;
   }
 
-  // Maybe generate a runtime app image.
-  {
+  // Maybe generate a runtime app image. If the runtime is debuggable, boot
+  // classpath classes can be dynamically changed, so don't bother generating an
+  // image.
+  if (!runtime->IsJavaDebuggable()) {
     std::string compiler_filter;
     std::string compilation_reason;
     runtime->GetAppInfo()->GetPrimaryApkOptimizationStatus(&compiler_filter, &compilation_reason);

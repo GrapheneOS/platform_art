@@ -428,6 +428,9 @@ TEST_P(OatFileAssistantTest, NoDexNoOat) {
   // Trying to get the best oat file should fail, but not crash.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   EXPECT_EQ(nullptr, oat_file.get());
+
+  VerifyOptimizationStatusWithInstance(
+      &oat_file_assistant, "unknown", "unknown", "io-error-no-apk");
 }
 
 // Case: We have a DEX file and an ODEX file, but no OAT file.
@@ -1238,6 +1241,8 @@ TEST_P(OatFileAssistantTest, ResourceOnlyDex) {
   EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OdexFileStatus());
   EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
   ExpectHasDexFiles(&oat_file_assistant, false);
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant, "unknown", "unknown", "no-dex-code");
 }
 
 // Case: We have a DEX file, an ODEX file and an OAT file.
@@ -2070,6 +2075,9 @@ TEST_P(OatFileAssistantTest, OdexNoDex) {
                                /*expected_is_vdex_usable=*/false,
                                /*expected_location=*/OatFileAssistant::kLocationNoneOrError,
                                /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
+
+  VerifyOptimizationStatusWithInstance(
+      &oat_file_assistant, "unknown", "unknown", "io-error-no-apk");
 }
 
 // Case: We have a VDEX file, but the DEX file is gone.
@@ -2093,6 +2101,9 @@ TEST_P(OatFileAssistantTest, VdexNoDex) {
                                /*expected_is_vdex_usable=*/false,
                                /*expected_location=*/OatFileAssistant::kLocationNoneOrError,
                                /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
+
+  VerifyOptimizationStatusWithInstance(
+      &oat_file_assistant, "unknown", "unknown", "io-error-no-apk");
 }
 
 // Test that GetLocation of a dex file is the same whether the dex

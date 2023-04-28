@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -87,56 +88,6 @@ TEST_F(OdrMetricsTest, MetricsFileIsCreatedIfEnabled) {
   EXPECT_TRUE(MetricsFileExists());
 }
 
-TEST_F(OdrMetricsTest, TimeValuesAreRecorded) {
-  OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetArtApexVersion(1999);
-  metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
-  metrics.SetStage(OdrMetrics::Stage::kCheck);
-  metrics.SetStatus(OdrMetrics::Status::kOK);
-
-  // Primary boot classpath compilation time.
-  {
-    metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-    ScopedOdrCompilationTimer timer(metrics);
-    std::this_thread::sleep_for(100ms);
-  }
-  OdrMetricsRecord record = metrics.ToRecord();
-  EXPECT_EQ(enum_cast<OdrMetrics::Stage>(record.stage_reached),
-            OdrMetrics::Stage::kPrimaryBootClasspath);
-  EXPECT_GT(record.primary_bcp_compilation_millis, 0);
-  EXPECT_LT(record.primary_bcp_compilation_millis, 300);
-  EXPECT_EQ(record.secondary_bcp_compilation_millis, 0);
-  EXPECT_EQ(record.system_server_compilation_millis, 0);
-
-  // Secondary boot classpath compilation time.
-  {
-    metrics.SetStage(OdrMetrics::Stage::kSecondaryBootClasspath);
-    ScopedOdrCompilationTimer timer(metrics);
-    std::this_thread::sleep_for(100ms);
-  }
-  record = metrics.ToRecord();
-  EXPECT_EQ(OdrMetrics::Stage::kSecondaryBootClasspath,
-            enum_cast<OdrMetrics::Stage>(record.stage_reached));
-  EXPECT_GT(record.primary_bcp_compilation_millis, 0);
-  EXPECT_GT(record.secondary_bcp_compilation_millis, 0);
-  EXPECT_LT(record.secondary_bcp_compilation_millis, 300);
-  EXPECT_EQ(record.system_server_compilation_millis, 0);
-
-  // system_server classpath compilation time.
-  {
-    metrics.SetStage(OdrMetrics::Stage::kSystemServerClasspath);
-    ScopedOdrCompilationTimer timer(metrics);
-    std::this_thread::sleep_for(100ms);
-  }
-  record = metrics.ToRecord();
-  EXPECT_EQ(OdrMetrics::Stage::kSystemServerClasspath,
-            enum_cast<OdrMetrics::Stage>(record.stage_reached));
-  EXPECT_GT(record.primary_bcp_compilation_millis, 0);
-  EXPECT_GT(record.secondary_bcp_compilation_millis, 0);
-  EXPECT_GT(record.system_server_compilation_millis, 0);
-  EXPECT_LT(record.system_server_compilation_millis, 300);
-}
-
 TEST_F(OdrMetricsTest, CacheSpaceValuesAreUpdated) {
   OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
   metrics.CaptureSpaceFreeEnd();
@@ -147,16 +98,28 @@ TEST_F(OdrMetricsTest, CacheSpaceValuesAreUpdated) {
 
 TEST_F(OdrMetricsTest, PrimaryBcpResultWithValue) {
   OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kExited,
-    .exit_code = 0,
-    .signal = 0
-  });
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kPrimaryBootClasspath,
+      100,
+      ExecResult{.status = ExecResult::Status::kExited, .exit_code = 0, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kPrimaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kMainline);
   OdrMetricsRecord record = metrics.ToRecord();
+
+  EXPECT_EQ(record.primary_bcp_compilation_millis, 100);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.primary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kMainline));
+
+  EXPECT_EQ(record.secondary_bcp_compilation_millis, 0);
+  EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, kExecResultNotRun);
+  EXPECT_EQ(record.secondary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kUnknown));
+
+  EXPECT_EQ(record.system_server_compilation_millis, 0);
+  EXPECT_EQ(record.system_server_dex2oat_result.status, kExecResultNotRun);
 }
 
 TEST_F(OdrMetricsTest, PrimaryBcpResultWithoutValue) {
@@ -170,102 +133,68 @@ TEST_F(OdrMetricsTest, PrimaryBcpResultWithoutValue) {
 
 TEST_F(OdrMetricsTest, SecondaryBcpResultWithValue) {
   OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kExited,
-    .exit_code = 0,
-    .signal = 0
-  });
-  metrics.SetStage(OdrMetrics::Stage::kSecondaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kTimedOut,
-    .exit_code = 3,
-    .signal = 0
-  });
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kPrimaryBootClasspath,
+      100,
+      ExecResult{.status = ExecResult::Status::kExited, .exit_code = 0, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kPrimaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kMainline);
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kSecondaryBootClasspath,
+      200,
+      ExecResult{.status = ExecResult::Status::kTimedOut, .exit_code = 3, .signal = 0});
+  metrics.SetBcpCompilationType(OdrMetrics::Stage::kSecondaryBootClasspath,
+                                OdrMetrics::BcpCompilationType::kPrimaryAndMainline);
   OdrMetricsRecord record = metrics.ToRecord();
+
+  EXPECT_EQ(record.primary_bcp_compilation_millis, 100);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.primary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kMainline));
+
+  EXPECT_EQ(record.secondary_bcp_compilation_millis, 200);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, ExecResult::Status::kTimedOut);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.exit_code, 3);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.signal, 0);
-}
+  EXPECT_EQ(record.secondary_bcp_compilation_type,
+            static_cast<int32_t>(OdrMetrics::BcpCompilationType::kPrimaryAndMainline));
 
-TEST_F(OdrMetricsTest, SecondaryBcpResultWithoutValue) {
-  OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kExited,
-    .exit_code = 0,
-    .signal = 0
-  });
-
-  OdrMetricsRecord record = metrics.ToRecord();
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, kExecResultNotRun);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.exit_code, -1);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.signal, 0);
+  EXPECT_EQ(record.system_server_compilation_millis, 0);
+  EXPECT_EQ(record.system_server_dex2oat_result.status, kExecResultNotRun);
 }
 
 TEST_F(OdrMetricsTest, SystemServerResultWithValue) {
   OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kExited,
-    .exit_code = 0,
-    .signal = 0
-  });
-  metrics.SetStage(OdrMetrics::Stage::kSecondaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kTimedOut,
-    .exit_code = 3,
-    .signal = 0
-  });
-  metrics.SetStage(OdrMetrics::Stage::kSystemServerClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kSignaled,
-    .exit_code = 2,
-    .signal = 9
-  });
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kPrimaryBootClasspath,
+      100,
+      ExecResult{.status = ExecResult::Status::kExited, .exit_code = 0, .signal = 0});
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kSecondaryBootClasspath,
+      200,
+      ExecResult{.status = ExecResult::Status::kTimedOut, .exit_code = 3, .signal = 0});
+  metrics.SetDex2OatResult(
+      OdrMetrics::Stage::kSystemServerClasspath,
+      300,
+      ExecResult{.status = ExecResult::Status::kSignaled, .exit_code = 2, .signal = 9});
   OdrMetricsRecord record = metrics.ToRecord();
+
+  EXPECT_EQ(record.primary_bcp_compilation_millis, 100);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
   EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
+
+  EXPECT_EQ(record.secondary_bcp_compilation_millis, 200);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, ExecResult::Status::kTimedOut);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.exit_code, 3);
   EXPECT_EQ(record.secondary_bcp_dex2oat_result.signal, 0);
+
+  EXPECT_EQ(record.system_server_compilation_millis, 300);
   EXPECT_EQ(record.system_server_dex2oat_result.status, ExecResult::Status::kSignaled);
   EXPECT_EQ(record.system_server_dex2oat_result.exit_code, 2);
   EXPECT_EQ(record.system_server_dex2oat_result.signal, 9);
-}
-
-TEST_F(OdrMetricsTest, SystemServerResultWithoutValue) {
-  OdrMetrics metrics(GetCacheDirectory(), GetMetricsFilePath());
-  metrics.SetStage(OdrMetrics::Stage::kPrimaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kExited,
-    .exit_code = 0,
-    .signal = 0
-  });
-  metrics.SetStage(OdrMetrics::Stage::kSecondaryBootClasspath);
-  metrics.SetDex2OatResult({
-    .status = ExecResult::Status::kTimedOut,
-    .exit_code = 3,
-    .signal = 0
-  });
-
-  OdrMetricsRecord record = metrics.ToRecord();
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.status, ExecResult::Status::kExited);
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.exit_code, 0);
-  EXPECT_EQ(record.primary_bcp_dex2oat_result.signal, 0);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.status, ExecResult::Status::kTimedOut);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.exit_code, 3);
-  EXPECT_EQ(record.secondary_bcp_dex2oat_result.signal, 0);
-  EXPECT_EQ(record.system_server_dex2oat_result.status, kExecResultNotRun);
-  EXPECT_EQ(record.system_server_dex2oat_result.exit_code, -1);
-  EXPECT_EQ(record.system_server_dex2oat_result.signal, 0);
 }
 
 }  // namespace odrefresh

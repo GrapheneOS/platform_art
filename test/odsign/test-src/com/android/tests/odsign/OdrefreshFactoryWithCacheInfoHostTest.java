@@ -36,7 +36,8 @@ public class OdrefreshFactoryWithCacheInfoHostTest extends OdrefreshFactoryHostT
     public void verifyNoCompilationWhenSystemIsGood() throws Exception {
         // Only the cache info should exist.
         mTestUtils.assertFilesExist(Set.of(OdsignTestUtils.CACHE_INFO_FILE));
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
 
         // Run again.
@@ -45,7 +46,8 @@ public class OdrefreshFactoryWithCacheInfoHostTest extends OdrefreshFactoryHostT
 
         // Nothing should change.
         mTestUtils.assertNotModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
     }
 }

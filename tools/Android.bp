@@ -37,6 +37,17 @@ soong_config_module_type_import {
     ],
 }
 
+cc_binary {
+    name: "art_boot",
+    defaults: ["art_defaults"],
+    srcs: ["art_boot.cc"],
+    shared_libs: ["libbase"],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
 // Copy the art shell script to the host and target's bin directory
 art_module_sh_binary {
     name: "art-script",

@@ -1577,20 +1577,21 @@ public class Main {
     return (double) imm;
   }
 
-  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (before)
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
-  /// CHECK-DAG:     Mul
+  /// CHECK-DAG:     Shl
+  /// CHECK-DAG:     Add
 
-  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (before)
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding$after_gvn (before)
   /// CHECK-NOT:     IntConstant 6
 
-  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Add
 
-  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
-  /// CHECK-NOT:     Mul
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding$after_gvn (after)
+  /// CHECK-NOT:     Shl
 
-  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding$after_gvn (after)
   /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 6
   /// CHECK-DAG:                       Return [<<Const>>]
   private static int $inline$SpecialCaseForZeroInt(int value) {
@@ -1600,20 +1601,21 @@ public class Main {
     return value;
   }
 
-  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (before)
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
-  /// CHECK-DAG:     Mul
+  /// CHECK-DAG:     Shl
+  /// CHECK-DAG:     Add
 
-  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (before)
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding$after_gvn (before)
   /// CHECK-NOT:     LongConstant 6
 
-  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Add
 
-  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
-  /// CHECK-NOT:     Mul
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding$after_gvn (after)
+  /// CHECK-NOT:     Shl
 
-  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding$after_gvn (after)
   /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 6
   /// CHECK-DAG:                       Return [<<Const>>]
   private static long $inline$SpecialCaseForZeroLong(long value) {
@@ -1623,14 +1625,14 @@ public class Main {
     return value;
   }
 
-  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding (before)
+  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Mul
 
-  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding (after)
+  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding$after_gvn (after)
   /// CHECK-NOT:     FloatConstant 6
 
-  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding (after)
+  /// CHECK-START: float Main.$noinline$SpecialCaseForZeroFloat(float) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Mul
   private static float $noinline$SpecialCaseForZeroFloat(float value) {
@@ -1640,14 +1642,14 @@ public class Main {
     return value;
   }
 
-  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding (before)
+  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Mul
 
-  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding (after)
+  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding$after_gvn (after)
   /// CHECK-NOT:     DoubleConstant 6
 
-  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding (after)
+  /// CHECK-START: double Main.$noinline$SpecialCaseForZeroDouble(double) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Mul
   private static double $noinline$SpecialCaseForZeroDouble(double value) {
@@ -1658,17 +1660,17 @@ public class Main {
   }
 
   // Note that we have Add instead of sub since internally we do `Add(value, -1)`.
-  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (before)
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Div
 
-  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Add
 
-  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Div
 
-  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding$after_gvn (after)
   /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 1
   /// CHECK-DAG:                       Return [<<Const>>]
   private static int $noinline$NotEqualsPropagationInt(int value) {
@@ -1679,17 +1681,17 @@ public class Main {
     }
   }
 
-  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (before)
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
   /// CHECK-DAG:     Div
 
-  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Sub
 
-  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Div
 
-  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding$after_gvn (after)
   /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 1
   /// CHECK-DAG:                       Return [<<Const>>]
   private static long $noinline$NotEqualsPropagationLong(long value) {
@@ -1700,13 +1702,13 @@ public class Main {
     }
   }
 
-  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (before)
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
 
-  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (after)
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
   private static float $noinline$NotEqualsPropagationFloat(float value) {
     if (value != 3F) {
       return value;
@@ -1715,13 +1717,13 @@ public class Main {
     }
   }
 
-  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (before)
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
 
-  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (after)
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
   private static double $noinline$NotEqualsPropagationDouble(double value) {
     if (value != 3D) {
       return value;
@@ -1730,32 +1732,46 @@ public class Main {
     }
   }
 
-  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
+  /// CHECK-START: int Main.$noinline$InlineCalleeWithSpecialCaseForZeroInt(int) constant_folding$after_gvn (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Shl
+  /// CHECK-DAG:     Add
+
+  /// CHECK-START: int Main.$noinline$InlineCalleeWithSpecialCaseForZeroInt(int) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Add
 
-  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
-  /// CHECK-NOT:     Mul
+  /// CHECK-START: int Main.$noinline$InlineCalleeWithSpecialCaseForZeroInt(int) constant_folding$after_gvn (after)
+  /// CHECK-NOT:     Shl
 
-  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
-  /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 6
-  /// CHECK-DAG:                       Return [<<Const>>]
-  private static int $noinline$InlineCaleeWithSpecialCaseForZeroInt(int value) {
+  /// CHECK-START: int Main.$noinline$InlineCalleeWithSpecialCaseForZeroInt(int) dead_code_elimination$after_gvn (after)
+  /// CHECK-DAG:     <<Param:i\d+>>    ParameterValue
+  /// CHECK-DAG:     <<Const6:i\d+>>   IntConstant 6
+  /// CHECK-DAG:                       Return [<<Param>>]
+  /// CHECK-DAG:                       Return [<<Const6>>]
+  private static int $noinline$InlineCalleeWithSpecialCaseForZeroInt(int value) {
     if (value == 0) {
       return $inline$SpecialCaseForZeroInt(value);
     }
     return value;
   }
 
-  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
+  /// CHECK-START: long Main.$noinline$InlineCalleeWithSpecialCaseForZeroLong(long) constant_folding$after_gvn (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Shl
+  /// CHECK-DAG:     Add
+
+  /// CHECK-START: long Main.$noinline$InlineCalleeWithSpecialCaseForZeroLong(long) constant_folding$after_gvn (after)
   /// CHECK-NOT:     Add
 
-  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
-  /// CHECK-NOT:     Mul
+  /// CHECK-START: long Main.$noinline$InlineCalleeWithSpecialCaseForZeroLong(long) constant_folding$after_gvn (after)
+  /// CHECK-NOT:     Shl
 
-  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
-  /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 6
-  /// CHECK-DAG:                       Return [<<Const>>]
-  private static long $noinline$InlineCaleeWithSpecialCaseForZeroLong(long value) {
+  /// CHECK-START: long Main.$noinline$InlineCalleeWithSpecialCaseForZeroLong(long) dead_code_elimination$after_gvn (after)
+  /// CHECK-DAG:     <<Param:j\d+>>    ParameterValue
+  /// CHECK-DAG:     <<Const6:j\d+>>   LongConstant 6
+  /// CHECK-DAG:                       Return [<<Param>>]
+  /// CHECK-DAG:                       Return [<<Const6>>]
+  private static long $noinline$InlineCalleeWithSpecialCaseForZeroLong(long value) {
     if (value == 0L) {
       return $inline$SpecialCaseForZeroLong(value);
     }
@@ -1764,11 +1780,11 @@ public class Main {
 
   // Check that don't propagate the value == 3 on `if not true` branch, as the `if true` branch also
   // flows into the same block.
-  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding (before)
+  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Div
 
-  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding (after)
+  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Add
   /// CHECK-DAG:     Div
   private static int $noinline$NotEqualsImplicitElseInt(int value) {
@@ -1778,11 +1794,11 @@ public class Main {
     return (value - 1) / 2;
   }
 
-  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding (before)
+  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
   /// CHECK-DAG:     Div
 
-  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding (after)
+  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Sub
   /// CHECK-DAG:     Div
   private static long $noinline$NotEqualsImplicitElseLong(long value) {
@@ -1792,13 +1808,13 @@ public class Main {
     return (value - 1L) / 2L;
   }
 
-  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding (before)
+  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
 
-  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding (after)
+  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
   private static float $noinline$NotEqualsImplicitElseFloat(float value) {
     if (value != 3F) {
       value += 1F;
@@ -1806,13 +1822,13 @@ public class Main {
     return (value - 1F) / 2F;
   }
 
-  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding (before)
+  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding$after_gvn (before)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
 
-  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding (after)
+  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding$after_gvn (after)
   /// CHECK-DAG:     Sub
-  /// CHECK-DAG:     Div
+  /// CHECK-DAG:     Mul
   private static double $noinline$NotEqualsImplicitElseDouble(double value) {
     if (value != 3D) {
       value += 1D;
@@ -1820,37 +1836,39 @@ public class Main {
     return (value - 1D) / 2D;
   }
 
-  // By propagating the boolean we can elimniate some equality comparisons as we already know their
+  // By propagating the boolean we can eliminate some equality comparisons as we already know their
   // result. In turn, we also enable DeadCodeElimination to eliminate more code.
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) constant_folding (before)
-  /// CHECK-DAG:     Equal
-  /// CHECK-DAG:     Equal
-  /// CHECK-DAG:     Equal
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) constant_folding$after_gvn (before)
+  /// CHECK-DAG:     <<Param:z\d+>>    ParameterValue
+  /// CHECK-DAG:                       Select [{{i\d+}},{{i\d+}},<<Param>>]
+  /// CHECK-DAG:                       Select [{{i\d+}},{{i\d+}},<<Param>>]
 
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) constant_folding (after)
-  /// CHECK:         Equal
-  /// CHECK-NOT:     Equal
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) constant_folding$after_gvn (after)
+  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
+  /// CHECK-DAG:                       Select [{{i\d+}},{{i\d+}},<<Const0>>]
+  /// CHECK-DAG:                       Select [{{i\d+}},{{i\d+}},<<Const1>>]
 
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (before)
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) dead_code_elimination$after_gvn (before)
   /// CHECK-DAG:     IntConstant 1
   /// CHECK-DAG:     IntConstant 2
   /// CHECK-DAG:     IntConstant 3
   /// CHECK-DAG:     IntConstant 4
 
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) dead_code_elimination$after_gvn (after)
   /// CHECK-DAG:     IntConstant 1
   /// CHECK-DAG:     IntConstant 4
 
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) dead_code_elimination$after_gvn (after)
   /// CHECK-NOT:     IntConstant 2
 
-  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean, int) dead_code_elimination$after_gvn (after)
   /// CHECK-NOT:     IntConstant 3
-  private static int $noinline$PropagatingParameterValue(boolean value) {
+  private static int $noinline$PropagatingParameterValue(boolean value, int initial_value) {
     if (value) {
-      return value ? 1 : 2;
+      return value ? initial_value + 1 : initial_value + 2;
     } else {
-      return value ? 3 : 4;
+      return value ? initial_value + 3 : initial_value + 4;
     }
   }
 
@@ -1988,7 +2006,7 @@ public class Main {
     // Tests for propagating known values due to if clauses.
 
     // Propagating within the same method. These are marked $inline$ since we used them in
-    // `InlineCaleeWithSpecialCaseForZeroInt`.
+    // `InlineCalleeWithSpecialCaseForZeroInt`.
     assertIntEquals(6, $inline$SpecialCaseForZeroInt(0));
     assertIntEquals(3, $inline$SpecialCaseForZeroInt(3));
     assertLongEquals(6L, $inline$SpecialCaseForZeroLong(0L));
@@ -2011,10 +2029,10 @@ public class Main {
     assertDoubleEquals(1D, $noinline$NotEqualsPropagationDouble(3D));
 
     // Propagating so that the inliner can use it.
-    assertIntEquals(6, $noinline$InlineCaleeWithSpecialCaseForZeroInt(0));
-    assertIntEquals(3, $noinline$InlineCaleeWithSpecialCaseForZeroInt(3));
-    assertLongEquals(6L, $noinline$InlineCaleeWithSpecialCaseForZeroLong(0L));
-    assertLongEquals(3L, $noinline$InlineCaleeWithSpecialCaseForZeroLong(3L));
+    assertIntEquals(6, $noinline$InlineCalleeWithSpecialCaseForZeroInt(0));
+    assertIntEquals(3, $noinline$InlineCalleeWithSpecialCaseForZeroInt(3));
+    assertLongEquals(6L, $noinline$InlineCalleeWithSpecialCaseForZeroLong(0L));
+    assertLongEquals(3L, $noinline$InlineCalleeWithSpecialCaseForZeroLong(3L));
 
     // Propagating within the same method, with not equals
     assertIntEquals(0, $noinline$NotEqualsImplicitElseInt(0));
@@ -2027,8 +2045,8 @@ public class Main {
     assertDoubleEquals(1D, $noinline$NotEqualsImplicitElseDouble(3D));
 
     // Propagating parameters.
-    assertIntEquals(1, $noinline$PropagatingParameterValue(true));
-    assertIntEquals(4, $noinline$PropagatingParameterValue(false));
+    assertIntEquals(1, $noinline$PropagatingParameterValue(true, 0));
+    assertIntEquals(4, $noinline$PropagatingParameterValue(false, 0));
   }
 
   Main() throws ClassNotFoundException {

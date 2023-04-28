@@ -1559,5 +1559,15 @@
         "env_vars": {"ART_TEST_DEBUG_GC": "true"},
         "bug": "b/264844668",
         "description": ["Test timing out on debug gc."]
+    },
+    {
+        "tests": ["845-data-image", "846-multidex-data-image"],
+        "variant": "debuggable",
+        "description": ["Runtime app images are not supported with debuggable."]
+    },
+    {
+        "tests": ["2262-miranda-methods"],
+        "variant": "jvm",
+        "description": ["jvm doesn't seem to support calling miranda methods via CallNonVirtual."]
     }
 ]

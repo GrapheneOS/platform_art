@@ -28,7 +28,7 @@ enum XRegister {
   Zero = 0,  // X0, hard-wired zero
   RA = 1,    // X1, return address
   SP = 2,    // X2, stack pointer
-  GP = 3,    // X3, global pointer
+  GP = 3,    // X3, global pointer (unavailable, used for shadow stack by the compiler / libc)
   TP = 4,    // X4, thread pointer (points to TLS area, not ART-internal thread)
 
   T0 = 5,  // X5, temporary 0
@@ -36,7 +36,7 @@ enum XRegister {
   T2 = 7,  // X7, temporary 2
 
   S0 = 8,  // X8/FP, callee-saved 0 / frame pointer
-  S1 = 9,  // X9, callee-saved 1
+  S1 = 9,  // X9, callee-saved 1 / ART thread register
 
   A0 = 10,  // X10, argument 0 / return value 0
   A1 = 11,  // X11, argument 1 / return value 1
@@ -47,7 +47,7 @@ enum XRegister {
   A6 = 16,  // X16, argument 6
   A7 = 17,  // X17, argument 7
 
-  S2 = 18,   // X18, callee-saved 2 (unavailable, used for shadow stack by the compiler / libc)
+  S2 = 18,   // X18, callee-saved 2
   S3 = 19,   // X19, callee-saved 3
   S4 = 20,   // X20, callee-saved 4
   S5 = 21,   // X21, callee-saved 5

@@ -32,12 +32,11 @@ static constexpr uint32_t kRiscv64CalleeSaveAlwaysSpills =
     (1 << art::riscv64::RA);  // Return address
 // Callee-saved registers except for SP and S1 (SP is callee-saved according to RISC-V spec, but
 // it cannot contain object reference, and S1(TR) is excluded as the ART thread register).
-// S2 is excluded because it's used for shadow stack by the compiler / libc.
 static constexpr uint32_t kRiscv64CalleeSaveRefSpills =
-    (1 << art::riscv64::S0) | (1 << art::riscv64::S3) | (1 << art::riscv64::S4) |
-    (1 << art::riscv64::S5) | (1 << art::riscv64::S6) | (1 << art::riscv64::S7) |
-    (1 << art::riscv64::S8) | (1 << art::riscv64::S9) | (1 << art::riscv64::S10) |
-    (1 << art::riscv64::S11);
+    (1 << art::riscv64::S0) | (1 << art::riscv64::S2) | (1 << art::riscv64::S3) |
+    (1 << art::riscv64::S4) | (1 << art::riscv64::S5) | (1 << art::riscv64::S6) |
+    (1 << art::riscv64::S7) | (1 << art::riscv64::S8) | (1 << art::riscv64::S9) |
+    (1 << art::riscv64::S10) | (1 << art::riscv64::S11);
 // Stack pointer SP is excluded (although it is callee-saved by calling convention) because it is
 // restored by the code logic and not from a stack frame.
 static constexpr uint32_t kRiscv64CalleeSaveAllSpills = 0;
@@ -46,14 +45,13 @@ static constexpr uint32_t kRiscv64CalleeSaveArgSpills =
     (1 << art::riscv64::A1) | (1 << art::riscv64::A2) | (1 << art::riscv64::A3) |
     (1 << art::riscv64::A4) | (1 << art::riscv64::A5) | (1 << art::riscv64::A6) |
     (1 << art::riscv64::A7);
-// All registers except SP, immutable Zero, unallocatable thread pointer TP and global pointer GP.
+// All registers except SP, immutable Zero, unallocatable TP and GP, and the ART thread register TR.
 static constexpr uint32_t kRiscv64CalleeSaveEverythingSpills =
-    (1 << art::riscv64::TR) | (1 << art::riscv64::T0) | (1 << art::riscv64::T1) |
-    (1 << art::riscv64::T2) | (1 << art::riscv64::T3) | (1 << art::riscv64::T4) |
-    (1 << art::riscv64::T5) | (1 << art::riscv64::T6) | (1 << art::riscv64::A0) |
-    (1 << art::riscv64::A1) | (1 << art::riscv64::A2) | (1 << art::riscv64::A3) |
-    (1 << art::riscv64::A4) | (1 << art::riscv64::A5) | (1 << art::riscv64::A6) |
-    (1 << art::riscv64::A7);
+    (1 << art::riscv64::T0) | (1 << art::riscv64::T1) | (1 << art::riscv64::T2) |
+    (1 << art::riscv64::T3) | (1 << art::riscv64::T4) | (1 << art::riscv64::T5) |
+    (1 << art::riscv64::T6) | (1 << art::riscv64::A0) | (1 << art::riscv64::A1) |
+    (1 << art::riscv64::A2) | (1 << art::riscv64::A3) | (1 << art::riscv64::A4) |
+    (1 << art::riscv64::A5) | (1 << art::riscv64::A6) | (1 << art::riscv64::A7);
 
 // No references in floating-point registers.
 static constexpr uint32_t kRiscv64CalleeSaveFpSpills = 0;
@@ -133,7 +131,7 @@ class Riscv64CalleeSaveFrame {
 
 // Assembly entrypoints rely on these constants.
 static_assert(Riscv64CalleeSaveFrame::GetFrameSize(CalleeSaveType::kSaveRefsAndArgs) == 224);
-static_assert(Riscv64CalleeSaveFrame::GetFrameSize(CalleeSaveType::kSaveAllCalleeSaves) == 192);
+static_assert(Riscv64CalleeSaveFrame::GetFrameSize(CalleeSaveType::kSaveAllCalleeSaves) == 208);
 static_assert(Riscv64CalleeSaveFrame::GetFrameSize(CalleeSaveType::kSaveEverything) == 480);
 
 }  // namespace riscv64

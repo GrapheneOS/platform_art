@@ -3351,7 +3351,6 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
                                                Handle<mirror::ClassLoader> class_loader,
                                                const DexFile& dex_file,
                                                const dex::ClassDef& dex_class_def) {
-  ScopedTrace trace([&]() { return android::base::StringPrintf("Defining %s", descriptor); });
   ScopedDefiningClass sdc(self);
   StackHandleScope<3> hs(self);
   metrics::AutoTimer timer{GetMetrics()->ClassLoadingTotalTime()};
@@ -6123,7 +6122,6 @@ bool ClassLinker::LinkClass(Thread* self,
   if (!LinkStaticFields(self, klass, &class_size)) {
     return false;
   }
-  SetRecordClassFlagIfNeeded(klass);
   CreateReferenceInstanceOffsets(klass);
   CHECK_EQ(ClassStatus::kLoaded, klass->GetStatus());
 
@@ -6340,6 +6338,10 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
     ThrowIllegalAccessError(klass.Get(), "Superclass %s is inaccessible to class %s",
                             super->PrettyDescriptor().c_str(),
                             klass->PrettyDescriptor().c_str());
+    return false;
+  }
+  if (!VerifyRecordClass(klass, super)) {
+    DCHECK(Thread::Current()->IsExceptionPending());
     return false;
   }
 
@@ -9353,38 +9355,306 @@ bool ClassLinker::LinkStaticFields(Thread* self, Handle<mirror::Class> klass, si
   return LinkFieldsHelper::LinkFields(this, self, klass, true, class_size);
 }
 
-// Set kClassFlagRecord if all conditions are fulfilled.
-void ClassLinker::SetRecordClassFlagIfNeeded(Handle<mirror::Class> klass) {
-  CHECK(klass != nullptr);
-  // First, we check the conditions specified in java.lang.Class#isRecord().
-  // If any of the following check fails, ART will treat it as a normal class,
-  // but still inherited from java.lang.Record.
-  if (!klass->IsFinal()) {
-    return;
+enum class RecordElementType : uint8_t {
+  kNames = 0,
+  kTypes = 1,
+  kSignatures = 2,
+  kAnnotationVisibilities = 3,
+  kAnnotations = 4
+};
+
+static const char* kRecordElementNames[] = {"componentNames",
+                                            "componentTypes",
+                                            "componentSignatures",
+                                            "componentAnnotationVisibilities",
+                                            "componentAnnotations"};
+
+class RecordAnnotationVisitor final : public annotations::AnnotationVisitor {
+ public:
+  RecordAnnotationVisitor() {}
+
+  bool ValidateCounts() {
+    if (is_error_) {
+      return false;
+    }
+
+    // Verify the counts.
+    bool annotation_element_exists =
+        (signatures_count_ != UINT32_MAX) || (annotations_count_ != UINT32_MAX);
+    if (count_ >= 2) {
+      SetErrorMsg("Record class can't have more than one @Record Annotation");
+    } else if (names_count_ == UINT32_MAX) {
+      SetErrorMsg("componentNames element is required");
+    } else if (types_count_ == UINT32_MAX) {
+      SetErrorMsg("componentTypes element is required");
+    } else if (names_count_ != types_count_) {  // Every component must have a name and a type.
+      SetErrorMsg(StringPrintf(
+          "componentTypes is expected to have %i, but has %i types", names_count_, types_count_));
+      // The other 3 elements are optional, but is expected to have the same count if it exists.
+    } else if (signatures_count_ != UINT32_MAX && signatures_count_ != names_count_) {
+      SetErrorMsg(StringPrintf("componentSignatures size is %i, but is expected to be %i",
+                               signatures_count_,
+                               names_count_));
+    } else if (annotation_element_exists && visibilities_count_ != names_count_) {
+      SetErrorMsg(
+          StringPrintf("componentAnnotationVisibilities size is %i, but is expected to be %i",
+                       visibilities_count_,
+                       names_count_));
+    } else if (annotation_element_exists && annotations_count_ != names_count_) {
+      SetErrorMsg(StringPrintf("componentAnnotations size is %i, but is expected to be %i",
+                               annotations_count_,
+                               names_count_));
+    }
+
+    return !is_error_;
   }
 
-  ObjPtr<mirror::Class> super = klass->GetSuperClass();
+  const std::string& GetErrorMsg() { return error_msg_; }
+
+  bool IsRecordAnnotationFound() { return count_ != 0; }
+
+  annotations::VisitorStatus VisitAnnotation(const char* descriptor, uint8_t visibility) override {
+    if (is_error_) {
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+
+    if (visibility != DexFile::kDexVisibilitySystem) {
+      return annotations::VisitorStatus::kVisitNext;
+    }
+
+    if (strcmp(descriptor, "Ldalvik/annotation/Record;") != 0) {
+      return annotations::VisitorStatus::kVisitNext;
+    }
+
+    count_ += 1;
+    if (count_ >= 2) {
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+    return annotations::VisitorStatus::kVisitInner;
+  }
+
+  annotations::VisitorStatus VisitAnnotationElement(const char* element_name,
+                                                    uint8_t type,
+                                                    [[maybe_unused]] const JValue& value) override {
+    if (is_error_) {
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+
+    RecordElementType visiting_type;
+    uint32_t* element_count;
+    if (strcmp(element_name, "componentNames") == 0) {
+      visiting_type = RecordElementType::kNames;
+      element_count = &names_count_;
+    } else if (strcmp(element_name, "componentTypes") == 0) {
+      visiting_type = RecordElementType::kTypes;
+      element_count = &types_count_;
+    } else if (strcmp(element_name, "componentSignatures") == 0) {
+      visiting_type = RecordElementType::kSignatures;
+      element_count = &signatures_count_;
+    } else if (strcmp(element_name, "componentAnnotationVisibilities") == 0) {
+      visiting_type = RecordElementType::kAnnotationVisibilities;
+      element_count = &visibilities_count_;
+    } else if (strcmp(element_name, "componentAnnotations") == 0) {
+      visiting_type = RecordElementType::kAnnotations;
+      element_count = &annotations_count_;
+    } else {
+      // ignore this element that could be introduced in the future ART.
+      return annotations::VisitorStatus::kVisitNext;
+    }
+
+    if ((*element_count) != UINT32_MAX) {
+      SetErrorMsg(StringPrintf("Two %s annotation elements are found but only one is expected",
+                               kRecordElementNames[static_cast<uint8_t>(visiting_type)]));
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+
+    if (type != DexFile::kDexAnnotationArray) {
+      SetErrorMsg(StringPrintf("%s must be array type", element_name));
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+
+    *element_count = 0;
+    visiting_type_ = visiting_type;
+    return annotations::VisitorStatus::kVisitInner;
+  }
+
+  annotations::VisitorStatus VisitArrayElement(uint8_t depth,
+                                               uint32_t index,
+                                               uint8_t type,
+                                               [[maybe_unused]] const JValue& value) override {
+    if (is_error_) {
+      return annotations::VisitorStatus::kVisitBreak;
+    }
+    switch (visiting_type_) {
+      case RecordElementType::kNames: {
+        if (depth == 0) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationString, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          names_count_++;
+          return annotations::VisitorStatus::kVisitNext;
+        }
+        break;
+      }
+      case RecordElementType::kTypes: {
+        if (depth == 0) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationType, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          types_count_++;
+          return annotations::VisitorStatus::kVisitNext;
+        }
+        break;
+      }
+      case RecordElementType::kSignatures: {
+        if (depth == 0) {
+          // kDexAnnotationNull implies no generic signature for the component.
+          if (type != DexFile::kDexAnnotationNull &&
+              !ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationAnnotation, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          signatures_count_++;
+          return annotations::VisitorStatus::kVisitNext;
+        }
+        break;
+      }
+      case RecordElementType::kAnnotationVisibilities: {
+        if (depth == 0) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationArray, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          visibilities_count_++;
+          return annotations::VisitorStatus::kVisitInner;
+        } else if (depth == 1) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationByte, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          return annotations::VisitorStatus::kVisitNext;
+        }
+        break;
+      }
+      case RecordElementType::kAnnotations: {
+        if (depth == 0) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationArray, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          annotations_count_++;
+          return annotations::VisitorStatus::kVisitInner;
+        } else if (depth == 1) {
+          if (!ExpectedTypeOrError(
+                  type, DexFile::kDexAnnotationAnnotation, visiting_type_, index, depth)) {
+            return annotations::VisitorStatus::kVisitBreak;
+          }
+          return annotations::VisitorStatus::kVisitNext;
+        }
+        break;
+      }
+    }
+
+    // Should never happen if every next depth level is handled above whenever kVisitInner is
+    // returned.
+    DCHECK(false) << StringPrintf("Unexpected depth %i for element %s",
+                                  depth,
+                                  kRecordElementNames[static_cast<uint8_t>(visiting_type_)]);
+    return annotations::VisitorStatus::kVisitBreak;
+  }
+
+ private:
+  bool is_error_ = false;
+  uint32_t count_ = 0;
+  uint32_t names_count_ = UINT32_MAX;
+  uint32_t types_count_ = UINT32_MAX;
+  uint32_t signatures_count_ = UINT32_MAX;
+  uint32_t visibilities_count_ = UINT32_MAX;
+  uint32_t annotations_count_ = UINT32_MAX;
+  std::string error_msg_;
+  RecordElementType visiting_type_;
+
+  inline bool ExpectedTypeOrError(uint8_t type,
+                                  uint8_t expected,
+                                  RecordElementType visiting_type,
+                                  uint8_t depth,
+                                  uint32_t index) {
+    if (type == expected) {
+      return true;
+    }
+
+    SetErrorMsg(StringPrintf(
+        "Expect 0x%02x type but got 0x%02x at the index %i and depth %i for the element %s",
+        expected,
+        type,
+        index,
+        depth,
+        kRecordElementNames[static_cast<uint8_t>(visiting_type)]));
+    return false;
+  }
+
+  void SetErrorMsg(const std::string& msg) {
+    is_error_ = true;
+    error_msg_ = msg;
+  }
+
+  DISALLOW_COPY_AND_ASSIGN(RecordAnnotationVisitor);
+};
+
+/**
+ * Set kClassFlagRecord and verify if klass is a record class.
+ * If the verification fails, a pending java exception is thrown.
+ *
+ * @return false if verification fails. If klass isn't a record class,
+ * it should always return true.
+ */
+bool ClassLinker::VerifyRecordClass(Handle<mirror::Class> klass, ObjPtr<mirror::Class> super) {
+  CHECK(klass != nullptr);
+  // First, we check the conditions specified in java.lang.Class#isRecord().
+  // If any of the conditions isn't fulfilled, it's not a record class and
+  // ART should treat it as a normal class even if it's inherited from java.lang.Record.
+  if (!klass->IsFinal()) {
+    return true;
+  }
+
   if (super == nullptr) {
-    return;
+    return true;
   }
 
   // Compare the string directly when this ClassLinker is initializing before
   // WellKnownClasses initializes
   if (WellKnownClasses::java_lang_Record == nullptr) {
     if (!super->DescriptorEquals("Ljava/lang/Record;")) {
-      return;
+      return true;
     }
   } else {
     ObjPtr<mirror::Class> java_lang_Record =
         WellKnownClasses::ToClass(WellKnownClasses::java_lang_Record);
     if (super.Ptr() != java_lang_Record.Ptr()) {
-      return;
+      return true;
     }
   }
 
-  if (annotations::IsRecordClassAnnotationPresent(klass)) {
-    klass->SetRecordClass();
+  // Verify @dalvik.annotation.Record
+  // The annotation has a mandatory element componentNames[] and componentTypes[] of the same size.
+  // componentSignatures[], componentAnnotationVisibilities[][], componentAnnotations[][] are
+  // optional, but should have the same size if it exists.
+  RecordAnnotationVisitor visitor;
+  annotations::VisitClassAnnotations(klass, &visitor);
+  if (!visitor.IsRecordAnnotationFound()) {
+    return true;
   }
+
+  if (!visitor.ValidateCounts()) {
+    ThrowClassFormatError(klass.Get(), "%s", visitor.GetErrorMsg().c_str());
+    return false;
+  }
+
+  // Set kClassFlagRecord.
+  klass->SetRecordClass();
+  return true;
 }
 
 //  Set the bitmap of reference instance field offsets.

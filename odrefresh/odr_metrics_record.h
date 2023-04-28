@@ -72,6 +72,8 @@ struct OdrMetricsRecord {
   Dex2OatExecResult primary_bcp_dex2oat_result;
   Dex2OatExecResult secondary_bcp_dex2oat_result;
   Dex2OatExecResult system_server_dex2oat_result;
+  int32_t primary_bcp_compilation_type;
+  int32_t secondary_bcp_compilation_type;
 
   // Reads a `MetricsRecord` from an XML file.
   // Returns an error if the XML document was not found or parsed correctly.

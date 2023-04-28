@@ -39,14 +39,15 @@ public class StreamTraceParser extends BaseTraceParser {
                     hasEntries = false;
                     break;
                 default:
-                    String eventString = ProcessEventEntry(headerType);
-                    if (ShouldIgnoreThread(headerType)) {
+                    int threadId = headerType;
+                    String eventString = ProcessEventEntry(threadId);
+                    if (ShouldIgnoreThread(threadId)) {
                         break;
                     }
                     // Ignore events after method tracing was stopped. The code that is executed
                     // later could be non-deterministic.
                     if (!seenStopTracingMethod) {
-                        System.out.println(eventString);
+                        UpdateThreadEvents(threadId, eventString);
                     }
                     if (eventString.contains("Main$VMDebug $noinline$stopMethodTracing")) {
                         seenStopTracingMethod = true;
@@ -54,5 +55,10 @@ public class StreamTraceParser extends BaseTraceParser {
             }
         }
         closeFile();
+
+        // Printout the events.
+        for (String str : threadEventsMap.values()) {
+            System.out.println(str);
+        }
     }
 }

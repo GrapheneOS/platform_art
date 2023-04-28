@@ -39,9 +39,15 @@ class CodeSinking : public HOptimization {
   static constexpr const char* kCodeSinkingPassName = "code_sinking";
 
  private:
-  // Try to move code only used by `end_block` and all its post-dominated / dominated
+  // Tries to sink code to uncommon branches.
+  void UncommonBranchSinking();
+  // Tries to move code only used by `end_block` and all its post-dominated / dominated
   // blocks, to these blocks.
   void SinkCodeToUncommonBranch(HBasicBlock* end_block);
+
+  // Coalesces the Return/ReturnVoid instructions into one, if we have two or more. We do this to
+  // avoid generating the exit frame code several times.
+  void ReturnSinking();
 
   DISALLOW_COPY_AND_ASSIGN(CodeSinking);
 };

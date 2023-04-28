@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,3 +21,9 @@ service artd /apex/com.android.art/bin/artd
     user artd
     group artd
     capabilities DAC_OVERRIDE DAC_READ_SEARCH FOWNER CHOWN
+
+service art_boot /apex/com.android.art/bin/art_boot
+    oneshot
+    class core
+    seclabel u:r:su:s0
+    user root

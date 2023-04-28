@@ -23,15 +23,12 @@
 #include "quick/quick_method_frame_info.h"
 #include "thread-current-inl.h"
 
-#if __has_feature(hwaddress_sanitizer)
-#include <sanitizer/hwasan_interface.h>
-#else
-#define __hwasan_handle_longjmp(sp)
-#endif
 
 #if defined(__aarch64__) && defined(__BIONIC__)
 #include <bionic/malloc.h>
 #endif
+
+extern "C" __attribute__((weak)) void __hwasan_handle_longjmp(const void* sp_dst);
 
 namespace art {
 namespace arm64 {
@@ -171,7 +168,8 @@ __attribute__((no_sanitize("memtag"))) void Arm64Context::DoLongJump() {
     untag_memory(__builtin_frame_address(0), reinterpret_cast<void*>(gprs[SP]));
 #endif
   // Tell HWASan about the new stack top.
-  __hwasan_handle_longjmp(reinterpret_cast<void*>(gprs[SP]));
+  if (__hwasan_handle_longjmp != nullptr)
+    __hwasan_handle_longjmp(reinterpret_cast<void*>(gprs[SP]));
   // The Marking Register will be updated by art_quick_do_long_jump.
   art_quick_do_long_jump(gprs, fprs);
 }

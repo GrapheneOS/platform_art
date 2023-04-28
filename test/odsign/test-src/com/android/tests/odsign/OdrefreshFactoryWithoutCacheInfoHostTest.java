@@ -49,7 +49,8 @@ public class OdrefreshFactoryWithoutCacheInfoHostTest extends OdrefreshFactoryHo
 
         // It should only generate the missing cache info.
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
-        mTestUtils.assertFilesNotExist(mTestUtils.getZygotesExpectedArtifacts());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
     }
 }

@@ -29,20 +29,22 @@ namespace odrefresh {
 class OdrArtifacts {
  public:
   static OdrArtifacts ForBootImage(const std::string& image_path) {
-    return OdrArtifacts(image_path, "oat");
+    return OdrArtifacts(image_path, /*image_kind=*/"image", /*aot_extension=*/"oat");
   }
 
   static OdrArtifacts ForSystemServer(const std::string& image_path) {
-    return OdrArtifacts(image_path, "odex");
+    return OdrArtifacts(image_path, /*image_kind=*/"app-image", /*aot_extension=*/"odex");
   }
 
   const std::string& ImagePath() const { return image_path_; }
+  const char* ImageKind() const { return image_kind_; }
   const std::string& OatPath() const { return oat_path_; }
   const std::string& VdexPath() const { return vdex_path_; }
 
  private:
-  OdrArtifacts(const std::string& image_path, const char* aot_extension)
+  OdrArtifacts(const std::string& image_path, const char* image_kind, const char* aot_extension)
       : image_path_{image_path},
+        image_kind_{image_kind},
         oat_path_{ReplaceFileExtension(image_path, aot_extension)},
         vdex_path_{ReplaceFileExtension(image_path, "vdex")} {}
 
@@ -51,6 +53,7 @@ class OdrArtifacts {
   OdrArtifacts& operator=(const OdrArtifacts&) = delete;
 
   const std::string image_path_;
+  const char* image_kind_;
   const std::string oat_path_;
   const std::string vdex_path_;
 };

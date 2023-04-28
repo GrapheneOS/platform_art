@@ -43,14 +43,18 @@ class HConstantFolding : public HOptimization {
  public:
   HConstantFolding(HGraph* graph,
                    OptimizingCompilerStats* stats = nullptr,
-                   const char* name = kConstantFoldingPassName)
-      : HOptimization(graph, name, stats) {}
+                   const char* name = kConstantFoldingPassName,
+                   bool use_all_optimizations = false)
+      : HOptimization(graph, name, stats), use_all_optimizations_(use_all_optimizations) {}
 
   bool Run() override;
 
   static constexpr const char* kConstantFoldingPassName = "constant_folding";
 
  private:
+  // Use all optimizations without restrictions.
+  bool use_all_optimizations_;
+
   DISALLOW_COPY_AND_ASSIGN(HConstantFolding);
 };
 

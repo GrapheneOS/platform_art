@@ -64,6 +64,17 @@ static constexpr uintptr_t IndexToId(size_t index) {
   return (index << 1) + 1;
 }
 
+static bool CanUseIdArrays(ArtMethod* t) {
+  // We cannot use ID arrays from the ClassExt object for obsolete and default conflict methods. The
+  // ID arrays hold an ID corresponding to the methods in the methods_list. Obsolete methods aren't
+  // in the method list. For default conflicting methods it is difficult to find the class that
+  // contains the copied method, so we omit using ID arrays. For Default conflicting methods we
+  // cannot use the canonical method because canonicalizing would return a method from one of the
+  // interface classes. If we use that method ID and invoke it via the CallNonVirtual JNI interface,
+  // it wouldn't throw the expected ICCE.
+  return !(t->IsObsolete() || t->IsDefaultConflicting());
+}
+
 template <typename ArtType>
 ObjPtr<mirror::PointerArray> GetIds(ObjPtr<mirror::Class> k, ArtType* t)
     REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -71,7 +82,7 @@ ObjPtr<mirror::PointerArray> GetIds(ObjPtr<mirror::Class> k, ArtType* t)
   if constexpr (std::is_same_v<ArtType, ArtField>) {
     ret = t->IsStatic() ? k->GetStaticFieldIds() : k->GetInstanceFieldIds();
   } else {
-    ret = t->IsObsolete() ? nullptr : k->GetMethodIds();
+    ret = CanUseIdArrays(t) ? k->GetMethodIds() : nullptr;
   }
   DCHECK(ret.IsNull() || ret->IsArrayInstance()) << "Should have bailed out early!";
   if (kIsDebugBuild && !ret.IsNull()) {
@@ -138,9 +149,10 @@ bool EnsureIdsArray(Thread* self, ObjPtr<mirror::Class> k, ArtField* field) {
 
 template <>
 bool EnsureIdsArray(Thread* self, ObjPtr<mirror::Class> k, ArtMethod* method) {
-  if (method->IsObsolete()) {
+  if (!CanUseIdArrays(method)) {
     if (kTraceIds) {
-      LOG(INFO) << "jmethodID for Obsolete method " << method->PrettyMethod() << " requested!";
+      LOG(INFO) << "jmethodID for Obsolete / Default conflicting method " << method->PrettyMethod()
+                << " requested!";
     }
     // No ids array for obsolete methods. Just do a linear scan.
     return false;
@@ -169,7 +181,7 @@ size_t GetIdOffset(ObjPtr<mirror::Class> k, ArtField* f, PointerSize ptr_size AT
 }
 template <>
 size_t GetIdOffset(ObjPtr<mirror::Class> k, ArtMethod* method, PointerSize pointer_size) {
-  return method->IsObsolete() ? -1 : k->GetMethodIdOffset(method, pointer_size);
+  return CanUseIdArrays(method) ? k->GetMethodIdOffset(method, pointer_size) : -1;
 }
 
 // Calls the relevant PrettyMethod/PrettyField on the input.
@@ -192,16 +204,16 @@ std::string PrettyGeneric(ReflectiveHandle<ArtField> f) {
   return f->PrettyField();
 }
 
-// Checks if the field or method is obsolete.
+// Checks if the field or method can use the ID array from class extension.
 template <typename ArtType>
-bool IsObsolete(ReflectiveHandle<ArtType> t) REQUIRES_SHARED(Locks::mutator_lock_);
+bool CanUseIdArrays(ReflectiveHandle<ArtType> t) REQUIRES_SHARED(Locks::mutator_lock_);
 template <>
-bool IsObsolete(ReflectiveHandle<ArtField> t ATTRIBUTE_UNUSED) {
-  return false;
+bool CanUseIdArrays(ReflectiveHandle<ArtField> t ATTRIBUTE_UNUSED) {
+  return true;
 }
 template <>
-bool IsObsolete(ReflectiveHandle<ArtMethod> t) {
-  return t->IsObsolete();
+bool CanUseIdArrays(ReflectiveHandle<ArtMethod> t) {
+  return CanUseIdArrays(t.Get());
 }
 
 // Get the canonical (non-copied) version of the field or method. Only relevant for methods.
@@ -258,10 +270,14 @@ size_t JniIdManager::GetLinearSearchStartId<ArtField>(
 
 template <>
 size_t JniIdManager::GetLinearSearchStartId<ArtMethod>(ReflectiveHandle<ArtMethod> m) {
-  if (m->IsObsolete()) {
-    return 1;
-  } else {
+  if (CanUseIdArrays(m)) {
+    // If we are searching because we couldn't allocate because of defer allocate scope, then we
+    // should only look from deferred_allocation_method_id_start_. Once we exit the deferred scope
+    // all these method ids will be updated to the id arrays in the respective ClassExt objects.
     return deferred_allocation_method_id_start_;
+  } else {
+    // If we cannot use ID arrays, then the method can be anywhere in the list.
+    return 1;
   }
 }
 
@@ -278,14 +294,26 @@ uintptr_t JniIdManager::EncodeGenericId(ReflectiveHandle<ArtType> t) {
   Thread* self = Thread::Current();
   ScopedExceptionStorage ses(self);
   DCHECK(!t->GetDeclaringClass().IsNull()) << "Null declaring class " << PrettyGeneric(t);
-  size_t off = GetIdOffset(t->GetDeclaringClass(), Canonicalize(t), kRuntimePointerSize);
-  // Here is the earliest point we can suspend.
-  bool allocation_failure = EnsureIdsArray(self, t->GetDeclaringClass(), t.Get());
+  size_t off = -1;
+  bool allocation_failure = false;
+  // When we cannot use ID arrays, we just fallback to looking through the list to obtain the ID.
+  // These are rare cases so shouldn't be a problem for performance. See CanUseIdArrays for more
+  // information.
+  if (CanUseIdArrays(t)) {
+    off = GetIdOffset(t->GetDeclaringClass(), Canonicalize(t), kRuntimePointerSize);
+    // Here is the earliest point we can suspend.
+    allocation_failure = EnsureIdsArray(self, t->GetDeclaringClass(), t.Get());
+  }
   if (allocation_failure) {
     self->AssertPendingOOMException();
     ses.SuppressOldException("OOM exception while trying to allocate JNI ids.");
     return 0u;
   } else if (ShouldReturnPointer(t->GetDeclaringClass(), t.Get())) {
+    // TODO(mythria): Check why we return a pointer here instead of falling back
+    // to the slow path of finding the ID by looping through the ID -> method
+    // map. This seem incorrect. For example, if we are in ScopedEnableSuspendAllJniIdQueries
+    // scope, we don't allocate ID arrays. We would then incorrectly return a
+    // pointer here.
     return reinterpret_cast<uintptr_t>(t.Get());
   }
   ObjPtr<mirror::Class> klass = t->GetDeclaringClass();
@@ -321,7 +349,7 @@ uintptr_t JniIdManager::EncodeGenericId(ReflectiveHandle<ArtType> t) {
     }
   } else {
     // We cannot allocate anything here or don't have an ids array (we might be an obsolete method).
-    DCHECK(IsObsolete(t) || deferred_allocation_refcount_ > 0u)
+    DCHECK(!CanUseIdArrays(t) || deferred_allocation_refcount_ > 0u)
         << "deferred_allocation_refcount_: " << deferred_allocation_refcount_
         << " t: " << PrettyGeneric(t);
     // Check to see if we raced and lost to another thread.
@@ -354,7 +382,7 @@ uintptr_t JniIdManager::EncodeGenericId(ReflectiveHandle<ArtType> t) {
   vec.resize(std::max(vec.size(), cur_index + 1), nullptr);
   vec[cur_index] = t.Get();
   if (ids.IsNull()) {
-    if (kIsDebugBuild && !IsObsolete(t)) {
+    if (kIsDebugBuild && CanUseIdArrays(t)) {
       CHECK_NE(deferred_allocation_refcount_, 0u)
           << "Failed to allocate ids array despite not being forbidden from doing so!";
       Locks::mutator_lock_->AssertExclusiveHeld(self);
