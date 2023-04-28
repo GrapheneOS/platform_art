@@ -26,6 +26,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "android-base/function_ref.h"
 #include "android-base/result.h"
 #include "base/os.h"
 #include "com_android_apex.h"
@@ -164,7 +165,8 @@ class OnDeviceRefresh final {
   // Constructor with injections. For testing and internal use only.
   OnDeviceRefresh(const OdrConfig& config,
                   const std::string& cache_info_filename,
-                  std::unique_ptr<ExecUtils> exec_utils);
+                  std::unique_ptr<ExecUtils> exec_utils,
+                  android::base::function_ref<bool()> check_compilation_space);
 
   // Returns the exit code and specifies what should be compiled in `compilation_options`.
   WARN_UNUSED ExitCode
@@ -383,6 +385,8 @@ class OnDeviceRefresh final {
   const time_t start_time_;
 
   std::unique_ptr<ExecUtils> exec_utils_;
+
+  android::base::function_ref<bool()> check_compilation_space_;
 
   DISALLOW_COPY_AND_ASSIGN(OnDeviceRefresh);
 };
