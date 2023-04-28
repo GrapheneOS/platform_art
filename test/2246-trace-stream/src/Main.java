@@ -43,30 +43,46 @@ public class Main {
 
     public static void testTracing(boolean streaming, BaseTraceParser parser, int expected_version)
             throws Exception {
-        file = createTempFile();
-        FileOutputStream out_file = new FileOutputStream(file);
         Main m = new Main();
         Thread t = new Thread(() -> {
-            Main m1 = new Main();
-            m1.$noinline$doSomeWork();
+            try {
+                file = createTempFile();
+                FileOutputStream out_file = new FileOutputStream(file);
+                VMDebug.startMethodTracing(
+                        file.getPath(), out_file.getFD(), 0, 0, false, 0, streaming);
+                Main m1 = new Main();
+                m1.$noinline$doSomeWork();
+                VMDebug.$noinline$stopMethodTracing();
+                out_file.close();
+                parser.CheckTraceFileFormat(file, expected_version, "TestThread2246");
+                file.delete();
+            } catch (Exception e) {
+                System.out.println("Exception in thread " + e);
+                e.printStackTrace();
+            } finally {
+              file.delete();
+            }
         }, "TestThread2246");
         try {
             if (VMDebug.getMethodTracingMode() != 0) {
                 VMDebug.$noinline$stopMethodTracing();
             }
 
-            VMDebug.startMethodTracing(file.getPath(), out_file.getFD(), 0, 0, false, 0, streaming);
             t.start();
             t.join();
+
+            file = createTempFile();
+            FileOutputStream main_out_file = new FileOutputStream(file);
+            VMDebug.startMethodTracing(
+                    file.getPath(), main_out_file.getFD(), 0, 0, false, 0, streaming);
             m.$noinline$doSomeWork();
             m.doSomeWorkThrow();
             VMDebug.$noinline$stopMethodTracing();
-            out_file.close();
-            parser.CheckTraceFileFormat(file, expected_version);
+            main_out_file.close();
+            parser.CheckTraceFileFormat(file, expected_version, "main");
+            file.delete();
         } finally {
-            if (out_file != null) {
-                out_file.close();
-            }
+          file.delete();
         }
     }
 
