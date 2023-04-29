@@ -160,10 +160,22 @@ art_cc_test {
     srcs: [
         "native_loader_api_test.c",
         "native_loader_test.cpp",
+        "open_system_library.cpp",
     ],
-    shared_libs: [
+    static_libs: [
+        "libbase",
         "libnativeloader",
     ],
+    shared_libs: [
+        "liblog",
+    ],
+    target: {
+        android: {
+            static_libs: [
+                "libPlatformProperties",
+            ],
+        },
+    },
 
     // Added to CTS for API coverage of libnativeloader which is backed by the
     // ART module.
