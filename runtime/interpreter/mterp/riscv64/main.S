@@ -31,8 +31,8 @@
  *
  * 32 general purposes registers
  * - fixed purpose: zero, ra, sp, gp, tp, s1
- *     gp/scs: shadow call stack - do not use!
- *     s1/tr: ART thread register - do not use!
+ *     gp/scs: shadow call stack - do not clobber!
+ *     s1/tr: ART thread register - do not clobber!
  * - temporaries: t0-t6
  * - arguments: a0-a7
  * - return: a0, a1
