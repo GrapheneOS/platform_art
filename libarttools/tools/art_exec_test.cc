@@ -37,7 +37,6 @@
 #include "base/os.h"
 #include "base/scoped_cap.h"
 #include "exec_utils.h"
-#include "fmt/format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "system/thread_defs.h"
@@ -57,10 +56,6 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
-// clang-tidy incorrectly complaints about the using declaration while the user-defined literal is
-// actually being used.
-using ::fmt::literals::operator""_format;  // NOLINT
-
 constexpr uid_t kRoot = 0;
 constexpr uid_t kNobody = 9999;
 
@@ -73,9 +68,13 @@ constexpr uid_t kNobody = 9999;
 // TODO(b/247108425): Remove this when ART gtests no longer use LD_LIBRARY_PATH.
 constexpr const char* kEmptyLdLibraryPath = "--env=LD_LIBRARY_PATH=";
 
-std::string GetArtBin(const std::string& name) { return "{}/bin/{}"_format(GetArtRoot(), name); }
+std::string GetArtBin(const std::string& name) {
+  return ART_FORMAT("{}/bin/{}", GetArtRoot(), name);
+}
 
-std::string GetBin(const std::string& name) { return "{}/bin/{}"_format(GetAndroidRoot(), name); }
+std::string GetBin(const std::string& name) {
+  return ART_FORMAT("{}/bin/{}", GetAndroidRoot(), name);
+}
 
 // Executes the command, waits for it to finish, and keeps it in a waitable state until the current
 // scope exits.
@@ -217,16 +216,20 @@ TEST_F(ArtExecTest, CloseFds) {
   ASSERT_GE(scratch_file.GetFd(), 0);
 
   std::vector<std::string> args{art_exec_bin_,
-                                "--keep-fds={}:{}"_format(file3->Fd(), file2->Fd()),
+                                ART_FORMAT("--keep-fds={}:{}", file3->Fd(), file2->Fd()),
                                 kEmptyLdLibraryPath,
                                 "--",
                                 GetBin("sh"),
                                 "-c",
-                                "("
-                                "readlink /proc/self/fd/{} || echo;"
-                                "readlink /proc/self/fd/{} || echo;"
-                                "readlink /proc/self/fd/{} || echo;"
-                                ") > {}"_format(file1->Fd(), file2->Fd(), file3->Fd(), filename)};
+                                ART_FORMAT("("
+                                           "readlink /proc/self/fd/{} || echo;"
+                                           "readlink /proc/self/fd/{} || echo;"
+                                           "readlink /proc/self/fd/{} || echo;"
+                                           ") > {}",
+                                           file1->Fd(),
+                                           file2->Fd(),
+                                           file3->Fd(),
+                                           filename)};
 
   ScopedExecAndWait(args);
 
