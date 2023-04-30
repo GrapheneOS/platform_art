@@ -80,7 +80,6 @@
 #include "dex/art_dex_file_loader.h"
 #include "dexoptanalyzer.h"
 #include "exec_utils.h"
-#include "fmt/format.h"
 #include "gc/collector/mark_compact.h"
 #include "log/log.h"
 #include "odr_artifacts.h"
@@ -116,8 +115,6 @@ using ::android::base::StartsWith;
 using ::android::base::StringPrintf;
 using ::android::base::Timer;
 using ::android::modules::sdklevel::IsAtLeastU;
-
-using ::fmt::literals::operator""_format;  // NOLINT
 
 // Name of cache info file in the ART Apex artifact cache.
 constexpr const char* kCacheInfoFile = "cache-info.xml";
@@ -157,7 +154,7 @@ bool MoveOrEraseFiles(const std::vector<std::unique_ptr<File>>& files,
   std::vector<std::unique_ptr<File>> output_files;
   for (auto& file : files) {
     std::string file_basename(Basename(file->GetPath()));
-    std::string output_file_path = "{}/{}"_format(output_directory_path, file_basename);
+    std::string output_file_path = ART_FORMAT("{}/{}", output_directory_path, file_basename);
     std::string input_file_path = file->GetPath();
 
     output_files.emplace_back(OS::CreateEmptyFileWriteOnly(output_file_path.c_str()));
@@ -896,7 +893,7 @@ std::string OnDeviceRefresh::GetSystemBootImageFrameworkExtension() const {
   std::string basename =
       GetBootImageComponentBasename(framework_bcp_jars[0], /*is_first_jar=*/false);
   // Typically "/system/framework/boot-framework.art".
-  return "{}/framework/{}"_format(GetAndroidRoot(), basename);
+  return ART_FORMAT("{}/framework/{}", GetAndroidRoot(), basename);
 }
 
 std::string OnDeviceRefresh::GetSystemBootImageFrameworkExtensionPath(InstructionSet isa) const {
@@ -910,10 +907,10 @@ std::string OnDeviceRefresh::GetBootImageMainlineExtension(bool on_system) const
       GetBootImageComponentBasename(mainline_bcp_jars[0], /*is_first_jar=*/false);
   if (on_system) {
     // Typically "/system/framework/boot-framework-adservices.art".
-    return "{}/framework/{}"_format(GetAndroidRoot(), basename);
+    return ART_FORMAT("{}/framework/{}", GetAndroidRoot(), basename);
   } else {
     // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework-adservices.art".
-    return "{}/{}"_format(config_.GetArtifactDirectory(), basename);
+    return ART_FORMAT("{}/{}", config_.GetArtifactDirectory(), basename);
   }
 }
 
@@ -964,7 +961,7 @@ std::string OnDeviceRefresh::GetSystemServerImagePath(bool on_system,
     std::string image_name = ReplaceFileExtension(jar_name, "art");
     const char* isa_str = GetInstructionSetString(config_.GetSystemServerIsa());
     // Typically "/system/framework/oat/<isa>/services.art".
-    return "{}/oat/{}/{}"_format(Dirname(jar_path), isa_str, image_name);
+    return ART_FORMAT("{}/oat/{}/{}", Dirname(jar_path), isa_str, image_name);
   } else {
     // Typically
     // "/data/misc/apexdata/.../dalvik-cache/<isa>/system@framework@services.jar@classes.art".
@@ -1109,8 +1106,9 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBuildUserfaultFdGc() const {
   if (build_enable_uffd_gc && !kernel_supports_uffd) {
     // Normally, this should not happen. If this happens, the system image was probably built with a
     // wrong PRODUCT_ENABLE_UFFD_GC flag.
-    LOG(WARNING) << "Userfaultfd GC check failed (build-time: {}, runtime: {})."_format(
-        build_enable_uffd_gc, kernel_supports_uffd);
+    LOG(WARNING) << ART_FORMAT("Userfaultfd GC check failed (build-time: {}, runtime: {}).",
+                               build_enable_uffd_gc,
+                               kernel_supports_uffd);
     return false;
   }
   return true;
@@ -1152,14 +1150,18 @@ WARN_UNUSED PreconditionCheckResult OnDeviceRefresh::CheckPreconditionForSystem(
 WARN_UNUSED static bool CheckModuleInfo(const art_apex::ModuleInfo& cached_info,
                                         const apex::ApexInfo& current_info) {
   if (cached_info.getVersionCode() != current_info.getVersionCode()) {
-    LOG(INFO) << "APEX ({}) version code mismatch (before: {}, now: {})"_format(
-        current_info.getModuleName(), cached_info.getVersionCode(), current_info.getVersionCode());
+    LOG(INFO) << ART_FORMAT("APEX ({}) version code mismatch (before: {}, now: {})",
+                            current_info.getModuleName(),
+                            cached_info.getVersionCode(),
+                            current_info.getVersionCode());
     return false;
   }
 
   if (cached_info.getVersionName() != current_info.getVersionName()) {
-    LOG(INFO) << "APEX ({}) version name mismatch (before: {}, now: {})"_format(
-        current_info.getModuleName(), cached_info.getVersionName(), current_info.getVersionName());
+    LOG(INFO) << ART_FORMAT("APEX ({}) version name mismatch (before: {}, now: {})",
+                            current_info.getModuleName(),
+                            cached_info.getVersionName(),
+                            current_info.getVersionName());
     return false;
   }
 
@@ -1169,10 +1171,10 @@ WARN_UNUSED static bool CheckModuleInfo(const art_apex::ModuleInfo& cached_info,
   const int64_t cached_last_update_millis =
       cached_info.hasLastUpdateMillis() ? cached_info.getLastUpdateMillis() : -1;
   if (cached_last_update_millis != current_info.getLastUpdateMillis()) {
-    LOG(INFO) << "APEX ({}) last update time mismatch (before: {}, now: {})"_format(
-        current_info.getModuleName(),
-        cached_info.getLastUpdateMillis(),
-        current_info.getLastUpdateMillis());
+    LOG(INFO) << ART_FORMAT("APEX ({}) last update time mismatch (before: {}, now: {})",
+                            current_info.getModuleName(),
+                            cached_info.getLastUpdateMillis(),
+                            current_info.getLastUpdateMillis());
     return false;
   }
 
@@ -1356,12 +1358,12 @@ WARN_UNUSED BootImages OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
   }
 
   if (boot_images_on_system.Count() == BootImages::kMaxCount) {
-    LOG(INFO) << "Boot images on /system OK ({})"_format(isa_str);
+    LOG(INFO) << ART_FORMAT("Boot images on /system OK ({})", isa_str);
     // Nothing to compile.
     return BootImages{.primary_boot_image = false, .boot_image_mainline_extension = false};
   }
 
-  LOG(INFO) << "Checking boot images /data ({})"_format(isa_str);
+  LOG(INFO) << ART_FORMAT("Checking boot images /data ({})", isa_str);
   BootImages boot_images_on_data{.primary_boot_image = false,
                                  .boot_image_mainline_extension = false};
 
@@ -1378,7 +1380,7 @@ WARN_UNUSED BootImages OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
       // attempt to generate a full boot image even if the minimal one exists.
       if (PrimaryBootImageExist(
               /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
-        LOG(INFO) << "Found minimal primary boot image ({})"_format(isa_str);
+        LOG(INFO) << ART_FORMAT("Found minimal primary boot image ({})", isa_str);
       }
     }
   } else {
@@ -1408,7 +1410,7 @@ WARN_UNUSED BootImages OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
   };
 
   if (boot_images_to_generate.Count() == 0) {
-    LOG(INFO) << "Boot images on /data OK ({})"_format(isa_str);
+    LOG(INFO) << ART_FORMAT("Boot images on /data OK ({})", isa_str);
   }
 
   return boot_images_to_generate;
@@ -1705,7 +1707,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
     if (staging_file == nullptr) {
       return CompilationResult::Error(
           OdrMetrics::Status::kIoError,
-          "Failed to create {} file '{}'"_format(kind, staging_location));
+          ART_FORMAT("Failed to create {} file '{}'", kind, staging_location));
     }
     // Don't check the state of the staging file. It doesn't need to be flushed because it's removed
     // after the compilation regardless of success or failure.
@@ -1718,7 +1720,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
   if (!EnsureDirectoryExists(install_location)) {
     return CompilationResult::Error(
         OdrMetrics::Status::kIoError,
-        "Error encountered when preparing directory '{}'"_format(install_location));
+        ART_FORMAT("Error encountered when preparing directory '{}'", install_location));
   }
 
   std::copy(extra_args.begin(), extra_args.end(), std::back_inserter(args));
@@ -1726,7 +1728,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
   Timer timer;
   time_t timeout = GetSubprocessTimeout();
   std::string cmd_line = Join(args, ' ');
-  LOG(INFO) << "{}: {} [timeout {}s]"_format(debug_message, cmd_line, timeout);
+  LOG(INFO) << ART_FORMAT("{}: {} [timeout {}s]", debug_message, cmd_line, timeout);
   if (config_.GetDryRun()) {
     LOG(INFO) << "Compilation skipped (dry-run).";
     return CompilationResult::Ok();
@@ -1739,14 +1741,15 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
     return CompilationResult::Dex2oatError(
         dex2oat_result.exit_code < 0 ?
             error_msg :
-            "dex2oat returned an unexpected code: {}"_format(dex2oat_result.exit_code),
+            ART_FORMAT("dex2oat returned an unexpected code: {}", dex2oat_result.exit_code),
         timer.duration().count(),
         dex2oat_result);
   }
 
   if (!MoveOrEraseFiles(staging_files, install_location)) {
-    return CompilationResult::Error(OdrMetrics::Status::kIoError,
-                                    "Failed to commit artifacts to '{}'"_format(install_location));
+    return CompilationResult::Error(
+        OdrMetrics::Status::kIoError,
+        ART_FORMAT("Failed to commit artifacts to '{}'", install_location));
   }
 
   return CompilationResult::Dex2oatOk(timer.duration().count(), dex2oat_result);
@@ -1790,7 +1793,7 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
       args.emplace_back(StringPrintf("--dirty-image-objects-fd=%d", file->Fd()));
       readonly_files_raii.push_back(std::move(file));
     } else {
-      LOG(WARNING) << "Missing dirty objects file: '{}'"_format(dirty_image_objects_file);
+      LOG(WARNING) << ART_FORMAT("Missing dirty objects file: '{}'", dirty_image_objects_file);
     }
 
     std::string preloaded_classes_file(GetAndroidRoot() + "/etc/preloaded-classes");
@@ -1799,7 +1802,7 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
       args.emplace_back(StringPrintf("--preloaded-classes-fds=%d", file->Fd()));
       readonly_files_raii.push_back(std::move(file));
     } else {
-      LOG(WARNING) << "Missing preloaded classes file: '{}'"_format(preloaded_classes_file);
+      LOG(WARNING) << ART_FORMAT("Missing preloaded classes file: '{}'", preloaded_classes_file);
     }
   } else {
     // Mainline extension.
@@ -1808,7 +1811,7 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
 
   return RunDex2oat(
       staging_dir,
-      "Compiling boot classpath ({}, {})"_format(GetInstructionSetString(isa), debug_name),
+      ART_FORMAT("Compiling boot classpath ({}, {})", GetInstructionSetString(isa), debug_name),
       isa,
       dex_files,
       boot_classpath,
@@ -1951,7 +1954,8 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
       if (!file->IsValid()) {
         return CompilationResult::Error(
             OdrMetrics::Status::kIoError,
-            "Failed to open classloader context '{}': {}"_format(actual_path, strerror(errno)));
+            ART_FORMAT(
+                "Failed to open classloader context '{}': {}", actual_path, strerror(errno)));
       }
       fds.emplace_back(file->Fd());
       readonly_files_raii.emplace_back(std::move(file));
@@ -1960,7 +1964,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
   }
 
   return RunDex2oat(staging_dir,
-                    "Compiling {}"_format(Basename(dex_file)),
+                    ART_FORMAT("Compiling {}", Basename(dex_file)),
                     isa,
                     {dex_file},
                     boot_classpath_jars_,
@@ -1993,7 +1997,7 @@ OnDeviceRefresh::CompileSystemServer(const std::string& staging_dir,
       if (current_result.IsOk()) {
         on_dex2oat_success();
       } else {
-        LOG(ERROR) << "Compilation of {} failed: {}"_format(Basename(jar), result.error_msg);
+        LOG(ERROR) << ART_FORMAT("Compilation of {} failed: {}", Basename(jar), result.error_msg);
       }
     }
 
