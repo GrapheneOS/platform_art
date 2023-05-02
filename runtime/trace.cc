@@ -565,13 +565,28 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   }
 }
 
-namespace {
+void Trace::UpdateThreadsList(Thread* thread) {
+  // TODO(mythria): Clean this up and update threads_list_ when recording the trace event similar
+  // to what we do for streaming case.
+  std::string name;
+  thread->GetThreadName(name);
+  // In tests, we destroy VM after already detaching the current thread. When a thread is
+  // detached we record the information about the threads_list_. We re-attach the current
+  // thread again as a "Shutdown thread" in the process of shutting down. So don't record
+  // information about shutdown threads.
+  if (name.compare("Shutdown thread") == 0) {
+    return;
+  }
 
-bool IsShutdownThread(const std::string& name) {
-  return (name.compare("Shutdown thread") == 0);
+  // There can be races when unregistering a thread and stopping the trace and it is possible to
+  // update the list twice. For example, This information is updated here when stopping tracing and
+  // also when a thread is detaching. In thread detach, we first update this information and then
+  // remove the thread from the list of active threads. If the tracing was stopped in between these
+  // events, we can see two updates for the same thread. Since we need a trace_lock_ it isn't easy
+  // to prevent this race (for ex: update this information when holding thread_list_lock_). It is
+  // harmless to do two updates so just use overwrite here.
+  threads_list_.Overwrite(thread->GetTid(), name);
 }
-
-}  // namespace
 
 void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   Runtime* const runtime = Runtime::Current();
@@ -631,21 +646,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
         }
         // Record threads here before resetting the_trace_ to prevent any races between
         // unregistering the thread and resetting the_trace_.
-        std::string name;
-        thread->GetThreadName(name);
-        // In tests, we destroy VM after already detaching the current thread. When a thread is
-        // detached we record the information about the threads_list_. We re-attach the current
-        // thread again as a "Shutdown thread" in the process of shutting down. So don't record
-        // information about shutdown threads.
-        if (!IsShutdownThread(name)) {
-          // This information is updated here when stopping tracing and also when a thread is
-          // detaching. In thread detach, we first update this information and then remove the
-          // thread from the list of active threads. If the tracing was stopped in between these
-          // events, we can see two updates for the same thread. Since we need a trace_lock_ it
-          // isn't easy to prevent this race (for ex: update this information when holding
-          // thread_list_lock_). It is harmless to do two updates so just use overwrite here.
-          the_trace->threads_list_.Overwrite(thread->GetTid(), name);
-        }
+        the_trace->UpdateThreadsList(thread);
       }
     }
 
@@ -1283,14 +1284,7 @@ void Trace::DumpThreadList(std::ostream& os) {
 void Trace::StoreExitingThreadInfo(Thread* thread) {
   MutexLock mu(thread, *Locks::trace_lock_);
   if (the_trace_ != nullptr) {
-    std::string name;
-    thread->GetThreadName(name);
-    // In tests, we destroy VM after already detaching the current thread. When a thread is
-    // detached we record the information about the threads_list_. Re-attaching thread can fail
-    // sometimes which unregisters the thread again. So ignore upadtes from shutdown thread.
-    if (!IsShutdownThread(name)) {
-      the_trace_->threads_list_.Put(thread->GetTid(), name);
-    }
+    the_trace_->UpdateThreadsList(thread);
   }
 }
 
