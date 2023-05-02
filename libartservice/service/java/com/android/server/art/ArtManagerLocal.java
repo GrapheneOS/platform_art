@@ -213,7 +213,8 @@ public final class ArtManagerLocal {
 
             return DeleteResult.create(freedBytes);
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return null;
         }
     }
 
@@ -298,7 +299,8 @@ public final class ArtManagerLocal {
 
             return DexoptStatus.create(statuses);
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return null;
         }
     }
 
@@ -341,7 +343,7 @@ public final class ArtManagerLocal {
                         AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
             }
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
         }
     }
 
@@ -756,7 +758,8 @@ public final class ArtManagerLocal {
                 }
             }
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return null;
         }
     }
 
@@ -940,7 +943,8 @@ public final class ArtManagerLocal {
             }
             return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return -1;
         }
     }
 
@@ -1124,7 +1128,8 @@ public final class ArtManagerLocal {
 
             return fd;
         } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+            e.rethrowFromSystemServer();
+            return null;
         } catch (IOException e) {
             throw new SnapshotProfileException(e);
         }
