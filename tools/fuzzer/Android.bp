@@ -26,13 +26,18 @@ package {
 cc_fuzz {
     name: "libart_verify_dex_fuzzer",
     srcs: ["libart_verify_dex_fuzzer.cc"],
-    defaults: ["libart_static_defaults"],
+
+    // Run in debug mode for the DCHECKs.
+    defaults: ["libartd_static_defaults"],
+
     // Build and run on x86 only for now.
     host_supported: true,
     device_supported: false,
+
     corpus: ["corpus/*"],
     dictionary: "dex.dict",
     fuzz_config: {
+        triage_assignee: "art-performance-team@google.com",
         cc: ["solanes@google.com", "art-bugs@google.com"],
         componentid: 86431,
         acknowledgement: [
