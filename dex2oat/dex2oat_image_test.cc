@@ -250,6 +250,7 @@ TEST_F(Dex2oatImageTest, TestModesAndFilters) {
 }
 
 TEST_F(Dex2oatImageTest, TestExtension) {
+  TEST_DISABLED_FOR_RISCV64();
   std::string error_msg;
   MemMap reservation = ReserveCoreImageAddressSpace(&error_msg);
   ASSERT_TRUE(reservation.IsValid()) << error_msg;

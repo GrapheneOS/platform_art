@@ -30,6 +30,7 @@ namespace art HIDDEN {
 class LoopOptimizationTest : public OptimizingUnitTest {
  protected:
   void SetUp() override {
+    TEST_SETUP_DISABLED_FOR_RISCV64();
     OptimizingUnitTest::SetUp();
 
     graph_ = CreateGraph();
@@ -44,6 +45,7 @@ class LoopOptimizationTest : public OptimizingUnitTest {
   }
 
   void TearDown() override {
+    TEST_TEARDOWN_DISABLED_FOR_RISCV64();
     codegen_.reset();
     compiler_options_.reset();
     graph_ = nullptr;
@@ -134,17 +136,20 @@ class LoopOptimizationTest : public OptimizingUnitTest {
 //
 
 TEST_F(LoopOptimizationTest, NoLoops) {
+  TEST_DISABLED_FOR_RISCV64();
   PerformAnalysis();
   EXPECT_EQ("", LoopStructure());
 }
 
 TEST_F(LoopOptimizationTest, SingleLoop) {
+  TEST_DISABLED_FOR_RISCV64();
   AddLoop(entry_block_, return_block_);
   PerformAnalysis();
   EXPECT_EQ("[]", LoopStructure());
 }
 
 TEST_F(LoopOptimizationTest, LoopNest10) {
+  TEST_DISABLED_FOR_RISCV64();
   HBasicBlock* b = entry_block_;
   HBasicBlock* s = return_block_;
   for (int i = 0; i < 10; i++) {
@@ -156,6 +161,7 @@ TEST_F(LoopOptimizationTest, LoopNest10) {
 }
 
 TEST_F(LoopOptimizationTest, LoopSequence10) {
+  TEST_DISABLED_FOR_RISCV64();
   HBasicBlock* b = entry_block_;
   HBasicBlock* s = return_block_;
   for (int i = 0; i < 10; i++) {
@@ -167,6 +173,7 @@ TEST_F(LoopOptimizationTest, LoopSequence10) {
 }
 
 TEST_F(LoopOptimizationTest, LoopSequenceOfNests) {
+  TEST_DISABLED_FOR_RISCV64();
   HBasicBlock* b = entry_block_;
   HBasicBlock* s = return_block_;
   for (int i = 0; i < 10; i++) {
@@ -194,6 +201,7 @@ TEST_F(LoopOptimizationTest, LoopSequenceOfNests) {
 }
 
 TEST_F(LoopOptimizationTest, LoopNestWithSequence) {
+  TEST_DISABLED_FOR_RISCV64();
   HBasicBlock* b = entry_block_;
   HBasicBlock* s = return_block_;
   for (int i = 0; i < 10; i++) {
@@ -215,6 +223,7 @@ TEST_F(LoopOptimizationTest, LoopNestWithSequence) {
 //
 // This is a test for nodes.cc functionality - HGraph::SimplifyLoop.
 TEST_F(LoopOptimizationTest, SimplifyLoopReoderPredecessors) {
+  TEST_DISABLED_FOR_RISCV64();
   // Can't use AddLoop as we want special order for blocks predecessors.
   HBasicBlock* header = new (GetAllocator()) HBasicBlock(graph_);
   HBasicBlock* body = new (GetAllocator()) HBasicBlock(graph_);
@@ -260,6 +269,7 @@ TEST_F(LoopOptimizationTest, SimplifyLoopReoderPredecessors) {
 //
 // This is a test for nodes.cc functionality - HGraph::SimplifyLoop.
 TEST_F(LoopOptimizationTest, SimplifyLoopSinglePreheader) {
+  TEST_DISABLED_FOR_RISCV64();
   HBasicBlock* header = AddLoop(entry_block_, return_block_);
 
   header->InsertInstructionBefore(

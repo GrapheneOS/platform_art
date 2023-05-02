@@ -584,6 +584,7 @@ TEST_F(VerifierDepsTest, VerifyDeps) {
 }
 
 TEST_F(VerifierDepsTest, CompilerDriver) {
+  TEST_DISABLED_FOR_RISCV64();
   SetupCompilerDriver();
 
   // Test both multi-dex and single-dex configuration.

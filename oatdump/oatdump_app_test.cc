@@ -19,22 +19,26 @@
 namespace art {
 
 TEST_F(OatDumpTest, TestAppWithBootImage) {
+  TEST_DISABLED_FOR_RISCV64();
   ASSERT_TRUE(GenerateAppOdexFile(Flavor::kDynamic, {"--runtime-arg", "-Xmx64M"}));
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeOatWithBootImage, {}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestAppWithBootImageStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   ASSERT_TRUE(GenerateAppOdexFile(Flavor::kStatic, {"--runtime-arg", "-Xmx64M"}));
   ASSERT_TRUE(Exec(Flavor::kStatic, kModeOatWithBootImage, {}, kListAndCode));
 }
 
 TEST_F(OatDumpTest, TestAppImageWithBootImage) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
   ASSERT_TRUE(GenerateAppOdexFile(Flavor::kDynamic, {"--runtime-arg", "-Xmx64M", app_image_arg}));
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeAppImage, {}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestAppImageWithBootImageStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
@@ -43,6 +47,7 @@ TEST_F(OatDumpTest, TestAppImageWithBootImageStatic) {
 }
 
 TEST_F(OatDumpTest, TestAppImageInvalidPath) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
