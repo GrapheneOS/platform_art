@@ -61,7 +61,7 @@ options="$@"
 
 run_in_chroot() {
   if [ -n "$ART_TEST_ON_VM" ]; then
-    $ART_SSH_CMD $ART_CHROOT_CMD $@
+    $ART_SSH_CMD $ART_CHROOT_CMD env ANDROID_ROOT=/system $@
   else
     "$adb" shell chroot "$ART_TEST_CHROOT" $@
   fi
