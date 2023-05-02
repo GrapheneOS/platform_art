@@ -24,11 +24,13 @@ namespace art {
     TEST_DISABLED_FOR_ARM64(); \
 
 TEST_F(OatDumpTest, TestImage) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeArt, {}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestImageStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -36,11 +38,13 @@ TEST_F(OatDumpTest, TestImageStatic) {
 }
 
 TEST_F(OatDumpTest, TestOatImage) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeCoreOat, {}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestOatImageStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
