@@ -45,7 +45,7 @@ my_files += $(foreach infix,_ _VDEX_,$(foreach suffix,$(HOST_ARCH) $(HOST_2ND_AR
 # that is used in host gtests, and hence can't lead to checksum mismatches.
 my_files += \
   $(foreach jar,$(CORE_IMG_JARS),\
-    $(OUT_DIR)/soong/$(PRODUCT_DEVICE)/dex_artjars_input/$(jar).jar:apex/com.android.art/javalib/$(jar).jar) \
+    $(OUT_DIR)/soong/dexpreopt_$(TARGET_ARCH)/dex_artjars_input/$(jar).jar:apex/com.android.art/javalib/$(jar).jar) \
   $(HOST_OUT_JAVA_LIBRARIES)/conscrypt-hostdex.jar:apex/com.android.conscrypt/javalib/conscrypt.jar\
   $(HOST_OUT_JAVA_LIBRARIES)/core-icu4j-hostdex.jar:apex/com.android.i18n/javalib/core-icu4j.jar \
   $(icu_data_file):com.android.i18n/etc/icu/$(notdir $(icu_data_file))
