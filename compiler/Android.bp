@@ -132,6 +132,7 @@ art_cc_defaults {
         },
         riscv64: {
             srcs: [
+                "utils/riscv64/assembler_riscv64.cc",
                 "utils/riscv64/managed_register_riscv64.cc",
             ],
         },
@@ -549,6 +550,11 @@ art_cc_test {
         arm: {
             srcs: [
                 "utils/assembler_thumb_test.cc",
+            ],
+        },
+        riscv64 : {
+            srcs: [
+                "utils/riscv64/assembler_riscv64_test.cc",
             ],
         },
         x86: {
