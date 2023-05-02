@@ -374,6 +374,9 @@ static bool MaybeAppendBootImageMainlineExtension(const std::string& android_roo
   // `<primary-boot-image-stem>-<first-library-name>.art`.
   std::string library_name = GetFirstMainlineFrameworkLibraryName(error_msg);
   if (library_name.empty()) {
+    if (kRuntimeISA == InstructionSet::kRiscv64) {
+      return true;
+    }
     return false;
   }
 
