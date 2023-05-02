@@ -328,6 +328,8 @@ class Trace final : public instrumentation::InstrumentationListener {
   void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
+  void UpdateThreadsList(Thread* thread);
+
   // Singleton instance of the Trace or null when no method tracing is active.
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
 
