@@ -26,11 +26,13 @@ namespace art {
     TEST_DISABLED_FOR_ARM64(); \
 
 TEST_F(OatDumpTest, TestNoDumpVmap) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeArt, {"--no-dump:vmap"}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestNoDumpVmapStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -38,11 +40,13 @@ TEST_F(OatDumpTest, TestNoDumpVmapStatic) {
 }
 
 TEST_F(OatDumpTest, TestNoDisassemble) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeArt, {"--no-disassemble"}, kListAndCode));
 }
 TEST_F(OatDumpTest, TestNoDisassembleStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -50,11 +54,13 @@ TEST_F(OatDumpTest, TestNoDisassembleStatic) {
 }
 
 TEST_F(OatDumpTest, TestListClasses) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeArt, {"--list-classes"}, kListOnly));
 }
 TEST_F(OatDumpTest, TestListClassesStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -62,11 +68,13 @@ TEST_F(OatDumpTest, TestListClassesStatic) {
 }
 
 TEST_F(OatDumpTest, TestListMethods) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeArt, {"--list-methods"}, kListOnly));
 }
 TEST_F(OatDumpTest, TestListMethodsStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -74,11 +82,13 @@ TEST_F(OatDumpTest, TestListMethodsStatic) {
 }
 
 TEST_F(OatDumpTest, TestSymbolize) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_TARGET();  // Can not write files inside the apex directory.
   std::string error_msg;
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeSymbolize, {}, kListOnly));
 }
 TEST_F(OatDumpTest, TestSymbolizeStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;
@@ -86,6 +96,7 @@ TEST_F(OatDumpTest, TestSymbolizeStatic) {
 }
 
 TEST_F(OatDumpTest, TestExportDex) {
+  TEST_DISABLED_FOR_RISCV64();
   std::string error_msg;
   ASSERT_TRUE(GenerateAppOdexFile(Flavor::kDynamic, {"--runtime-arg", "-Xmx64M"}));
   ASSERT_TRUE(Exec(Flavor::kDynamic, kModeOat, {"--export-dex-to=" + tmp_dir_}, kListOnly));
@@ -102,6 +113,7 @@ TEST_F(OatDumpTest, TestExportDex) {
   ASSERT_TRUE(res.StandardSuccess());
 }
 TEST_F(OatDumpTest, TestExportDexStatic) {
+  TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   std::string error_msg;

@@ -1479,6 +1479,7 @@ TEST_F(Dex2oatVerifierAbort, HardFail) {
 class Dex2oatDedupeCode : public Dex2oatTest {};
 
 TEST_F(Dex2oatDedupeCode, DedupeTest) {
+  TEST_DISABLED_FOR_RISCV64();
   // Use MyClassNatives. It has lots of native methods that will produce deduplicate-able code.
   std::unique_ptr<const DexFile> dex(OpenTestDexFile("MyClassNatives"));
   std::string out_dir = GetScratchDir();

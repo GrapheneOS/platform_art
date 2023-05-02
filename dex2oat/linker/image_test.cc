@@ -107,6 +107,7 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
 // only if the copied method and the origin method are located in the
 // same oat file.
 TEST_F(ImageTest, TestDefaultMethods) {
+  TEST_DISABLED_FOR_RISCV64();
   CompilationHelper helper;
   Compile(ImageHeader::kStorageModeUncompressed,
           /*max_image_block_size=*/std::numeric_limits<uint32_t>::max(),
