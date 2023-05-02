@@ -127,7 +127,9 @@ inline size_t Object::VisitRefsForCompaction(const Visitor& visitor,
         DCHECK((klass->IsObjectArrayClass<kVerifyFlags, kReadBarrierOption>()));
         ObjPtr<ObjectArray<Object>> obj_arr = ObjPtr<ObjectArray<Object>>::DownCast(this);
         obj_arr->VisitReferences(visitor, begin, end);
-        size = kFetchObjSize ? obj_arr->SizeOf<kSizeOfFlags, kReadBarrierOption>() : 0;
+        size = kFetchObjSize ?
+                   obj_arr->SizeOf<kSizeOfFlags, kReadBarrierOption, /*kIsObjArray*/ true>() :
+                   0;
       } else if ((class_flags & kClassFlagReference) != 0) {
         VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
         // Visit referent also as this is about updating the reference only.
