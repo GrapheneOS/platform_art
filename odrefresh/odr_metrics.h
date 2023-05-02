@@ -34,7 +34,8 @@ class OdrMetrics final {
  public:
   // Enumeration used to track the latest stage reached running odrefresh.
   //
-  // These values mirror those in OdrefreshReported::Stage in frameworks/proto_logging/atoms.proto.
+  // These values mirror those in OdrefreshReported::Stage in
+  // frameworks/proto_logging/atoms/art/odrefresh_extension_atoms.proto.
   // NB There are gaps between the values in case an additional stages are introduced.
   enum class Stage : uint8_t {
     kUnknown = 0,
@@ -48,7 +49,8 @@ class OdrMetrics final {
 
   // Enumeration describing the overall status, processing stops on the first error discovered.
   //
-  // These values mirror those in OdrefreshReported::Status in frameworks/proto_logging/atoms.proto.
+  // These values mirror those in OdrefreshReported::Status in
+  // frameworks/proto_logging/atoms/art/odrefresh_extension_atoms.proto.
   enum class Status : uint8_t {
     kUnknown = 0,
     kOK = 1,
@@ -66,7 +68,7 @@ class OdrMetrics final {
   // Enumeration describing the cause of compilation (if any) in odrefresh.
   //
   // These values mirror those in OdrefreshReported::Trigger in
-  // frameworks/proto_logging/atoms.proto.
+  // frameworks/proto_logging/atoms/art/odrefresh_extension_atoms.proto.
   enum class Trigger : uint8_t {
     kUnknown = 0,
     kApexVersionMismatch = 1,
@@ -74,6 +76,10 @@ class OdrMetrics final {
     kMissingArtifacts = 3,
   };
 
+  // Enumeration describing the type of boot classpath compilation in odrefresh.
+  //
+  // These values mirror those in OdrefreshReported::BcpCompilationType in
+  // frameworks/proto_logging/atoms/art/odrefresh_extension_atoms.proto.
   enum class BcpCompilationType : uint8_t {
     kUnknown = 0,
     // Compiles for both the primary boot image and the mainline extension.
