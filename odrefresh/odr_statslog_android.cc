@@ -35,71 +35,6 @@ using android::base::StringPrintf;
 
 namespace {
 
-// Convert bare value from art::metrics::Stage to value defined in atoms.proto.
-int32_t TranslateStage(int32_t art_metrics_stage) {
-  switch (static_cast<OdrMetrics::Stage>(art_metrics_stage)) {
-    case OdrMetrics::Stage::kUnknown:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_UNKNOWN;
-    case OdrMetrics::Stage::kCheck:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_CHECK;
-    case OdrMetrics::Stage::kPreparation:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_PREPARATION;
-    case OdrMetrics::Stage::kPrimaryBootClasspath:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_PRIMARY_BOOT_CLASSPATH;
-    case OdrMetrics::Stage::kSecondaryBootClasspath:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_SECONDARY_BOOT_CLASSPATH;
-    case OdrMetrics::Stage::kSystemServerClasspath:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_SYSTEM_SERVER_CLASSPATH;
-    case OdrMetrics::Stage::kComplete:
-      return metrics::statsd::ODREFRESH_REPORTED__STAGE_REACHED__STAGE_COMPLETE;
-  }
-
-  LOG(ERROR) << "Unknown stage value: " << art_metrics_stage;
-  return -1;
-}
-
-// Convert bare value from art::metrics::Status to value defined in atoms.proto.
-int32_t TranslateStatus(int32_t art_metrics_status) {
-  switch (static_cast<OdrMetrics::Status>(art_metrics_status)) {
-    case OdrMetrics::Status::kUnknown:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_UNKNOWN;
-    case OdrMetrics::Status::kOK:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_OK;
-    case OdrMetrics::Status::kNoSpace:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_NO_SPACE;
-    case OdrMetrics::Status::kIoError:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_IO_ERROR;
-    case OdrMetrics::Status::kDex2OatError:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_DEX2OAT_ERROR;
-    case OdrMetrics::Status::kStagingFailed:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_STAGING_FAILED;
-    case OdrMetrics::Status::kInstallFailed:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_INSTALL_FAILED;
-    case OdrMetrics::Status::kDalvikCachePermissionDenied:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_DALVIK_CACHE_PERMISSION_DENIED;
-  }
-
-  LOG(ERROR) << "Unknown status value: " << art_metrics_status;
-  return -1;
-}
-
-// Convert bare value from art::metrics::Trigger to value defined in atoms.proto.
-int32_t TranslateTrigger(int32_t art_metrics_trigger) {
-  switch (static_cast<OdrMetrics::Trigger>(art_metrics_trigger)) {
-    case OdrMetrics::Trigger::kUnknown:
-      return metrics::statsd::ODREFRESH_REPORTED__TRIGGER__TRIGGER_UNKNOWN;
-    case OdrMetrics::Trigger::kApexVersionMismatch:
-      return metrics::statsd::ODREFRESH_REPORTED__TRIGGER__TRIGGER_APEX_VERSION_MISMATCH;
-    case OdrMetrics::Trigger::kDexFilesChanged:
-      return metrics::statsd::ODREFRESH_REPORTED__TRIGGER__TRIGGER_DEX_FILES_CHANGED;
-    case OdrMetrics::Trigger::kMissingArtifacts:
-      return metrics::statsd::ODREFRESH_REPORTED__TRIGGER__TRIGGER_MISSING_ARTIFACTS;
-  }
-
-  LOG(ERROR) << "Unknown trigger value: " << art_metrics_trigger;
-  return -1;
-}
-
 bool ReadValues(const char* metrics_file,
                 /*out*/ OdrMetricsRecord* record,
                 /*out*/ std::string* error_msg) {
@@ -110,30 +45,6 @@ bool ReadValues(const char* metrics_file,
                                              result.error().message().data());
     return false;
   }
-
-  //
-  // Convert values defined as enums to their statsd values.
-  //
-
-  record->trigger = TranslateTrigger(record->trigger);
-  if (record->trigger < 0) {
-    *error_msg = "failed to parse trigger.";
-    return false;
-  }
-
-  record->stage_reached = TranslateStage(record->stage_reached);
-  if (record->stage_reached < 0) {
-    *error_msg = "failed to parse stage_reached.";
-    return false;
-  }
-
-  record->status = TranslateStatus(record->status);
-  if (record->status < 0) {
-    *error_msg = "failed to parse status.";
-    return false;
-  }
-
-  // TODO(b/279004055): Translate BCP compilation types.
 
   return true;
 }
@@ -148,30 +59,31 @@ bool UploadStatsIfAvailable(/*out*/std::string* error_msg) {
 
   // Write values to statsd. The order of values passed is the same as the order of the
   // fields in OdrMetricsRecord.
-  // TODO(b/279004055): Write BCP compilation types.
-  int bytes_written = art::metrics::statsd::stats_write(
-      metrics::statsd::ODREFRESH_REPORTED,
-      record.art_apex_version,
-      record.trigger,
-      record.stage_reached,
-      record.status,
-      record.primary_bcp_compilation_millis / 1000,
-      record.secondary_bcp_compilation_millis / 1000,
-      record.system_server_compilation_millis / 1000,
-      record.cache_space_free_start_mib,
-      record.cache_space_free_end_mib,
-      record.primary_bcp_compilation_millis,
-      record.secondary_bcp_compilation_millis,
-      record.system_server_compilation_millis,
-      record.primary_bcp_dex2oat_result.status,
-      record.primary_bcp_dex2oat_result.exit_code,
-      record.primary_bcp_dex2oat_result.signal,
-      record.secondary_bcp_dex2oat_result.status,
-      record.secondary_bcp_dex2oat_result.exit_code,
-      record.secondary_bcp_dex2oat_result.signal,
-      record.system_server_dex2oat_result.status,
-      record.system_server_dex2oat_result.exit_code,
-      record.system_server_dex2oat_result.signal);
+  int bytes_written =
+      art::metrics::statsd::stats_write(metrics::statsd::ODREFRESH_REPORTED,
+                                        record.art_apex_version,
+                                        record.trigger,
+                                        record.stage_reached,
+                                        record.status,
+                                        record.primary_bcp_compilation_millis / 1000,
+                                        record.secondary_bcp_compilation_millis / 1000,
+                                        record.system_server_compilation_millis / 1000,
+                                        record.cache_space_free_start_mib,
+                                        record.cache_space_free_end_mib,
+                                        record.primary_bcp_compilation_millis,
+                                        record.secondary_bcp_compilation_millis,
+                                        record.system_server_compilation_millis,
+                                        record.primary_bcp_dex2oat_result.status,
+                                        record.primary_bcp_dex2oat_result.exit_code,
+                                        record.primary_bcp_dex2oat_result.signal,
+                                        record.secondary_bcp_dex2oat_result.status,
+                                        record.secondary_bcp_dex2oat_result.exit_code,
+                                        record.secondary_bcp_dex2oat_result.signal,
+                                        record.system_server_dex2oat_result.status,
+                                        record.system_server_dex2oat_result.exit_code,
+                                        record.system_server_dex2oat_result.signal,
+                                        record.primary_bcp_compilation_type,
+                                        record.secondary_bcp_compilation_type);
   if (bytes_written <= 0) {
     *error_msg = android::base::StringPrintf("stats_write returned %d", bytes_written);
     return false;
