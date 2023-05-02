@@ -21,6 +21,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Initialize environment.
   art::MemMap::Init();
 
+  // Skip compact DEX.
+  // TODO(dsrbecky): Remove after removing compact DEX.
+  const char* dex_string = "cdex";
+  if (strncmp(dex_string, (const char*)data, strlen(dex_string)) == 0) {
+    // A -1 indicates we don't want this DEX added to the corpus.
+    return -1;
+  }
+
   // Open and verify the DEX file. Do not verify the checksum as we only care about the DEX file
   // contents, and know that the checksum would probably be erroneous.
   std::string error_msg;
