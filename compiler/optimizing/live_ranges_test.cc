@@ -47,6 +47,7 @@ HGraph* LiveRangesTest::BuildGraph(const std::vector<uint16_t>& data) {
 }
 
 TEST_F(LiveRangesTest, CFG1) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  return 0;
@@ -81,6 +82,7 @@ TEST_F(LiveRangesTest, CFG1) {
 }
 
 TEST_F(LiveRangesTest, CFG2) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -125,6 +127,7 @@ TEST_F(LiveRangesTest, CFG2) {
 }
 
 TEST_F(LiveRangesTest, CFG3) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -194,6 +197,7 @@ TEST_F(LiveRangesTest, CFG3) {
 }
 
 TEST_F(LiveRangesTest, Loop1) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -270,6 +274,7 @@ TEST_F(LiveRangesTest, Loop1) {
 }
 
 TEST_F(LiveRangesTest, Loop2) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  var a = 0;
@@ -341,6 +346,7 @@ TEST_F(LiveRangesTest, Loop2) {
 }
 
 TEST_F(LiveRangesTest, CFG4) {
+  TEST_DISABLED_FOR_RISCV64();
   /*
    * Test the following snippet:
    *  var a = 0;

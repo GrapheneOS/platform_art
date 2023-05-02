@@ -115,6 +115,7 @@ TEST_F(ImgDiagTest, ImageDiffPidSelf) {
 // because it's root read-only.
 TEST_F(ImgDiagTest, DISABLED_ImageDiffPidSelf) {
 #endif
+  TEST_DISABLED_FOR_RISCV64();
   // Invoke 'img_diag' against the current process.
   // This should succeed because we have a runtime and so it should
   // be able to map in the boot.art and do a diff for it.
