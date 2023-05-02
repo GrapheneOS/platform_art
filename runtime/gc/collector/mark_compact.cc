@@ -1434,7 +1434,6 @@ void MarkCompact::CompactPage(mirror::Object* obj,
                               uint32_t offset,
                               uint8_t* addr,
                               bool needs_memset_zero) {
-  mirror::Object* first_obj = obj;
   DCHECK(moving_space_bitmap_->Test(obj)
          && live_words_bitmap_->Test(obj));
   DCHECK(live_words_bitmap_->Test(offset)) << "obj=" << obj
@@ -1526,12 +1525,11 @@ void MarkCompact::CompactPage(mirror::Object* obj,
                                                                      + kPageSize));
     }
     obj_size = RoundUp(obj_size, kAlignment);
-    CHECK_GT(obj_size, offset_within_obj)
+    DCHECK_GT(obj_size, offset_within_obj)
         << "obj:" << obj
         << " class:"
         << obj->GetClass<kDefaultVerifyFlags, kWithFromSpaceBarrier>()
         << " to_addr:" << to_ref
-        << " first-obj:" << first_obj
         << " black-allocation-begin:" << reinterpret_cast<void*>(black_allocations_begin_)
         << " post-compact-end:" << reinterpret_cast<void*>(post_compact_end_)
         << " offset:" << offset * kAlignment
@@ -1590,12 +1588,11 @@ void MarkCompact::CompactPage(mirror::Object* obj,
                                            MemberOffset(0),
                                            MemberOffset(end_addr - (addr + bytes_done)));
     obj_size = RoundUp(obj_size, kAlignment);
-    CHECK_GT(obj_size, 0u)
+    DCHECK_GT(obj_size, 0u)
         << "from_addr:" << obj
         << " from-space-class:"
         << obj->GetClass<kDefaultVerifyFlags, kWithFromSpaceBarrier>()
         << " to_addr:" << ref
-        << " first-obj:" << first_obj
         << " black-allocation-begin:" << reinterpret_cast<void*>(black_allocations_begin_)
         << " post-compact-end:" << reinterpret_cast<void*>(post_compact_end_)
         << " offset:" << offset * kAlignment
@@ -2000,9 +1997,7 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx, int mode) {
   }
   DCHECK_LE(idx, last_checked_reclaim_page_idx_);
   if (idx == last_checked_reclaim_page_idx_) {
-    // Nothing to do. Also, this possibly avoids freeing from-space pages too
-    // soon. TODO: Update the comment if returning here indeed fixed NPE like
-    // in b/272272332.
+    // Nothing to do.
     return;
   }
 
