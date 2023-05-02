@@ -141,6 +141,9 @@ class AssemblerTestBase : public testing::Test {
   virtual std::vector<std::string> GetAssemblerCommand() {
     InstructionSet isa = GetIsa();
     switch (isa) {
+      case InstructionSet::kRiscv64:
+        // TODO: Support compression (RV32C) in assembler and tests (add `c` to `-march=`).
+        return {FindTool("clang"), "--compile", "-target", "riscv64-linux-gnu", "-march=rv64imafd"};
       case InstructionSet::kX86:
         return {FindTool("clang"), "--compile", "-target", "i386-linux-gnu"};
       case InstructionSet::kX86_64:
@@ -159,6 +162,13 @@ class AssemblerTestBase : public testing::Test {
                 "--no-print-imm-hex",
                 "--triple",
                 "thumbv7a-linux-gnueabi"};
+      case InstructionSet::kRiscv64:
+        return {FindTool("llvm-objdump"),
+                "--disassemble",
+                "--no-print-imm-hex",
+                "--no-show-raw-insn",
+                "-M",
+                "no-aliases"};
       default:
         return {
             FindTool("llvm-objdump"), "--disassemble", "--no-print-imm-hex", "--no-show-raw-insn"};
