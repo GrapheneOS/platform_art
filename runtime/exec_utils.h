@@ -44,8 +44,8 @@ struct ExecCallbacks {
 };
 
 struct ExecResult {
-  // This struct needs to be in sync with the ExecResultStatus enum contained within
-  // the OdrefreshReported atom in frameworks/proto_logging/atoms.proto.
+  // This struct needs to be in sync with the ExecResultStatus enum contained within the
+  // OdrefreshReported atom in frameworks/proto_logging/atoms/art/odrefresh_extension_atoms.proto.
   enum Status {
     // Unable to get the status.
     kUnknown = 0,
