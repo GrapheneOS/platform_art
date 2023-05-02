@@ -57,13 +57,24 @@ MemMap MemMapArena::Allocate(size_t size, bool low_4gb, const char* name) {
   // and we want to be able to use all memory that we actually allocate.
   size = RoundUp(size, kPageSize);
   std::string error_msg;
-  MemMap map = MemMap::MapAnonymous(name,
-                                    size,
-                                    PROT_READ | PROT_WRITE,
-                                    low_4gb,
-                                    &error_msg);
-  CHECK(map.IsValid()) << error_msg;
-  return map;
+  // TODO(b/278665389): remove this retry logic if the root cause is found.
+  constexpr int MAX_RETRY_CNT = 3;
+  int retry_cnt = 0;
+  while (true) {
+    MemMap map = MemMap::MapAnonymous(name, size, PROT_READ | PROT_WRITE, low_4gb, &error_msg);
+    if (map.IsValid()) {
+      if (retry_cnt > 0) {
+        LOG(WARNING) << "Succeed with retry(cnt=" << retry_cnt << ")";
+      }
+      return map;
+    } else {
+      if (retry_cnt == MAX_RETRY_CNT) {
+        CHECK(map.IsValid()) << error_msg << "(retried " << retry_cnt << " times)";
+      }
+    }
+    retry_cnt++;
+    LOG(ERROR) << error_msg << " but retry(cnt=" << retry_cnt << ")";
+  }
 }
 
 MemMapArena::~MemMapArena() {
