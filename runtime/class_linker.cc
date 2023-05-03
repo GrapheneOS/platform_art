@@ -4287,11 +4287,22 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const OatDexFil
   for (const auto& entry : dex_caches_) {
     const DexCacheData& data = entry.second;
     if (DecodeDexCacheLocked(self, &data) != nullptr) {
-      LOG(FATAL_WITHOUT_ABORT) << "Registered dex file " << entry.first->GetLocation();
+      const OatDexFile* other_oat_dex_file = entry.first->GetOatDexFile();
+      const OatFile* oat_file =
+          (other_oat_dex_file == nullptr) ? nullptr : other_oat_dex_file->GetOatFile();
+      LOG(FATAL_WITHOUT_ABORT)
+          << "Registered dex file " << entry.first->GetLocation()
+          << " oat_dex_file=" << other_oat_dex_file
+          << " oat_file=" << oat_file
+          << " oat_location=" << (oat_file == nullptr ? "null" : oat_file->GetLocation())
+          << " dex_file=" << &entry.first;
     }
   }
-  LOG(FATAL) << "Failed to find DexCache for OatDexFile " << oat_dex_file.GetDexFileLocation()
-             << " " << &oat_dex_file;
+  LOG(FATAL) << "Failed to find DexCache for OatDexFile "
+             << oat_dex_file.GetDexFileLocation()
+             << " oat_dex_file=" << &oat_dex_file
+             << " oat_file=" << oat_dex_file.GetOatFile()
+             << " oat_location=" << oat_dex_file.GetOatFile()->GetLocation();
   UNREACHABLE();
 }
 
