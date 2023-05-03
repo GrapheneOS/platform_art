@@ -279,7 +279,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Encodes event in non-streaming mode. This assumes that there is enough space reserved to
   // encode the entry.
   void EncodeEventEntry(uint8_t* ptr,
-                        Thread* thread,
+                        uint16_t thread_id,
                         uint32_t method_index,
                         TraceAction action,
                         uint32_t thread_clock_diff,
@@ -329,6 +329,8 @@ class Trace final : public instrumentation::InstrumentationListener {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   void UpdateThreadsList(Thread* thread);
+
+  uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
   // Singleton instance of the Trace or null when no method tracing is active.
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
@@ -413,6 +415,10 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Map from ArtMethod* to index.
   std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(tracing_lock_);
   uint32_t current_method_index_ = 0;
+
+  // Map from thread_id to a 16-bit identifier.
+  std::unordered_map<pid_t, uint16_t> thread_id_map_ GUARDED_BY(tracing_lock_);
+  uint16_t current_thread_index_;
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };
