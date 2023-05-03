@@ -202,19 +202,13 @@ class Add {
   }
 }
 
-class InImage {
-  static int exec(int a, int b) {
-    return a + b;
-  }
-}
-
 // test of INVOKE_STATIC instruction
 class InvokeStatic {
   static int a;
   static int b;
   static {
-    a = InImage.exec(10, 20);
-    b = InImage.exec(10, 20);
+    a = Add.exec(10, 20);
+    b = Mul.exec(10, 20);
   }
 }
 
