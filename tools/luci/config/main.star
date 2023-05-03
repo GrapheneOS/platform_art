@@ -154,7 +154,7 @@ luci.gitiles_poller(
     refs = ["refs/heads/master-art"],
 )
 
-def ci_builder(name, category, short_name, dimensions):
+def ci_builder(name, category, short_name, dimensions, is_fyi=False):
     luci.builder(
         name = name,
         bucket = "ci",
@@ -192,12 +192,13 @@ def ci_builder(name, category, short_name, dimensions):
             "vogar",
         ],
     )
-    luci.console_view_entry(
-        console_view = "luci",
-        builder = name,
-        category = category,
-        short_name = short_name,
-    )
+    if not is_fyi:
+        luci.console_view_entry(
+            console_view = "luci",
+            builder = name,
+            category = category,
+            short_name = short_name,
+        )
 
 # Dimensions specify which bots we can run on.
 host_dims = {"os": "Linux"}
@@ -230,6 +231,7 @@ ci_builder("host-x86_64-debug", "host|x64", "dbg", host_dims)
 ci_builder("host-x86_64-non-gen-cc", "host|x64", "ngen", host_dims)
 ci_builder("host-x86_64-ndebug", "host|x64", "ndbg", host_dims)
 ci_builder("host-x86_64-poison-debug", "host|x64", "psn", host_dims)
+ci_builder("qemu-riscv64-ndebug", "qemu|riscv64", "ndbg", host_dims, is_fyi=True)
 ci_builder("walleye-armv7-poison-debug", "walleye|armv7|poison", "dbg", arm_target_dims)
 ci_builder("walleye-armv8-poison-debug", "walleye|armv8|poison", "dbg", arm_target_dims)
 ci_builder("walleye-armv8-poison-ndebug", "walleye|armv8|poison", "ndbg", arm_target_dims)
