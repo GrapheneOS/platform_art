@@ -26,6 +26,8 @@ if [[ -n "$ART_TEST_ON_VM" ]]; then
     sudo umount $ART_TEST_CHROOT/dev
     sudo umount $ART_TEST_CHROOT/bin
     sudo umount $ART_TEST_CHROOT/lib
+    sudo umount $ART_TEST_CHROOT/usr/lib
+    sudo umount $ART_TEST_CHROOT/usr/share/gdb
     rm -rf $ART_TEST_CHROOT
   "
   exit 0
