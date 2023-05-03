@@ -54,6 +54,7 @@ bool PaletteSetTaskProfilesIsSupported(palette_status_t res) {
 
 }  // namespace
 
+// TODO(riscv64): remove `namespace art` when `TEST_DISABLED_FOR_RISCV64` is no longer needed.
 namespace art {
 
 class PaletteClientTest : public testing::Test {};
