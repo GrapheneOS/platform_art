@@ -471,7 +471,13 @@ static void CompileMethodQuick(
       const DexFile& dex_file,
       Handle<mirror::DexCache> dex_cache) {
     DCHECK(driver != nullptr);
+    const VerificationResults* results = driver->GetVerificationResults();
+    DCHECK(results != nullptr);
+    MethodReference method_ref(&dex_file, method_idx);
     CompiledMethod* compiled_method = nullptr;
+    if (results->IsUncompilableMethod(method_ref)) {
+      return compiled_method;
+    }
 
     if ((access_flags & kAccNative) != 0) {
       // Are we extracting only and have support for generic JNI down calls?
@@ -496,14 +502,9 @@ static void CompileMethodQuick(
       // Method is annotated with @NeverCompile and should not be compiled.
     } else {
       const CompilerOptions& compiler_options = driver->GetCompilerOptions();
-      const VerificationResults* results = driver->GetVerificationResults();
-      DCHECK(results != nullptr);
-      MethodReference method_ref(&dex_file, method_idx);
       // Don't compile class initializers unless kEverything.
       bool compile = (compiler_options.GetCompilerFilter() == CompilerFilter::kEverything) ||
          ((access_flags & kAccConstructor) == 0) || ((access_flags & kAccStatic) == 0);
-      // Check if it's an uncompilable method found by the verifier.
-      compile = compile && !results->IsUncompilableMethod(method_ref);
       // Check if we should compile based on the profile.
       compile = compile && ShouldCompileBasedOnProfile(compiler_options, profile_index, method_ref);
 
@@ -1711,6 +1712,7 @@ static void LoadAndUpdateStatus(const ClassAccessor& accessor,
     // a boot image class, or a class in a different dex file for multidex, and
     // we should not update the status in that case.
     if (&cls->GetDexFile() == &accessor.GetDexFile()) {
+      VLOG(compiler) << "Updating class status of " << std::string(descriptor) << " to " << status;
       ObjectLock<mirror::Class> lock(self, cls);
       mirror::Class::SetStatus(cls, status, self);
     }
@@ -1753,6 +1755,8 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
       !GetCompilerOptions().IsAnyCompilationEnabled() &&
       !GetCompilerOptions().IsGeneratingImage();
 
+  const bool is_generating_image = GetCompilerOptions().IsGeneratingImage();
+
   // We successfully validated the dependencies, now update class status
   // of verified classes. Note that the dependencies also record which classes
   // could not be fully verified; we could try again, but that would hurt verification
@@ -1776,6 +1780,16 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
         // fail, but that's OK.
         compiled_classes_.Insert(ref, existing, status);
       } else {
+        if (is_generating_image &&
+            status == ClassStatus::kVerifiedNeedsAccessChecks &&
+            GetCompilerOptions().IsImageClass(accessor.GetDescriptor())) {
+          // If the class will be in the image, we can rely on the ArtMethods
+          // telling that they need access checks.
+          VLOG(compiler) << "Promoting "
+                         << std::string(accessor.GetDescriptor())
+                         << " from needs access checks to verified given it is an image class";
+          status = ClassStatus::kVerified;
+        }
         // Update the class status, so later compilation stages know they don't need to verify
         // the class.
         LoadAndUpdateStatus(accessor, status, class_loader, soa.Self());
@@ -1783,7 +1797,7 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
 
       // Vdex marks class as unverified for two reasons only:
       // 1. It has a hard failure, or
-      // 2. Once of its method needs lock counting.
+      // 2. One of its method needs lock counting.
       //
       // The optimizing compiler expects a method to not have a hard failure before
       // compiling it, so for simplicity just disable any compilation of methods
@@ -2143,6 +2157,7 @@ class InitializeClassVisitor : public CompilationVisitor {
       // Also return early and don't store the class status in the recorded class status.
       return;
     }
+
     ClassStatus old_status = klass->GetStatus();
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
