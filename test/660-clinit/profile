@@ -9,5 +9,6 @@ LG;
 LGs;
 LObjectRef;
 LInvokeStatic;
+LInImage;
 LClinitE;
 LPrint;
