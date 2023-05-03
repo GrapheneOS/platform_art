@@ -1752,7 +1752,9 @@ class Dex2Oat final {
     }
 
     // Setup VerifierDeps for compilation and report if we fail to parse the data.
-    if (input_vdex_file_ != nullptr) {
+    // When we do profile guided optimizations, the compiler currently needs to run
+    // full verification.
+    if (!DoProfileGuidedOptimizations() && input_vdex_file_ != nullptr) {
       std::unique_ptr<verifier::VerifierDeps> verifier_deps(
           new verifier::VerifierDeps(dex_files, /*output_only=*/ false));
       if (!verifier_deps->ParseStoredData(dex_files, input_vdex_file_->GetVerifierDepsData())) {
