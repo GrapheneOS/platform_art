@@ -1570,10 +1570,5 @@
         "tests": ["2262-miranda-methods"],
         "variant": "jvm",
         "description": ["jvm doesn't seem to support calling miranda methods via CallNonVirtual."]
-    },
-    {
-        "tests": ["2246-trace-stream"],
-	"variant": "jit-on-first-use",
-        "description": ["Test failing due to lack of support for intrinsics."]
     }
 ]
