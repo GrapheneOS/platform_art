@@ -127,7 +127,9 @@ class ElfDebugReader {
       CHECK_EQ(symtab->sh_entsize, sizeof(Elf_Sym));
       size_t count = symtab->sh_size / sizeof(Elf_Sym);
       for (const Elf_Sym& symbol : Read<Elf_Sym>(symtab->sh_offset, count)) {
-        if (ELF_ST_TYPE(symbol.st_info) == STT_FUNC && &sections_[symbol.st_shndx] == text) {
+        if (ELF_ST_TYPE(symbol.st_info) == STT_FUNC &&
+            symbol.st_shndx < sections_.size() &&  // Ignore ABS section.
+            &sections_[symbol.st_shndx] == text) {
           visit_sym(symbol, Read<char>(strtab->sh_offset + symbol.st_name));
         }
       }
