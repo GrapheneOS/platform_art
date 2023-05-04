@@ -188,9 +188,10 @@ bool FillArrayData(ObjPtr<mirror::Object> obj, const Instruction::ArrayDataPaylo
 template <typename INT_TYPE, typename FLOAT_TYPE>
 inline INT_TYPE art_float_to_integral(FLOAT_TYPE f);
 
-ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
-                                     CalleeSaveType type,
-                                     bool do_caller_check = false)
+ArtMethod* GetCalleeSaveMethodCallerAndDexPc(ArtMethod** sp,
+                                             CalleeSaveType type,
+                                             /* out */ uint32_t* dex_pc,
+                                             bool do_caller_check = false)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 struct CallerAndOuterMethod {
