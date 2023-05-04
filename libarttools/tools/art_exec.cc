@@ -36,7 +36,6 @@
 #include "android-base/strings.h"
 #include "base/macros.h"
 #include "base/scoped_cap.h"
-#include "fmt/format.h"
 #include "palette/palette.h"
 #include "system/thread_defs.h"
 
@@ -47,8 +46,6 @@ using ::android::base::Join;
 using ::android::base::ParseInt;
 using ::android::base::Result;
 using ::android::base::Split;
-
-using ::fmt::literals::operator""_format;  // NOLINT
 
 constexpr const char* kUsage =
     R"(A wrapper binary that configures the process and executes a command.
@@ -170,7 +167,7 @@ Result<void> CloseFds(const std::unordered_set<int>& keep_fds) {
     if (keep_fds.find(fd) == keep_fds.end()) {
       if (close(fd) != 0) {
         Result<void> error = ErrnoErrorf("Failed to close FD {}", fd);
-        if (std::filesystem::exists("/proc/self/fd/{}"_format(fd))) {
+        if (std::filesystem::exists(ART_FORMAT("/proc/self/fd/{}", fd))) {
           return error;
         }
       }
