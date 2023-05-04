@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 public class Main {
     private static final String TEMP_FILE_NAME_PREFIX = "test";
     private static final String TEMP_FILE_NAME_SUFFIX = ".trace";
+    private static final int WALL_CLOCK_FLAG = 0x010;
     private static File file;
 
     public static void main(String[] args) throws Exception {
@@ -31,25 +32,38 @@ public class Main {
             System.out.println("This test is not supported on " + name);
             return;
         }
-        System.out.println("***** streaming test *******");
+        System.out.println("***** streaming test - dual clock *******");
         StreamTraceParser stream_parser = new StreamTraceParser();
         testTracing(
-                /* streaming=*/true, stream_parser, BaseTraceParser.STREAMING_DUAL_CLOCK_VERSION);
+                /* streaming=*/true, /* flags= */ 0, stream_parser,
+                BaseTraceParser.STREAMING_DUAL_CLOCK_VERSION);
 
-        System.out.println("***** non streaming test *******");
+        System.out.println("***** streaming test - wall clock *******");
+        StreamTraceParser stream_parser_wall_clock = new StreamTraceParser();
+        testTracing(
+                /* streaming=*/true, /* flags= */ WALL_CLOCK_FLAG, stream_parser,
+                BaseTraceParser.STREAMING_WALL_CLOCK_VERSION);
+
+        System.out.println("***** non streaming test - dual clock *******");
         NonStreamTraceParser non_stream_parser = new NonStreamTraceParser();
-        testTracing(/* streaming=*/false, non_stream_parser, BaseTraceParser.DUAL_CLOCK_VERSION);
+        testTracing(/* streaming=*/false, /* flags= */ 0, non_stream_parser,
+                BaseTraceParser.DUAL_CLOCK_VERSION);
+
+        System.out.println("***** non streaming test - wall clock *******");
+        NonStreamTraceParser non_stream_parser_wall_clock = new NonStreamTraceParser();
+        testTracing(/* streaming=*/false, /* flags= */ WALL_CLOCK_FLAG,
+                non_stream_parser_wall_clock, BaseTraceParser.WALL_CLOCK_VERSION);
     }
 
-    public static void testTracing(boolean streaming, BaseTraceParser parser, int expected_version)
-            throws Exception {
+    public static void testTracing(boolean streaming, int flags, BaseTraceParser parser,
+            int expected_version) throws Exception {
         Main m = new Main();
         Thread t = new Thread(() -> {
             try {
                 file = createTempFile();
                 FileOutputStream out_file = new FileOutputStream(file);
                 VMDebug.startMethodTracing(
-                        file.getPath(), out_file.getFD(), 0, 0, false, 0, streaming);
+                        file.getPath(), out_file.getFD(), 0, flags, false, 0, streaming);
                 Main m1 = new Main();
                 m1.$noinline$doSomeWork();
                 VMDebug.$noinline$stopMethodTracing();
@@ -74,7 +88,7 @@ public class Main {
             file = createTempFile();
             FileOutputStream main_out_file = new FileOutputStream(file);
             VMDebug.startMethodTracing(
-                    file.getPath(), main_out_file.getFD(), 0, 0, false, 0, streaming);
+                    file.getPath(), main_out_file.getFD(), 0, flags, false, 0, streaming);
             m.$noinline$doSomeWork();
             m.doSomeWorkThrow();
             VMDebug.$noinline$stopMethodTracing();

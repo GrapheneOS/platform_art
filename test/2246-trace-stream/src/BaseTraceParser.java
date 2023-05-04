@@ -24,7 +24,9 @@ import java.util.HashMap;
 abstract class BaseTraceParser {
     public static final int MAGIC_NUMBER = 0x574f4c53;
     public static final int DUAL_CLOCK_VERSION = 3;
+    public static final int WALL_CLOCK_VERSION = 2;
     public static final int STREAMING_DUAL_CLOCK_VERSION = 0xF3;
+    public static final int STREAMING_WALL_CLOCK_VERSION = 0xF2;
     public static final String START_SECTION_ID = "*";
     public static final String METHODS_SECTION_ID = "*methods";
     public static final String THREADS_SECTION_ID = "*threads";
