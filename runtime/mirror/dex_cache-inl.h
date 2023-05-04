@@ -322,6 +322,9 @@ inline void DexCache::VisitNativeRoots(const Visitor& visitor) {
     visitor.VisitRootIfNonNull(resolved_call_sites->GetGcRootAddress(i)->AddressWithoutBarrier());
   }
 
+  // Dex cache arrays can be reset and cleared during app startup. Assert we do not get
+  // suspended to ensure the arrays are not deallocated.
+  ScopedAssertNoThreadSuspension soants("dex caches");
   GcRootArray<mirror::Class>* resolved_types = GetResolvedTypesArray<kVerifyFlags>();
   size_t num_resolved_types = NumResolvedTypesArray<kVerifyFlags>();
   for (size_t i = 0; resolved_types != nullptr && i != num_resolved_types; ++i) {
