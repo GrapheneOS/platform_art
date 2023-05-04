@@ -154,11 +154,11 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     // -- Don't allow any objects as parameter or return value
     if (UNLIKELY(is_critical_native)) {
       CHECK(is_static)
-          << "@CriticalNative functions cannot be virtual since that would"
+          << "@CriticalNative functions cannot be virtual since that would "
           << "require passing a reference parameter (this), which is illegal "
           << dex_file.PrettyMethod(method_idx, /* with_signature= */ true);
       CHECK(!is_synchronized)
-          << "@CriticalNative functions cannot be synchronized since that would"
+          << "@CriticalNative functions cannot be synchronized since that would "
           << "require passing a (class and/or this) reference parameter, which is illegal "
           << dex_file.PrettyMethod(method_idx, /* with_signature= */ true);
       for (size_t i = 0; i < strlen(shorty); ++i) {
