@@ -51,8 +51,8 @@
 #include "android/binder_status.h"
 #include "base/array_ref.h"
 #include "base/common_art_test.h"
+#include "base/macros.h"
 #include "exec_utils.h"
-#include "fmt/format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "oat_file.h"
@@ -114,8 +114,6 @@ using ::testing::WithArg;
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
 using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
-
-using ::fmt::literals::operator""_format;  // NOLINT
 
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
@@ -206,7 +204,7 @@ MATCHER_P2(ListFlag, flag, matcher, "") {
 
 // Matches an FD of a file whose path matches `matcher`.
 MATCHER_P(FdOf, matcher, "") {
-  std::string proc_path = "/proc/self/fd/{}"_format(arg);
+  std::string proc_path = ART_FORMAT("/proc/self/fd/{}", arg);
   char path[PATH_MAX];
   ssize_t len = readlink(proc_path.c_str(), path, sizeof(path));
   if (len < 0) {
@@ -370,7 +368,7 @@ class ArtdTest : public CommonArtTest {
     };
     clc_1_ = GetTestDexFileName("Main");
     clc_2_ = GetTestDexFileName("Nested");
-    class_loader_context_ = "PCL[{}:{}]"_format(clc_1_, clc_2_);
+    class_loader_context_ = ART_FORMAT("PCL[{}:{}]", clc_1_, clc_2_);
     compiler_filter_ = "speed";
     TmpProfilePath tmp_profile_path{
         .finalPath =
@@ -1948,11 +1946,11 @@ TEST_F(ArtdTest, cleanup) {
           .isOk());
 
   for (const std::string& path : gc_removed_files) {
-    EXPECT_FALSE(std::filesystem::exists(path)) << "'{}' should be removed"_format(path);
+    EXPECT_FALSE(std::filesystem::exists(path)) << ART_FORMAT("'{}' should be removed", path);
   }
 
   for (const std::string& path : gc_kept_files) {
-    EXPECT_TRUE(std::filesystem::exists(path)) << "'{}' should be kept"_format(path);
+    EXPECT_TRUE(std::filesystem::exists(path)) << ART_FORMAT("'{}' should be kept", path);
   }
 }
 

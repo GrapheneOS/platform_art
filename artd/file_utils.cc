@@ -33,9 +33,9 @@
 #include "android-base/logging.h"
 #include "android-base/result.h"
 #include "android-base/scopeguard.h"
+#include "base/macros.h"
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
-#include "fmt/format.h"
 
 namespace art {
 namespace artd {
@@ -46,13 +46,11 @@ using ::aidl::com::android::server::art::FsPermission;
 using ::android::base::make_scope_guard;
 using ::android::base::Result;
 
-using ::fmt::literals::operator""_format;  // NOLINT
-
 void UnlinkIfExists(const std::string& path) {
   std::error_code ec;
   std::filesystem::remove(path, ec);
   if (ec) {
-    LOG(WARNING) << "Failed to remove file '{}': {}"_format(path, ec.message());
+    LOG(WARNING) << ART_FORMAT("Failed to remove file '{}': {}", path, ec.message());
   }
 }
 
@@ -143,8 +141,10 @@ Result<void> NewFile::CommitAllOrAbandon(const std::vector<NewFile*>& files_to_c
       if (ec) {
         // This should never happen. We were able to move the file from `original_path` to
         // `temp_path`. We should be able to move it back.
-        LOG(WARNING) << "Failed to move old file '{}' back from temporary path '{}': {}"_format(
-            original_path, temp_path, ec.message());
+        LOG(WARNING) << ART_FORMAT("Failed to move old file '{}' back from temporary path '{}': {}",
+                                   original_path,
+                                   temp_path,
+                                   ec.message());
       }
     }
   });
@@ -206,7 +206,7 @@ Result<void> NewFile::CommitAllOrAbandon(const std::vector<NewFile*>& files_to_c
 }
 
 std::string NewFile::BuildTempPath(std::string_view final_path, const std::string& id) {
-  return "{}.{}.tmp"_format(final_path, id);
+  return ART_FORMAT("{}.{}.tmp", final_path, id);
 }
 
 Result<std::unique_ptr<File>> OpenFileForReading(const std::string& path) {
