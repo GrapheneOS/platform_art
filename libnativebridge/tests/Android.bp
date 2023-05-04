@@ -174,9 +174,12 @@ cc_test {
         "NeedsNativeBridge_test.cpp",
         "UnavailableNativeBridge_test.cpp",
     ],
+    static_libs: [
+        "libdl_android",
+        "libnativebridge",
+    ],
     shared_libs: [
         "liblog",
-        "libnativebridge",
     ],
     header_libs: ["libbase_headers"],
 
