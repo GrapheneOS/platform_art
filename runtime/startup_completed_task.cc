@@ -34,28 +34,13 @@
 
 namespace art {
 
-class CollectStartupDexCacheVisitor : public DexCacheVisitor {
+class UnlinkStartupDexCacheVisitor : public DexCacheVisitor {
  public:
-  explicit CollectStartupDexCacheVisitor(VariableSizedHandleScope& handles) : handles_(handles) {}
+  UnlinkStartupDexCacheVisitor() {}
 
   void Visit(ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_) override {
-    handles_.NewHandle(dex_cache);
-  }
-
- private:
-  VariableSizedHandleScope& handles_;
-};
-
-class UnlinkVisitor {
- public:
-  UnlinkVisitor() {}
-
-  void VisitRootIfNonNull(StackReference<mirror::Object>* ref)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!ref->IsNull()) {
-      ref->AsMirrorPtr()->AsDexCache()->UnlinkStartupCaches();
-    }
+    dex_cache->UnlinkStartupCaches();
   }
 };
 
@@ -83,43 +68,31 @@ void StartupCompletedTask::Run(Thread* self) {
     }
   }
 
-  // Fetch the startup linear alloc before the checkpoint to play nice with
-  // 1002-notify-startup test which resets the startup state.
-  std::unique_ptr<LinearAlloc> startup_linear_alloc(runtime->ReleaseStartupLinearAlloc());
   {
     ScopedTrace trace("Releasing dex caches and app image spaces metadata");
     ScopedObjectAccess soa(Thread::Current());
 
-    // Collect dex caches that were allocated with the startup linear alloc.
-    VariableSizedHandleScope handles(soa.Self());
     {
-      CollectStartupDexCacheVisitor visitor(handles);
+      UnlinkStartupDexCacheVisitor visitor;
       ReaderMutexLock mu(self, *Locks::dex_lock_);
       runtime->GetClassLinker()->VisitDexCaches(&visitor);
     }
 
-    // Request empty checkpoints to make sure no threads are:
+    // Request a checkpoint to make sure no threads are:
     // - accessing the image space metadata section when we madvise it
     // - accessing dex caches when we free them
-    //
-    // Use GC exclusion to prevent deadlocks that may happen if
-    // multiple threads are attempting to run empty checkpoints at the same time.
-    {
-      // Avoid using ScopedGCCriticalSection since that does not allow thread suspension. This is
-      // not allowed to prevent allocations, but it's still safe to suspend temporarily for the
-      // checkpoint.
-      gc::ScopedInterruptibleGCCriticalSection sigcs(self,
-                                                     gc::kGcCauseRunEmptyCheckpoint,
-                                                     gc::kCollectorTypeCriticalSection);
-      // Do the unlinking of dex cache arrays in the GC critical section to
-      // avoid GC not seeing these arrays. We do it before the checkpoint so
-      // we know after the checkpoint, no thread is holding onto the array.
-      UnlinkVisitor visitor;
-      handles.VisitRoots(visitor);
+    static struct EmptyClosure : Closure {
+      void Run(Thread* thread ATTRIBUTE_UNUSED) override {}
+    } closure;
 
-      runtime->GetThreadList()->RunEmptyCheckpoint();
-    }
+    runtime->GetThreadList()->RunCheckpoint(&closure);
 
+    // Now delete dex cache arrays from both images and startup linear alloc in
+    // a critical section. The critical section is to ensure there is no
+    // possibility the GC can temporarily see those arrays.
+    gc::ScopedGCCriticalSection sgcs(soa.Self(),
+                                     gc::kGcCauseDeletingDexCacheArrays,
+                                     gc::kCollectorTypeCriticalSection);
     for (gc::space::ContinuousSpace* space : runtime->GetHeap()->GetContinuousSpaces()) {
       if (space->IsImageSpace()) {
         gc::space::ImageSpace* image_space = space->AsImageSpace();
@@ -128,22 +101,19 @@ void StartupCompletedTask::Run(Thread* self) {
         }
       }
     }
+
+    std::unique_ptr<LinearAlloc> startup_linear_alloc(runtime->ReleaseStartupLinearAlloc());
+    if (startup_linear_alloc != nullptr) {
+      ScopedTrace trace2("Delete startup linear alloc");
+      ArenaPool* arena_pool = startup_linear_alloc->GetArenaPool();
+      startup_linear_alloc.reset();
+      arena_pool->TrimMaps();
+    }
   }
 
-  {
-    // Delete the thread pool used for app image loading since startup is assumed to be completed.
-    ScopedTrace trace2("Delete thread pool");
-    runtime->DeleteThreadPool();
-  }
-
-  if (startup_linear_alloc != nullptr) {
-    // We know that after the checkpoint, there is no thread that can hold
-    // the startup linear alloc, so it's safe to delete it now.
-    ScopedTrace trace2("Delete startup linear alloc");
-    ArenaPool* arena_pool = startup_linear_alloc->GetArenaPool();
-    startup_linear_alloc.reset();
-    arena_pool->TrimMaps();
-  }
+  // Delete the thread pool used for app image loading since startup is assumed to be completed.
+  ScopedTrace trace2("Delete thread pool");
+  runtime->DeleteThreadPool();
 }
 
 }  // namespace art
