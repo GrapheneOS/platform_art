@@ -490,8 +490,16 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* loc
       return false;
     }
 
-    if (!DexFileLoader::IsMagicValid(current_dex_data)) {
-      LOG(ERROR) << "Invalid magic in vdex file created from " << location;
+    if (StandardDexFile::IsMagicValid(current_dex_data)) {
+      // Standard dex is always ok - we'll run dexlayout to convert it to cdex if needed.
+    } else if (compact_dex_level_ == CompactDexLevel::kCompactDexLevelFast &&
+               CompactDexFile::IsMagicValid(current_dex_data)) {
+      // Compact dex is ok if we want compact dex in the output, but not
+      // otherwise since we cannot convert it to standard dex.
+    } else {
+      LOG(ERROR) << "Invalid magic in vdex file created from " << location << " - want "
+                 << (compact_dex_level_ == CompactDexLevel::kCompactDexLevelFast ? "dex or cdex" :
+                                                                                   "dex");
       return false;
     }
     // We used `zipped_dex_file_locations_` to keep the strings in memory.

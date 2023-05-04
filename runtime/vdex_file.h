@@ -296,6 +296,10 @@ class VdexFile {
   // order must match too.
   bool MatchesDexFileChecksums(const std::vector<const DexFile::Header*>& dex_headers) const;
 
+  // Returns true if all dex files are standard dex rather than compact dex.
+  // Also returns true if there are no dex files at all.
+  bool HasOnlyStandardDexFiles() const;
+
   ClassStatus ComputeClassStatus(Thread* self, Handle<mirror::Class> cls) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
