@@ -539,9 +539,14 @@ void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
   DCHECK_EQ(instr->GetType(), DataType::Type::kReference);
 
   ScopedObjectAccess soa(Thread::Current());
-  ObjPtr<mirror::DexCache> dex_cache = FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_);
-  ObjPtr<mirror::Class> klass = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-      type_idx, dex_cache, dex_cache->GetClassLoader());
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache =
+      hs.NewHandle(FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_));
+  Handle<mirror::ClassLoader> loader = hs.NewHandle(dex_cache->GetClassLoader());
+  ObjPtr<mirror::Class> klass = Runtime::Current()->GetClassLinker()->ResolveType(
+      type_idx, dex_cache, loader);
+  DCHECK_EQ(klass == nullptr, soa.Self()->IsExceptionPending());
+  soa.Self()->ClearException();  // Clean up the exception left by type resolution if any.
   SetClassAsTypeInfo(instr, klass, is_exact);
 }
 

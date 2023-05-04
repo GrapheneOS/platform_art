@@ -702,12 +702,14 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
   // Walk over the class descriptors and look up the actual classes.
   // If we cannot find a type we return kInlineCacheMissingTypes.
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
+  Thread* self = Thread::Current();
   for (const dex::TypeIndex& type_index : dex_pc_data.classes) {
     const DexFile* dex_file = caller_compilation_unit_.GetDexFile();
     const char* descriptor = pci->GetTypeDescriptor(dex_file, type_index);
-    ObjPtr<mirror::ClassLoader> class_loader = caller_compilation_unit_.GetClassLoader().Get();
-    ObjPtr<mirror::Class> clazz = class_linker->LookupResolvedType(descriptor, class_loader);
+    ObjPtr<mirror::Class> clazz =
+        class_linker->FindClass(self, descriptor, caller_compilation_unit_.GetClassLoader());
     if (clazz == nullptr) {
+      self->ClearException();  // Clean up the exception left by type resolution.
       VLOG(compiler) << "Could not find class from inline cache in AOT mode "
           << invoke_instruction->GetMethodReference().PrettyMethod()
           << " : "
