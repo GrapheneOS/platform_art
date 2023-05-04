@@ -34,6 +34,7 @@ cc_defaults {
         "tools/tools.cc",
     ],
     export_include_dirs: ["."],
+    header_libs: ["art_libartbase_headers"],
     shared_libs: [
         "libbase",
     ],

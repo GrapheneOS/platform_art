@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "android-base/logging.h"
-#include "fmt/format.h"
+#include "base/macros.h"
 
 namespace art {
 namespace tools {
@@ -36,8 +36,6 @@ namespace tools {
 namespace {
 
 using ::std::placeholders::_1;
-
-using ::fmt::literals::operator""_format;  // NOLINT
 
 // Returns true if `path_prefix` matches `pattern` or can be a prefix of a path that matches
 // `pattern` (i.e., `path_prefix` represents a directory that may contain a file whose path matches
@@ -117,13 +115,13 @@ void MatchGlobRecursive(const std::vector<std::filesystem::path>& patterns,
       // It's expected that we don't have permission to stat some dirs/files, and we don't care
       // about them.
       if (ec2.value() != EACCES) {
-        LOG(ERROR) << "Unable to lstat '{}': {}"_format(entry.path().string(), ec2.message());
+        LOG(ERROR) << ART_FORMAT("Unable to lstat '{}': {}", entry.path().string(), ec2.message());
       }
       continue;
     }
   }
   if (ec) {
-    LOG(ERROR) << "Unable to walk through '{}': {}"_format(root_dir.string(), ec.message());
+    LOG(ERROR) << ART_FORMAT("Unable to walk through '{}': {}", root_dir.string(), ec.message());
   }
 }
 

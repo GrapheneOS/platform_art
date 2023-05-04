@@ -59,11 +59,11 @@
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/os.h"
 #include "cmdline_types.h"
 #include "exec_utils.h"
 #include "file_utils.h"
-#include "fmt/format.h"
 #include "oat_file_assistant.h"
 #include "oat_file_assistant_context.h"
 #include "path_utils.h"
@@ -109,8 +109,6 @@ using ::android::base::WriteStringToFd;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
-using ::fmt::literals::operator""_format;  // NOLINT
-
 using ArtifactsLocation = GetDexoptNeededResult::ArtifactsLocation;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
 
@@ -132,7 +130,7 @@ std::optional<int64_t> GetSize(std::string_view path) {
   if (ec) {
     // It is okay if the file does not exist. We don't have to log it.
     if (ec.value() != ENOENT) {
-      LOG(ERROR) << "Failed to get the file size of '{}': {}"_format(path, ec.message());
+      LOG(ERROR) << ART_FORMAT("Failed to get the file size of '{}': {}", path, ec.message());
     }
     return std::nullopt;
   }
@@ -149,7 +147,7 @@ int64_t GetSizeAndDeleteFile(const std::string& path) {
 
   std::error_code ec;
   if (!std::filesystem::remove(path, ec)) {
-    LOG(ERROR) << "Failed to remove '{}': {}"_format(path, ec.message());
+    LOG(ERROR) << ART_FORMAT("Failed to remove '{}': {}", path, ec.message());
     return 0;
   }
 
@@ -466,7 +464,7 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
       return ScopedAStatus::ok();
     }
     return NonFatal(
-        "Failed to open profile '{}': {}"_format(profile_path, profile.error().message()));
+        ART_FORMAT("Failed to open profile '{}': {}", profile_path, profile.error().message()));
   }
   args.Add("--reference-profile-file-fd=%d", profile.value()->Fd());
   fd_logger.Add(*profile.value());
@@ -485,11 +483,11 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
     return NonFatal("Failed to run profman: " + result.error().message());
   }
 
-  LOG(INFO) << "profman returned code {}"_format(result.value());
+  LOG(INFO) << ART_FORMAT("profman returned code {}", result.value());
 
   if (result.value() != ProfmanResult::kSkipCompilationSmallDelta &&
       result.value() != ProfmanResult::kSkipCompilationEmptyProfiles) {
-    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+    return NonFatal(ART_FORMAT("profman returned an unexpected code: {}", result.value()));
   }
 
   *_aidl_return = result.value() == ProfmanResult::kSkipCompilationSmallDelta;
@@ -518,7 +516,8 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
       *_aidl_return = false;
       return ScopedAStatus::ok();
     }
-    return NonFatal("Failed to open src profile '{}': {}"_format(src_path, src.error().message()));
+    return NonFatal(
+        ART_FORMAT("Failed to open src profile '{}': {}", src_path, src.error().message()));
   }
   args.Add("--profile-file-fd=%d", src.value()->Fd());
   fd_logger.Add(*src.value());
@@ -542,7 +541,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
     return NonFatal("Failed to run profman: " + result.error().message());
   }
 
-  LOG(INFO) << "profman returned code {}"_format(result.value());
+  LOG(INFO) << ART_FORMAT("profman returned code {}", result.value());
 
   if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch) {
     *_aidl_return = false;
@@ -550,7 +549,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   }
 
   if (result.value() != ProfmanResult::kCopyAndUpdateSuccess) {
-    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+    return NonFatal(ART_FORMAT("profman returned an unexpected code: {}", result.value()));
   }
 
   OR_RETURN_NON_FATAL(dst->Keep());
@@ -567,8 +566,8 @@ ndk::ScopedAStatus Artd::commitTmpProfile(const TmpProfilePath& in_profile) {
   std::error_code ec;
   std::filesystem::rename(tmp_profile_path, ref_profile_path, ec);
   if (ec) {
-    return NonFatal(
-        "Failed to move '{}' to '{}': {}"_format(tmp_profile_path, ref_profile_path, ec.message()));
+    return NonFatal(ART_FORMAT(
+        "Failed to move '{}' to '{}': {}", tmp_profile_path, ref_profile_path, ec.message()));
   }
 
   return ScopedAStatus::ok();
@@ -580,7 +579,7 @@ ndk::ScopedAStatus Artd::deleteProfile(const ProfilePath& in_profile) {
   std::error_code ec;
   std::filesystem::remove(profile_path, ec);
   if (ec) {
-    LOG(ERROR) << "Failed to remove '{}': {}"_format(profile_path, ec.message());
+    LOG(ERROR) << ART_FORMAT("Failed to remove '{}': {}", profile_path, ec.message());
   }
 
   return ScopedAStatus::ok();
@@ -624,7 +623,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
   for (const ProfilePath& profile : in_profiles) {
     std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(profile));
     if (profile.getTag() == ProfilePath::dexMetadataPath) {
-      return Fatal("Does not support DM file, got '{}'"_format(profile_path));
+      return Fatal(ART_FORMAT("Does not support DM file, got '{}'", profile_path));
     }
     profile_paths.push_back(std::move(profile_path));
   }
@@ -653,8 +652,8 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
         // Skip non-existing file.
         continue;
       }
-      return NonFatal(
-          "Failed to open profile '{}': {}"_format(profile_path, profile_file.error().message()));
+      return NonFatal(ART_FORMAT(
+          "Failed to open profile '{}': {}", profile_path, profile_file.error().message()));
     }
     args.Add("--profile-file-fd=%d", profile_file.value()->Fd());
     fd_logger.Add(*profile_file.value());
@@ -679,7 +678,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     std::string reference_profile_path =
         OR_RETURN_FATAL(BuildProfileOrDmPath(*in_referenceProfile));
     if (in_referenceProfile->getTag() == ProfilePath::dexMetadataPath) {
-      return Fatal("Does not support DM file, got '{}'"_format(reference_profile_path));
+      return Fatal(ART_FORMAT("Does not support DM file, got '{}'", reference_profile_path));
     }
     OR_RETURN_NON_FATAL(CopyFile(reference_profile_path, *output_profile_file));
   }
@@ -721,7 +720,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     return NonFatal("Failed to run profman: " + result.error().message());
   }
 
-  LOG(INFO) << "profman returned code {}"_format(result.value());
+  LOG(INFO) << ART_FORMAT("profman returned code {}", result.value());
 
   if (result.value() == ProfmanResult::kSkipCompilationSmallDelta ||
       result.value() == ProfmanResult::kSkipCompilationEmptyProfiles) {
@@ -734,7 +733,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
           ProfmanResult::kSuccess :
           ProfmanResult::kCompile;
   if (result.value() != expected_result) {
-    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+    return NonFatal(ART_FORMAT("profman returned an unexpected code: {}", result.value()));
   }
 
   OR_RETURN_NON_FATAL(output_profile_file->Keep());
@@ -810,7 +809,8 @@ ndk::ScopedAStatus Artd::dexopt(
   if (in_classLoaderContext.has_value()) {
     context = ClassLoaderContext::Create(in_classLoaderContext->c_str());
     if (context == nullptr) {
-      return Fatal("Class loader context '{}' is invalid"_format(in_classLoaderContext.value()));
+      return Fatal(
+          ART_FORMAT("Class loader context '{}' is invalid", in_classLoaderContext.value()));
     }
   }
 
@@ -840,9 +840,9 @@ ndk::ScopedAStatus Artd::dexopt(
   struct stat dex_st = OR_RETURN_NON_FATAL(Fstat(*dex_file));
   if ((dex_st.st_mode & S_IROTH) == 0) {
     if (fs_permission.isOtherReadable) {
-      return NonFatal(
-          "Outputs cannot be other-readable because the dex file '{}' is not other-readable"_format(
-              dex_file->GetPath()));
+      return NonFatal(ART_FORMAT(
+          "Outputs cannot be other-readable because the dex file '{}' is not other-readable",
+          dex_file->GetPath()));
     }
     // Negative numbers mean no `chown`. 0 means root.
     // Note: this check is more strict than it needs to be. For example, it doesn't allow the
@@ -851,13 +851,13 @@ ndk::ScopedAStatus Artd::dexopt(
     if ((fs_permission.uid > 0 && static_cast<uid_t>(fs_permission.uid) != dex_st.st_uid) ||
         (fs_permission.gid > 0 && static_cast<gid_t>(fs_permission.gid) != dex_st.st_uid &&
          static_cast<gid_t>(fs_permission.gid) != dex_st.st_gid)) {
-      return NonFatal(
-          "Outputs' owner doesn't match the dex file '{}' (outputs: {}:{}, dex file: {}:{})"_format(
-              dex_file->GetPath(),
-              fs_permission.uid,
-              fs_permission.gid,
-              dex_st.st_uid,
-              dex_st.st_gid));
+      return NonFatal(ART_FORMAT(
+          "Outputs' owner doesn't match the dex file '{}' (outputs: {}:{}, dex file: {}:{})",
+          dex_file->GetPath(),
+          fs_permission.uid,
+          fs_permission.gid,
+          dex_st.st_uid,
+          dex_st.st_gid));
     }
   }
 
@@ -886,8 +886,9 @@ ndk::ScopedAStatus Artd::dexopt(
 
   std::unique_ptr<NewFile> swap_file = nullptr;
   if (ShouldCreateSwapFileForDexopt()) {
-    swap_file = OR_RETURN_NON_FATAL(
-        NewFile::Create("{}.swap"_format(oat_path), FsPermission{.uid = -1, .gid = -1}));
+    std::string swap_file_path = ART_FORMAT("{}.swap", oat_path);
+    swap_file =
+        OR_RETURN_NON_FATAL(NewFile::Create(swap_file_path, FsPermission{.uid = -1, .gid = -1}));
     args.Add("--swap-fd=%d", swap_file->Fd());
     fd_logger.Add(*swap_file);
   }
@@ -933,9 +934,9 @@ ndk::ScopedAStatus Artd::dexopt(
     fd_logger.Add(*profile_file);
     struct stat profile_st = OR_RETURN_NON_FATAL(Fstat(*profile_file));
     if (fs_permission.isOtherReadable && (profile_st.st_mode & S_IROTH) == 0) {
-      return NonFatal(
-          "Outputs cannot be other-readable because the profile '{}' is not other-readable"_format(
-              profile_file->GetPath()));
+      return NonFatal(ART_FORMAT(
+          "Outputs cannot be other-readable because the profile '{}' is not other-readable",
+          profile_file->GetPath()));
     }
     // TODO(b/260228411): Check uid and gid.
   }
@@ -997,10 +998,10 @@ ndk::ScopedAStatus Artd::dexopt(
     return NonFatal("Failed to run dex2oat: " + result.error().message());
   }
 
-  LOG(INFO) << "dex2oat returned code {}"_format(result.value());
+  LOG(INFO) << ART_FORMAT("dex2oat returned code {}", result.value());
 
   if (result.value() != 0) {
-    return NonFatal("dex2oat returned an unexpected code: {}"_format(result.value()));
+    return NonFatal(ART_FORMAT("dex2oat returned an unexpected code: {}", result.value()));
   }
 
   int64_t size_bytes = 0;
@@ -1060,7 +1061,7 @@ ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
   *_aidl_return = 0;
   for (const std::string& file : OR_RETURN_NON_FATAL(ListManagedFiles())) {
     if (files_to_keep.find(file) == files_to_keep.end()) {
-      LOG(INFO) << "Cleaning up obsolete file '{}'"_format(file);
+      LOG(INFO) << ART_FORMAT("Cleaning up obsolete file '{}'", file);
       *_aidl_return += GetSizeAndDeleteFile(file);
     }
   }
@@ -1073,7 +1074,7 @@ ScopedAStatus Artd::isIncrementalFsPath(const std::string& in_dexFile [[maybe_un
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
   struct statfs st;
   if (statfs(in_dexFile.c_str(), &st) != 0) {
-    PLOG(ERROR) << "Failed to statfs '{}'"_format(in_dexFile);
+    PLOG(ERROR) << ART_FORMAT("Failed to statfs '{}'", in_dexFile);
     *_aidl_return = false;
     return ScopedAStatus::ok();
   }
@@ -1236,9 +1237,9 @@ void Artd::AddCompilerConfigFlags(const std::string& instruction_set,
                                   const DexoptOptions& dexopt_options,
                                   /*out*/ CmdlineBuilder& args) {
   args.Add("--instruction-set=%s", instruction_set);
-  std::string features_prop = "dalvik.vm.isa.{}.features"_format(instruction_set);
+  std::string features_prop = ART_FORMAT("dalvik.vm.isa.{}.features", instruction_set);
   args.AddIfNonEmpty("--instruction-set-features=%s", props_->GetOrEmpty(features_prop));
-  std::string variant_prop = "dalvik.vm.isa.{}.variant"_format(instruction_set);
+  std::string variant_prop = ART_FORMAT("dalvik.vm.isa.{}.variant", instruction_set);
   args.AddIfNonEmpty("--instruction-set-variant=%s", props_->GetOrEmpty(variant_prop));
 
   args.Add("--compiler-filter=%s", compiler_filter)
