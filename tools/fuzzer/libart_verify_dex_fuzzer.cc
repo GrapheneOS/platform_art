@@ -17,10 +17,15 @@
 #include "base/mem_map.h"
 #include "dex/dex_file_loader.h"
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+extern "C" int LLVMFuzzerInitialize(int* argc ATTRIBUTE_UNUSED, char*** argv ATTRIBUTE_UNUSED) {
   // Initialize environment.
   art::MemMap::Init();
+  // Set logging to error and above to avoid warnings about unexpected checksums.
+  android::base::SetMinimumLogSeverity(android::base::ERROR);
+  return 0;
+}
 
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Skip compact DEX.
   // TODO(dsrbecky): Remove after removing compact DEX.
   const char* dex_string = "cdex";
