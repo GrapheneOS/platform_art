@@ -30,9 +30,17 @@ cc_fuzz {
     // Run in debug mode for the DCHECKs.
     defaults: ["libartd_static_defaults"],
 
-    // Build and run on x86 only for now.
+    // Build and run on x86 too.
     host_supported: true,
-    device_supported: false,
+
+    // Device needs perfetto as a shared lib.
+    target: {
+        android: {
+            shared_libs: [
+                "heapprofd_client_api",
+            ],
+        },
+    },
 
     corpus: ["corpus/*"],
     dictionary: "dex.dict",
