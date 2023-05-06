@@ -62,8 +62,8 @@ enum GcCause {
   kGcCauseGetObjectsAllocated,
   // GC cause for the profile saver.
   kGcCauseProfileSaver,
-  // GC cause for running an empty checkpoint.
-  kGcCauseRunEmptyCheckpoint,
+  // GC cause for deleting dex cache arrays at startup.
+  kGcCauseDeletingDexCacheArrays,
 };
 
 const char* PrettyCause(GcCause cause);

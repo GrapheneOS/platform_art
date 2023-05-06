@@ -208,43 +208,62 @@ static inline std::pair<ArtMethod*, uintptr_t> DoGetCalleeSaveMethodOuterCallerA
   return std::make_pair(outer_method, caller_pc);
 }
 
-static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
-                                                     uintptr_t caller_pc,
-                                                     bool do_caller_check)
-  REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtMethod* caller = outer_method;
-    if (outer_method != nullptr) {
-      const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
-      DCHECK(current_code != nullptr);
-      if (current_code->IsOptimized() &&
-          CodeInfo::HasInlineInfo(current_code->GetOptimizedCodeInfoPtr())) {
-        uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
-        CodeInfo code_info = CodeInfo::DecodeInlineInfoOnly(current_code);
-        StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
-        DCHECK(stack_map.IsValid());
-        BitTableRange<InlineInfo> inline_infos = code_info.GetInlineInfosOf(stack_map);
-        if (!inline_infos.empty()) {
-          caller = GetResolvedMethod(outer_method, code_info, inline_infos);
-        }
+static inline ArtMethod* DoGetCalleeSaveMethodCallerAndDexPc(ArtMethod** sp,
+                                                             CalleeSaveType type,
+                                                             ArtMethod* outer_method,
+                                                             uintptr_t caller_pc,
+                                                             uint32_t* dex_pc,
+                                                             bool do_caller_check)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ArtMethod* caller = outer_method;
+  if (outer_method != nullptr) {
+    const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
+    DCHECK(current_code != nullptr);
+    if (current_code->IsOptimized() &&
+        CodeInfo::HasInlineInfo(current_code->GetOptimizedCodeInfoPtr())) {
+      uintptr_t native_pc_offset = current_code->NativeQuickPcOffset(caller_pc);
+      CodeInfo code_info = CodeInfo::DecodeInlineInfoOnly(current_code);
+      StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+      DCHECK(stack_map.IsValid());
+      BitTableRange<InlineInfo> inline_infos = code_info.GetInlineInfosOf(stack_map);
+      if (!inline_infos.empty()) {
+        caller = GetResolvedMethod(outer_method, code_info, inline_infos);
+        *dex_pc = inline_infos.back().GetDexPc();
+      } else {
+        *dex_pc = stack_map.GetDexPc();
       }
+    } else {
+      size_t callee_frame_size = RuntimeCalleeSaveFrame::GetFrameSize(type);
+      ArtMethod** caller_sp = reinterpret_cast<ArtMethod**>(
+          reinterpret_cast<uintptr_t>(sp) + callee_frame_size);
+      *dex_pc = current_code->ToDexPc(caller_sp, caller_pc);
     }
-    if (kIsDebugBuild && do_caller_check) {
-      // Note that do_caller_check is optional, as this method can be called by
-      // stubs, and tests without a proper call stack.
-      NthCallerVisitor visitor(Thread::Current(), 1, true);
-      visitor.WalkStack();
-      CHECK_EQ(caller, visitor.caller);
-    }
-    return caller;
+  }
+  if (kIsDebugBuild && do_caller_check) {
+    // Note that do_caller_check is optional, as this method can be called by
+    // stubs, and tests without a proper call stack.
+    NthCallerVisitor visitor(Thread::Current(), 1, true);
+    visitor.WalkStack();
+    CHECK_EQ(caller, visitor.caller);
+  }
+  return caller;
 }
 
-ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp, CalleeSaveType type, bool do_caller_check)
+ArtMethod* GetCalleeSaveMethodCallerAndDexPc(ArtMethod** sp,
+                                             CalleeSaveType type,
+                                             uint32_t* dex_pc,
+                                             bool do_caller_check)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   auto outer_caller_and_pc = DoGetCalleeSaveMethodOuterCallerAndPc(sp, type);
   ArtMethod* outer_method = outer_caller_and_pc.first;
   uintptr_t caller_pc = outer_caller_and_pc.second;
-  ArtMethod* caller = DoGetCalleeSaveMethodCaller(outer_method, caller_pc, do_caller_check);
+  ArtMethod* caller = DoGetCalleeSaveMethodCallerAndDexPc(sp,
+                                                          type,
+                                                          outer_method,
+                                                          caller_pc,
+                                                          dex_pc,
+                                                          do_caller_check);
   return caller;
 }
 
@@ -255,8 +274,13 @@ CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self, Calle
   auto outer_caller_and_pc = DoGetCalleeSaveMethodOuterCallerAndPc(sp, type);
   result.outer_method = outer_caller_and_pc.first;
   uintptr_t caller_pc = outer_caller_and_pc.second;
-  result.caller =
-      DoGetCalleeSaveMethodCaller(result.outer_method, caller_pc, /* do_caller_check= */ true);
+  uint32_t dex_pc;
+  result.caller = DoGetCalleeSaveMethodCallerAndDexPc(sp,
+                                                      type,
+                                                      result.outer_method,
+                                                      caller_pc,
+                                                      &dex_pc,
+                                                      /* do_caller_check= */ true);
   return result;
 }
 
