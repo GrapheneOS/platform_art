@@ -66,7 +66,7 @@ public class NonStreamTraceParser extends BaseTraceParser {
         line = readLine();
         while (!line.startsWith(START_SECTION_ID)) {
             String[] methodInfo = line.split("\t", 2);
-            methodIdMap.put(Integer.decode(methodInfo[0]), methodInfo[1]);
+            methodIdMap.put(Integer.decode(methodInfo[0]), methodInfo[1].replace('\t', ' '));
             line = readLine();
         }
 
