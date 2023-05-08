@@ -118,7 +118,7 @@ art_module_cc_defaults {
 //
 // Currently this only works for run tests where run-test-jar sets
 // LD_LIBRARY_PATH and NATIVELOADER_DEFAULT_NAMESPACE_LIBS.
-art_cc_defaults {
+cc_defaults {
     name: "art_test_internal_library_defaults",
     defaults: ["art_test_defaults"],
     target: {
@@ -167,7 +167,7 @@ filegroup {
     srcs: ["art-gtests-target-standalone-with-boot-image-template.xml"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_standalone_test_defaults",
     defaults: [
         "art_test_common_defaults",
@@ -198,7 +198,7 @@ art_cc_defaults {
 }
 
 // Properties common to `art_gtest_defaults` and `art_standalone_gtest_defaults`.
-art_cc_defaults {
+cc_defaults {
     name: "art_gtest_common_defaults",
     // These really are gtests, but the gtest library comes from `libart(d)-gtest.so`.
     gtest: false,
@@ -238,7 +238,7 @@ art_cc_defaults {
     },
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_gtest_defaults",
     defaults: [
         "art_test_defaults",
@@ -275,7 +275,7 @@ art_cc_defaults {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_standalone_gtest_defaults",
     defaults: [
         // Note: We don't include "art_debug_defaults" here, as standalone ART
@@ -344,7 +344,7 @@ art_cc_defaults {
 }
 
 // Properties common to `libart-gtest-defaults` and `libartd-gtest-defaults`.
-art_cc_defaults {
+cc_defaults {
     name: "libart-gtest-common-defaults",
     defaults: [
         "art_defaults",
@@ -391,7 +391,7 @@ art_cc_defaults {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libart-gtest-defaults",
     defaults: [
         "libart-gtest-common-defaults",
@@ -405,7 +405,7 @@ art_cc_defaults {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libartd-gtest-defaults",
     defaults: [
         "art_debug_defaults",
@@ -421,7 +421,7 @@ art_cc_defaults {
 }
 
 // Properties common to `libart-gtest` and `libartd-gtest`.
-art_cc_defaults {
+cc_defaults {
     name: "libart-gtest-common",
     defaults: [
         "art_defaults",
@@ -593,7 +593,7 @@ art_cc_test_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libnativebridgetest-defaults",
     defaults: ["art_test_defaults"],
     header_libs: ["libnativebridge-headers"],
@@ -656,7 +656,7 @@ art_cc_test_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libtiagent-base-defaults",
     defaults: ["art_test_internal_library_defaults"],
     srcs: [
@@ -752,7 +752,7 @@ art_cc_defaults {
         "2005-pause-all-redefine-multithreaded/pause-all.cc",
         "2009-structural-local-ref/local-ref.cc",
         "2035-structural-native-method/structural-native.cc",
-	"2243-single-step-default/single_step_helper.cc"
+        "2243-single-step-default/single_step_helper.cc",
     ],
     // Use NDK-compatible headers for ctstiagent.
     header_libs: [
@@ -761,7 +761,7 @@ art_cc_defaults {
     local_include_dirs: ["ti-agent"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libtiagent-defaults",
     defaults: [
         "libtiagent-base-defaults",
@@ -854,7 +854,7 @@ cc_library_static {
     export_include_dirs: ["ti-agent"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libtistress-srcs",
     defaults: ["libartagent-defaults"],
     srcs: [
@@ -863,7 +863,7 @@ art_cc_defaults {
     header_libs: ["libopenjdkjvmti_headers"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libtistress-defaults",
     defaults: ["libtistress-srcs"],
     shared_libs: [
@@ -893,7 +893,7 @@ art_cc_test_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libtistress-shared-defaults",
     defaults: [
         "libtistress-srcs",
@@ -990,7 +990,7 @@ cc_defaults {
         "2037-thread-name-inherit/thread_name_inherit.cc",
         "2040-huge-native-alloc/huge_native_buf.cc",
         "2235-JdkUnsafeTest/unsafe_test.cc",
-	"2262-miranda-methods/jni_invoke.cc",
+        "2262-miranda-methods/jni_invoke.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],

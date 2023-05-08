@@ -21,7 +21,6 @@ bootstrap_go_package {
     ],
     srcs: [
         "art.go",
-        "codegen.go",
         "makevars.go",
     ],
     pluginFor: ["soong_build"],
@@ -174,13 +173,37 @@ art_module_art_global_defaults {
     },
 
     target: {
-        android: {
+        // To use oprofile_android --callgraph, add these flags to the appropriate
+        // android_<arch> and recompile with
+        //    mmma -j art
+        // "-fno-omit-frame-pointer",
+        // "-marm",
+        // "-mapcs",
+        android_arm: {
             cflags: [
-                // To use oprofile_android --callgraph, uncomment this and recompile with
-                //    mmma -j art
-                // "-fno-omit-frame-pointer",
-                // "-marm",
-                // "-mapcs",
+                "-DART_ENABLE_CODEGEN_arm",
+            ],
+        },
+        android_arm64: {
+            cflags: [
+                "-DART_ENABLE_CODEGEN_arm",
+                "-DART_ENABLE_CODEGEN_arm64",
+            ],
+        },
+        android_riscv64: {
+            cflags: [
+                "-DART_ENABLE_CODEGEN_riscv64",
+            ],
+        },
+        android_x86: {
+            cflags: [
+                "-DART_ENABLE_CODEGEN_x86",
+            ],
+        },
+        android_x86_64: {
+            cflags: [
+                "-DART_ENABLE_CODEGEN_x86",
+                "-DART_ENABLE_CODEGEN_x86_64",
             ],
         },
         linux: {
@@ -216,6 +239,12 @@ art_module_art_global_defaults {
                 // Bug: 15446488. We don't omit the frame pointer to work around
                 // clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
                 "-fno-omit-frame-pointer",
+
+                "-DART_ENABLE_CODEGEN_arm",
+                "-DART_ENABLE_CODEGEN_arm64",
+                "-DART_ENABLE_CODEGEN_riscv64",
+                "-DART_ENABLE_CODEGEN_x86",
+                "-DART_ENABLE_CODEGEN_x86_64",
             ],
         },
         // The build assumes that all our x86/x86_64 hosts (such as buildbots and developer
@@ -236,24 +265,6 @@ art_module_art_global_defaults {
                 "-msse4.2",
                 "-mpopcnt",
             ],
-        },
-    },
-
-    codegen: {
-        arm: {
-            cflags: ["-DART_ENABLE_CODEGEN_arm"],
-        },
-        arm64: {
-            cflags: ["-DART_ENABLE_CODEGEN_arm64"],
-        },
-        riscv64: {
-            cflags: ["-DART_ENABLE_CODEGEN_riscv64"],
-        },
-        x86: {
-            cflags: ["-DART_ENABLE_CODEGEN_x86"],
-        },
-        x86_64: {
-            cflags: ["-DART_ENABLE_CODEGEN_x86_64"],
         },
     },
 
