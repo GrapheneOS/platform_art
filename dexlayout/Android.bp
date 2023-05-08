@@ -21,7 +21,7 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libart-dexlayout-defaults",
     defaults: ["art_defaults"],
     host_supported: true,
