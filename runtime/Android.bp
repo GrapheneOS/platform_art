@@ -633,7 +633,7 @@ gensrcs {
 // they are used to cross compile for the target.
 
 // Properties common to `libart` and `libart-broken`.
-cc_defaults {
+art_cc_defaults {
     name: "libart_common_defaults",
     defaults: [
         "libart_defaults",
@@ -726,7 +726,7 @@ art_cc_library {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "libart-runtime-gtest-defaults",
     target: {
         host: {
@@ -780,7 +780,7 @@ art_cc_library {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_runtime_tests_defaults",
     target: {
         host: {

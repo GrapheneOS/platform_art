@@ -108,7 +108,7 @@ art_cc_library {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_libartpalette_tests_defaults",
     srcs: ["apex/palette_test.cc"],
     shared_libs: [

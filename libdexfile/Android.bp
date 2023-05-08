@@ -267,7 +267,7 @@ art_cc_library {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_libdexfile_tests_defaults",
     tidy_timeout_srcs: [
         "dex/dex_file_verifier_test.cc",
@@ -367,7 +367,7 @@ cc_library_headers {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_libdexfile_external_tests_defaults",
     defaults: [
         "art_module_source_build_defaults",
@@ -451,7 +451,7 @@ art_cc_library_static {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_libdexfile_support_tests_defaults",
     defaults: [
         "art_module_source_build_defaults",
