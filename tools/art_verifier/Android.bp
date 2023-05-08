@@ -23,7 +23,7 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_verifier-defaults",
     defaults: [
         "art_defaults",

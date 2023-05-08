@@ -53,7 +53,7 @@ cc_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_libarttools_tests_defaults",
     defaults: ["libarttools_defaults"],
     srcs: [

@@ -86,7 +86,7 @@ java_sdk_library {
     jarjar_rules: "jarjar-rules.txt",
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_libartservice_tests_defaults",
     defaults: ["libartservice_defaults"],
     srcs: [

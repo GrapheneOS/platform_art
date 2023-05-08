@@ -202,7 +202,7 @@ art_cc_binary {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_oatdump_tests_defaults",
     data: [
         ":art-gtest-jars-ProfileTestMultiDex",
