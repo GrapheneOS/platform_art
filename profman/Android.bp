@@ -181,7 +181,7 @@ cc_library_headers {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_profman_tests_defaults",
     data: [
         ":art-gtest-jars-ProfileTestMultiDex",
