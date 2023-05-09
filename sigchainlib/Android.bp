@@ -87,7 +87,7 @@ cc_library_static {
     export_include_dirs: ["."],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_sigchain_tests_defaults",
     srcs: ["sigchain_test.cc"],
     shared_libs: ["libsigchain"],

@@ -180,7 +180,7 @@ cc_library_static {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_odrefresh_tests_defaults",
     defaults: ["odrefresh-defaults"],
     header_libs: ["odrefresh_headers"],
