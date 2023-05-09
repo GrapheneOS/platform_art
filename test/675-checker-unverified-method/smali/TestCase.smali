@@ -19,7 +19,7 @@
 #
 ## CHECK-START: void TestCase.foo(java.lang.Object) inliner (after)
 ## CHECK-DAG: InvokeStaticOrDirect method_name:TestCase.bar always_throws:true
-## CHECK-NOT: InvokeStaticOrDirect method_name:TestCase.bad
+## CHECK-DAG: InvokeStaticOrDirect method_name:TestCase.bad
 .method public static foo(Ljava/lang/Object;)V
   .registers 1
   if-nez v0, :Skip1
