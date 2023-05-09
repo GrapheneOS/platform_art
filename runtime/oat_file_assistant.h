@@ -22,6 +22,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <variant>
 
 #include "arch/instruction_set.h"
@@ -384,6 +385,8 @@ class OatFileAssistant {
     bool IsOatLocation();
 
     const std::string* Filename();
+
+    const char* DisplayFilename();
 
     // Returns true if this oat file can be used for running code. The oat
     // file can be used for running code as long as it is not out of date with
