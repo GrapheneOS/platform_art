@@ -58,7 +58,7 @@ art_cc_binary {
     },
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_dexlist_tests_defaults",
     srcs: ["dexlist_test.cc"],
     target: {
