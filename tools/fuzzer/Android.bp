@@ -27,8 +27,8 @@ cc_fuzz {
     name: "libart_verify_dex_fuzzer",
     srcs: ["libart_verify_dex_fuzzer.cc"],
 
-    // Run in debug mode for the DCHECKs.
-    defaults: ["libartd_static_defaults"],
+    // Run in release mode since debug is too slow.
+    defaults: ["libart_static_defaults"],
 
     // Build and run on x86 too.
     host_supported: true,
