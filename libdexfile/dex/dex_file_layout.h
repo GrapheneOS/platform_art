@@ -82,12 +82,7 @@ class DexLayoutSection {
         end_offset_ = std::max(end_offset_, end_offset);
       }
     }
-
-    void Madvise(const DexFile* dex_file, int advice) const;
   };
-
-  // Madvise the largest page-aligned region contained in [begin, end).
-  static int MadviseLargestPageAlignedRegion(const uint8_t* begin, const uint8_t* end, int advice);
 
   Subsection parts_[static_cast<size_t>(LayoutType::kLayoutTypeCount)];
 };
@@ -100,10 +95,6 @@ class DexLayoutSections {
     kSectionTypeStrings,
     kSectionCount,
   };
-
-  // Advise load access about the dex file based on layout. The caller is expected to have already
-  // madvised to MADV_RANDOM.
-  void MadviseAtLoad(const DexFile* dex_file) const;
 
   DexLayoutSection sections_[static_cast<size_t>(SectionType::kSectionCount)];
 };
