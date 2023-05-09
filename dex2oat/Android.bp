@@ -23,7 +23,7 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "libart-dex2oat-defaults",
     defaults: ["art_defaults"],
     host_supported: true,
@@ -43,40 +43,26 @@ cc_defaults {
         "utils/swap_space.cc",
     ],
 
-    target: {
-        host: {
-            srcs: [
-                "linker/arm/relative_patcher_arm_base.cc",
-                "linker/arm/relative_patcher_thumb2.cc",
-                "linker/arm64/relative_patcher_arm64.cc",
-                "linker/x86/relative_patcher_x86.cc",
-                "linker/x86/relative_patcher_x86_base.cc",
-                "linker/x86_64/relative_patcher_x86_64.cc",
-            ],
-        },
-        android_arm: {
+    codegen: {
+        arm: {
             srcs: [
                 "linker/arm/relative_patcher_arm_base.cc",
                 "linker/arm/relative_patcher_thumb2.cc",
             ],
         },
-        android_arm64: {
+        arm64: {
             srcs: [
-                "linker/arm/relative_patcher_arm_base.cc",
-                "linker/arm/relative_patcher_thumb2.cc",
                 "linker/arm64/relative_patcher_arm64.cc",
             ],
         },
-        android_x86: {
+        x86: {
             srcs: [
                 "linker/x86/relative_patcher_x86.cc",
                 "linker/x86/relative_patcher_x86_base.cc",
             ],
         },
-        android_x86_64: {
+        x86_64: {
             srcs: [
-                "linker/x86/relative_patcher_x86.cc",
-                "linker/x86/relative_patcher_x86_base.cc",
                 "linker/x86_64/relative_patcher_x86_64.cc",
             ],
         },
@@ -488,7 +474,7 @@ art_cc_library_static {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_dex2oat_tests_defaults",
     data: [
         ":art-gtest-jars-AbstractMethod",
@@ -541,36 +527,30 @@ cc_defaults {
         "verifier_deps_test.cc",
         "utils/swap_space_test.cc",
     ],
-
     target: {
         host: {
-            srcs: [
-                "linker/arm/relative_patcher_thumb2_test.cc",
-                "linker/arm64/relative_patcher_arm64_test.cc",
-                "linker/x86/relative_patcher_x86_test.cc",
-                "linker/x86_64/relative_patcher_x86_64_test.cc",
-            ],
             required: ["dex2oatd"],
         },
-        android_arm: {
+    },
+
+    codegen: {
+        arm: {
             srcs: [
                 "linker/arm/relative_patcher_thumb2_test.cc",
             ],
         },
-        android_arm64: {
+        arm64: {
             srcs: [
-                "linker/arm/relative_patcher_thumb2_test.cc",
                 "linker/arm64/relative_patcher_arm64_test.cc",
             ],
         },
-        android_x86: {
+        x86: {
             srcs: [
                 "linker/x86/relative_patcher_x86_test.cc",
             ],
         },
-        android_x86_64: {
+        x86_64: {
             srcs: [
-                "linker/x86/relative_patcher_x86_test.cc",
                 "linker/x86_64/relative_patcher_x86_64_test.cc",
             ],
         },

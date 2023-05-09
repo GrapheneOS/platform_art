@@ -23,41 +23,25 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "libart-disassembler-defaults",
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
         "disassembler.cc",
     ],
-    target: {
-        host: {
-            srcs: [
-                "disassembler_arm.cc",
-                "disassembler_arm64.cc",
-                "disassembler_x86.cc",
-            ],
+    codegen: {
+        arm: {
+            srcs: ["disassembler_arm.cc"],
         },
-        android_arm: {
-            srcs: [
-                "disassembler_arm.cc",
-            ],
+        arm64: {
+            srcs: ["disassembler_arm64.cc"],
         },
-        android_arm64: {
-            srcs: [
-                "disassembler_arm.cc",
-                "disassembler_arm64.cc",
-            ],
+        x86: {
+            srcs: ["disassembler_x86.cc"],
         },
-        android_x86: {
-            srcs: [
-                "disassembler_x86.cc",
-            ],
-        },
-        android_x86_64: {
-            srcs: [
-                "disassembler_x86.cc",
-            ],
+        x86_64: {
+            srcs: ["disassembler_x86.cc"],
         },
     },
     shared_libs: [
@@ -72,20 +56,14 @@ cc_defaults {
 art_cc_library {
     name: "libart-disassembler",
     defaults: ["libart-disassembler-defaults"],
-    target: {
-        host: {
+    codegen: {
+        arm: {
             static_libs: [
                 // For disassembler_arm*.
                 "libvixl",
             ],
         },
-        android_arm: {
-            static_libs: [
-                // For disassembler_arm*.
-                "libvixl",
-            ],
-        },
-        android_arm64: {
+        arm64: {
             static_libs: [
                 // For disassembler_arm*.
                 "libvixl",
@@ -112,20 +90,14 @@ art_cc_library {
         "art_debug_defaults",
         "libart-disassembler-defaults",
     ],
-    target: {
-        host: {
+    codegen: {
+        arm: {
             static_libs: [
                 // For disassembler_arm*.
                 "libvixld",
             ],
         },
-        android_arm: {
-            static_libs: [
-                // For disassembler_arm*.
-                "libvixld",
-            ],
-        },
-        android_arm64: {
+        arm64: {
             static_libs: [
                 // For disassembler_arm*.
                 "libvixld",
@@ -160,13 +132,10 @@ cc_library_headers {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_disassembler_tests_defaults",
-    target: {
-        host: {
-            srcs: ["disassembler_arm64_test.cc"],
-        },
-        android_arm64: {
+    codegen: {
+        arm64: {
             srcs: ["disassembler_arm64_test.cc"],
         },
     },

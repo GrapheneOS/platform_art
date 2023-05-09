@@ -36,7 +36,7 @@ cc_library_headers {
     ],
 }
 
-cc_defaults {
+art_cc_defaults {
     name: "art_cmdline_tests_defaults",
     tidy_timeout_srcs: ["cmdline_parser_test.cc"],
     srcs: ["cmdline_parser_test.cc"],

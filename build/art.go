@@ -377,7 +377,7 @@ func artHostTestApexBundleFactory() android.Module {
 }
 
 func artGlobalDefaultsFactory() android.Module {
-	module := cc.DefaultsFactory()
+	module := artDefaultsFactory()
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, globalDefaults)
 
@@ -385,11 +385,18 @@ func artGlobalDefaultsFactory() android.Module {
 }
 
 func artDefaultsFactory() android.Module {
-	return cc.DefaultsFactory()
+	c := &codegenProperties{}
+	module := cc.DefaultsFactory(c)
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, staticAndSharedLibrary) })
+
+	return module
 }
 
 func artLibrary() android.Module {
 	module := cc.LibraryFactory()
+
+	installCodegenCustomizer(module, staticAndSharedLibrary)
+
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddInstallHook(module, addTestcasesFile)
 	return module
@@ -397,6 +404,9 @@ func artLibrary() android.Module {
 
 func artStaticLibrary() android.Module {
 	module := cc.LibraryStaticFactory()
+
+	installCodegenCustomizer(module, staticLibrary)
+
 	android.AddLoadHook(module, addImplicitFlags)
 	return module
 }
@@ -414,6 +424,9 @@ func artBinary() android.Module {
 func artTest() android.Module {
 	// Disable bp2build.
 	module := cc.NewTest(android.HostAndDeviceSupported, false /* bazelable */).Init()
+
+	installCodegenCustomizer(module, binary)
+
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
@@ -423,6 +436,9 @@ func artTest() android.Module {
 
 func artTestLibrary() android.Module {
 	module := cc.TestLibraryFactory()
+
+	installCodegenCustomizer(module, staticAndSharedLibrary)
+
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, prefer32Bit)
 	android.AddInstallHook(module, testInstall)
