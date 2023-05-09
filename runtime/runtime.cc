@@ -298,7 +298,7 @@ Runtime::Runtime()
       experimental_flags_(ExperimentalFlags::kNone),
       oat_file_manager_(nullptr),
       is_low_memory_mode_(false),
-      madvise_willneed_vdex_filesize_(0),
+      madvise_willneed_total_dex_size_(0),
       madvise_willneed_odex_filesize_(0),
       madvise_willneed_art_filesize_(0),
       safe_mode_(false),
@@ -1585,8 +1585,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   zygote_max_failed_boots_ = runtime_options.GetOrDefault(Opt::ZygoteMaxFailedBoots);
   experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
-  madvise_random_access_ = runtime_options.GetOrDefault(Opt::MadviseRandomAccess);
-  madvise_willneed_vdex_filesize_ = runtime_options.GetOrDefault(Opt::MadviseWillNeedVdexFileSize);
+  madvise_willneed_total_dex_size_ = runtime_options.GetOrDefault(Opt::MadviseWillNeedVdexFileSize);
   madvise_willneed_odex_filesize_ = runtime_options.GetOrDefault(Opt::MadviseWillNeedOdexFileSize);
   madvise_willneed_art_filesize_ = runtime_options.GetOrDefault(Opt::MadviseWillNeedArtFileSize);
 
@@ -3397,6 +3396,8 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
                                   const uint8_t* map_begin,
                                   const uint8_t* map_end,
                                   const std::string& file_name) {
+  map_begin = AlignDown(map_begin, kPageSize);
+  map_size_bytes = RoundUp(map_size_bytes, kPageSize);
 #ifdef ART_TARGET_ANDROID
   // Short-circuit the madvise optimization for background processes. This
   // avoids IO and memory contention with foreground processes, particularly
@@ -3429,7 +3430,7 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
 
     // Clamp endOfFile if its past map_end
     if (target_pos > map_end) {
-        target_pos = map_end;
+      target_pos = map_end;
     }
 
     // Madvise the whole file up to target_pos in chunks of
@@ -3447,7 +3448,9 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
       int status = madvise(madvise_addr, madvise_length, MADV_WILLNEED);
       // In case of error we stop madvising rest of the file
       if (status < 0) {
-        LOG(ERROR) << "Failed to madvise file:" << file_name << " for size:" << map_size_bytes;
+        LOG(ERROR) << "Failed to madvise file " << file_name
+                   << " for size:" << map_size_bytes
+                   << ": " << strerror(errno);
         break;
       }
     }
