@@ -169,7 +169,7 @@ genrule {
     out: ["java/com/android/server/art/ArtStatsLog.java"],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_libartservice_tests_defaults",
     defaults: ["libartservice_defaults"],
     srcs: [
