@@ -73,7 +73,7 @@ art_cc_binary {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_dexdump_tests_defaults",
     srcs: ["dexdump_test.cc"],
     target: {

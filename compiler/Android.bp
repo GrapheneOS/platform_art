@@ -28,7 +28,66 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-art_cc_defaults {
+libart_compiler_codegen_arm = [
+    "jni/quick/arm/calling_convention_arm.cc",
+    "optimizing/code_generator_arm_vixl.cc",
+    "optimizing/code_generator_vector_arm_vixl.cc",
+    "optimizing/critical_native_abi_fixup_arm.cc",
+    "optimizing/instruction_simplifier_arm.cc",
+    "optimizing/instruction_simplifier_shared.cc",
+    "optimizing/intrinsics_arm_vixl.cc",
+    "optimizing/nodes_shared.cc",
+    "optimizing/scheduler_arm.cc",
+    "utils/arm/assembler_arm_vixl.cc",
+    "utils/arm/constants_arm.cc",
+    "utils/arm/jni_macro_assembler_arm_vixl.cc",
+    "utils/arm/managed_register_arm.cc",
+]
+
+libart_compiler_codegen_arm64 = [
+    "jni/quick/arm64/calling_convention_arm64.cc",
+    "optimizing/code_generator_arm64.cc",
+    "optimizing/code_generator_vector_arm64_neon.cc",
+    "optimizing/code_generator_vector_arm64_sve.cc",
+    "optimizing/scheduler_arm64.cc",
+    "optimizing/instruction_simplifier_arm64.cc",
+    "optimizing/intrinsics_arm64.cc",
+    "utils/arm64/assembler_arm64.cc",
+    "utils/arm64/jni_macro_assembler_arm64.cc",
+    "utils/arm64/managed_register_arm64.cc",
+]
+
+libart_compiler_codegen_riscv64 = [
+    "utils/riscv64/assembler_riscv64.cc",
+    "utils/riscv64/managed_register_riscv64.cc",
+]
+
+libart_compiler_codegen_x86 = [
+    "jni/quick/x86/calling_convention_x86.cc",
+    "optimizing/code_generator_x86.cc",
+    "optimizing/code_generator_vector_x86.cc",
+    "optimizing/intrinsics_x86.cc",
+    "optimizing/instruction_simplifier_x86_shared.cc",
+    "optimizing/instruction_simplifier_x86.cc",
+    "optimizing/pc_relative_fixups_x86.cc",
+    "optimizing/x86_memory_gen.cc",
+    "utils/x86/assembler_x86.cc",
+    "utils/x86/jni_macro_assembler_x86.cc",
+    "utils/x86/managed_register_x86.cc",
+]
+
+libart_compiler_codegen_x86_64 = [
+    "jni/quick/x86_64/calling_convention_x86_64.cc",
+    "optimizing/intrinsics_x86_64.cc",
+    "optimizing/instruction_simplifier_x86_64.cc",
+    "optimizing/code_generator_x86_64.cc",
+    "optimizing/code_generator_vector_x86_64.cc",
+    "utils/x86_64/assembler_x86_64.cc",
+    "utils/x86_64/jni_macro_assembler_x86_64.cc",
+    "utils/x86_64/managed_register_x86_64.cc",
+]
+
+cc_defaults {
     name: "libart-compiler-defaults",
     defaults: ["art_defaults"],
     host_supported: true,
@@ -98,70 +157,28 @@ art_cc_defaults {
         "compiler.cc",
     ],
 
-    codegen: {
-        arm: {
-            srcs: [
-                "jni/quick/arm/calling_convention_arm.cc",
-                "optimizing/code_generator_arm_vixl.cc",
-                "optimizing/code_generator_vector_arm_vixl.cc",
-                "optimizing/critical_native_abi_fixup_arm.cc",
-                "optimizing/instruction_simplifier_arm.cc",
-                "optimizing/instruction_simplifier_shared.cc",
-                "optimizing/intrinsics_arm_vixl.cc",
-                "optimizing/nodes_shared.cc",
-                "optimizing/scheduler_arm.cc",
-                "utils/arm/assembler_arm_vixl.cc",
-                "utils/arm/constants_arm.cc",
-                "utils/arm/jni_macro_assembler_arm_vixl.cc",
-                "utils/arm/managed_register_arm.cc",
-            ],
+    target: {
+        host: {
+            srcs: libart_compiler_codegen_arm +
+                libart_compiler_codegen_arm64 +
+                libart_compiler_codegen_riscv64 +
+                libart_compiler_codegen_x86 +
+                libart_compiler_codegen_x86_64,
         },
-        arm64: {
-            srcs: [
-                "jni/quick/arm64/calling_convention_arm64.cc",
-                "optimizing/code_generator_arm64.cc",
-                "optimizing/code_generator_vector_arm64_neon.cc",
-                "optimizing/code_generator_vector_arm64_sve.cc",
-                "optimizing/scheduler_arm64.cc",
-                "optimizing/instruction_simplifier_arm64.cc",
-                "optimizing/intrinsics_arm64.cc",
-                "utils/arm64/assembler_arm64.cc",
-                "utils/arm64/jni_macro_assembler_arm64.cc",
-                "utils/arm64/managed_register_arm64.cc",
-            ],
+        android_arm: {
+            srcs: libart_compiler_codegen_arm,
         },
-        riscv64: {
-            srcs: [
-                "utils/riscv64/assembler_riscv64.cc",
-                "utils/riscv64/managed_register_riscv64.cc",
-            ],
+        android_arm64: {
+            srcs: libart_compiler_codegen_arm + libart_compiler_codegen_arm64,
         },
-        x86: {
-            srcs: [
-                "jni/quick/x86/calling_convention_x86.cc",
-                "optimizing/code_generator_x86.cc",
-                "optimizing/code_generator_vector_x86.cc",
-                "optimizing/intrinsics_x86.cc",
-                "optimizing/instruction_simplifier_x86_shared.cc",
-                "optimizing/instruction_simplifier_x86.cc",
-                "optimizing/pc_relative_fixups_x86.cc",
-                "optimizing/x86_memory_gen.cc",
-                "utils/x86/assembler_x86.cc",
-                "utils/x86/jni_macro_assembler_x86.cc",
-                "utils/x86/managed_register_x86.cc",
-            ],
+        android_riscv64: {
+            srcs: libart_compiler_codegen_riscv64,
         },
-        x86_64: {
-            srcs: [
-                "jni/quick/x86_64/calling_convention_x86_64.cc",
-                "optimizing/intrinsics_x86_64.cc",
-                "optimizing/instruction_simplifier_x86_64.cc",
-                "optimizing/code_generator_x86_64.cc",
-                "optimizing/code_generator_vector_x86_64.cc",
-                "utils/x86_64/assembler_x86_64.cc",
-                "utils/x86_64/jni_macro_assembler_x86_64.cc",
-                "utils/x86_64/managed_register_x86_64.cc",
-            ],
+        android_x86: {
+            srcs: libart_compiler_codegen_x86,
+        },
+        android_x86_64: {
+            srcs: libart_compiler_codegen_x86 + libart_compiler_codegen_x86_64,
         },
     },
     static: {
@@ -212,14 +229,25 @@ art_cc_library {
         "dex2oat-pgo-defaults",
         "art_hugepage_defaults",
     ],
-    codegen: {
-        arm: {
+    target: {
+        host: {
             // VIXL assembly support for ARM targets.
             static_libs: [
                 "libvixl",
             ],
         },
-        arm64: {
+        android: {
+            lto: {
+                thin: true,
+            },
+        },
+        android_arm: {
+            // VIXL assembly support for ARM targets.
+            static_libs: [
+                "libvixl",
+            ],
+        },
+        android_arm64: {
             // VIXL assembly support for ARM64 targets.
             static_libs: [
                 "libvixl",
@@ -240,13 +268,6 @@ art_cc_library {
         "libart-disassembler",
     ],
 
-    target: {
-        android: {
-            lto: {
-                thin: true,
-            },
-        },
-    },
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
@@ -273,8 +294,8 @@ art_cc_library {
         "art_debug_defaults",
         "libart-compiler-defaults",
     ],
-    codegen: {
-        arm: {
+    target: {
+        host: {
             // VIXL assembly support for ARM targets.
             static_libs: [
                 "libvixld",
@@ -284,7 +305,17 @@ art_cc_library {
                 "libvixld",
             ],
         },
-        arm64: {
+        android_arm: {
+            // VIXL assembly support for ARM targets.
+            static_libs: [
+                "libvixld",
+            ],
+            // Export vixl headers as they are included in this library's headers used by tests.
+            export_static_lib_headers: [
+                "libvixld",
+            ],
+        },
+        android_arm64: {
             // VIXL assembly support for ARM64 targets.
             static_libs: [
                 "libvixld",
@@ -332,7 +363,7 @@ cc_defaults {
 }
 
 // Properties common to `libart-compiler-gtest` and `libartd-compiler-gtest`.
-art_cc_defaults {
+cc_defaults {
     name: "libart-compiler-gtest-common",
     srcs: [
         "common_compiler_test.cc",
@@ -370,7 +401,7 @@ art_cc_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "art_compiler_tests_defaults",
     data: [
         ":art-gtest-jars-ExceptionHandle",
@@ -437,23 +468,40 @@ art_cc_defaults {
         "optimizing/scheduler_test.cc",
     ],
 
-    codegen: {
-        arm: {
+    target: {
+        host: {
+            srcs: [
+                "utils/arm/managed_register_arm_test.cc",
+                "utils/arm64/managed_register_arm64_test.cc",
+                "utils/riscv64/managed_register_riscv64_test.cc",
+                "utils/x86/managed_register_x86_test.cc",
+                // This test is testing architecture-independent functionality,
+                // but happens to use x86 codegen as part of the test.
+                "optimizing/register_allocator_test.cc",
+                // Is this test a bit-rotten copy of the x86 test? b/77951326
+                // "utils/x86_64/managed_register_x86_64_test.cc",
+            ],
+            shared_libs: [
+                "libartd-simulator",
+            ],
+        },
+        android_arm: {
             srcs: [
                 "utils/arm/managed_register_arm_test.cc",
             ],
         },
-        arm64: {
+        android_arm64: {
             srcs: [
+                "utils/arm/managed_register_arm_test.cc",
                 "utils/arm64/managed_register_arm64_test.cc",
             ],
         },
-        riscv64: {
+        android_riscv64: {
             srcs: [
                 "utils/riscv64/managed_register_riscv64_test.cc",
             ],
         },
-        x86: {
+        android_x86: {
             srcs: [
                 "utils/x86/managed_register_x86_test.cc",
 
@@ -462,8 +510,14 @@ art_cc_defaults {
                 "optimizing/register_allocator_test.cc",
             ],
         },
-        x86_64: {
+        android_x86_64: {
             srcs: [
+                "utils/x86/managed_register_x86_test.cc",
+
+                // This test is testing architecture-independent functionality,
+                // but happens to use x86 codegen as part of the test.
+                "optimizing/register_allocator_test.cc",
+
                 // Is this test a bit-rotten copy of the x86 test? b/77951326
                 // "utils/x86_64/managed_register_x86_64_test.cc",
             ],
@@ -479,14 +533,6 @@ art_cc_defaults {
         "libnativeloader",
         "libunwindstack",
     ],
-
-    target: {
-        host: {
-            shared_libs: [
-                "libartd-simulator",
-            ],
-        },
-    },
 }
 
 // Version of ART gtest `art_compiler_tests` bundled with the ART APEX on target.
@@ -546,24 +592,38 @@ art_cc_test {
         "utils/x86/assembler_x86_test.cc",
         "utils/x86_64/assembler_x86_64_test.cc",
     ],
-    codegen: {
-        arm: {
+    target: {
+        host: {
+            srcs: [
+                "utils/assembler_thumb_test.cc",
+                "utils/riscv64/assembler_riscv64_test.cc",
+                "utils/x86/assembler_x86_test.cc",
+                "utils/x86_64/assembler_x86_64_test.cc",
+            ],
+        },
+        android_arm: {
             srcs: [
                 "utils/assembler_thumb_test.cc",
             ],
         },
-        riscv64 : {
+        android_arm64: {
+            srcs: [
+                "utils/assembler_thumb_test.cc",
+            ],
+        },
+        android_riscv64: {
             srcs: [
                 "utils/riscv64/assembler_riscv64_test.cc",
             ],
         },
-        x86: {
+        android_x86: {
             srcs: [
                 "utils/x86/assembler_x86_test.cc",
             ],
         },
-        x86_64: {
+        android_x86_64: {
             srcs: [
+                "utils/x86/assembler_x86_test.cc",
                 "utils/x86_64/assembler_x86_64_test.cc",
             ],
         },

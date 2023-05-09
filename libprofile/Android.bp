@@ -177,7 +177,7 @@ art_cc_library {
 // For now many of these tests still use CommonRuntimeTest, almost universally because of
 // ScratchFile and related.
 // TODO: Remove CommonRuntimeTest dependency from these tests.
-art_cc_defaults {
+cc_defaults {
     name: "art_libprofile_tests_defaults",
     data: [
         ":art-gtest-jars-ManyMethods",
