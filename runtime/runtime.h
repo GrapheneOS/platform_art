@@ -1004,14 +1004,8 @@ class Runtime {
     return deny_art_apex_data_files_;
   }
 
-  // Whether or not we use MADV_RANDOM on files that are thought to have random access patterns.
-  // This is beneficial for low RAM devices since it reduces page cache thrashing.
-  bool MAdviseRandomAccess() const {
-    return madvise_random_access_;
-  }
-
-  size_t GetMadviseWillNeedSizeVdex() const {
-    return madvise_willneed_vdex_filesize_;
+  size_t GetMadviseWillNeedTotalDexSize() const {
+    return madvise_willneed_total_dex_size_;
   }
 
   size_t GetMadviseWillNeedSizeOdex() const {
@@ -1475,13 +1469,10 @@ class Runtime {
   // Whether or not we are on a low RAM device.
   bool is_low_memory_mode_;
 
-  // Whether or not we use MADV_RANDOM on files that are thought to have random access patterns.
-  // This is beneficial for low RAM devices since it reduces page cache thrashing.
-  bool madvise_random_access_;
-
   // Limiting size (in bytes) for applying MADV_WILLNEED on vdex files
+  // or uncompressed dex files in APKs.
   // A 0 for this will turn off madvising to MADV_WILLNEED
-  size_t madvise_willneed_vdex_filesize_;
+  size_t madvise_willneed_total_dex_size_;
 
   // Limiting size (in bytes) for applying MADV_WILLNEED on odex files
   // A 0 for this will turn off madvising to MADV_WILLNEED
