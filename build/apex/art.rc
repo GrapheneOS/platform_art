@@ -25,5 +25,3 @@ service artd /apex/com.android.art/bin/artd
 service art_boot /apex/com.android.art/bin/art_boot
     oneshot
     class core
-    seclabel u:r:su:s0
-    user root
