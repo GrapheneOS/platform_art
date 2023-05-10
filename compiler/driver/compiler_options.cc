@@ -121,7 +121,8 @@ bool CompilerOptions::ParseRegisterAllocationStrategy(const std::string& option,
   if (option == "linear-scan") {
     register_allocation_strategy_ = RegisterAllocator::Strategy::kRegisterAllocatorLinearScan;
   } else if (option == "graph-color") {
-    register_allocation_strategy_ = RegisterAllocator::Strategy::kRegisterAllocatorGraphColor;
+    LOG(ERROR) << "Graph coloring allocator has been removed, using linear scan instead.";
+    register_allocation_strategy_ = RegisterAllocator::Strategy::kRegisterAllocatorLinearScan;
   } else {
     *error_msg = "Unrecognized register allocation strategy. Try linear-scan, or graph-color.";
     return false;
