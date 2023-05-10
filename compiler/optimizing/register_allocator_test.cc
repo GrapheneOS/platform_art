@@ -84,7 +84,8 @@ class RegisterAllocatorTest : public CommonCompilerTest, public OptimizingUnitTe
 TEST_F(RegisterAllocatorTest, test_name##_LinearScan) {\
   test_name(Strategy::kRegisterAllocatorLinearScan);\
 }\
-TEST_F(RegisterAllocatorTest, test_name##_GraphColor) {\
+/* Note: Graph coloring register allocator has been removed, so the test is DISABLED. */ \
+TEST_F(RegisterAllocatorTest, DISABLED_##test_name##_GraphColor) {\
   test_name(Strategy::kRegisterAllocatorGraphColor);\
 }
 
