@@ -177,6 +177,7 @@
    GET_VREG r1, r1                     // r1<- vB (array length)
    ldr lr, [rSELF, #THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET]
    blx lr
+   dmb ishst                           // need fence for making array's class visible
    ubfx    r1, rINST, #8, #4           // r1<- A
    SET_VREG_OBJECT r0, r1
    FETCH_ADVANCE_INST 2
