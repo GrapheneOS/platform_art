@@ -23,7 +23,6 @@
 #include "base/scoped_arena_containers.h"
 #include "base/bit_vector-inl.h"
 #include "code_generator.h"
-#include "register_allocator_graph_color.h"
 #include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 
@@ -45,8 +44,8 @@ std::unique_ptr<RegisterAllocator> RegisterAllocator::Create(ScopedArenaAllocato
       return std::unique_ptr<RegisterAllocator>(
           new (allocator) RegisterAllocatorLinearScan(allocator, codegen, analysis));
     case kRegisterAllocatorGraphColor:
-      return std::unique_ptr<RegisterAllocator>(
-          new (allocator) RegisterAllocatorGraphColor(allocator, codegen, analysis));
+      LOG(FATAL) << "Graph coloring register allocator has been removed.";
+      UNREACHABLE();
     default:
       LOG(FATAL) << "Invalid register allocation strategy: " << strategy;
       UNREACHABLE();
