@@ -513,8 +513,9 @@
 4:
    ldr     lr, [rSELF, #THREAD_ALLOC_OBJECT_ENTRYPOINT_OFFSET]
    blx     lr
+   dmb     ishst                        // need fence for making object's class visible
 1:
-   lsr     r1, rINST, #8                    // r1 <- A
+   lsr     r1, rINST, #8                // r1 <- A
    SET_VREG_OBJECT r0, r1               // fp[A] <- value
    FETCH_ADVANCE_INST 2
    GET_INST_OPCODE ip

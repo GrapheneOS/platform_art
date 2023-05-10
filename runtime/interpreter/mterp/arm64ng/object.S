@@ -466,6 +466,7 @@
 4:
    ldr     lr, [xSELF, #THREAD_ALLOC_OBJECT_ENTRYPOINT_OFFSET]
    blr     lr
+   dmb     ishst                       // need fence for making object's class visible
 1:
    lsr     w1, wINST, #8               // w1 <- A
    SET_VREG_OBJECT w0, w1              // fp[A] <- value
