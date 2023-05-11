@@ -2190,7 +2190,9 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
   }
 
   // Set entry point to interpreter if in InterpretOnly mode.
-  if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
+  if (!runtime->IsAotCompiler() &&
+      (runtime->GetInstrumentation()->InterpretOnly() ||
+       runtime->IsJavaDebuggable())) {
     // Set image methods' entry point to interpreter.
     header.VisitPackedArtMethods([&](ArtMethod& method) REQUIRES_SHARED(Locks::mutator_lock_) {
       if (!method.IsRuntimeMethod()) {
