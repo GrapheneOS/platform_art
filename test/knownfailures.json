@@ -1167,7 +1167,6 @@
                   "844-exception2",
                   "845-fast-verify",
                   "845-data-image",
-		  "2264-debuggable-data-image",
                   "846-multidex-data-image",
                   "847-filled-new-aray",
                   "999-redefine-hiddenapi",
@@ -1565,7 +1564,7 @@
         "description": ["Test timing out on debug gc."]
     },
     {
-        "tests": ["845-data-image", "846-multidex-data-image", "2264-debuggable-data-image"],
+        "tests": ["845-data-image", "846-multidex-data-image"],
         "variant": "debuggable | trace | stream",
         "description": ["Runtime app images are not supported with debuggable."]
     },
