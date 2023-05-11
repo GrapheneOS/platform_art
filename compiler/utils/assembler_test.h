@@ -219,35 +219,15 @@ class AssemblerTest : public AssemblerTestBase {
           }
           std::string base = fmt;
 
-          std::string reg1_string = (this->*GetName1)(*reg1);
-          size_t reg1_index;
-          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-          }
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceImm(imm, bias, multiplier, &base);
 
-          std::string reg2_string = (this->*GetName2)(*reg2);
-          size_t reg2_index;
-          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-          }
-
-          size_t imm_index = base.find(IMM_TOKEN);
-          if (imm_index != std::string::npos) {
-            std::ostringstream sreg;
-            sreg << imm * multiplier + bias;
-            std::string imm_string = sreg.str();
-            base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-          }
-
-          if (str.size() > 0) {
-            str += "\n";
-          }
           str += base;
+          str += "\n";
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -275,42 +255,17 @@ class AssemblerTest : public AssemblerTestBase {
             }
             std::string base = fmt;
 
-            std::string reg1_string = (this->*GetName1)(*reg1);
-            size_t reg1_index;
-            while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-              base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-            }
+            ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+            ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+            ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
+            ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
-            std::string reg2_string = (this->*GetName2)(*reg2);
-            size_t reg2_index;
-            while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-              base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-            }
-
-            std::string reg3_string = (this->*GetName3)(*reg3);
-            size_t reg3_index;
-            while ((reg3_index = base.find(REG3_TOKEN)) != std::string::npos) {
-              base.replace(reg3_index, ConstexprStrLen(REG3_TOKEN), reg3_string);
-            }
-
-            size_t imm_index = base.find(IMM_TOKEN);
-            if (imm_index != std::string::npos) {
-              std::ostringstream sreg;
-              sreg << imm + bias;
-              std::string imm_string = sreg.str();
-              base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-            }
-
-            if (str.size() > 0) {
-              str += "\n";
-            }
             str += base;
+            str += "\n";
           }
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -336,35 +291,15 @@ class AssemblerTest : public AssemblerTestBase {
           }
           std::string base = fmt;
 
-          std::string reg1_string = (this->*GetName1)(*reg1);
-          size_t reg1_index;
-          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-          }
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
-          std::string reg2_string = (this->*GetName2)(*reg2);
-          size_t reg2_index;
-          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-          }
-
-          size_t imm_index = base.find(IMM_TOKEN);
-          if (imm_index != std::string::npos) {
-            std::ostringstream sreg;
-            sreg << imm;
-            std::string imm_string = sreg.str();
-            base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-          }
-
-          if (str.size() > 0) {
-            str += "\n";
-          }
           str += base;
+          str += "\n";
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -386,28 +321,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg_string = (this->*GetName)(*reg);
-        size_t reg_index;
-        while ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-        }
+        ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
+        ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
-        size_t imm_index = base.find(IMM_TOKEN);
-        if (imm_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << imm + bias;
-          std::string imm_string = sreg.str();
-          base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -431,28 +351,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg_string = (this->*GetName)(*reg);
-        size_t reg_index;
-        while ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-        }
+        ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
+        ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
-        size_t imm_index = base.find(IMM_TOKEN);
-        if (imm_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << imm + bias;
-          std::string imm_string = sreg.str();
-          base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -472,22 +377,11 @@ class AssemblerTest : public AssemblerTestBase {
       }
       std::string base = fmt;
 
-      size_t imm_index = base.find(IMM_TOKEN);
-      if (imm_index != std::string::npos) {
-        std::ostringstream sreg;
-        sreg << imm;
-        std::string imm_string = sreg.str();
-        base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-      }
+      ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
-      if (str.size() > 0) {
-        str += "\n";
-      }
       str += base;
+      str += "\n";
     }
-
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -515,35 +409,15 @@ class AssemblerTest : public AssemblerTestBase {
           }
           std::string base = fmt;
 
-          std::string reg1_string = (this->*GetName1)(*reg1);
-          size_t reg1_index;
-          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-          }
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceImm(imm, bias, multiplier, &base);
 
-          std::string reg2_string = (this->*GetName2)(*reg2);
-          size_t reg2_index;
-          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-          }
-
-          size_t imm_index = base.find(IMM_TOKEN);
-          if (imm_index != std::string::npos) {
-            std::ostringstream sreg;
-            sreg << imm * multiplier + bias;
-            std::string imm_string = sreg.str();
-            base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-          }
-
-          if (str.size() > 0) {
-            str += "\n";
-          }
           str += base;
+          str += "\n";
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -802,21 +676,11 @@ class AssemblerTest : public AssemblerTestBase {
       }
       std::string base = fmt;
 
-      size_t imm_index = base.find(IMM_TOKEN);
-      if (imm_index != std::string::npos) {
-        std::ostringstream sreg;
-        sreg << imm;
-        std::string imm_string = sreg.str();
-        base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-      }
+      ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
-      if (str.size() > 0) {
-        str += "\n";
-      }
       str += base;
+      str += "\n";
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1325,19 +1189,11 @@ class AssemblerTest : public AssemblerTestBase {
       }
       std::string base = fmt;
 
-      std::string addr_string = (this->*GetAName)(addr);
-      size_t addr_index;
-      if ((addr_index = base.find(ADDRESS_TOKEN)) != std::string::npos) {
-        base.replace(addr_index, ConstexprStrLen(ADDRESS_TOKEN), addr_string);
-      }
+      ReplaceAddr((this->*GetAName)(addr), &base);
 
-      if (str.size() > 0) {
-        str += "\n";
-      }
       str += base;
+      str += "\n";
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1358,28 +1214,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string addr_string = (this->*GetAName)(addr);
-        size_t addr_index;
-        if ((addr_index = base.find(ADDRESS_TOKEN)) != std::string::npos) {
-          base.replace(addr_index, ConstexprStrLen(ADDRESS_TOKEN), addr_string);
-        }
+        ReplaceAddr((this->*GetAName)(addr), &base);
+        ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
-        size_t imm_index = base.find(IMM_TOKEN);
-        if (imm_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << imm;
-          std::string imm_string = sreg.str();
-          base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1399,26 +1240,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg_string = (this->*GetRName)(*reg);
-        size_t reg_index;
-        if ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-        }
+        ReplaceReg(REG_TOKEN, (this->*GetRName)(*reg), &base);
+        ReplaceAddr((this->*GetAName)(addr), &base);
 
-        std::string addr_string = (this->*GetAName)(addr);
-        size_t addr_index;
-        if ((addr_index = base.find(ADDRESS_TOKEN)) != std::string::npos) {
-          base.replace(addr_index, ConstexprStrLen(ADDRESS_TOKEN), addr_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1438,26 +1266,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string addr_string = (this->*GetAName)(addr);
-        size_t addr_index;
-        if ((addr_index = base.find(ADDRESS_TOKEN)) != std::string::npos) {
-          base.replace(addr_index, ConstexprStrLen(ADDRESS_TOKEN), addr_string);
-        }
+        ReplaceAddr((this->*GetAName)(addr), &base);
+        ReplaceReg(REG_TOKEN, (this->*GetRName)(*reg), &base);
 
-        std::string reg_string = (this->*GetRName)(*reg);
-        size_t reg_index;
-        if ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1477,19 +1292,11 @@ class AssemblerTest : public AssemblerTestBase {
       }
       std::string base = fmt;
 
-      std::string reg_string = (this->*GetName)(*reg);
-      size_t reg_index;
-      if ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-        base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-      }
+      ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
 
-      if (str.size() > 0) {
-        str += "\n";
-      }
       str += base;
+      str += "\n";
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1519,26 +1326,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg1_string = (this->*GetName1)(*reg1);
-        size_t reg1_index;
-        while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-          base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-        }
+        ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+        ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
 
-        std::string reg2_string = (this->*GetName2)(*reg2);
-        size_t reg2_index;
-        while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-          base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1560,26 +1354,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg1_string = (this->*GetName1)(*reg1);
-        size_t reg1_index;
-        while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-          base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-        }
+        ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+        ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
 
-        std::string reg2_string = (this->*GetName2)(*reg2);
-        size_t reg2_index;
-        while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-          base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1601,33 +1382,15 @@ class AssemblerTest : public AssemblerTestBase {
           }
           std::string base = fmt;
 
-          std::string reg1_string = (this->*GetName1)(*reg1);
-          size_t reg1_index;
-          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-          }
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
 
-          std::string reg2_string = (this->*GetName2)(*reg2);
-          size_t reg2_index;
-          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-          }
-
-          std::string reg3_string = (this->*GetName3)(*reg3);
-          size_t reg3_index;
-          while ((reg3_index = base.find(REG3_TOKEN)) != std::string::npos) {
-            base.replace(reg3_index, ConstexprStrLen(REG3_TOKEN), reg3_string);
-          }
-
-          if (str.size() > 0) {
-            str += "\n";
-          }
           str += base;
+          str += "\n";
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1652,40 +1415,17 @@ class AssemblerTest : public AssemblerTestBase {
             }
             std::string base = fmt;
 
-            std::string reg1_string = (this->*GetName1)(*reg1);
-            size_t reg1_index;
-            while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-              base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-            }
+            ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+            ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+            ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
+            ReplaceReg(REG4_TOKEN, (this->*GetName4)(*reg4), &base);
 
-            std::string reg2_string = (this->*GetName2)(*reg2);
-            size_t reg2_index;
-            while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-              base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-            }
-
-            std::string reg3_string = (this->*GetName3)(*reg3);
-            size_t reg3_index;
-            while ((reg3_index = base.find(REG3_TOKEN)) != std::string::npos) {
-              base.replace(reg3_index, ConstexprStrLen(REG3_TOKEN), reg3_string);
-            }
-
-            std::string reg4_string = (this->*GetName4)(*reg4);
-            size_t reg4_index;
-            while ((reg4_index = base.find(REG4_TOKEN)) != std::string::npos) {
-              base.replace(reg4_index, ConstexprStrLen(REG3_TOKEN), reg4_string);
-            }
-
-            if (str.size() > 0) {
-              str += "\n";
-            }
             str += base;
+            str += "\n";
           }
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1710,35 +1450,15 @@ class AssemblerTest : public AssemblerTestBase {
           }
           std::string base = fmt;
 
-          std::string reg1_string = (this->*GetName1)(*reg1);
-          size_t reg1_index;
-          while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
-            base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
-          }
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
-          std::string reg2_string = (this->*GetName2)(*reg2);
-          size_t reg2_index;
-          while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
-            base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
-          }
-
-          size_t imm_index = base.find(IMM_TOKEN);
-          if (imm_index != std::string::npos) {
-            std::ostringstream sreg;
-            sreg << imm;
-            std::string imm_string = sreg.str();
-            base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-          }
-
-          if (str.size() > 0) {
-            str += "\n";
-          }
           str += base;
+          str += "\n";
         }
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
@@ -1789,6 +1509,35 @@ class AssemblerTest : public AssemblerTestBase {
     }
   }
 
+  static void ReplaceReg(const std::string& reg_token,
+                         const std::string& replacement,
+                         /*inout*/ std::string* str) {
+    size_t reg_index;
+    while ((reg_index = str->find(reg_token)) != std::string::npos) {
+      str->replace(reg_index, reg_token.length(), replacement);
+    }
+  }
+
+  static void ReplaceImm(int64_t imm,
+                         int64_t bias,
+                         int64_t multiplier,
+                         /*inout*/ std::string* str) {
+    size_t imm_index = str->find(IMM_TOKEN);
+    if (imm_index != std::string::npos) {
+      std::ostringstream sreg;
+      sreg << imm * multiplier + bias;
+      std::string imm_string = sreg.str();
+      str->replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
+    }
+  }
+
+  static void ReplaceAddr(const std::string& replacement, /*inout*/ std::string* str) {
+    size_t addr_index;
+    if ((addr_index = str->find(ADDRESS_TOKEN)) != std::string::npos) {
+      str->replace(addr_index, ConstexprStrLen(ADDRESS_TOKEN), replacement);
+    }
+  }
+
   static constexpr const char* ADDRESS_TOKEN = "{mem}";
   static constexpr const char* REG_TOKEN = "{reg}";
   static constexpr const char* REG1_TOKEN = "{reg1}";
@@ -1816,28 +1565,13 @@ class AssemblerTest : public AssemblerTestBase {
         }
         std::string base = fmt;
 
-        std::string reg_string = GetRegName<kRegView>(*reg);
-        size_t reg_index;
-        while ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
-          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
-        }
+        ReplaceReg(REG_TOKEN, GetRegName<kRegView>(*reg), &base);
+        ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
-        size_t imm_index = base.find(IMM_TOKEN);
-        if (imm_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << imm;
-          std::string imm_string = sreg.str();
-          base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
         str += base;
+        str += "\n";
       }
     }
-    // Add a newline at the end.
-    str += "\n";
     return str;
   }
 
