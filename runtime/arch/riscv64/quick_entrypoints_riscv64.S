@@ -411,7 +411,8 @@ END art_quick_to_interpreter_bridge
 
     .extern artMethodExitHook
 ENTRY art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME
+    SETUP_SAVE_EVERYTHING_FRAME \
+        RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
 
     addi a3, sp, SAVE_EVERYTHING_FRAME_OFFSET_FA0  // FP result ptr in kSaveEverything frame
     addi a2, sp, SAVE_EVERYTHING_FRAME_OFFSET_A0   // integer result ptr in kSaveEverything frame
@@ -580,6 +581,16 @@ ENTRY art_quick_resolution_trampoline
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_resolution_trampoline
+
+
+ENTRY art_quick_test_suspend
+    SETUP_SAVE_EVERYTHING_FRAME \
+        RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET
+    mv   a0, xSELF
+    call artTestSuspendFromCode
+    RESTORE_SAVE_EVERYTHING_FRAME
+    ret
+END
 
 
 UNDEFINED art_quick_imt_conflict_trampoline
@@ -776,7 +787,6 @@ UNDEFINED art_quick_invoke_super_trampoline_with_access_check
 UNDEFINED art_quick_invoke_virtual_trampoline_with_access_check
 UNDEFINED art_quick_invoke_polymorphic
 UNDEFINED art_quick_invoke_custom
-UNDEFINED art_quick_test_suspend
 UNDEFINED art_quick_deliver_exception
 UNDEFINED art_quick_throw_array_bounds
 UNDEFINED art_quick_throw_div_zero
