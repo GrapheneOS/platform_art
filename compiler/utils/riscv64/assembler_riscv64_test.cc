@@ -189,62 +189,118 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
 
 TEST_F(AssemblerRISCV64Test, Toolchain) { EXPECT_TRUE(CheckTools()); }
 
+TEST_F(AssemblerRISCV64Test, Lui) {
+  DriverStr(RepeatRIb(&riscv64::Riscv64Assembler::Lui, 20, "lui {reg}, {imm}"), "Lui");
+}
+
+TEST_F(AssemblerRISCV64Test, Auipc) {
+  DriverStr(RepeatRIb(&riscv64::Riscv64Assembler::Auipc, 20, "auipc {reg}, {imm}"), "Auipc");
+}
+
+TEST_F(AssemblerRISCV64Test, Jal) {
+  // TODO(riscv64): Change "-19, 2" to "-20, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Jal, -19, 2, "jal {reg}, {imm}\n"),
+            "Jal");
+}
+
+TEST_F(AssemblerRISCV64Test, Jalr) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Jalr, -12, "jalr {reg1}, {reg2}, {imm}\n"),
+            "Jalr");
+}
+
+TEST_F(AssemblerRISCV64Test, Beq) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Beq, -11, 2, "beq {reg1}, {reg2}, {imm}\n"),
+            "Beq");
+}
+
+TEST_F(AssemblerRISCV64Test, Bne) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bne, -11, 2, "bne {reg1}, {reg2}, {imm}\n"),
+            "Bne");
+}
+
+TEST_F(AssemblerRISCV64Test, Blt) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Blt, -11, 2, "blt {reg1}, {reg2}, {imm}\n"),
+            "Blt");
+}
+
+TEST_F(AssemblerRISCV64Test, Bge) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bge, -11, 2, "bge {reg1}, {reg2}, {imm}\n"),
+            "Bge");
+}
+
+TEST_F(AssemblerRISCV64Test, Bltu) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bltu, -11, 2, "bltu {reg1}, {reg2}, {imm}\n"),
+            "Bltu");
+}
+
+TEST_F(AssemblerRISCV64Test, Bgeu) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bgeu, -11, 2, "bgeu {reg1}, {reg2}, {imm}\n"),
+            "Bgeu");
+}
+
 TEST_F(AssemblerRISCV64Test, Lb) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lb, -11, "lb {reg1}, {imm}({reg2})"), "Lb");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lb, -12, "lb {reg1}, {imm}({reg2})"), "Lb");
 }
 
 TEST_F(AssemblerRISCV64Test, Lh) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lh, -11, "lh {reg1}, {imm}({reg2})"), "Lh");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lh, -12, "lh {reg1}, {imm}({reg2})"), "Lh");
 }
 
 TEST_F(AssemblerRISCV64Test, Lw) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lw, -11, "lw {reg1}, {imm}({reg2})"), "Lw");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lw, -12, "lw {reg1}, {imm}({reg2})"), "Lw");
 }
 
 TEST_F(AssemblerRISCV64Test, Ld) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Ld, -11, "ld {reg1}, {imm}({reg2})"), "Ld");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Ld, -12, "ld {reg1}, {imm}({reg2})"), "Ld");
 }
 
 TEST_F(AssemblerRISCV64Test, Lbu) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lbu, -11, "lbu {reg1}, {imm}({reg2})"), "Lbu");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lbu, -12, "lbu {reg1}, {imm}({reg2})"), "Lbu");
 }
 
 TEST_F(AssemblerRISCV64Test, Lhu) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lhu, -11, "lhu {reg1}, {imm}({reg2})"), "Lhu");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lhu, -12, "lhu {reg1}, {imm}({reg2})"), "Lhu");
 }
 
 TEST_F(AssemblerRISCV64Test, Lwu) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lwu, -11, "lwu {reg1}, {imm}({reg2})"), "Lwu");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Lwu, -12, "lwu {reg1}, {imm}({reg2})"), "Lwu");
 }
 
 TEST_F(AssemblerRISCV64Test, Sb) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sb, -11, "sb {reg1}, {imm}({reg2})"), "Sb");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sb, -12, "sb {reg1}, {imm}({reg2})"), "Sb");
 }
 
 TEST_F(AssemblerRISCV64Test, Sh) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sh, -11, "sh {reg1}, {imm}({reg2})"), "Sh");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sh, -12, "sh {reg1}, {imm}({reg2})"), "Sh");
 }
 
 TEST_F(AssemblerRISCV64Test, Sw) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sw, -11, "sw {reg1}, {imm}({reg2})"), "Sw");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sw, -12, "sw {reg1}, {imm}({reg2})"), "Sw");
 }
 
 TEST_F(AssemblerRISCV64Test, Sd) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sd, -11, "sd {reg1}, {imm}({reg2})"), "Sd");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sd, -12, "sd {reg1}, {imm}({reg2})"), "Sd");
 }
 
 TEST_F(AssemblerRISCV64Test, Addi) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Addi, -11, "addi {reg1}, {reg2}, {imm}"),
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Addi, -12, "addi {reg1}, {reg2}, {imm}"),
             "Addi");
 }
 
 TEST_F(AssemblerRISCV64Test, Slti) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Slti, -11, "slti {reg1}, {reg2}, {imm}"),
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Slti, -12, "slti {reg1}, {reg2}, {imm}"),
             "Slti");
 }
 
 TEST_F(AssemblerRISCV64Test, Sltiu) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sltiu, -11, "sltiu {reg1}, {reg2}, {imm}"),
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Sltiu, -12, "sltiu {reg1}, {reg2}, {imm}"),
             "Sltiu");
 }
 
@@ -253,11 +309,11 @@ TEST_F(AssemblerRISCV64Test, Xori) {
 }
 
 TEST_F(AssemblerRISCV64Test, Ori) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Ori, -11, "ori {reg1}, {reg2}, {imm}"), "Ori");
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Ori, -12, "ori {reg1}, {reg2}, {imm}"), "Ori");
 }
 
 TEST_F(AssemblerRISCV64Test, Andi) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Andi, -11, "andi {reg1}, {reg2}, {imm}"),
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Andi, -12, "andi {reg1}, {reg2}, {imm}"),
             "Andi");
 }
 
@@ -314,7 +370,7 @@ TEST_F(AssemblerRISCV64Test, Sra) {
 }
 
 TEST_F(AssemblerRISCV64Test, Addiw) {
-  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Addiw, -11, "addiw {reg1}, {reg2}, {imm}"),
+  DriverStr(RepeatRRIb(&riscv64::Riscv64Assembler::Addiw, -12, "addiw {reg1}, {reg2}, {imm}"),
             "Addiw");
 }
 
@@ -406,11 +462,11 @@ TEST_F(AssemblerRISCV64Test, Remuw) {
 }
 
 TEST_F(AssemblerRISCV64Test, FLw) {
-  DriverStr(RepeatFRIb(&riscv64::Riscv64Assembler::FLw, -11, "flw {reg1}, {imm}({reg2})"), "FLw");
+  DriverStr(RepeatFRIb(&riscv64::Riscv64Assembler::FLw, -12, "flw {reg1}, {imm}({reg2})"), "FLw");
 }
 
 TEST_F(AssemblerRISCV64Test, FLd) {
-  DriverStr(RepeatFRIb(&riscv64::Riscv64Assembler::FLd, -11, "fld {reg1}, {imm}({reg2})"), "FLw");
+  DriverStr(RepeatFRIb(&riscv64::Riscv64Assembler::FLd, -12, "fld {reg1}, {imm}({reg2})"), "FLw");
 }
 
 TEST_F(AssemblerRISCV64Test, FSw) {
@@ -767,6 +823,93 @@ TEST_F(AssemblerRISCV64Test, FAbsD) {
 TEST_F(AssemblerRISCV64Test, FNegD) {
   DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FNegD, "fsgnjn.d {reg1}, {reg2}, {reg2}\n"),
             "FNegD");
+}
+
+TEST_F(AssemblerRISCV64Test, Beqz) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Beqz, -11, 2, "beq {reg}, zero, {imm}\n"),
+            "Beqz");
+}
+
+TEST_F(AssemblerRISCV64Test, Bnez) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Bnez, -11, 2, "bne {reg}, zero, {imm}\n"),
+            "Bnez");
+}
+
+TEST_F(AssemblerRISCV64Test, Blez) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Blez, -11, 2, "bge zero, {reg}, {imm}\n"),
+            "Blez");
+}
+
+TEST_F(AssemblerRISCV64Test, Bgez) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Bgez, -11, 2, "bge {reg}, zero, {imm}\n"),
+            "Bgez");
+}
+
+TEST_F(AssemblerRISCV64Test, Bltz) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Bltz, -11, 2, "blt {reg}, zero, {imm}\n"),
+            "Bltz");
+}
+
+TEST_F(AssemblerRISCV64Test, Bgtz) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRIbS(&riscv64::Riscv64Assembler::Bgtz, -11, 2, "blt zero, {reg}, {imm}\n"),
+            "Bgtz");
+}
+
+TEST_F(AssemblerRISCV64Test, Bgt) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bgt, -11, 2, "blt {reg2}, {reg1}, {imm}\n"),
+            "Bgt");
+}
+
+TEST_F(AssemblerRISCV64Test, Ble) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Ble, -11, 2, "bge {reg2}, {reg1}, {imm}\n"),
+            "Bge");
+}
+
+TEST_F(AssemblerRISCV64Test, Bgtu) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bgtu, -11, 2, "bltu {reg2}, {reg1}, {imm}\n"),
+            "Bgtu");
+}
+
+TEST_F(AssemblerRISCV64Test, Bleu) {
+  // TODO(riscv64): Change "-11, 2" to "-12, 1" for "C" Standard Extension.
+  DriverStr(RepeatRRIbS(&riscv64::Riscv64Assembler::Bleu, -11, 2, "bgeu {reg2}, {reg1}, {imm}\n"),
+            "Bgeu");
+}
+
+TEST_F(AssemblerRISCV64Test, J) {
+  // TODO(riscv64): Change "-19, 2" to "-20, 1" for "C" Standard Extension.
+  DriverStr(RepeatIbS<int32_t>(&riscv64::Riscv64Assembler::J, -19, 2, "j {imm}\n"), "J");
+}
+
+TEST_F(AssemblerRISCV64Test, JalRA) {
+  // TODO(riscv64): Change "-19, 2" to "-20, 1" for "C" Standard Extension.
+  DriverStr(RepeatIbS<int32_t>(&riscv64::Riscv64Assembler::Jal, -19, 2, "jal {imm}\n"), "JalRA");
+}
+
+TEST_F(AssemblerRISCV64Test, Jr) {
+  DriverStr(RepeatR(&riscv64::Riscv64Assembler::Jr, "jr {reg}\n"), "Jr");
+}
+
+TEST_F(AssemblerRISCV64Test, JalrRA) {
+  DriverStr(RepeatR(&riscv64::Riscv64Assembler::Jalr, "jalr {reg}\n"), "JalrRA");
+}
+
+TEST_F(AssemblerRISCV64Test, Jalr0) {
+  DriverStr(RepeatRR(&riscv64::Riscv64Assembler::Jalr, "jalr {reg1}, {reg2}\n"), "Jalr0");
+}
+
+TEST_F(AssemblerRISCV64Test, Ret) {
+  GetAssembler()->Ret();
+  DriverStr("ret\n", "Ret");
 }
 
 #undef __
