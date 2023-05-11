@@ -19,6 +19,8 @@
 
 extern "C" int LLVMFuzzerInitialize(int* argc ATTRIBUTE_UNUSED, char*** argv ATTRIBUTE_UNUSED) {
   // Initialize environment.
+  // TODO(solanes): `art::MemMap::Init` is not needed for the current DexFileLoader code path.
+  // Consider removing it once the fuzzer stabilizes and check that it is actually not needed.
   art::MemMap::Init();
   // Set logging to error and above to avoid warnings about unexpected checksums.
   android::base::SetMinimumLogSeverity(android::base::ERROR);
