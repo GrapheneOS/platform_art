@@ -20,6 +20,8 @@
 #include "asm_support.h"
 #include "entrypoints/entrypoint_asm_constants.h"
 
+// S0, S2 - S11, ArtMethod*, total 8*(11 + 1) = 96
+#define FRAME_SIZE_SAVE_REFS_ONLY        96
 // FS0 - FS11, S0, S2 - S11, RA, ArtMethod* and padding, total 8*(12 + 11 + 1 + 1 + 1) = 208
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 208
 // FA0 - FA7, A1 - A7, S0, S2 - S11, RA and ArtMethod*, total 8*(8 + 7 + 11 + 1 + 1) = 224
