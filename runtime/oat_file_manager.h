@@ -158,7 +158,7 @@ class OatFileManager {
       REQUIRES(Locks::oat_file_manager_lock_);
 
   // Return true if we should attempt to load the app image.
-  bool ShouldLoadAppImage(const OatFile* source_oat_file) const;
+  bool ShouldLoadAppImage() const;
 
   std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
 
