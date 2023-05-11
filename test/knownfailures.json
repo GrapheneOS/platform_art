@@ -373,7 +373,8 @@
                   "030-bad-finalizer",
                   "080-oom-throw",
                   "1336-short-finalizer-timeout",
-                  "2041-bad-cleaner"],
+                  "2041-bad-cleaner",
+                  "2048-bad-native-registry"],
         "bug": "http://b/36377828",
         "variant": "interp-ac"
     },
@@ -1074,6 +1075,7 @@
           "1946-list-descriptors",
           "1947-breakpoint-redefine-deopt",
           "2041-bad-cleaner",
+          "2048-bad-native-registry",
           "2230-profile-save-hotness",
           "2245-checker-smali-instance-of-comparison",
           "2251-checker-irreducible-loop-do-not-inline"
