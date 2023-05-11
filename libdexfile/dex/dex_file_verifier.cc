@@ -2317,10 +2317,6 @@ bool DexFileVerifier::CheckIntraSection() {
       return false;
     }
 
-    if (type == DexFile::kDexTypeClassDataItem) {
-      FindStringRangesForMethodNames();
-    }
-
     // Check each item based on its type.
     switch (type) {
       case DexFile::kDexTypeHeaderItem:
@@ -3248,6 +3244,10 @@ bool DexFileVerifier::CheckInterSection() {
     uint32_t section_count = item->size_;
     DexFile::MapItemType type = static_cast<DexFile::MapItemType>(item->type_);
     bool found = false;
+
+    if (type == DexFile::kDexTypeClassDataItem) {
+      FindStringRangesForMethodNames();
+    }
 
     switch (type) {
       case DexFile::kDexTypeHeaderItem:
