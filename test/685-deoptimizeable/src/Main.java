@@ -74,6 +74,8 @@ public class Main {
           disableStackFrameAsserts();
         }
 
+        // Just declare a new int array so that the int arrays are resolved properly when JITing.
+        int[] tmp = new int[3];
         ensureAllJitCompiled();
 
         final HashMap<SampleObject, Long> map = new HashMap<SampleObject, Long>();
