@@ -60,6 +60,23 @@
 .endm
 
 
+.macro CFI_DEF_CFA_BREG_PLUS_UCONST reg, offset, size
+    .if (((\offset) < -0x40) || ((\offset) >= 0x40))
+        .error "Unsupported offset"
+    .endif
+
+    .if ((\size) < 0)
+        .error "Unsupported size, negative"
+    .elseif ((\size) < 0x80)
+        CFI_DEF_CFA_BREG_PLUS_UCONST_1_1(\reg, \offset, \size)
+    .elseif ((\size) < 0x4000)
+        CFI_DEF_CFA_BREG_PLUS_UCONST_1_2(\reg, \offset, \size)
+    .else
+        .error "Unsupported size, too large"
+    .endif
+.endm
+
+
 .macro INCREASE_FRAME frame_adjustment
     addi sp, sp, -(\frame_adjustment)
     .cfi_adjust_cfa_offset (\frame_adjustment)
@@ -277,9 +294,9 @@
 .endm
 
 
-.macro SETUP_SAVE_EVERYTHING_FRAME
+.macro SETUP_SAVE_EVERYTHING_FRAME offset
 #if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
-#error "FRAME_SIZE_SAVE_EVERYTHING(ARM64) size not as expected."
+#error "FRAME_SIZE_SAVE_EVERYTHING(RISCV64) size not as expected."
 #endif
     INCREASE_FRAME FRAME_SIZE_SAVE_EVERYTHING
 
@@ -297,7 +314,7 @@
     SAVE_FPR fs0,  8*9   // f8
     SAVE_FPR fs1,  8*10  // f9
 #define SAVE_EVERYTHING_FRAME_OFFSET_FA0 (8*11)
-    SAVE_FPR fa0,  8*11  // f10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
+    SAVE_FPR fa0,  8*11  // f10, its offset must equal SAVE_EVERYTHING_FRAME_OFFSET_FA0
     SAVE_FPR fa1,  8*12  // f11
     SAVE_FPR fa2,  8*13  // f12
     SAVE_FPR fa3,  8*14  // f13
@@ -326,7 +343,7 @@
     SAVE_GPR t2,  8*35  // x7
     SAVE_GPR s0,  8*36  // x8
 #define SAVE_EVERYTHING_FRAME_OFFSET_A0 (8*37)
-    SAVE_GPR a0,  8*37  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
+    SAVE_GPR a0,  8*37  // x10, its offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
     SAVE_GPR a1,  8*38  // x11
     SAVE_GPR a2,  8*39  // x12
     SAVE_GPR a3,  8*40  // x13
@@ -351,7 +368,7 @@
 
     SAVE_GPR ra,  8*59  // x1, return address
 
-    SETUP_CALLEE_SAVE_FRAME_COMMON t0, RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+    SETUP_CALLEE_SAVE_FRAME_COMMON t0, \offset
 .endm
 
 
@@ -429,6 +446,46 @@
     RESTORE_GPR ra,  (8*59)  // x1, return address
 
     DECREASE_FRAME FRAME_SIZE_SAVE_EVERYTHING
+.endm
+
+
+// For compatibility with Runtime::CreateCalleeSaveMethod(kSaveRefsOnly).
+.macro SETUP_SAVE_REFS_ONLY_FRAME
+    // 11 callee-save regs, plus ArtMethod*
+    INCREASE_FRAME FRAME_SIZE_SAVE_REFS_ONLY
+
+    // stack slot (8*0)(sp) is for ArtMethod*
+    SAVE_GPR s0,  (8*1)   // x8
+    SAVE_GPR s2,  (8*2)   // x18
+    SAVE_GPR s3,  (8*3)   // x19
+    SAVE_GPR s4,  (8*4)   // x20
+    SAVE_GPR s5,  (8*5)   // x21
+    SAVE_GPR s6,  (8*6)   // x22
+    SAVE_GPR s7,  (8*7)   // x23
+    SAVE_GPR s8,  (8*8)   // x24
+    SAVE_GPR s9,  (8*9)   // x25
+    SAVE_GPR s10, (8*10)  // x26
+    SAVE_GPR s11, (8*11)  // x27
+
+    SETUP_CALLEE_SAVE_FRAME_COMMON t0, RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET
+.endm
+
+
+.macro RESTORE_SAVE_REFS_ONLY_FRAME
+    // stack slot (8*0)(sp) is for ArtMethod*
+    RESTORE_GPR s0,  (8*1)   // x8
+    RESTORE_GPR s2,  (8*2)   // x18
+    RESTORE_GPR s3,  (8*3)   // x19
+    RESTORE_GPR s4,  (8*4)   // x20
+    RESTORE_GPR s5,  (8*5)   // x21
+    RESTORE_GPR s6,  (8*6)   // x22
+    RESTORE_GPR s7,  (8*7)   // x23
+    RESTORE_GPR s8,  (8*8)   // x24
+    RESTORE_GPR s9,  (8*9)   // x25
+    RESTORE_GPR s10, (8*10)  // x26
+    RESTORE_GPR s11, (8*11)  // x27
+
+    DECREASE_FRAME FRAME_SIZE_SAVE_REFS_ONLY
 .endm
 
 
