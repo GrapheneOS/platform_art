@@ -35,13 +35,13 @@ namespace art {
 namespace riscv64 {
 
 enum class FPRoundingMode : uint32_t {
-    kRNE = 0x0,  // Round to Nearest, ties to Even
-    kRTZ = 0x1,  // Round towards Zero
-    kRDN = 0x2,  // Round Down (towards −Infinity)
-    kRUP = 0x3,  // Round Up (towards +Infinity)
-    kRMM = 0x4,  // Round to Nearest, ties to Max Magnitude
-    kDYN = 0x7,  // Dynamic rounding mode
-    kDefault = kDYN
+  kRNE = 0x0,  // Round to Nearest, ties to Even
+  kRTZ = 0x1,  // Round towards Zero
+  kRDN = 0x2,  // Round Down (towards −Infinity)
+  kRUP = 0x3,  // Round Up (towards +Infinity)
+  kRMM = 0x4,  // Round to Nearest, ties to Max Magnitude
+  kDYN = 0x7,  // Dynamic rounding mode
+  kDefault = kDYN
 };
 
 static constexpr size_t kRiscv64HalfwordSize = 2;
@@ -64,6 +64,26 @@ class Riscv64Assembler final : public Assembler {
 
   size_t CodeSize() const override { return Assembler::CodeSize(); }
   DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
+
+  // According to "The RISC-V Instruction Set Manual"
+
+  // LUI/AUIPC (RV32I, with sign-extension on RV64I), opcode = 0x17, 0x37
+  // Note: These take a 20-bit unsigned value to align with the clang assembler for testing,
+  // but the value stored in the register shall actually be sign-extended to 64 bits.
+  void Lui(XRegister rd, uint32_t imm20);
+  void Auipc(XRegister rd, uint32_t imm20);
+
+  // Jump instructions (RV32I), opcode = 0x67, 0x6f
+  void Jal(XRegister rd, int32_t offset);
+  void Jalr(XRegister rd, XRegister rs1, int32_t offset);
+
+  // Branch instructions (RV32I), opcode = 0x63, funct3 from 0x0 ~ 0x1 and 0x4 ~ 0x7
+  void Beq(XRegister rs1, XRegister rs2, int32_t offset);
+  void Bne(XRegister rs1, XRegister rs2, int32_t offset);
+  void Blt(XRegister rs1, XRegister rs2, int32_t offset);
+  void Bge(XRegister rs1, XRegister rs2, int32_t offset);
+  void Bltu(XRegister rs1, XRegister rs2, int32_t offset);
+  void Bgeu(XRegister rs1, XRegister rs2, int32_t offset);
 
   // Load instructions (RV32I+RV64I): opcode = 0x03, funct3 from 0x0 ~ 0x6
   void Lb(XRegister rd, XRegister rs1, int32_t offset);
@@ -292,7 +312,8 @@ class Riscv64Assembler final : public Assembler {
   void FClassD(XRegister rd, FRegister rs1);
 
   ////////////////////////////// RV64 MACRO Instructions  START ///////////////////////////////
-  // These pseudo instructions are from "RISC-V ASM manual".
+  // These pseudo instructions are from "RISC-V Assembly Programmer's Manual".
+
   void Nop();
   void Mv(XRegister rd, XRegister rs);
   void Not(XRegister rd, XRegister rs);
@@ -314,6 +335,27 @@ class Riscv64Assembler final : public Assembler {
   void FMvD(FRegister rd, FRegister rs);
   void FAbsD(FRegister rd, FRegister rs);
   void FNegD(FRegister rd, FRegister rs);
+
+  // Branch pseudo instructions
+  void Beqz(XRegister rs, int32_t offset);
+  void Bnez(XRegister rs, int32_t offset);
+  void Blez(XRegister rs, int32_t offset);
+  void Bgez(XRegister rs, int32_t offset);
+  void Bltz(XRegister rs, int32_t offset);
+  void Bgtz(XRegister rs, int32_t offset);
+  void Bgt(XRegister rs, XRegister rt, int32_t offset);
+  void Ble(XRegister rs, XRegister rt, int32_t offset);
+  void Bgtu(XRegister rs, XRegister rt, int32_t offset);
+  void Bleu(XRegister rs, XRegister rt, int32_t offset);
+
+  // Jump pseudo instructions
+  void J(int32_t offset);
+  void Jal(int32_t offset);
+  void Jr(XRegister rs);
+  void Jalr(XRegister rs);
+  void Jalr(XRegister rd, XRegister rs);
+  void Ret();
+
   /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
   void Bind(Label* label ATTRIBUTE_UNUSED) override {
@@ -410,6 +452,41 @@ class Riscv64Assembler final : public Assembler {
     DCHECK(IsUint<7>(opcode));
     uint32_t encoding = funct6 << 26 | static_cast<uint32_t>(imm6) << 20 |
                         static_cast<uint32_t>(rs1) << 15 | funct3 << 12 |
+                        static_cast<uint32_t>(rd) << 7 | opcode;
+    Emit(encoding);
+  }
+
+  void EmitB(int32_t offset, XRegister rs2, XRegister rs1, uint32_t funct3, uint32_t opcode) {
+    DCHECK_ALIGNED(offset, 2);
+    DCHECK(IsInt<13>(offset)) << offset;
+    DCHECK(IsUint<5>(static_cast<uint32_t>(rs2)));
+    DCHECK(IsUint<5>(static_cast<uint32_t>(rs1)));
+    DCHECK(IsUint<3>(funct3));
+    DCHECK(IsUint<7>(opcode));
+    uint32_t imm12 = (static_cast<uint32_t>(offset) >> 1) & 0xfffu;
+    uint32_t encoding = (imm12 & 0x800u) << (31 - 11) | (imm12 & 0x03f0u) << (25 - 4) |
+                        static_cast<uint32_t>(rs2) << 20 | static_cast<uint32_t>(rs1) << 15 |
+                        static_cast<uint32_t>(funct3) << 12 |
+                        (imm12 & 0xfu) << 8 | (imm12 & 0x400u) >> (10 - 7) | opcode;
+    Emit(encoding);
+  }
+
+  void EmitU(uint32_t imm20, XRegister rd, uint32_t opcode) {
+    CHECK(IsUint<20>(imm20)) << imm20;
+    DCHECK(IsUint<5>(static_cast<uint32_t>(rd)));
+    DCHECK(IsUint<7>(opcode));
+    uint32_t encoding = imm20 << 12 | static_cast<uint32_t>(rd) << 7 | opcode;
+    Emit(encoding);
+  }
+
+  void EmitJ(int32_t offset, XRegister rd, uint32_t opcode) {
+    DCHECK_ALIGNED(offset, 2);
+    CHECK(IsInt<21>(offset)) << offset;
+    DCHECK(IsUint<5>(static_cast<uint32_t>(rd)));
+    DCHECK(IsUint<7>(opcode));
+    uint32_t imm20 = (static_cast<uint32_t>(offset) >> 1) & 0xfffffu;
+    uint32_t encoding = (imm20 & 0x80000u) << (31 - 19) | (imm20 & 0x03ffu) << 21 |
+                        (imm20 & 0x400u) << (20 - 10) | (imm20 & 0x7f800u) << (12 - 11) |
                         static_cast<uint32_t>(rd) << 7 | opcode;
     Emit(encoding);
   }

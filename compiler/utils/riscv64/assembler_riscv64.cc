@@ -43,6 +43,52 @@ void Riscv64Assembler::Emit(uint32_t value) {
 
 /////////////////////////////// RV64 "IM" Instructions ///////////////////////////////
 
+// LUI/AUIPC (RV32I, with sign-extension on RV64I), opcode = 0x17, 0x37
+
+void Riscv64Assembler::Lui(XRegister rd, uint32_t imm20) {
+  EmitU(imm20, rd, 0x37);
+}
+
+void Riscv64Assembler::Auipc(XRegister rd, uint32_t imm20) {
+  EmitU(imm20, rd, 0x17);
+}
+
+// Jump instructions (RV32I), opcode = 0x67, 0x6f
+
+void Riscv64Assembler::Jal(XRegister rd, int32_t offset) {
+  EmitJ(offset, rd, 0x6F);
+}
+
+void Riscv64Assembler::Jalr(XRegister rd, XRegister rs1, int32_t offset) {
+  EmitI(offset, rs1, 0x0, rd, 0x67);
+}
+
+// Branch instructions, opcode = 0x63 (subfunc from 0x0 ~ 0x7), 0x67, 0x6f
+
+void Riscv64Assembler::Beq(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x0, 0x63);
+}
+
+void Riscv64Assembler::Bne(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x1, 0x63);
+}
+
+void Riscv64Assembler::Blt(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x4, 0x63);
+}
+
+void Riscv64Assembler::Bge(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x5, 0x63);
+}
+
+void Riscv64Assembler::Bltu(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x6, 0x63);
+}
+
+void Riscv64Assembler::Bgeu(XRegister rs1, XRegister rs2, int32_t offset) {
+  EmitB(offset, rs2, rs1, 0x7, 0x63);
+}
+
 // Load instructions (RV32I+RV64I): opcode = 0x03, funct3 from 0x0 ~ 0x6
 
 void Riscv64Assembler::Lb(XRegister rd, XRegister rs1, int32_t offset) {
@@ -612,6 +658,58 @@ void Riscv64Assembler::FMvD(FRegister rd, FRegister rs) { FSgnjS(rd, rs, rs); }
 void Riscv64Assembler::FAbsD(FRegister rd, FRegister rs) { FSgnjxS(rd, rs, rs); }
 
 void Riscv64Assembler::FNegD(FRegister rd, FRegister rs) { FSgnjnS(rd, rs, rs); }
+
+void Riscv64Assembler::Beqz(XRegister rs, int32_t offset) {
+  Beq(rs, Zero, offset);
+}
+
+void Riscv64Assembler::Bnez(XRegister rs, int32_t offset) {
+  Bne(rs, Zero, offset);
+}
+
+void Riscv64Assembler::Blez(XRegister rt, int32_t offset) {
+  Bge(Zero, rt, offset);
+}
+
+void Riscv64Assembler::Bgez(XRegister rt, int32_t offset) {
+  Bge(rt, Zero, offset);
+}
+
+void Riscv64Assembler::Bltz(XRegister rt, int32_t offset) {
+  Blt(rt, Zero, offset);
+}
+
+void Riscv64Assembler::Bgtz(XRegister rt, int32_t offset) {
+  Blt(Zero, rt, offset);
+}
+
+void Riscv64Assembler::Bgt(XRegister rs, XRegister rt, int32_t offset) {
+  Blt(rt, rs, offset);
+}
+
+void Riscv64Assembler::Ble(XRegister rs, XRegister rt, int32_t offset) {
+  Bge(rt, rs, offset);
+}
+
+void Riscv64Assembler::Bgtu(XRegister rs, XRegister rt, int32_t offset) {
+  Bltu(rt, rs, offset);
+}
+
+void Riscv64Assembler::Bleu(XRegister rs, XRegister rt, int32_t offset) {
+  Bgeu(rt, rs, offset);
+}
+
+void Riscv64Assembler::J(int32_t offset) { Jal(Zero, offset); }
+
+void Riscv64Assembler::Jal(int32_t offset) { Jal(RA, offset); }
+
+void Riscv64Assembler::Jr(XRegister rs) { Jalr(Zero, rs, 0); }
+
+void Riscv64Assembler::Jalr(XRegister rs) { Jalr(RA, rs, 0); }
+
+void Riscv64Assembler::Jalr(XRegister rd, XRegister rs) { Jalr(rd, rs, 0); }
+
+void Riscv64Assembler::Ret() { Jalr(Zero, RA, 0); }
 
 /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
