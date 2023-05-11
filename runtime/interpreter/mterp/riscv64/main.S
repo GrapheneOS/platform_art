@@ -213,6 +213,17 @@ END \name
     lhu xINST, (xPC)  // zero in upper 48 bits
 .endm
 
+// Fetch the next instruction, from xPC into xINST. Advance xPC by \count units, each 2 bytes.
+//
+// Immediates have a 12-bit offset range from xPC. Thus, \count can range from -1024 to 1023.
+//
+// Note: Must be placed AFTER anything that can throw an exception, or the exception catch may miss.
+// Thus, this macro must be placed after EXPORT_PC.
+.macro FETCH_ADVANCE_INST count
+    lhu xINST, (\count*2)(xPC)  // zero in upper 48 bits
+    addi xPC, xPC, (\count*2)
+.endm
+
 // Uses: \reg
 .macro GET_INST_OPCODE reg
     and \reg, xINST, 0xFF
@@ -268,6 +279,15 @@ END \name
     mv a2, zero  // vergs=nullptr
     jal nterp_hot_method
     j 2b
+.endm
+
+// Clobbers: t0, \vreg
+.macro SET_VREG reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add t0, xFP, \vreg  // vreg address inside register array
+    sw \reg, (t0)  // store value in vreg
+    add t0, xREFS, \vreg  // vreg address inside reference array
+    sw zero, (t0)  // not an object, null out reference
 .endm
 
 %def entry():
