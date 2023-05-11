@@ -22,6 +22,7 @@
 #include "zlib.h"
 
 #include "android-base/file.h"
+#include "android-base/properties.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
@@ -215,6 +216,9 @@ int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
                                       bool profile_changed,
                                       bool downgrade) {
   OatFileInfo& info = GetBestInfo();
+  if (info.CheckDisableCompactDexExperiment()) {  // TODO(b/256664509): Clean this up.
+    return kDex2OatFromScratch;
+  }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target,
                                                     profile_changed,
                                                     downgrade);
@@ -1037,6 +1041,23 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
   }
 
   return std::unique_ptr<OatFile>();
+}
+
+// Check if we should reject vdex containing cdex code as part of the
+// disable_cdex experiment.
+// TODO(b/256664509): Clean this up.
+bool OatFileAssistant::OatFileInfo::CheckDisableCompactDexExperiment() {
+  std::string ph_disable_compact_dex = android::base::GetProperty(kPhDisableCompactDex, "false");
+  if (ph_disable_compact_dex != "true") {
+    return false;
+  }
+  const OatFile* oat_file = GetFile();
+  if (oat_file == nullptr) {
+    return false;
+  }
+  const VdexFile* vdex_file = oat_file->GetVdexFile();
+  return vdex_file != nullptr && vdex_file->HasDexSection() &&
+         !vdex_file->HasOnlyStandardDexFiles();
 }
 
 // TODO(calin): we could provide a more refined status here

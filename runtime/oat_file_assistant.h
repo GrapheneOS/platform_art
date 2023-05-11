@@ -338,6 +338,11 @@ class OatFileAssistant {
     // the OatFileInfo object.
     std::unique_ptr<OatFile> ReleaseFileForUse();
 
+    // Check if we should reject vdex containing cdex code as part of the
+    // disable_cdex experiment.
+    // TODO(b/256664509): Clean this up.
+    bool CheckDisableCompactDexExperiment();
+
    private:
     // Returns true if the compiler filter used to generate the file is at
     // least as good as the given target filter. profile_changed should be
