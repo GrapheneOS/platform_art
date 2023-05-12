@@ -61,6 +61,20 @@
 #define CFI_DEX  19  // DWARF register number for xPC  /s3/x19
 #define CFI_REFS 22  // DWARF register number for xREFS/s6/x22
 
+// Synchronization
+// This code follows the RISC-V atomics ABI specification [1].
+//
+// Object publication.
+// new-instance and new-array operations must first perform a `fence w,w` "constructor fence" to
+// ensure their new object references are correctly published with a subsequent SET_VREG_OBJECT.
+//
+// Volatile load/store.
+// A volatile load is implemented as: fence rw,rw ; load ; fence r,rw.
+// A 32-bit or 64-bit volatile store is implemented as: amoswap.{w,d}.rl
+// A volatile store for a narrower type is implemented as: fence rw,w ; store ; fence rw,rw
+//
+// [1] https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-atomic.adoc
+
 // An assembly entry for nterp.
 .macro OAT_ENTRY name
     .type \name, @function
@@ -193,12 +207,29 @@ END \name
     sd xPC, -16(xREFS)
 .endm
 
+.macro TEST_IF_MARKING reg, label
+    lb \reg, THREAD_IS_GC_MARKING_OFFSET(xSELF)
+    bnez \reg, \label
+.endm
+
 .macro DO_SUSPEND_CHECK continue
     lw t0, THREAD_FLAGS_OFFSET(xSELF)
     andi t0, t0, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz t0, \continue
     EXPORT_PC
     call art_quick_test_suspend
+.endm
+
+// Clobbers: t0, t1
+.macro WRITE_BARRIER_IF_OBJECT is_object, value, holder, uniq
+    .if \is_object
+    beqz \value, .Lskip_write_barrier_\uniq // No object, skip out.
+    ld t0, THREAD_CARD_TABLE_OFFSET(xSELF)
+    srli t1, \holder, CARD_TABLE_CARD_SHIFT
+    add t1, t0, t1
+    sb t0, (t1)
+.Lskip_write_barrier_\uniq:
+    .endif
 .endm
 
 // Fetch one or more half-word units from an offset past the current PC.
@@ -258,6 +289,31 @@ END \name
     slliw \reg, \reg, ${handler_size_bits}
     add \reg, xIBASE, \reg
     jr \reg
+.endm
+
+// Clobbers: t0, t1
+.macro FETCH_FROM_THREAD_CACHE reg, miss_label
+    // See art::InterpreterCache::IndexOf() for computing index of key within cache array.
+    // Entry address:
+    //   xSELF + OFFSET + ((xPC>>2 & xFF) << 4)
+    // = xSELF + OFFSET + ((xPC & xFF<<2) << 2)
+    // = xSELF + ((OFFSET>>2 + (xPC & xFF<<2)) << 2)
+    // => ANDI, ADD, SH2ADD
+#if (THREAD_INTERPRETER_CACHE_SIZE_LOG2 != 8)
+#error Expected interpreter cache array size = 256 elements
+#endif
+#if (THREAD_INTERPRETER_CACHE_SIZE_SHIFT != 2)
+#error Expected interpreter cache entry size = 16 bytes
+#endif
+#if ((THREAD_INTERPRETER_CACHE_OFFSET & 0x3) != 0)
+#error Expected interpreter cache offset to be 4-byte aligned
+#endif
+    andi t0, xPC, 0xFF << 2
+    addi t0, t0, THREAD_INTERPRETER_CACHE_OFFSET >> 2
+    sh2add t0, t0, xSELF  // t0 := entry's address
+    ld t1, (t0)           // t1 := dex PC
+    bne xPC, t1, \miss_label
+    ld \reg, 8(t0)        // value: depends on context; see call site
 .endm
 
 // Inputs:
@@ -414,8 +470,6 @@ OAT_ENTRY ExecuteNterpImpl
     // cfi info continues, and covers the whole nterp implementation.
     SIZE ExecuteNterpImpl
 
-%def fetch_from_thread_cache(dest_reg, miss_label):
-
 %def footer():
 /*
  * ===========================================================================
@@ -448,6 +502,8 @@ EndExecuteNterpImpl:
 NAME_END nterp_helper
 
 // Entrypoints into runtime.
+NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
+NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 
 ENTRY nterp_deliver_pending_exception
@@ -478,7 +534,6 @@ artNterpAsmInstructionEnd:
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
-    unimp
 %def opcode_slow_path_start(name):
     NAME_START ${name}
 %def opcode_slow_path_end(name):

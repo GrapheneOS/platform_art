@@ -19,8 +19,14 @@
 
 namespace art {
 
-void UpdateReadBarrierEntrypoints(QuickEntryPoints* /*qpoints*/, bool /*is_active*/) {
+// art_quick_read_barrier_mark_regX uses an non-standard calling convention: it
+// expects its input in register X and returns its result in that same register,
+// and saves and restores all other registers.
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg10(mirror::Object*);  // a0/x10
+
+void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
   // TODO(riscv64): add read barrier entrypoints
+  qpoints->SetReadBarrierMarkReg10(is_active ? art_quick_read_barrier_mark_reg10 : nullptr);
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints,
