@@ -277,9 +277,8 @@ ENTRY art_jni_dlsym_lookup_critical_stub
     REFRESH_MARKING_REGISTER
 
     // Check for exception before moving args back to keep the return PC for managed stack walk.
+    CFI_REMEMBER_STATE
     cbz   x13, .Lcritical_deliver_exception
-
-    .cfi_remember_state
 
     // Move stack args to their original place.
     cbz   x14, .Lcritical_skip_copy_args_back
@@ -296,9 +295,9 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     br    x13
-    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     // The exception delivery checks that xSELF was saved but the SaveRefsAndArgs
     // frame does not save it, so we cannot use the existing SaveRefsAndArgs frame.
     // That's why we checked for exception after restoring registers from it.

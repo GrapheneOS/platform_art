@@ -1171,15 +1171,15 @@ DEFINE_FUNCTION art_quick_check_instance_of
     SETUP_FP_CALLEE_SAVE_FRAME
     call SYMBOL(artInstanceOfFromCode)  // (Object* obj, Class* ref_klass)
     testq %rax, %rax
-    jz .Lthrow_class_cast_exception   // jump forward if not assignable
     CFI_REMEMBER_STATE
+    jz .Lthrow_class_cast_exception   // jump forward if not assignable
     RESTORE_FP_CALLEE_SAVE_FRAME
     addq LITERAL(24), %rsp            // pop arguments
     CFI_ADJUST_CFA_OFFSET(-24)
     ret
-    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 64  // Reset unwind info so following code unwinds.
 
 .Lthrow_class_cast_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 64  // Reset unwind info so following code unwinds.
     RESTORE_FP_CALLEE_SAVE_FRAME
     addq LITERAL(8), %rsp             // pop padding
     CFI_ADJUST_CFA_OFFSET(-8)
@@ -1210,6 +1210,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNPOISON_HEAP_REF ecx
 #ifdef USE_READ_BARRIER
     cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    CFI_REMEMBER_STATE
     jnz .Laput_obj_gc_marking
 #endif  // USE_READ_BARRIER
     movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%rcx), %ecx
@@ -1252,9 +1253,6 @@ DEFINE_FUNCTION art_quick_aput_obj
     ret
 
 .Laput_obj_throw_array_store_exception:
-#ifdef USE_READ_BARRIER
-    CFI_REMEMBER_STATE
-#endif  // USE_READ_BARRIER
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME  // Save all registers as basis for long jump context.
     // Outgoing argument set up.
     movq %rdx, %rsi                         // Pass arg 2 = value.
@@ -1264,8 +1262,8 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNREACHABLE
 
 #ifdef USE_READ_BARRIER
-    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 4
 .Laput_obj_gc_marking:
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 4
     // We need to align stack for `art_quick_read_barrier_mark_regNN`.
     INCREASE_FRAME 8                        // Stack alignment.
     call SYMBOL(art_quick_read_barrier_mark_reg01)  // Mark ECX
@@ -1556,11 +1554,11 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     LOAD_RUNTIME_INSTANCE rcx
     cmpb MACRO_LITERAL(0), RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE(%rcx)
+    CFI_REMEMBER_STATE
     jne .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    CFI_REMEMBER_STATE
     CFI_DEF_CFA_REGISTER(rsp)
     // Load callee-save FPRs. Skip FP args.
     movq 80(%rsp), %xmm12
@@ -1579,13 +1577,11 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     POP r15  // Callee save.
     ret
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA rbp, 208
-
 .Lcall_method_exit_hook:
-   movq LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %r8
-   call art_quick_method_exit_hook
-   jmp .Lcall_method_exit_hook_done
+    CFI_RESTORE_STATE_AND_DEF_CFA rbp, 208
+    movq LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %r8
+    call art_quick_method_exit_hook
+    jmp .Lcall_method_exit_hook_done
 
 .Lexception_in_native:
     pushq %gs:THREAD_TOP_QUICK_FRAME_OFFSET
@@ -1922,8 +1918,8 @@ DEFINE_FUNCTION art_quick_osr_stub
     movl %esi, %ecx               // rcx := size of stack
     movq %rdi, %rsi               // rsi := stack to copy
     movq %rsp, %rbp               // Save stack pointer to RBP for CFI use in .Losr_entry.
-    call .Losr_entry
     CFI_REMEMBER_STATE
+    call .Losr_entry
 
     // Restore stack and callee-saves.
     addq LITERAL(8), %rsp
