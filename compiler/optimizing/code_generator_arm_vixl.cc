@@ -40,6 +40,7 @@
 #include "mirror/var_handle.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
+#include "trace.h"
 #include "utils/arm/assembler_arm_vixl.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
@@ -2188,11 +2189,16 @@ void LocationsBuilderARMVIXL::VisitMethodExitHook(HMethodExitHook* method_hook) 
   LocationSummary* locations = new (GetGraph()->GetAllocator())
       LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, parameter_visitor_.GetReturnLocation(method_hook->InputAt(0)->GetType()));
+  // We need three temporary registers, two to load the timestamp counter (64-bit value) and one to
+  // compute the address to store the timestamp counter.
+  locations->AddRegisterTemps(3);
 }
 
 void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* instruction) {
-  UseScratchRegisterScope temps(GetVIXLAssembler());
-  vixl32::Register temp = temps.Acquire();
+  LocationSummary* locations = instruction->GetLocations();
+  vixl32::Register addr = RegisterFrom(locations->GetTemp(0));
+  vixl32::Register value = RegisterFrom(locations->GetTemp(1));
+  vixl32::Register tmp = RegisterFrom(locations->GetTemp(2));
 
   SlowPathCodeARMVIXL* slow_path =
       new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathARMVIXL(instruction);
@@ -2204,20 +2210,55 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
     // if it is just non-zero. kCHA bit isn't used in debuggable runtimes as cha optimization is
     // disabled in debuggable runtime. The other bit is used when this method itself requires a
     // deoptimization due to redefinition. So it is safe to just check for non-zero value here.
-    GetAssembler()->LoadFromOffset(kLoadWord,
-                                   temp,
-                                   sp,
-                                   codegen_->GetStackOffsetOfShouldDeoptimizeFlag());
-    __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+    GetAssembler()->LoadFromOffset(
+        kLoadWord, value, sp, codegen_->GetStackOffsetOfShouldDeoptimizeFlag());
+    __ CompareAndBranchIfNonZero(value, slow_path->GetEntryLabel());
   }
 
   MemberOffset  offset = instruction->IsMethodExitHook() ?
       instrumentation::Instrumentation::HaveMethodExitListenersOffset() :
       instrumentation::Instrumentation::HaveMethodEntryListenersOffset();
   uint32_t address = reinterpret_cast32<uint32_t>(Runtime::Current()->GetInstrumentation());
-  __ Mov(temp, address + offset.Int32Value());
-  __ Ldrb(temp, MemOperand(temp, 0));
-  __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+  __ Mov(addr, address + offset.Int32Value());
+  __ Ldrb(value, MemOperand(addr, 0));
+  __ Cmp(value, instrumentation::Instrumentation::kFastTraceListeners);
+  // Check if there are any trace method entry / exit listeners. If no, continue.
+  __ B(lt, slow_path->GetExitLabel());
+  // Check if there are any slow (jvmti / trace with thread cpu time) method entry / exit listeners.
+  // If yes, just take the slow path.
+  __ B(gt, slow_path->GetEntryLabel());
+
+  // Check if there is place in the buffer to store a new entry, if no, take slow path.
+  uint32_t trace_buffer_index_addr = Thread::TraceBufferIndexOffset<kArmPointerSize>().Int32Value();
+  vixl32::Register index = value;
+  __ Ldr(index, MemOperand(tr, trace_buffer_index_addr));
+  __ Cmp(index, kNumEntriesForWallClock);
+  __ B(lt, slow_path->GetEntryLabel());
+
+  // Just update the buffer and advance the offset
+  // addr = base_addr + sizeof(void*) * index
+  __ Ldr(addr, MemOperand(tr, Thread::TraceBufferPtrOffset<kArmPointerSize>().SizeValue()));
+  __ Add(addr, addr, Operand(index, LSL, TIMES_4));
+  // Advance the index
+  __ Sub(index, index, kNumEntriesForWallClock);
+  __ Str(index, MemOperand(tr, trace_buffer_index_addr));
+
+  // Record method pointer
+  __ Ldr(tmp, MemOperand(sp, 0));
+  __ Str(tmp, MemOperand(addr, kMethodOffsetInBytes));
+  // Record the method action
+  uint32_t trace_action = instruction->IsMethodExitHook() ? 1 : 0;
+  __ Mov(tmp, Operand(trace_action));
+  __ Str(tmp, MemOperand(addr, kTraceActionOffsetInBytes));
+  vixl32::Register tmp1 = index;
+  // See Architecture Reference Manual ARMv7-A and ARMv7-R edition section B4.1.34.
+  __ Mrrc(/* lower 32-bit */ tmp,
+          /* higher 32-bit */ tmp1,
+          /* coproc= */ 15,
+          /* opc1= */ 1,
+          /* crm= */ 14);
+  __ Str(tmp1, MemOperand(addr, kTimestampOffsetInBytes));
+  __ Str(tmp, MemOperand(addr, kLowTimestampOffsetInBytes));
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -2228,7 +2269,11 @@ void InstructionCodeGeneratorARMVIXL::VisitMethodExitHook(HMethodExitHook* instr
 }
 
 void LocationsBuilderARMVIXL::VisitMethodEntryHook(HMethodEntryHook* method_hook) {
-  new (GetGraph()->GetAllocator()) LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+  // We need three temporary registers, two to load the timestamp counter (64-bit value) and one to
+  // compute the address to store the timestamp counter.
+  locations->AddRegisterTemps(3);
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitMethodEntryHook(HMethodEntryHook* instruction) {

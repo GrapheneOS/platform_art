@@ -27,11 +27,15 @@ public class Main {
     private static File file;
 
     public static void main(String[] args) throws Exception {
+        System.loadLibrary(args[0]);
         String name = System.getProperty("java.vm.name");
         if (!"Dalvik".equals(name)) {
             System.out.println("This test is not supported on " + name);
             return;
         }
+
+        ensureJitCompiled(Main.class, "$noinline$doSomeWorkJIT");
+
         System.out.println("***** streaming test - dual clock *******");
         StreamTraceParser stream_parser = new StreamTraceParser();
         testTracing(
@@ -66,6 +70,10 @@ public class Main {
                         file.getPath(), out_file.getFD(), 0, flags, false, 0, streaming);
                 Main m1 = new Main();
                 m1.$noinline$doSomeWork();
+                // Call JITed code multiple times to flush out any issues with timestamps.
+                for (int i = 0; i < 20; i++) {
+                    m.$noinline$doSomeWorkJIT();
+                }
                 VMDebug.$noinline$stopMethodTracing();
                 out_file.close();
                 parser.CheckTraceFileFormat(file, expected_version, "TestThread2246");
@@ -90,6 +98,10 @@ public class Main {
             VMDebug.startMethodTracing(
                     file.getPath(), main_out_file.getFD(), 0, flags, false, 0, streaming);
             m.$noinline$doSomeWork();
+            // Call JITed code multiple times to flush out any issues with timestamps.
+            for (int i = 0; i < 20; i++) {
+                m.$noinline$doSomeWorkJIT();
+            }
             m.doSomeWorkThrow();
             VMDebug.$noinline$stopMethodTracing();
             main_out_file.close();
@@ -121,6 +133,11 @@ public class Main {
     public void callLeafFunction() {}
 
     public void $noinline$doSomeWork() {
+        callOuterFunction();
+        callLeafFunction();
+    }
+
+    public void $noinline$doSomeWorkJIT() {
         callOuterFunction();
         callLeafFunction();
     }
@@ -166,4 +183,6 @@ public class Main {
             return (int) getMethodTracingModeMethod.invoke(null);
         }
     }
+
+    private static native void ensureJitCompiled(Class<?> cls, String methodName);
 }

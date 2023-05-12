@@ -38,6 +38,8 @@ abstract class BaseTraceParser {
         threadIdMap = new HashMap<Integer, String>();
         nestingLevelMap = new HashMap<Integer, Integer>();
         threadEventsMap = new HashMap<String, String>();
+        threadTimestamp1Map = new HashMap<Integer, Integer>();
+        threadTimestamp2Map = new HashMap<Integer, Integer>();
     }
 
     public void closeFile() throws IOException {
@@ -180,7 +182,19 @@ abstract class BaseTraceParser {
         return str;
     }
 
-    public String ProcessEventEntry(int threadId) throws IOException {
+    public void CheckTimestamp(int timestamp, int threadId,
+            HashMap<Integer, Integer> threadTimestampMap) throws Exception {
+        if (threadTimestampMap.containsKey(threadId)) {
+            int oldTimestamp = threadTimestampMap.get(threadId);
+            if (timestamp < oldTimestamp) {
+                throw new Exception("timestamps are not increasing current: " + timestamp
+                        + "  earlier: " + oldTimestamp);
+            }
+        }
+        threadTimestampMap.put(threadId, timestamp);
+    }
+
+    public String ProcessEventEntry(int threadId) throws IOException, Exception {
         // Read 4-byte method value
         int methodAndEvent = readNumber(4);
         int methodId = methodAndEvent & ~0x3;
@@ -189,10 +203,13 @@ abstract class BaseTraceParser {
         String str = eventTypeToString(eventType, threadId) + " " + threadIdMap.get(threadId)
                 + " " + methodIdMap.get(methodId);
         // Depending on the version skip either one or two timestamps.
-        // TODO(mythria): Probably add a check that time stamps are always greater than initial
-        // timestamp.
-        int numBytesTimestamp = (traceFormatVersion == 2) ? 4 : 8;
-        dataStream.skipBytes(numBytesTimestamp);
+        int timestamp1 = readNumber(4);
+        CheckTimestamp(timestamp1, threadId, threadTimestamp1Map);
+        if (traceFormatVersion != 2) {
+            // Read second timestamp
+            int timestamp2 = readNumber(4);
+            CheckTimestamp(timestamp2, threadId, threadTimestamp2Map);
+        }
         return str;
     }
 
@@ -213,6 +230,8 @@ abstract class BaseTraceParser {
     HashMap<Integer, String> threadIdMap;
     HashMap<Integer, Integer> nestingLevelMap;
     HashMap<String, String> threadEventsMap;
+    HashMap<Integer, Integer> threadTimestamp1Map;
+    HashMap<Integer, Integer> threadTimestamp2Map;
     int recordSize = 0;
     int traceFormatVersion = 0;
 }
