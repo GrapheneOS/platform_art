@@ -3940,6 +3940,8 @@ void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint
     // For CC, we invoke a full compaction when going to the background, but the collector type
     // doesn't change.
     DCHECK_EQ(desired_collector_type_, kCollectorTypeCCBackground);
+  }
+  if (collector_type_ == kCollectorTypeCC || collector_type_ == kCollectorTypeCMC) {
     // App's allocations (since last GC) more than the threshold then do TransitionGC
     // when the app was in background. If not then don't do TransitionGC.
     size_t num_bytes_allocated_since_gc = GetBytesAllocated() - num_bytes_alive_after_gc_;
