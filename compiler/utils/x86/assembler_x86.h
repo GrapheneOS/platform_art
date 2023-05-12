@@ -955,6 +955,12 @@ class X86Assembler final : public Assembler {
     lock()->xaddl(address, reg);
   }
 
+  void rdtsc() {
+    AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+    EmitUint8(0x0F);
+    EmitUint8(0x31);
+  }
+
   //
   // Misc. functionality
   //
