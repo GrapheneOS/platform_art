@@ -173,6 +173,30 @@ class ArmVIXLMacroAssembler final : public vixl32::MacroAssembler {
     }
   }
   using MacroAssembler::Vmov;
+
+  // TODO(b/281982421): Move the implementation of Mrrc to vixl and remove this implementation.
+  void Mrrc(vixl32::Register r1, vixl32::Register r2, int coproc, int opc1, int crm) {
+    // See ARM A-profile A32/T32 Instruction set architecture
+    // https://developer.arm.com/documentation/ddi0597/2022-09/Base-Instructions/MRRC--Move-to-two-general-purpose-registers-from-System-register-
+    CHECK(coproc == 15 || coproc == 14);
+    if (IsUsingT32()) {
+      uint32_t inst = (0b111011000101 << 20) |
+                      (r2.GetCode() << 16) |
+                      (r1.GetCode() << 12) |
+                      (coproc << 8) |
+                      (opc1 << 4) |
+                      crm;
+      EmitT32_32(inst);
+    } else {
+      uint32_t inst = (0b000011000101 << 20) |
+                      (r2.GetCode() << 16) |
+                      (r1.GetCode() << 12) |
+                      (coproc << 8) |
+                      (opc1 << 4) |
+                      crm;
+      EmitA32(inst);
+    }
+  }
 };
 
 class ArmVIXLAssembler final : public Assembler {
