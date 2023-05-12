@@ -49,6 +49,7 @@ namespace art {
 namespace odrefresh {
 
 using ::android::base::Split;
+using ::android::modules::sdklevel::IsAtLeastU;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
@@ -614,7 +615,7 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithDefaultValue) {
                                         Contains("--compiler-filter=speed"))))
       .WillOnce(Return(0));
   // Only on U+ should we use the profile by default if available.
-  if (android::modules::sdklevel::IsAtLeastU()) {
+  if (IsAtLeastU()) {
     EXPECT_CALL(
         *mock_exec_utils_,
         DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", services_jar_)),
@@ -704,23 +705,43 @@ TEST_F(OdRefreshTest, GenerateBootImageMainlineExtensionChoosesBootImage_OnSyste
   auto file5 = ScopedCreateEmptyFile(framework_ext.VdexPath());
   auto file6 = ScopedCreateEmptyFile(framework_ext.OatPath());
 
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(
-          Contains(Flag("--dex-file=", conscrypt_jar_)),
-          Contains(ListFlag(
-              "--boot-image=",
-              ElementsAre(framework_dir_ + "/boot.art", framework_dir_ + "/boot-framework.art"))),
-          Contains(ListFlag(
-              "-Xbootclasspathimagefds:",
-              ElementsAre(FdOf(primary.ImagePath()), FdOf(framework_ext.ImagePath()), "-1", "-1"))),
-          Contains(ListFlag(
-              "-Xbootclasspathvdexfds:",
-              ElementsAre(FdOf(primary.VdexPath()), FdOf(framework_ext.VdexPath()), "-1", "-1"))),
-          Contains(ListFlag(
-              "-Xbootclasspathoatfds:",
-              ElementsAre(FdOf(primary.OatPath()), FdOf(framework_ext.OatPath()), "-1", "-1"))))))
-      .WillOnce(Return(0));
+  if (IsAtLeastU()) {
+    EXPECT_CALL(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(
+            Contains(Flag("--dex-file=", conscrypt_jar_)),
+            Contains(ListFlag("--boot-image=", ElementsAre(framework_dir_ + "/boot.art"))),
+            Contains(ListFlag(
+                "-Xbootclasspathimagefds:",
+                ElementsAre(
+                    FdOf(primary.ImagePath()), FdOf(framework_ext.ImagePath()), "-1", "-1"))),
+            Contains(ListFlag(
+                "-Xbootclasspathvdexfds:",
+                ElementsAre(FdOf(primary.VdexPath()), FdOf(framework_ext.VdexPath()), "-1", "-1"))),
+            Contains(ListFlag(
+                "-Xbootclasspathoatfds:",
+                ElementsAre(FdOf(primary.OatPath()), FdOf(framework_ext.OatPath()), "-1", "-1"))))))
+        .WillOnce(Return(0));
+  } else {
+    EXPECT_CALL(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(
+            Contains(Flag("--dex-file=", conscrypt_jar_)),
+            Contains(ListFlag(
+                "--boot-image=",
+                ElementsAre(framework_dir_ + "/boot.art", framework_dir_ + "/boot-framework.art"))),
+            Contains(ListFlag(
+                "-Xbootclasspathimagefds:",
+                ElementsAre(
+                    FdOf(primary.ImagePath()), FdOf(framework_ext.ImagePath()), "-1", "-1"))),
+            Contains(ListFlag(
+                "-Xbootclasspathvdexfds:",
+                ElementsAre(FdOf(primary.VdexPath()), FdOf(framework_ext.VdexPath()), "-1", "-1"))),
+            Contains(ListFlag(
+                "-Xbootclasspathoatfds:",
+                ElementsAre(FdOf(primary.OatPath()), FdOf(framework_ext.OatPath()), "-1", "-1"))))))
+        .WillOnce(Return(0));
+  }
 
   EXPECT_EQ(odrefresh_->Compile(
                 *metrics_,
@@ -785,29 +806,55 @@ TEST_F(OdRefreshTest, CompileSystemServerChoosesBootImage_OnSystemAndData) {
   auto file8 = ScopedCreateEmptyFile(mainline_ext.VdexPath());
   auto file9 = ScopedCreateEmptyFile(mainline_ext.OatPath());
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(AllOf(
-                  Contains(ListFlag("--boot-image=",
-                                    ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
-                                                framework_dir_ + "/boot-framework.art",
-                                                dalvik_cache_dir_ + "/boot-conscrypt.art"))),
-                  Contains(ListFlag("-Xbootclasspathimagefds:",
-                                    ElementsAre(FdOf(primary.ImagePath()),
-                                                FdOf(framework_ext.ImagePath()),
-                                                FdOf(mainline_ext.ImagePath()),
-                                                "-1"))),
-                  Contains(ListFlag("-Xbootclasspathvdexfds:",
-                                    ElementsAre(FdOf(primary.VdexPath()),
-                                                FdOf(framework_ext.VdexPath()),
-                                                FdOf(mainline_ext.VdexPath()),
-                                                "-1"))),
-                  Contains(ListFlag("-Xbootclasspathoatfds:",
-                                    ElementsAre(FdOf(primary.OatPath()),
-                                                FdOf(framework_ext.OatPath()),
-                                                FdOf(mainline_ext.OatPath()),
-                                                "-1"))))))
-      .Times(odrefresh_->AllSystemServerJars().size())
-      .WillRepeatedly(Return(0));
+  if (IsAtLeastU()) {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(ListFlag("--boot-image=",
+                                      ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                  dalvik_cache_dir_ + "/boot-conscrypt.art"))),
+                    Contains(ListFlag("-Xbootclasspathimagefds:",
+                                      ElementsAre(FdOf(primary.ImagePath()),
+                                                  FdOf(framework_ext.ImagePath()),
+                                                  FdOf(mainline_ext.ImagePath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                      ElementsAre(FdOf(primary.VdexPath()),
+                                                  FdOf(framework_ext.VdexPath()),
+                                                  FdOf(mainline_ext.VdexPath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathoatfds:",
+                                      ElementsAre(FdOf(primary.OatPath()),
+                                                  FdOf(framework_ext.OatPath()),
+                                                  FdOf(mainline_ext.OatPath()),
+                                                  "-1"))))))
+        .Times(odrefresh_->AllSystemServerJars().size())
+        .WillRepeatedly(Return(0));
+  } else {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(ListFlag("--boot-image=",
+                                      ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                  framework_dir_ + "/boot-framework.art",
+                                                  dalvik_cache_dir_ + "/boot-conscrypt.art"))),
+                    Contains(ListFlag("-Xbootclasspathimagefds:",
+                                      ElementsAre(FdOf(primary.ImagePath()),
+                                                  FdOf(framework_ext.ImagePath()),
+                                                  FdOf(mainline_ext.ImagePath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                      ElementsAre(FdOf(primary.VdexPath()),
+                                                  FdOf(framework_ext.VdexPath()),
+                                                  FdOf(mainline_ext.VdexPath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathoatfds:",
+                                      ElementsAre(FdOf(primary.OatPath()),
+                                                  FdOf(framework_ext.OatPath()),
+                                                  FdOf(mainline_ext.OatPath()),
+                                                  "-1"))))))
+        .Times(odrefresh_->AllSystemServerJars().size())
+        .WillRepeatedly(Return(0));
+  }
+
   EXPECT_EQ(
       odrefresh_->Compile(*metrics_,
                           CompilationOptions{
@@ -833,29 +880,55 @@ TEST_F(OdRefreshTest, CompileSystemServerChoosesBootImage_OnSystem) {
   auto file8 = ScopedCreateEmptyFile(mainline_ext.VdexPath());
   auto file9 = ScopedCreateEmptyFile(mainline_ext.OatPath());
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(AllOf(
-                  Contains(ListFlag("--boot-image=",
-                                    ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
-                                                framework_dir_ + "/boot-framework.art",
-                                                framework_dir_ + "/boot-conscrypt.art"))),
-                  Contains(ListFlag("-Xbootclasspathimagefds:",
-                                    ElementsAre(FdOf(primary.ImagePath()),
-                                                FdOf(framework_ext.ImagePath()),
-                                                FdOf(mainline_ext.ImagePath()),
-                                                "-1"))),
-                  Contains(ListFlag("-Xbootclasspathvdexfds:",
-                                    ElementsAre(FdOf(primary.VdexPath()),
-                                                FdOf(framework_ext.VdexPath()),
-                                                FdOf(mainline_ext.VdexPath()),
-                                                "-1"))),
-                  Contains(ListFlag("-Xbootclasspathoatfds:",
-                                    ElementsAre(FdOf(primary.OatPath()),
-                                                FdOf(framework_ext.OatPath()),
-                                                FdOf(mainline_ext.OatPath()),
-                                                "-1"))))))
-      .Times(odrefresh_->AllSystemServerJars().size())
-      .WillRepeatedly(Return(0));
+  if (IsAtLeastU()) {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(ListFlag("--boot-image=",
+                                      ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                  framework_dir_ + "/boot-conscrypt.art"))),
+                    Contains(ListFlag("-Xbootclasspathimagefds:",
+                                      ElementsAre(FdOf(primary.ImagePath()),
+                                                  FdOf(framework_ext.ImagePath()),
+                                                  FdOf(mainline_ext.ImagePath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                      ElementsAre(FdOf(primary.VdexPath()),
+                                                  FdOf(framework_ext.VdexPath()),
+                                                  FdOf(mainline_ext.VdexPath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathoatfds:",
+                                      ElementsAre(FdOf(primary.OatPath()),
+                                                  FdOf(framework_ext.OatPath()),
+                                                  FdOf(mainline_ext.OatPath()),
+                                                  "-1"))))))
+        .Times(odrefresh_->AllSystemServerJars().size())
+        .WillRepeatedly(Return(0));
+  } else {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(ListFlag("--boot-image=",
+                                      ElementsAre(GetPrebuiltPrimaryBootImageDir() + "/boot.art",
+                                                  framework_dir_ + "/boot-framework.art",
+                                                  framework_dir_ + "/boot-conscrypt.art"))),
+                    Contains(ListFlag("-Xbootclasspathimagefds:",
+                                      ElementsAre(FdOf(primary.ImagePath()),
+                                                  FdOf(framework_ext.ImagePath()),
+                                                  FdOf(mainline_ext.ImagePath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathvdexfds:",
+                                      ElementsAre(FdOf(primary.VdexPath()),
+                                                  FdOf(framework_ext.VdexPath()),
+                                                  FdOf(mainline_ext.VdexPath()),
+                                                  "-1"))),
+                    Contains(ListFlag("-Xbootclasspathoatfds:",
+                                      ElementsAre(FdOf(primary.OatPath()),
+                                                  FdOf(framework_ext.OatPath()),
+                                                  FdOf(mainline_ext.OatPath()),
+                                                  "-1"))))))
+        .Times(odrefresh_->AllSystemServerJars().size())
+        .WillRepeatedly(Return(0));
+  }
+
   EXPECT_EQ(
       odrefresh_->Compile(*metrics_,
                           CompilationOptions{
