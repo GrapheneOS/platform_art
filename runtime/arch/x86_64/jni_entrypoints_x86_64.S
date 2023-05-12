@@ -309,9 +309,8 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 
     // Check for exception.
     test %rax, %rax
-    jz .Lcritical_deliver_exception
-
     CFI_REMEMBER_STATE
+    jz .Lcritical_deliver_exception
 
     // Restore the native arg register RDI.
     movq %rbx, %rdi
@@ -382,9 +381,9 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     jmp *%rax
-    CFI_RESTORE_STATE_AND_DEF_CFA %rbp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA %rbp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_jni_dlsym_lookup_critical_stub
 
