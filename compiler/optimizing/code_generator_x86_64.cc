@@ -39,6 +39,7 @@
 #include "optimizing/nodes.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
+#include "trace.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
 #include "utils/x86_64/assembler_x86_64.h"
@@ -1586,12 +1587,18 @@ static dwarf::Reg DWARFReg(FloatRegister reg) {
 }
 
 void LocationsBuilderX86_64::VisitMethodEntryHook(HMethodEntryHook* method_hook) {
-  new (GetGraph()->GetAllocator()) LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+  // We use rdtsc to record the timestamp for method profiling. rdtsc returns
+  // two 32-bit values in EAX + EDX even on 64-bit architectures.
+  locations->AddTemp(Location::RegisterLocation(RAX));
+  locations->AddTemp(Location::RegisterLocation(RDX));
 }
 
 void InstructionCodeGeneratorX86_64::GenerateMethodEntryExitHook(HInstruction* instruction) {
   SlowPathCode* slow_path =
       new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathX86_64(instruction);
+  LocationSummary* locations = instruction->GetLocations();
   codegen_->AddSlowPath(slow_path);
 
   if (instruction->IsMethodExitHook()) {
@@ -1610,8 +1617,45 @@ void InstructionCodeGeneratorX86_64::GenerateMethodEntryExitHook(HInstruction* i
       instrumentation::Instrumentation::HaveMethodExitListenersOffset()
       : instrumentation::Instrumentation::HaveMethodEntryListenersOffset();
   __ movq(CpuRegister(TMP), Immediate(address + offset.Int32Value()));
-  __ cmpb(Address(CpuRegister(TMP), 0), Immediate(0));
-  __ j(kNotEqual, slow_path->GetEntryLabel());
+  __ cmpb(Address(CpuRegister(TMP), 0),
+          Immediate(instrumentation::Instrumentation::kFastTraceListeners));
+  // Check if there are any method entry / exit listeners. If no, continue with execution.
+  __ j(kLess, slow_path->GetExitLabel());
+  // Check if there are any slow method entry / exit listeners. If yes, take the slow path.
+  __ j(kGreater, slow_path->GetEntryLabel());
+
+  // Check if there is place in the buffer for a new entry, if no, take slow path.
+  CpuRegister index = locations->GetTemp(0).AsRegister<CpuRegister>();
+  CpuRegister entry_addr = CpuRegister(TMP);
+  uint64_t trace_buffer_index_addr =
+      Thread::TraceBufferIndexOffset<kX86_64PointerSize>().SizeValue();
+  __ gs()->movq(CpuRegister(index), Address::Absolute(trace_buffer_index_addr, /* no_rip= */ true));
+  __ cmpq(CpuRegister(index), Immediate(kNumEntriesForWallClock));
+  __ j(kLess, slow_path->GetEntryLabel());
+
+  // Just update the buffer and advance the offset
+  // entry_addr = base_addr + sizeof(void*) * index
+  __ gs()->movq(entry_addr,
+                Address::Absolute(Thread::TraceBufferPtrOffset<kX86_64PointerSize>().SizeValue(),
+                                  /* no_rip= */ true));
+  __ leaq(CpuRegister(entry_addr),
+          Address(CpuRegister(entry_addr), CpuRegister(index), TIMES_8, 0));
+  // Advance the index in the buffer
+  __ subq(CpuRegister(index), Immediate(kNumEntriesForWallClock));
+  __ gs()->movq(Address::Absolute(trace_buffer_index_addr, /* no_rip= */ true), CpuRegister(index));
+
+  // Record method pointer
+  CpuRegister method = index;
+  __ movq(CpuRegister(method), Address(CpuRegister(RSP), kCurrentMethodStackOffset));
+  __ movq(Address(entry_addr, kMethodOffsetInBytes), CpuRegister(method));
+  // Record the method action
+  uint32_t trace_action = instruction->IsMethodExitHook() ? 1 : 0;
+  __ movq(Address(entry_addr, kTraceActionOffsetInBytes), Immediate(trace_action));
+  // Get the timestamp. rdtsc returns timestamp in RAX + RDX even in 64-bit architectures.
+  __ rdtsc();
+  __ shlq(CpuRegister(RDX), Immediate(32));
+  __ orq(CpuRegister(RAX), CpuRegister(RDX));
+  __ movq(Address(entry_addr, kTimestampOffsetInBytes), CpuRegister(RAX));
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1652,6 +1696,10 @@ void LocationsBuilderX86_64::VisitMethodExitHook(HMethodExitHook* method_hook) {
   LocationSummary* locations = new (GetGraph()->GetAllocator())
       LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
   SetInForReturnValue(method_hook, locations);
+  // We use rdtsc to record the timestamp for method profiling. rdtsc returns
+  // two 32-bit values in EAX + EDX even on 64-bit architectures.
+  locations->AddTemp(Location::RegisterLocation(RAX));
+  locations->AddTemp(Location::RegisterLocation(RDX));
 }
 
 void InstructionCodeGeneratorX86_64::VisitMethodExitHook(HMethodExitHook* instruction) {

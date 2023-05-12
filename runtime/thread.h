@@ -951,6 +951,18 @@ class Thread {
                                                                 thread_local_alloc_stack_end));
   }
 
+  template <PointerSize pointer_size>
+  static constexpr ThreadOffset<pointer_size> TraceBufferIndexOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(
+        OFFSETOF_MEMBER(tls_ptr_sized_values, method_trace_buffer_index));
+  }
+
+  template <PointerSize pointer_size>
+  static constexpr ThreadOffset<pointer_size> TraceBufferPtrOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(
+        OFFSETOF_MEMBER(tls_ptr_sized_values, method_trace_buffer));
+  }
+
   // Size of stack less any space reserved for stack overflow
   size_t GetStackSize() const {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
