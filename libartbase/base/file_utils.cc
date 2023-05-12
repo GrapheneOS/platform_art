@@ -64,6 +64,10 @@
 #include <linux/unistd.h>
 #endif
 
+#ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
+#endif
+
 namespace art {
 
 using android::base::StringPrintf;
@@ -470,23 +474,36 @@ std::string GetDefaultBootImageLocationSafe(const std::string& android_root,
     }
   }
 
-  // Boot image consists of three parts:
-  //  - the primary boot image (contains the Core Libraries)
-  //  - the boot image framework extension (contains framework libraries)
+  // Boot image consists of two parts:
+  //  - the primary boot image (contains the Core Libraries and framework libraries)
   //  - the boot image mainline extension (contains mainline framework libraries)
-  // Typically "/system/framework/boot.art!/apex/com.android.art/etc/boot-image.prof:
-  // /system/framework/boot-framework.art!/system/etc/boot-image.prof:
+  // Typically "/system/framework/boot.art
+  // !/apex/com.android.art/etc/boot-image.prof!/system/etc/boot-image.prof:
   // /system/framework/boot-framework-adservices.art".
 
-  std::string location = StringPrintf("%s/%s.art!%s/%s:%s/framework/%s-framework.art!%s/%s",
+  std::string location = StringPrintf("%s/%s.art!%s/%s!%s/%s",
                                       GetPrebuiltPrimaryBootImageDir(android_root).c_str(),
                                       kBootImageStem,
                                       kAndroidArtApexDefaultPath,
                                       kEtcBootImageProf,
                                       android_root.c_str(),
-                                      kBootImageStem,
-                                      android_root.c_str(),
                                       kEtcBootImageProf);
+
+#ifdef ART_TARGET_ANDROID
+  // Prior to U, there was a framework extension.
+  if (!android::modules::sdklevel::IsAtLeastU()) {
+    location = StringPrintf("%s/%s.art!%s/%s:%s/framework/%s-framework.art!%s/%s",
+                            GetPrebuiltPrimaryBootImageDir(android_root).c_str(),
+                            kBootImageStem,
+                            kAndroidArtApexDefaultPath,
+                            kEtcBootImageProf,
+                            android_root.c_str(),
+                            kBootImageStem,
+                            android_root.c_str(),
+                            kEtcBootImageProf);
+  }
+#endif
+
   if (!MaybeAppendBootImageMainlineExtension(android_root,
                                              /*deny_system_files=*/false,
                                              deny_art_apex_data_files,
