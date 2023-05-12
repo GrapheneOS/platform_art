@@ -894,7 +894,8 @@ TEST_F(LoadStoreAnalysisTest, PartialEscape) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1003,7 +1004,8 @@ TEST_F(LoadStoreAnalysisTest, PartialEscape2) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1126,7 +1128,8 @@ TEST_F(LoadStoreAnalysisTest, PartialEscape3) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1406,7 +1409,8 @@ TEST_F(LoadStoreAnalysisTest, TotalEscapeAdjacentNoPredicated) {
                             {},
                             InvokeType::kStatic,
                             {nullptr, 0},
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1507,7 +1511,8 @@ TEST_F(LoadStoreAnalysisTest, TotalEscapeAdjacent) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1618,7 +1623,8 @@ TEST_F(LoadStoreAnalysisTest, TotalEscape) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   left->AddInstruction(call_left);
@@ -1634,7 +1640,8 @@ TEST_F(LoadStoreAnalysisTest, TotalEscape) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* write_right = new (GetAllocator()) HInstanceFieldSet(new_inst,
                                                                      c0,
                                                                      nullptr,
@@ -1803,7 +1810,8 @@ TEST_F(LoadStoreAnalysisTest, DoubleDiamondEscape) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left = new (GetAllocator()) HGoto();
   call_left->AsInvoke()->SetRawInputAt(0, new_inst);
   high_left->AddInstruction(call_left);
@@ -1859,7 +1867,8 @@ TEST_F(LoadStoreAnalysisTest, DoubleDiamondEscape) {
                             {},
                             InvokeType::kStatic,
                             { nullptr, 0 },
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_low_left = new (GetAllocator()) HGoto();
   call_low_left->AsInvoke()->SetRawInputAt(0, new_inst);
   low_left->AddInstruction(call_low_left);
@@ -2016,7 +2025,8 @@ TEST_F(LoadStoreAnalysisTest, PartialPhiPropagation1) {
                             {},
                             InvokeType::kStatic,
                             {nullptr, 0},
-                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone);
+                            HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+                            !graph_->IsDebuggable());
   HInstruction* goto_left_merge = new (GetAllocator()) HGoto();
   left_phi->SetRawInputAt(0, obj_param);
   left_phi->SetRawInputAt(1, new_inst);
