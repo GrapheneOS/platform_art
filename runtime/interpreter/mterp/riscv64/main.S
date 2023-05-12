@@ -100,7 +100,7 @@
 .macro NTERP_TRAMPOLINE name, helper
 ENTRY \name
     SETUP_SAVE_REFS_ONLY_FRAME
-    jal \helper
+    call \helper
     RESTORE_SAVE_REFS_ONLY_FRAME
     lw t0, THREAD_EXCEPTION_OFFSET(xSELF)
     bnez t0, nterp_deliver_pending_exception
@@ -204,7 +204,7 @@ END \name
     andi t0, t0, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz t0, \continue
     EXPORT_PC
-    jal art_quick_test_suspend
+    call art_quick_test_suspend
 .endm
 
 // Fetch the next instruction, from xPC into xINST.
@@ -277,7 +277,7 @@ END \name
 4:
     mv a1, zero  // dex_pc_ptr=nullptr
     mv a2, zero  // vergs=nullptr
-    jal nterp_hot_method
+    call nterp_hot_method
     j 2b
 .endm
 
