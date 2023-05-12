@@ -718,8 +718,8 @@ ENTRY art_quick_osr_stub
     INCREASE_FRAME 16
     str xzr, [sp]                         // Store null for ArtMethod* slot
     // Branch to stub.
-    bl .Losr_entry
     CFI_REMEMBER_STATE
+    bl .Losr_entry
     DECREASE_FRAME 16
 
     // Restore saved registers including value address and shorty address.
@@ -901,15 +901,15 @@ ENTRY art_quick_check_instance_of
     RESTORE_REG xLR, 24
 
     // Check for exception
+    CFI_REMEMBER_STATE
     cbz x0, .Lthrow_class_cast_exception
 
     // Restore and return
-    CFI_REMEMBER_STATE
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
-    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
 
 .Lthrow_class_cast_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
     // Restore
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
@@ -1040,10 +1040,10 @@ ENTRY art_quick_aput_obj
     bl artIsAssignableFromCode
 
     // Check for exception
+    CFI_REMEMBER_STATE
     cbz x0, .Laput_obj_throw_array_store_exception
 
     // Restore
-    CFI_REMEMBER_STATE
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
@@ -1054,9 +1054,9 @@ ENTRY art_quick_aput_obj
     lsr x0, x0, #CARD_TABLE_CARD_SHIFT
     strb w3, [x3, x0]
     ret
-    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
 
 .Laput_obj_throw_array_store_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
@@ -1702,8 +1702,8 @@ ENTRY art_quick_proxy_invoke_handler
     mov     x3, sp                      // pass SP
     bl      artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
     ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
-    cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
     CFI_REMEMBER_STATE
+    cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
     RESTORE_SAVE_REFS_AND_ARGS_FRAME    // Restore frame
     REFRESH_MARKING_REGISTER
     fmov    d0, x0                      // Store result in d0 in case it was float or double
@@ -1751,8 +1751,8 @@ ENTRY art_quick_resolution_trampoline
     mov x2, xSELF
     mov x3, sp
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
-    cbz x0, 1f
     CFI_REMEMBER_STATE
+    cbz x0, 1f
     mov xIP0, x0            // Remember returned code pointer in xIP0.
     ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -1890,11 +1890,11 @@ ENTRY art_quick_generic_jni_trampoline
 
     LOAD_RUNTIME_INSTANCE x1
     ldrb w1, [x1, #RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE]
+    CFI_REMEMBER_STATE
     cbnz w1, .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    CFI_REMEMBER_STATE
     .cfi_def_cfa_register sp
     // Restore callee-saves and LR as in `RESTORE_SAVE_REFS_AND_ARGS_FRAME`
     // but do not restore argument registers.
@@ -1919,10 +1919,8 @@ ENTRY art_quick_generic_jni_trampoline
     fmov d0, x0
     ret
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
-
 .Lcall_method_exit_hook:
+    CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
     fmov d0, x0
     mov x4, FRAME_SIZE_SAVE_REFS_AND_ARGS
     bl art_quick_method_exit_hook

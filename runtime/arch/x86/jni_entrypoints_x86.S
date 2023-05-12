@@ -221,9 +221,8 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 
     // Check for exception.
     test %eax, %eax
-    jz .Lcritical_deliver_exception
-
     CFI_REMEMBER_STATE
+    jz .Lcritical_deliver_exception
 
     // Remember our return PC in EDX.
     movl __SIZEOF_POINTER__(%ebx), %edx
@@ -268,9 +267,9 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     jmp *%eax
-    CFI_RESTORE_STATE_AND_DEF_CFA %esp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA %esp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_jni_dlsym_lookup_critical_stub
 
