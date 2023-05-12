@@ -380,7 +380,7 @@ ENTRY art_quick_generic_jni_trampoline
 .Lcall_method_exit_hook:
     fmv.d.x  fa0, a0
     li   a4, FRAME_SIZE_SAVE_REFS_AND_ARGS
-    jal  art_quick_method_exit_hook
+    call  art_quick_method_exit_hook
     j    .Lcall_method_exit_hook_done
 
 .Lexception_in_native:
@@ -548,7 +548,7 @@ END art_quick_proxy_invoke_handler
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context.
     mv  a1, xSELF                     // pass Thread::Current.
-    jal \cxx_name                     // \cxx_name(arg, Thread*).
+    call \cxx_name                     // \cxx_name(arg, Thread*).
     ebreak
 END \c_name
 .endm
