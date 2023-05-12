@@ -113,8 +113,8 @@ ENTRY art_jni_dlsym_lookup_stub
 
     add    sp, #12                        @ restore stack pointer
     .cfi_adjust_cfa_offset -12
+    CFI_REMEMBER_STATE
     cbz    r0, 1f                         @ is method code null?
-    .cfi_remember_state
     pop    {r0, r1, r2, r3, lr}           @ restore regs
     .cfi_adjust_cfa_offset -20
     .cfi_restore lr
@@ -246,9 +246,8 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Check for exception before moving args back to keep the return PC for managed stack walk.
     cmp    ip, #0
+    CFI_REMEMBER_STATE
     beq    .Lcritical_deliver_exception
-
-    .cfi_remember_state
 
     // Restore our return PC.
     ldr    lr, [r4, #__SIZEOF_POINTER__]
@@ -275,9 +274,9 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     bx     ip
-    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     // The exception delivery checks that rSELF was saved but the SaveRefsAndArgs
     // frame does not save it, so we cannot use the existing SaveRefsAndArgs frame.
     // That's why we checked for exception after restoring registers from it.
