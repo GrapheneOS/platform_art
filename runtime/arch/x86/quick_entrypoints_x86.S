@@ -1286,6 +1286,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNPOISON_HEAP_REF ebx
 #ifdef USE_READ_BARRIER
     cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
+    CFI_REMEMBER_STATE
     jnz .Laput_obj_gc_marking
 #endif  // USE_READ_BARRIER
     movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
@@ -1335,9 +1336,6 @@ DEFINE_FUNCTION art_quick_aput_obj
     ret
 
 .Lthrow_array_store_exception:
-#ifdef USE_READ_BARRIER
-    CFI_REMEMBER_STATE
-#endif  // USE_READ_BARRIER
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx // Save all registers as basis for long jump context.
     // Outgoing argument set up.
     PUSH_ARG eax                  // Alignment padding.
@@ -1348,8 +1346,8 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNREACHABLE
 
 #ifdef USE_READ_BARRIER
-    CFI_RESTORE_STATE_AND_DEF_CFA esp, 4
 .Laput_obj_gc_marking:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 4
     PUSH_ARG eax                  // Save `art_quick_aput_obj()` arguments.
     PUSH_ARG ecx                  // We need to align stack for `art_quick_read_barrier_mark_regNN`
     PUSH_ARG edx                  // and use a register (EAX) as a temporary for the object class.
@@ -1579,15 +1577,15 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     movl ART_METHOD_JNI_OFFSET_32(%eax), %eax  // Load ImtConflictTable.
 .Limt_table_iterate:
     cmpl %esi, 0(%eax)
+    CFI_REMEMBER_STATE
     jne .Limt_table_next_entry
     // We successfully hit an entry in the table. Load the target method
     // and jump to it.
     movl __SIZEOF_POINTER__(%eax), %eax
-    CFI_REMEMBER_STATE
     POP ESI
     jmp *ART_METHOD_QUICK_CODE_OFFSET_32(%eax)
-    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
 .Limt_table_next_entry:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
     // If the entry is null, the interface method is not in the ImtConflictTable.
     cmpl LITERAL(0), 0(%eax)
     jz .Lconflict_trampoline
@@ -1690,11 +1688,11 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     LOAD_RUNTIME_INSTANCE ebx
     cmpb MACRO_LITERAL(0), RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE(%ebx)
+    CFI_REMEMBER_STATE
     jne .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame.
-    CFI_REMEMBER_STATE
     CFI_DEF_CFA_REGISTER(esp)
     // Remove space for the method, FPR and GPR args
     DECREASE_FRAME 4 + 4 * 8 + 3*4
@@ -1704,10 +1702,8 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     POP edi
     ret
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA ebp, 64
-
 .Lcall_method_exit_hook:
+    CFI_RESTORE_STATE_AND_DEF_CFA ebp, 64
     movl LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %ebx
     call art_quick_method_exit_hook
     jmp .Lcall_method_exit_hook_done

@@ -746,8 +746,8 @@ ENTRY art_quick_aput_obj
     mov r1, r4
     mov r0, r3
     bl artIsAssignableFromCode
-    cbz r0, .Lthrow_array_store_exception
     CFI_REMEMBER_STATE
+    cbz r0, .Lthrow_array_store_exception
     pop {r0-r2, lr}
     .cfi_restore lr
     .cfi_adjust_cfa_offset -16
@@ -1439,8 +1439,8 @@ ENTRY art_quick_resolution_trampoline
     mov     r2, rSELF              @ pass Thread::Current
     mov     r3, sp                 @ pass SP
     blx     artQuickResolutionTrampoline  @ (Method* called, receiver, Thread*, SP)
-    cbz     r0, 1f                 @ is code pointer null? goto exception
     CFI_REMEMBER_STATE
+    cbz     r0, 1f                 @ is code pointer null? goto exception
     mov     r12, r0
     ldr     r0, [sp, #0]           @ load resolved method in r0
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
@@ -1529,11 +1529,11 @@ ENTRY art_quick_generic_jni_trampoline
 
     LOAD_RUNTIME_INSTANCE r2
     ldr r2, [r2,  #RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE]
+    CFI_REMEMBER_STATE
     cbnz r2, .Lcall_method_exit_hook
 .Lcall_method_exit_hook_done:
 
     // Tear down the callee-save frame. Skip arg registers.
-    CFI_REMEMBER_STATE
     .cfi_def_cfa_register sp
     add sp, #(FRAME_SIZE_SAVE_REFS_AND_ARGS - 7 * 4)
     .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS - 7 * 4)
@@ -1549,10 +1549,8 @@ ENTRY art_quick_generic_jni_trampoline
     REFRESH_MARKING_REGISTER
     bx lr      // ret
 
-    // Undo the unwinding information from above since it doesn't apply below.
-    CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
-
 .Lcall_method_exit_hook:
+    CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
     mov r2, #FRAME_SIZE_SAVE_REFS_AND_ARGS
     bl art_quick_method_exit_hook
     b .Lcall_method_exit_hook_done
