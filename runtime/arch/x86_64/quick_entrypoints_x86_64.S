@@ -84,8 +84,7 @@ MACRO1(SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED, runtime_method_offset = RUNTIM
     PUSH rcx
     PUSH rax
     // Create space for FPRs and stack alignment padding.
-    subq MACRO_LITERAL(8 + 16 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(8 + 16 * 8)
+    INCREASE_FRAME 8 + 16 * 8
     // R10 := Runtime::Current()
     LOAD_RUNTIME_INSTANCE r10
     // Save FPRs.
@@ -180,8 +179,7 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     RESTORE_SAVE_EVERYTHING_FRAME_FRPS
 
     // Remove save everything callee save method, stack alignment padding and FPRs.
-    addq MACRO_LITERAL(16 + 16 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8))
+    DECREASE_FRAME 16 + 16 * 8
 
     POP rax
     RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_RAX
@@ -191,8 +189,7 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX)
     RESTORE_SAVE_EVERYTHING_FRAME_FRPS
 
     // Remove save everything callee save method, stack alignment padding and FPRs, skip RAX.
-    addq MACRO_LITERAL(16 + 16 * 8 + 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8 + 8))
+    DECREASE_FRAME 16 + 16 * 8 + 8
 
     RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_RAX
 END_MACRO
@@ -1200,8 +1197,7 @@ END_FUNCTION art_quick_check_instance_of
 // Restore reg's value if reg is not the same as exclude_reg, otherwise just adjust stack.
 MACRO2(POP_REG_NE, reg, exclude_reg)
     .ifc RAW_VAR(reg), RAW_VAR(exclude_reg)
-      addq MACRO_LITERAL(8), %rsp
-      CFI_ADJUST_CFA_OFFSET(-8)
+      DECREASE_FRAME 8
     .else
       POP RAW_VAR(reg)
     .endif
@@ -1793,8 +1789,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     PUSH r10
     PUSH r11
     // Create space for caller-save floating-point registers.
-    subq MACRO_LITERAL(12 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(12 * 8)
+    INCREASE_FRAME 12 * 8
     // Save all potentially live caller-save floating-point registers.
     movq %xmm0, 0(%rsp)
     movq %xmm1, 8(%rsp)
@@ -1833,8 +1828,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     movq 80(%rsp), %xmm10
     movq 88(%rsp), %xmm11
     // Remove floating-point registers.
-    addq MACRO_LITERAL(12 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-(12 * 8))
+    DECREASE_FRAME 12 * 8
     // Restore core regs, except `reg`, as it is used to return the
     // result of this function (simply remove it from the stack instead).
     POP_REG_NE r11, RAW_VAR(reg)
