@@ -67,7 +67,7 @@ TARGET_CORE_IMG_DEX_FILES := $(foreach jar,$(TARGET_CORE_IMG_JARS),$(call interm
 # `dexpreopt_bootjars.go` uses a single source of input regardless of variants, so we should use the
 # same source for `CORE_IMG_JARS` to avoid checksum mismatches on the oat files.
 HOST_BOOT_IMAGE_JARS := $(foreach jar,$(CORE_IMG_JARS),$(HOST_OUT)/apex/com.android.art/javalib/$(jar).jar)
-CORE_IMG_JAR_DIR := $(OUT_DIR)/soong/$(PRODUCT_DEVICE)/dex_artjars_input
+CORE_IMG_JAR_DIR := $(OUT_DIR)/soong/dexpreopt_$(TARGET_ARCH)/dex_artjars_input
 $(HOST_BOOT_IMAGE_JARS): $(HOST_OUT)/apex/com.android.art/javalib/%.jar : $(CORE_IMG_JAR_DIR)/%.jar
 	$(copy-file-to-target)
 
