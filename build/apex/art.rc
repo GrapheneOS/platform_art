@@ -22,8 +22,8 @@ service artd /apex/com.android.art/bin/artd
     group artd
     capabilities DAC_OVERRIDE DAC_READ_SEARCH FOWNER CHOWN
 
+# Run at boot in Android U and later.
 service art_boot /apex/com.android.art/bin/art_boot
+    disabled  # Started explicitly from system/core/rootdir/init.rc
     oneshot
     class core
-    seclabel u:r:su:s0
-    user root

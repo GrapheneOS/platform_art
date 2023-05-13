@@ -70,6 +70,7 @@ cc_defaults {
             },
             static_libs: [
                 "libcap",
+                "libmodules-utils-build",
                 // ZipArchive support, the order matters here to get all symbols.
                 "libziparchive",
             ],

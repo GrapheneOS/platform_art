@@ -25,6 +25,7 @@
 
 #include "android-base/file.h"
 #include "android-base/logging.h"
+#include "android-base/properties.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
@@ -312,6 +313,9 @@ int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fil
                                       bool profile_changed,
                                       bool downgrade) {
   OatFileInfo& info = GetBestInfo();
+  if (info.CheckDisableCompactDexExperiment()) {  // TODO(b/256664509): Clean this up.
+    return kDex2OatFromScratch;
+  }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(
       target_compiler_filter, GetDexOptTrigger(target_compiler_filter, profile_changed, downgrade));
   if (dexopt_needed != kNoDexOptNeeded && (&info == &dm_for_oat_ || &info == &dm_for_odex_)) {
@@ -330,6 +334,10 @@ bool OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fi
                                        DexOptTrigger dexopt_trigger,
                                        /*out*/ DexOptStatus* dexopt_status) {
   OatFileInfo& info = GetBestInfo();
+  if (info.CheckDisableCompactDexExperiment()) {  // TODO(b/256664509): Clean this up.
+    dexopt_status->location_ = kLocationNoneOrError;
+    return true;
+  }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target_compiler_filter, dexopt_trigger);
   if (info.IsUseable()) {
     if (&info == &dm_for_oat_ || &info == &dm_for_odex_) {
@@ -1260,6 +1268,23 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
   }
 
   return std::unique_ptr<OatFile>();
+}
+
+// Check if we should reject vdex containing cdex code as part of the
+// disable_cdex experiment.
+// TODO(b/256664509): Clean this up.
+bool OatFileAssistant::OatFileInfo::CheckDisableCompactDexExperiment() {
+  std::string ph_disable_compact_dex = android::base::GetProperty(kPhDisableCompactDex, "false");
+  if (ph_disable_compact_dex != "true") {
+    return false;
+  }
+  const OatFile* oat_file = GetFile();
+  if (oat_file == nullptr) {
+    return false;
+  }
+  const VdexFile* vdex_file = oat_file->GetVdexFile();
+  return vdex_file != nullptr && vdex_file->HasDexSection() &&
+         !vdex_file->HasOnlyStandardDexFiles();
 }
 
 // TODO(calin): we could provide a more refined status here

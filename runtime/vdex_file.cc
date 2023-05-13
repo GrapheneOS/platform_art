@@ -384,6 +384,12 @@ bool VdexFile::MatchesDexFileChecksums(const std::vector<const DexFile::Header*>
   return true;
 }
 
+bool VdexFile::HasOnlyStandardDexFiles() const {
+  // All are the same so it's enough to check the first one.
+  const uint8_t* dex_file_start = GetNextDexFileData(nullptr, 0);
+  return dex_file_start == nullptr || StandardDexFile::IsMagicValid(dex_file_start);
+}
+
 static ObjPtr<mirror::Class> FindClassAndClearException(ClassLinker* class_linker,
                                                         Thread* self,
                                                         const char* name,

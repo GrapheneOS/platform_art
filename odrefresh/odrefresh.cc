@@ -922,7 +922,10 @@ std::vector<std::string> OnDeviceRefresh::GetBestBootImages(InstructionSet isa,
     locations.push_back(GetPrimaryBootImage(/*on_system=*/false, /*minimal=*/false));
   } else {
     locations.push_back(GetPrimaryBootImage(/*on_system=*/true, /*minimal=*/false));
-    locations.push_back(GetSystemBootImageFrameworkExtension());
+    if (!IsAtLeastU()) {
+      // Prior to U, there was a framework extension.
+      locations.push_back(GetSystemBootImageFrameworkExtension());
+    }
   }
   if (include_mainline_extension) {
     if (BootImageMainlineExtensionExist(/*on_system=*/false, isa, &unused_error_msg)) {
@@ -977,9 +980,9 @@ WARN_UNUSED bool OnDeviceRefresh::PrimaryBootImageExist(
   if (!ArtifactsExist(artifacts, /*check_art_file=*/true, error_msg, checked_artifacts)) {
     return false;
   }
-  // There is a split between the primary boot image and the extension on /system, so they need to
-  // be checked separately. This does not apply to the boot image on /data.
-  if (on_system) {
+  // Prior to U, there was a split between the primary boot image and the extension on /system, so
+  // they need to be checked separately. This does not apply to the boot image on /data.
+  if (on_system && !IsAtLeastU()) {
     std::string extension_path = GetSystemBootImageFrameworkExtensionPath(isa);
     OdrArtifacts extension_artifacts = OdrArtifacts::ForBootImage(extension_path);
     if (!ArtifactsExist(
