@@ -31,7 +31,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Skip compact DEX.
   // TODO(dsrbecky): Remove after removing compact DEX.
   const char* dex_string = "cdex";
-  if (strncmp(dex_string, (const char*)data, strlen(dex_string)) == 0) {
+  if (size >= strlen(dex_string) &&
+      strncmp(dex_string, (const char*)data, strlen(dex_string)) == 0) {
     // A -1 indicates we don't want this DEX added to the corpus.
     return -1;
   }
