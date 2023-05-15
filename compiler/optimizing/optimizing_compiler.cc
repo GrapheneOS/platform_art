@@ -1255,10 +1255,15 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     // support calling method entry / exit hooks for critical native methods yet.
     // TODO(mythria): Add support for calling method entry / exit hooks in JITed stubs for critical
     // native methods too.
-    if (runtime->IsJavaDebuggable() && method->IsCriticalNative()) {
+    if (compiler_options.GetDebuggable() && method->IsCriticalNative()) {
       DCHECK(compiler_options.IsJitCompiler());
       return false;
     }
+    // Java debuggable runtimes should set compiler options to debuggable, so that we either
+    // generate method entry / exit hooks or skip JITing. For critical native methods we don't
+    // generate method entry / exit hooks so we shouldn't JIT them in debuggable runtimes.
+    DCHECK_IMPLIES(method->IsCriticalNative(), !runtime->IsJavaDebuggable());
+
     JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
         compiler_options, access_flags, method_idx, *dex_file, &allocator);
     std::vector<Handle<mirror::Object>> roots;
