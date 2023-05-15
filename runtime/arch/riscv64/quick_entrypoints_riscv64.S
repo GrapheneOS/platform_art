@@ -362,7 +362,7 @@ ENTRY art_quick_generic_jni_trampoline
 
     // Tear down the alloca.
     mv   sp, fp
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     .cfi_def_cfa_register sp
 
     LOAD_RUNTIME_INSTANCE a1
@@ -531,7 +531,7 @@ ENTRY art_quick_proxy_invoke_handler
 
     ld    a2, THREAD_EXCEPTION_OFFSET(xSELF)
     bnez  a2, .Lexception_in_proxy    // success if no exception is pending
-    .cfi_remember_state
+    CFI_REMEMBER_STATE
     RESTORE_SAVE_REFS_AND_ARGS_FRAME  // Restore frame
     fmv.d.x  fa0, a0                  // Store result in fa0 in case it was float or double
     ret                               // return on success
@@ -568,9 +568,8 @@ ENTRY art_quick_resolution_trampoline
     mv   a2, xSELF
     mv   a3, sp
     call artQuickResolutionTrampoline
-
+    CFI_REMEMBER_STATE
     beqz a0, 1f
-    .cfi_remember_state
     mv   t0, a0    // Remember returned code pointer in t0.
     ld   a0, (sp)  // artQuickResolutionTrampoline puts called method in *sp.
 
