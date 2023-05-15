@@ -1803,6 +1803,17 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function, ThreadState suspend
           sched_yield();
         }
       }
+      // Ensure that the flip function for this thread, if pending, is finished *before*
+      // the checkpoint function is run. Otherwise, we may end up with both `to' and 'from'
+      // space references on the stack, confusing the GC's thread-flip logic. The caller is
+      // runnable so can't have a pending flip function.
+      DCHECK_EQ(self->GetState(), ThreadState::kRunnable);
+      DCHECK(
+          !self->GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
+      EnsureFlipFunctionStarted(self);
+      while (GetStateAndFlags(std::memory_order_acquire).IsAnyOfFlagsSet(FlipFunctionFlags())) {
+        sched_yield();
+      }
 
       function->Run(this);
     }
