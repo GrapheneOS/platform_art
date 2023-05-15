@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <android-base/logging.h>
+
 #include <jni.h>
 #include <signal.h>
 #include <stdio.h>
@@ -79,11 +81,15 @@ static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UN
 #if defined(__arm__)
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
-  mc->arm_pc += 2;          // Skip instruction causing segv.
+  mc->arm_pc += 2;  // Skip instruction causing segv.
 #elif defined(__aarch64__)
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
-  mc->pc += 4;          // Skip instruction causing segv.
+  mc->pc += 4;  // Skip instruction causing segv.
+#elif defined(__riscv)
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  mc->__gregs[REG_PC] += 4;  // Skip instruction causing segv.
 #elif defined(__i386__)
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   uc->CTX_EIP += 3;
@@ -92,6 +98,7 @@ static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UN
   uc->CTX_EIP += 2;
 #else
   UNUSED(context);
+  UNIMPLEMENTED(FATAL) << "Unsupported architecture";
 #endif
 
   printf("signal handler done\n");
@@ -157,6 +164,10 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_testSignal(JNIEnv*, jclass) {
 #if defined(__arm__) || defined(__i386__) || defined(__aarch64__)
   // On supported architectures we cause a real SEGV.
   *go_away_compiler = 'a';
+#elif defined(__riscv)
+  // Cause a SEGV using an instruction known to be 4 bytes long to account for hardcoded jump
+  // in the signal handler
+  asm volatile("ld zero, (zero);" : : :);
 #elif defined(__x86_64__)
   // Cause a SEGV using an instruction known to be 2 bytes long to account for hardcoded jump
   // in the signal handler
