@@ -768,20 +768,18 @@ MACRO1(DEOPT_OR_RETURN, is_ref = 0)
   movq %rax, %rsi                      // pass the result
   movq %gs:THREAD_SELF_OFFSET, %rdi    // pass Thread::Current
   call SYMBOL(artDeoptimizeIfNeeded)
-  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA rsp, FRAME_SIZE_SAVE_EVERYTHING
 END_MACRO
 
 MACRO1(DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_RAX, is_ref = 0)
   cmpl LITERAL(0), %gs:THREAD_DEOPT_CHECK_REQUIRED_OFFSET
-  jne 2f
   CFI_REMEMBER_STATE
+  jne 2f
   RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA rsp, FRAME_SIZE_SAVE_EVERYTHING
 2:
+  CFI_RESTORE_STATE_AND_DEF_CFA rsp, FRAME_SIZE_SAVE_EVERYTHING
   movq %rax, SAVE_EVERYTHING_FRAME_RAX_OFFSET(%rsp) // update result in the frame
   movq LITERAL(\is_ref), %rdx                       // pass if result is a reference
   movq %rax, %rsi                                   // pass the result
@@ -1263,7 +1261,7 @@ DEFINE_FUNCTION art_quick_aput_obj
 
 #ifdef USE_READ_BARRIER
 .Laput_obj_gc_marking:
-    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 4
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 8
     // We need to align stack for `art_quick_read_barrier_mark_regNN`.
     INCREASE_FRAME 8                        // Stack alignment.
     call SYMBOL(art_quick_read_barrier_mark_reg01)  // Mark ECX
@@ -1772,6 +1770,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     // Jump if the addl caused eax to unsigned overflow. The only case where it overflows is the
     // forwarding address one.
     // Taken ~25% of the time.
+    CFI_REMEMBER_STATE
     jnae .Lret_forwarding_address\name
 
     // Save all potentially live caller-save core registers.
@@ -1839,6 +1838,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
 .Lret_rb_\name:
     ret
 .Lret_forwarding_address\name:
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 16
     // The overflow cleared the top bits.
     sall LITERAL(LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT), %eax
     movq %rax, REG_VAR(reg)

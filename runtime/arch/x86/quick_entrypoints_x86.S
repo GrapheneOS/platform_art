@@ -750,8 +750,7 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     PUSH ecx                                          // pass arg2
     PUSH eax                                          // pass arg1
     call CALLVAR(cxx_name)                            // cxx_name(arg1, arg2, arg3, Thread*)
-    addl LITERAL(16), %esp                            // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-32)
+    DECREASE_FRAME 16                                 // pop arguments
     RESTORE_SAVE_REFS_ONLY_FRAME                      // restore frame up to return address
     CALL_MACRO(return_macro)                          // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -812,21 +811,19 @@ MACRO2(DEOPT_OR_RETURN, temp, is_ref = 0)
   pushl %fs:THREAD_SELF_OFFSET      // Pass Thread::Current
   CFI_ADJUST_CFA_OFFSET(4)
   call SYMBOL(artDeoptimizeIfNeeded)
-  addl LITERAL(16), %esp             // pop arguments
-  CFI_REMEMBER_STATE
+  DECREASE_FRAME(16)                // pop arguments
   RESTORE_SAVE_EVERYTHING_FRAME
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA esp, FRAME_SIZE_SAVE_EVERYTHING
 END_MACRO
 
 MACRO2(DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_EAX, temp, is_ref = 0)
   cmpl LITERAL(0), %fs:THREAD_DEOPT_CHECK_REQUIRED_OFFSET
-  jne 2f
   CFI_REMEMBER_STATE
+  jne 2f
   RESTORE_SAVE_EVERYTHING_FRAME_KEEP_EAX
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA esp, FRAME_SIZE_SAVE_EVERYTHING
 2:
+  CFI_RESTORE_STATE_AND_DEF_CFA esp, FRAME_SIZE_SAVE_EVERYTHING
   movl %eax, SAVE_EVERYTHING_FRAME_EAX_OFFSET(%esp) // update eax in the frame
   INCREASE_FRAME 4                                  // alignment padding
   pushl MACRO_LITERAL(\is_ref)                      // is_ref
@@ -835,7 +832,7 @@ MACRO2(DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_EAX, temp, is_ref = 0)
   pushl %fs:THREAD_SELF_OFFSET                      // Pass Thread::Current
   CFI_ADJUST_CFA_OFFSET(4)
   call SYMBOL(artDeoptimizeIfNeeded)
-  addl LITERAL(16), %esp                            // pop arguments
+  DECREASE_FRAME(16)                                // pop arguments
   CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   ret
@@ -945,7 +942,7 @@ MACRO2(ART_QUICK_ALLOC_OBJECT_ROSALLOC, c_name, cxx_name)
 .Lslow_path\c_name:
     SETUP_SAVE_REFS_ONLY_FRAME ebx              // save ref containing registers for GC
     // Outgoing argument set up
-    subl LITERAL(8), %esp                       // alignment padding
+    INCREASE_FRAME(8)                           // alignment padding
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH eax
@@ -1009,8 +1006,10 @@ MACRO2(ART_QUICK_ALLOC_OBJECT_TLAB, c_name, cxx_name)
     // EAX: type
     // EBX, ECX, EDX: free.
     PUSH edi
+    CFI_REMEMBER_STATE
     ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lslow_path\c_name
 .Lslow_path\c_name:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
     ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH RAW_VAR(cxx_name)
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -1119,8 +1118,10 @@ MACRO3(GENERATE_ALLOC_ARRAY_TLAB, c_entrypoint, cxx_name, size_setup)
     // EAX: mirror::Class* klass, ECX: int32_t component_count
     PUSH edi
     CALL_MACRO(size_setup) .Lslow_path\c_entrypoint
+    CFI_REMEMBER_STATE
     ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE .Lslow_path\c_entrypoint
 .Lslow_path\c_entrypoint:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
     POP edi
     SETUP_SAVE_REFS_ONLY_FRAME ebx                      // save ref containing registers for GC
     // Outgoing argument set up
@@ -1359,6 +1360,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNPOISON_HEAP_REF eax
     call SYMBOL(art_quick_read_barrier_mark_reg00)  // Mark EAX.
     cmpl %eax, %ebx
+    CFI_REMEMBER_STATE
     jne .Laput_obj_check_assignability_gc_marking
     POP_ARG edx                   // Restore `art_quick_aput_obj()` arguments.
     POP_ARG ecx
@@ -1366,6 +1368,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     jmp .Laput_obj_store
 
 .Laput_obj_check_assignability_gc_marking:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     // Prepare arguments in line with `.Laput_obj_check_assignability_call` and jump there.
     // (EAX, ECX and EDX were already saved in the right stack slots.)
     INCREASE_FRAME 8              // Alignment padding.
@@ -1614,9 +1617,11 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     addl LITERAL(16), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     test %eax, %eax               // if code pointer is null goto deliver the OOME.
+    CFI_REMEMBER_STATE
     jz 1f
     RESTORE_SAVE_REFS_AND_ARGS_FRAME_AND_JUMP
 1:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 64
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_resolution_trampoline
@@ -1905,6 +1910,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     add LITERAL(LOCK_WORD_STATE_FORWARDING_ADDRESS_OVERFLOW), %eax
     // Jump if overflow, the only case where it overflows should be the forwarding address one.
     // Taken ~25% of the time.
+    CFI_REMEMBER_STATE
     jnae .Lret_forwarding_address\name
 
     // Save all potentially live caller-save core registers.
@@ -1955,6 +1961,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
 .Lret_rb_\name:
     ret
 .Lret_forwarding_address\name:
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
     // The overflow cleared the top bits.
     sall LITERAL(LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT), %eax
     mov %eax, REG_VAR(reg)
