@@ -20,12 +20,82 @@ It is only a simple heuristic check of stack pointer adjustments.
 Fully inferring CFI from disassembly is not possible in general.
 """
 
-import os, re, subprocess, collections, pathlib, bisect, collections
-from typing import List, Optional, Set, Tuple
+import os, re, subprocess, collections, pathlib, bisect, collections, sys
+from dataclasses import dataclass
+from functools import cache
+from pathlib import Path
+from typing import Any, List, Optional, Set, Tuple, Dict
 
-Source = collections.namedtuple("Source", ["addr", "file", "line", "flag"])
+arch: str = ""
+ARCHES = ["i386", "x86_64", "arm", "aarch64", "riscv64"]
 
-def get_source(lib: pathlib.Path) -> List[Source]:
+IGNORE : Dict[str, List[str]] = {
+    # Aligns stack.
+    "art_quick_osr_stub": ["i386"],
+    # Intermediate invalid CFI while loading all registers.
+    "art_quick_do_long_jump": ["x86_64"],
+    # Saves/restores SP in other register.
+    "art_quick_generic_jni_trampoline": ["arm", "i386", "x86_64"],
+    # Starts with non-zero offset at the start of the method.
+    "art_quick_throw_null_pointer_exception_from_signal": ["arm", "aarch64", "i386", "x86_64"],
+    # Pops stack without static control flow past the opcode.
+    "nterp_op_return": ["arm", "aarch64", "i386", "x86_64"],
+}
+
+SP = {"arm": "SP", "aarch64": "WSP", "i386": "ESP", "x86_64": "RSP", "riscv64": "X2"}
+INITIAL_OFFSET = {"i386": 4, "x86_64": 8}
+
+@cache
+def get_inst_semantics(arch: str) -> List[Any]:
+  """ List of regex expressions for supported instructions and their behaviour """
+
+  rexprs = []
+  def add(rexpr, adjust_offset=lambda m: 0, adjust_pc=None):
+    rexprs.append((re.compile(rexpr), adjust_offset, adjust_pc))
+  if arch in ["i386", "x86_64"]:
+    ptr_size = {"i386": 4, "x86_64": 8}[arch]
+    add(r"push. .*", lambda m: ptr_size)
+    add(r"pop. .*", lambda m: -ptr_size)
+    add(r"sub. \$(\w+), (?:%esp|%rsp)", lambda m: int(m[1], 0))
+    add(r"add. \$(\w+), (?:%esp|%rsp)", lambda m: -int(m[1], 0))
+    add(r"call. (0x\w+) <.*", lambda m: ptr_size, adjust_pc=lambda m: int(m[1], 0))
+    add(r"j[a-z]* (0x\w+) <.*", adjust_pc=lambda m: int(m[1], 0))
+  if arch in ["arm", "aarch64"]:
+    add(r"sub sp,(?: sp,)? #(\w+)", lambda m: int(m[1], 0))
+    add(r"add sp,(?: sp,)? #(\w+)", lambda m: -int(m[1], 0))
+    add(r"str \w+, \[sp, #-(\d+)\]!", lambda m: int(m[1]))
+    add(r"ldr \w+, \[sp\], #(\d+)", lambda m: -int(m[1]))
+    add(r"stp \w+, \w+, \[sp, #-(\w+)\]!", lambda m: int(m[1], 0))
+    add(r"ldp \w+, \w+, \[sp\], #(\w+)", lambda m: -int(m[1], 0))
+    add(r"vpush \{([d0-9, ]*)\}", lambda m: 8 * len(m[1].split(",")))
+    add(r"vpop \{([d0-9, ]*)\}", lambda m: -8 * len(m[1].split(",")))
+    add(r"v?push(?:\.w)? \{([\w+, ]*)\}", lambda m: 4 * len(m[1].split(",")))
+    add(r"v?pop(?:\.w)? \{([\w+, ]*)\}", lambda m: -4 * len(m[1].split(",")))
+    add(r"cb\w* \w+, (0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
+    add(r"(?:b|bl|b\w\w) (0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
+  return rexprs
+
+@dataclass(frozen=True)
+class Error(Exception):
+  address: int
+  message: str
+
+def get_arch(lib: pathlib.Path) -> str:
+  """ Get architecture of the given library based on the ELF header. """
+
+  proc = subprocess.run(["llvm-objdump", "--file-headers", lib],
+                        encoding='utf-8',
+                        capture_output=True,
+                        check=True)
+
+  m = re.search("^architecture: *(.*)$", proc.stdout, re.MULTILINE)
+  assert m, "Can not find ABI of ELF file " + str(lib)
+  assert m.group(1) in ARCHES, "Unknown arch: " + m.group(1)
+  return m.group(1)
+
+Source = collections.namedtuple("Source", ["pc", "file", "line", "flag"])
+
+def get_src(lib: pathlib.Path) -> List[Source]:
   """ Get source-file and line-number for all hand-written assembly code. """
 
   proc = subprocess.run(["llvm-dwarfdump", "--debug-line", lib],
@@ -35,7 +105,7 @@ def get_source(lib: pathlib.Path) -> List[Source]:
 
   section_re = re.compile("^debug_line\[0x[0-9a-f]+\]$", re.MULTILINE)
   filename_re = re.compile('file_names\[ *(\d)+\]:\n\s*name: "(.*)"', re.MULTILINE)
-  line_re = re.compile('0x([0-9a-f]{16}) +(\d+) +\d+ +(\d+)'  # addr, line, column, file
+  line_re = re.compile('0x([0-9a-f]{16}) +(\d+) +\d+ +(\d+)'  # pc, line, column, file
                        ' +\d+ +\d +(.*)')                     # isa, discriminator, flag
 
   results = []
@@ -47,10 +117,10 @@ def get_source(lib: pathlib.Path) -> List[Source]:
     results.extend([Source(int(a, 16), files[fn], l, fg) for a, l, fn, fg in lines])
   return sorted(filter(lambda line: "end_sequence" not in line.flag, results))
 
-Fde = collections.namedtuple("Fde", ["addr", "end", "data"])
+Fde = collections.namedtuple("Fde", ["pc", "end", "data"])
 
 def get_fde(lib: pathlib.Path) -> List[Fde]:
-  """ Get all unwinding FDE blocks (in dumped text-based format) """
+  """ Get all FDE blocks (in dumped text-based format) """
 
   proc = subprocess.run(["llvm-dwarfdump", "--debug-frame", lib],
                         encoding='utf-8',
@@ -65,16 +135,16 @@ def get_fde(lib: pathlib.Path) -> List[Fde]:
     m = fda_re.match(section)
     if m:
       fde = Fde(int(m[1], 16), int(m[2], 16), section)
-      if fde.addr != 0:
+      if fde.pc != 0:
         results.append(fde)
   return sorted(results)
 
-Asm = collections.namedtuple("Asm", ["addr", "name", "data"])
+Asm = collections.namedtuple("Asm", ["pc", "name", "data"])
 
 def get_asm(lib: pathlib.Path) -> List[Asm]:
-  """ Get disassembly for all methods (in dumped text-based format) """
+  """ Get all ASM blocks (in dumped text-based format) """
 
-  proc = subprocess.run(["llvm-objdump", "--disassemble", lib],
+  proc = subprocess.run(["llvm-objdump", "--disassemble", "--no-show-raw-insn", lib],
                         encoding='utf-8',
                         capture_output=True,
                         check=True)
@@ -89,132 +159,105 @@ def get_asm(lib: pathlib.Path) -> List[Asm]:
       results.append(Asm(int(sym[1], 16), sym[2], section))
   return sorted(results)
 
-Cfa = collections.namedtuple("Cfa", ["addr", "cfa"])
-
-def get_cfa(fde: Fde) -> List[Cfa]:
-  """ Extract individual CFA (SP+offset) entries from the FDE block """
-
-  cfa_re = re.compile("0x([0-9a-f]+): CFA=([^\s:]+)")
-  return [Cfa(int(addr, 16), cfa) for addr, cfa in cfa_re.findall(fde.data)]
-
-Inst = collections.namedtuple("Inst", ["addr", "inst", "symbol"])
+Inst = collections.namedtuple("Inst", ["pc", "inst"])
 
 def get_instructions(asm: Asm) -> List[Inst]:
   """ Extract individual instructions from disassembled code block """
 
   data = re.sub(r"[ \t]+", " ", asm.data)
   inst_re = re.compile(r"([0-9a-f]+): +(?:[0-9a-f]{2} +)*(.*)")
-  return [Inst(int(addr, 16), inst, asm.name) for addr, inst in inst_re.findall(data)]
+  return [Inst(int(pc, 16), inst) for pc, inst in inst_re.findall(data)]
 
-CfaOffset = collections.namedtuple("CfaOffset", ["addr", "offset"])
+# PC -> CFA offset (stack size at given PC; None if it not just trivial SP+<integer>)
+CfaOffsets = Dict[int, Optional[int]]
 
-def get_dwarf_cfa_offsets(cfas: List[Cfa]) -> List[CfaOffset]:
-  """ Parse textual CFA entries into integer stack offsets """
+def get_dwarf_cfa_offsets(insts: List[Inst], fde: Fde) -> CfaOffsets:
+  """ Get CFA offsets for all instructions from DWARF """
 
-  result = []
-  for addr, cfa in cfas:
-    if cfa == "WSP" or cfa == "SP":
-      result.append(CfaOffset(addr, 0))
-    elif cfa.startswith("WSP+") or cfa.startswith("SP+"):
-      result.append(CfaOffset(addr, int(cfa.split("+")[1])))
-    else:
-      result.append(CfaOffset(addr, None))
+  # Parse the CFA offset definitions from the FDE.
+  sp = SP[arch]
+  m = re.compile(r"(0x[0-9a-f]+): CFA=(\w*)([^:\n]*)").findall(fde.data)
+  cfa = collections.deque([(int(a, 0), int(o or "0") if r == sp else None) for a, r, o in m])
+  if all(offset is None for add, offset in cfa):
+    # This would create result that never checks anything.
+    raise Error(insts[0].pc, "No trivial CFA offsets. Add function to IGNORE list?")
+
+  # Create map from instruction PCs to corresponding CFA offsets.
+  offset: Optional[int] = INITIAL_OFFSET.get(arch, 0)
+  result: CfaOffsets = {}
+  for pc, inst in insts:
+    while cfa and cfa[0][0] <= pc:
+      offset = cfa.popleft()[1]
+    result[pc] = offset
   return result
 
-def get_infered_cfa_offsets(insts: List[Inst]) -> List[CfaOffset]:
-  """ Heuristic to convert disassembly into stack offsets """
+def get_inferred_cfa_offsets(insts: List[Inst]) -> CfaOffsets:
+  """ Get CFA offsets for all instructions from static analysis """
 
-  # Regular expressions which find instructions that adjust stack pointer.
-  rexprs = []
-  def add(rexpr, adjust_offset):
-    rexprs.append((re.compile(rexpr), adjust_offset))
-  add(r"sub sp,(?: sp,)? #(\d+)", lambda m: int(m[1]))
-  add(r"add sp,(?: sp,)? #(\d+)", lambda m: -int(m[1]))
-  add(r"str \w+, \[sp, #-(\d+)\]!", lambda m: int(m[1]))
-  add(r"ldr \w+, \[sp\], #(\d+)", lambda m: -int(m[1]))
-  add(r"stp \w+, \w+, \[sp, #-(\d+)\]!", lambda m: int(m[1]))
-  add(r"ldp \w+, \w+, \[sp\], #(\d+)", lambda m: -int(m[1]))
-  add(r"vpush \{([d0-9, ]*)\}", lambda m: 8 * len(m[1].split(",")))
-  add(r"vpop \{([d0-9, ]*)\}", lambda m: -8 * len(m[1].split(",")))
-  add(r"v?push(?:\.w)? \{([\w+, ]*)\}", lambda m: 4 * len(m[1].split(",")))
-  add(r"v?pop(?:\.w)? \{([\w+, ]*)\}", lambda m: -4 * len(m[1].split(",")))
+  rexprs = get_inst_semantics(arch)
+  offset: Optional[int] = INITIAL_OFFSET.get(arch, 0)
+  result: CfaOffsets = {}
+  for pc, inst in insts:
+    # Set current offset for PC, unless branch already set it.
+    offset = result.setdefault(pc, offset)
 
-  # Regular expression which identifies branches.
-  jmp_re = re.compile(r"cb\w* \w+, 0x(\w+)|(?:b|bl|b\w\w) 0x(\w+)")
-
-  offset, future_offset = 0, {}
-  result = [CfaOffset(insts[0].addr, offset)]
-  for addr, inst, symbol in insts:
-    # Previous code branched here, so us that offset instead.
-    # This likely identifies slow-path which is after return.
-    if addr in future_offset:
-      offset = future_offset[addr]
-
-    # Add entry to output (only if the offset changed).
-    if result[-1].offset != offset:
-      result.append(CfaOffset(addr, offset))
-
-    # Adjust offset if the instruction modifies stack pointer.
-    for rexpr, adjust_offset in rexprs:
-      m = rexpr.match(inst)
+    # Adjust PC and offset based on the current instruction.
+    for rexpr, adjust_offset, adjust_pc in rexprs:
+      m = rexpr.fullmatch(inst)
       if m:
-        offset += adjust_offset(m)
+        new_offset = offset + adjust_offset(m)
+        if adjust_pc:
+          new_pc = adjust_pc(m)
+          if insts[0].pc <= new_pc <= insts[-1].pc:
+            if new_pc in result and result[new_pc] != new_offset:
+              raise Error(pc, "Inconsistent branch (old={} new={})"
+                              .format(result[new_pc], new_offset))
+            result[new_pc] = new_offset
+        else:
+          offset = new_offset
         break  # First matched pattern wins.
-
-    # Record branches.  We only support forward edges for now.
-    m = jmp_re.match(inst)
-    if m:
-      future_offset[int(m[m.lastindex], 16)] = offset
   return result
 
-def check_fde(fde: Fde, insts: List[Inst], srcs, verbose: bool = False) -> Tuple[str, Set[int]]:
+def check_fde(fde: Fde, insts: List[Inst], srcs) -> None:
   """ Compare DWARF offsets to assembly-inferred offsets. Report differences. """
 
-  error, seen_addrs = None, set()
-  cfas = get_cfa(fde)
-  i, dwarf_cfa = 0, get_dwarf_cfa_offsets(cfas)
-  j, infered_cfa = 0, get_infered_cfa_offsets(insts)
-  for inst in insts:
-    seen_addrs.add(inst.addr)
-    while i+1 < len(dwarf_cfa) and dwarf_cfa[i+1].addr <= inst.addr:
-      i += 1
-    while j+1 < len(infered_cfa) and infered_cfa[j+1].addr <= inst.addr:
-      j += 1
-    if verbose:
-      print("{:08x}: dwarf={:4} infered={:4} {:40} // {}".format(
-                inst.addr, str(dwarf_cfa[i].offset), str(infered_cfa[j].offset),
-                inst.inst.strip(), srcs.get(inst.addr, "")))
-    if dwarf_cfa[i].offset is not None and dwarf_cfa[i].offset != infered_cfa[j].offset:
-      if inst.addr in srcs:  # Only report if it maps to source code (not padding or literals).
-        error = error or "{:08x} {}".format(inst.addr, srcs.get(inst.addr, ""))
-  return error, seen_addrs
+  dwarf_cfa_offsets = get_dwarf_cfa_offsets(insts, fde)
+  inferred_cfa_offsets = get_inferred_cfa_offsets(insts)
 
-def check_lib(lib: pathlib.Path):
+  for pc, inst in insts:
+    if dwarf_cfa_offsets[pc] is not None and dwarf_cfa_offsets[pc] != inferred_cfa_offsets[pc]:
+      if pc in srcs:  # Only report if it maps to source code (not padding or literals).
+        for inst2 in insts:
+          print("0x{:08x} [{}]: dwarf={} inferred={} {}".format(
+                    inst2.pc, srcs.get(inst2.pc, ""),
+                    str(dwarf_cfa_offsets[inst2.pc]), str(inferred_cfa_offsets[inst2.pc]),
+                    inst2.inst.strip()))
+        raise Error(pc, "DWARF offset does not match inferred offset")
+
+def check_lib(lib: pathlib.Path) -> int:
+  global arch
+  arch = get_arch(lib)
+
   assert lib.exists()
-  IGNORE = [
-      "art_quick_throw_null_pointer_exception_from_signal",  # Starts with non-zero offset.
-      "art_quick_generic_jni_trampoline",  # Saves/restores SP in other register.
-      "nterp_op_",  # Uses calculated CFA due to dynamic stack size.
-      "$d.",  # Data (literals) interleaved within code.
-  ]
   fdes = get_fde(lib)
   asms = collections.deque(get_asm(lib))
-  srcs = {src.addr: src.file + ":" + src.line for src in get_source(lib)}
+  srcs = {src.pc: src.file + ":" + src.line for src in get_src(lib)}
   seen = set()  # Used to verify the we have covered all assembly source lines.
+  fail = 0
 
   for fde in fdes:
-    if fde.addr not in srcs:
+    if fde.pc not in srcs:
       continue  # Ignore if it is not hand-written assembly.
 
     # Assembly instructions (one FDE can cover several assembly chunks).
-    all_insts, name = [], None
-    while asms and asms[0].addr < fde.end:
+    all_insts, name = [], ""
+    while asms and asms[0].pc < fde.end:
       asm = asms.popleft()
-      if asm.addr < fde.addr:
+      if asm.pc < fde.pc:
         continue
       insts = get_instructions(asm)
-      if any(asm.name.startswith(i) for i in IGNORE):
-        seen.update([inst.addr for inst in insts])
+      if any(asm.name.startswith(n) and arch in a for n, a in IGNORE.items()):
+        seen.update([inst.pc for inst in insts])
         continue
       all_insts.extend(insts)
       name = name or asm.name
@@ -222,14 +265,17 @@ def check_lib(lib: pathlib.Path):
       continue  # No assembly
 
     # Compare DWARF data to assembly instructions
-    error, seen_addrs = check_fde(fde, all_insts, srcs)
-    if error:
-      print("ERROR at " + name + " " + error)
-      check_fde(fde, all_insts, srcs, True)
-      print("")
-    seen.update(seen_addrs)
-  for addr in sorted(set(srcs.keys()) - seen):
-    print("Missing CFI for {:08x}: {}".format(addr, srcs[addr]))
+    try:
+      check_fde(fde, all_insts, srcs)
+    except Error as e:
+      print("0x{:08x} [{}]: ERROR in {}: {}\n"
+            .format(e.address, srcs.get(e.address, ""), name, e.message))
+      fail += 1
+    seen.update([inst.pc for inst in all_insts])
+  for pc in sorted(set(srcs.keys()) - seen):
+    print("ERROR: Missing CFI for {:08x}: {}".format(pc, srcs[pc]))
+    fail += 1
+  return fail
 
 
 def main(argv):
@@ -237,11 +283,14 @@ def main(argv):
 
   libs = argv[1:]
   if not libs:
-    out = os.environ["OUT"]
-    libs.append(out + "/symbols/apex/com.android.art/lib/libart.so")
-    libs.append(out + "/symbols/apex/com.android.art/lib64/libart.so")
+    apex = Path(os.environ["OUT"]) / "symbols/apex/"
+    libs = list(apex.glob("**/libart.so"))
+    assert libs, "Can not find any libart.so in " + str(apex)
   for lib in libs:
-    check_lib(pathlib.Path(lib))
+    fail = check_lib(pathlib.Path(lib))
+    if fail > 0:
+      print(fail, "ERROR(s) in", str(lib))
+      sys.exit(1)
 
 if __name__ == "__main__":
-  main(os.sys.argv)
+  main(sys.argv)

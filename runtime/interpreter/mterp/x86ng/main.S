@@ -204,6 +204,15 @@
     addl MACRO_LITERAL(SYMBOL(artNterpAsmInstructionStart) - 0b), rIBASE
 .endm
 
+.macro RESTORE_IBASE_WITH_CFA
+    call 0f
+0:
+    CFI_ADJUST_CFA_OFFSET(4)
+    popl rIBASE
+    CFI_ADJUST_CFA_OFFSET(-4)
+    addl MACRO_LITERAL(SYMBOL(artNterpAsmInstructionStart) - 0b), rIBASE
+.endm
+
 .macro SPILL_ALL_CORE_PARAMETERS
     PUSH_ARG eax
     PUSH_ARG ecx
@@ -270,9 +279,8 @@ DEFINE_FUNCTION \name
   PUSH_ARG ecx
   PUSH_ARG eax
   call \helper
-  addl MACRO_LITERAL(16), %esp
-  CFI_ADJUST_CFA_OFFSET(-16)
-  RESTORE_IBASE
+  DECREASE_FRAME 16
+  RESTORE_IBASE_WITH_CFA
   FETCH_INST_CLEAR_OPCODE
   RESTORE_SAVE_REFS_ONLY_FRAME
   cmpl LITERAL(0), %fs:THREAD_EXCEPTION_OFFSET
@@ -1760,7 +1768,8 @@ END_FUNCTION \name
  */
 
 OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
-    push %esi
+    .cfi_startproc
+    PUSH_ARG esi
     // For simplicity, we don't do a read barrier here, but instead rely
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
@@ -1771,13 +1780,16 @@ OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
     jb .Linvoke_trampoline
     movl MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(%esi), %esi
     cmpl %esi, rSELF:THREAD_TID_OFFSET
+    CFI_REMEMBER_STATE
     je .Lcontinue_execute_nterp
 .Linvoke_trampoline:
-    pop %esi
+    POP_ARG esi
     jmp art_quick_resolution_trampoline
 .Lcontinue_execute_nterp:
-    pop %esi
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 8
+    POP_ARG esi
     jmp ExecuteNterpImpl
+    .cfi_endproc
 EndExecuteNterpWithClinitImpl:
 
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
