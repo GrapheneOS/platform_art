@@ -52,8 +52,14 @@
 .endm
 
 
+.macro CFI_REMEMBER_STATE
+    .cfi_remember_state
+.endm
+
+
 // The spec is not clear whether the CFA is part of the saved state and tools differ in the
 // behaviour, so explicitly set the CFA to avoid any ambiguity.
+// The restored CFA state should match the CFA state during CFI_REMEMBER_STATE.
 .macro CFI_RESTORE_STATE_AND_DEF_CFA reg, offset
     .cfi_restore_state
     .cfi_def_cfa \reg, \offset
