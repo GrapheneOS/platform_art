@@ -195,6 +195,10 @@ char *go_away_compiler = nullptr;
 static void raise_sigsegv() {
 #if defined(__arm__) || defined(__i386__) || defined(__aarch64__)
   *go_away_compiler = 'a';
+#elif defined(__riscv)
+  // Cause a SEGV using an instruction known to be 4 bytes long to account for hardcoded jump
+  // in the signal handler
+  asm volatile("ld zero, (zero);" : : :);
 #elif defined(__x86_64__)
   // Cause a SEGV using an instruction known to be 2 bytes long to account for hardcoded jump
   // in the signal handler
@@ -553,17 +557,20 @@ extern "C" bool native_bridge_isCompatibleWith(uint32_t bridge_version ATTRIBUTE
 #endif
 #endif
 
-static bool StandardSignalHandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED,
-                                     void* context) {
+static bool StandardSignalHandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED, void* context) {
   if (sig == SIGSEGV) {
 #if defined(__arm__)
     ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
     mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
-    mc->arm_pc += 2;          // Skip instruction causing segv & sigill.
+    mc->arm_pc += 2;  // Skip instruction causing segv & sigill.
 #elif defined(__aarch64__)
     ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
     mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
-    mc->pc += 4;          // Skip instruction causing segv & sigill.
+    mc->pc += 4;  // Skip instruction causing segv & sigill.
+#elif defined(__riscv)
+    ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+    mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+    mc->__gregs[REG_PC] += 4;  // Skip instruction causing segv & sigill.
 #elif defined(__i386__)
     ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
     uc->CTX_EIP += 3;
@@ -572,6 +579,7 @@ static bool StandardSignalHandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED,
     uc->CTX_EIP += 2;
 #else
     UNUSED(context);
+    UNIMPLEMENTED(FATAL) << "Unsupported architecture";
 #endif
   }
 
