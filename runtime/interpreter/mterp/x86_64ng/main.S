@@ -1697,6 +1697,7 @@ END_FUNCTION \name
  */
 
 OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+    .cfi_startproc
     // For simplicity, we don't do a read barrier here, but instead rely
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
@@ -1709,6 +1710,7 @@ OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
     cmpl %r10d, rSELF:THREAD_TID_OFFSET
     je ExecuteNterpImpl
     jmp art_quick_resolution_trampoline
+    .cfi_endproc
 EndExecuteNterpWithClinitImpl:
 
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl

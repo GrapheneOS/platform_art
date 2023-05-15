@@ -844,8 +844,11 @@ L(eighth_word):
     subl       %ebx, %eax
     RETURN
 
-
-    CFI_PUSH (%ebx)
+    # Unreachable, but needed for static analysis in the check_cfi.py script,
+    # since it does just single forward pass, but the code below is only
+    # reachable via a backward branch.
+    CFI_DEF_CFA (esp, 4)
+    PUSH       (%ebx)
 
     .p2align 4
 L(more8bytes):
