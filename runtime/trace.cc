@@ -565,6 +565,14 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   }
 }
 
+namespace {
+
+bool IsShutdownThread(std::string name) {
+  return (name.compare("Shutdown thread") == 0);
+}
+
+}  // namespace
+
 void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
@@ -629,7 +637,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
         // detached we record the information about the threads_list_. We re-attach the current
         // thread again as a "Shutdown thread" in the process of shutting down. So don't record
         // information about shutdown threads.
-        if (name.compare("Shutdown thread") != 0) {
+        if (!IsShutdownThread(name)) {
           // This information is updated here when stopping tracing and also when a thread is
           // detaching. In thread detach, we first update this information and then remove the
           // thread from the list of active threads. If the tracing was stopped in between these
@@ -1277,7 +1285,12 @@ void Trace::StoreExitingThreadInfo(Thread* thread) {
   if (the_trace_ != nullptr) {
     std::string name;
     thread->GetThreadName(name);
-    the_trace_->threads_list_.Put(thread->GetTid(), name);
+    // In tests, we destroy VM after already detaching the current thread. When a thread is
+    // detached we record the information about the threads_list_. Re-attaching thread can fail
+    // sometimes which unregisters the thread again. So ignore upadtes from shutdown thread.
+    if (!IsShutdownThread(name)) {
+      the_trace_->threads_list_.Put(thread->GetTid(), name);
+    }
   }
 }
 
