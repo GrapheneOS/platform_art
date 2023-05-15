@@ -213,22 +213,20 @@
   mov x1, x0                        // pass the result
   mov x0, xSELF                     // Thread::Current
   bl artDeoptimizeIfNeeded
-  CFI_REMEMBER_STATE
   RESTORE_SAVE_EVERYTHING_FRAME
   REFRESH_MARKING_REGISTER
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
 .endm
 
 .macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_X0 temp, is_ref
   ldr \temp, [xSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
-  cbnz \temp, 2f
   CFI_REMEMBER_STATE
+  cbnz \temp, 2f
   RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
   REFRESH_MARKING_REGISTER
   ret
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
 2:
+  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
   str x0, [sp, #SAVE_EVERYTHING_FRAME_X0_OFFSET] // update result in the frame
   mov x2, \is_ref                                // pass if result is a reference
   mov x1, x0                                     // pass the result
