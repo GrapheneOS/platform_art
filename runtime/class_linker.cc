@@ -1405,9 +1405,6 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
                       error_msg)) {
     return false;
   }
-  for (const std::unique_ptr<const DexFile>& dex_file : boot_dex_files_) {
-    OatDexFile::MadviseDexFileAtLoad(*dex_file);
-  }
   InitializeObjectVirtualMethodHashes(GetClassRoot<mirror::Object>(this),
                                       image_pointer_size_,
                                       ArrayRef<uint32_t>(object_virtual_method_hashes_));
