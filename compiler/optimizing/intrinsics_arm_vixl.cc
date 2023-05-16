@@ -4351,7 +4351,7 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
                                          LocationFrom(target.object),
                                          method,
                                          ArtField::DeclaringClassOffset().Int32Value(),
-                                         gCompilerReadBarrierOption);
+                                         GetCompilerReadBarrierOption());
       }
     }
   } else {

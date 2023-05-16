@@ -7263,9 +7263,8 @@ void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) NO_THREAD_SAFE
   Register out = out_loc.AsRegister<Register>();
 
   bool generate_null_check = false;
-  const ReadBarrierOption read_barrier_option = cls->IsInBootImage()
-      ? kWithoutReadBarrier
-      : gCompilerReadBarrierOption;
+  const ReadBarrierOption read_barrier_option =
+      cls->IsInBootImage() ? kWithoutReadBarrier : GetCompilerReadBarrierOption();
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass: {
       DCHECK(!cls->CanCallRuntime());
@@ -7495,7 +7494,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) NO_THREAD_S
       Address address = Address(method_address, CodeGeneratorX86::kPlaceholder32BitOffset);
       Label* fixup_label = codegen_->NewStringBssEntryPatch(load);
       // /* GcRoot<mirror::String> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, gCompilerReadBarrierOption);
+      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, GetCompilerReadBarrierOption());
       // No need for memory fence, thanks to the x86 memory model.
       SlowPathCode* slow_path = new (codegen_->GetScopedAllocator()) LoadStringSlowPathX86(load);
       codegen_->AddSlowPath(slow_path);
@@ -7515,7 +7514,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) NO_THREAD_S
       Label* fixup_label = codegen_->NewJitRootStringPatch(
           load->GetDexFile(), load->GetStringIndex(), load->GetString());
       // /* GcRoot<mirror::String> */ out = *address
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, gCompilerReadBarrierOption);
+      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label, GetCompilerReadBarrierOption());
       return;
     }
     default:
