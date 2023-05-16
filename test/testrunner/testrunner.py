@@ -81,6 +81,7 @@ import time
 import env
 from target_config import target_config
 from device_config import device_config
+from typing import Dict, Set, List
 
 # TODO: make it adjustable per tests and for buildbots
 #
@@ -105,13 +106,13 @@ DISABLED_TEST_CONTAINER = {}
 # The Dict contains the list of all possible variants for a given type. For example,
 # for key TARGET, the value would be target and host. The list is used to parse
 # the test name given as the argument to run.
-VARIANT_TYPE_DICT = {}
+VARIANT_TYPE_DICT: Dict[str, Set[str]] = {}
 
 # The set of all variant sets that are incompatible and will always be skipped.
 NONFUNCTIONAL_VARIANT_SETS = set()
 
 # The set contains all the variants of each time.
-TOTAL_VARIANTS_SET = set()
+TOTAL_VARIANTS_SET: Set[str] = set()
 
 # The colors are used in the output. When a test passes, COLOR_PASS is used,
 # and so on.
@@ -143,19 +144,19 @@ gdb_dex2oat_args = ''
 csv_result = None
 csv_writer = None
 runtime_option = ''
-with_agent = []
+with_agent: List[str] = []
 zipapex_loc = None
-run_test_option = []
+run_test_option: List[str] = []
 dex2oat_jobs = -1   # -1 corresponds to default threads for dex2oat
 run_all_configs = False
 
 # Dict containing extra arguments
-extra_arguments = { "host" : [], "target" : [] }
+extra_arguments: Dict[str, List[str]] = { "host" : [], "target" : [] }
 
 # Dict to store user requested test variants.
 # key: variant_type.
 # value: set of variants user wants to run of type <key>.
-_user_input_variants = collections.defaultdict(set)
+_user_input_variants: collections.defaultdict = collections.defaultdict(set)
 
 
 class ChildProcessTracker(object):
@@ -672,12 +673,12 @@ def run_test(command, test, test_variant, test_name):
       test_start_time = time.monotonic()
       if verbose:
         print_text("Starting %s at %s\n" % (test_name, test_start_time))
-      env = dict(os.environ)
-      env["FULL_TEST_NAME"] = test_name
+      environ = dict(os.environ)
+      environ["FULL_TEST_NAME"] = test_name
       if gdb or gdb_dex2oat:
         proc = _popen(
           args=command.split(),
-          env=env,
+          env=environ,
           stderr=subprocess.STDOUT,
           universal_newlines=True,
           start_new_session=True
@@ -685,7 +686,7 @@ def run_test(command, test, test_variant, test_name):
       else:
         proc = _popen(
           args=command.split(),
-          env=env,
+          env=environ,
           stderr=subprocess.STDOUT,
           stdout = subprocess.PIPE,
           universal_newlines=True,
