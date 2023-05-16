@@ -24,7 +24,7 @@ _VAR_CACHE_DIR = os.path.join(_TOP, "art/tools/build/")
 
 import sys
 sys.path.append(_VAR_CACHE_DIR)
-import var_cache
+import var_cache  # type: ignore
 # end import var_cache.py
 
 _env = dict(os.environ)
