@@ -7675,9 +7675,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) NO_THREAD_
   Location out_loc = locations->Out();
   vixl32::Register out = OutputRegister(cls);
 
-  const ReadBarrierOption read_barrier_option = cls->IsInBootImage()
-      ? kWithoutReadBarrier
-      : gCompilerReadBarrierOption;
+  const ReadBarrierOption read_barrier_option =
+      cls->IsInBootImage() ? kWithoutReadBarrier : GetCompilerReadBarrierOption();
   bool generate_null_check = false;
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -7931,7 +7930,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
       codegen_->EmitMovwMovtPlaceholder(labels, out);
       // All aligned loads are implicitly atomic consume operations on ARM.
       codegen_->GenerateGcRootFieldLoad(
-          load, out_loc, out, /*offset=*/ 0, gCompilerReadBarrierOption);
+          load, out_loc, out, /*offset=*/0, GetCompilerReadBarrierOption());
       LoadStringSlowPathARMVIXL* slow_path =
           new (codegen_->GetScopedAllocator()) LoadStringSlowPathARMVIXL(load);
       codegen_->AddSlowPath(slow_path);
@@ -7952,7 +7951,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
                                                         load->GetString()));
       // /* GcRoot<mirror::String> */ out = *out
       codegen_->GenerateGcRootFieldLoad(
-          load, out_loc, out, /*offset=*/ 0, gCompilerReadBarrierOption);
+          load, out_loc, out, /*offset=*/0, GetCompilerReadBarrierOption());
       return;
     }
     default:

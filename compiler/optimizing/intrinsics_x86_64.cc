@@ -3770,8 +3770,8 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
         instr_codegen->GenerateGcRootFieldLoad(invoke,
                                                Location::RegisterLocation(target.object),
                                                Address(method, ArtField::DeclaringClassOffset()),
-                                               /*fixup_label=*/ nullptr,
-                                               gCompilerReadBarrierOption);
+                                               /*fixup_label=*/nullptr,
+                                               GetCompilerReadBarrierOption());
       }
     }
   } else {
