@@ -31,7 +31,7 @@ namespace art {
 namespace Test929Search {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_addToBootClassLoader(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring segment) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jstring segment) {
   ScopedUtfChars utf(env, segment);
   if (utf.c_str() == nullptr) {
     return;
@@ -41,7 +41,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_addToBootClassLoader(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_addToSystemClassLoader(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring segment) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jstring segment) {
   ScopedUtfChars utf(env, segment);
   if (utf.c_str() == nullptr) {
     return;

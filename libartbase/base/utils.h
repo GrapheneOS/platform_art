@@ -75,16 +75,13 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
 class VoidFunctor {
  public:
   template <typename A>
-  inline void operator() (A a ATTRIBUTE_UNUSED) const {
-  }
+  inline void operator()([[maybe_unused]] A a) const {}
 
   template <typename A, typename B>
-  inline void operator() (A a ATTRIBUTE_UNUSED, B b ATTRIBUTE_UNUSED) const {
-  }
+  inline void operator()([[maybe_unused]] A a, [[maybe_unused]] B b) const {}
 
   template <typename A, typename B, typename C>
-  inline void operator() (A a ATTRIBUTE_UNUSED, B b ATTRIBUTE_UNUSED, C c ATTRIBUTE_UNUSED) const {
-  }
+  inline void operator()([[maybe_unused]] A a, [[maybe_unused]] B b, [[maybe_unused]] C c) const {}
 };
 
 inline bool TestBitmap(size_t idx, const uint8_t* bitmap) {

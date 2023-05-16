@@ -84,8 +84,11 @@ static std::unique_ptr<char[]> descriptorToDot(const char* str) {
  * Dumps a method.
  */
 static void dumpMethod(const DexFile* pDexFile,
-                       const char* fileName, u4 idx, u4 flags ATTRIBUTE_UNUSED,
-                       const dex::CodeItem* pCode, u4 codeOffset) {
+                       const char* fileName,
+                       u4 idx,
+                       [[maybe_unused]] u4 flags,
+                       const dex::CodeItem* pCode,
+                       u4 codeOffset) {
   // Abstract and native methods don't get listed.
   if (pCode == nullptr || codeOffset == 0) {
     return;

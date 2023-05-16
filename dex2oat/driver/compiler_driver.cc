@@ -274,12 +274,12 @@ CompilerDriver::CompilerDriver(
 }
 
 CompilerDriver::~CompilerDriver() {
-  compiled_methods_.Visit([this](const DexFileReference& ref ATTRIBUTE_UNUSED,
-                                 CompiledMethod* method) {
-    if (method != nullptr) {
-      CompiledMethod::ReleaseSwapAllocatedCompiledMethod(GetCompiledMethodStorage(), method);
-    }
-  });
+  compiled_methods_.Visit(
+      [this]([[maybe_unused]] const DexFileReference& ref, CompiledMethod* method) {
+        if (method != nullptr) {
+          CompiledMethod::ReleaseSwapAllocatedCompiledMethod(GetCompiledMethodStorage(), method);
+        }
+      });
 }
 
 
@@ -459,17 +459,16 @@ static void CompileMethodQuick(
     const DexFile& dex_file,
     Handle<mirror::DexCache> dex_cache,
     ProfileCompilationInfo::ProfileIndexType profile_index) {
-  auto quick_fn = [profile_index](
-      Thread* self ATTRIBUTE_UNUSED,
-      CompilerDriver* driver,
-      const dex::CodeItem* code_item,
-      uint32_t access_flags,
-      InvokeType invoke_type,
-      uint16_t class_def_idx,
-      uint32_t method_idx,
-      Handle<mirror::ClassLoader> class_loader,
-      const DexFile& dex_file,
-      Handle<mirror::DexCache> dex_cache) {
+  auto quick_fn = [profile_index]([[maybe_unused]] Thread* self,
+                                  CompilerDriver* driver,
+                                  const dex::CodeItem* code_item,
+                                  uint32_t access_flags,
+                                  InvokeType invoke_type,
+                                  uint16_t class_def_idx,
+                                  uint32_t method_idx,
+                                  Handle<mirror::ClassLoader> class_loader,
+                                  const DexFile& dex_file,
+                                  Handle<mirror::DexCache> dex_cache) {
     DCHECK(driver != nullptr);
     const VerificationResults* results = driver->GetVerificationResults();
     DCHECK(results != nullptr);
@@ -761,7 +760,7 @@ static void EnsureVerifiedOrVerifyAtRuntime(jobject jclass_loader,
   }
 }
 
-void CompilerDriver::PrepareDexFilesForOatFile(TimingLogger* timings ATTRIBUTE_UNUSED) {
+void CompilerDriver::PrepareDexFilesForOatFile([[maybe_unused]] TimingLogger* timings) {
   compiled_classes_.AddDexFiles(GetCompilerOptions().GetDexFilesForOatFile());
 }
 
@@ -1231,8 +1230,7 @@ class ClinitImageUpdate {
   // Visitor for VisitReferences.
   void operator()(ObjPtr<mirror::Object> object,
                   MemberOffset field_offset,
-                  bool is_static ATTRIBUTE_UNUSED) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+                  [[maybe_unused]] bool is_static) const REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = object->GetFieldObject<mirror::Object>(field_offset);
     if (ref != nullptr) {
       VisitClinitClassesObject(ref);
@@ -1240,13 +1238,13 @@ class ClinitImageUpdate {
   }
 
   // java.lang.ref.Reference visitor for VisitReferences.
-  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                  ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const {}
+  void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                  [[maybe_unused]] ObjPtr<mirror::Reference> ref) const {}
 
   // Ignore class native roots.
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
-      const {}
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
+  void VisitRootIfNonNull(
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {}
+  void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {}
 
   void Walk() REQUIRES_SHARED(Locks::mutator_lock_) {
     // Find all the already-marked classes.

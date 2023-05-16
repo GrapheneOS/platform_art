@@ -35,9 +35,9 @@ void CheckJvmtiError(jvmtiEnv* env, jvmtiError error) {
   }
 }
 
-static void JNICALL VMInitCallback(jvmtiEnv *jenv ATTRIBUTE_UNUSED,
+static void JNICALL VMInitCallback([[maybe_unused]] jvmtiEnv* jenv,
                                    JNIEnv* jni_env,
-                                   jthread thread ATTRIBUTE_UNUSED) {
+                                   [[maybe_unused]] jthread thread) {
   // Set a breakpoint on a rare method that we won't expect to be hit.
   // java.lang.Thread.stop is deprecated and not expected to be used.
   jclass cl = jni_env->FindClass("java/lang/Thread");
@@ -57,8 +57,8 @@ static void JNICALL VMInitCallback(jvmtiEnv *jenv ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
-                                               char* options ATTRIBUTE_UNUSED,
-                                               void* reserved ATTRIBUTE_UNUSED) {
+                                               [[maybe_unused]] char* options,
+                                               [[maybe_unused]] void* reserved) {
   // Setup jvmti_env
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0) != 0) {
     LOG(ERROR) << "Unable to get jvmti env!";

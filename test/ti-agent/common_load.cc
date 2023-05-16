@@ -58,8 +58,8 @@ struct AgentLib {
 
 // A trivial OnLoad implementation that only initializes the global jvmti_env.
 static jint MinimalOnLoad(JavaVM* vm,
-                          char* options ATTRIBUTE_UNUSED,
-                          void* reserved ATTRIBUTE_UNUSED) {
+                          [[maybe_unused]] char* options,
+                          [[maybe_unused]] void* reserved) {
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0) != 0) {
     printf("Unable to get jvmti env!\n");
     return 1;

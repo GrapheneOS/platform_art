@@ -237,7 +237,7 @@ class EndianOutput {
     HandleU4List(values, count);
     length_ += count * sizeof(uint32_t);
   }
-  virtual void UpdateU4(size_t offset, uint32_t new_value ATTRIBUTE_UNUSED) {
+  virtual void UpdateU4(size_t offset, [[maybe_unused]] uint32_t new_value) {
     DCHECK_LE(offset, length_ - 4);
   }
   void AddU8List(const uint64_t* values, size_t count) {
@@ -271,21 +271,16 @@ class EndianOutput {
   }
 
  protected:
-  virtual void HandleU1List(const uint8_t* values ATTRIBUTE_UNUSED,
-                            size_t count ATTRIBUTE_UNUSED) {
+  virtual void HandleU1List([[maybe_unused]] const uint8_t* values, [[maybe_unused]] size_t count) {
   }
-  virtual void HandleU1AsU2List(const uint8_t* values ATTRIBUTE_UNUSED,
-                                size_t count ATTRIBUTE_UNUSED) {
-  }
-  virtual void HandleU2List(const uint16_t* values ATTRIBUTE_UNUSED,
-                            size_t count ATTRIBUTE_UNUSED) {
-  }
-  virtual void HandleU4List(const uint32_t* values ATTRIBUTE_UNUSED,
-                            size_t count ATTRIBUTE_UNUSED) {
-  }
-  virtual void HandleU8List(const uint64_t* values ATTRIBUTE_UNUSED,
-                            size_t count ATTRIBUTE_UNUSED) {
-  }
+  virtual void HandleU1AsU2List([[maybe_unused]] const uint8_t* values,
+                                [[maybe_unused]] size_t count) {}
+  virtual void HandleU2List([[maybe_unused]] const uint16_t* values,
+                            [[maybe_unused]] size_t count) {}
+  virtual void HandleU4List([[maybe_unused]] const uint32_t* values,
+                            [[maybe_unused]] size_t count) {}
+  virtual void HandleU8List([[maybe_unused]] const uint64_t* values,
+                            [[maybe_unused]] size_t count) {}
   virtual void HandleEndRecord() {
   }
 
@@ -382,7 +377,7 @@ class EndianOutputBuffered : public EndianOutput {
     buffer_.clear();
   }
 
-  virtual void HandleFlush(const uint8_t* buffer ATTRIBUTE_UNUSED, size_t length ATTRIBUTE_UNUSED) {
+  virtual void HandleFlush([[maybe_unused]] const uint8_t* buffer, [[maybe_unused]] size_t length) {
   }
 
   std::vector<uint8_t> buffer_;
@@ -743,7 +738,7 @@ class Hprof : public SingleRootVisitor {
     }
   }
 
-  bool DumpToDdmsBuffered(size_t overall_size ATTRIBUTE_UNUSED, size_t max_length ATTRIBUTE_UNUSED)
+  bool DumpToDdmsBuffered([[maybe_unused]] size_t overall_size, [[maybe_unused]] size_t max_length)
       REQUIRES(Locks::mutator_lock_) {
     LOG(FATAL) << "Unimplemented";
     UNREACHABLE();

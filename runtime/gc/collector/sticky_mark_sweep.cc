@@ -73,7 +73,7 @@ void StickyMarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
       static_cast<VisitRootFlags>(flags | kVisitRootFlagClassLoader));
 }
 
-void StickyMarkSweep::Sweep(bool swap_bitmaps ATTRIBUTE_UNUSED) {
+void StickyMarkSweep::Sweep([[maybe_unused]] bool swap_bitmaps) {
   SweepArray(GetHeap()->GetLiveStack(), false);
 }
 

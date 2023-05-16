@@ -590,8 +590,8 @@ int JitMemoryRegion::CreateZygoteMemory(size_t capacity, std::string* error_msg)
   return fd;
 }
 
-bool JitMemoryRegion::ProtectZygoteMemory(int fd ATTRIBUTE_UNUSED,
-                                          std::string* error_msg ATTRIBUTE_UNUSED) {
+bool JitMemoryRegion::ProtectZygoteMemory([[maybe_unused]] int fd,
+                                          [[maybe_unused]] std::string* error_msg) {
   return true;
 }
 

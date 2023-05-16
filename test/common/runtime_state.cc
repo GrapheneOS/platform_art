@@ -72,7 +72,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasOatFile(JNIEnv* env, jclass c
 }
 
 extern "C" JNIEXPORT jobject JNICALL Java_Main_getCompilerFilter(JNIEnv* env,
-                                                                 jclass caller ATTRIBUTE_UNUSED,
+                                                                 [[maybe_unused]] jclass caller,
                                                                  jclass cls) {
   ScopedObjectAccess soa(env);
 
@@ -91,22 +91,22 @@ extern "C" JNIEXPORT jobject JNICALL Java_Main_getCompilerFilter(JNIEnv* env,
 
 // public static native boolean runtimeIsSoftFail();
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_runtimeIsSoftFail(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                  jclass cls ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_runtimeIsSoftFail([[maybe_unused]] JNIEnv* env,
+                                                                  [[maybe_unused]] jclass cls) {
   return Runtime::Current()->IsVerificationSoftFail() ? JNI_TRUE : JNI_FALSE;
 }
 
 // public static native boolean hasImage();
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasImage(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                         jclass cls ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasImage([[maybe_unused]] JNIEnv* env,
+                                                         [[maybe_unused]] jclass cls) {
   return Runtime::Current()->GetHeap()->HasBootImageSpace();
 }
 
 // public static native boolean isImageDex2OatEnabled();
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                      jclass cls ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled([[maybe_unused]] JNIEnv* env,
+                                                                      [[maybe_unused]] jclass cls) {
   return Runtime::Current()->IsImageDex2OatEnabled();
 }
 
@@ -453,14 +453,14 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isObsoleteObject(JNIEnv* env, jc
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_forceInterpreterOnThread(JNIEnv* env,
-                                                                     jclass cls ATTRIBUTE_UNUSED) {
+                                                                     [[maybe_unused]] jclass cls) {
   ScopedObjectAccess soa(env);
   MutexLock thread_list_mu(soa.Self(), *Locks::thread_list_lock_);
   soa.Self()->IncrementForceInterpreterCount();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setAsyncExceptionsThrown(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                     jclass cls ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT void JNICALL Java_Main_setAsyncExceptionsThrown([[maybe_unused]] JNIEnv* env,
+                                                                     [[maybe_unused]] jclass cls) {
   Runtime::Current()->SetAsyncExceptionsThrown();
 }
 

@@ -304,16 +304,16 @@ class FieldAccessCallingConventionARM64 : public FieldAccessCallingConvention {
   Location GetFieldIndexLocation() const override {
     return helpers::LocationFrom(vixl::aarch64::x0);
   }
-  Location GetReturnLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+  Location GetReturnLocation([[maybe_unused]] DataType::Type type) const override {
     return helpers::LocationFrom(vixl::aarch64::x0);
   }
-  Location GetSetValueLocation(DataType::Type type ATTRIBUTE_UNUSED,
+  Location GetSetValueLocation([[maybe_unused]] DataType::Type type,
                                bool is_instance) const override {
     return is_instance
         ? helpers::LocationFrom(vixl::aarch64::x2)
         : helpers::LocationFrom(vixl::aarch64::x1);
   }
-  Location GetFpuLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+  Location GetFpuLocation([[maybe_unused]] DataType::Type type) const override {
     return helpers::LocationFrom(vixl::aarch64::d0);
   }
 
@@ -737,9 +737,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   ParallelMoveResolverARM64* GetMoveResolver() override { return &move_resolver_; }
 
-  bool NeedsTwoRegisters(DataType::Type type ATTRIBUTE_UNUSED) const override {
-    return false;
-  }
+  bool NeedsTwoRegisters([[maybe_unused]] DataType::Type type) const override { return false; }
 
   // Check if the desired_string_load_kind is supported. If it is, return it,
   // otherwise return a fall-back kind that should be used instead.

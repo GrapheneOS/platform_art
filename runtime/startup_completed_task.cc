@@ -82,7 +82,7 @@ void StartupCompletedTask::Run(Thread* self) {
     // - accessing the image space metadata section when we madvise it
     // - accessing dex caches when we free them
     static struct EmptyClosure : Closure {
-      void Run(Thread* thread ATTRIBUTE_UNUSED) override {}
+      void Run([[maybe_unused]] Thread* thread) override {}
     } closure;
 
     runtime->GetThreadList()->RunCheckpoint(&closure);

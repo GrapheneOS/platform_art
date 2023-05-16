@@ -420,7 +420,7 @@ extern "C" mirror::Object* artReadBarrierMark(mirror::Object* obj) {
   return ReadBarrier::Mark(obj);
 }
 
-extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUSED,
+extern "C" mirror::Object* artReadBarrierSlow([[maybe_unused]] mirror::Object* ref,
                                               mirror::Object* obj,
                                               uint32_t offset) {
   // Used only in connection with non-volatile loads.

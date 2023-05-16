@@ -179,7 +179,7 @@ inline void ConvertUtf16ToModifiedUtf8(char* utf8_out,
 inline size_t CountModifiedUtf8BytesInUtf16(const uint16_t* chars, size_t char_count) {
   // FIXME: We should not emit 4-byte sequences. Bug: 192935764
   size_t result = 0;
-  auto append = [&](char c ATTRIBUTE_UNUSED) { ++result; };
+  auto append = [&]([[maybe_unused]] char c) { ++result; };
   ConvertUtf16ToUtf8</*kUseShortZero=*/ false,
                      /*kUse4ByteSequence=*/ true,
                      /*kReplaceBadSurrogates=*/ false>(chars, char_count, append);

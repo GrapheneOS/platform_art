@@ -30,11 +30,9 @@
 namespace art {
 namespace dex_ir {
 
-static uint32_t HeaderOffset(const dex_ir::Header* header ATTRIBUTE_UNUSED) {
-  return 0;
-}
+static uint32_t HeaderOffset([[maybe_unused]] const dex_ir::Header* header) { return 0; }
 
-static uint32_t HeaderSize(const dex_ir::Header* header ATTRIBUTE_UNUSED) {
+static uint32_t HeaderSize([[maybe_unused]] const dex_ir::Header* header) {
   // Size is in elements, so there is only one header.
   return 1;
 }

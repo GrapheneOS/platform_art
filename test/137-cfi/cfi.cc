@@ -212,7 +212,7 @@ static constexpr int kSleepTimeMicroseconds = 50000;             // 0.05 seconds
 static constexpr int kMaxTotalSleepTimeMicroseconds = 10000000;  // 10 seconds
 
 // Wait for a sigstop. This code is copied from libbacktrace.
-int wait_for_sigstop(pid_t tid, int* total_sleep_time_usec, bool* detach_failed ATTRIBUTE_UNUSED) {
+int wait_for_sigstop(pid_t tid, int* total_sleep_time_usec, [[maybe_unused]] bool* detach_failed) {
   for (;;) {
     int status;
     pid_t n = TEMP_FAILURE_RETRY(waitpid(tid, &status, __WALL | WNOHANG | WUNTRACED));

@@ -30,30 +30,30 @@ void SchedulingLatencyVisitorARM64::VisitBinaryOperation(HBinaryOperation* instr
 }
 
 void SchedulingLatencyVisitorARM64::VisitBitwiseNegatedRight(
-    HBitwiseNegatedRight* ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HBitwiseNegatedRight*) {
   last_visited_latency_ = kArm64IntegerOpLatency;
 }
 
 void SchedulingLatencyVisitorARM64::VisitDataProcWithShifterOp(
-    HDataProcWithShifterOp* ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HDataProcWithShifterOp*) {
   last_visited_latency_ = kArm64DataProcWithShifterOpLatency;
 }
 
 void SchedulingLatencyVisitorARM64::VisitIntermediateAddress(
-    HIntermediateAddress* ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HIntermediateAddress*) {
   // Although the code generated is a simple `add` instruction, we found through empirical results
   // that spacing it from its use in memory accesses was beneficial.
   last_visited_latency_ = kArm64IntegerOpLatency + 2;
 }
 
 void SchedulingLatencyVisitorARM64::VisitIntermediateAddressIndex(
-    HIntermediateAddressIndex* instr ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HIntermediateAddressIndex* instr) {
   // Although the code generated is a simple `add` instruction, we found through empirical results
   // that spacing it from its use in memory accesses was beneficial.
   last_visited_latency_ = kArm64DataProcWithShifterOpLatency + 2;
 }
 
-void SchedulingLatencyVisitorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitMultiplyAccumulate([[maybe_unused]] HMultiplyAccumulate*) {
   last_visited_latency_ = kArm64MulIntegerLatency;
 }
 
@@ -65,15 +65,15 @@ void SchedulingLatencyVisitorARM64::VisitArrayGet(HArrayGet* instruction) {
   last_visited_latency_ = kArm64MemoryLoadLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitArrayLength(HArrayLength* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitArrayLength([[maybe_unused]] HArrayLength*) {
   last_visited_latency_ = kArm64MemoryLoadLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitArraySet(HArraySet* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitArraySet([[maybe_unused]] HArraySet*) {
   last_visited_latency_ = kArm64MemoryStoreLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitBoundsCheck(HBoundsCheck* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitBoundsCheck([[maybe_unused]] HBoundsCheck*) {
   last_visited_internal_latency_ = kArm64IntegerOpLatency;
   // Users do not use any data results.
   last_visited_latency_ = 0;
@@ -113,21 +113,21 @@ void SchedulingLatencyVisitorARM64::VisitDiv(HDiv* instr) {
   }
 }
 
-void SchedulingLatencyVisitorARM64::VisitInstanceFieldGet(HInstanceFieldGet* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitInstanceFieldGet([[maybe_unused]] HInstanceFieldGet*) {
   last_visited_latency_ = kArm64MemoryLoadLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitInstanceOf(HInstanceOf* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitInstanceOf([[maybe_unused]] HInstanceOf*) {
   last_visited_internal_latency_ = kArm64CallInternalLatency;
   last_visited_latency_ = kArm64IntegerOpLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitInvoke(HInvoke* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitInvoke([[maybe_unused]] HInvoke*) {
   last_visited_internal_latency_ = kArm64CallInternalLatency;
   last_visited_latency_ = kArm64CallLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitLoadString(HLoadString* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitLoadString([[maybe_unused]] HLoadString*) {
   last_visited_internal_latency_ = kArm64LoadStringInternalLatency;
   last_visited_latency_ = kArm64MemoryLoadLatency;
 }
@@ -138,7 +138,7 @@ void SchedulingLatencyVisitorARM64::VisitMul(HMul* instr) {
       : kArm64MulIntegerLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitNewArray(HNewArray* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitNewArray([[maybe_unused]] HNewArray*) {
   last_visited_internal_latency_ = kArm64IntegerOpLatency + kArm64CallInternalLatency;
   last_visited_latency_ = kArm64CallLatency;
 }
@@ -181,7 +181,7 @@ void SchedulingLatencyVisitorARM64::VisitRem(HRem* instruction) {
   }
 }
 
-void SchedulingLatencyVisitorARM64::VisitStaticFieldGet(HStaticFieldGet* ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitStaticFieldGet([[maybe_unused]] HStaticFieldGet*) {
   last_visited_latency_ = kArm64MemoryLoadLatency;
 }
 
@@ -211,7 +211,7 @@ void SchedulingLatencyVisitorARM64::HandleSimpleArithmeticSIMD(HVecOperation *in
 }
 
 void SchedulingLatencyVisitorARM64::VisitVecReplicateScalar(
-    HVecReplicateScalar* instr ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HVecReplicateScalar* instr) {
   last_visited_latency_ = kArm64SIMDReplicateOpLatency;
 }
 
@@ -223,7 +223,7 @@ void SchedulingLatencyVisitorARM64::VisitVecReduce(HVecReduce* instr) {
   HandleSimpleArithmeticSIMD(instr);
 }
 
-void SchedulingLatencyVisitorARM64::VisitVecCnv(HVecCnv* instr ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitVecCnv([[maybe_unused]] HVecCnv* instr) {
   last_visited_latency_ = kArm64SIMDTypeConversionInt2FPLatency;
 }
 
@@ -279,19 +279,19 @@ void SchedulingLatencyVisitorARM64::VisitVecMax(HVecMax* instr) {
   HandleSimpleArithmeticSIMD(instr);
 }
 
-void SchedulingLatencyVisitorARM64::VisitVecAnd(HVecAnd* instr ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitVecAnd([[maybe_unused]] HVecAnd* instr) {
   last_visited_latency_ = kArm64SIMDIntegerOpLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitVecAndNot(HVecAndNot* instr ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitVecAndNot([[maybe_unused]] HVecAndNot* instr) {
   last_visited_latency_ = kArm64SIMDIntegerOpLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitVecOr(HVecOr* instr ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitVecOr([[maybe_unused]] HVecOr* instr) {
   last_visited_latency_ = kArm64SIMDIntegerOpLatency;
 }
 
-void SchedulingLatencyVisitorARM64::VisitVecXor(HVecXor* instr ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::VisitVecXor([[maybe_unused]] HVecXor* instr) {
   last_visited_latency_ = kArm64SIMDIntegerOpLatency;
 }
 
@@ -312,13 +312,12 @@ void SchedulingLatencyVisitorARM64::VisitVecSetScalars(HVecSetScalars* instr) {
 }
 
 void SchedulingLatencyVisitorARM64::VisitVecMultiplyAccumulate(
-    HVecMultiplyAccumulate* instr ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] HVecMultiplyAccumulate* instr) {
   last_visited_latency_ = kArm64SIMDMulIntegerLatency;
 }
 
-void SchedulingLatencyVisitorARM64::HandleVecAddress(
-    HVecMemoryOperation* instruction,
-    size_t size ATTRIBUTE_UNUSED) {
+void SchedulingLatencyVisitorARM64::HandleVecAddress(HVecMemoryOperation* instruction,
+                                                     [[maybe_unused]] size_t size) {
   HInstruction* index = instruction->InputAt(1);
   if (!index->IsConstant()) {
     last_visited_internal_latency_ += kArm64DataProcWithShifterOpLatency;

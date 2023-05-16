@@ -274,7 +274,7 @@ class PACKED(8) ImageHeader {
     kSectionCount,  // Number of elements in enum.
   };
 
-  static size_t NumberOfImageRoots(bool app_image ATTRIBUTE_UNUSED) {
+  static size_t NumberOfImageRoots([[maybe_unused]] bool app_image) {
     // At the moment, boot image and app image have the same number of roots,
     // though the meaning of the kSpecialRoots is different.
     return kImageRootsMax;

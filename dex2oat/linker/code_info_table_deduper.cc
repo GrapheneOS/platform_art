@@ -79,7 +79,7 @@ size_t CodeInfoTableDeduper::Dedupe(const uint8_t* code_info_data) {
   // Insert entries for large tables to the `dedupe_set_` and check for duplicates.
   std::array<DedupeSetEntry*, kNumBitTables> dedupe_entries;
   std::fill(dedupe_entries.begin(), dedupe_entries.end(), nullptr);
-  CodeInfo::ForEachBitTableField([&](size_t i, auto member_pointer ATTRIBUTE_UNUSED) {
+  CodeInfo::ForEachBitTableField([&](size_t i, [[maybe_unused]] auto member_pointer) {
     if (LIKELY(code_info.HasBitTable(i))) {
       uint32_t table_bit_size = bit_table_bit_starts[i + 1u] - bit_table_bit_starts[i];
       if (table_bit_size >= kMinDedupSize) {
@@ -109,7 +109,7 @@ size_t CodeInfoTableDeduper::Dedupe(const uint8_t* code_info_data) {
     });
     writer_.WriteInterleavedVarints(header);
     // Write bit tables and update offsets in `dedupe_set_` after encoding the `header`.
-    CodeInfo::ForEachBitTableField([&](size_t i, auto member_pointer ATTRIBUTE_UNUSED) {
+    CodeInfo::ForEachBitTableField([&](size_t i, [[maybe_unused]] auto member_pointer) {
       if (code_info.HasBitTable(i)) {
         size_t current_bit_offset = writer_.NumberOfWrittenBits();
         if (code_info.IsBitTableDeduped(i)) {

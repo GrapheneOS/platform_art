@@ -380,7 +380,7 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   }
 
   // TODO: Implement with disassembler.
-  virtual void Comment(const char* format ATTRIBUTE_UNUSED, ...) {}
+  virtual void Comment([[maybe_unused]] const char* format, ...) {}
 
   virtual void Bind(Label* label) = 0;
   virtual void Jump(Label* label) = 0;

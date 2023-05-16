@@ -54,9 +54,9 @@ class AllocationListener {
   // PreObjectAlloc and the newly allocated object being visible to heap-walks.
   //
   // This can also be used to make any last-minute changes to the type or size of the allocation.
-  virtual void PreObjectAllocated(Thread* self ATTRIBUTE_UNUSED,
-                                  MutableHandle<mirror::Class> type ATTRIBUTE_UNUSED,
-                                  size_t* byte_count ATTRIBUTE_UNUSED)
+  virtual void PreObjectAllocated([[maybe_unused]] Thread* self,
+                                  [[maybe_unused]] MutableHandle<mirror::Class> type,
+                                  [[maybe_unused]] size_t* byte_count)
       REQUIRES(!Roles::uninterruptible_) REQUIRES_SHARED(Locks::mutator_lock_) {}
   // Fast check if we want to get the PreObjectAllocated callback, to avoid the expense of creating
   // handles. Defaults to false.

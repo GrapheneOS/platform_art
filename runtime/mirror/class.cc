@@ -1605,9 +1605,9 @@ void Class::PopulateEmbeddedVTable(PointerSize pointer_size) {
 
 class ReadBarrierOnNativeRootsVisitor {
  public:
-  void operator()(ObjPtr<Object> obj ATTRIBUTE_UNUSED,
-                  MemberOffset offset ATTRIBUTE_UNUSED,
-                  bool is_static ATTRIBUTE_UNUSED) const {}
+  void operator()([[maybe_unused]] ObjPtr<Object> obj,
+                  [[maybe_unused]] MemberOffset offset,
+                  [[maybe_unused]] bool is_static) const {}
 
   void VisitRootIfNonNull(CompressedReference<Object>* root) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1644,7 +1644,7 @@ class CopyClassVisitor {
         copy_bytes_(copy_bytes), imt_(imt), pointer_size_(pointer_size) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));

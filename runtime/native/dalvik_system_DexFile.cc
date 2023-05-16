@@ -368,8 +368,8 @@ static bool isReadOnlyJavaDclChecked() {
 static jobject DexFile_openDexFileNative(JNIEnv* env,
                                          jclass,
                                          jstring javaSourceName,
-                                         jstring javaOutputName ATTRIBUTE_UNUSED,
-                                         jint flags ATTRIBUTE_UNUSED,
+                                         [[maybe_unused]] jstring javaOutputName,
+                                         [[maybe_unused]] jint flags,
                                          jobject class_loader,
                                          jobjectArray dex_elements) {
   ScopedUtfChars sourceName(env, javaSourceName);
@@ -758,8 +758,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 }
 
 static jboolean DexFile_isValidCompilerFilter(JNIEnv* env,
-                                            jclass javeDexFileClass ATTRIBUTE_UNUSED,
-                                            jstring javaCompilerFilter) {
+                                              [[maybe_unused]] jclass javaDexFileClass,
+                                              jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {
     return -1;
@@ -771,7 +771,7 @@ static jboolean DexFile_isValidCompilerFilter(JNIEnv* env,
 }
 
 static jboolean DexFile_isProfileGuidedCompilerFilter(JNIEnv* env,
-                                                      jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                      [[maybe_unused]] jclass javaDexFileClass,
                                                       jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {
@@ -786,7 +786,7 @@ static jboolean DexFile_isProfileGuidedCompilerFilter(JNIEnv* env,
 }
 
 static jboolean DexFile_isVerifiedCompilerFilter(JNIEnv* env,
-                                                 jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                 [[maybe_unused]] jclass javaDexFileClass,
                                                  jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {
@@ -801,7 +801,7 @@ static jboolean DexFile_isVerifiedCompilerFilter(JNIEnv* env,
 }
 
 static jboolean DexFile_isOptimizedCompilerFilter(JNIEnv* env,
-                                                  jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                  [[maybe_unused]] jclass javaDexFileClass,
                                                   jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {
@@ -816,12 +816,12 @@ static jboolean DexFile_isOptimizedCompilerFilter(JNIEnv* env,
 }
 
 static jboolean DexFile_isReadOnlyJavaDclEnforced(JNIEnv* env,
-                                                  jclass javeDexFileClass ATTRIBUTE_UNUSED) {
+                                                  [[maybe_unused]] jclass javaDexFileClass) {
   return (isReadOnlyJavaDclChecked() && isReadOnlyJavaDclEnforced(env)) ? JNI_TRUE : JNI_FALSE;
 }
 
 static jstring DexFile_getNonProfileGuidedCompilerFilter(JNIEnv* env,
-                                                         jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                         [[maybe_unused]] jclass javaDexFileClass,
                                                          jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {
@@ -846,7 +846,7 @@ static jstring DexFile_getNonProfileGuidedCompilerFilter(JNIEnv* env,
 }
 
 static jstring DexFile_getSafeModeCompilerFilter(JNIEnv* env,
-                                                 jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                 [[maybe_unused]] jclass javaDexFileClass,
                                                  jstring javaCompilerFilter) {
   ScopedUtfChars compiler_filter(env, javaCompilerFilter);
   if (env->ExceptionCheck()) {

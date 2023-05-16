@@ -100,7 +100,7 @@ bool ShouldReturnPointer(ObjPtr<mirror::Class> klass, ArtType* t)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 template <>
-bool ShouldReturnPointer(ObjPtr<mirror::Class> klass, ArtMethod* t ATTRIBUTE_UNUSED) {
+bool ShouldReturnPointer(ObjPtr<mirror::Class> klass, [[maybe_unused]] ArtMethod* t) {
   ObjPtr<mirror::ClassExt> ext(klass->GetExtData());
   if (ext.IsNull()) {
     return true;
@@ -176,7 +176,7 @@ template <typename ArtType>
 size_t GetIdOffset(ObjPtr<mirror::Class> k, ArtType* t, PointerSize pointer_size)
     REQUIRES_SHARED(Locks::mutator_lock_);
 template <>
-size_t GetIdOffset(ObjPtr<mirror::Class> k, ArtField* f, PointerSize ptr_size ATTRIBUTE_UNUSED) {
+size_t GetIdOffset(ObjPtr<mirror::Class> k, ArtField* f, [[maybe_unused]] PointerSize ptr_size) {
   return f->IsStatic() ? k->GetStaticFieldIdOffset(f) : k->GetInstanceFieldIdOffset(f);
 }
 template <>
@@ -208,7 +208,7 @@ std::string PrettyGeneric(ReflectiveHandle<ArtField> f) {
 template <typename ArtType>
 bool CanUseIdArrays(ReflectiveHandle<ArtType> t) REQUIRES_SHARED(Locks::mutator_lock_);
 template <>
-bool CanUseIdArrays(ReflectiveHandle<ArtField> t ATTRIBUTE_UNUSED) {
+bool CanUseIdArrays([[maybe_unused]] ReflectiveHandle<ArtField> t) {
   return true;
 }
 template <>
@@ -264,7 +264,7 @@ std::vector<ArtMethod*>& JniIdManager::GetGenericMap<ArtMethod>() {
 }
 template <>
 size_t JniIdManager::GetLinearSearchStartId<ArtField>(
-    ReflectiveHandle<ArtField> t ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] ReflectiveHandle<ArtField> t) {
   return deferred_allocation_field_id_start_;
 }
 

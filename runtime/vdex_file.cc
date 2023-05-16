@@ -57,7 +57,7 @@ bool VdexFile::VdexFileHeader::IsVdexVersionValid() const {
   return (memcmp(vdex_version_, kVdexVersion, sizeof(kVdexVersion)) == 0);
 }
 
-VdexFile::VdexFileHeader::VdexFileHeader(bool has_dex_section ATTRIBUTE_UNUSED)
+VdexFile::VdexFileHeader::VdexFileHeader([[maybe_unused]] bool has_dex_section)
     : number_of_sections_(static_cast<uint32_t>(VdexSection::kNumberOfSections)) {
   memcpy(magic_, kVdexMagic, sizeof(kVdexMagic));
   memcpy(vdex_version_, kVdexVersion, sizeof(kVdexVersion));

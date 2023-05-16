@@ -40,12 +40,12 @@ static void doUpPrintCall(JNIEnv* env, const char* function) {
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test987_00024Transform_sayHi__(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   doUpPrintCall(env, "doSayHi");
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test987_00024Transform_sayHi2(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   doUpPrintCall(env, "doSayHi2");
 }
 

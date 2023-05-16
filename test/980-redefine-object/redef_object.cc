@@ -38,10 +38,10 @@ namespace Test980RedefineObject {
 
 static void JNICALL RedefineObjectHook(jvmtiEnv *jvmti_env,
                                        JNIEnv* env,
-                                       jclass class_being_redefined ATTRIBUTE_UNUSED,
-                                       jobject loader ATTRIBUTE_UNUSED,
+                                       [[maybe_unused]] jclass class_being_redefined,
+                                       [[maybe_unused]] jobject loader,
                                        const char* name,
-                                       jobject protection_domain ATTRIBUTE_UNUSED,
+                                       [[maybe_unused]] jobject protection_domain,
                                        jint class_data_len,
                                        const unsigned char* class_data,
                                        jint* new_class_data_len,
@@ -106,7 +106,7 @@ static void JNICALL RedefineObjectHook(jvmtiEnv *jvmti_env,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_addMemoryTrackingCall(JNIEnv* env,
-                                                                  jclass klass ATTRIBUTE_UNUSED,
+                                                                  [[maybe_unused]] jclass klass,
                                                                   jclass obj_class,
                                                                   jthread thr) {
   jvmtiCapabilities caps {.can_retransform_classes = 1};

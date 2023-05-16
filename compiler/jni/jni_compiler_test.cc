@@ -175,9 +175,8 @@ size_t count_nonnull_refs_single_helper(T arg,
 
 // SFINAE for non-ref-types. Always 0.
 template <typename T>
-size_t count_nonnull_refs_single_helper(T arg ATTRIBUTE_UNUSED,
-                                        typename std::enable_if<!jni_type_traits<T>::is_ref>::type*
-                                            = nullptr) {
+size_t count_nonnull_refs_single_helper(
+    [[maybe_unused]] T arg, typename std::enable_if<!jni_type_traits<T>::is_ref>::type* = nullptr) {
   return 0;
 }
 
@@ -597,10 +596,9 @@ struct ScopedCheckHandleScope {
 
 class CountReferencesVisitor : public RootVisitor {
  public:
-  void VisitRoots(mirror::Object*** roots ATTRIBUTE_UNUSED,
+  void VisitRoots([[maybe_unused]] mirror::Object*** roots,
                   size_t count,
-                  const RootInfo& info) override
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+                  const RootInfo& info) override REQUIRES_SHARED(Locks::mutator_lock_) {
     if (info.GetType() == art::RootType::kRootJavaFrame) {
       const JavaFrameRootInfo& jrfi = static_cast<const JavaFrameRootInfo&>(info);
       if (jrfi.GetVReg() == JavaFrameRootInfo::kNativeReferenceArgument) {
@@ -610,10 +608,9 @@ class CountReferencesVisitor : public RootVisitor {
     }
   }
 
-  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots ATTRIBUTE_UNUSED,
-                  size_t count ATTRIBUTE_UNUSED,
-                  const RootInfo& info) override
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  void VisitRoots([[maybe_unused]] mirror::CompressedReference<mirror::Object>** roots,
+                  [[maybe_unused]] size_t count,
+                  const RootInfo& info) override REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK_NE(info.GetType(), art::RootType::kRootJavaFrame);
   }
 
@@ -986,8 +983,8 @@ void JniCompilerTest::CompileAndRunIntObjectObjectMethodImpl() {
 JNI_TEST(CompileAndRunIntObjectObjectMethod)
 
 int gJava_MyClassNatives_fooSII_calls[kJniKindCount] = {};
-jint Java_MyClassNatives_fooSII(JNIEnv* env ATTRIBUTE_UNUSED,
-                                jclass klass ATTRIBUTE_UNUSED,
+jint Java_MyClassNatives_fooSII([[maybe_unused]] JNIEnv* env,
+                                [[maybe_unused]] jclass klass,
                                 jint x,
                                 jint y) {
   gJava_MyClassNatives_fooSII_calls[gCurrentJni]++;
@@ -1009,8 +1006,8 @@ void JniCompilerTest::CompileAndRunStaticIntIntMethodImpl() {
 JNI_TEST_CRITICAL(CompileAndRunStaticIntIntMethod)
 
 int gJava_MyClassNatives_fooSDD_calls[kJniKindCount] = {};
-jdouble Java_MyClassNatives_fooSDD(JNIEnv* env ATTRIBUTE_UNUSED,
-                                   jclass klass ATTRIBUTE_UNUSED,
+jdouble Java_MyClassNatives_fooSDD([[maybe_unused]] JNIEnv* env,
+                                   [[maybe_unused]] jclass klass,
                                    jdouble x,
                                    jdouble y) {
   gJava_MyClassNatives_fooSDD_calls[gCurrentJni]++;
@@ -1682,8 +1679,8 @@ void JniCompilerTest::CompileAndRunFloatFloatMethodImpl() {
 
 JNI_TEST(CompileAndRunFloatFloatMethod)
 
-void Java_MyClassNatives_checkParameterAlign(JNIEnv* env ATTRIBUTE_UNUSED,
-                                             jobject thisObj ATTRIBUTE_UNUSED,
+void Java_MyClassNatives_checkParameterAlign([[maybe_unused]] JNIEnv* env,
+                                             [[maybe_unused]] jobject thisObj,
                                              jint i1,
                                              jlong l1) {
   EXPECT_EQ(i1, 1234);

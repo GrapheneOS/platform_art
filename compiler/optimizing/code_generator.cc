@@ -288,8 +288,8 @@ uint64_t CodeGenerator::GetJitClassRootIndex(TypeReference type_reference) {
   return code_generation_data_->GetJitClassRootIndex(type_reference);
 }
 
-void CodeGenerator::EmitJitRootPatches(uint8_t* code ATTRIBUTE_UNUSED,
-                                       const uint8_t* roots_data ATTRIBUTE_UNUSED) {
+void CodeGenerator::EmitJitRootPatches([[maybe_unused]] uint8_t* code,
+                                       [[maybe_unused]] const uint8_t* roots_data) {
   DCHECK(code_generation_data_ != nullptr);
   DCHECK_EQ(code_generation_data_->GetNumberOfJitStringRoots(), 0u);
   DCHECK_EQ(code_generation_data_->GetNumberOfJitClassRoots(), 0u);
@@ -457,18 +457,18 @@ void CodeGenerator::Finalize(CodeAllocator* allocator) {
 }
 
 void CodeGenerator::EmitLinkerPatches(
-    ArenaVector<linker::LinkerPatch>* linker_patches ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] ArenaVector<linker::LinkerPatch>* linker_patches) {
   // No linker patches by default.
 }
 
-bool CodeGenerator::NeedsThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED) const {
+bool CodeGenerator::NeedsThunkCode([[maybe_unused]] const linker::LinkerPatch& patch) const {
   // Code generators that create patches requiring thunk compilation should override this function.
   return false;
 }
 
-void CodeGenerator::EmitThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                  /*out*/ ArenaVector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                  /*out*/ std::string* debug_name ATTRIBUTE_UNUSED) {
+void CodeGenerator::EmitThunkCode([[maybe_unused]] const linker::LinkerPatch& patch,
+                                  [[maybe_unused]] /*out*/ ArenaVector<uint8_t>* code,
+                                  [[maybe_unused]] /*out*/ std::string* debug_name) {
   // Code generators that create patches requiring thunk compilation should override this function.
   LOG(FATAL) << "Unexpected call to EmitThunkCode().";
 }

@@ -49,12 +49,12 @@ class NoopAllocator final : public Allocator {
   NoopAllocator() {}
   ~NoopAllocator() {}
 
-  void* Alloc(size_t size ATTRIBUTE_UNUSED) override {
+  void* Alloc([[maybe_unused]] size_t size) override {
     LOG(FATAL) << "NoopAllocator::Alloc should not be called";
     UNREACHABLE();
   }
 
-  void Free(void* p ATTRIBUTE_UNUSED) override {
+  void Free([[maybe_unused]] void* p) override {
     // Noop.
   }
 

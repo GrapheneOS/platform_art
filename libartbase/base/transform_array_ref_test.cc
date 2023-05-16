@@ -30,7 +30,7 @@ struct ValueHolder {
   int value;
 };
 
-ATTRIBUTE_UNUSED bool operator==(const ValueHolder& lhs, const ValueHolder& rhs) {
+[[maybe_unused]] bool operator==(const ValueHolder& lhs, const ValueHolder& rhs) {
   return lhs.value == rhs.value;
 }
 

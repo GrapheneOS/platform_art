@@ -492,7 +492,7 @@ inline void StringBuilderAppend::Builder::StoreData(ObjPtr<mirror::String> new_s
 }
 
 inline void StringBuilderAppend::Builder::operator()(ObjPtr<mirror::Object> obj,
-                                                     size_t usable_size ATTRIBUTE_UNUSED) const {
+                                                     [[maybe_unused]] size_t usable_size) const {
   ObjPtr<mirror::String> new_string = ObjPtr<mirror::String>::DownCast(obj);
   new_string->SetCount(length_with_flag_);
   if (mirror::String::IsCompressed(length_with_flag_)) {

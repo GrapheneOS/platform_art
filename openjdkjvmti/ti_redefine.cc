@@ -2372,9 +2372,9 @@ class ClassDefinitionPauser : public art::ClassLoadCallback {
     }
   }
 
-  void ClassLoad(art::Handle<art::mirror::Class> klass ATTRIBUTE_UNUSED) override {}
-  void ClassPrepare(art::Handle<art::mirror::Class> klass1 ATTRIBUTE_UNUSED,
-                    art::Handle<art::mirror::Class> klass2 ATTRIBUTE_UNUSED) override {}
+  void ClassLoad([[maybe_unused]] art::Handle<art::mirror::Class> klass) override {}
+  void ClassPrepare([[maybe_unused]] art::Handle<art::mirror::Class> klass1,
+                    [[maybe_unused]] art::Handle<art::mirror::Class> klass2) override {}
 
   void SetRunning() {
     is_running_ = true;

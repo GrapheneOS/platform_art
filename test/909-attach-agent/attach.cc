@@ -35,8 +35,8 @@ static void Println(const char* c) {
 static constexpr jint kArtTiVersion = JVMTI_VERSION_1_2 | 0x40000000;
 
 jint OnAttach(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
+            [[maybe_unused]] char* options,
+            [[maybe_unused]] void* reserved) {
   Println("Attached Agent for test 909-attach-agent");
   jvmtiEnv* env = nullptr;
   jvmtiEnv* env2 = nullptr;
