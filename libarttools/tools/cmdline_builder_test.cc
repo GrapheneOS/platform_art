@@ -127,6 +127,7 @@ TEST_F(CmdlineBuilderTest, Concat) {
 
   args_.Concat(std::move(other));
   EXPECT_THAT(args_.Get(), ElementsAre("--flag1", "--flag2", "--flag3", "--flag4"));
+  // NOLINTNEXTLINE - checking all args have been moved from other to args_
   EXPECT_THAT(other.Get(), IsEmpty());
 }
 
