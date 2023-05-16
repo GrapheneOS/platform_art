@@ -199,6 +199,22 @@ static const char kRawDexDebugInfoLocalNullType[] =
     "AAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAAuAAAAAYAAAABAAAA0AAAAAEgAAACAAAA"
     "8AAAAAIgAAAIAAAAHAEAAAMgAAACAAAAVAEAAAAgAAABAAAAYwEAAAAQAAABAAAAdAEAAA==";
 
+// Created from kRawDex38 by changing version to 35 and appending three entries
+// to the map list, namely `kDexTypeMethodHandleItem`, `kDexTypeCallSiteIdItem`
+// and `kDexTypeHiddenapiClassData`, each with size one and invalid offset 0xffff.
+static const char kRawDexBadMapOffsets[] =
+    "ZGV4CjAzNQC4OovJlJ1089ikzK6asMf/f8qp3Kve5VsgAgAAcAAAAHhWNBIAAAAAAAAAAIwBAAAI"
+    "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAAAwAQAA8AAAACIB"
+    "AAAqAQAAMgEAAEYBAABRAQAAVAEAAFgBAABtAQAAAQAAAAIAAAAEAAAABgAAAAQAAAACAAAAAAAA"
+    "AAUAAAACAAAAHAEAAAAAAAAAAAAAAAABAAcAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAADAAAA"
+    "AAAAAH4BAAAAAAAAAQABAAEAAABzAQAABAAAAHAQAgAAAA4AAQABAAAAAAB4AQAAAQAAAA4AAAAB"
+    "AAAAAwAGPGluaXQ+AAZMTWFpbjsAEkxqYXZhL2xhbmcvT2JqZWN0OwAJTWFpbi5qYXZhAAFWAAJW"
+    "TAATW0xqYXZhL2xhbmcvU3RyaW5nOwAEbWFpbgABAAcOAAMBAAcOAAAAAgAAgYAE8AEBCYgCDwAA"
+    "AAAAAAABAAAAAAAAAAEAAAAIAAAAcAAAAAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAA"
+    "uAAAAAYAAAABAAAA0AAAAAEgAAACAAAA8AAAAAEQAAABAAAAHAEAAAIgAAAIAAAAIgEAAAMgAAAC"
+    "AAAAcwEAAAAgAAABAAAAfgEAAAAQAAABAAAAjAEAAAgAAAABAAAA//8AAAcAAAABAAAA//8AAADw"
+    "AAABAAAA//8AAA==";
+
 static void DecodeDexFile(const char* base64, std::vector<uint8_t>* dex_bytes) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -461,6 +477,23 @@ TEST_F(DexFileLoaderTest, OpenDexDebugInfoLocalNullType) {
   const dex::CodeItem* code_item = raw->GetCodeItem(raw->FindCodeItemOffset(class_def, kMethodIdx));
   CodeItemDebugInfoAccessor accessor(*raw, code_item, kMethodIdx);
   ASSERT_TRUE(accessor.DecodeDebugLocalInfo(true, 1, VoidFunctor()));
+}
+
+TEST_F(DexFileLoaderTest, BadMapOffsets) {
+  // Bad offset for `kDexTypeHiddenapiClassData` previously triggered a `DCHECK()`
+  // before verifying the dex file. We want to reject dex files with bad offsets
+  // without crashing, even in debug builds. b/281960267
+  std::vector<uint8_t> dex_bytes;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  DexFileLoaderErrorCode error_code;
+  std::string error_msg;
+  bool success = OpenDexFilesBase64(kRawDexBadMapOffsets,
+                                    kLocationString,
+                                    &dex_bytes,
+                                    &dex_files,
+                                    &error_code,
+                                    &error_msg);
+  ASSERT_FALSE(success);
 }
 
 }  // namespace art
