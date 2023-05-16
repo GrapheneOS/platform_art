@@ -3780,7 +3780,7 @@ static Register GenerateVarHandleFieldReference(HInvoke* invoke,
                                            Location::RegisterLocation(temp),
                                            Address(temp, declaring_class_offset),
                                            /* fixup_label= */ nullptr,
-                                           gCompilerReadBarrierOption);
+                                           GetCompilerReadBarrierOption());
     return temp;
   }
 
@@ -3859,7 +3859,7 @@ static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   Address field_addr(ref, offset, TIMES_1, 0);
 
   // Load the value from the field
-  if (type == DataType::Type::kReference && gCompilerReadBarrierOption == kWithReadBarrier) {
+  if (type == DataType::Type::kReference && GetCompilerReadBarrierOption() == kWithReadBarrier) {
     codegen->GenerateReferenceLoadWithBakerReadBarrier(
         invoke, out, ref, field_addr, /* needs_null_check= */ false);
   } else if (type == DataType::Type::kInt64 &&
