@@ -27,8 +27,12 @@ cc_fuzz {
     name: "libart_verify_dex_fuzzer",
     srcs: ["libart_verify_dex_fuzzer.cc"],
 
-    // Run in release mode since debug is too slow.
-    defaults: ["libart_static_defaults"],
+    defaults: [
+        // Run in release mode since debug is too slow.
+        "libart_static_defaults",
+        // To allow the ART module to build correctly.
+        "art_module_source_build_defaults",
+    ],
 
     // Build and run on x86 too.
     host_supported: true,
