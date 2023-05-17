@@ -102,8 +102,13 @@ if [ -d frameworks/base ]; then
 else
   # Allow to build successfully in master-art.
   extra_args="SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true"
-  # Switch the build system to unbundled mode in the reduced manifest branch.
-  extra_args="$extra_args TARGET_BUILD_UNBUNDLED=true"
+
+  if [[ "$ART_TEST_ON_VM" == "true" ]]; then
+    extra_args="$extra_args TARGET_BUILD_UNBUNDLED=false"
+  else
+    # Switch the build system to unbundled mode in the reduced manifest branch.
+    extra_args="$extra_args TARGET_BUILD_UNBUNDLED=true"
+  fi
 fi
 
 apexes=(
