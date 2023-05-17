@@ -2763,6 +2763,31 @@ void Runtime::RegisterAppInfo(const std::string& package_name,
     return;
   }
 
+  // Framework calls this method for all split APKs. Ignore the calls for the ones with no dex code
+  // so that we don't unnecessarily create profiles for them or write bootclasspath profiling info
+  // to those profiles.
+  bool has_code = false;
+  for (const std::string& path : code_paths) {
+    std::string error_msg;
+    std::vector<uint32_t> checksums;
+    std::vector<std::string> dex_locations;
+    if (!ArtDexFileLoader::GetMultiDexChecksums(
+            path.c_str(), &checksums, &dex_locations, &error_msg)) {
+      LOG(WARNING) << error_msg;
+      continue;
+    }
+    if (dex_locations.size() > 0) {
+      has_code = true;
+      break;
+    }
+  }
+  if (!has_code) {
+    VLOG(profiler) << ART_FORMAT(
+        "JIT profile information will not be recorded: no dex code in '{}'.",
+        android::base::Join(code_paths, ','));
+    return;
+  }
+
   jit_->StartProfileSaver(profile_output_filename, code_paths, ref_profile_filename);
 }
 
