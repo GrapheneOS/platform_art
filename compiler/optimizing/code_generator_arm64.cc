@@ -1243,13 +1243,16 @@ void InstructionCodeGeneratorARM64::GenerateMethodEntryExitHook(HInstruction* in
   __ Str(index, MemOperand(tr, trace_buffer_index_addr));
 
   Register tmp = index;
-  // Record method pointer
+  // Record method pointer and trace action.
   __ Ldr(tmp, MemOperand(sp, 0));
+  // Use last two bits to encode trace method action. For MethodEntry it is 0
+  // so no need to set the bits since they are 0 already.
+  if (instruction->IsMethodExitHook()) {
+    DCHECK_GE(ArtMethod::Alignment(kRuntimePointerSize), static_cast<size_t>(4));
+    uint32_t trace_action = 1;
+    __ Orr(tmp, tmp, Operand(trace_action));
+  }
   __ Str(tmp, MemOperand(addr, kMethodOffsetInBytes));
-  // Record the method action
-  uint32_t trace_action = instruction->IsMethodExitHook() ? 1 : 0;
-  __ Mov(tmp, Operand(trace_action));
-  __ Str(tmp, MemOperand(addr, kTraceActionOffsetInBytes));
   // Record the timestamp.
   __ Mrs(tmp, (SystemRegister)SYS_CNTVCT_EL0);
   __ Str(tmp, MemOperand(addr, kTimestampOffsetInBytes));

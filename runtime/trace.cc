@@ -1058,7 +1058,9 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
     }
   }
 
-  size_t required_entries = (clock_source_ == TraceClockSource::kDual) ? 4 : 3;
+  size_t required_entries = (clock_source_ == TraceClockSource::kDual) ?
+                                kNumEntriesForDualClock :
+                                kNumEntriesForWallClock;
   if (*current_offset < required_entries) {
     // We don't have space for further entries. Flush the contents of the buffer and reuse the
     // buffer to store contents. Reset the index to the start of the buffer.
@@ -1068,10 +1070,8 @@ void Trace::RecordStreamingMethodEvent(Thread* thread,
 
   // Record entry in per-thread trace buffer.
   int current_index = *current_offset;
-  method_trace_buffer[current_index--] = reinterpret_cast<uintptr_t>(method);
-  // TODO(mythria): We only need two bits to record the action. Consider merging
-  // it with the method entry to save space.
-  method_trace_buffer[current_index--] = action;
+  method_trace_buffer[current_index--] = reinterpret_cast<uintptr_t>(method) | action;
+
   if (UseThreadCpuClock()) {
     method_trace_buffer[current_index--] = thread_clock_diff;
   }
@@ -1126,8 +1126,9 @@ void Trace::FlushStreamingBuffer(Thread* thread) {
   size_t num_entries = *(thread->GetMethodTraceIndexPtr());
   uint16_t thread_id = GetThreadEncoding(thread->GetTid());
   for (size_t entry_index = kPerThreadBufSize - 1; entry_index > num_entries;) {
-    ArtMethod* method = reinterpret_cast<ArtMethod*>(method_trace_buffer[entry_index--]);
-    TraceAction action = DecodeTraceAction(method_trace_buffer[entry_index--]);
+    uintptr_t method_and_action = method_trace_buffer[entry_index--];
+    ArtMethod* method = reinterpret_cast<ArtMethod*>(method_and_action & kMaskTraceAction);
+    TraceAction action = DecodeTraceAction(method_and_action);
     uint32_t thread_time = 0;
     uint32_t wall_time = 0;
     if (UseThreadCpuClock()) {
