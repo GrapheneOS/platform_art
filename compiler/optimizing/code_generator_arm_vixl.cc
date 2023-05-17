@@ -2243,13 +2243,17 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
   __ Sub(index, index, kNumEntriesForWallClock);
   __ Str(index, MemOperand(tr, trace_buffer_index_addr));
 
-  // Record method pointer
+  // Record method pointer and trace action.
   __ Ldr(tmp, MemOperand(sp, 0));
+  // Use last two bits to encode trace method action. For MethodEntry it is 0
+  // so no need to set the bits since they are 0 already.
+  if (instruction->IsMethodExitHook()) {
+    DCHECK_GE(ArtMethod::Alignment(kRuntimePointerSize), static_cast<size_t>(4));
+    uint32_t trace_action = 1;
+    __ Orr(tmp, tmp, Operand(trace_action));
+  }
   __ Str(tmp, MemOperand(addr, kMethodOffsetInBytes));
-  // Record the method action
-  uint32_t trace_action = instruction->IsMethodExitHook() ? 1 : 0;
-  __ Mov(tmp, Operand(trace_action));
-  __ Str(tmp, MemOperand(addr, kTraceActionOffsetInBytes));
+
   vixl32::Register tmp1 = index;
   // See Architecture Reference Manual ARMv7-A and ARMv7-R edition section B4.1.34.
   __ Mrrc(/* lower 32-bit */ tmp,
