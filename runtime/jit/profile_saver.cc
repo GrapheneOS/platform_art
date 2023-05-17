@@ -141,7 +141,7 @@ void ProfileSaver::Run() {
       : options_.GetSaveResolvedClassesDelayMs());
     const uint64_t start_time = NanoTime();
     const uint64_t end_time = start_time + sleep_time;
-    while (!Runtime::Current()->GetStartupCompleted()) {
+    while (!Runtime::Current()->GetStartupCompleted() || force_early_first_save) {
       const uint64_t current_time = NanoTime();
       if (current_time >= end_time) {
         break;
