@@ -295,6 +295,7 @@ art_cc_defaults {
         ":art-gtest-jars-MainEmptyUncompressed",
         ":art-gtest-jars-MultiDex",
         ":art-gtest-jars-Nested",
+        ":art-gtest-jars-VerifierDeps",
     ],
     header_libs: ["jni_headers"],
     static_libs: [
