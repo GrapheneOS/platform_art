@@ -1523,7 +1523,9 @@ bool DexFileVerifier::CheckIntraClassDataItem() {
 
 bool DexFileVerifier::CheckIntraCodeItem() {
   const dex::CodeItem* code_item = reinterpret_cast<const dex::CodeItem*>(ptr_);
-  if (!CheckListSize(code_item, 1, sizeof(dex::CodeItem), "code")) {
+
+  DCHECK(dex_file_->IsStandardDexFile());
+  if (!CheckListSize(code_item, 1, sizeof(StandardDexFile::CodeItem), "code")) {
     return false;
   }
 
