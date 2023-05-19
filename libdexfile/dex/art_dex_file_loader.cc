@@ -111,6 +111,7 @@ bool ArtDexFileLoader::GetMultiDexChecksums(const char* filename,
     }
     for (auto& dex_file : dex_files) {
       checksums->push_back(dex_file->GetHeader().checksum_);
+      dex_locations->push_back(dex_file->GetLocation());
     }
     return true;
   }
