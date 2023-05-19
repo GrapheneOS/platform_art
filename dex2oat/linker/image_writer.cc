@@ -3405,7 +3405,7 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
       }
       CHECK(found_one) << "Expected to find callee save method but got " << orig->PrettyMethod();
       CHECK(copy->IsRuntimeMethod());
-      CHECK(copy->GetEntryPointFromQuickCompiledCode() == nullptr);
+      CHECK(copy->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_) == nullptr);
       quick_code = nullptr;
     }
   } else {
