@@ -5,6 +5,3 @@
   *** set*(***);
   *** has*();
 }
-
-# A job service is referenced by the framework through reflection.
--keep class * extends android.app.job.JobService { *; }
