@@ -668,7 +668,7 @@ class RuntimeImageHelper {
     explicit NativePointerVisitor(RuntimeImageHelper* helper) : helper_(helper) {}
 
     template <typename T>
-    T* operator()(T* ptr, void** dest_addr ATTRIBUTE_UNUSED) const {
+    T* operator()(T* ptr, [[maybe_unused]] void** dest_addr) const {
       return helper_->NativeLocationInImage(ptr, /* must_have_relocation= */ true);
     }
 
@@ -1186,11 +1186,11 @@ class RuntimeImageHelper {
         : image_(image), copy_offset_(copy_offset) {}
 
     // We do not visit native roots. These are handled with other logic.
-    void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
-        const {
+    void VisitRootIfNonNull(
+        [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
       LOG(FATAL) << "UNREACHABLE";
     }
-    void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {
+    void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
       LOG(FATAL) << "UNREACHABLE";
     }
 
@@ -1209,9 +1209,8 @@ class RuntimeImageHelper {
     }
 
     // java.lang.ref.Reference visitor.
-    void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                    ObjPtr<mirror::Reference> ref) const
-        REQUIRES_SHARED(Locks::mutator_lock_) {
+    void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                    ObjPtr<mirror::Reference> ref) const REQUIRES_SHARED(Locks::mutator_lock_) {
       operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
     }
 

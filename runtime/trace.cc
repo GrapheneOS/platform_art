@@ -349,7 +349,7 @@ static void GetSample(Thread* thread, void* arg) REQUIRES_SHARED(Locks::mutator_
   the_trace->CompareAndUpdateStackTrace(thread, stack_trace);
 }
 
-static void ClearThreadStackTraceAndClockBase(Thread* thread, void* arg ATTRIBUTE_UNUSED) {
+static void ClearThreadStackTraceAndClockBase(Thread* thread, [[maybe_unused]] void* arg) {
   thread->SetTraceClockBase(0);
   std::vector<ArtMethod*>* stack_trace = thread->GetStackTraceSample();
   thread->SetStackTraceSample(nullptr);
@@ -489,7 +489,7 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   auto deleter = [](File* file) {
     if (file != nullptr) {
       file->MarkUnchecked();  // Don't deal with flushing requirements.
-      int result ATTRIBUTE_UNUSED = file->Close();
+      [[maybe_unused]] int result = file->Close();
       delete file;
     }
   };
@@ -916,8 +916,8 @@ void Trace::FinishTracing() {
   }
 }
 
-void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
-                       Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+void Trace::DexPcMoved([[maybe_unused]] Thread* thread,
+                       [[maybe_unused]] Handle<mirror::Object> this_object,
                        ArtMethod* method,
                        uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
@@ -925,23 +925,22 @@ void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
              << " " << new_dex_pc;
 }
 
-void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
-                      Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+void Trace::FieldRead([[maybe_unused]] Thread* thread,
+                      [[maybe_unused]] Handle<mirror::Object> this_object,
                       ArtMethod* method,
                       uint32_t dex_pc,
-                      ArtField* field ATTRIBUTE_UNUSED)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+                      [[maybe_unused]] ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field read event in tracing " << ArtMethod::PrettyMethod(method)
              << " " << dex_pc;
 }
 
-void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
-                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
+void Trace::FieldWritten([[maybe_unused]] Thread* thread,
+                         [[maybe_unused]] Handle<mirror::Object> this_object,
                          ArtMethod* method,
                          uint32_t dex_pc,
-                         ArtField* field ATTRIBUTE_UNUSED,
-                         const JValue& field_value ATTRIBUTE_UNUSED)
+                         [[maybe_unused]] ArtField* field,
+                         [[maybe_unused]] const JValue& field_value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field write event in tracing " << ArtMethod::PrettyMethod(method)
@@ -957,31 +956,29 @@ void Trace::MethodEntered(Thread* thread, ArtMethod* method) {
 
 void Trace::MethodExited(Thread* thread,
                          ArtMethod* method,
-                         instrumentation::OptionalFrame frame ATTRIBUTE_UNUSED,
-                         JValue& return_value ATTRIBUTE_UNUSED) {
+                         [[maybe_unused]] instrumentation::OptionalFrame frame,
+                         [[maybe_unused]] JValue& return_value) {
   uint32_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   LogMethodTraceEvent(thread, method, kTraceMethodExit, thread_clock_diff, timestamp_counter);
 }
 
-void Trace::MethodUnwind(Thread* thread,
-                         ArtMethod* method,
-                         uint32_t dex_pc ATTRIBUTE_UNUSED) {
+void Trace::MethodUnwind(Thread* thread, ArtMethod* method, [[maybe_unused]] uint32_t dex_pc) {
   uint32_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   LogMethodTraceEvent(thread, method, kTraceUnroll, thread_clock_diff, timestamp_counter);
 }
 
-void Trace::ExceptionThrown(Thread* thread ATTRIBUTE_UNUSED,
-                            Handle<mirror::Throwable> exception_object ATTRIBUTE_UNUSED)
+void Trace::ExceptionThrown([[maybe_unused]] Thread* thread,
+                            [[maybe_unused]] Handle<mirror::Throwable> exception_object)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected exception thrown event in tracing";
 }
 
-void Trace::ExceptionHandled(Thread* thread ATTRIBUTE_UNUSED,
-                             Handle<mirror::Throwable> exception_object ATTRIBUTE_UNUSED)
+void Trace::ExceptionHandled([[maybe_unused]] Thread* thread,
+                             [[maybe_unused]] Handle<mirror::Throwable> exception_object)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected exception thrown event in tracing";
 }
@@ -992,8 +989,8 @@ void Trace::Branch(Thread* /*thread*/, ArtMethod* method,
   LOG(ERROR) << "Unexpected branch event in tracing" << ArtMethod::PrettyMethod(method);
 }
 
-void Trace::WatchedFramePop(Thread* self ATTRIBUTE_UNUSED,
-                            const ShadowFrame& frame ATTRIBUTE_UNUSED) {
+void Trace::WatchedFramePop([[maybe_unused]] Thread* self,
+                            [[maybe_unused]] const ShadowFrame& frame) {
   LOG(ERROR) << "Unexpected WatchedFramePop event in tracing";
 }
 

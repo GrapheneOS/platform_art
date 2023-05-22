@@ -104,7 +104,7 @@ jobject GetProxyReferenceArgument(size_t arg_pos, size_t proxy_method_frame_dept
 }
 
 extern "C" JNIEXPORT jobject JNICALL Java_TestInvocationHandler_getArgument(
-    JNIEnv* env ATTRIBUTE_UNUSED, jobject thiz ATTRIBUTE_UNUSED, int arg_pos, int frame_depth) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jobject thiz, int arg_pos, int frame_depth) {
   return GetProxyReferenceArgument(arg_pos, frame_depth);
 }
 

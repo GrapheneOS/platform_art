@@ -84,7 +84,7 @@ struct EventLog {
 static std::mutex gEventsMutex;
 static std::vector<EventLog> gEvents;
 
-static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
+static void JNICALL ObjectAllocated([[maybe_unused]] jvmtiEnv* ti_env,
                                     JNIEnv* jni_env,
                                     jthread thread,
                                     jobject object,
@@ -99,7 +99,7 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test904_setupObjectAllocCallback(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jboolean enable) {
   env->GetJavaVM(&vm);
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
@@ -119,7 +119,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test904_enableAllocationTracking(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test904_getTrackingEventMessages(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jobjectArray threads) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jobjectArray threads) {
   std::lock_guard<std::mutex> guard(gEventsMutex);
   std::vector<std::string> real_events;
   std::vector<jthread> thread_lst;

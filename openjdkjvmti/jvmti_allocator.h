@@ -110,7 +110,7 @@ class JvmtiAllocator {
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
 
-  pointer allocate(size_type n, JvmtiAllocator<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
+  pointer allocate(size_type n, [[maybe_unused]] JvmtiAllocator<void>::pointer hint = nullptr) {
     DCHECK_LE(n, max_size());
     if (env_ == nullptr) {
       T* result = reinterpret_cast<T*>(AllocUtil::AllocateImpl(n * sizeof(T)));
@@ -123,7 +123,7 @@ class JvmtiAllocator {
       return reinterpret_cast<T*>(result);
     }
   }
-  void deallocate(pointer p, size_type n ATTRIBUTE_UNUSED) {
+  void deallocate(pointer p, [[maybe_unused]] size_type n) {
     if (env_ == nullptr) {
       AllocUtil::DeallocateImpl(reinterpret_cast<unsigned char*>(p));
     } else {

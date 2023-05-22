@@ -42,7 +42,7 @@ class RememberedSetCardVisitor {
   explicit RememberedSetCardVisitor(RememberedSet::CardSet* const dirty_cards)
       : dirty_cards_(dirty_cards) {}
 
-  void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value ATTRIBUTE_UNUSED) const {
+  void operator()(uint8_t* card, uint8_t expected_value, [[maybe_unused]] uint8_t new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       dirty_cards_->insert(card);
     }
@@ -69,8 +69,7 @@ class RememberedSetReferenceVisitor {
 
   void operator()(ObjPtr<mirror::Object> obj,
                   MemberOffset offset,
-                  bool is_static ATTRIBUTE_UNUSED) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+                  [[maybe_unused]] bool is_static) const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     if (target_space_->HasAddress(ref_ptr->AsMirrorPtr())) {

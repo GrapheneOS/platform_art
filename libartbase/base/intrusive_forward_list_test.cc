@@ -578,7 +578,7 @@ void IntrusiveForwardListTest::Remove() {
   ref.remove_if(odd);
   ifl.remove_if(odd);
   ASSERT_LISTS_EQUAL(ref, ifl);
-  auto all = [](ValueType value ATTRIBUTE_UNUSED) { return true; };
+  auto all = []([[maybe_unused]] ValueType value) { return true; };
   ref.remove_if(all);
   ifl.remove_if(all);
   ASSERT_LISTS_EQUAL(ref, ifl);

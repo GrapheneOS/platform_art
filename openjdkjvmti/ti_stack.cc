@@ -716,7 +716,7 @@ struct GetFrameCountClosure : public art::Closure {
   size_t count;
 };
 
-jvmtiError StackUtil::GetFrameCount(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError StackUtil::GetFrameCount([[maybe_unused]] jvmtiEnv* env,
                                     jthread java_thread,
                                     jint* count_ptr) {
   // It is not great that we have to hold these locks for so long, but it is necessary to ensure
@@ -784,7 +784,7 @@ struct GetLocationClosure : public art::Closure {
   uint32_t dex_pc;
 };
 
-jvmtiError StackUtil::GetFrameLocation(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError StackUtil::GetFrameLocation([[maybe_unused]] jvmtiEnv* env,
                                        jthread java_thread,
                                        jint depth,
                                        jmethodID* method_ptr,
@@ -877,8 +877,8 @@ struct MonitorVisitor : public art::StackVisitor, public art::SingleRootVisitor 
     visitor->stack_depths.push_back(visitor->current_stack_depth);
   }
 
-  void VisitRoot(art::mirror::Object* obj, const art::RootInfo& info ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  void VisitRoot(art::mirror::Object* obj, [[maybe_unused]] const art::RootInfo& info) override
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
     for (const art::Handle<art::mirror::Object>& m : monitors) {
       if (m.Get() == obj) {
         return;
@@ -1219,7 +1219,7 @@ class NonStandardExitFrames {
 
 template <>
 bool NonStandardExitFrames<NonStandardExitType::kForceReturn>::CheckFunctions(
-    jvmtiEnv* env, art::ArtMethod* calling ATTRIBUTE_UNUSED, art::ArtMethod* called) {
+    jvmtiEnv* env, [[maybe_unused]] art::ArtMethod* calling, art::ArtMethod* called) {
   if (UNLIKELY(called->IsNative())) {
     result_ = ERR(OPAQUE_FRAME);
     JVMTI_LOG(INFO, env) << "Cannot force early return from " << called->PrettyMethod()
@@ -1297,7 +1297,7 @@ void AddDelayedMethodExitEvent(EventHandler* handler, art::ShadowFrame* frame, T
 template <>
 void AddDelayedMethodExitEvent<std::nullptr_t>(EventHandler* handler,
                                                art::ShadowFrame* frame,
-                                               std::nullptr_t null_val ATTRIBUTE_UNUSED) {
+                                               [[maybe_unused]] std::nullptr_t null_val) {
   jvalue jval;
   memset(&jval, 0, sizeof(jval));
   handler->AddDelayedNonStandardExitEvent(frame, false, jval);
@@ -1316,13 +1316,13 @@ bool ValidReturnType(art::Thread* self, art::ObjPtr<art::mirror::Class> return_t
     REQUIRES_SHARED(art::Locks::mutator_lock_)
         REQUIRES(art::Locks::user_code_suspension_lock_, art::Locks::thread_list_lock_);
 
-#define SIMPLE_VALID_RETURN_TYPE(type, ...)                                                        \
-  template <>                                                                                      \
-  bool ValidReturnType<type>(art::Thread * self ATTRIBUTE_UNUSED,                                  \
-                             art::ObjPtr<art::mirror::Class> return_type,                          \
-                             type value ATTRIBUTE_UNUSED) {                                        \
-    static constexpr std::initializer_list<art::Primitive::Type> types{ __VA_ARGS__ };             \
-    return std::find(types.begin(), types.end(), return_type->GetPrimitiveType()) != types.end();  \
+#define SIMPLE_VALID_RETURN_TYPE(type, ...)                                                       \
+  template <>                                                                                     \
+  bool ValidReturnType<type>([[maybe_unused]] art::Thread * self,                                 \
+                             art::ObjPtr<art::mirror::Class> return_type,                         \
+                             [[maybe_unused]] type value) {                                       \
+    static constexpr std::initializer_list<art::Primitive::Type> types{__VA_ARGS__};              \
+    return std::find(types.begin(), types.end(), return_type->GetPrimitiveType()) != types.end(); \
   }
 
 SIMPLE_VALID_RETURN_TYPE(jlong, art::Primitive::kPrimLong);

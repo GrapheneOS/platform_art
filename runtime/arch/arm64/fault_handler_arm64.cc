@@ -62,7 +62,7 @@ uintptr_t FaultManager::GetFaultSp(void* context) {
   return mc->sp;
 }
 
-bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action([[maybe_unused]] int sig, siginfo_t* info, void* context) {
   uintptr_t fault_address = reinterpret_cast<uintptr_t>(info->si_addr);
   if (!IsValidFaultAddress(fault_address)) {
     return false;
@@ -96,7 +96,8 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
 // A suspend check is done using the following instruction:
 //      0x...: f94002b5  ldr x21, [x21, #0]
 // To check for a suspend check, we examine the instruction that caused the fault (at PC).
-bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+bool SuspensionHandler::Action([[maybe_unused]] int sig,
+                               [[maybe_unused]] siginfo_t* info,
                                void* context) {
   constexpr uint32_t kSuspendCheckRegister = 21;
   constexpr uint32_t checkinst =
@@ -128,7 +129,8 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
   return true;
 }
 
-bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+bool StackOverflowHandler::Action([[maybe_unused]] int sig,
+                                  [[maybe_unused]] siginfo_t* info,
                                   void* context) {
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);

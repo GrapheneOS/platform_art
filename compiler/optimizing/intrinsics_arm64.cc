@@ -3676,7 +3676,7 @@ void IntrinsicLocationsBuilderARM64::VisitReachabilityFence(HInvoke* invoke) {
   locations->SetInAt(0, Location::Any());
 }
 
-void IntrinsicCodeGeneratorARM64::VisitReachabilityFence(HInvoke* invoke ATTRIBUTE_UNUSED) { }
+void IntrinsicCodeGeneratorARM64::VisitReachabilityFence([[maybe_unused]] HInvoke* invoke) {}
 
 void IntrinsicLocationsBuilderARM64::VisitCRC32Update(HInvoke* invoke) {
   if (!codegen_->GetInstructionSetFeatures().HasCRC()) {

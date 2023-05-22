@@ -113,7 +113,7 @@ void WriteDebugInfo(ElfBuilder<ElfTypes>* builder,
 template <typename ElfTypes>
 static std::vector<uint8_t> MakeMiniDebugInfoInternal(
     InstructionSet isa,
-    const InstructionSetFeatures* features ATTRIBUTE_UNUSED,
+    [[maybe_unused]] const InstructionSetFeatures* features,
     typename ElfTypes::Addr text_section_address,
     size_t text_section_size,
     typename ElfTypes::Addr dex_section_address,
@@ -172,11 +172,10 @@ std::vector<uint8_t> MakeMiniDebugInfo(
   }
 }
 
-std::vector<uint8_t> MakeElfFileForJIT(
-    InstructionSet isa,
-    const InstructionSetFeatures* features ATTRIBUTE_UNUSED,
-    bool mini_debug_info,
-    const MethodDebugInfo& method_info) {
+std::vector<uint8_t> MakeElfFileForJIT(InstructionSet isa,
+                                       [[maybe_unused]] const InstructionSetFeatures* features,
+                                       bool mini_debug_info,
+                                       const MethodDebugInfo& method_info) {
   using ElfTypes = ElfRuntimeTypes;
   CHECK_EQ(sizeof(ElfTypes::Addr), static_cast<size_t>(GetInstructionSetPointerSize(isa)));
   CHECK_EQ(method_info.is_code_address_text_relative, false);
@@ -213,13 +212,12 @@ std::vector<uint8_t> MakeElfFileForJIT(
       DCHECK_EQ(sym.st_size, method_info.code_size);
       num_syms++;
     });
-    reader.VisitDebugFrame([&](const Reader::CIE* cie ATTRIBUTE_UNUSED) {
-      num_cies++;
-    }, [&](const Reader::FDE* fde, const Reader::CIE* cie ATTRIBUTE_UNUSED) {
-      DCHECK_EQ(fde->sym_addr, method_info.code_address);
-      DCHECK_EQ(fde->sym_size, method_info.code_size);
-      num_fdes++;
-    });
+    reader.VisitDebugFrame([&]([[maybe_unused]] const Reader::CIE* cie) { num_cies++; },
+                           [&](const Reader::FDE* fde, [[maybe_unused]] const Reader::CIE* cie) {
+                             DCHECK_EQ(fde->sym_addr, method_info.code_address);
+                             DCHECK_EQ(fde->sym_size, method_info.code_size);
+                             num_fdes++;
+                           });
     DCHECK_EQ(num_syms, 1u);
     DCHECK_LE(num_cies, 1u);
     DCHECK_LE(num_fdes, 1u);
@@ -302,18 +300,20 @@ std::vector<uint8_t> PackElfFileForJIT(
     // ART always produces the same CIE, so we copy the first one and ignore the rest.
     bool copied_cie = false;
     for (Reader& reader : readers) {
-      reader.VisitDebugFrame([&](const Reader::CIE* cie) {
-        if (!copied_cie) {
-          debug_frame->WriteFully(cie->data(), cie->size());
-          copied_cie = true;
-        }
-      }, [&](const Reader::FDE* fde, const Reader::CIE* cie ATTRIBUTE_UNUSED) {
-        DCHECK(copied_cie);
-        DCHECK_EQ(fde->cie_pointer, 0);
-        if (!is_removed_symbol(fde->sym_addr)) {
-          debug_frame->WriteFully(fde->data(), fde->size());
-        }
-      });
+      reader.VisitDebugFrame(
+          [&](const Reader::CIE* cie) {
+            if (!copied_cie) {
+              debug_frame->WriteFully(cie->data(), cie->size());
+              copied_cie = true;
+            }
+          },
+          [&](const Reader::FDE* fde, [[maybe_unused]] const Reader::CIE* cie) {
+            DCHECK(copied_cie);
+            DCHECK_EQ(fde->cie_pointer, 0);
+            if (!is_removed_symbol(fde->sym_addr)) {
+              debug_frame->WriteFully(fde->data(), fde->size());
+            }
+          });
     }
     debug_frame->End();
 
@@ -348,9 +348,8 @@ std::vector<uint8_t> PackElfFileForJIT(
 
 std::vector<uint8_t> WriteDebugElfFileForClasses(
     InstructionSet isa,
-    const InstructionSetFeatures* features ATTRIBUTE_UNUSED,
-    const ArrayRef<mirror::Class*>& types)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+    [[maybe_unused]] const InstructionSetFeatures* features,
+    const ArrayRef<mirror::Class*>& types) REQUIRES_SHARED(Locks::mutator_lock_) {
   using ElfTypes = ElfRuntimeTypes;
   CHECK_EQ(sizeof(ElfTypes::Addr), static_cast<size_t>(GetInstructionSetPointerSize(isa)));
   std::vector<uint8_t> buffer;

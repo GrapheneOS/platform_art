@@ -358,10 +358,10 @@ class Riscv64Assembler final : public Assembler {
 
   /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
-  void Bind(Label* label ATTRIBUTE_UNUSED) override {
+  void Bind([[maybe_unused]] Label* label) override {
     UNIMPLEMENTED(FATAL) << "TODO: Support branches.";
   }
-  void Jump(Label* label ATTRIBUTE_UNUSED) override {
+  void Jump([[maybe_unused]] Label* label) override {
     UNIMPLEMENTED(FATAL) << "Do not use Jump for RISCV64";
   }
 

@@ -41,7 +41,7 @@ static jstring GetClassName(JNIEnv* jni_env, jclass cls) {
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test907_getLoadedClasses(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   jint count = -1;
   jclass* classes = nullptr;
   jvmtiError result = jvmti_env->GetLoadedClasses(&count, &classes);

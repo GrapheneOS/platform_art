@@ -73,7 +73,7 @@ static bool Run(JNIEnv* env, jint heap_filter, jclass klass_filter, IterationCon
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapCount(
     JNIEnv* env,
-    jclass klass ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass klass,
     jint heap_filter,
     jclass klass_filter,
     jint stop_after) {
@@ -84,10 +84,10 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapCount(
           stop_after(_stop_after) {
     }
 
-    jint Handle(jlong class_tag ATTRIBUTE_UNUSED,
-                jlong size ATTRIBUTE_UNUSED,
-                jlong* tag_ptr ATTRIBUTE_UNUSED,
-                jint length ATTRIBUTE_UNUSED) override {
+    jint Handle([[maybe_unused]] jlong class_tag,
+                [[maybe_unused]] jlong size,
+                [[maybe_unused]] jlong* tag_ptr,
+                [[maybe_unused]] jint length) override {
       counter++;
       if (counter == stop_after) {
         return JVMTI_VISIT_ABORT;
@@ -111,7 +111,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapCount(
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapData(
     JNIEnv* env,
-    jclass klass ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass klass,
     jint heap_filter,
     jclass klass_filter,
     jlongArray class_tags,
@@ -156,15 +156,15 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test906_iterateThroughHeapData(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test906_iterateThroughHeapAdd(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint heap_filter, jclass klass_filter) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jint heap_filter, jclass klass_filter) {
   class AddIterationConfig : public IterationConfig {
    public:
     AddIterationConfig() {}
 
-    jint Handle(jlong class_tag ATTRIBUTE_UNUSED,
-                jlong size ATTRIBUTE_UNUSED,
+    jint Handle([[maybe_unused]] jlong class_tag,
+                [[maybe_unused]] jlong size,
                 jlong* tag_ptr,
-                jint length ATTRIBUTE_UNUSED) override {
+                [[maybe_unused]] jint length) override {
       jlong current_tag = *tag_ptr;
       if (current_tag != 0) {
         *tag_ptr = current_tag + 10;
@@ -178,15 +178,15 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test906_iterateThroughHeapAdd(
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapString(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jlong tag) {
   struct FindStringCallbacks {
     explicit FindStringCallbacks(jlong t) : tag_to_find(t) {}
 
-    static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                              jlong size ATTRIBUTE_UNUSED,
-                                              jlong* tag_ptr ATTRIBUTE_UNUSED,
-                                              jint length ATTRIBUTE_UNUSED,
-                                              void* user_data ATTRIBUTE_UNUSED) {
+    static jint JNICALL HeapIterationCallback([[maybe_unused]] jlong class_tag,
+                                              [[maybe_unused]] jlong size,
+                                              [[maybe_unused]] jlong* tag_ptr,
+                                              [[maybe_unused]] jint length,
+                                              [[maybe_unused]] void* user_data) {
       return 0;
     }
 
@@ -234,15 +234,15 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapString(
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapPrimitiveArray(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jlong tag) {
   struct FindArrayCallbacks {
     explicit FindArrayCallbacks(jlong t) : tag_to_find(t) {}
 
-    static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                              jlong size ATTRIBUTE_UNUSED,
-                                              jlong* tag_ptr ATTRIBUTE_UNUSED,
-                                              jint length ATTRIBUTE_UNUSED,
-                                              void* user_data ATTRIBUTE_UNUSED) {
+    static jint JNICALL HeapIterationCallback([[maybe_unused]] jlong class_tag,
+                                              [[maybe_unused]] jlong size,
+                                              [[maybe_unused]] jlong* tag_ptr,
+                                              [[maybe_unused]] jint length,
+                                              [[maybe_unused]] void* user_data) {
       return 0;
     }
 
@@ -345,15 +345,15 @@ static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test906_iterateThroughHeapPrimitiveFields(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jlong tag) {
   struct FindFieldCallbacks {
     explicit FindFieldCallbacks(jlong t) : tag_to_find(t) {}
 
-    static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                              jlong size ATTRIBUTE_UNUSED,
-                                              jlong* tag_ptr ATTRIBUTE_UNUSED,
-                                              jint length ATTRIBUTE_UNUSED,
-                                              void* user_data ATTRIBUTE_UNUSED) {
+    static jint JNICALL HeapIterationCallback([[maybe_unused]] jlong class_tag,
+                                              [[maybe_unused]] jlong size,
+                                              [[maybe_unused]] jlong* tag_ptr,
+                                              [[maybe_unused]] jint length,
+                                              [[maybe_unused]] void* user_data) {
       return 0;
     }
 

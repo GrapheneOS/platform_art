@@ -691,7 +691,7 @@ static jdwpTransportError ParseAddress(const std::string& addr,
 
 class JdwpTransportFunctions {
  public:
-  static jdwpTransportError GetCapabilities(jdwpTransportEnv* env ATTRIBUTE_UNUSED,
+  static jdwpTransportError GetCapabilities([[maybe_unused]] jdwpTransportEnv* env,
                                             /*out*/ JDWPTransportCapabilities* capabilities_ptr) {
     // We don't support any of the optional capabilities (can_timeout_attach, can_timeout_accept,
     // can_timeout_handshake) so just return a zeroed capabilities ptr.
@@ -703,8 +703,8 @@ class JdwpTransportFunctions {
   // Address is <sock_fd>
   static jdwpTransportError Attach(jdwpTransportEnv* env,
                                    const char* address,
-                                   jlong attach_timeout ATTRIBUTE_UNUSED,
-                                   jlong handshake_timeout ATTRIBUTE_UNUSED) {
+                                   [[maybe_unused]] jlong attach_timeout,
+                                   [[maybe_unused]] jlong handshake_timeout) {
     if (address == nullptr || *address == '\0') {
       return ERR(ILLEGAL_ARGUMENT);
     }
@@ -743,8 +743,8 @@ class JdwpTransportFunctions {
   }
 
   static jdwpTransportError Accept(jdwpTransportEnv* env,
-                                   jlong accept_timeout ATTRIBUTE_UNUSED,
-                                   jlong handshake_timeout ATTRIBUTE_UNUSED) {
+                                   [[maybe_unused]] jlong accept_timeout,
+                                   [[maybe_unused]] jlong handshake_timeout) {
     return AsFdForward(env)->Accept();
   }
 
@@ -784,11 +784,10 @@ const jdwpTransportNativeInterface_ gTransportInterface = {
   JdwpTransportFunctions::GetLastError,
 };
 
-extern "C"
-JNIEXPORT jint JNICALL jdwpTransport_OnLoad(JavaVM* vm ATTRIBUTE_UNUSED,
-                                            jdwpTransportCallback* cb,
-                                            jint version,
-                                            jdwpTransportEnv** /*out*/env) {
+extern "C" JNIEXPORT jint JNICALL jdwpTransport_OnLoad([[maybe_unused]] JavaVM* vm,
+                                                       jdwpTransportCallback* cb,
+                                                       jint version,
+                                                       jdwpTransportEnv** /*out*/ env) {
   if (version != JDWPTRANSPORT_VERSION_1_0) {
     LOG(ERROR) << "unknown version " << version;
     return JNI_EVERSION;

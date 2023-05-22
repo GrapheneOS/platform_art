@@ -90,7 +90,7 @@ static void AgentMain(jvmtiEnv* jenv, JNIEnv* env, void* arg) {
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test931_testAgentThread(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   // Create a Thread object.
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF("Agent Thread"));
   if (thread_name.get() == nullptr) {

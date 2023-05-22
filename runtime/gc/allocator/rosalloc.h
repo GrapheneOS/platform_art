@@ -303,7 +303,7 @@ class RosAlloc {
     // The number of slots in the list. This is used to make it fast to check if a free list is all
     // free without traversing the whole free list.
     uint32_t size_;
-    uint32_t padding_ ATTRIBUTE_UNUSED;
+    [[maybe_unused]] uint32_t padding_;
     friend class RosAlloc;
   };
 
@@ -354,7 +354,7 @@ class RosAlloc {
     uint8_t is_thread_local_;           // True if this run is used as a thread-local run.
     bool to_be_bulk_freed_;             // Used within BulkFree() to flag a run that's involved with
                                         // a bulk free.
-    uint32_t padding_ ATTRIBUTE_UNUSED;
+    [[maybe_unused]] uint32_t padding_;
     // Use a tailless free list for free_list_ so that the alloc fast path does not manage the tail.
     SlotFreeList<false> free_list_;
     SlotFreeList<true> bulk_free_list_;

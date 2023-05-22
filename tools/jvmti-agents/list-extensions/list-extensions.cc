@@ -147,7 +147,7 @@ jint SetupJvmtiEnv(JavaVM* vm) {
   return JNI_OK;
 }
 
-jint AgentStart(JavaVM* vm, char* options ATTRIBUTE_UNUSED, void* reserved ATTRIBUTE_UNUSED) {
+jint AgentStart(JavaVM* vm, [[maybe_unused]] char* options, [[maybe_unused]] void* reserved) {
   if (SetupJvmtiEnv(vm) != JNI_OK) {
     LOG(ERROR) << "Could not get JVMTI env or ArtTiEnv!";
     return JNI_ERR;

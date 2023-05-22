@@ -34,15 +34,15 @@ void X86_64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   reinterpret_cast<unaligned_int32_t*>(&(*code)[patch.LiteralOffset()])[0] = displacement;
 }
 
-void X86_64RelativePatcher::PatchEntrypointCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                                const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                                uint32_t patch_offset ATTRIBUTE_UNUSED) {
+void X86_64RelativePatcher::PatchEntrypointCall([[maybe_unused]] std::vector<uint8_t>* code,
+                                                [[maybe_unused]] const LinkerPatch& patch,
+                                                [[maybe_unused]] uint32_t patch_offset) {
   LOG(FATAL) << "UNIMPLEMENTED";
 }
 
-void X86_64RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                                        const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                                        uint32_t patch_offset ATTRIBUTE_UNUSED) {
+void X86_64RelativePatcher::PatchBakerReadBarrierBranch([[maybe_unused]] std::vector<uint8_t>* code,
+                                                        [[maybe_unused]] const LinkerPatch& patch,
+                                                        [[maybe_unused]] uint32_t patch_offset) {
   LOG(FATAL) << "UNIMPLEMENTED";
 }
 

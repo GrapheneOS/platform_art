@@ -1634,9 +1634,8 @@ class ComputeNativeCallFrameSize {
   }
 
   virtual void WalkHeader(
-      BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm ATTRIBUTE_UNUSED)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-  }
+      [[maybe_unused]] BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm)
+      REQUIRES_SHARED(Locks::mutator_lock_) {}
 
   void Walk(const char* shorty, uint32_t shorty_len) REQUIRES_SHARED(Locks::mutator_lock_) {
     BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize> sm(this);
@@ -2174,10 +2173,8 @@ extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(
 }
 
 extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
-    uint32_t method_idx,
-    mirror::Object* this_object ATTRIBUTE_UNUSED,
-    Thread* self,
-    ArtMethod** sp) REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint32_t method_idx, [[maybe_unused]] mirror::Object* this_object, Thread* self, ArtMethod** sp)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // For static, this_object is not required and may be random garbage. Don't pass it down so that
   // it doesn't cause ObjPtr alignment failure check.
   return artInvokeCommon<kStatic>(method_idx, nullptr, self, sp);

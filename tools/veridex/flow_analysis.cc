@@ -760,7 +760,7 @@ RegisterValue FlowAnalysisCollector::AnalyzeInvoke(const Instruction& instructio
   }
 }
 
-void FlowAnalysisCollector::AnalyzeFieldSet(const Instruction& instruction ATTRIBUTE_UNUSED) {
+void FlowAnalysisCollector::AnalyzeFieldSet([[maybe_unused]] const Instruction& instruction) {
   // There are no fields that escape reflection uses.
 }
 
@@ -792,7 +792,7 @@ RegisterValue FlowAnalysisSubstitutor::AnalyzeInvoke(const Instruction& instruct
   return GetReturnType(id);
 }
 
-void FlowAnalysisSubstitutor::AnalyzeFieldSet(const Instruction& instruction ATTRIBUTE_UNUSED) {
+void FlowAnalysisSubstitutor::AnalyzeFieldSet([[maybe_unused]] const Instruction& instruction) {
   // TODO: analyze field sets.
 }
 

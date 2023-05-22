@@ -44,7 +44,7 @@ namespace Test1953PopFrame {
 
 extern "C" JNIEXPORT
 void JNICALL Java_art_Test1953_popFrame(JNIEnv* env,
-                                        jclass klass ATTRIBUTE_UNUSED,
+                                        [[maybe_unused]] jclass klass,
                                         jthread thr) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->PopFrame(thr));
 }

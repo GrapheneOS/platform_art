@@ -1076,7 +1076,7 @@ bool ElfFileImpl<ElfTypes>::GetLoadedAddressRange(/*out*/uint8_t** vaddr_begin,
 }
 
 static InstructionSet GetInstructionSetFromELF(uint16_t e_machine,
-                                               uint32_t e_flags ATTRIBUTE_UNUSED) {
+                                               [[maybe_unused]] uint32_t e_flags) {
   switch (e_machine) {
     case EM_ARM:
       return InstructionSet::kArm;

@@ -133,7 +133,7 @@ class Verification::BFSFindReachable {
  public:
   explicit BFSFindReachable(ObjectSet* visited) : visited_(visited) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(mirror::Object* obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtField* field = obj->FindFieldByOffset(offset);
     Visit(obj->GetFieldObject<mirror::Object>(offset),

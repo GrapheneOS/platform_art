@@ -60,7 +60,7 @@ extern "C" void breakpointCB(jvmtiEnv* jvmti,
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Breakpoint_getLineNumberTableNative(
     JNIEnv* env,
-    jclass k ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass k,
     jobject target) {
   jmethodID method = env->FromReflectedMethod(target);
   if (env->ExceptionCheck()) {
@@ -107,7 +107,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Breakpoint_getLineNumberTable
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Breakpoint_getStartLocation(JNIEnv* env,
-                                                                        jclass k ATTRIBUTE_UNUSED,
+                                                                        [[maybe_unused]] jclass k,
                                                                         jobject target) {
   jmethodID method = env->FromReflectedMethod(target);
   if (env->ExceptionCheck()) {
@@ -120,7 +120,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_art_Breakpoint_getStartLocation(JNIEnv* 
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_clearBreakpoint(JNIEnv* env,
-                                                                      jclass k ATTRIBUTE_UNUSED,
+                                                                      [[maybe_unused]] jclass k,
                                                                       jobject target,
                                                                       jlocation location) {
   jmethodID method = env->FromReflectedMethod(target);
@@ -131,7 +131,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_clearBreakpoint(JNIEnv* en
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_setBreakpoint(JNIEnv* env,
-                                                                    jclass k ATTRIBUTE_UNUSED,
+                                                                    [[maybe_unused]] jclass k,
                                                                     jobject target,
                                                                     jlocation location) {
   jmethodID method = env->FromReflectedMethod(target);
@@ -143,7 +143,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_setBreakpoint(JNIEnv* env,
 
 extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_startBreakpointWatch(
     JNIEnv* env,
-    jclass k ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass k,
     jclass method_klass,
     jobject method,
     jboolean allow_recursive,
@@ -190,7 +190,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_startBreakpointWatch(
 
 extern "C" JNIEXPORT void JNICALL Java_art_Breakpoint_stopBreakpointWatch(
     JNIEnv* env,
-    jclass k ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass k,
     jthread thr) {
   if (JvmtiErrorToException(env, jvmti_env,
                             jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,

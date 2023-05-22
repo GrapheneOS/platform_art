@@ -89,7 +89,7 @@ static jint SetupJvmtiEnv(JavaVM* vm, jvmtiEnv** jvmti) {
 
 }  // namespace
 
-static jint AgentStart(JavaVM* vm, char* options, void* reserved ATTRIBUTE_UNUSED) {
+static jint AgentStart(JavaVM* vm, char* options, [[maybe_unused]] void* reserved) {
   jvmtiEnv* jvmti = nullptr;
   if (SetupJvmtiEnv(vm, &jvmti) != JNI_OK) {
     LOG(ERROR) << "Could not get JVMTI env or ArtTiEnv!";
