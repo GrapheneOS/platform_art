@@ -157,11 +157,11 @@ class BitMemoryRegion final : public ValueObject {
   ALWAYS_INLINE void CopyBits(const BitMemoryRegion& src) {
     DCHECK_EQ(size_in_bits(), src.size_in_bits());
     // Hopefully, the loads of the unused `value` shall be optimized away.
-    VisitChunks(
-        [this, &src](size_t offset, size_t num_bits, size_t value ATTRIBUTE_UNUSED) ALWAYS_INLINE {
-          StoreChunk(offset, src.LoadBits(offset, num_bits), num_bits);
-          return true;
-        });
+    VisitChunks([this, &src](size_t offset, size_t num_bits, [[maybe_unused]] size_t value)
+                    ALWAYS_INLINE {
+                      StoreChunk(offset, src.LoadBits(offset, num_bits), num_bits);
+                      return true;
+                    });
   }
 
   // And bits from other bit region.
@@ -194,9 +194,8 @@ class BitMemoryRegion final : public ValueObject {
   // Count the number of set bits within this region.
   ALWAYS_INLINE size_t PopCount() const {
     size_t result = 0u;
-    VisitChunks([&](size_t offset ATTRIBUTE_UNUSED,
-                    size_t num_bits ATTRIBUTE_UNUSED,
-                    size_t value) ALWAYS_INLINE {
+    VisitChunks([&]([[maybe_unused]] size_t offset, [[maybe_unused]] size_t num_bits, size_t value)
+                    ALWAYS_INLINE {
                       result += POPCOUNT(value);
                       return true;
                     });
@@ -210,11 +209,9 @@ class BitMemoryRegion final : public ValueObject {
 
   // Check if this region has all bits clear.
   ALWAYS_INLINE bool HasAllBitsClear() const {
-    return VisitChunks([](size_t offset ATTRIBUTE_UNUSED,
-                          size_t num_bits ATTRIBUTE_UNUSED,
-                          size_t value) ALWAYS_INLINE {
-                            return value == 0u;
-                          });
+    return VisitChunks(
+        []([[maybe_unused]] size_t offset, [[maybe_unused]] size_t num_bits, size_t value)
+            ALWAYS_INLINE { return value == 0u; });
   }
 
   // Check if this region has any bit set.

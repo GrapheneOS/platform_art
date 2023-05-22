@@ -95,7 +95,7 @@ void X86_64JNIMacroAssembler::BuildFrame(size_t frame_size,
 
 void X86_64JNIMacroAssembler::RemoveFrame(size_t frame_size,
                                           ArrayRef<const ManagedRegister> spill_regs,
-                                          bool may_suspend ATTRIBUTE_UNUSED) {
+                                          [[maybe_unused]] bool may_suspend) {
   CHECK_ALIGNED(frame_size, kNativeStackAlignment);
   cfi().RememberState();
   int gpr_count = 0;
@@ -515,7 +515,7 @@ void X86_64JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
 }
 
 void X86_64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
-    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED) {
+    JNIMacroLabel* label, [[maybe_unused]] ArrayRef<const ManagedRegister> scratch_regs) {
   constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
   constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
   constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kX86_64PointerSize>();

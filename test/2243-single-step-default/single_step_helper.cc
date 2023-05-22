@@ -29,7 +29,7 @@ static void singleStepCB(jvmtiEnv* jvmti,
                          JNIEnv* env,
                          jthread thr,
                          jmethodID method,
-                         jlocation location ATTRIBUTE_UNUSED) {
+                         [[maybe_unused]] jlocation location) {
   // We haven't reached the default method yet. Continue single stepping
   if (method != interface_default_method) {
     return;
@@ -99,14 +99,14 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test2243_setSingleStepCallback(JNIEnv
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test2243_enableSingleStep(JNIEnv* env,
-                                                                     jclass ATTRIBUTE_UNUSED,
+                                                                     [[maybe_unused]] jclass cl,
                                                                      jthread thr) {
   jvmtiError err = jvmti_env->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_SINGLE_STEP, thr);
   JvmtiErrorToException(env, jvmti_env, err);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test2243_setSingleStepUntil(JNIEnv* env,
-                                                                       jclass cl ATTRIBUTE_UNUSED,
+                                                                       [[maybe_unused]] jclass cl,
                                                                        jobject method) {
   interface_default_method = env->FromReflectedMethod(method);
 }

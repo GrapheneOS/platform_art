@@ -75,12 +75,13 @@ namespace art {
   // that are nevertheless equal.
   // If a test is failing because the structs aren't "equal" when they really are
   // then it's recommended to implement operator== for it instead.
-  template <typename T, typename ... Ignore>
-  bool UsuallyEquals(const T& expected, const T& actual,
-                     const Ignore& ... more ATTRIBUTE_UNUSED,
-                     typename std::enable_if<std::is_pod<T>::value>::type* = nullptr,
-                     typename std::enable_if<!detail::SupportsEqualityOperator<T>::value>::type* = nullptr
-                     ) {
+  template <typename T, typename... Ignore>
+  bool UsuallyEquals(
+      const T& expected,
+      const T& actual,
+      [[maybe_unused]] const Ignore&... more,
+      typename std::enable_if<std::is_pod<T>::value>::type* = nullptr,
+      typename std::enable_if<!detail::SupportsEqualityOperator<T>::value>::type* = nullptr) {
     return memcmp(std::addressof(expected), std::addressof(actual), sizeof(T)) == 0;
   }
 

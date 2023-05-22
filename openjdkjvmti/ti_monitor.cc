@@ -225,7 +225,7 @@ static JvmtiMonitor* DecodeMonitor(jrawMonitorID id) {
   return reinterpret_cast<JvmtiMonitor*>(id);
 }
 
-jvmtiError MonitorUtil::CreateRawMonitor(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError MonitorUtil::CreateRawMonitor([[maybe_unused]] jvmtiEnv* env,
                                          const char* name,
                                          jrawMonitorID* monitor_ptr) {
   if (name == nullptr || monitor_ptr == nullptr) {
@@ -238,7 +238,7 @@ jvmtiError MonitorUtil::CreateRawMonitor(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::DestroyRawMonitor(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::DestroyRawMonitor([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -253,7 +253,7 @@ jvmtiError MonitorUtil::DestroyRawMonitor(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMo
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorEnterNoSuspend(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::RawMonitorEnterNoSuspend([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -266,7 +266,7 @@ jvmtiError MonitorUtil::RawMonitorEnterNoSuspend(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorEnter(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::RawMonitorEnter([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -279,7 +279,7 @@ jvmtiError MonitorUtil::RawMonitorEnter(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMoni
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorExit(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::RawMonitorExit([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -294,7 +294,7 @@ jvmtiError MonitorUtil::RawMonitorExit(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonit
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorWait(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError MonitorUtil::RawMonitorWait([[maybe_unused]] jvmtiEnv* env,
                                        jrawMonitorID id,
                                        jlong millis) {
   if (id == nullptr) {
@@ -322,7 +322,7 @@ jvmtiError MonitorUtil::RawMonitorWait(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorNotify(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::RawMonitorNotify([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -337,7 +337,7 @@ jvmtiError MonitorUtil::RawMonitorNotify(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMon
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::RawMonitorNotifyAll(jvmtiEnv* env ATTRIBUTE_UNUSED, jrawMonitorID id) {
+jvmtiError MonitorUtil::RawMonitorNotifyAll([[maybe_unused]] jvmtiEnv* env, jrawMonitorID id) {
   if (id == nullptr) {
     return ERR(INVALID_MONITOR);
   }
@@ -352,7 +352,7 @@ jvmtiError MonitorUtil::RawMonitorNotifyAll(jvmtiEnv* env ATTRIBUTE_UNUSED, jraw
   return ERR(NONE);
 }
 
-jvmtiError MonitorUtil::GetCurrentContendedMonitor(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError MonitorUtil::GetCurrentContendedMonitor([[maybe_unused]] jvmtiEnv* env,
                                                    jthread thread,
                                                    jobject* monitor) {
   if (monitor == nullptr) {

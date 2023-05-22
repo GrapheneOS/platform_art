@@ -26,7 +26,7 @@ namespace art {
 namespace gc {
 namespace space {
 
-inline mirror::Object* RegionSpace::Alloc(Thread* self ATTRIBUTE_UNUSED,
+inline mirror::Object* RegionSpace::Alloc([[maybe_unused]] Thread* self,
                                           size_t num_bytes,
                                           /* out */ size_t* bytes_allocated,
                                           /* out */ size_t* usable_size,

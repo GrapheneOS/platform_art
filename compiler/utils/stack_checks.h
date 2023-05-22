@@ -35,7 +35,7 @@ static constexpr size_t kSmallFrameSize = 1 * KB;
 // stack overflow check on method entry.
 //
 // A frame is considered large when it's above kLargeFrameSize.
-static inline bool FrameNeedsStackCheck(size_t size, InstructionSet isa ATTRIBUTE_UNUSED) {
+static inline bool FrameNeedsStackCheck(size_t size, [[maybe_unused]] InstructionSet isa) {
   return size >= kLargeFrameSize;
 }
 

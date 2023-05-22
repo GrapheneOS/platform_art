@@ -64,7 +64,7 @@ class MANAGED Executable : public AccessibleObject {
   uint8_t has_real_parameter_data_;
 
   // Padding required for matching alignment with the Java peer.
-  uint8_t padding_[2] ATTRIBUTE_UNUSED;
+  [[maybe_unused]] uint8_t padding_[2];
 
   HeapReference<mirror::Class> declaring_class_;
   HeapReference<mirror::Class> declaring_class_of_overridden_method_;

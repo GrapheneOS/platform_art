@@ -28,7 +28,7 @@ namespace art {
 
 template <WriteBarrier::NullCheck kNullCheck>
 inline void WriteBarrier::ForFieldWrite(ObjPtr<mirror::Object> dst,
-                                        MemberOffset offset ATTRIBUTE_UNUSED,
+                                        [[maybe_unused]] MemberOffset offset,
                                         ObjPtr<mirror::Object> new_value) {
   if (kNullCheck == kWithNullCheck && new_value == nullptr) {
     return;
@@ -38,8 +38,8 @@ inline void WriteBarrier::ForFieldWrite(ObjPtr<mirror::Object> dst,
 }
 
 inline void WriteBarrier::ForArrayWrite(ObjPtr<mirror::Object> dst,
-                                        int start_offset ATTRIBUTE_UNUSED,
-                                        size_t length ATTRIBUTE_UNUSED) {
+                                        [[maybe_unused]] int start_offset,
+                                        [[maybe_unused]] size_t length) {
   GetCardTable()->MarkCard(dst.Ptr());
 }
 

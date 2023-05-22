@@ -140,7 +140,7 @@ static void DataDumpRequestCb(jvmtiEnv* jvmti) {
   }
 }
 
-static void VMDeathCb(jvmtiEnv* jvmti, JNIEnv* env ATTRIBUTE_UNUSED) {
+static void VMDeathCb(jvmtiEnv* jvmti, [[maybe_unused]] JNIEnv* env) {
   DataDumpRequestCb(jvmti);
   RequestList* list = nullptr;
   CHECK_JVMTI(jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&list)));
@@ -154,7 +154,7 @@ static void CreateFieldList(jvmtiEnv* jvmti, JNIEnv* env, const std::string& arg
   CHECK_JVMTI(jvmti->SetEnvironmentLocalStorage(list));
 }
 
-static void VMInitCb(jvmtiEnv* jvmti, JNIEnv* env, jobject thr ATTRIBUTE_UNUSED) {
+static void VMInitCb(jvmtiEnv* jvmti, JNIEnv* env, [[maybe_unused]] jobject thr) {
   char* args = nullptr;
   CHECK_JVMTI(jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&args)));
   CHECK_JVMTI(jvmti->SetEnvironmentLocalStorage(nullptr));
@@ -201,16 +201,16 @@ static jint AgentStart(JavaVM* vm, char* options, bool is_onload) {
 }
 
 // Late attachment (e.g. 'am attach-agent').
-extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *vm,
+extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm,
                                                  char* options,
-                                                 void* reserved ATTRIBUTE_UNUSED) {
+                                                 [[maybe_unused]] void* reserved) {
   return AgentStart(vm, options, /*is_onload=*/false);
 }
 
 // Early attachment
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* jvm,
                                                char* options,
-                                               void* reserved ATTRIBUTE_UNUSED) {
+                                               [[maybe_unused]] void* reserved) {
   return AgentStart(jvm, options, /*is_onload=*/true);
 }
 

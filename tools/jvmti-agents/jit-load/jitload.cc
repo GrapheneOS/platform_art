@@ -51,8 +51,8 @@ static jthread GetJitThread() {
 }
 
 JNICALL void VmInitCb(jvmtiEnv* jvmti,
-                      JNIEnv* env ATTRIBUTE_UNUSED,
-                      jthread curthread ATTRIBUTE_UNUSED) {
+                      [[maybe_unused]] JNIEnv* env,
+                      [[maybe_unused]] jthread curthread) {
   jthread jit_thread = GetJitThread();
   if (jit_thread != nullptr) {
     CHECK_EQ(jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_PREPARE, jit_thread),
@@ -72,8 +72,8 @@ JNICALL static void DataDumpRequestCb(jvmtiEnv* jvmti) {
 }
 
 JNICALL void ClassPrepareJit(jvmtiEnv* jvmti,
-                             JNIEnv* jni_env ATTRIBUTE_UNUSED,
-                             jthread thr ATTRIBUTE_UNUSED,
+                             [[maybe_unused]] JNIEnv* jni_env,
+                             [[maybe_unused]] jthread thr,
                              jclass klass) {
   AgentOptions* ops;
   CHECK_CALL_SUCCESS(jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&ops)));
@@ -85,9 +85,7 @@ JNICALL void ClassPrepareJit(jvmtiEnv* jvmti,
   CHECK_CALL_SUCCESS(jvmti->Deallocate(reinterpret_cast<unsigned char*>(klass_name)));
 }
 
-JNICALL void VMDeathCb(jvmtiEnv* jvmti, JNIEnv* env ATTRIBUTE_UNUSED) {
-  DataDumpRequestCb(jvmti);
-}
+JNICALL void VMDeathCb(jvmtiEnv* jvmti, [[maybe_unused]] JNIEnv* env) { DataDumpRequestCb(jvmti); }
 
 static jvmtiEnv* SetupJvmti(JavaVM* vm, const char* options) {
   android::base::InitLogging(/* argv= */nullptr);

@@ -136,7 +136,7 @@ class CommonRuntimeTestImpl : public CommonArtTestImpl {
 
  protected:
   // Allow subclases such as CommonCompilerTest to add extra options.
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options ATTRIBUTE_UNUSED) {}
+  virtual void SetUpRuntimeOptions([[maybe_unused]] RuntimeOptions* options) {}
 
   // Called before the runtime is created.
   virtual void PreRuntimeCreate() {}

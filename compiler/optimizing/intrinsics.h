@@ -60,8 +60,7 @@ class IntrinsicVisitor : public ValueObject {
   // Define visitor methods.
 
 #define OPTIMIZING_INTRINSICS(Name, ...) \
-  virtual void Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-  }
+  virtual void Visit##Name([[maybe_unused]] HInvoke* invoke) {}
 #include "intrinsics_list.h"
   INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef INTRINSICS_LIST
@@ -254,11 +253,9 @@ class VarHandleOptimizations : public IntrinsicOptimizations {
 // intrinsic to exploit e.g. no side-effects or exceptions, but otherwise not handled
 // by this architecture-specific intrinsics code generator. Eventually it is implemented
 // as a true method call.
-#define UNIMPLEMENTED_INTRINSIC(Arch, Name)                                               \
-void IntrinsicLocationsBuilder ## Arch::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) { \
-}                                                                                         \
-void IntrinsicCodeGenerator ## Arch::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
-}
+#define UNIMPLEMENTED_INTRINSIC(Arch, Name)                                              \
+  void IntrinsicLocationsBuilder##Arch::Visit##Name([[maybe_unused]] HInvoke* invoke) {} \
+  void IntrinsicCodeGenerator##Arch::Visit##Name([[maybe_unused]] HInvoke* invoke) {}
 
 // Defines a list of unreached intrinsics: that is, method calls that are recognized as
 // an intrinsic, and then always converted into HIR instructions before they reach any

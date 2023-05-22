@@ -866,7 +866,7 @@ class JitDoneCompilingProfileTask final : public SelfDeletingTask {
   explicit JitDoneCompilingProfileTask(const std::vector<const DexFile*>& dex_files)
       : dex_files_(dex_files) {}
 
-  void Run(Thread* self ATTRIBUTE_UNUSED) override {
+  void Run([[maybe_unused]] Thread* self) override {
     // Madvise DONTNEED dex files now that we're done compiling methods.
     for (const DexFile* dex_file : dex_files_) {
       if (IsAddressKnownBackedByFileOrShared(dex_file->Begin())) {
@@ -890,7 +890,7 @@ class JitZygoteDoneCompilingTask final : public SelfDeletingTask {
  public:
   JitZygoteDoneCompilingTask() {}
 
-  void Run(Thread* self ATTRIBUTE_UNUSED) override {
+  void Run([[maybe_unused]] Thread* self) override {
     DCHECK(Runtime::Current()->IsZygote());
     Runtime::Current()->GetJit()->GetCodeCache()->GetZygoteMap()->SetCompilationState(
         ZygoteCompilationState::kDone);

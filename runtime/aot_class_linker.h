@@ -39,11 +39,11 @@ static bool CanReferenceInBootImageExtension(ObjPtr<mirror::Class> klass, gc::He
   void SetSdkChecker(std::unique_ptr<SdkChecker>&& sdk_checker_);
   const SdkChecker* GetSdkChecker() const;
 
-  bool DenyAccessBasedOnPublicSdk(ArtMethod* art_method ATTRIBUTE_UNUSED) const override
+  bool DenyAccessBasedOnPublicSdk([[maybe_unused]] ArtMethod* art_method) const override
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool DenyAccessBasedOnPublicSdk(ArtField* art_field ATTRIBUTE_UNUSED) const override
+  bool DenyAccessBasedOnPublicSdk([[maybe_unused]] ArtField* art_field) const override
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool DenyAccessBasedOnPublicSdk(const char* type_descriptor ATTRIBUTE_UNUSED) const override;
+  bool DenyAccessBasedOnPublicSdk([[maybe_unused]] const char* type_descriptor) const override;
   void SetEnablePublicSdkChecks(bool enabled) override;
 
  protected:

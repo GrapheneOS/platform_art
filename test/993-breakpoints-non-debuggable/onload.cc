@@ -67,7 +67,7 @@ static const jvmtiCapabilities limited_caps = {
     .can_generate_resource_exhaustion_threads_events = 0,
 };
 
-jint OnLoad(JavaVM* vm, char* options ATTRIBUTE_UNUSED, void* reserved ATTRIBUTE_UNUSED) {
+jint OnLoad(JavaVM* vm, [[maybe_unused]] char* options, [[maybe_unused]] void* reserved) {
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), kArtTiVersion) != 0) {
     printf("Unable to get jvmti env!\n");
     return 1;

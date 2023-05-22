@@ -133,9 +133,9 @@ class CommonCompilerTestImpl::OneCompiledMethodStorage final : public CompiledCo
   CompiledMethod* CreateCompiledMethod(InstructionSet instruction_set,
                                        ArrayRef<const uint8_t> code,
                                        ArrayRef<const uint8_t> stack_map,
-                                       ArrayRef<const uint8_t> cfi ATTRIBUTE_UNUSED,
+                                       [[maybe_unused]] ArrayRef<const uint8_t> cfi,
                                        ArrayRef<const linker::LinkerPatch> patches,
-                                       bool is_intrinsic ATTRIBUTE_UNUSED) override {
+                                       [[maybe_unused]] bool is_intrinsic) override {
     // Supports only one method at a time.
     CHECK_EQ(instruction_set_, InstructionSet::kNone);
     CHECK_NE(instruction_set, InstructionSet::kNone);
@@ -150,15 +150,15 @@ class CommonCompilerTestImpl::OneCompiledMethodStorage final : public CompiledCo
     return reinterpret_cast<CompiledMethod*>(this);
   }
 
-  ArrayRef<const uint8_t> GetThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                       /*out*/ std::string* debug_name  ATTRIBUTE_UNUSED) override {
+  ArrayRef<const uint8_t> GetThunkCode([[maybe_unused]] const linker::LinkerPatch& patch,
+                                       [[maybe_unused]] /*out*/ std::string* debug_name) override {
     LOG(FATAL) << "Unsupported.";
     UNREACHABLE();
   }
 
-  void SetThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
-                    ArrayRef<const uint8_t> code ATTRIBUTE_UNUSED,
-                    const std::string& debug_name ATTRIBUTE_UNUSED) override {
+  void SetThunkCode([[maybe_unused]] const linker::LinkerPatch& patch,
+                    [[maybe_unused]] ArrayRef<const uint8_t> code,
+                    [[maybe_unused]] const std::string& debug_name) override {
     LOG(FATAL) << "Unsupported.";
     UNREACHABLE();
   }

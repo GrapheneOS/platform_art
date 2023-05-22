@@ -28,7 +28,7 @@ namespace art {
 namespace Test920Objects {
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Test920_getObjectSize(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED, jobject object) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass klass, jobject object) {
   jlong size;
 
   jvmtiError result = jvmti_env->GetObjectSize(object, &size);
@@ -44,7 +44,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_art_Test920_getObjectSize(
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test920_getObjectHashCode(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED, jobject object) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass klass, jobject object) {
   jint hash;
 
   jvmtiError result = jvmti_env->GetObjectHashCode(object, &hash);

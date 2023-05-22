@@ -68,10 +68,10 @@ void JvmtiWeakTable<T>::UpdateTableWithReadBarrier() {
   update_since_last_sweep_ = true;
 
   auto WithReadBarrierUpdater = [&](const art::GcRoot<art::mirror::Object>& original_root,
-                                    art::mirror::Object* original_obj ATTRIBUTE_UNUSED)
-     REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    return original_root.Read<art::kWithReadBarrier>();
-  };
+                                    [[maybe_unused]] art::mirror::Object* original_obj)
+                                    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+                                      return original_root.Read<art::kWithReadBarrier>();
+                                    };
 
   UpdateTableWith<decltype(WithReadBarrierUpdater), kIgnoreNull>(WithReadBarrierUpdater);
 }
@@ -198,7 +198,7 @@ void JvmtiWeakTable<T>::SweepImpl(art::IsMarkedVisitor* visitor) {
   art::Thread* self = art::Thread::Current();
   art::MutexLock mu(self, allow_disallow_lock_);
 
-  auto IsMarkedUpdater = [&](const art::GcRoot<art::mirror::Object>& original_root ATTRIBUTE_UNUSED,
+  auto IsMarkedUpdater = [&]([[maybe_unused]] const art::GcRoot<art::mirror::Object>& original_root,
                              art::mirror::Object* original_obj) {
     return visitor->IsMarked(original_obj);
   };

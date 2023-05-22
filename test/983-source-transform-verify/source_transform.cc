@@ -41,16 +41,16 @@ static void Println(JNIEnv* env, const char* msg) {
 }
 
 // The hook we are using.
-void JNICALL CheckDexFileHook(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED,
+void JNICALL CheckDexFileHook([[maybe_unused]] jvmtiEnv* jvmti_env,
                               JNIEnv* env,
                               jclass class_being_redefined,
-                              jobject loader ATTRIBUTE_UNUSED,
+                              [[maybe_unused]] jobject loader,
                               const char* name,
-                              jobject protection_domain ATTRIBUTE_UNUSED,
+                              [[maybe_unused]] jobject protection_domain,
                               jint class_data_len,
                               const unsigned char* class_data,
-                              jint* new_class_data_len ATTRIBUTE_UNUSED,
-                              unsigned char** new_class_data ATTRIBUTE_UNUSED) {
+                              [[maybe_unused]] jint* new_class_data_len,
+                              [[maybe_unused]] unsigned char** new_class_data) {
   if (kSkipInitialLoad && class_being_redefined == nullptr) {
     // Something got loaded concurrently. Just ignore it for now. To make sure the test is
     // repeatable we only care about things that come from RetransformClasses.

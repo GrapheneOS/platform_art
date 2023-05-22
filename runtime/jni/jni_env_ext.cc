@@ -289,7 +289,7 @@ void JNIEnvExt::CheckNoHeldMonitors() {
   }
 }
 
-void ThreadResetFunctionTable(Thread* thread, void* arg ATTRIBUTE_UNUSED)
+void ThreadResetFunctionTable(Thread* thread, [[maybe_unused]] void* arg)
     REQUIRES(Locks::jni_function_table_lock_) {
   JNIEnvExt* env = thread->GetJniEnv();
   bool check_jni = env->IsCheckJniEnabled();

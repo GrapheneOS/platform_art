@@ -20,8 +20,6 @@
 #include "log.h"
 #include "sigchain.h"
 
-#define ATTRIBUTE_UNUSED __attribute__((__unused__))
-
 // We cannot annotate the declarations, as they are not no-return in the non-fake version.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
@@ -29,24 +27,24 @@
 
 namespace art {
 
-extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED) {
+extern "C" void EnsureFrontOfChain([[maybe_unused]] int signal) {
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
 
-extern "C" void AddSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
-                                          SigchainAction* sa ATTRIBUTE_UNUSED) {
+extern "C" void AddSpecialSignalHandlerFn([[maybe_unused]] int signal,
+                                          [[maybe_unused]] SigchainAction* sa) {
   log("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
 
-extern "C" void RemoveSpecialSignalHandlerFn(int signal ATTRIBUTE_UNUSED,
-                                             bool (*fn)(int, siginfo_t*, void*) ATTRIBUTE_UNUSED) {
+extern "C" void RemoveSpecialSignalHandlerFn([[maybe_unused]] int signal,
+                                             [[maybe_unused]] bool (*fn)(int, siginfo_t*, void*)) {
   log("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
 
-extern "C" void SkipAddSignalHandler(bool value ATTRIBUTE_UNUSED) {
+extern "C" void SkipAddSignalHandler([[maybe_unused]] bool value) {
   log("SkipAddSignalHandler is not exported by the main executable.");
   abort();
 }

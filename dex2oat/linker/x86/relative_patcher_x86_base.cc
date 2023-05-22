@@ -23,8 +23,8 @@ namespace linker {
 
 uint32_t X86BaseRelativePatcher::ReserveSpace(
     uint32_t offset,
-    const CompiledMethod* compiled_method ATTRIBUTE_UNUSED,
-    MethodReference method_ref ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] const CompiledMethod* compiled_method,
+    [[maybe_unused]] MethodReference method_ref) {
   return offset;  // No space reserved; no limit on relative call distance.
 }
 
@@ -32,12 +32,12 @@ uint32_t X86BaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
   return offset;  // No space reserved; no limit on relative call distance.
 }
 
-uint32_t X86BaseRelativePatcher::WriteThunks(OutputStream* out ATTRIBUTE_UNUSED, uint32_t offset) {
+uint32_t X86BaseRelativePatcher::WriteThunks([[maybe_unused]] OutputStream* out, uint32_t offset) {
   return offset;  // No thunks added; no limit on relative call distance.
 }
 
 std::vector<debug::MethodDebugInfo> X86BaseRelativePatcher::GenerateThunkDebugInfo(
-    uint32_t executable_offset ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] uint32_t executable_offset) {
   return std::vector<debug::MethodDebugInfo>();  // No thunks added.
 }
 

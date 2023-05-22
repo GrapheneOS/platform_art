@@ -192,7 +192,7 @@ void SimpleProfileData::FinishInitialization(jvmtiEnv* jvmti, JNIEnv* env, jthre
 
   CHECK_JVMTI(jvmti->RunAgentThread(
       thread.get(),
-      [](jvmtiEnv* jvmti, JNIEnv* jni, void* unused_data ATTRIBUTE_UNUSED) {
+      [](jvmtiEnv* jvmti, JNIEnv* jni, [[maybe_unused]] void* unused_data) {
         SimpleProfileData* data = SimpleProfileData::GetProfileData(jvmti);
         data->RunDumpLoop(jvmti, jni);
       },
@@ -354,7 +354,7 @@ static void DataDumpCb(jvmtiEnv* jvmti_env) {
 
 static void MethodEntryCB(jvmtiEnv* jvmti_env,
                           JNIEnv* env,
-                          jthread thread ATTRIBUTE_UNUSED,
+                          [[maybe_unused]] jthread thread,
                           jmethodID method) {
   SimpleProfileData* data = SimpleProfileData::GetProfileData(jvmti_env);
   data->Enter(jvmti_env, env, method);
@@ -418,7 +418,7 @@ static jint SetupJvmtiEnv(JavaVM* vm, jvmtiEnv** jvmti) {
 static jint AgentStart(StartType start,
                        JavaVM* vm,
                        const char* options,
-                       void* reserved ATTRIBUTE_UNUSED) {
+                       [[maybe_unused]] void* reserved) {
   if (options == nullptr) {
     options = "";
   }
@@ -476,7 +476,7 @@ static jint AgentStart(StartType start,
   callbacks.VMInit = &VMInitCB;
   callbacks.DataDumpRequest = &DataDumpCb;
   callbacks.VMDeath = &VMDeathCB;
-  callbacks.ThreadEnd = [](jvmtiEnv* env, JNIEnv* jni, jthread thr ATTRIBUTE_UNUSED) {
+  callbacks.ThreadEnd = [](jvmtiEnv* env, JNIEnv* jni, [[maybe_unused]] jthread thr) {
     VMDeathCB(env, jni);
   };
 

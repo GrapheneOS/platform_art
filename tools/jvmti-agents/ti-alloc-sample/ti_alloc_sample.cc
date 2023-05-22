@@ -310,7 +310,7 @@ static int stack_depth_limit;
 static void JNICALL logVMObjectAlloc(jvmtiEnv* jvmti,
                                      JNIEnv* jni,
                                      jthread thread,
-                                     jobject obj ATTRIBUTE_UNUSED,
+                                     [[maybe_unused]] jobject obj,
                                      jclass klass,
                                      jlong size) {
   // Sample only once out of sampling_rate tries, and prevent recursive allocation tracking,
@@ -407,9 +407,7 @@ static bool ProcessOptions(std::string options) {
   return true;
 }
 
-static jint AgentStart(JavaVM* vm,
-                       char* options,
-                       void* reserved ATTRIBUTE_UNUSED) {
+static jint AgentStart(JavaVM* vm, char* options, [[maybe_unused]] void* reserved) {
   // Handle the sampling rate, depth limit, and output path, if set.
   if (!ProcessOptions(options)) {
     return JNI_ERR;

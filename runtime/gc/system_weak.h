@@ -62,7 +62,7 @@ class SystemWeakHolder : public AbstractSystemWeakHolder {
     allow_new_system_weak_ = false;
   }
 
-  void Broadcast(bool broadcast_for_checkpoint ATTRIBUTE_UNUSED) override
+  void Broadcast([[maybe_unused]] bool broadcast_for_checkpoint) override
       REQUIRES(!allow_disallow_lock_) {
     MutexLock mu(Thread::Current(), allow_disallow_lock_);
     new_weak_condition_.Broadcast(Thread::Current());

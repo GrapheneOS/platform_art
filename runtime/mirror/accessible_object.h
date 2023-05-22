@@ -39,7 +39,7 @@ class MANAGED AccessibleObject : public Object {
 
  private:
   // We only use the field indirectly using the FlagOffset() method.
-  uint8_t flag_ ATTRIBUTE_UNUSED;
+  [[maybe_unused]] uint8_t flag_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(AccessibleObject);
 };

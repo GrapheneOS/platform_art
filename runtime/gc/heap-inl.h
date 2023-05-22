@@ -441,7 +441,7 @@ inline bool Heap::ShouldAllocLargeObject(ObjPtr<mirror::Class> c, size_t byte_co
   return byte_count >= large_object_threshold_ && (c->IsPrimitiveArray() || c->IsStringClass());
 }
 
-inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type ATTRIBUTE_UNUSED,
+inline bool Heap::IsOutOfMemoryOnAllocation([[maybe_unused]] AllocatorType allocator_type,
                                             size_t alloc_size,
                                             bool grow) {
   size_t old_target = target_footprint_.load(std::memory_order_relaxed);

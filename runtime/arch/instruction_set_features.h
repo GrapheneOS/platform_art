@@ -146,8 +146,8 @@ class InstructionSetFeatures {
                                  std::string* error_msg) const = 0;
 
   // Add run-time detected architecture specific features in sub-classes.
-  virtual std::unique_ptr<const InstructionSetFeatures>
-      AddRuntimeDetectedFeatures(const InstructionSetFeatures *features ATTRIBUTE_UNUSED) const;
+  virtual std::unique_ptr<const InstructionSetFeatures> AddRuntimeDetectedFeatures(
+      [[maybe_unused]] const InstructionSetFeatures* features) const;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InstructionSetFeatures);
