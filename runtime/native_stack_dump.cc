@@ -431,22 +431,20 @@ void DumpNativeStack(std::ostream& os,
 
 #elif defined(__APPLE__)
 
-void DumpNativeStack(std::ostream& os ATTRIBUTE_UNUSED,
-                     pid_t tid ATTRIBUTE_UNUSED,
-                     const char* prefix ATTRIBUTE_UNUSED,
-                     ArtMethod* current_method ATTRIBUTE_UNUSED,
-                     void* ucontext_ptr ATTRIBUTE_UNUSED,
-                     bool skip_frames ATTRIBUTE_UNUSED) {
-}
+void DumpNativeStack([[maybe_unused]] std::ostream& os,
+                     [[maybe_unused]] pid_t tid,
+                     [[maybe_unused]] const char* prefix,
+                     [[maybe_unused]] ArtMethod* current_method,
+                     [[maybe_unused]] void* ucontext_ptr,
+                     [[maybe_unused]] bool skip_frames) {}
 
-void DumpNativeStack(std::ostream& os ATTRIBUTE_UNUSED,
-                     unwindstack::AndroidLocalUnwinder& existing_map ATTRIBUTE_UNUSED,
-                     pid_t tid ATTRIBUTE_UNUSED,
-                     const char* prefix ATTRIBUTE_UNUSED,
-                     ArtMethod* current_method ATTRIBUTE_UNUSED,
-                     void* ucontext_ptr ATTRIBUTE_UNUSED,
-                     bool skip_frames ATTRIBUTE_UNUSED) {
-}
+void DumpNativeStack([[maybe_unused]] std::ostream& os,
+                     [[maybe_unused]] unwindstack::AndroidLocalUnwinder& existing_map,
+                     [[maybe_unused]] pid_t tid,
+                     [[maybe_unused]] const char* prefix,
+                     [[maybe_unused]] ArtMethod* current_method,
+                     [[maybe_unused]] void* ucontext_ptr,
+                     [[maybe_unused]] bool skip_frames) {}
 
 #else
 #error "Unsupported architecture for native stack dumps."

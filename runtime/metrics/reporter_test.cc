@@ -65,10 +65,10 @@ class TestBackend : public MetricsBackend {
     current_report_->data.Put(counter_type, value);
   }
 
-  void ReportHistogram(DatumId histogram_type ATTRIBUTE_UNUSED,
-                       int64_t low_value ATTRIBUTE_UNUSED,
-                       int64_t high_value ATTRIBUTE_UNUSED,
-                       const std::vector<uint32_t>& buckets ATTRIBUTE_UNUSED) override {
+  void ReportHistogram([[maybe_unused]] DatumId histogram_type,
+                       [[maybe_unused]] int64_t low_value,
+                       [[maybe_unused]] int64_t high_value,
+                       [[maybe_unused]] const std::vector<uint32_t>& buckets) override {
     // TODO: nothing yet. We should implement and test histograms as well.
   }
 

@@ -313,7 +313,7 @@ bool InstructionSetFeatures::FindVariantInArray(const char* const variants[], si
 }
 
 std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddRuntimeDetectedFeatures(
-    const InstructionSetFeatures *features ATTRIBUTE_UNUSED) const {
+    [[maybe_unused]] const InstructionSetFeatures* features) const {
   UNIMPLEMENTED(FATAL) << kRuntimeISA;
   UNREACHABLE();
 }

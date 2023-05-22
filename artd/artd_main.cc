@@ -22,7 +22,7 @@
 #include "android/binder_process.h"
 #include "artd.h"
 
-int main(int argc ATTRIBUTE_UNUSED, char* argv[]) {
+int main([[maybe_unused]] int argc, char* argv[]) {
   android::base::InitLogging(argv);
 
   auto artd = ndk::SharedRefBase::make<art::artd::Artd>();

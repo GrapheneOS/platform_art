@@ -113,7 +113,7 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
     utf8_length = length;
   } else {
     const uint16_t* utf16 = string->GetValue() + offset;
-    auto count_length = [&utf8_length](jbyte c ATTRIBUTE_UNUSED) ALWAYS_INLINE { ++utf8_length; };
+    auto count_length = [&utf8_length]([[maybe_unused]] jbyte c) ALWAYS_INLINE { ++utf8_length; };
     ConvertUtf16ToUtf8</*kUseShortZero=*/ true,
                        /*kUse4ByteSequence=*/ true,
                        /*kReplaceBadSurrogates=*/ true>(utf16, length, count_length);

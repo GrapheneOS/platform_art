@@ -34,7 +34,7 @@ struct FramePopData {
 static void framePopCB(jvmtiEnv* jvmti,
                        JNIEnv* jnienv,
                        jthread thr,
-                       jmethodID method ATTRIBUTE_UNUSED,
+                       [[maybe_unused]] jmethodID method,
                        jboolean was_popped_by_exception) {
   FramePopData* data = nullptr;
   if (JvmtiErrorToException(jnienv, jvmti,

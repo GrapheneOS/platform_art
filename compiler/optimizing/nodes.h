@@ -2355,9 +2355,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return true;
   }
 
-  virtual bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const {
-    return false;
-  }
+  virtual bool CanDoImplicitNullCheckOn([[maybe_unused]] HInstruction* obj) const { return false; }
 
   // If this instruction will do an implicit null check, return the `HNullCheck` associated
   // with it. Otherwise return null.
@@ -2570,7 +2568,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   //
   // Note: HEnvironment and some other fields are not copied and are set to default values, see
   // 'explicit HInstruction(const HInstruction& other)' for details.
-  virtual HInstruction* Clone(ArenaAllocator* arena ATTRIBUTE_UNUSED) const {
+  virtual HInstruction* Clone([[maybe_unused]] ArenaAllocator* arena) const {
     LOG(FATAL) << "Cloning is not implemented for the instruction " <<
                   DebugName() << " " << GetId();
     UNREACHABLE();
@@ -2598,7 +2596,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   // Returns whether any data encoded in the two instructions is equal.
   // This method does not look at the inputs. Both instructions must be
   // of the same type, otherwise the method has undefined behavior.
-  virtual bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const {
+  virtual bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const {
     return false;
   }
 
@@ -3272,7 +3270,7 @@ class HConstant : public HExpression<0> {
 
 class HNullConstant final : public HConstant {
  public:
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -3830,7 +3828,7 @@ class HUnaryOperation : public HExpression<1> {
   DataType::Type GetResultType() const { return GetType(); }
 
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -3906,7 +3904,7 @@ class HBinaryOperation : public HExpression<2> {
   }
 
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -3916,15 +3914,15 @@ class HBinaryOperation : public HExpression<2> {
   HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x` and `y`.
-  virtual HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
-                              HNullConstant* y ATTRIBUTE_UNUSED) const {
+  virtual HConstant* Evaluate([[maybe_unused]] HNullConstant* x,
+                              [[maybe_unused]] HNullConstant* y) const {
     LOG(FATAL) << DebugName() << " is not defined for the (null, null) case.";
     UNREACHABLE();
   }
   virtual HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const = 0;
   virtual HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const = 0;
-  virtual HConstant* Evaluate(HLongConstant* x ATTRIBUTE_UNUSED,
-                              HIntConstant* y ATTRIBUTE_UNUSED) const {
+  virtual HConstant* Evaluate([[maybe_unused]] HLongConstant* x,
+                              [[maybe_unused]] HIntConstant* y) const {
     LOG(FATAL) << DebugName() << " is not defined for the (long, int) case.";
     UNREACHABLE();
   }
@@ -4052,8 +4050,8 @@ class HEqual final : public HCondition {
 
   bool IsCommutative() const override { return true; }
 
-  HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
-                      HNullConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HNullConstant* x,
+                      [[maybe_unused]] HNullConstant* y) const override {
     return MakeConstantCondition(true, GetDexPc());
   }
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const override {
@@ -4099,8 +4097,8 @@ class HNotEqual final : public HCondition {
 
   bool IsCommutative() const override { return true; }
 
-  HConstant* Evaluate(HNullConstant* x ATTRIBUTE_UNUSED,
-                      HNullConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HNullConstant* x,
+                      [[maybe_unused]] HNullConstant* y) const override {
     return MakeConstantCondition(false, GetDexPc());
   }
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const override {
@@ -4306,13 +4304,13 @@ class HBelow final : public HCondition {
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const override {
     return MakeConstantCondition(Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4348,13 +4346,13 @@ class HBelowOrEqual final : public HCondition {
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const override {
     return MakeConstantCondition(Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4390,13 +4388,13 @@ class HAbove final : public HCondition {
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const override {
     return MakeConstantCondition(Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4432,13 +4430,13 @@ class HAboveOrEqual final : public HCondition {
   HConstant* Evaluate(HLongConstant* x, HLongConstant* y) const override {
     return MakeConstantCondition(Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -4525,7 +4523,7 @@ class HCompare final : public HBinaryOperation {
     return GetBias() == ComparisonBias::kGtBias;
   }
 
-  static SideEffects SideEffectsForArchRuntimeCalls(DataType::Type type ATTRIBUTE_UNUSED) {
+  static SideEffects SideEffectsForArchRuntimeCalls([[maybe_unused]] DataType::Type type) {
     // Comparisons do not require a runtime call in any back end.
     return SideEffects::None();
   }
@@ -5018,7 +5016,7 @@ class HInvokeStaticOrDirect final : public HInvoke {
     return input_records;
   }
 
-  bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const override {
+  bool CanDoImplicitNullCheckOn([[maybe_unused]] HInstruction* obj) const override {
     // We do not access the method via object reference, so we cannot do an implicit null check.
     // TODO: for intrinsics we can generate implicit null checks.
     return false;
@@ -5602,10 +5600,14 @@ class HMin final : public HBinaryOperation {
         ComputeIntegral(x->GetValue(), y->GetValue()), GetDexPc());
   }
   // TODO: Evaluation for floating-point values.
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override { return nullptr; }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override { return nullptr; }
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
+    return nullptr;
+  }
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
+    return nullptr;
+  }
 
   DECLARE_INSTRUCTION(Min);
 
@@ -5637,10 +5639,14 @@ class HMax final : public HBinaryOperation {
         ComputeIntegral(x->GetValue(), y->GetValue()), GetDexPc());
   }
   // TODO: Evaluation for floating-point values.
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override { return nullptr; }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override { return nullptr; }
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
+    return nullptr;
+  }
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
+    return nullptr;
+  }
 
   DECLARE_INSTRUCTION(Max);
 
@@ -5702,7 +5708,7 @@ class HDivZeroCheck final : public HExpression<1> {
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
 
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -5739,18 +5745,18 @@ class HShl final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
-                      HLongConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HLongConstant* value,
+                      [[maybe_unused]] HLongConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
-                      HFloatConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* value,
+                      [[maybe_unused]] HFloatConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
-                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* value,
+                      [[maybe_unused]] HDoubleConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5785,18 +5791,18 @@ class HShr final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
-                      HLongConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HLongConstant* value,
+                      [[maybe_unused]] HLongConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
-                      HFloatConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* value,
+                      [[maybe_unused]] HFloatConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
-                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* value,
+                      [[maybe_unused]] HDoubleConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5833,18 +5839,18 @@ class HUShr final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
-                      HLongConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HLongConstant* value,
+                      [[maybe_unused]] HLongConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
-                      HFloatConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* value,
+                      [[maybe_unused]] HFloatConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
-                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* value,
+                      [[maybe_unused]] HDoubleConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5876,13 +5882,13 @@ class HAnd final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5914,13 +5920,13 @@ class HOr final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5952,13 +5958,13 @@ class HXor final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(x->GetValue(), y->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED,
-                      HFloatConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x,
+                      [[maybe_unused]] HFloatConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED,
-                      HDoubleConstant* y ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x,
+                      [[maybe_unused]] HDoubleConstant* y) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -5996,18 +6002,18 @@ class HRor final : public HBinaryOperation {
     return GetBlock()->GetGraph()->GetLongConstant(
         Compute(value->GetValue(), distance->GetValue(), kMaxLongShiftDistance), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* value ATTRIBUTE_UNUSED,
-                      HLongConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HLongConstant* value,
+                      [[maybe_unused]] HLongConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for the (long, long) case.";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* value ATTRIBUTE_UNUSED,
-                      HFloatConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* value,
+                      [[maybe_unused]] HFloatConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* value ATTRIBUTE_UNUSED,
-                      HDoubleConstant* distance ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* value,
+                      [[maybe_unused]] HDoubleConstant* distance) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -6070,7 +6076,7 @@ class HNot final : public HUnaryOperation {
   }
 
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -6082,11 +6088,11 @@ class HNot final : public HUnaryOperation {
   HConstant* Evaluate(HLongConstant* x) const override {
     return GetBlock()->GetGraph()->GetLongConstant(Compute(x->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -6104,7 +6110,7 @@ class HBooleanNot final : public HUnaryOperation {
   }
 
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -6116,15 +6122,15 @@ class HBooleanNot final : public HUnaryOperation {
   HConstant* Evaluate(HIntConstant* x) const override {
     return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()), GetDexPc());
   }
-  HConstant* Evaluate(HLongConstant* x ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HLongConstant* x) const override {
     LOG(FATAL) << DebugName() << " is not defined for long values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HFloatConstant* x ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HFloatConstant* x) const override {
     LOG(FATAL) << DebugName() << " is not defined for float values";
     UNREACHABLE();
   }
-  HConstant* Evaluate(HDoubleConstant* x ATTRIBUTE_UNUSED) const override {
+  HConstant* Evaluate([[maybe_unused]] HDoubleConstant* x) const override {
     LOG(FATAL) << DebugName() << " is not defined for double values";
     UNREACHABLE();
   }
@@ -6151,7 +6157,7 @@ class HTypeConversion final : public HExpression<1> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
   // Return whether the conversion is implicit. This includes conversion to the same type.
@@ -6183,7 +6189,7 @@ class HNullCheck final : public HExpression<1> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -6536,10 +6542,10 @@ class HArrayGet final : public HExpression<2> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
-  bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const override {
+  bool CanDoImplicitNullCheckOn([[maybe_unused]] HInstruction* obj) const override {
     // TODO: We can be smarter here.
     // Currently, unless the array is the result of NewArray, the array access is always
     // preceded by some form of null NullCheck necessary for the bounds check, usually
@@ -6643,7 +6649,7 @@ class HArraySet final : public HExpression<3> {
   // Can throw ArrayStoreException.
   bool CanThrow() const override { return NeedsTypeCheck(); }
 
-  bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const override {
+  bool CanDoImplicitNullCheckOn([[maybe_unused]] HInstruction* obj) const override {
     // TODO: Same as for ArrayGet.
     return false;
   }
@@ -6749,7 +6755,7 @@ class HArrayLength final : public HExpression<1> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const override {
@@ -6793,7 +6799,7 @@ class HBoundsCheck final : public HExpression<2> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -7426,7 +7432,7 @@ class HClinitCheck final : public HExpression<1> {
   }
   // TODO: Make ClinitCheck clonable.
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -8346,7 +8352,7 @@ class HSelect final : public HExpression<3> {
   HInstruction* GetCondition() const { return InputAt(2); }
 
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
 
@@ -8516,7 +8522,7 @@ class HIntermediateAddress final : public HExpression<2> {
 
   bool IsClonable() const override { return true; }
   bool CanBeMoved() const override { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const override {
+  bool InstructionDataEquals([[maybe_unused]] const HInstruction* other) const override {
     return true;
   }
   bool IsActualObject() const override { return false; }
@@ -8553,7 +8559,7 @@ class HGraphVisitor : public ValueObject {
         graph_(graph) {}
   virtual ~HGraphVisitor() {}
 
-  virtual void VisitInstruction(HInstruction* instruction ATTRIBUTE_UNUSED) {}
+  virtual void VisitInstruction([[maybe_unused]] HInstruction* instruction) {}
   virtual void VisitBasicBlock(HBasicBlock* block);
 
   // Visit the graph following basic block insertion order.

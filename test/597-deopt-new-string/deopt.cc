@@ -28,7 +28,7 @@ namespace art {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_deoptimizeAll(
     JNIEnv* env,
-    jclass cls ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] jclass cls) {
   ScopedObjectAccess soa(env);
   ScopedThreadSuspension sts(Thread::Current(), ThreadState::kWaitingForDeoptimization);
   gc::ScopedGCCriticalSection gcs(Thread::Current(),
@@ -41,7 +41,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_deoptimizeAll(
 
 extern "C" JNIEXPORT void JNICALL Java_Main_undeoptimizeAll(
     JNIEnv* env,
-    jclass cls ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] jclass cls) {
   ScopedObjectAccess soa(env);
   ScopedThreadSuspension sts(Thread::Current(), ThreadState::kWaitingForDeoptimization);
   gc::ScopedGCCriticalSection gcs(Thread::Current(),

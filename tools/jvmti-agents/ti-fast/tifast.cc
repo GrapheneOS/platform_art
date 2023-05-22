@@ -37,7 +37,8 @@ namespace {
 // env.
 static constexpr jint kArtTiVersion = JVMTI_VERSION_1_2 | 0x40000000;
 
-template <typename ...Args> static void Unused(Args... args ATTRIBUTE_UNUSED) {}
+template <typename... Args>
+static void Unused([[maybe_unused]] Args... args) {}
 
 // jthread is a typedef of jobject so we use this to allow the templates to distinguish them.
 struct jthreadContainer { jthread thread; };
@@ -407,7 +408,8 @@ class LogPrinter {
 };
 
 // Base case
-template<> void LogPrinter::PrintRest(jvmtiEnv* jvmti ATTRIBUTE_UNUSED, JNIEnv* jni) {
+template <>
+void LogPrinter::PrintRest([[maybe_unused]] jvmtiEnv* jvmti, JNIEnv* jni) {
   if (jni == nullptr) {
     start_args = "jvmtiEnv*";
   } else {
@@ -668,9 +670,7 @@ static jint SetupJvmtiEnv(JavaVM* vm, jvmtiEnv** jvmti) {
 
 }  // namespace
 
-static jint AgentStart(JavaVM* vm,
-                       char* options,
-                       void* reserved ATTRIBUTE_UNUSED) {
+static jint AgentStart(JavaVM* vm, char* options, [[maybe_unused]] void* reserved) {
   jvmtiEnv* jvmti = nullptr;
   jvmtiError error = JVMTI_ERROR_NONE;
   if (SetupJvmtiEnv(vm, &jvmti) != JNI_OK) {

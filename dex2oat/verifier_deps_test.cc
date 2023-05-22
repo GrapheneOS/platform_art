@@ -46,9 +46,9 @@ class VerifierDepsCompilerCallbacks : public CompilerCallbacks {
       : CompilerCallbacks(CompilerCallbacks::CallbackMode::kCompileApp),
         deps_(nullptr) {}
 
-  void AddUncompilableMethod(MethodReference ref ATTRIBUTE_UNUSED) override {}
-  void AddUncompilableClass(ClassReference ref ATTRIBUTE_UNUSED) override {}
-  void ClassRejected(ClassReference ref ATTRIBUTE_UNUSED) override {}
+  void AddUncompilableMethod([[maybe_unused]] MethodReference ref) override {}
+  void AddUncompilableClass([[maybe_unused]] ClassReference ref) override {}
+  void ClassRejected([[maybe_unused]] ClassReference ref) override {}
 
   verifier::VerifierDeps* GetVerifierDeps() const override { return deps_; }
   void SetVerifierDeps(verifier::VerifierDeps* deps) override { deps_ = deps; }

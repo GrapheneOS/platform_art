@@ -27,37 +27,37 @@ namespace art {
 namespace common_early_return {
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_popFrame(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->PopFrame(thr));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnFloat(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr, jfloat val) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr, jfloat val) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnFloat(thr, val));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnDouble(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr, jdouble val) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr, jdouble val) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnDouble(thr, val));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnLong(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr, jlong val) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr, jlong val) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnLong(thr, val));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnInt(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr, jint val) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr, jint val) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnInt(thr, val));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnVoid(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnVoid(thr));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_NonStandardExit_forceEarlyReturnObject(
-    JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jthread thr, jobject val) {
+    JNIEnv* env, [[maybe_unused]] jclass k, jthread thr, jobject val) {
   JvmtiErrorToException(env, jvmti_env, jvmti_env->ForceEarlyReturnObject(thr, val));
 }
 

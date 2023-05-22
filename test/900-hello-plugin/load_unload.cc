@@ -30,7 +30,7 @@ constexpr jint TEST_900_ENV_VERSION_NUMBER = 0x900FFFFF;
 constexpr uintptr_t ENV_VALUE = 900;
 
 // Allow this library to be used as a plugin too so we can test the stack.
-static jint GetEnvHandler(JavaVMExt* vm ATTRIBUTE_UNUSED, void** new_env, jint version) {
+static jint GetEnvHandler([[maybe_unused]] JavaVMExt* vm, void** new_env, jint version) {
   printf("%s called in test 900\n", __func__);
   if (version != TEST_900_ENV_VERSION_NUMBER) {
     return JNI_EVERSION;
@@ -53,7 +53,7 @@ extern "C" bool ArtPlugin_Deinitialize() {
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
                                                char* options,
-                                               void* reserved ATTRIBUTE_UNUSED) {
+                                               [[maybe_unused]] void* reserved) {
   printf("Agent_OnLoad called with options \"%s\"\n", options);
   if (strcmp("test_900_round_2", options) == 0) {
     return 0;
@@ -67,7 +67,7 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
   return 0;
 }
 
-extern "C" JNIEXPORT void JNICALL Agent_OnUnload(JavaVM* vm ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT void JNICALL Agent_OnUnload([[maybe_unused]] JavaVM* vm) {
   printf("Agent_OnUnload called\n");
 }
 

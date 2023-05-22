@@ -40,7 +40,7 @@
 
 namespace openjdkjvmti {
 
-jvmtiError ObjectUtil::GetObjectSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ObjectUtil::GetObjectSize([[maybe_unused]] jvmtiEnv* env,
                                      jobject jobject,
                                      jlong* size_ptr) {
   if (jobject == nullptr) {
@@ -57,7 +57,7 @@ jvmtiError ObjectUtil::GetObjectSize(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError ObjectUtil::GetObjectHashCode(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ObjectUtil::GetObjectHashCode([[maybe_unused]] jvmtiEnv* env,
                                          jobject jobject,
                                          jint* hash_code_ptr) {
   if (jobject == nullptr) {

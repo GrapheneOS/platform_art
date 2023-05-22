@@ -300,7 +300,7 @@ class ConcurrentCopying::ActivateReadBarrierEntrypointsCallback : public Closure
   explicit ActivateReadBarrierEntrypointsCallback(ConcurrentCopying* concurrent_copying)
       : concurrent_copying_(concurrent_copying) {}
 
-  void Run(Thread* self ATTRIBUTE_UNUSED) override REQUIRES(Locks::thread_list_lock_) {
+  void Run([[maybe_unused]] Thread* self) override REQUIRES(Locks::thread_list_lock_) {
     // This needs to run under the thread_list_lock_ critical section in ThreadList::RunCheckpoint()
     // to avoid a race with ThreadList::Register().
     CHECK(!concurrent_copying_->is_using_read_barrier_entrypoints_);
@@ -509,7 +509,7 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
 
   void VisitRoots(mirror::Object*** roots,
                   size_t count,
-                  const RootInfo& info ATTRIBUTE_UNUSED) override
+                  [[maybe_unused]] const RootInfo& info) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     for (size_t i = 0; i < count; ++i) {
@@ -526,7 +526,7 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
                   size_t count,
-                  const RootInfo& info ATTRIBUTE_UNUSED) override
+                  [[maybe_unused]] const RootInfo& info) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     for (size_t i = 0; i < count; ++i) {
@@ -700,7 +700,7 @@ class ConcurrentCopying::VerifyNoMissingCardMarkVisitor {
 
   void operator()(ObjPtr<mirror::Object> obj,
                   MemberOffset offset,
-                  bool is_static ATTRIBUTE_UNUSED) const
+                  [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     if (offset.Uint32Value() != mirror::Object::ClassOffset().Uint32Value()) {
      CheckReference(obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(
@@ -952,7 +952,7 @@ class ConcurrentCopying::CaptureRootsForMarkingVisitor : public RootVisitor {
 
   void VisitRoots(mirror::Object*** roots,
                   size_t count,
-                  const RootInfo& info ATTRIBUTE_UNUSED) override
+                  [[maybe_unused]] const RootInfo& info) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::Object** root = roots[i];
@@ -965,7 +965,7 @@ class ConcurrentCopying::CaptureRootsForMarkingVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
                   size_t count,
-                  const RootInfo& info ATTRIBUTE_UNUSED) override
+                  [[maybe_unused]] const RootInfo& info) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::CompressedReference<mirror::Object>* const root = roots[i];
@@ -1770,7 +1770,7 @@ class ConcurrentCopying::DisableMarkingCallback : public Closure {
       : concurrent_copying_(concurrent_copying) {
   }
 
-  void Run(Thread* self ATTRIBUTE_UNUSED) override REQUIRES(Locks::thread_list_lock_) {
+  void Run([[maybe_unused]] Thread* self) override REQUIRES(Locks::thread_list_lock_) {
     // This needs to run under the thread_list_lock_ critical section in ThreadList::RunCheckpoint()
     // to avoid a race with ThreadList::Register().
     CHECK(concurrent_copying_->is_marking_);
@@ -1941,8 +1941,8 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsVisitor : public SingleRootVisitor
     }
   }
 
-  void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void VisitRoot(mirror::Object* root, [[maybe_unused]] const RootInfo& info) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(root != nullptr);
     operator()(root);
   }
@@ -1958,7 +1958,7 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsFieldVisitor {
 
   void operator()(ObjPtr<mirror::Object> obj,
                   MemberOffset offset,
-                  bool is_static ATTRIBUTE_UNUSED) const
+                  [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
@@ -2053,13 +2053,13 @@ class ConcurrentCopying::AssertToSpaceInvariantFieldVisitor {
 
   void operator()(ObjPtr<mirror::Object> obj,
                   MemberOffset offset,
-                  bool is_static ATTRIBUTE_UNUSED) const
+                  [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     collector_->AssertToSpaceInvariant(obj.Ptr(), offset, ref);
   }
-  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Class> klass, [[maybe_unused]] ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
   }
@@ -2417,7 +2417,7 @@ class ConcurrentCopying::DisableWeakRefAccessCallback : public Closure {
       : concurrent_copying_(concurrent_copying) {
   }
 
-  void Run(Thread* self ATTRIBUTE_UNUSED) override REQUIRES(Locks::thread_list_lock_) {
+  void Run([[maybe_unused]] Thread* self) override REQUIRES(Locks::thread_list_lock_) {
     // This needs to run under the thread_list_lock_ critical section in ThreadList::RunCheckpoint()
     // to avoid a deadlock b/31500969.
     CHECK(concurrent_copying_->weak_ref_access_enabled_);
@@ -3266,8 +3266,9 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
 }
 
 // Process some roots.
-inline void ConcurrentCopying::VisitRoots(
-    mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED) {
+inline void ConcurrentCopying::VisitRoots(mirror::Object*** roots,
+                                          size_t count,
+                                          [[maybe_unused]] const RootInfo& info) {
   Thread* const self = Thread::Current();
   for (size_t i = 0; i < count; ++i) {
     mirror::Object** root = roots[i];
@@ -3308,9 +3309,9 @@ inline void ConcurrentCopying::MarkRoot(Thread* const self,
   }
 }
 
-inline void ConcurrentCopying::VisitRoots(
-    mirror::CompressedReference<mirror::Object>** roots, size_t count,
-    const RootInfo& info ATTRIBUTE_UNUSED) {
+inline void ConcurrentCopying::VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
+                                          size_t count,
+                                          [[maybe_unused]] const RootInfo& info) {
   Thread* const self = Thread::Current();
   for (size_t i = 0; i < count; ++i) {
     mirror::CompressedReference<mirror::Object>* const root = roots[i];

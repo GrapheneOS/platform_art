@@ -259,7 +259,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc, size_t bytes) {
 #undef FETCH_OR_SKIP_BYTE
 }
 
-uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context) {
+uintptr_t FaultManager::GetFaultPc([[maybe_unused]] siginfo_t* siginfo, void* context) {
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   if (uc->CTX_ESP == 0) {
     VLOG(signals) << "Missing SP";

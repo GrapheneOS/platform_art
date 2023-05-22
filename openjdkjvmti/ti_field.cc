@@ -200,7 +200,7 @@ jvmtiError FieldUtil::GetFieldName(jvmtiEnv* env,
   return ERR(NONE);
 }
 
-jvmtiError FieldUtil::GetFieldDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError FieldUtil::GetFieldDeclaringClass([[maybe_unused]] jvmtiEnv* env,
                                              jclass klass,
                                              jfieldID field,
                                              jclass* declaring_class_ptr) {
@@ -223,7 +223,7 @@ jvmtiError FieldUtil::GetFieldDeclaringClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError FieldUtil::GetFieldModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError FieldUtil::GetFieldModifiers([[maybe_unused]] jvmtiEnv* env,
                                         jclass klass,
                                         jfieldID field,
                                         jint* modifiers_ptr) {
@@ -246,7 +246,7 @@ jvmtiError FieldUtil::GetFieldModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError FieldUtil::IsFieldSynthetic(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError FieldUtil::IsFieldSynthetic([[maybe_unused]] jvmtiEnv* env,
                                        jclass klass,
                                        jfieldID field,
                                        jboolean* is_synthetic_ptr) {

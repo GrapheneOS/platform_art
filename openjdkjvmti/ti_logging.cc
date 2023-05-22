@@ -100,7 +100,7 @@ jvmtiError LogUtil::SetVerboseFlagExt(jvmtiEnv* env, const char* data, jboolean 
   return OK;
 }
 
-jvmtiError LogUtil::SetVerboseFlag(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError LogUtil::SetVerboseFlag([[maybe_unused]] jvmtiEnv* env,
                                    jvmtiVerboseFlag flag,
                                    jboolean value) {
   if (flag == jvmtiVerboseFlag::JVMTI_VERBOSE_OTHER) {

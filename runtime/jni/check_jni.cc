@@ -1617,8 +1617,10 @@ class GuardedCopy {
    * Perform the array "release" operation, which may or may not copy data
    * back into the managed heap, and may or may not release the underlying storage.
    */
-  static void* ReleaseGuardedPACopy(const char* function_name, JNIEnv* env,
-                                    jarray java_array ATTRIBUTE_UNUSED, void* embedded_buf,
+  static void* ReleaseGuardedPACopy(const char* function_name,
+                                    JNIEnv* env,
+                                    [[maybe_unused]] jarray java_array,
+                                    void* embedded_buf,
                                     int mode) {
     ScopedObjectAccess soa(env);
     if (!GuardedCopy::Check(function_name, embedded_buf, true)) {
@@ -1634,7 +1636,6 @@ class GuardedCopy {
     }
     return original_ptr;
   }
-
 
   /*
    * Free up the guard buffer, scrub it, and return the original pointer.

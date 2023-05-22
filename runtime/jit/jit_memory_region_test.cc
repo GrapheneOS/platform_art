@@ -39,8 +39,7 @@ static constexpr int kReturnFromFault = 42;
 // These globals are only set in child processes.
 void* gAddrToFaultOn = nullptr;
 
-[[noreturn]]
-void handler(int ATTRIBUTE_UNUSED, siginfo_t* info, void* ATTRIBUTE_UNUSED) {
+[[noreturn]] void handler([[maybe_unused]] int, siginfo_t* info, [[maybe_unused]] void*) {
   CHECK_EQ(info->si_addr, gAddrToFaultOn);
   exit(kReturnFromFault);
 }

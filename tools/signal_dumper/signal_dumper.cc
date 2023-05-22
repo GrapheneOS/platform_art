@@ -657,7 +657,7 @@ void SetupAndWait(pid_t forked_pid, int signal, int timeout_exit_code) {
 }  // namespace
 }  // namespace art
 
-int main(int argc ATTRIBUTE_UNUSED, char** argv) {
+int main([[maybe_unused]] int argc, char** argv) {
   android::base::InitLogging(argv);
 
   int signal = SIGRTMIN + 2;

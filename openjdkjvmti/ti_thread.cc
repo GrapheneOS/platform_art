@@ -205,7 +205,7 @@ void ThreadUtil::Unregister() {
   runtime->GetRuntimeCallbacks()->RemoveThreadLifecycleCallback(&gThreadCallback);
 }
 
-jvmtiError ThreadUtil::GetCurrentThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread* thread_ptr) {
+jvmtiError ThreadUtil::GetCurrentThread([[maybe_unused]] jvmtiEnv* env, jthread* thread_ptr) {
   art::Thread* self = art::Thread::Current();
 
   art::ScopedObjectAccess soa(self);
@@ -564,7 +564,7 @@ bool ThreadUtil::WouldSuspendForUserCode(art::Thread* self) {
   return WouldSuspendForUserCodeLocked(self);
 }
 
-jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ThreadUtil::GetThreadState([[maybe_unused]] jvmtiEnv* env,
                                       jthread thread,
                                       jint* thread_state_ptr) {
   if (thread_state_ptr == nullptr) {
@@ -940,7 +940,7 @@ jvmtiError ThreadUtil::SuspendSelf(art::Thread* self) {
   return OK;
 }
 
-jvmtiError ThreadUtil::SuspendThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread thread) {
+jvmtiError ThreadUtil::SuspendThread([[maybe_unused]] jvmtiEnv* env, jthread thread) {
   art::Thread* self = art::Thread::Current();
   bool target_is_self = false;
   {
@@ -961,8 +961,7 @@ jvmtiError ThreadUtil::SuspendThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread thr
   }
 }
 
-jvmtiError ThreadUtil::ResumeThread(jvmtiEnv* env ATTRIBUTE_UNUSED,
-                                    jthread thread) {
+jvmtiError ThreadUtil::ResumeThread([[maybe_unused]] jvmtiEnv* env, jthread thread) {
   if (thread == nullptr) {
     return ERR(NULL_POINTER);
   }
@@ -1079,7 +1078,7 @@ jvmtiError ThreadUtil::ResumeThreadList(jvmtiEnv* env,
   return OK;
 }
 
-jvmtiError ThreadUtil::StopThread(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ThreadUtil::StopThread([[maybe_unused]] jvmtiEnv* env,
                                   jthread thread,
                                   jobject exception) {
   art::Thread* self = art::Thread::Current();
@@ -1128,7 +1127,7 @@ jvmtiError ThreadUtil::StopThread(jvmtiEnv* env ATTRIBUTE_UNUSED,
   }
 }
 
-jvmtiError ThreadUtil::InterruptThread(jvmtiEnv* env ATTRIBUTE_UNUSED, jthread thread) {
+jvmtiError ThreadUtil::InterruptThread([[maybe_unused]] jvmtiEnv* env, jthread thread) {
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   art::MutexLock tll_mu(self, *art::Locks::thread_list_lock_);

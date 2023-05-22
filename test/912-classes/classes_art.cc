@@ -75,10 +75,10 @@ static void EnableEvents(JNIEnv* env,
 }
 
 struct ClassLoadSeen {
-  static void JNICALL ClassLoadSeenCallback(jvmtiEnv* jenv ATTRIBUTE_UNUSED,
-                                            JNIEnv* jni_env ATTRIBUTE_UNUSED,
-                                            jthread thread ATTRIBUTE_UNUSED,
-                                            jclass klass ATTRIBUTE_UNUSED) {
+  static void JNICALL ClassLoadSeenCallback([[maybe_unused]] jvmtiEnv* jenv,
+                                            [[maybe_unused]] JNIEnv* jni_env,
+                                            [[maybe_unused]] jthread thread,
+                                            [[maybe_unused]] jclass klass) {
     saw_event = true;
   }
 
@@ -87,17 +87,17 @@ struct ClassLoadSeen {
 bool ClassLoadSeen::saw_event = false;
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test912Art_enableClassLoadSeenEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jboolean b) {
   EnableEvents(env, b, ClassLoadSeen::ClassLoadSeenCallback, nullptr);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912Art_hadLoadEvent(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   return ClassLoadSeen::saw_event ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912Art_isLoadedClass(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jstring class_name) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jstring class_name) {
   ScopedUtfChars name(env, class_name);
 
   jint class_count;

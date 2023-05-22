@@ -1871,7 +1871,7 @@ void IntrinsicCodeGeneratorX86_64::VisitThreadCurrentThread(HInvoke* invoke) {
 
 static void GenUnsafeGet(HInvoke* invoke,
                          DataType::Type type,
-                         bool is_volatile ATTRIBUTE_UNUSED,
+                         [[maybe_unused]] bool is_volatile,
                          CodeGeneratorX86_64* codegen) {
   X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
@@ -3249,7 +3249,7 @@ void IntrinsicLocationsBuilderX86_64::VisitReachabilityFence(HInvoke* invoke) {
   locations->SetInAt(0, Location::Any());
 }
 
-void IntrinsicCodeGeneratorX86_64::VisitReachabilityFence(HInvoke* invoke ATTRIBUTE_UNUSED) { }
+void IntrinsicCodeGeneratorX86_64::VisitReachabilityFence([[maybe_unused]] HInvoke* invoke) {}
 
 static void CreateDivideUnsignedLocations(HInvoke* invoke, ArenaAllocator* allocator) {
   LocationSummary* locations =

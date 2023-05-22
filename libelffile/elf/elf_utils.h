@@ -96,7 +96,7 @@ static inline void SetBindingAndType(Elf32_Sym* sym, unsigned char b, unsigned c
 }
 
 static inline bool IsDynamicSectionPointer(Elf32_Word d_tag,
-                                           Elf32_Word e_machine ATTRIBUTE_UNUSED) {
+                                           [[maybe_unused]] Elf32_Word e_machine) {
   // TODO: Remove the `e_machine` parameter from API (not needed after Mips target was removed).
   switch (d_tag) {
     // case 1: well known d_tag values that imply Elf32_Dyn.d_un contains an address in d_ptr

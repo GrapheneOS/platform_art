@@ -34,7 +34,7 @@ struct CmdlineTypeParser {
   //
   // e.g. if the argument definition was "foo:_", and the user-provided input was "foo:bar",
   // then args is "bar".
-  Result Parse(const std::string& args ATTRIBUTE_UNUSED) {
+  Result Parse([[maybe_unused]] const std::string& args) {
     assert(false);
     return Result::Failure("Missing type specialization and/or value map");
   }
@@ -46,8 +46,8 @@ struct CmdlineTypeParser {
   //
   // If the initial value does not exist yet, a default value is created by
   // value-initializing with 'T()'.
-  Result ParseAndAppend(const std::string& args ATTRIBUTE_UNUSED,
-                        T& existing_value ATTRIBUTE_UNUSED) {
+  Result ParseAndAppend([[maybe_unused]] const std::string& args,
+                        [[maybe_unused]] T& existing_value) {
     assert(false);
     return Result::Failure("Missing type specialization and/or value map");
   }

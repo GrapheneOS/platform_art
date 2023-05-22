@@ -1720,8 +1720,10 @@ void RosAlloc::Initialize() {
   DCHECK_EQ(kMaxRegularBracketSize, bracketSizes[kNumRegularSizeBrackets - 1]);
 }
 
-void RosAlloc::BytesAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,
-                                      size_t used_bytes, void* arg) {
+void RosAlloc::BytesAllocatedCallback([[maybe_unused]] void* start,
+                                      [[maybe_unused]] void* end,
+                                      size_t used_bytes,
+                                      void* arg) {
   if (used_bytes == 0) {
     return;
   }
@@ -1729,8 +1731,10 @@ void RosAlloc::BytesAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end AT
   *bytes_allocated += used_bytes;
 }
 
-void RosAlloc::ObjectsAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,
-                                        size_t used_bytes, void* arg) {
+void RosAlloc::ObjectsAllocatedCallback([[maybe_unused]] void* start,
+                                        [[maybe_unused]] void* end,
+                                        size_t used_bytes,
+                                        void* arg) {
   if (used_bytes == 0) {
     return;
   }

@@ -84,7 +84,7 @@ static jvmtiExtensionFunction FindExtensionMethod(JNIEnv* env, const std::string
 }
 
 extern "C" JNIEXPORT
-jstring JNICALL Java_art_Test1957_getLastError(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+jstring JNICALL Java_art_Test1957_getLastError(JNIEnv* env, [[maybe_unused]] jclass klass) {
   GetLastError get_last_error = reinterpret_cast<GetLastError>(
       FindExtensionMethod(env, "com.android.art.misc.get_last_error_message"));
   if (get_last_error == nullptr) {
@@ -99,7 +99,7 @@ jstring JNICALL Java_art_Test1957_getLastError(JNIEnv* env, jclass klass ATTRIBU
 }
 
 extern "C" JNIEXPORT
-void JNICALL Java_art_Test1957_clearLastError(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+void JNICALL Java_art_Test1957_clearLastError(JNIEnv* env, [[maybe_unused]] jclass klass) {
   ClearLastError clear_last_error = reinterpret_cast<ClearLastError>(
       FindExtensionMethod(env, "com.android.art.misc.clear_last_error_message"));
   if (clear_last_error == nullptr) {

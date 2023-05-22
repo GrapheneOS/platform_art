@@ -122,9 +122,7 @@ class PACKED(4) HandleScope : public BaseHandleScope {
   ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
   // Offset of link within HandleScope, used by generated code.
-  static constexpr size_t LinkOffset(PointerSize pointer_size ATTRIBUTE_UNUSED) {
-    return 0;
-  }
+  static constexpr size_t LinkOffset([[maybe_unused]] PointerSize pointer_size) { return 0; }
 
   // Offset of length within handle scope, used by generated code.
   static constexpr size_t NumberOfReferencesOffset(PointerSize pointer_size) {

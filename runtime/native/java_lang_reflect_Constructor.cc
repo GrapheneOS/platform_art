@@ -120,11 +120,13 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
   return javaReceiver;
 }
 
-static jobject Constructor_newInstanceFromSerialization(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED,
-                                                        jclass ctorClass, jclass allocClass) {
-    jmethodID ctor = env->GetMethodID(ctorClass, "<init>", "()V");
-    DCHECK(ctor != nullptr);
-    return env->NewObject(allocClass, ctor);
+static jobject Constructor_newInstanceFromSerialization(JNIEnv* env,
+                                                        [[maybe_unused]] jclass unused,
+                                                        jclass ctorClass,
+                                                        jclass allocClass) {
+  jmethodID ctor = env->GetMethodID(ctorClass, "<init>", "()V");
+  DCHECK(ctor != nullptr);
+  return env->NewObject(allocClass, ctor);
 }
 
 static JNINativeMethod gMethods[] = {

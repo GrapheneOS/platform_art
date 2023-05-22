@@ -50,9 +50,7 @@ constexpr bool IsValidOrNoTypeId(uint16_t low, uint16_t high) {
   return (high == 0) || ((high == 0xffffU) && (low == 0xffffU));
 }
 
-constexpr bool IsValidTypeId(uint16_t low ATTRIBUTE_UNUSED, uint16_t high) {
-  return (high == 0);
-}
+constexpr bool IsValidTypeId([[maybe_unused]] uint16_t low, uint16_t high) { return (high == 0); }
 
 constexpr uint32_t MapTypeToBitMask(DexFile::MapItemType map_item_type) {
   switch (map_item_type) {

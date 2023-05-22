@@ -22,7 +22,7 @@
 #include "jni.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_getThreadPlatformPriority(
-    JNIEnv* env ATTRIBUTE_UNUSED,
-    jclass clazz ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] JNIEnv* env,
+    [[maybe_unused]] jclass clazz) {
   return getpriority(PRIO_PROCESS, art::GetTid());
 }

@@ -81,8 +81,8 @@ class TestParallelMoveResolverWithSwap : public ParallelMoveResolverWithSwap {
     message_ << ")";
   }
 
-  void SpillScratch(int reg ATTRIBUTE_UNUSED) override {}
-  void RestoreScratch(int reg ATTRIBUTE_UNUSED) override {}
+  void SpillScratch([[maybe_unused]] int reg) override {}
+  void RestoreScratch([[maybe_unused]] int reg) override {}
 
   std::string GetMessage() const {
     return  message_.str();
@@ -126,7 +126,7 @@ class TestParallelMoveResolverNoSwap : public ParallelMoveResolverNoSwap {
     return scratch;
   }
 
-  void FreeScratchLocation(Location loc ATTRIBUTE_UNUSED) override {}
+  void FreeScratchLocation([[maybe_unused]] Location loc) override {}
 
   void EmitMove(size_t index) override {
     MoveOperands* move = moves_[index];

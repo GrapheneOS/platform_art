@@ -502,10 +502,10 @@ class HashSet {
   // Insert an element with hint.
   // Note: The hint is not very useful for a HashSet<> unless there are many hash conflicts
   // and in that case the use of HashSet<> itself should be reconsidered.
-  std::pair<iterator, bool> insert(const_iterator hint ATTRIBUTE_UNUSED, const T& element) {
+  std::pair<iterator, bool> insert([[maybe_unused]] const_iterator hint, const T& element) {
     return insert(element);
   }
-  std::pair<iterator, bool> insert(const_iterator hint ATTRIBUTE_UNUSED, T&& element) {
+  std::pair<iterator, bool> insert([[maybe_unused]] const_iterator hint, T&& element) {
     return insert(std::move(element));
   }
 
@@ -710,7 +710,7 @@ class HashSet {
     if (UNLIKELY(NumBuckets() == 0)) {
       return 0;
     }
-    auto fail_fn = [&](size_t index ATTRIBUTE_UNUSED) ALWAYS_INLINE { return NumBuckets(); };
+    auto fail_fn = [&]([[maybe_unused]] size_t index) ALWAYS_INLINE { return NumBuckets(); };
     return FindIndexImpl(element, hash, fail_fn);
   }
 

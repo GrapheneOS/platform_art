@@ -62,7 +62,7 @@ TEST_F(JavaVmExtTest, JNI_GetCreatedJavaVMs) {
 static bool gSmallStack = false;
 static bool gAsDaemon = false;
 
-static void* attach_current_thread_callback(void* arg ATTRIBUTE_UNUSED) {
+static void* attach_current_thread_callback([[maybe_unused]] void* arg) {
   JavaVM* vms_buf[1];
   jsize num_vms;
   JNIEnv* env;

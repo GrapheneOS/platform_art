@@ -107,13 +107,13 @@ TEST_F(OutputStreamTest, BufferedFlush) {
           flush_called(false) { }
     ~CheckingOutputStream() override {}
 
-    bool WriteFully(const void* buffer ATTRIBUTE_UNUSED,
-                    size_t byte_count ATTRIBUTE_UNUSED) override {
+    bool WriteFully([[maybe_unused]] const void* buffer,
+                    [[maybe_unused]] size_t byte_count) override {
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
     }
 
-    off_t Seek(off_t offset ATTRIBUTE_UNUSED, Whence whence ATTRIBUTE_UNUSED) override {
+    off_t Seek([[maybe_unused]] off_t offset, [[maybe_unused]] Whence whence) override {
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
     }

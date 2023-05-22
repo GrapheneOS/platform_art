@@ -78,7 +78,7 @@ class CFREVisitor final : public HGraphVisitor {
     VisitSetLocation(instruction, value);
   }
 
-  void VisitDeoptimize(HDeoptimize* instruction ATTRIBUTE_UNUSED) override {
+  void VisitDeoptimize([[maybe_unused]] HDeoptimize* instruction) override {
     // Pessimize: Merge all fences.
     MergeCandidateFences();
   }
@@ -151,7 +151,7 @@ class CFREVisitor final : public HGraphVisitor {
     }
   }
 
-  void VisitSetLocation(HInstruction* inst ATTRIBUTE_UNUSED, HInstruction* store_input) {
+  void VisitSetLocation([[maybe_unused]] HInstruction* inst, HInstruction* store_input) {
     // An object is considered "published" if it's stored onto the heap.
     // Sidenote: A later "LSE" pass can still remove the fence if it proves the
     // object doesn't actually escape.
