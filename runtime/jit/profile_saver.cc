@@ -868,22 +868,15 @@ bool ProfileSaver::ProcessProfilingInfo(
     }
     {
       ProfileCompilationInfo info(Runtime::Current()->GetArenaPool(),
-                                  /*for_boot_image=*/ options_.GetProfileBootClassPath());
-      if (OS::FileExists(filename.c_str())) {
-        if (!info.Load(filename, /*clear_if_invalid=*/true)) {
-          LOG(WARNING) << "Could not forcefully load profile " << filename;
-          continue;
-        }
-      } else {
-        // Create a file if it doesn't exist.
-        unix_file::FdFile file(filename,
-                               O_WRONLY | O_TRUNC | O_CREAT,
-                               S_IRUSR | S_IWUSR,
-                               /*check_usage=*/false);
-        if (!file.IsValid()) {
-          LOG(WARNING) << "Could not create profile " << filename;
-          continue;
-        }
+                                  /*for_boot_image=*/options_.GetProfileBootClassPath());
+      // Load the existing profile before saving.
+      // If the file is updated between `Load` and `Save`, the update will be lost. This is
+      // acceptable. The main reason is that the lost entries will eventually come back if the user
+      // keeps using the same methods, or they won't be needed if the user doesn't use the same
+      // methods again.
+      if (!info.Load(filename, /*clear_if_invalid=*/true)) {
+        LOG(WARNING) << "Could not forcefully load profile " << filename;
+        continue;
       }
 
       uint64_t last_save_number_of_methods = info.GetNumberOfMethods();
