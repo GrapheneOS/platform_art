@@ -55,93 +55,93 @@ class TestInstrumentationListener final : public instrumentation::Instrumentatio
 
   virtual ~TestInstrumentationListener() {}
 
-  void MethodEntered(Thread* thread ATTRIBUTE_UNUSED, ArtMethod* method ATTRIBUTE_UNUSED) override
+  void MethodEntered([[maybe_unused]] Thread* thread, [[maybe_unused]] ArtMethod* method) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     received_method_enter_event = true;
   }
 
-  void MethodExited(Thread* thread ATTRIBUTE_UNUSED,
-                    ArtMethod* method ATTRIBUTE_UNUSED,
-                    instrumentation::OptionalFrame frame ATTRIBUTE_UNUSED,
-                    MutableHandle<mirror::Object>& return_value ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void MethodExited([[maybe_unused]] Thread* thread,
+                    [[maybe_unused]] ArtMethod* method,
+                    [[maybe_unused]] instrumentation::OptionalFrame frame,
+                    [[maybe_unused]] MutableHandle<mirror::Object>& return_value) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_method_exit_object_event = true;
   }
 
-  void MethodExited(Thread* thread ATTRIBUTE_UNUSED,
-                    ArtMethod* method ATTRIBUTE_UNUSED,
-                    instrumentation::OptionalFrame frame ATTRIBUTE_UNUSED,
-                    JValue& return_value ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void MethodExited([[maybe_unused]] Thread* thread,
+                    [[maybe_unused]] ArtMethod* method,
+                    [[maybe_unused]] instrumentation::OptionalFrame frame,
+                    [[maybe_unused]] JValue& return_value) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_method_exit_event = true;
   }
 
-  void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED,
-                    ArtMethod* method ATTRIBUTE_UNUSED,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void MethodUnwind([[maybe_unused]] Thread* thread,
+                    [[maybe_unused]] ArtMethod* method,
+                    [[maybe_unused]] uint32_t dex_pc) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_method_unwind_event = true;
   }
 
-  void DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
-                  Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
-                  ArtMethod* method ATTRIBUTE_UNUSED,
-                  uint32_t new_dex_pc ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void DexPcMoved([[maybe_unused]] Thread* thread,
+                  [[maybe_unused]] Handle<mirror::Object> this_object,
+                  [[maybe_unused]] ArtMethod* method,
+                  [[maybe_unused]] uint32_t new_dex_pc) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_dex_pc_moved_event = true;
   }
 
-  void FieldRead(Thread* thread ATTRIBUTE_UNUSED,
-                 Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
-                 ArtMethod* method ATTRIBUTE_UNUSED,
-                 uint32_t dex_pc ATTRIBUTE_UNUSED,
-                 ArtField* field ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void FieldRead([[maybe_unused]] Thread* thread,
+                 [[maybe_unused]] Handle<mirror::Object> this_object,
+                 [[maybe_unused]] ArtMethod* method,
+                 [[maybe_unused]] uint32_t dex_pc,
+                 [[maybe_unused]] ArtField* field) override REQUIRES_SHARED(Locks::mutator_lock_) {
     received_field_read_event = true;
   }
 
-  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
-                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
-                    ArtMethod* method ATTRIBUTE_UNUSED,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED,
-                    ArtField* field ATTRIBUTE_UNUSED,
-                    Handle<mirror::Object> field_value ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void FieldWritten([[maybe_unused]] Thread* thread,
+                    [[maybe_unused]] Handle<mirror::Object> this_object,
+                    [[maybe_unused]] ArtMethod* method,
+                    [[maybe_unused]] uint32_t dex_pc,
+                    [[maybe_unused]] ArtField* field,
+                    [[maybe_unused]] Handle<mirror::Object> field_value) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_field_written_object_event = true;
   }
 
-  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
-                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
-                    ArtMethod* method ATTRIBUTE_UNUSED,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED,
-                    ArtField* field ATTRIBUTE_UNUSED,
-                    const JValue& field_value ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void FieldWritten([[maybe_unused]] Thread* thread,
+                    [[maybe_unused]] Handle<mirror::Object> this_object,
+                    [[maybe_unused]] ArtMethod* method,
+                    [[maybe_unused]] uint32_t dex_pc,
+                    [[maybe_unused]] ArtField* field,
+                    [[maybe_unused]] const JValue& field_value) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_field_written_event = true;
   }
 
-  void ExceptionThrown(Thread* thread ATTRIBUTE_UNUSED,
-                       Handle<mirror::Throwable> exception_object ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void ExceptionThrown([[maybe_unused]] Thread* thread,
+                       [[maybe_unused]] Handle<mirror::Throwable> exception_object) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_exception_thrown_event = true;
   }
 
-  void ExceptionHandled(Thread* self ATTRIBUTE_UNUSED,
-                        Handle<mirror::Throwable> throwable ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void ExceptionHandled([[maybe_unused]] Thread* self,
+                        [[maybe_unused]] Handle<mirror::Throwable> throwable) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_exception_handled_event = true;
   }
 
-  void Branch(Thread* thread ATTRIBUTE_UNUSED,
-              ArtMethod* method ATTRIBUTE_UNUSED,
-              uint32_t dex_pc ATTRIBUTE_UNUSED,
-              int32_t dex_pc_offset ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void Branch([[maybe_unused]] Thread* thread,
+              [[maybe_unused]] ArtMethod* method,
+              [[maybe_unused]] uint32_t dex_pc,
+              [[maybe_unused]] int32_t dex_pc_offset) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_branch_event = true;
   }
 
-  void WatchedFramePop(Thread* thread ATTRIBUTE_UNUSED, const ShadowFrame& frame ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void WatchedFramePop([[maybe_unused]] Thread* thread,
+                       [[maybe_unused]] const ShadowFrame& frame) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     received_watched_frame_pop  = true;
   }
 

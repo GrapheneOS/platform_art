@@ -1159,12 +1159,12 @@ class DlOpenOatFile final : public OatFileBase {
             /*inout*/MemMap* reservation,  // Where to load if not null.
             /*out*/std::string* error_msg) override;
 
-  bool Load(int oat_fd ATTRIBUTE_UNUSED,
-            bool writable ATTRIBUTE_UNUSED,
-            bool executable ATTRIBUTE_UNUSED,
-            bool low_4gb ATTRIBUTE_UNUSED,
-            /*inout*/MemMap* reservation ATTRIBUTE_UNUSED,
-            /*out*/std::string* error_msg ATTRIBUTE_UNUSED) override {
+  bool Load([[maybe_unused]] int oat_fd,
+            [[maybe_unused]] bool writable,
+            [[maybe_unused]] bool executable,
+            [[maybe_unused]] bool low_4gb,
+            [[maybe_unused]] /*inout*/ MemMap* reservation,
+            [[maybe_unused]] /*out*/ std::string* error_msg) override {
     return false;
   }
 
@@ -1211,8 +1211,8 @@ void DlOpenOatFile::PreLoad() {
 #else
   // Count the entries in dl_iterate_phdr we get at this point in time.
   struct dl_iterate_context {
-    static int callback(dl_phdr_info* info ATTRIBUTE_UNUSED,
-                        size_t size ATTRIBUTE_UNUSED,
+    static int callback([[maybe_unused]] dl_phdr_info* info,
+                        [[maybe_unused]] size_t size,
                         void* data) {
       reinterpret_cast<dl_iterate_context*>(data)->count++;
       return 0;  // Continue iteration.
@@ -1335,7 +1335,7 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
     if (reservation != nullptr && dlopen_handle_ != nullptr) {
       // Find used pages from the reservation.
       struct dl_iterate_context {
-        static int callback(dl_phdr_info* info, size_t size ATTRIBUTE_UNUSED, void* data) {
+        static int callback(dl_phdr_info* info, [[maybe_unused]] size_t size, void* data) {
           auto* context = reinterpret_cast<dl_iterate_context*>(data);
           static_assert(std::is_same<Elf32_Half, Elf64_Half>::value, "Half must match");
           using Elf_Half = Elf64_Half;
@@ -1433,7 +1433,7 @@ void DlOpenOatFile::PreSetup(const std::string& elf_filename) {
     size_t memsz;
   };
   struct dl_iterate_context {
-    static int callback(dl_phdr_info* info, size_t size ATTRIBUTE_UNUSED, void* data) {
+    static int callback(dl_phdr_info* info, [[maybe_unused]] size_t size, void* data) {
       auto* context = reinterpret_cast<dl_iterate_context*>(data);
       static_assert(std::is_same<Elf32_Half, Elf64_Half>::value, "Half must match");
       using Elf_Half = Elf64_Half;
@@ -1597,8 +1597,7 @@ class ElfOatFile final : public OatFileBase {
             /*inout*/MemMap* reservation,  // Where to load if not null.
             /*out*/std::string* error_msg) override;
 
-  void PreSetup(const std::string& elf_filename ATTRIBUTE_UNUSED) override {
-  }
+  void PreSetup([[maybe_unused]] const std::string& elf_filename) override {}
 
  private:
   bool ElfFileOpen(File* file,
@@ -1853,29 +1852,29 @@ class OatFileBackedByVdex final : public OatFileBase {
  protected:
   void PreLoad() override {}
 
-  bool Load(const std::string& elf_filename ATTRIBUTE_UNUSED,
-            bool writable ATTRIBUTE_UNUSED,
-            bool executable ATTRIBUTE_UNUSED,
-            bool low_4gb ATTRIBUTE_UNUSED,
-            MemMap* reservation ATTRIBUTE_UNUSED,
-            std::string* error_msg ATTRIBUTE_UNUSED) override {
+  bool Load([[maybe_unused]] const std::string& elf_filename,
+            [[maybe_unused]] bool writable,
+            [[maybe_unused]] bool executable,
+            [[maybe_unused]] bool low_4gb,
+            [[maybe_unused]] MemMap* reservation,
+            [[maybe_unused]] std::string* error_msg) override {
     LOG(FATAL) << "Unsupported";
     UNREACHABLE();
   }
 
-  bool Load(int oat_fd ATTRIBUTE_UNUSED,
-            bool writable ATTRIBUTE_UNUSED,
-            bool executable ATTRIBUTE_UNUSED,
-            bool low_4gb ATTRIBUTE_UNUSED,
-            MemMap* reservation ATTRIBUTE_UNUSED,
-            std::string* error_msg ATTRIBUTE_UNUSED) override {
+  bool Load([[maybe_unused]] int oat_fd,
+            [[maybe_unused]] bool writable,
+            [[maybe_unused]] bool executable,
+            [[maybe_unused]] bool low_4gb,
+            [[maybe_unused]] MemMap* reservation,
+            [[maybe_unused]] std::string* error_msg) override {
     LOG(FATAL) << "Unsupported";
     UNREACHABLE();
   }
 
-  void PreSetup(const std::string& elf_filename ATTRIBUTE_UNUSED) override {}
+  void PreSetup([[maybe_unused]] const std::string& elf_filename) override {}
 
-  const uint8_t* FindDynamicSymbolAddress(const std::string& symbol_name ATTRIBUTE_UNUSED,
+  const uint8_t* FindDynamicSymbolAddress([[maybe_unused]] const std::string& symbol_name,
                                           std::string* error_msg) const override {
     *error_msg = "Unsupported";
     return nullptr;

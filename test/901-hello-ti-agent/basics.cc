@@ -44,14 +44,14 @@ static jvmtiPhase getPhase(jvmtiEnv* jenv) {
   return out;
 }
 
-static void JNICALL VMStartCallback(jvmtiEnv *jenv, JNIEnv* jni_env ATTRIBUTE_UNUSED) {
+static void JNICALL VMStartCallback(jvmtiEnv *jenv, [[maybe_unused]] JNIEnv* jni_env) {
   printf("VMStart (phase %d)\n", getPhase(jenv));
   fsync(1);
 }
 
 static void JNICALL VMInitCallback(jvmtiEnv *jvmti_env,
-                                   JNIEnv* jni_env ATTRIBUTE_UNUSED,
-                                   jthread thread ATTRIBUTE_UNUSED) {
+                                   [[maybe_unused]] JNIEnv* jni_env,
+                                   [[maybe_unused]] jthread thread) {
   printf("VMInit (phase %d)\n", getPhase(jvmti_env));
   fsync(1);
 }
@@ -83,8 +83,8 @@ static void InstallVMEvents(jvmtiEnv* env) {
 }
 
 jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
+            [[maybe_unused]] char* options,
+            [[maybe_unused]] void* reserved) {
   printf("Loaded Agent for test 901-hello-ti-agent\n");
   fsync(1);
   jvmtiEnv* env = nullptr;
@@ -157,14 +157,14 @@ jint OnLoad(JavaVM* vm,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test901_setVerboseFlag(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint iflag, jboolean val) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jint iflag, jboolean val) {
   jvmtiVerboseFlag flag = static_cast<jvmtiVerboseFlag>(iflag);
   jvmtiError result = jvmti_env->SetVerboseFlag(flag, val);
   JvmtiErrorToException(env, jvmti_env, result);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkLivePhase(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   jvmtiPhase current_phase;
   jvmtiError phase_result = jvmti_env->GetPhase(&current_phase);
   if (JvmtiErrorToException(env, jvmti_env, phase_result)) {
@@ -180,7 +180,7 @@ static void CallJvmtiFunction(jvmtiEnv* env, jclass klass, jvmtiError* err) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkUnattached(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass Main_klass) {
+    [[maybe_unused]] JNIEnv* env, jclass Main_klass) {
   jvmtiError res = JVMTI_ERROR_NONE;
   std::thread t1(CallJvmtiFunction, jvmti_env, Main_klass, &res);
   t1.join();
@@ -188,7 +188,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Test901_checkUnattached(
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test901_getErrorName(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jint error) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jint error) {
   char* name;
   jvmtiError res = jvmti_env->GetErrorName(static_cast<jvmtiError>(error), &name);
   if (JvmtiErrorToException(env, jvmti_env, res)) {

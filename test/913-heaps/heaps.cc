@@ -48,7 +48,7 @@ static constexpr jlong kThreadTag = 3000;
 static constexpr const char* kThreadReferree = "3000@0";
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_forceGarbageCollection(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   jvmtiError ret = jvmti_env->ForceGarbageCollection();
   JvmtiErrorToException(env, jvmti_env, ret);
 }
@@ -68,7 +68,7 @@ static constexpr jlong kClassDataSerialBase = 123456780000;
 // Register a class (or general object) in the class-data map. The serial number is determined by
 // the order of calls to this function (so stable Java code leads to stable numbering).
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_registerClass(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag, jobject obj) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jlong tag, jobject obj) {
   ClassData data;
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetObjectSize(obj, &data.size))) {
     return;
@@ -139,7 +139,7 @@ static bool Run(JNIEnv* env,
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
     JNIEnv* env,
-    jclass klass ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass klass,
     jint heap_filter,
     jclass klass_filter,
     jobject initial_object,
@@ -162,7 +162,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
                 jlong* tag_ptr,
                 jlong* referrer_tag_ptr,
                 jint length,
-                void* user_data ATTRIBUTE_UNUSED) override {
+                [[maybe_unused]] void* user_data) override {
       jlong tag = *tag_ptr;
 
       // Ignore any jni-global roots with untagged classes. These can be from the environment,
@@ -570,18 +570,18 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferencesString(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject initial_object) {
   struct FindStringCallbacks {
     static jint JNICALL FollowReferencesCallback(
-        jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
-        const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
-        jlong class_tag ATTRIBUTE_UNUSED,
-        jlong referrer_class_tag ATTRIBUTE_UNUSED,
-        jlong size ATTRIBUTE_UNUSED,
-        jlong* tag_ptr ATTRIBUTE_UNUSED,
-        jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
-        jint length ATTRIBUTE_UNUSED,
-        void* user_data ATTRIBUTE_UNUSED) {
+        [[maybe_unused]] jvmtiHeapReferenceKind reference_kind,
+        [[maybe_unused]] const jvmtiHeapReferenceInfo* reference_info,
+        [[maybe_unused]] jlong class_tag,
+        [[maybe_unused]] jlong referrer_class_tag,
+        [[maybe_unused]] jlong size,
+        [[maybe_unused]] jlong* tag_ptr,
+        [[maybe_unused]] jlong* referrer_tag_ptr,
+        [[maybe_unused]] jint length,
+        [[maybe_unused]] void* user_data) {
       return JVMTI_VISIT_OBJECTS;  // Continue visiting.
     }
 
@@ -633,18 +633,18 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferencesStrin
 
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveArray(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject initial_object) {
   struct FindArrayCallbacks {
     static jint JNICALL FollowReferencesCallback(
-        jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
-        const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
-        jlong class_tag ATTRIBUTE_UNUSED,
-        jlong referrer_class_tag ATTRIBUTE_UNUSED,
-        jlong size ATTRIBUTE_UNUSED,
-        jlong* tag_ptr ATTRIBUTE_UNUSED,
-        jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
-        jint length ATTRIBUTE_UNUSED,
-        void* user_data ATTRIBUTE_UNUSED) {
+        [[maybe_unused]] jvmtiHeapReferenceKind reference_kind,
+        [[maybe_unused]] const jvmtiHeapReferenceInfo* reference_info,
+        [[maybe_unused]] jlong class_tag,
+        [[maybe_unused]] jlong referrer_class_tag,
+        [[maybe_unused]] jlong size,
+        [[maybe_unused]] jlong* tag_ptr,
+        [[maybe_unused]] jlong* referrer_tag_ptr,
+        [[maybe_unused]] jint length,
+        [[maybe_unused]] void* user_data) {
       return JVMTI_VISIT_OBJECTS;  // Continue visiting.
     }
 
@@ -749,18 +749,18 @@ static constexpr const char* GetPrimitiveTypeName(jvmtiPrimitiveType type) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveFields(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject initial_object) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject initial_object) {
   struct FindFieldCallbacks {
     static jint JNICALL FollowReferencesCallback(
-        jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
-        const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
-        jlong class_tag ATTRIBUTE_UNUSED,
-        jlong referrer_class_tag ATTRIBUTE_UNUSED,
-        jlong size ATTRIBUTE_UNUSED,
-        jlong* tag_ptr ATTRIBUTE_UNUSED,
-        jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
-        jint length ATTRIBUTE_UNUSED,
-        void* user_data ATTRIBUTE_UNUSED) {
+        [[maybe_unused]] jvmtiHeapReferenceKind reference_kind,
+        [[maybe_unused]] const jvmtiHeapReferenceInfo* reference_info,
+        [[maybe_unused]] jlong class_tag,
+        [[maybe_unused]] jlong referrer_class_tag,
+        [[maybe_unused]] jlong size,
+        [[maybe_unused]] jlong* tag_ptr,
+        [[maybe_unused]] jlong* referrer_tag_ptr,
+        [[maybe_unused]] jint length,
+        [[maybe_unused]] void* user_data) {
       return JVMTI_VISIT_OBJECTS;  // Continue visiting.
     }
 
@@ -823,16 +823,16 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_followReferencesPrimitiveF
 static size_t starts = 0;
 static size_t finishes = 0;
 
-static void JNICALL GarbageCollectionFinish(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+static void JNICALL GarbageCollectionFinish([[maybe_unused]] jvmtiEnv* ti_env) {
   finishes++;
 }
 
-static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+static void JNICALL GarbageCollectionStart([[maybe_unused]] jvmtiEnv* ti_env) {
   starts++;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_setupGcCallback(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.GarbageCollectionFinish = GarbageCollectionFinish;
@@ -843,7 +843,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_setupGcCallback(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_enableGcTracking(JNIEnv* env,
-                                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                                    [[maybe_unused]] jclass klass,
                                                                     jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
@@ -861,15 +861,15 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_enableGcTracking(JNIEnv* env,
   }
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                               jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcStarts([[maybe_unused]] JNIEnv* env,
+                                                               [[maybe_unused]] jclass klass) {
   jint result = static_cast<jint>(starts);
   starts = 0;
   return result;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                 jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getGcFinishes([[maybe_unused]] JNIEnv* env,
+                                                                 [[maybe_unused]] jclass klass) {
   jint result = static_cast<jint>(finishes);
   finishes = 0;
   return result;
@@ -902,7 +902,7 @@ static void FreeExtensionFunctionInfo(jvmtiExtensionFunctionInfo* extensions, ji
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkForExtensionApis(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   jint extension_count;
   jvmtiExtensionFunctionInfo* extensions;
   jvmtiError result = jvmti_env->GetExtensionFunctions(&extension_count, &extensions);
@@ -993,7 +993,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkForExtensionApis(
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getObjectHeapId(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jlong tag) {
   CHECK(gGetObjectHeapIdFn != nullptr);
   jint heap_id;
   jvmtiError result = gGetObjectHeapIdFn(jvmti_env, tag, &heap_id);
@@ -1002,7 +1002,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test913_getObjectHeapId(
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_getHeapName(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint heap_id) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jint heap_id) {
   CHECK(gGetHeapNameFn != nullptr);
   char* heap_name;
   jvmtiError result = gGetHeapNameFn(jvmti_env, heap_id, &heap_name);
@@ -1015,20 +1015,20 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test913_getHeapName(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkGetObjectHeapIdInCallback(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag, jint heap_id) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jlong tag, jint heap_id) {
   CHECK(gGetObjectHeapIdFn != nullptr);
 
   {
     struct GetObjectHeapIdCallbacks {
       static jint JNICALL FollowReferencesCallback(
-          jvmtiHeapReferenceKind reference_kind ATTRIBUTE_UNUSED,
-          const jvmtiHeapReferenceInfo* reference_info ATTRIBUTE_UNUSED,
-          jlong class_tag ATTRIBUTE_UNUSED,
-          jlong referrer_class_tag ATTRIBUTE_UNUSED,
-          jlong size ATTRIBUTE_UNUSED,
+          [[maybe_unused]] jvmtiHeapReferenceKind reference_kind,
+          [[maybe_unused]] const jvmtiHeapReferenceInfo* reference_info,
+          [[maybe_unused]] jlong class_tag,
+          [[maybe_unused]] jlong referrer_class_tag,
+          [[maybe_unused]] jlong size,
           jlong* tag_ptr,
-          jlong* referrer_tag_ptr ATTRIBUTE_UNUSED,
-          jint length ATTRIBUTE_UNUSED,
+          [[maybe_unused]] jlong* referrer_tag_ptr,
+          [[maybe_unused]] jint length,
           void* user_data) {
         if (*tag_ptr != 0) {
           GetObjectHeapIdCallbacks* p = reinterpret_cast<GetObjectHeapIdCallbacks*>(user_data);
@@ -1064,10 +1064,10 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkGetObjectHeapIdInCallbac
 
   {
     struct GetObjectHeapIdCallbacks {
-      static jint JNICALL HeapIterationCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                                jlong size ATTRIBUTE_UNUSED,
+      static jint JNICALL HeapIterationCallback([[maybe_unused]] jlong class_tag,
+                                                [[maybe_unused]] jlong size,
                                                 jlong* tag_ptr,
-                                                jint length ATTRIBUTE_UNUSED,
+                                                [[maybe_unused]] jint length,
                                                 void* user_data) {
         if (*tag_ptr != 0) {
           GetObjectHeapIdCallbacks* p = reinterpret_cast<GetObjectHeapIdCallbacks*>(user_data);
@@ -1104,11 +1104,11 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test913_checkGetObjectHeapIdInCallbac
 
 static bool gFoundExt = false;
 
-static jint JNICALL HeapIterationExtCallback(jlong class_tag ATTRIBUTE_UNUSED,
-                                             jlong size ATTRIBUTE_UNUSED,
+static jint JNICALL HeapIterationExtCallback([[maybe_unused]] jlong class_tag,
+                                             [[maybe_unused]] jlong size,
                                              jlong* tag_ptr,
-                                             jint length ATTRIBUTE_UNUSED,
-                                             void* user_data ATTRIBUTE_UNUSED,
+                                             [[maybe_unused]] jint length,
+                                             [[maybe_unused]] void* user_data,
                                              jint heap_id) {
   // We expect some tagged objects at or above the threshold, where the expected heap id is
   // encoded into lowest byte.
@@ -1123,7 +1123,7 @@ static jint JNICALL HeapIterationExtCallback(jlong class_tag ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test913_iterateThroughHeapExt(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   CHECK(gIterateThroughHeapExt != nullptr);
 
   jvmtiHeapCallbacks callbacks;

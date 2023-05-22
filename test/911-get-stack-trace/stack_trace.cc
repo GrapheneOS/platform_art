@@ -126,7 +126,7 @@ static jobjectArray TranslateJvmtiFrameInfoArray(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_PrintThread_getStackTrace(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint start, jint max) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thread, jint start, jint max) {
   std::unique_ptr<jvmtiFrameInfo[]> frames(new jvmtiFrameInfo[max]);
 
   jint count;
@@ -141,7 +141,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_PrintThread_getStackTrace(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_AllTraces_getAllStackTraces(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint max) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jint max) {
   jint thread_count;
   jvmtiStackInfo* stack_infos;
   {
@@ -169,7 +169,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_AllTraces_getAllStackTraces(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_ThreadListTraces_getThreadListStackTraces(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobjectArray jthreads, jint max) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobjectArray jthreads, jint max) {
   jint thread_count = env->GetArrayLength(jthreads);
   std::unique_ptr<jthread[]> threads(new jthread[thread_count]);
   for (jint i = 0; i != thread_count; ++i) {
@@ -205,7 +205,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_ThreadListTraces_getThreadLis
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Frames_getFrameCount(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thread) {
   jint count;
   jvmtiError result = jvmti_env->GetFrameCount(thread, &count);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -215,7 +215,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Frames_getFrameCount(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Frames_getFrameLocation(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thread, jint depth) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thread, jint depth) {
   jmethodID method;
   jlocation location;
 

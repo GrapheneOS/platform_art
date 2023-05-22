@@ -37,15 +37,15 @@ namespace Test1950UnpreparedTransform {
 jclass kMainClass = nullptr;
 jmethodID kPrepareFunc = nullptr;
 
-extern "C" JNIEXPORT void ClassLoadCallback(jvmtiEnv* jvmti ATTRIBUTE_UNUSED,
-                                               JNIEnv* env,
-                                               jthread thr ATTRIBUTE_UNUSED,
-                                               jclass klass) {
+extern "C" JNIEXPORT void ClassLoadCallback([[maybe_unused]] jvmtiEnv* jvmti,
+                                            JNIEnv* env,
+                                            [[maybe_unused]] jthread thr,
+                                            jclass klass) {
   env->CallStaticVoidMethod(kMainClass, kPrepareFunc, klass);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_clearClassLoadHook(
-    JNIEnv* env, jclass main ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass main, jthread thr) {
   JvmtiErrorToException(env,
                         jvmti_env,
                         jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,

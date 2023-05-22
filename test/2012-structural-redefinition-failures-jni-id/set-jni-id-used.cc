@@ -36,7 +36,7 @@ namespace art {
 namespace Test2012SetJniIdUsed {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_SetPointerIdsUsed(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jclass target) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jclass target) {
   ScopedObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> h(hs.NewHandle(soa.Decode<mirror::Class>(target)));

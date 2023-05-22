@@ -38,7 +38,7 @@ namespace Test992SourceFile {
 
 extern "C" JNIEXPORT
 jstring JNICALL Java_art_Test992_getSourceFileName(JNIEnv* env,
-                                                   jclass klass ATTRIBUTE_UNUSED,
+                                                   [[maybe_unused]] jclass klass,
                                                    jclass target) {
   char* file = nullptr;
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetSourceFileName(target, &file))) {
@@ -51,7 +51,7 @@ jstring JNICALL Java_art_Test992_getSourceFileName(JNIEnv* env,
 
 extern "C" JNIEXPORT
 jstring JNICALL Java_art_Test992_getSourceDebugExtension(JNIEnv* env,
-                                                         jclass klass ATTRIBUTE_UNUSED,
+                                                         [[maybe_unused]] jclass klass,
                                                          jclass target) {
   char* ext = nullptr;
   if (JvmtiErrorToException(env, jvmti_env, jvmti_env->GetSourceDebugExtension(target, &ext))) {

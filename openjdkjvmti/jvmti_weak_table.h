@@ -128,7 +128,7 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
     return false;
   }
   // If DoesHandleNullOnSweep returns true, this function will be called.
-  virtual void HandleNullSweep(T tag ATTRIBUTE_UNUSED) {}
+  virtual void HandleNullSweep([[maybe_unused]] T tag) {}
 
  private:
   ALWAYS_INLINE

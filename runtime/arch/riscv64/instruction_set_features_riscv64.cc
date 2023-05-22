@@ -30,7 +30,7 @@ constexpr uint32_t BasicFeatures() {
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromVariant(
-    const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {
+    const std::string& variant, [[maybe_unused]] std::string* error_msg) {
   if (variant != "generic") {
     LOG(WARNING) << "Unexpected CPU variant for Riscv64 using defaults: " << variant;
   }
@@ -90,8 +90,8 @@ std::string Riscv64InstructionSetFeatures::GetFeatureString() const {
 
 std::unique_ptr<const InstructionSetFeatures>
 Riscv64InstructionSetFeatures::AddFeaturesFromSplitString(
-    const std::vector<std::string>& features ATTRIBUTE_UNUSED,
-    std::string* error_msg ATTRIBUTE_UNUSED) const {
+    [[maybe_unused]] const std::vector<std::string>& features,
+    [[maybe_unused]] std::string* error_msg) const {
   UNIMPLEMENTED(WARNING);
   return std::unique_ptr<const InstructionSetFeatures>(new Riscv64InstructionSetFeatures(bits_));
 }

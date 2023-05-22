@@ -185,7 +185,7 @@ class ScopedArenaAllocatorAdapter
   const_pointer address(const_reference x) const { return &x; }
 
   pointer allocate(size_type n,
-                   ScopedArenaAllocatorAdapter<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
+                   [[maybe_unused]] ScopedArenaAllocatorAdapter<void>::pointer hint = nullptr) {
     DCHECK_LE(n, max_size());
     DebugStackIndirectTopRef::CheckTop();
     return reinterpret_cast<T*>(arena_stack_->Alloc(n * sizeof(T),
@@ -273,7 +273,7 @@ class ArenaDelete {
 template <typename T>
 class ArenaDelete<T[]> {
  public:
-  void operator()(T* ptr ATTRIBUTE_UNUSED) const {
+  void operator()([[maybe_unused]] T* ptr) const {
     static_assert(std::is_trivially_destructible_v<T>,
                   "ArenaUniquePtr does not support non-trivially-destructible arrays.");
     // TODO: Implement debug checks, and MEMORY_TOOL support.

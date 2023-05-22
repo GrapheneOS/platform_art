@@ -447,8 +447,8 @@ void OptimizingCompiler::DumpInstructionSetFeaturesToCfg() const {
       << HGraphVisualizer::InsertMetaDataAsCompilationBlock(isa_string + ' ' + features_string);
 }
 
-bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
-                                          const DexFile& dex_file ATTRIBUTE_UNUSED) const {
+bool OptimizingCompiler::CanCompileMethod([[maybe_unused]] uint32_t method_idx,
+                                          [[maybe_unused]] const DexFile& dex_file) const {
   return true;
 }
 
@@ -1221,7 +1221,7 @@ Compiler* CreateOptimizingCompiler(const CompilerOptions& compiler_options,
   return new OptimizingCompiler(compiler_options, storage);
 }
 
-bool EncodeArtMethodInInlineInfo(ArtMethod* method ATTRIBUTE_UNUSED) {
+bool EncodeArtMethodInInlineInfo([[maybe_unused]] ArtMethod* method) {
   // Note: the runtime is null only for unit testing.
   return Runtime::Current() == nullptr || !Runtime::Current()->IsAotCompiler();
 }

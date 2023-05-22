@@ -38,7 +38,7 @@ namespace Test993Breakpoints {
 
 extern "C" JNIEXPORT
 jobject JNICALL Java_art_Test993_constructNative(JNIEnv* env,
-                                                 jclass klass ATTRIBUTE_UNUSED,
+                                                 [[maybe_unused]] jclass klass,
                                                  jobject target,
                                                  jclass clazz) {
   jmethodID method = env->FromReflectedMethod(target);
@@ -50,7 +50,7 @@ jobject JNICALL Java_art_Test993_constructNative(JNIEnv* env,
 
 extern "C" JNIEXPORT
 void JNICALL Java_art_Test993_invokeNativeObject(JNIEnv* env,
-                                                 jclass klass ATTRIBUTE_UNUSED,
+                                                 [[maybe_unused]] jclass klass,
                                                  jobject target,
                                                  jclass clazz,
                                                  jobject thizz) {
@@ -67,7 +67,7 @@ void JNICALL Java_art_Test993_invokeNativeObject(JNIEnv* env,
 
 extern "C" JNIEXPORT
 void JNICALL Java_art_Test993_invokeNativeBool(JNIEnv* env,
-                                               jclass klass ATTRIBUTE_UNUSED,
+                                               [[maybe_unused]] jclass klass,
                                                jobject target,
                                                jclass clazz,
                                                jobject thizz) {
@@ -84,7 +84,7 @@ void JNICALL Java_art_Test993_invokeNativeBool(JNIEnv* env,
 
 extern "C" JNIEXPORT
 void JNICALL Java_art_Test993_invokeNativeLong(JNIEnv* env,
-                                               jclass klass ATTRIBUTE_UNUSED,
+                                               [[maybe_unused]] jclass klass,
                                                jobject target,
                                                jclass clazz,
                                                jobject thizz) {
@@ -101,7 +101,7 @@ void JNICALL Java_art_Test993_invokeNativeLong(JNIEnv* env,
 
 extern "C" JNIEXPORT
 void JNICALL Java_art_Test993_invokeNative(JNIEnv* env,
-                                           jclass klass ATTRIBUTE_UNUSED,
+                                           [[maybe_unused]] jclass klass,
                                            jobject target,
                                            jclass clazz,
                                            jobject thizz) {

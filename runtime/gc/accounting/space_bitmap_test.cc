@@ -134,9 +134,7 @@ class SimpleCounter {
  public:
   explicit SimpleCounter(size_t* counter) : count_(counter) {}
 
-  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED) const {
-    (*count_)++;
-  }
+  void operator()([[maybe_unused]] mirror::Object* obj) const { (*count_)++; }
 
   size_t* const count_;
 };
@@ -203,9 +201,7 @@ static void RunTestCount() {
                           uintptr_t range_end,
                           size_t manual_count) {
     size_t count = 0;
-    auto count_fn = [&count](mirror::Object* obj ATTRIBUTE_UNUSED) {
-      count++;
-    };
+    auto count_fn = [&count]([[maybe_unused]] mirror::Object* obj) { count++; };
     space_bitmap->VisitMarkedRange(range_begin, range_end, count_fn);
     EXPECT_EQ(count, manual_count);
   };

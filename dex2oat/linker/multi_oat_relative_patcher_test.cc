@@ -34,7 +34,7 @@ class MultiOatRelativePatcherTest : public testing::Test {
     MockPatcher() { }
 
     uint32_t ReserveSpace(uint32_t offset,
-                          const CompiledMethod* compiled_method ATTRIBUTE_UNUSED,
+                          [[maybe_unused]] const CompiledMethod* compiled_method,
                           MethodReference method_ref) override {
       last_reserve_offset_ = offset;
       last_reserve_method_ = method_ref;
@@ -76,7 +76,7 @@ class MultiOatRelativePatcherTest : public testing::Test {
       return offset;
     }
 
-    void PatchCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+    void PatchCall([[maybe_unused]] std::vector<uint8_t>* code,
                    uint32_t literal_offset,
                    uint32_t patch_offset,
                    uint32_t target_offset) override {
@@ -85,7 +85,7 @@ class MultiOatRelativePatcherTest : public testing::Test {
       last_target_offset_ = target_offset;
     }
 
-    void PatchPcRelativeReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
+    void PatchPcRelativeReference([[maybe_unused]] std::vector<uint8_t>* code,
                                   const LinkerPatch& patch,
                                   uint32_t patch_offset,
                                   uint32_t target_offset) override {
@@ -94,20 +94,20 @@ class MultiOatRelativePatcherTest : public testing::Test {
       last_target_offset_ = target_offset;
     }
 
-    void PatchEntrypointCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                             const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                             uint32_t patch_offset ATTRIBUTE_UNUSED) override {
+    void PatchEntrypointCall([[maybe_unused]] std::vector<uint8_t>* code,
+                             [[maybe_unused]] const LinkerPatch& patch,
+                             [[maybe_unused]] uint32_t patch_offset) override {
       LOG(FATAL) << "UNIMPLEMENTED";
     }
 
-    void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                     uint32_t patch_offset ATTRIBUTE_UNUSED) override {
+    void PatchBakerReadBarrierBranch([[maybe_unused]] std::vector<uint8_t>* code,
+                                     [[maybe_unused]] const LinkerPatch& patch,
+                                     [[maybe_unused]] uint32_t patch_offset) override {
       LOG(FATAL) << "UNIMPLEMENTED";
     }
 
     std::vector<debug::MethodDebugInfo> GenerateThunkDebugInfo(
-        uint32_t executable_offset ATTRIBUTE_UNUSED) override {
+        [[maybe_unused]] uint32_t executable_offset) override {
       LOG(FATAL) << "UNIMPLEMENTED";
       UNREACHABLE();
     }

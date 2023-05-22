@@ -117,7 +117,7 @@ ArrayRef<const ManagedRegister> X86_64JniCallingConvention::ArgumentScratchRegis
   return scratch_regs;
 }
 
-static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni ATTRIBUTE_UNUSED) {
+static ManagedRegister ReturnRegisterForShorty(const char* shorty, [[maybe_unused]] bool jni) {
   if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86_64ManagedRegister::FromXmmRegister(XMM0);
   } else if (shorty[0] == 'J') {

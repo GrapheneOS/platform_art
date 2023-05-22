@@ -176,7 +176,7 @@ class SwapAllocator {
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
 
-  pointer allocate(size_type n, SwapAllocator<void>::pointer hint ATTRIBUTE_UNUSED = nullptr) {
+  pointer allocate(size_type n, [[maybe_unused]] SwapAllocator<void>::pointer hint = nullptr) {
     DCHECK_LE(n, max_size());
     if (swap_space_ == nullptr) {
       T* result = reinterpret_cast<T*>(malloc(n * sizeof(T)));

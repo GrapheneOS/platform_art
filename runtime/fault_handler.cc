@@ -223,7 +223,7 @@ bool FaultManager::HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* co
   return false;
 }
 
-bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, void* context ATTRIBUTE_UNUSED) {
+bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, [[maybe_unused]] void* context) {
   DCHECK_EQ(sig, SIGBUS);
   if (VLOG_IS_ON(signals)) {
     PrintSignalInfo(VLOG_STREAM(signals) << "Handling SIGBUS fault:\n", info);
@@ -578,7 +578,7 @@ JavaStackTraceHandler::JavaStackTraceHandler(FaultManager* manager) : FaultHandl
   manager_->AddHandler(this, false);
 }
 
-bool JavaStackTraceHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* siginfo, void* context) {
+bool JavaStackTraceHandler::Action([[maybe_unused]] int sig, siginfo_t* siginfo, void* context) {
   // Make sure that we are in the generated code, but we may not have a dex pc.
   bool in_generated_code = manager_->IsInGeneratedCode(siginfo, context);
   if (in_generated_code) {

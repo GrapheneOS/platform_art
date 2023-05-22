@@ -26,18 +26,18 @@ namespace HugeNativeBuf {
 static constexpr size_t HUGE_SIZE = 10'000'000;
 
 extern "C" JNIEXPORT jobject JNICALL Java_Main_getHugeNativeBuffer(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   char* buffer = new char[HUGE_SIZE];
   return env->NewDirectByteBuffer(buffer, HUGE_SIZE);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_deleteHugeNativeBuffer(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject jbuffer) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject jbuffer) {
   delete [] static_cast<char*>(env->GetDirectBufferAddress(jbuffer));
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_getGcNum(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass klass) {
   return Runtime::Current()->GetHeap()->GetCurrentGcNum();
 }
 

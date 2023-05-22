@@ -32,7 +32,7 @@ namespace art {
 namespace Test945ObsoleteNative {
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test945_00024Transform_doExecute(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject runnable) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject runnable) {
   jclass runnable_klass = env->FindClass("java/lang/Runnable");
   jmethodID run_method = env->GetMethodID(runnable_klass, "run", "()V");
   env->CallVoidMethod(runnable, run_method);

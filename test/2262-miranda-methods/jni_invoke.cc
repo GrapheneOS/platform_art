@@ -22,7 +22,7 @@
 namespace art {
 
 extern "C" JNIEXPORT void JNICALL
-Java_Main_CallNonvirtual(JNIEnv* env, jclass k ATTRIBUTE_UNUSED, jobject o, jclass c, jmethodID m) {
+Java_Main_CallNonvirtual(JNIEnv* env, [[maybe_unused]] jclass k, jobject o, jclass c, jmethodID m) {
   env->CallNonvirtualVoidMethod(o, c, m);
 }
 

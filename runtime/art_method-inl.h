@@ -52,7 +52,7 @@ namespace detail {
 
 template <> struct ShortyTraits<'V'> {
   using Type = void;
-  static Type Get(const JValue& value ATTRIBUTE_UNUSED) {}
+  static Type Get([[maybe_unused]] const JValue& value) {}
   // `kVRegCount` and `Set()` are not defined.
 };
 
@@ -152,8 +152,8 @@ constexpr size_t NumberOfVRegs() {
 }
 
 template <char... ArgType>
-inline ALWAYS_INLINE void FillVRegs(uint32_t* vregs ATTRIBUTE_UNUSED,
-                                    typename ShortyTraits<ArgType>::Type... args ATTRIBUTE_UNUSED)
+inline ALWAYS_INLINE void FillVRegs([[maybe_unused]] uint32_t* vregs,
+                                    [[maybe_unused]] typename ShortyTraits<ArgType>::Type... args)
     REQUIRES_SHARED(Locks::mutator_lock_) {}
 
 template <char FirstArgType, char... ArgType>

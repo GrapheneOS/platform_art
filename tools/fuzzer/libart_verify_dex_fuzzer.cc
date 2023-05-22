@@ -17,7 +17,7 @@
 #include "base/mem_map.h"
 #include "dex/dex_file_loader.h"
 
-extern "C" int LLVMFuzzerInitialize(int* argc ATTRIBUTE_UNUSED, char*** argv ATTRIBUTE_UNUSED) {
+extern "C" int LLVMFuzzerInitialize([[maybe_unused]] int* argc, [[maybe_unused]] char*** argv) {
   // Initialize environment.
   // TODO(solanes): `art::MemMap::Init` is not needed for the current DexFileLoader code path.
   // Consider removing it once the fuzzer stabilizes and check that it is actually not needed.

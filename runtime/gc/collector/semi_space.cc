@@ -467,12 +467,13 @@ mirror::Object* SemiSpace::MarkObject(mirror::Object* root) {
 }
 
 void SemiSpace::MarkHeapReference(mirror::HeapReference<mirror::Object>* obj_ptr,
-                                  bool do_atomic_update ATTRIBUTE_UNUSED) {
+                                  [[maybe_unused]] bool do_atomic_update) {
   MarkObject(obj_ptr);
 }
 
-void SemiSpace::VisitRoots(mirror::Object*** roots, size_t count,
-                           const RootInfo& info ATTRIBUTE_UNUSED) {
+void SemiSpace::VisitRoots(mirror::Object*** roots,
+                           size_t count,
+                           [[maybe_unused]] const RootInfo& info) {
   for (size_t i = 0; i < count; ++i) {
     auto* root = roots[i];
     auto ref = StackReference<mirror::Object>::FromMirrorPtr(*root);
@@ -485,8 +486,9 @@ void SemiSpace::VisitRoots(mirror::Object*** roots, size_t count,
   }
 }
 
-void SemiSpace::VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
-                           const RootInfo& info ATTRIBUTE_UNUSED) {
+void SemiSpace::VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
+                           size_t count,
+                           [[maybe_unused]] const RootInfo& info) {
   for (size_t i = 0; i < count; ++i) {
     MarkObjectIfNotInToSpace(roots[i]);
   }
@@ -610,7 +612,7 @@ mirror::Object* SemiSpace::IsMarked(mirror::Object* obj) {
 
 bool SemiSpace::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object,
                                             // SemiSpace does the GC in a pause. No CAS needed.
-                                            bool do_atomic_update ATTRIBUTE_UNUSED) {
+                                            [[maybe_unused]] bool do_atomic_update) {
   mirror::Object* obj = object->AsMirrorPtr();
   if (obj == nullptr) {
     return true;

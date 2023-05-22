@@ -97,7 +97,7 @@ struct PhaseUtil::PhaseCallback : public art::RuntimePhaseCallback {
 
 PhaseUtil::PhaseCallback gPhaseCallback;
 
-jvmtiError PhaseUtil::GetPhase(jvmtiEnv* env ATTRIBUTE_UNUSED, jvmtiPhase* phase_ptr) {
+jvmtiError PhaseUtil::GetPhase([[maybe_unused]] jvmtiEnv* env, jvmtiPhase* phase_ptr) {
   if (phase_ptr == nullptr) {
     return ERR(NULL_POINTER);
   }

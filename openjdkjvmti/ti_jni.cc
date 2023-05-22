@@ -42,7 +42,7 @@
 
 namespace openjdkjvmti {
 
-jvmtiError JNIUtil::SetJNIFunctionTable(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError JNIUtil::SetJNIFunctionTable([[maybe_unused]] jvmtiEnv* env,
                                         const jniNativeInterface* function_table) {
   // While we supporting setting null (which will reset the table), the spec says no.
   if (function_table == nullptr) {

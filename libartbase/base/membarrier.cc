@@ -75,7 +75,7 @@ int membarrier(MembarrierCommand command) {
 
 #else  // __NR_membarrier
 
-int membarrier(MembarrierCommand command ATTRIBUTE_UNUSED) {
+int membarrier([[maybe_unused]] MembarrierCommand command) {
   // In principle this could be supported on linux, but Android's prebuilt glibc does not include
   // the system call number defintions (b/111199492).
   errno = ENOSYS;

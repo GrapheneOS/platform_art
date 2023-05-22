@@ -32,16 +32,16 @@ namespace Test908GcStartFinish {
 static size_t starts = 0;
 static size_t finishes = 0;
 
-static void JNICALL GarbageCollectionFinish(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+static void JNICALL GarbageCollectionFinish([[maybe_unused]] jvmtiEnv* ti_env) {
   finishes++;
 }
 
-static void JNICALL GarbageCollectionStart(jvmtiEnv* ti_env ATTRIBUTE_UNUSED) {
+static void JNICALL GarbageCollectionStart([[maybe_unused]] jvmtiEnv* ti_env) {
   starts++;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test908_setupGcCallback(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.GarbageCollectionFinish = GarbageCollectionFinish;
@@ -52,7 +52,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test908_setupGcCallback(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test908_enableGcTracking(JNIEnv* env,
-                                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                                    [[maybe_unused]] jclass klass,
                                                                     jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
@@ -70,15 +70,15 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test908_enableGcTracking(JNIEnv* env,
   }
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcStarts(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                               jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcStarts([[maybe_unused]] JNIEnv* env,
+                                                               [[maybe_unused]] jclass klass) {
   jint result = static_cast<jint>(starts);
   starts = 0;
   return result;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcFinishes(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                                 jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT jint JNICALL Java_art_Test908_getGcFinishes([[maybe_unused]] JNIEnv* env,
+                                                                 [[maybe_unused]] jclass klass) {
   jint result = static_cast<jint>(finishes);
   finishes = 0;
   return result;
