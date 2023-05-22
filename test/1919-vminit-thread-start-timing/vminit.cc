@@ -65,7 +65,7 @@ static void JNICALL ThreadStartCallback(jvmtiEnv *jvmti, JNIEnv* env, jthread th
 
 static void JNICALL Test1919AgentThread(jvmtiEnv* jvmti,
                                         JNIEnv* env,
-                                        void* arg ATTRIBUTE_UNUSED) {
+                                        [[maybe_unused]] void* arg) {
   EventList* list = nullptr;
   CheckJvmtiError(jvmti, jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&list)));
   CheckJvmtiError(jvmti, jvmti->RawMonitorEnter(list->events_mutex));
@@ -140,8 +140,8 @@ static void InstallEventList(jvmtiEnv* env) {
 }
 
 jint OnLoad(JavaVM* vm,
-            char* options ATTRIBUTE_UNUSED,
-            void* reserved ATTRIBUTE_UNUSED) {
+            [[maybe_unused]] char* options,
+            [[maybe_unused]] void* reserved) {
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti_env), JVMTI_VERSION_1_0) != 0) {
     printf("Unable to get jvmti env!\n");
     return 1;

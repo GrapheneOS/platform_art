@@ -77,8 +77,7 @@ class JNIMacroAssemblerTest : public AssemblerTestBase {
 
  private:
   // Override this to pad the code with NOPs to a certain size if needed.
-  virtual void Pad(std::vector<uint8_t>& data ATTRIBUTE_UNUSED) {
-  }
+  virtual void Pad([[maybe_unused]] std::vector<uint8_t>& data) {}
 
   void DriverWrapper(const std::string& assembly_text, const std::string& test_name) {
     assembler_->FinalizeCode();

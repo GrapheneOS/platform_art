@@ -53,7 +53,7 @@ class SchedulingLatencyVisitorARM final : public SchedulingLatencyVisitor {
       : codegen_(down_cast<CodeGeneratorARMVIXL*>(codegen)) {}
 
   // Default visitor for instructions not handled specifically below.
-  void VisitInstruction(HInstruction* ATTRIBUTE_UNUSED) override {
+  void VisitInstruction([[maybe_unused]] HInstruction*) override {
     last_visited_latency_ = kArmIntegerOpLatency;
   }
 

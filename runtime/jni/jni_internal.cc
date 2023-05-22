@@ -162,7 +162,7 @@ class NewStringUTFVisitor {
   NewStringUTFVisitor(const char* utf, size_t utf8_length, int32_t count, bool has_bad_char)
       : utf_(utf), utf8_length_(utf8_length), count_(count), has_bad_char_(has_bad_char) {}
 
-  void operator()(ObjPtr<mirror::Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<mirror::String> string = ObjPtr<mirror::String>::DownCast(obj);
@@ -226,7 +226,7 @@ constexpr bool kUtfReplaceBadSurrogates = false;
 jsize GetUncompressedStringUTFLength(const uint16_t* chars, size_t length) {
   jsize byte_count = 0;
   ConvertUtf16ToUtf8<kUtfUseShortZero, kUtfUse4ByteSequence, kUtfReplaceBadSurrogates>(
-      chars, length, [&](char c ATTRIBUTE_UNUSED) { ++byte_count; });
+      chars, length, [&]([[maybe_unused]] char c) { ++byte_count; });
   return byte_count;
 }
 
@@ -2830,7 +2830,7 @@ class JNI {
     return static_cast<jlong>(WellKnownClasses::java_nio_Buffer_capacity->GetInt(buffer.Get()));
   }
 
-  static jobjectRefType GetObjectRefType(JNIEnv* env ATTRIBUTE_UNUSED, jobject java_object) {
+  static jobjectRefType GetObjectRefType([[maybe_unused]] JNIEnv* env, jobject java_object) {
     if (java_object == nullptr) {
       return JNIInvalidRefType;
     }

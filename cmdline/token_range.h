@@ -55,7 +55,7 @@ struct TokenRange {
 
 #if 0
   // Copying-from-vector constructor.
-  TokenRange(const TokenList& token_list ATTRIBUTE_UNUSED,
+  TokenRange([[maybe_unused]] const TokenList& token_list,
              TokenList::const_iterator it_begin,
              TokenList::const_iterator it_end)
     : token_list_(new TokenList(it_begin, it_end)),

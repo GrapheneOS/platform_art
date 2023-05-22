@@ -803,19 +803,19 @@ class AssemblerTest : public AssemblerTestBase {
   }
 
   // Secondary register names are the secondary view on registers, e.g., 32b on 64b systems.
-  virtual std::string GetSecondaryRegisterName(const Reg& reg ATTRIBUTE_UNUSED) {
+  virtual std::string GetSecondaryRegisterName([[maybe_unused]] const Reg& reg) {
     UNIMPLEMENTED(FATAL) << "Architecture does not support secondary registers";
     UNREACHABLE();
   }
 
   // Tertiary register names are the tertiary view on registers, e.g., 16b on 64b systems.
-  virtual std::string GetTertiaryRegisterName(const Reg& reg ATTRIBUTE_UNUSED) {
+  virtual std::string GetTertiaryRegisterName([[maybe_unused]] const Reg& reg) {
     UNIMPLEMENTED(FATAL) << "Architecture does not support tertiary registers";
     UNREACHABLE();
   }
 
   // Quaternary register names are the quaternary view on registers, e.g., 8b on 64b systems.
-  virtual std::string GetQuaternaryRegisterName(const Reg& reg ATTRIBUTE_UNUSED) {
+  virtual std::string GetQuaternaryRegisterName([[maybe_unused]] const Reg& reg) {
     UNIMPLEMENTED(FATAL) << "Architecture does not support quaternary registers";
     UNREACHABLE();
   }
@@ -1576,8 +1576,7 @@ class AssemblerTest : public AssemblerTestBase {
   }
 
   // Override this to pad the code with NOPs to a certain size if needed.
-  virtual void Pad(std::vector<uint8_t>& data ATTRIBUTE_UNUSED) {
-  }
+  virtual void Pad([[maybe_unused]] std::vector<uint8_t>& data) {}
 
   void DriverWrapper(const std::string& assembly_text, const std::string& test_name) {
     assembler_->FinalizeCode();

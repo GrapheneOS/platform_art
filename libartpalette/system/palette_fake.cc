@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#include "palette/palette.h"
+#include <android-base/logging.h>
+#include <stdbool.h>
 
 #include <map>
 #include <mutex>
-#include <stdbool.h>
 
-#include <android-base/logging.h>
-#include <android-base/macros.h>  // For ATTRIBUTE_UNUSED
-
+#include "palette/palette.h"
 #include "palette_system.h"
 
 // Methods in version 1 API, corresponding to SDK level 31.
@@ -61,28 +59,25 @@ palette_status_t PaletteTraceEnabled(/*out*/bool* enabled) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteTraceBegin(const char* name ATTRIBUTE_UNUSED) {
-  return PALETTE_STATUS_OK;
-}
+palette_status_t PaletteTraceBegin([[maybe_unused]] const char* name) { return PALETTE_STATUS_OK; }
 
 palette_status_t PaletteTraceEnd() {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteTraceIntegerValue(const char* name ATTRIBUTE_UNUSED,
-                                          int32_t value ATTRIBUTE_UNUSED) {
+palette_status_t PaletteTraceIntegerValue([[maybe_unused]] const char* name,
+                                          [[maybe_unused]] int32_t value) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteAshmemCreateRegion(const char* name ATTRIBUTE_UNUSED,
-                                           size_t size ATTRIBUTE_UNUSED,
+palette_status_t PaletteAshmemCreateRegion([[maybe_unused]] const char* name,
+                                           [[maybe_unused]] size_t size,
                                            int* fd) {
   *fd = -1;
   return PALETTE_STATUS_NOT_SUPPORTED;
 }
 
-palette_status_t PaletteAshmemSetProtRegion(int fd ATTRIBUTE_UNUSED,
-                                            int prot ATTRIBUTE_UNUSED) {
+palette_status_t PaletteAshmemSetProtRegion([[maybe_unused]] int fd, [[maybe_unused]] int prot) {
   return PALETTE_STATUS_NOT_SUPPORTED;
 }
 
@@ -96,25 +91,25 @@ palette_status_t PaletteShouldReportDex2oatCompilation(bool* value) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyStartDex2oatCompilation(int source_fd ATTRIBUTE_UNUSED,
-                                                      int art_fd ATTRIBUTE_UNUSED,
-                                                      int oat_fd ATTRIBUTE_UNUSED,
-                                                      int vdex_fd ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyStartDex2oatCompilation([[maybe_unused]] int source_fd,
+                                                      [[maybe_unused]] int art_fd,
+                                                      [[maybe_unused]] int oat_fd,
+                                                      [[maybe_unused]] int vdex_fd) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyEndDex2oatCompilation(int source_fd ATTRIBUTE_UNUSED,
-                                                    int art_fd ATTRIBUTE_UNUSED,
-                                                    int oat_fd ATTRIBUTE_UNUSED,
-                                                    int vdex_fd ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyEndDex2oatCompilation([[maybe_unused]] int source_fd,
+                                                    [[maybe_unused]] int art_fd,
+                                                    [[maybe_unused]] int oat_fd,
+                                                    [[maybe_unused]] int vdex_fd) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyDexFileLoaded(const char* path ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyDexFileLoaded([[maybe_unused]] const char* path) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyOatFileLoaded(const char* path ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyOatFileLoaded([[maybe_unused]] const char* path) {
   return PALETTE_STATUS_OK;
 }
 
@@ -123,33 +118,33 @@ palette_status_t PaletteShouldReportJniInvocations(bool* value) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyBeginJniInvocation(JNIEnv* env ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyBeginJniInvocation([[maybe_unused]] JNIEnv* env) {
   return PALETTE_STATUS_OK;
 }
 
-palette_status_t PaletteNotifyEndJniInvocation(JNIEnv* env ATTRIBUTE_UNUSED) {
+palette_status_t PaletteNotifyEndJniInvocation([[maybe_unused]] JNIEnv* env) {
   return PALETTE_STATUS_OK;
 }
 
 // Methods in version 2 API, corresponding to SDK level 33.
 
-palette_status_t PaletteReportLockContention(JNIEnv* env ATTRIBUTE_UNUSED,
-                                             int32_t wait_ms ATTRIBUTE_UNUSED,
-                                             const char* filename ATTRIBUTE_UNUSED,
-                                             int32_t line_number ATTRIBUTE_UNUSED,
-                                             const char* method_name ATTRIBUTE_UNUSED,
-                                             const char* owner_filename ATTRIBUTE_UNUSED,
-                                             int32_t owner_line_number ATTRIBUTE_UNUSED,
-                                             const char* owner_method_name ATTRIBUTE_UNUSED,
-                                             const char* proc_name ATTRIBUTE_UNUSED,
-                                             const char* thread_name ATTRIBUTE_UNUSED) {
+palette_status_t PaletteReportLockContention([[maybe_unused]] JNIEnv* env,
+                                             [[maybe_unused]] int32_t wait_ms,
+                                             [[maybe_unused]] const char* filename,
+                                             [[maybe_unused]] int32_t line_number,
+                                             [[maybe_unused]] const char* method_name,
+                                             [[maybe_unused]] const char* owner_filename,
+                                             [[maybe_unused]] int32_t owner_line_number,
+                                             [[maybe_unused]] const char* owner_method_name,
+                                             [[maybe_unused]] const char* proc_name,
+                                             [[maybe_unused]] const char* thread_name) {
   return PALETTE_STATUS_OK;
 }
 
 // Methods in version 3 API, corresponding to SDK level 34.
 
-palette_status_t PaletteSetTaskProfiles(int32_t tid ATTRIBUTE_UNUSED,
-                                        const char* const profiles[] ATTRIBUTE_UNUSED,
-                                        size_t profiles_len ATTRIBUTE_UNUSED) {
+palette_status_t PaletteSetTaskProfiles([[maybe_unused]] int32_t tid,
+                                        [[maybe_unused]] const char* const profiles[],
+                                        [[maybe_unused]] size_t profiles_len) {
   return PALETTE_STATUS_OK;
 }

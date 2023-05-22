@@ -21,7 +21,7 @@
 namespace art {
 
 extern "C" JNIEXPORT void JNICALL Java_NativeProxy_nativeCall(
-    JNIEnv* env, jclass clazz ATTRIBUTE_UNUSED, jobject inf_ref) {
+    JNIEnv* env, [[maybe_unused]] jclass clazz, jobject inf_ref) {
   jclass native_inf_class = env->FindClass("NativeInterface");
   CHECK(native_inf_class != nullptr);
   jmethodID mid = env->GetMethodID(native_inf_class, "callback", "()V");

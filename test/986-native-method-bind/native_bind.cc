@@ -40,22 +40,22 @@ static void doUpPrintCall(JNIEnv* env, const char* function) {
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test986_00024Transform_sayHi__(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   doUpPrintCall(env, "doSayHi");
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test986_00024Transform_sayHi2(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   doUpPrintCall(env, "doSayHi2");
 }
 
-extern "C" JNIEXPORT void JNICALL NoReallySayGoodbye(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+extern "C" JNIEXPORT void JNICALL NoReallySayGoodbye(JNIEnv* env, [[maybe_unused]] jclass klass) {
   doUpPrintCall(env, "doSayBye");
 }
 
-static void doJvmtiMethodBind(jvmtiEnv* jvmtienv ATTRIBUTE_UNUSED,
+static void doJvmtiMethodBind([[maybe_unused]] jvmtiEnv* jvmtienv,
                               JNIEnv* env,
-                              jthread thread ATTRIBUTE_UNUSED,
+                              [[maybe_unused]] jthread thread,
                               jmethodID m,
                               void* address,
                               /*out*/void** out_address) {
@@ -95,7 +95,7 @@ static void doJvmtiMethodBind(jvmtiEnv* jvmtienv ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test986_setupNativeBindNotify(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass klass) {
   jvmtiEventCallbacks cb;
   memset(&cb, 0, sizeof(cb));
   cb.NativeMethodBind = doJvmtiMethodBind;
@@ -103,7 +103,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test986_setupNativeBindNotify(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test986_setNativeBindNotify(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jboolean enable) {
   jvmtiError res = jvmti_env->SetEventNotificationMode(enable ? JVMTI_ENABLE : JVMTI_DISABLE,
                                                        JVMTI_EVENT_NATIVE_METHOD_BIND,
                                                        nullptr);
@@ -113,7 +113,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test986_setNativeBindNotify(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test986_rebindTransformClass(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jclass k) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jclass k) {
   JNINativeMethod m[2];
   m[0].name = "sayHi";
   m[0].signature = "()V";

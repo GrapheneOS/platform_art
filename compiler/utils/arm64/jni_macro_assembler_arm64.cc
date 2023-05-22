@@ -705,7 +705,7 @@ void Arm64JNIMacroAssembler::DecodeJNITransitionOrLocalJObject(ManagedRegister m
 }
 
 void Arm64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
-    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED) {
+    JNIMacroLabel* label, [[maybe_unused]] ArrayRef<const ManagedRegister> scratch_regs) {
   constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
   constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
   constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kArm64PointerSize>();
@@ -734,8 +734,8 @@ void Arm64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
 
 void Arm64JNIMacroAssembler::TryToTransitionFromNativeToRunnable(
     JNIMacroLabel* label,
-    ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED,
-    ManagedRegister return_reg ATTRIBUTE_UNUSED) {
+    [[maybe_unused]] ArrayRef<const ManagedRegister> scratch_regs,
+    [[maybe_unused]] ManagedRegister return_reg) {
   constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
   constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
   constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kArm64PointerSize>();

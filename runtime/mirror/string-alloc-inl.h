@@ -41,7 +41,7 @@ class SetStringCountVisitor {
   explicit SetStringCountVisitor(int32_t count) : count_(count) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
@@ -61,7 +61,7 @@ class SetStringCountAndBytesVisitor {
       : count_(count), src_array_(src_array), offset_(offset), high_byte_(high_byte) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
@@ -96,7 +96,7 @@ class SetStringCountAndUtf16BytesVisitor {
       : count_(count), src_array_(src_array), offset_(offset) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
@@ -132,7 +132,7 @@ class SetStringCountAndValueVisitorFromCharArray {
     count_(count), src_array_(src_array), offset_(offset) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
@@ -163,7 +163,7 @@ class SetStringCountAndValueVisitorFromString {
     count_(count), src_string_(src_string), offset_(offset) {
   }
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);

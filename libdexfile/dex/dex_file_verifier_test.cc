@@ -1454,7 +1454,7 @@ TEST_F(DexFileVerifierTest, ClassExtendsItself) {
   VerifyModification(
       kClassExtendsItselfTestDex,
       "class_extends_itself",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Class with same type idx as its superclass: '0'");
 }
 
@@ -1479,7 +1479,7 @@ TEST_F(DexFileVerifierTest, ClassesExtendOneAnother) {
   VerifyModification(
       kClassesExtendOneAnotherTestDex,
       "classes_extend_one_another",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Invalid class definition ordering: class with type idx: '1' defined before"
       " superclass with type idx: '0'");
 }
@@ -1511,7 +1511,7 @@ TEST_F(DexFileVerifierTest, CircularClassInheritance) {
   VerifyModification(
       kCircularClassInheritanceTestDex,
       "circular_class_inheritance",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Invalid class definition ordering: class with type idx: '1' defined before"
       " superclass with type idx: '0'");
 }
@@ -1534,7 +1534,7 @@ TEST_F(DexFileVerifierTest, InterfaceImplementsItself) {
   VerifyModification(
       kInterfaceImplementsItselfTestDex,
       "interface_implements_itself",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Class with same type idx as implemented interface: '0'");
 }
 
@@ -1562,7 +1562,7 @@ TEST_F(DexFileVerifierTest, InterfacesImplementOneAnother) {
   VerifyModification(
       kInterfacesImplementOneAnotherTestDex,
       "interfaces_implement_one_another",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Invalid class definition ordering: class with type idx: '1' defined before"
       " implemented interface with type idx: '0'");
 }
@@ -1598,7 +1598,7 @@ TEST_F(DexFileVerifierTest, CircularInterfaceImplementation) {
   VerifyModification(
       kCircularInterfaceImplementationTestDex,
       "circular_interface_implementation",
-      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      []([[maybe_unused]] DexFile* dex_file) { /* empty */ },
       "Invalid class definition ordering: class with type idx: '2' defined before"
       " implemented interface with type idx: '0'");
 }

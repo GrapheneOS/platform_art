@@ -53,15 +53,15 @@ static const int kMaxSignal = 1;
 #define BLOCKED_SIGNAL SIGUSR1
 #define UNBLOCKED_SIGNAL SIGUSR2
 
-static void blocked_signal(int sig ATTRIBUTE_UNUSED) {
+static void blocked_signal([[maybe_unused]] int sig) {
   printf("blocked signal received\n");
 }
 
-static void unblocked_signal(int sig ATTRIBUTE_UNUSED) {
+static void unblocked_signal([[maybe_unused]] int sig) {
   printf("unblocked signal received\n");
 }
 
-static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+static void signalhandler([[maybe_unused]] int sig, [[maybe_unused]] siginfo_t* info,
                           void* context) {
   printf("signal caught\n");
   ++signal_count;

@@ -66,9 +66,9 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   }
 
   // Unused since we don't copy class native roots.
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
-      const {}
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
+  void VisitRootIfNonNull(
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {}
+  void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {}
 
  private:
   const ObjPtr<Object> dest_obj_;
@@ -144,7 +144,7 @@ class CopyObjectVisitor {
   CopyObjectVisitor(Handle<Object>* orig, size_t num_bytes)
       : orig_(orig), num_bytes_(num_bytes) {}
 
-  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, [[maybe_unused]] size_t usable_size) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Object::CopyObject(obj, orig_->Get(), num_bytes_);
   }

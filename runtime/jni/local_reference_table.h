@@ -333,7 +333,7 @@ class LocalReferenceTable {
 
   void SetSegmentState(LRTSegmentState new_state);
 
-  static Offset SegmentStateOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
+  static Offset SegmentStateOffset([[maybe_unused]] size_t pointer_size) {
     // Note: Currently segment_state_ is at offset 0. We're testing the expected value in
     //       jni_internal_test to make sure it stays correct. It is not OFFSETOF_MEMBER, as that
     //       is not pointer-size-safe.

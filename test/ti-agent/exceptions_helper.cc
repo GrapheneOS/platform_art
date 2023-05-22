@@ -107,7 +107,7 @@ static void exceptionCatchCB(jvmtiEnv* jvmti,
 
 extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_setupExceptionTracing(
     JNIEnv* env,
-    jclass exception ATTRIBUTE_UNUSED,
+    [[maybe_unused]] jclass exception,
     jclass klass,
     jclass except,
     jobject exception_event,
@@ -158,7 +158,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_setupExceptionTracing(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_enableExceptionCatchEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   JvmtiErrorToException(env,
                         jvmti_env,
                         jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
@@ -167,7 +167,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_enableExceptionCatchEvent(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_enableExceptionEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   JvmtiErrorToException(env,
                         jvmti_env,
                         jvmti_env->SetEventNotificationMode(JVMTI_ENABLE,
@@ -176,7 +176,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_enableExceptionEvent(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_disableExceptionCatchEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   JvmtiErrorToException(env,
                         jvmti_env,
                         jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
@@ -185,7 +185,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_disableExceptionCatchEvent
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Exceptions_disableExceptionEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   JvmtiErrorToException(env,
                         jvmti_env,
                         jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,

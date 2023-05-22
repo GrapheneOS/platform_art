@@ -56,15 +56,15 @@ void X86RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
   (*code)[literal_offset + 3u] = static_cast<uint8_t>(diff >> 24);
 }
 
-void X86RelativePatcher::PatchEntrypointCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                             const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                             uint32_t patch_offset ATTRIBUTE_UNUSED) {
+void X86RelativePatcher::PatchEntrypointCall([[maybe_unused]] std::vector<uint8_t>* code,
+                                             [[maybe_unused]] const LinkerPatch& patch,
+                                             [[maybe_unused]] uint32_t patch_offset) {
   LOG(FATAL) << "UNIMPLEMENTED";
 }
 
-void X86RelativePatcher::PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                                     uint32_t patch_offset ATTRIBUTE_UNUSED) {
+void X86RelativePatcher::PatchBakerReadBarrierBranch([[maybe_unused]] std::vector<uint8_t>* code,
+                                                     [[maybe_unused]] const LinkerPatch& patch,
+                                                     [[maybe_unused]] uint32_t patch_offset) {
   LOG(FATAL) << "UNIMPLEMENTED";
 }
 

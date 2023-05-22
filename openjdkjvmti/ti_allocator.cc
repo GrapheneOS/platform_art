@@ -47,7 +47,7 @@ namespace openjdkjvmti {
 
 std::atomic<jlong> AllocUtil::allocated;
 
-jvmtiError AllocUtil::GetGlobalJvmtiAllocationState(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError AllocUtil::GetGlobalJvmtiAllocationState([[maybe_unused]] jvmtiEnv* env,
                                                     jlong* allocated_ptr) {
   if (allocated_ptr == nullptr) {
     return ERR(NULL_POINTER);
@@ -56,7 +56,7 @@ jvmtiError AllocUtil::GetGlobalJvmtiAllocationState(jvmtiEnv* env ATTRIBUTE_UNUS
   return OK;
 }
 
-jvmtiError AllocUtil::Allocate(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError AllocUtil::Allocate([[maybe_unused]] jvmtiEnv* env,
                                jlong size,
                                unsigned char** mem_ptr) {
   if (size < 0) {
@@ -80,7 +80,7 @@ unsigned char* AllocUtil::AllocateImpl(jlong size) {
   return ret;
 }
 
-jvmtiError AllocUtil::Deallocate(jvmtiEnv* env ATTRIBUTE_UNUSED, unsigned char* mem) {
+jvmtiError AllocUtil::Deallocate([[maybe_unused]] jvmtiEnv* env, unsigned char* mem) {
   DeallocateImpl(mem);
   return OK;
 }

@@ -41,7 +41,7 @@ struct WaiterStruct {
 };
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_nativeWaiterStructAlloc(
-    JNIEnv* env, jclass TestClass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass TestClass) {
   WaiterStruct* s = nullptr;
   if (JvmtiErrorToException(env,
                             jvmti_env,
@@ -55,19 +55,19 @@ extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_nativeWaiterStructAlloc(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test924_nativeWaiterStructWaitForNative(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass TestClass ATTRIBUTE_UNUSED, jlong waiter_struct) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass TestClass, jlong waiter_struct) {
   WaiterStruct* s = reinterpret_cast<WaiterStruct*>(static_cast<intptr_t>(waiter_struct));
   while (!s->started) { }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test924_nativeWaiterStructFinish(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass TestClass ATTRIBUTE_UNUSED, jlong waiter_struct) {
+    [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass TestClass, jlong waiter_struct) {
   WaiterStruct* s = reinterpret_cast<WaiterStruct*>(static_cast<intptr_t>(waiter_struct));
   s->finish = true;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test924_nativeLoop(JNIEnv* env,
-                                                              jclass TestClass ATTRIBUTE_UNUSED,
+                                                              [[maybe_unused]] jclass TestClass,
                                                               jlong waiter_struct) {
   WaiterStruct* s = reinterpret_cast<WaiterStruct*>(static_cast<intptr_t>(waiter_struct));
   s->started = true;
@@ -79,7 +79,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test924_nativeLoop(JNIEnv* env,
 // private static native Object[] getThreadInfo(Thread t);
 
 extern "C" JNIEXPORT jthread JNICALL Java_art_Test924_getCurrentThread(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   jthread thread = nullptr;
   jvmtiError result = jvmti_env->GetCurrentThread(&thread);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -89,7 +89,7 @@ extern "C" JNIEXPORT jthread JNICALL Java_art_Test924_getCurrentThread(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadInfo(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthread thread) {
   jvmtiThreadInfo info;
   memset(&info, 0, sizeof(jvmtiThreadInfo));
 
@@ -137,7 +137,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadInfo(
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test924_getThreadState(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthread thread) {
   jint state;
   jvmtiError result = jvmti_env->GetThreadState(thread, &state);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -147,7 +147,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test924_getThreadState(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getAllThreads(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   jint thread_count;
   jthread* threads;
 
@@ -167,7 +167,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getAllThreads(
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_getTLS(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthread thread) {
   void* tls;
   jvmtiError result = jvmti_env->GetThreadLocalStorage(thread, &tls);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -177,7 +177,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_art_Test924_getTLS(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test924_setTLS(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthread thread, jlong val) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthread thread, jlong val) {
   const void* tls = reinterpret_cast<void*>(static_cast<uintptr_t>(val));
   jvmtiError result = jvmti_env->SetThreadLocalStorage(thread, tls);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -223,7 +223,7 @@ static void JNICALL ThreadEnd(jvmtiEnv* jvmti_env,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test924_enableThreadEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jboolean b) {
   if (b == JNI_FALSE) {
     jvmtiError ret = jvmti_env->SetEventNotificationMode(JVMTI_DISABLE,
                                                          JVMTI_EVENT_THREAD_START,
@@ -260,7 +260,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test924_enableThreadEvents(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test924_getThreadEventMessages(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   std::lock_guard<std::mutex> guard(gEventsMutex);
   jobjectArray ret = CreateObjectArray(env,
                                        static_cast<jint>(gEvents.size()),

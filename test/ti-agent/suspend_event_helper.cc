@@ -113,8 +113,8 @@ void JNICALL cbExceptionCatch(jvmtiEnv* jvmti,
                               JNIEnv* env,
                               jthread thr,
                               jmethodID method,
-                              jlocation location ATTRIBUTE_UNUSED,
-                              jobject exception ATTRIBUTE_UNUSED) {
+                              [[maybe_unused]] jlocation location,
+                              [[maybe_unused]] jobject exception) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti, jvmti->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -131,10 +131,10 @@ void JNICALL cbException(jvmtiEnv* jvmti,
                          JNIEnv* env,
                          jthread thr,
                          jmethodID method,
-                         jlocation location ATTRIBUTE_UNUSED,
-                         jobject exception ATTRIBUTE_UNUSED,
-                         jmethodID catch_method ATTRIBUTE_UNUSED,
-                         jlocation catch_location ATTRIBUTE_UNUSED) {
+                         [[maybe_unused]] jlocation location,
+                         [[maybe_unused]] jobject exception,
+                         [[maybe_unused]] jmethodID catch_method,
+                         [[maybe_unused]] jlocation catch_location) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti, jvmti->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -164,8 +164,8 @@ void JNICALL cbMethodExit(jvmtiEnv* jvmti,
                           JNIEnv* env,
                           jthread thr,
                           jmethodID method,
-                          jboolean was_popped_by_exception ATTRIBUTE_UNUSED,
-                          jvalue return_value ATTRIBUTE_UNUSED) {
+                          [[maybe_unused]] jboolean was_popped_by_exception,
+                          [[maybe_unused]] jvalue return_value) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti, jvmti->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -181,13 +181,13 @@ void JNICALL cbMethodExit(jvmtiEnv* jvmti,
 void JNICALL cbFieldModification(jvmtiEnv* jvmti,
                                  JNIEnv* env,
                                  jthread thr,
-                                 jmethodID method ATTRIBUTE_UNUSED,
-                                 jlocation location ATTRIBUTE_UNUSED,
-                                 jclass field_klass ATTRIBUTE_UNUSED,
-                                 jobject object ATTRIBUTE_UNUSED,
+                                 [[maybe_unused]] jmethodID method,
+                                 [[maybe_unused]] jlocation location,
+                                 [[maybe_unused]] jclass field_klass,
+                                 [[maybe_unused]] jobject object,
                                  jfieldID field,
-                                 char signature_type ATTRIBUTE_UNUSED,
-                                 jvalue new_value ATTRIBUTE_UNUSED) {
+                                 [[maybe_unused]] char signature_type,
+                                 [[maybe_unused]] jvalue new_value) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti, jvmti->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -204,10 +204,10 @@ void JNICALL cbFieldModification(jvmtiEnv* jvmti,
 void JNICALL cbFieldAccess(jvmtiEnv* jvmti,
                            JNIEnv* env,
                            jthread thr,
-                           jmethodID method ATTRIBUTE_UNUSED,
-                           jlocation location ATTRIBUTE_UNUSED,
+                           [[maybe_unused]] jmethodID method,
+                           [[maybe_unused]] jlocation location,
                            jclass field_klass,
-                           jobject object ATTRIBUTE_UNUSED,
+                           [[maybe_unused]] jobject object,
                            jfieldID field) {
   TestData* data;
   if (JvmtiErrorToException(
@@ -247,8 +247,8 @@ cbBreakpointHit(jvmtiEnv* jvmti, JNIEnv* env, jthread thr, jmethodID method, jlo
 void JNICALL cbFramePop(jvmtiEnv* jvmti,
                         JNIEnv* env,
                         jthread thr,
-                        jmethodID method ATTRIBUTE_UNUSED,
-                        jboolean was_popped_by_exception ATTRIBUTE_UNUSED) {
+                        [[maybe_unused]] jmethodID method,
+                        [[maybe_unused]] jboolean was_popped_by_exception) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti, jvmti->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -281,7 +281,7 @@ void JNICALL cbClassLoadOrPrepare(jvmtiEnv* jvmti, JNIEnv* env, jthread thr, jcl
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupTest(JNIEnv* env,
-                                                                   jclass klass ATTRIBUTE_UNUSED) {
+                                                                   [[maybe_unused]] jclass klass) {
   jvmtiCapabilities caps;
   memset(&caps, 0, sizeof(caps));
   // Most of these will already be there but might as well be complete.
@@ -374,7 +374,7 @@ static TestData* SetupTestData(JNIEnv* env,
 
 extern "C" JNIEXPORT void JNICALL
 Java_art_SuspendEvents_setupSuspendClassEvent(JNIEnv* env,
-                                              jclass klass ATTRIBUTE_UNUSED,
+                                              [[maybe_unused]] jclass klass,
                                               jint event_num,
                                               jobjectArray interesting_names,
                                               jthread thr) {
@@ -409,7 +409,7 @@ Java_art_SuspendEvents_setupSuspendClassEvent(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendClassEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -432,7 +432,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendClassEvent(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendSingleStepAt(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject meth, jlocation loc, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject meth, jlocation loc, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -453,7 +453,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendSingleStepA
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendSingleStepFor(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -470,7 +470,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendSingleStepF
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendPopFrameEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint offset, jobject breakpoint_func, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jint offset, jobject breakpoint_func, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -501,7 +501,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendPopFrameEve
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendPopFrameEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -528,7 +528,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendPopFrameEve
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendBreakpointFor(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject meth, jlocation loc, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject meth, jlocation loc, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -553,7 +553,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendBreakpointF
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendBreakpointFor(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -577,7 +577,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendBreakpointF
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendExceptionEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method, jboolean is_catch, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject method, jboolean is_catch, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -599,7 +599,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendExceptionEv
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendExceptionEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -622,7 +622,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendExceptionEv
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendMethodEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject method, jboolean enter, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jobject method, jboolean enter, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -644,7 +644,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupSuspendMethodEvent
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendMethodEvent(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -668,7 +668,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearSuspendMethodEvent
 
 extern "C" JNIEXPORT void JNICALL
 Java_art_SuspendEvents_setupFieldSuspendFor(JNIEnv* env,
-                                            jclass klass ATTRIBUTE_UNUSED,
+                                            [[maybe_unused]] jclass klass,
                                             jclass target_klass,
                                             jobject field,
                                             jboolean access,
@@ -706,7 +706,7 @@ Java_art_SuspendEvents_setupFieldSuspendFor(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearFieldSuspendFor(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -744,7 +744,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearFieldSuspendFor(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupWaitForNativeCall(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -761,7 +761,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_setupWaitForNativeCall(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearWaitForNativeCall(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+    JNIEnv* env, [[maybe_unused]] jclass klass , jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {
@@ -775,7 +775,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_SuspendEvents_clearWaitForNativeCall(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_art_SuspendEvents_waitForSuspendHit(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jthread thr) {
+Java_art_SuspendEvents_waitForSuspendHit(JNIEnv* env, [[maybe_unused]] jclass klass, jthread thr) {
   TestData* data;
   if (JvmtiErrorToException(
           env, jvmti_env, jvmti_env->GetThreadLocalStorage(thr, reinterpret_cast<void**>(&data)))) {

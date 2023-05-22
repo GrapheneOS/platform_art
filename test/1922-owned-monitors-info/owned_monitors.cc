@@ -68,7 +68,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test1922_00024Target_lockThisNative(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test1922_00024Target_lockNative(
-    JNIEnv* env, jobject thiz ATTRIBUTE_UNUSED, jobject mon, jobject next) {
+    JNIEnv* env, [[maybe_unused]] jobject thiz, jobject mon, jobject next) {
   if (doMonitorEnter(env, mon)) {
     return;
   }

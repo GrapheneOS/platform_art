@@ -83,8 +83,8 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
   }
 }
 
-extern "C" void DlmallocBytesAllocatedCallback(void* start ATTRIBUTE_UNUSED,
-                                               void* end ATTRIBUTE_UNUSED,
+extern "C" void DlmallocBytesAllocatedCallback([[maybe_unused]] void* start,
+                                               [[maybe_unused]] void* end,
                                                size_t used_bytes,
                                                void* arg) {
   if (used_bytes == 0) {
@@ -94,8 +94,8 @@ extern "C" void DlmallocBytesAllocatedCallback(void* start ATTRIBUTE_UNUSED,
   *bytes_allocated += used_bytes + sizeof(size_t);
 }
 
-extern "C" void DlmallocObjectsAllocatedCallback(void* start ATTRIBUTE_UNUSED,
-                                                 void* end ATTRIBUTE_UNUSED,
+extern "C" void DlmallocObjectsAllocatedCallback([[maybe_unused]] void* start,
+                                                 [[maybe_unused]] void* end,
                                                  size_t used_bytes,
                                                  void* arg) {
   if (used_bytes == 0) {

@@ -127,7 +127,7 @@ class TestVisitor : public StackVisitor {
 };
 
 extern "C" JNIEXPORT void JNICALL Java_PhiLiveness_regsNativeCall(
-    JNIEnv*, jclass value ATTRIBUTE_UNUSED) {
+    JNIEnv*, [[maybe_unused]] jclass value) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<Context> context(Context::Create());
   TestVisitor visitor(soa.Self(), context.get());
@@ -136,7 +136,7 @@ extern "C" JNIEXPORT void JNICALL Java_PhiLiveness_regsNativeCall(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_PhiLiveness_regsNativeCallWithParameters(
-    JNIEnv*, jclass value ATTRIBUTE_UNUSED, jobject main, jint int_value, jfloat float_value) {
+    JNIEnv*, [[maybe_unused]] jclass value, jobject main, jint int_value, jfloat float_value) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<Context> context(Context::Create());
   CHECK(soa.Decode<mirror::Object>(main) == nullptr);

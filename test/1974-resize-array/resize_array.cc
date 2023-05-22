@@ -110,7 +110,7 @@ static jvmtiExtensionFunction FindExtensionMethod(JNIEnv* env, const std::string
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test1974_ResizeArray(JNIEnv* env,
-                                                                jclass klass ATTRIBUTE_UNUSED,
+                                                                [[maybe_unused]] jclass klass,
                                                                 jobject ref_gen,
                                                                 jint new_size) {
   ChangeArraySize change_array_size = reinterpret_cast<ChangeArraySize>(
@@ -125,24 +125,24 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test1974_ResizeArray(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT jobject JNICALL Java_art_Test1974_ReadJniRef(JNIEnv* env,
-                                                                  jclass klass ATTRIBUTE_UNUSED,
+                                                                  [[maybe_unused]] jclass klass,
                                                                   jlong r) {
   return env->NewLocalRef(reinterpret_cast<jobject>(static_cast<intptr_t>(r)));
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_art_Test1974_GetWeakGlobalJniRef(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject r) {
+Java_art_Test1974_GetWeakGlobalJniRef(JNIEnv* env, [[maybe_unused]] jclass klass, jobject r) {
   return static_cast<jlong>(reinterpret_cast<intptr_t>(env->NewWeakGlobalRef(r)));
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Test1974_GetGlobalJniRef(JNIEnv* env,
-                                                                     jclass klass ATTRIBUTE_UNUSED,
+                                                                     [[maybe_unused]] jclass klass,
                                                                      jobject r) {
   return static_cast<jlong>(reinterpret_cast<intptr_t>(env->NewGlobalRef(r)));
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL
-Java_art_Test1974_GetObjectsWithTag(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jlong tag) {
+Java_art_Test1974_GetObjectsWithTag(JNIEnv* env, [[maybe_unused]] jclass klass, jlong tag) {
   jsize cnt = 0;
   jobject* res = nullptr;
   if (JvmtiErrorToException(
@@ -161,7 +161,7 @@ Java_art_Test1974_GetObjectsWithTag(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, 
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test1974_runNativeTest(JNIEnv* env,
-                                                                  jclass klass ATTRIBUTE_UNUSED,
+                                                                  [[maybe_unused]] jclass klass,
                                                                   jobjectArray arr,
                                                                   jobject resize,
                                                                   jobject print,
@@ -181,7 +181,7 @@ struct JvmtiInfo {
 };
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test1974_StartCollectFrees(JNIEnv* env,
-                                                                      jclass k ATTRIBUTE_UNUSED) {
+                                                                      [[maybe_unused]] jclass k) {
   jvmtiEventCallbacks cb{
     .ObjectFree =
         [](jvmtiEnv* jvmti, jlong tag) {
@@ -208,14 +208,14 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test1974_StartCollectFrees(JNIEnv* en
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_art_Test1974_StartAssignObsoleteIncrementedId(JNIEnv* env, jclass k ATTRIBUTE_UNUSED) {
+Java_art_Test1974_StartAssignObsoleteIncrementedId(JNIEnv* env, [[maybe_unused]] jclass k) {
   jint id = FindExtensionEvent(env, "com.android.art.heap.obsolete_object_created");
   if (env->ExceptionCheck()) {
     LOG(INFO) << "Could not find extension event!";
     return;
   }
   using ObsoleteEvent = void (*)(jvmtiEnv * env, jlong * obsolete, jlong * non_obsolete);
-  ObsoleteEvent oe = [](jvmtiEnv* env ATTRIBUTE_UNUSED, jlong* obsolete, jlong* non_obsolete) {
+  ObsoleteEvent oe = []([[maybe_unused]] jvmtiEnv* env, jlong* obsolete, jlong* non_obsolete) {
     *non_obsolete = *obsolete;
     *obsolete = *obsolete + 1;
   };
@@ -226,7 +226,7 @@ Java_art_Test1974_StartAssignObsoleteIncrementedId(JNIEnv* env, jclass k ATTRIBU
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_art_Test1974_EndAssignObsoleteIncrementedId(JNIEnv* env, jclass k ATTRIBUTE_UNUSED) {
+Java_art_Test1974_EndAssignObsoleteIncrementedId(JNIEnv* env, [[maybe_unused]] jclass k) {
   jint id = FindExtensionEvent(env, "com.android.art.heap.obsolete_object_created");
   if (env->ExceptionCheck()) {
     LOG(INFO) << "Could not find extension event!";
@@ -236,7 +236,7 @@ Java_art_Test1974_EndAssignObsoleteIncrementedId(JNIEnv* env, jclass k ATTRIBUTE
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL
-Java_art_Test1974_CollectFreedTags(JNIEnv* env, jclass k ATTRIBUTE_UNUSED) {
+Java_art_Test1974_CollectFreedTags(JNIEnv* env, [[maybe_unused]] jclass k) {
   if (JvmtiErrorToException(
           env,
           jvmti_env,

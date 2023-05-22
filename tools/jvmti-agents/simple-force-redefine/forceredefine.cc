@@ -134,11 +134,11 @@ static void Transform(const std::shared_ptr<ir::DexFile>& ir) {
 }
 
 static void CbClassFileLoadHook(jvmtiEnv* jvmti,
-                                JNIEnv* env ATTRIBUTE_UNUSED,
-                                jclass classBeingRedefined ATTRIBUTE_UNUSED,
-                                jobject loader ATTRIBUTE_UNUSED,
+                                [[maybe_unused]] JNIEnv* env,
+                                [[maybe_unused]] jclass classBeingRedefined,
+                                [[maybe_unused]] jobject loader,
                                 const char* name,
-                                jobject protectionDomain ATTRIBUTE_UNUSED,
+                                [[maybe_unused]] jobject protectionDomain,
                                 jint classDataLen,
                                 const unsigned char* classData,
                                 jint* newClassDataLen,
@@ -212,7 +212,7 @@ static void RedefineClass(jvmtiEnv* jvmti, JNIEnv* env, const std::string& klass
   env->DeleteLocalRef(klass);
 }
 
-static void AgentMain(jvmtiEnv* jvmti, JNIEnv* jni, void* arg ATTRIBUTE_UNUSED) {
+static void AgentMain(jvmtiEnv* jvmti, JNIEnv* jni, [[maybe_unused]] void* arg) {
   AgentInfo* ai = GetAgentInfo(jvmti);
   std::string klass_name;
   jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
@@ -227,7 +227,7 @@ static void AgentMain(jvmtiEnv* jvmti, JNIEnv* jni, void* arg ATTRIBUTE_UNUSED) 
   }
 }
 
-static void CbVmInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thr ATTRIBUTE_UNUSED) {
+static void CbVmInit(jvmtiEnv* jvmti, JNIEnv* env, [[maybe_unused]] jthread thr) {
   // Create a Thread object.
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF("Agent Thread"));
   if (thread_name.get() == nullptr) {
@@ -263,7 +263,7 @@ static void CbVmInit(jvmtiEnv* jvmti, JNIEnv* env, jthread thr ATTRIBUTE_UNUSED)
 }  // namespace
 
 template <bool kIsOnLoad>
-static jint AgentStart(JavaVM* vm, char* options, void* reserved ATTRIBUTE_UNUSED) {
+static jint AgentStart(JavaVM* vm, char* options, [[maybe_unused]] void* reserved) {
   jvmtiEnv* jvmti = nullptr;
 
   if (vm->GetEnv(reinterpret_cast<void**>(&jvmti), JVMTI_VERSION_1_1) != JNI_OK ||
