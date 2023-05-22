@@ -585,7 +585,7 @@ void FreeListSpace::Dump(std::ostream& os) const {
   }
 }
 
-bool FreeListSpace::IsZygoteLargeObject(Thread* self ATTRIBUTE_UNUSED, mirror::Object* obj) const {
+bool FreeListSpace::IsZygoteLargeObject([[maybe_unused]] Thread* self, mirror::Object* obj) const {
   const AllocationInfo* info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(obj));
   DCHECK(info != nullptr);
   return info->IsZygoteObject();

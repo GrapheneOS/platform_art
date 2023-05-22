@@ -149,8 +149,8 @@ struct InstrumentationListener {
   // Call-back when a shadow_frame with the needs_notify_pop_ boolean set is popped off the stack by
   // either return or exceptions. Normally instrumentation listeners should ensure that there are
   // shadow-frames by deoptimizing stacks.
-  virtual void WatchedFramePop(Thread* thread ATTRIBUTE_UNUSED,
-                               const ShadowFrame& frame ATTRIBUTE_UNUSED)
+  virtual void WatchedFramePop([[maybe_unused]] Thread* thread,
+                               [[maybe_unused]] const ShadowFrame& frame)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 

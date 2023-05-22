@@ -45,7 +45,7 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   return instr_size;
 }
 
-uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context) {
+uintptr_t FaultManager::GetFaultPc([[maybe_unused]] siginfo_t* siginfo, void* context) {
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
   if (mc->arm_sp == 0) {
@@ -61,7 +61,7 @@ uintptr_t FaultManager::GetFaultSp(void* context) {
   return mc->arm_sp;
 }
 
-bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action([[maybe_unused]] int sig, siginfo_t* info, void* context) {
   uintptr_t fault_address = reinterpret_cast<uintptr_t>(info->si_addr);
   if (!IsValidFaultAddress(fault_address)) {
     return false;
@@ -115,7 +115,8 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
 // The offset from r9 is Thread::ThreadSuspendTriggerOffset().
 // To check for a suspend check, we examine the instructions that caused
 // the fault (at PC-4 and PC).
-bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+bool SuspensionHandler::Action([[maybe_unused]] int sig,
+                               [[maybe_unused]] siginfo_t* info,
                                void* context) {
   // These are the instructions to check for.  The first one is the ldr r0,[r9,#xxx]
   // where xxx is the offset of the suspend trigger.
@@ -186,7 +187,8 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 // If we determine this is a stack overflow we need to move the stack pointer
 // to the overflow region below the protected region.
 
-bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+bool StackOverflowHandler::Action([[maybe_unused]] int sig,
+                                  [[maybe_unused]] siginfo_t* info,
                                   void* context) {
   ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
   mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);

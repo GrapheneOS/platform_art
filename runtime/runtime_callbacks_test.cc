@@ -88,7 +88,7 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
 
 class ThreadLifecycleCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
  public:
-  static void* PthreadsCallback(void* arg ATTRIBUTE_UNUSED) {
+  static void* PthreadsCallback([[maybe_unused]] void* arg) {
     // Attach.
     Runtime* runtime = Runtime::Current();
     CHECK(runtime->AttachCurrentThread("ThreadLifecycle test thread", true, nullptr, false));
@@ -260,12 +260,12 @@ class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
 
   struct Callback : public ClassLoadCallback {
     void ClassPreDefine(const char* descriptor,
-                        Handle<mirror::Class> klass ATTRIBUTE_UNUSED,
-                        Handle<mirror::ClassLoader> class_loader ATTRIBUTE_UNUSED,
+                        [[maybe_unused]] Handle<mirror::Class> klass,
+                        [[maybe_unused]] Handle<mirror::ClassLoader> class_loader,
                         const DexFile& initial_dex_file,
-                        const dex::ClassDef& initial_class_def ATTRIBUTE_UNUSED,
-                        /*out*/DexFile const** final_dex_file ATTRIBUTE_UNUSED,
-                        /*out*/dex::ClassDef const** final_class_def ATTRIBUTE_UNUSED) override
+                        [[maybe_unused]] const dex::ClassDef& initial_class_def,
+                        [[maybe_unused]] /*out*/ DexFile const** final_dex_file,
+                        [[maybe_unused]] /*out*/ dex::ClassDef const** final_class_def) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       const std::string& location = initial_dex_file.GetLocation();
       std::string event =
@@ -468,20 +468,20 @@ class MonitorWaitCallbacksTest : public RuntimeCallbacksTest {
       ref_ = { &k->GetDexFile(), k->GetDexClassDefIndex() };
     }
 
-    void MonitorContendedLocking(Monitor* mon ATTRIBUTE_UNUSED) override
-        REQUIRES_SHARED(Locks::mutator_lock_) { }
+    void MonitorContendedLocking([[maybe_unused]] Monitor* mon) override
+        REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-    void MonitorContendedLocked(Monitor* mon ATTRIBUTE_UNUSED) override
-        REQUIRES_SHARED(Locks::mutator_lock_) { }
+    void MonitorContendedLocked([[maybe_unused]] Monitor* mon) override
+        REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-    void ObjectWaitStart(Handle<mirror::Object> obj, int64_t millis ATTRIBUTE_UNUSED) override
+    void ObjectWaitStart(Handle<mirror::Object> obj, [[maybe_unused]] int64_t millis) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       if (IsInterestingObject(obj.Get())) {
         saw_wait_start_ = true;
       }
     }
 
-    void MonitorWaitFinished(Monitor* m, bool timed_out ATTRIBUTE_UNUSED) override
+    void MonitorWaitFinished(Monitor* m, [[maybe_unused]] bool timed_out) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       if (IsInterestingObject(m->GetObject())) {
         saw_wait_finished_ = true;

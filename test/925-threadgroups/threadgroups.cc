@@ -36,7 +36,7 @@ namespace Test925ThreadGroups {
 //   private static native Object[] getThreadGroupChildren();
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getTopThreadGroups(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   jthreadGroup* groups;
   jint group_count;
   jvmtiError result = jvmti_env->GetTopThreadGroups(&group_count, &groups);
@@ -55,7 +55,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getTopThreadGroups(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getThreadGroupInfo(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthreadGroup group) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthreadGroup group) {
   jvmtiThreadGroupInfo info;
   jvmtiError result = jvmti_env->GetThreadGroupInfo(group, &info);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -87,7 +87,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getThreadGroupInfo(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test925_getThreadGroupChildren(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jthreadGroup group) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jthreadGroup group) {
   jint thread_count;
   jthread* threads;
   jint threadgroup_count;

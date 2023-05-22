@@ -33,13 +33,13 @@ namespace Test933MiscEvents {
 
 static std::atomic<bool> saw_dump_request(false);
 
-static void DumpRequestCallback(jvmtiEnv* jenv ATTRIBUTE_UNUSED) {
+static void DumpRequestCallback([[maybe_unused]] jvmtiEnv* jenv) {
   printf("Received dump request.\n");
   saw_dump_request.store(true, std::memory_order::memory_order_relaxed);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test933_testSigQuit(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.DataDumpRequest = DumpRequestCallback;

@@ -37,7 +37,7 @@ namespace art {
 namespace Test912Classes {
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isModifiableClass(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jboolean res = JNI_FALSE;
   jvmtiError result = jvmti_env->IsModifiableClass(klass, &res);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -45,7 +45,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isModifiableClass(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassSignature(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   char* sig;
   char* gen;
   jvmtiError result = jvmti_env->GetClassSignature(klass, &sig, &gen);
@@ -74,7 +74,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassSignature(
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isInterface(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jboolean is_interface = JNI_FALSE;
   jvmtiError result = jvmti_env->IsInterface(klass, &is_interface);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -82,7 +82,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isInterface(
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isArrayClass(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jboolean is_array_class = JNI_FALSE;
   jvmtiError result = jvmti_env->IsArrayClass(klass, &is_array_class);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -90,7 +90,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_art_Test912_isArrayClass(
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassModifiers(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jint mod;
   jvmtiError result = jvmti_env->GetClassModifiers(klass, &mod);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -98,7 +98,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassModifiers(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassFields(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jint count = 0;
   jfieldID* fields = nullptr;
   jvmtiError result = jvmti_env->GetClassFields(klass, &count, &fields);
@@ -123,7 +123,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassFields(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassMethods(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jint count = 0;
   jmethodID* methods = nullptr;
   jvmtiError result = jvmti_env->GetClassMethods(klass, &count, &methods);
@@ -148,7 +148,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassMethods(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getImplementedInterfaces(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   jint count = 0;
   jclass* classes = nullptr;
   jvmtiError result = jvmti_env->GetImplementedInterfaces(klass, &count, &classes);
@@ -167,7 +167,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getImplementedInterfa
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassStatus(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass , jclass klass) {
   jint status;
   jvmtiError result = jvmti_env->GetClassStatus(klass, &status);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -175,7 +175,7 @@ extern "C" JNIEXPORT jint JNICALL Java_art_Test912_getClassStatus(
 }
 
 extern "C" JNIEXPORT jobject JNICALL Java_art_Test912_getClassLoader(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass , jclass klass) {
   jobject classloader;
   jvmtiError result = jvmti_env->GetClassLoader(klass, &classloader);
   JvmtiErrorToException(env, jvmti_env, result);
@@ -183,7 +183,7 @@ extern "C" JNIEXPORT jobject JNICALL Java_art_Test912_getClassLoader(
 }
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassLoaderClasses(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jobject jclassloader) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass , jobject jclassloader) {
   jint count = 0;
   jclass* classes = nullptr;
   jvmtiError result = jvmti_env->GetClassLoaderClasses(jclassloader, &count, &classes);
@@ -202,7 +202,7 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassLoaderClasses
 }
 
 extern "C" JNIEXPORT jintArray JNICALL Java_art_Test912_getClassVersion(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass , jclass klass) {
   jint major, minor;
   jvmtiError result = jvmti_env->GetClassVersionNumbers(klass, &minor, &major);
   if (JvmtiErrorToException(env, jvmti_env, result)) {
@@ -280,7 +280,7 @@ static std::mutex gEventsMutex;
 static std::vector<std::string> gEvents;
 
 extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test912_getClassLoadMessages(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass) {
   std::lock_guard<std::mutex> guard(gEventsMutex);
   jobjectArray ret = CreateObjectArray(env,
                                        static_cast<jint>(gEvents.size()),
@@ -365,7 +365,7 @@ class ClassLoadPreparePrinter {
 std::string ClassLoadPreparePrinter::thread_name_filter_;  // NOLINT [runtime/string] [4]
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test912_enableClassLoadPreparePrintEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean enable, jthread thread) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass , jboolean enable, jthread thread) {
   if (thread != nullptr) {
     ClassLoadPreparePrinter::thread_name_filter_ =
         ClassLoadPreparePrinter::GetThreadName(jvmti_env, env, thread);
@@ -432,7 +432,7 @@ class ClassLoadPrepareEquality {
   static constexpr const char* kWeakInitSig = "(Ljava/lang/Object;)V";
   static constexpr const char* kWeakGetSig = "()Ljava/lang/Object;";
 
-  static void AgentThreadTest(jvmtiEnv* jvmti ATTRIBUTE_UNUSED,
+  static void AgentThreadTest([[maybe_unused]] jvmtiEnv* jvmti,
                               JNIEnv* env,
                               jobject* obj_global) {
     jobject target = *obj_global;
@@ -449,7 +449,7 @@ class ClassLoadPrepareEquality {
 
   static void JNICALL ClassLoadCallback(jvmtiEnv* jenv,
                                         JNIEnv* jni_env,
-                                        jthread thread ATTRIBUTE_UNUSED,
+                                        [[maybe_unused]] jthread thread,
                                         jclass klass) {
     std::string name = GetClassName(jenv, jni_env, klass);
     if (name == kClassName) {
@@ -470,7 +470,7 @@ class ClassLoadPrepareEquality {
 
   static void JNICALL ClassPrepareCallback(jvmtiEnv* jenv,
                                            JNIEnv* jni_env,
-                                           jthread thread ATTRIBUTE_UNUSED,
+                                           [[maybe_unused]] jthread thread,
                                            jclass klass) {
     std::string name = GetClassName(jenv, jni_env, klass);
     if (name == kClassName) {
@@ -577,13 +577,13 @@ bool ClassLoadPrepareEquality::found_ = false;
 bool ClassLoadPrepareEquality::compared_ = false;
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test912_setEqualityEventStorageClass(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jclass klass) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jclass klass) {
   ClassLoadPrepareEquality::storage_class_ =
       reinterpret_cast<jclass>(env->NewGlobalRef(klass));
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test912_enableClassLoadPrepareEqualityEvents(
-    JNIEnv* env, jclass Main_klass ATTRIBUTE_UNUSED, jboolean b) {
+    JNIEnv* env, [[maybe_unused]] jclass Main_klass, jboolean b) {
   EnableEvents(env,
                b,
                ClassLoadPrepareEquality::ClassLoadCallback,
@@ -599,17 +599,17 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test912_enableClassLoadPrepareEqualit
 // Global to pass information to the ClassPrepare event.
 static jobject gRunnableGlobal = nullptr;
 extern "C" JNIEXPORT void JNICALL Java_art_Test912_runRecursiveClassPrepareEvents(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject runnable) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject runnable) {
   CHECK(gRunnableGlobal == nullptr);
   gRunnableGlobal = env->NewGlobalRef(runnable);
   EnableEvents(
       env,
       true,
       nullptr,
-      [](jvmtiEnv* jenv ATTRIBUTE_UNUSED,
+      []([[maybe_unused]] jvmtiEnv* jenv,
          JNIEnv* jni_env,
-         jthread thread ATTRIBUTE_UNUSED,
-         jclass klass ATTRIBUTE_UNUSED) -> void {
+         [[maybe_unused]] jthread thread,
+         [[maybe_unused]] jclass klass) -> void {
         jclass runnable_class = jni_env->FindClass("java/lang/Runnable");
         jni_env->CallVoidMethod(
             gRunnableGlobal, jni_env->GetMethodID(runnable_class, "run", "()V"));

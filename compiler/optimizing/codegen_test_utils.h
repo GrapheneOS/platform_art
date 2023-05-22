@@ -103,8 +103,8 @@ class TestCodeGeneratorARMVIXL : public arm::CodeGeneratorARMVIXL {
     blocked_core_registers_[arm::R7] = false;
   }
 
-  void MaybeGenerateMarkingRegisterCheck(int code ATTRIBUTE_UNUSED,
-                                         Location temp_loc ATTRIBUTE_UNUSED) override {
+  void MaybeGenerateMarkingRegisterCheck([[maybe_unused]] int code,
+                                         [[maybe_unused]] Location temp_loc) override {
     // When turned on, the marking register checks in
     // CodeGeneratorARMVIXL::MaybeGenerateMarkingRegisterCheck expects the
     // Thread Register and the Marking Register to be set to
@@ -135,8 +135,8 @@ class TestCodeGeneratorARM64 : public arm64::CodeGeneratorARM64 {
   TestCodeGeneratorARM64(HGraph* graph, const CompilerOptions& compiler_options)
       : arm64::CodeGeneratorARM64(graph, compiler_options) {}
 
-  void MaybeGenerateMarkingRegisterCheck(int codem ATTRIBUTE_UNUSED,
-                                         Location temp_loc ATTRIBUTE_UNUSED) override {
+  void MaybeGenerateMarkingRegisterCheck([[maybe_unused]] int codem,
+                                         [[maybe_unused]] Location temp_loc) override {
     // When turned on, the marking register checks in
     // CodeGeneratorARM64::MaybeGenerateMarkingRegisterCheck expect the
     // Thread Register and the Marking Register to be set to

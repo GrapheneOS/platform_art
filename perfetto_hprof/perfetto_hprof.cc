@@ -438,10 +438,10 @@ class ReferredObjectsFinder {
     referred_objects_->emplace_back(std::move(field_name), ref);
   }
 
-  void VisitRootIfNonNull(art::mirror::CompressedReference<art::mirror::Object>* root
-                              ATTRIBUTE_UNUSED) const {}
-  void VisitRoot(art::mirror::CompressedReference<art::mirror::Object>* root
-                     ATTRIBUTE_UNUSED) const {}
+  void VisitRootIfNonNull(
+      [[maybe_unused]] art::mirror::CompressedReference<art::mirror::Object>* root) const {}
+  void VisitRoot(
+      [[maybe_unused]] art::mirror::CompressedReference<art::mirror::Object>* root) const {}
 
  private:
   // We can use a raw Object* pointer here, because there are no concurrent GC threads after the

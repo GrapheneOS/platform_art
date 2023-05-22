@@ -43,7 +43,7 @@ class ModUnionAddToCardSetVisitor {
 
   inline void operator()(uint8_t* card,
                          uint8_t expected_value,
-                         uint8_t new_value ATTRIBUTE_UNUSED) const {
+                         [[maybe_unused]] uint8_t new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       cleared_cards_->insert(card);
     }
@@ -60,7 +60,7 @@ class ModUnionAddToCardBitmapVisitor {
 
   inline void operator()(uint8_t* card,
                          uint8_t expected_value,
-                         uint8_t new_value ATTRIBUTE_UNUSED) const {
+                         [[maybe_unused]] uint8_t new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       // We want the address the card represents, not the address of the card.
       bitmap_->Set(reinterpret_cast<uintptr_t>(card_table_->AddrFromCard(card)));
@@ -78,7 +78,7 @@ class ModUnionAddToCardVectorVisitor {
       : cleared_cards_(cleared_cards) {
   }
 
-  void operator()(uint8_t* card, uint8_t expected_card, uint8_t new_card ATTRIBUTE_UNUSED) const {
+  void operator()(uint8_t* card, uint8_t expected_card, [[maybe_unused]] uint8_t new_card) const {
     if (expected_card == CardTable::kCardDirty) {
       cleared_cards_->push_back(card);
     }
@@ -100,7 +100,7 @@ class ModUnionUpdateObjectReferencesVisitor {
       contains_reference_to_other_space_(contains_reference_to_other_space) {}
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(mirror::Object* obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     MarkReference(obj->GetFieldObjectReferenceAddr(offset));
   }
@@ -195,7 +195,7 @@ class AddToReferenceArrayVisitor {
         has_target_reference_(has_target_reference) {}
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(mirror::Object* obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = ref_ptr->AsMirrorPtr();
@@ -270,7 +270,7 @@ class CheckReferenceVisitor {
         references_(references) {}
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(mirror::Object* obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref != nullptr &&

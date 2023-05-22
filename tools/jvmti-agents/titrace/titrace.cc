@@ -207,8 +207,8 @@ struct TraceStatistics {
 
 struct EventCallbacks {
   static void SingleStep(jvmtiEnv* jvmti_env,
-                         JNIEnv* jni_env ATTRIBUTE_UNUSED,
-                         jthread thread ATTRIBUTE_UNUSED,
+                         [[maybe_unused]] JNIEnv* jni_env,
+                         [[maybe_unused]] jthread thread,
                          jmethodID method,
                          jlocation location) {
     TraceStatistics& stats = TraceStatistics::GetSingleton();
@@ -218,7 +218,7 @@ struct EventCallbacks {
   // Use "kill -SIGQUIT" to generate a data dump request.
   // Useful when running an android app since it doesn't go through
   // a normal Agent_OnUnload.
-  static void DataDumpRequest(jvmtiEnv* jvmti_env ATTRIBUTE_UNUSED) {
+  static void DataDumpRequest([[maybe_unused]] jvmtiEnv* jvmti_env) {
     TraceStatistics& stats = TraceStatistics::GetSingleton();
     stats.Log();
   }
@@ -305,10 +305,9 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* jvm,
 
 // Note: This is not called for normal Android apps,
 // use "kill -SIGQUIT" instead to generate a data dump request.
-JNIEXPORT void JNICALL Agent_OnUnload(JavaVM* vm ATTRIBUTE_UNUSED) {
+JNIEXPORT void JNICALL Agent_OnUnload([[maybe_unused]] JavaVM* vm) {
   using namespace titrace;  // NOLINT [build/namespaces] [5]
   LOG(INFO) << "Agent_OnUnload: Goodbye";
 
   TraceStatistics::GetSingleton().Log();
 }
-

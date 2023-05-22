@@ -705,16 +705,15 @@ class ImageWriter::PruneObjectReferenceVisitor {
       : image_writer_(image_writer), early_exit_(early_exit), visited_(visited), result_(result) {}
 
   ALWAYS_INLINE void VisitRootIfNonNull(
-      mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const
-      REQUIRES_SHARED(Locks::mutator_lock_) { }
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-  ALWAYS_INLINE void VisitRoot(
-      mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const
-      REQUIRES_SHARED(Locks::mutator_lock_) { }
+  ALWAYS_INLINE void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root)
+      const REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-  ALWAYS_INLINE void operator() (ObjPtr<mirror::Object> obj,
-                                 MemberOffset offset,
-                                 bool is_static ATTRIBUTE_UNUSED) const
+  ALWAYS_INLINE void operator()(ObjPtr<mirror::Object> obj,
+                                MemberOffset offset,
+                                [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(offset);
@@ -747,8 +746,8 @@ class ImageWriter::PruneObjectReferenceVisitor {
     }
   }
 
-  ALWAYS_INLINE void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                                 ObjPtr<mirror::Reference> ref) const
+  ALWAYS_INLINE void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                                ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
   }
@@ -1581,10 +1580,9 @@ class ImageWriter::LayoutHelper::CollectStringReferenceVisitor {
   }
 
   // Collects info for managed fields that reference managed Strings.
-  void operator() (ObjPtr<mirror::Object> obj,
-                   MemberOffset member_offset,
-                   bool is_static ATTRIBUTE_UNUSED) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset member_offset,
+                  [[maybe_unused]] bool is_static) const REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::Object> referred_obj =
         obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(member_offset);
 
@@ -1595,8 +1593,7 @@ class ImageWriter::LayoutHelper::CollectStringReferenceVisitor {
   }
 
   ALWAYS_INLINE
-  void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                   ObjPtr<mirror::Reference> ref) const
+  void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
   }
@@ -1614,25 +1611,25 @@ class ImageWriter::LayoutHelper::VisitReferencesVisitor {
       : helper_(helper), oat_index_(oat_index) {}
 
   // We do not visit native roots. These are handled with other logic.
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
-      const {
+  void VisitRootIfNonNull(
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
     LOG(FATAL) << "UNREACHABLE";
   }
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {
+  void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
     LOG(FATAL) << "UNREACHABLE";
   }
 
   ALWAYS_INLINE void operator()(ObjPtr<mirror::Object> obj,
                                 MemberOffset offset,
-                                bool is_static ATTRIBUTE_UNUSED) const
+                                [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(offset);
     VisitReference(ref);
   }
 
-  ALWAYS_INLINE void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                                 ObjPtr<mirror::Reference> ref) const
+  ALWAYS_INLINE void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                                ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
   }
@@ -2759,17 +2756,17 @@ class ImageWriter::FixupRootVisitor : public RootVisitor {
   explicit FixupRootVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {
   }
 
-  void VisitRoots(mirror::Object*** roots ATTRIBUTE_UNUSED,
-                  size_t count ATTRIBUTE_UNUSED,
-                  const RootInfo& info ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void VisitRoots([[maybe_unused]] mirror::Object*** roots,
+                  [[maybe_unused]] size_t count,
+                  [[maybe_unused]] const RootInfo& info) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     LOG(FATAL) << "Unsupported";
   }
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
                   size_t count,
-                  const RootInfo& info ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+                  [[maybe_unused]] const RootInfo& info) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       // Copy the reference. Since we do not have the address for recording the relocation,
       // it needs to be recorded explicitly by the user of FixupRootVisitor.
@@ -3034,15 +3031,15 @@ class ImageWriter::FixupVisitor {
   }
 
   // We do not visit native roots. These are handled with other logic.
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
-      const {
+  void VisitRootIfNonNull(
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
     LOG(FATAL) << "UNREACHABLE";
   }
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {
+  void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const {
     LOG(FATAL) << "UNREACHABLE";
   }
 
-  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     ObjPtr<Object> ref = obj->GetFieldObject<Object, kVerifyNone, kWithoutReadBarrier>(offset);
     // Copy the reference and record the fixup if necessary.
@@ -3051,8 +3048,7 @@ class ImageWriter::FixupVisitor {
   }
 
   // java.lang.ref.Reference visitor.
-  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                  ObjPtr<mirror::Reference> ref) const
+  void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
   }
@@ -3122,14 +3118,14 @@ class ImageWriter::FixupClassVisitor final : public FixupVisitor {
   FixupClassVisitor(ImageWriter* image_writer, Object* copy)
       : FixupVisitor(image_writer, copy) {}
 
-  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, [[maybe_unused]] bool is_static) const
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(obj->IsClass());
     FixupVisitor::operator()(obj, offset, /*is_static*/false);
   }
 
-  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
-                  ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const
+  void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                  [[maybe_unused]] ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     LOG(FATAL) << "Reference not expected here.";
   }

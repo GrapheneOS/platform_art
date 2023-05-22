@@ -64,7 +64,7 @@ static void setupObjectFreeCallback(JNIEnv* env, jvmtiEnv* jenv, jvmtiEventObjec
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test905_setupObjectFreeCallback(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env, [[maybe_unused]] jclass klass) {
   setupObjectFreeCallback(env, jvmti_env, ObjectFree1);
   JavaVM* jvm = nullptr;
   env->GetJavaVM(&jvm);
@@ -74,7 +74,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test905_setupObjectFreeCallback(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test905_enableFreeTracking(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jboolean enable) {
   jvmtiError ret = jvmti_env->SetEventNotificationMode(
       enable ? JVMTI_ENABLE : JVMTI_DISABLE,
       JVMTI_EVENT_OBJECT_FREE,
@@ -90,7 +90,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test905_enableFreeTracking(
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL Java_art_Test905_getCollectedTags(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jint index) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jint index) {
   std::lock_guard<std::mutex> mu((index == 0) ? ct1_mutex : ct2_mutex);
   std::vector<jlong>& tags = (index == 0) ? collected_tags1 : collected_tags2;
   jlongArray ret = env->NewLongArray(tags.size());
@@ -105,7 +105,7 @@ extern "C" JNIEXPORT jlongArray JNICALL Java_art_Test905_getCollectedTags(
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_art_Test905_getTag2(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj) {
   jlong tag;
   jvmtiError ret = jvmti_env2->GetTag(obj, &tag);
   JvmtiErrorToException(env, jvmti_env, ret);
@@ -113,7 +113,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_art_Test905_getTag2(
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test905_setTag2(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jlong tag) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jlong tag) {
   jvmtiError ret = jvmti_env2->SetTag(obj, tag);
   JvmtiErrorToException(env, jvmti_env, ret);
 }

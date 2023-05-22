@@ -44,8 +44,8 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
     RelativePatcherNone() { }
 
     uint32_t ReserveSpace(uint32_t offset,
-                          const CompiledMethod* compiled_method ATTRIBUTE_UNUSED,
-                          MethodReference method_ref ATTRIBUTE_UNUSED) override {
+                          [[maybe_unused]] const CompiledMethod* compiled_method,
+                          [[maybe_unused]] MethodReference method_ref) override {
       return offset;  // No space reserved; no patches expected.
     }
 
@@ -53,38 +53,38 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
       return offset;  // No space reserved; no patches expected.
     }
 
-    uint32_t WriteThunks(OutputStream* out ATTRIBUTE_UNUSED, uint32_t offset) override {
+    uint32_t WriteThunks([[maybe_unused]] OutputStream* out, uint32_t offset) override {
       return offset;  // No thunks added; no patches expected.
     }
 
-    void PatchCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                   uint32_t literal_offset ATTRIBUTE_UNUSED,
-                   uint32_t patch_offset ATTRIBUTE_UNUSED,
-                   uint32_t target_offset ATTRIBUTE_UNUSED) override {
+    void PatchCall([[maybe_unused]] std::vector<uint8_t>* code,
+                   [[maybe_unused]] uint32_t literal_offset,
+                   [[maybe_unused]] uint32_t patch_offset,
+                   [[maybe_unused]] uint32_t target_offset) override {
       LOG(FATAL) << "Unexpected relative call patch.";
     }
 
-    void PatchPcRelativeReference(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                  const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                  uint32_t patch_offset ATTRIBUTE_UNUSED,
-                                  uint32_t target_offset ATTRIBUTE_UNUSED) override {
+    void PatchPcRelativeReference([[maybe_unused]] std::vector<uint8_t>* code,
+                                  [[maybe_unused]] const LinkerPatch& patch,
+                                  [[maybe_unused]] uint32_t patch_offset,
+                                  [[maybe_unused]] uint32_t target_offset) override {
       LOG(FATAL) << "Unexpected relative dex cache array patch.";
     }
 
-    void PatchEntrypointCall(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                             const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                             uint32_t patch_offset ATTRIBUTE_UNUSED) override {
+    void PatchEntrypointCall([[maybe_unused]] std::vector<uint8_t>* code,
+                             [[maybe_unused]] const LinkerPatch& patch,
+                             [[maybe_unused]] uint32_t patch_offset) override {
       LOG(FATAL) << "Unexpected entrypoint call patch.";
     }
 
-    void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED,
-                                     const LinkerPatch& patch ATTRIBUTE_UNUSED,
-                                     uint32_t patch_offset ATTRIBUTE_UNUSED) override {
+    void PatchBakerReadBarrierBranch([[maybe_unused]] std::vector<uint8_t>* code,
+                                     [[maybe_unused]] const LinkerPatch& patch,
+                                     [[maybe_unused]] uint32_t patch_offset) override {
       LOG(FATAL) << "Unexpected baker read barrier branch patch.";
     }
 
     std::vector<debug::MethodDebugInfo> GenerateThunkDebugInfo(
-        uint32_t executable_offset ATTRIBUTE_UNUSED) override {
+        [[maybe_unused]] uint32_t executable_offset) override {
       return std::vector<debug::MethodDebugInfo>();  // No thunks added.
     }
 

@@ -443,7 +443,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
 
   class TestRootVisitor : public SingleRootVisitor {
    public:
-    void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED) override {
+    void VisitRoot(mirror::Object* root, [[maybe_unused]] const RootInfo& info) override {
       EXPECT_TRUE(root != nullptr);
     }
   };

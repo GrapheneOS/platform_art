@@ -198,9 +198,8 @@ void AllocationManager::PauseAllocations(art::Thread* self) {
   // Force every thread to either be suspended or pass through a barrier.
   art::ScopedThreadSuspension sts(self, art::ThreadState::kSuspended);
   art::Barrier barrier(0);
-  art::FunctionClosure fc([&](art::Thread* thr ATTRIBUTE_UNUSED) {
-    barrier.Pass(art::Thread::Current());
-  });
+  art::FunctionClosure fc(
+      [&]([[maybe_unused]] art::Thread* thr) { barrier.Pass(art::Thread::Current()); });
   size_t requested = art::Runtime::Current()->GetThreadList()->RunCheckpoint(&fc);
   barrier.Increment(self, requested);
 }

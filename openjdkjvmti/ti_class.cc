@@ -162,10 +162,10 @@ struct ClassCallback : public art::ClassLoadCallback {
                       art::Handle<art::mirror::Class> klass,
                       art::Handle<art::mirror::ClassLoader> class_loader,
                       const art::DexFile& initial_dex_file,
-                      const art::dex::ClassDef& initial_class_def ATTRIBUTE_UNUSED,
-                      /*out*/art::DexFile const** final_dex_file,
-                      /*out*/art::dex::ClassDef const** final_class_def)
-      override REQUIRES_SHARED(art::Locks::mutator_lock_) {
+                      [[maybe_unused]] const art::dex::ClassDef& initial_class_def,
+                      /*out*/ art::DexFile const** final_dex_file,
+                      /*out*/ art::dex::ClassDef const** final_class_def) override
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
     bool is_enabled =
         event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassFileLoadHookRetransformable) ||
         event_handler->IsEventEnabledAnywhere(ArtJvmtiEvent::kClassFileLoadHookNonRetransformable);
@@ -387,8 +387,7 @@ struct ClassCallback : public art::ClassLoadCallback {
 
     void VisitRoots(art::mirror::Object*** roots,
                     size_t count,
-                    const art::RootInfo& info ATTRIBUTE_UNUSED)
-        override {
+                    [[maybe_unused]] const art::RootInfo& info) override {
       for (size_t i = 0; i != count; ++i) {
         if (*roots[i] == input_) {
           *roots[i] = output_;
@@ -398,8 +397,8 @@ struct ClassCallback : public art::ClassLoadCallback {
 
     void VisitRoots(art::mirror::CompressedReference<art::mirror::Object>** roots,
                     size_t count,
-                    const art::RootInfo& info ATTRIBUTE_UNUSED)
-        override REQUIRES_SHARED(art::Locks::mutator_lock_) {
+                    [[maybe_unused]] const art::RootInfo& info) override
+        REQUIRES_SHARED(art::Locks::mutator_lock_) {
       for (size_t i = 0; i != count; ++i) {
         if (roots[i]->AsMirrorPtr() == input_) {
           roots[i]->Assign(output_);
@@ -476,7 +475,7 @@ struct ClassCallback : public art::ClassLoadCallback {
 
       void operator()(art::mirror::Object* src,
                       art::MemberOffset field_offset,
-                      bool is_static ATTRIBUTE_UNUSED) const
+                      [[maybe_unused]] bool is_static) const
           REQUIRES_SHARED(art::Locks::mutator_lock_) {
         art::mirror::HeapReference<art::mirror::Object>* trg =
           src->GetFieldObjectReferenceAddr(field_offset);
@@ -487,7 +486,7 @@ struct ClassCallback : public art::ClassLoadCallback {
         }
       }
 
-      void operator()(art::ObjPtr<art::mirror::Class> klass ATTRIBUTE_UNUSED,
+      void operator()([[maybe_unused]] art::ObjPtr<art::mirror::Class> klass,
                       art::ObjPtr<art::mirror::Reference> reference) const
           REQUIRES_SHARED(art::Locks::mutator_lock_) {
         art::mirror::Object* val = reference->GetReferent();
@@ -496,13 +495,13 @@ struct ClassCallback : public art::ClassLoadCallback {
         }
       }
 
-      void VisitRoot(art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED)
-          const {
+      void VisitRoot(
+          [[maybe_unused]] art::mirror::CompressedReference<art::mirror::Object>* root) const {
         LOG(FATAL) << "Unreachable";
       }
 
       void VisitRootIfNonNull(
-          art::mirror::CompressedReference<art::mirror::Object>* root ATTRIBUTE_UNUSED) const {
+          [[maybe_unused]] art::mirror::CompressedReference<art::mirror::Object>* root) const {
         LOG(FATAL) << "Unreachable";
       }
 
@@ -623,7 +622,7 @@ jvmtiError ClassUtil::GetClassMethods(jvmtiEnv* env,
 
   if (art::kIsDebugBuild) {
     size_t count = 0;
-    for (auto& m ATTRIBUTE_UNUSED : klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
+    for ([[maybe_unused]] auto& m : klass->GetDeclaredMethods(art::kRuntimePointerSize)) {
       count++;
     }
     CHECK_EQ(count, klass->NumDirectMethods() + klass->NumDeclaredVirtualMethods());
@@ -747,7 +746,7 @@ jvmtiError ClassUtil::GetClassSignature(jvmtiEnv* env,
   return ERR(NONE);
 }
 
-jvmtiError ClassUtil::GetClassStatus(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::GetClassStatus([[maybe_unused]] jvmtiEnv* env,
                                      jclass jklass,
                                      jint* status_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());
@@ -798,7 +797,7 @@ static jvmtiError ClassIsT(jclass jklass, T test, jboolean* is_t_ptr) {
   return ERR(NONE);
 }
 
-jvmtiError ClassUtil::IsInterface(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::IsInterface([[maybe_unused]] jvmtiEnv* env,
                                   jclass jklass,
                                   jboolean* is_interface_ptr) {
   auto test = [](art::ObjPtr<art::mirror::Class> klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -807,7 +806,7 @@ jvmtiError ClassUtil::IsInterface(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ClassIsT(jklass, test, is_interface_ptr);
 }
 
-jvmtiError ClassUtil::IsArrayClass(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::IsArrayClass([[maybe_unused]] jvmtiEnv* env,
                                    jclass jklass,
                                    jboolean* is_array_class_ptr) {
   auto test = [](art::ObjPtr<art::mirror::Class> klass) REQUIRES_SHARED(art::Locks::mutator_lock_) {
@@ -834,7 +833,7 @@ static uint32_t ClassGetModifiers(art::Thread* self, art::ObjPtr<art::mirror::Cl
   return art::mirror::Class::GetInnerClassFlags(h_klass, modifiers);
 }
 
-jvmtiError ClassUtil::GetClassModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::GetClassModifiers([[maybe_unused]] jvmtiEnv* env,
                                         jclass jklass,
                                         jint* modifiers_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());
@@ -852,7 +851,7 @@ jvmtiError ClassUtil::GetClassModifiers(jvmtiEnv* env ATTRIBUTE_UNUSED,
   return ERR(NONE);
 }
 
-jvmtiError ClassUtil::GetClassLoader(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::GetClassLoader([[maybe_unused]] jvmtiEnv* env,
                                      jclass jklass,
                                      jobject* classloader_ptr) {
   art::ScopedObjectAccess soa(art::Thread::Current());
@@ -1047,7 +1046,7 @@ jvmtiError ClassUtil::GetClassLoaderClasses(jvmtiEnv* env,
   return ERR(NONE);
 }
 
-jvmtiError ClassUtil::GetClassVersionNumbers(jvmtiEnv* env ATTRIBUTE_UNUSED,
+jvmtiError ClassUtil::GetClassVersionNumbers([[maybe_unused]] jvmtiEnv* env,
                                              jclass jklass,
                                              jint* minor_version_ptr,
                                              jint* major_version_ptr) {

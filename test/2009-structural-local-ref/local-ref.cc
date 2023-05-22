@@ -32,7 +32,7 @@ namespace art {
 namespace Test2009StructuralLocalRef {
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalCallStatic(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jobject thnk) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jobject thnk) {
   jclass obj_klass = env->GetObjectClass(obj);
   jmethodID run_meth = env->GetMethodID(env->FindClass("java/lang/Runnable"), "run", "()V");
   env->CallVoidMethod(thnk, run_meth);
@@ -46,7 +46,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalCallStatic(
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalCallVirtual(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jobject thnk) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jobject thnk) {
   jclass obj_klass = env->GetObjectClass(obj);
   jmethodID run_meth = env->GetMethodID(env->FindClass("java/lang/Runnable"), "run", "()V");
   env->CallVoidMethod(thnk, run_meth);
@@ -58,7 +58,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalCallVirtual(
   }
 }
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalGetIField(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jobject thnk) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jobject thnk) {
   jclass obj_klass = env->GetObjectClass(obj);
   jmethodID run_meth = env->GetMethodID(env->FindClass("java/lang/Runnable"), "run", "()V");
   env->CallVoidMethod(thnk, run_meth);
@@ -71,7 +71,7 @@ extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalGetIField(
   }
 }
 extern "C" JNIEXPORT jstring JNICALL Java_art_Test2009_NativeLocalGetSField(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jobject thnk) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jobject thnk) {
   jclass obj_klass = env->GetObjectClass(obj);
   jmethodID run_meth = env->GetMethodID(env->FindClass("java/lang/Runnable"), "run", "()V");
   env->CallVoidMethod(thnk, run_meth);

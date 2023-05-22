@@ -35,7 +35,7 @@ static constexpr jlong kRedefinedObjectTag = 0xDEADBEEF;
 
 extern "C" JNIEXPORT void JNICALL
 Java_art_Test2005_UpdateFieldValuesAndResumeThreads(JNIEnv* env,
-                                                    jclass klass ATTRIBUTE_UNUSED,
+                                                    [[maybe_unused]] jclass klass,
                                                     jobjectArray threads_arr,
                                                     jclass redefined_class,
                                                     jobjectArray new_fields,
@@ -54,10 +54,10 @@ Java_art_Test2005_UpdateFieldValuesAndResumeThreads(JNIEnv* env,
   CHECK_EQ(jvmti_env->IterateOverInstancesOfClass(
                redefined_class,
                JVMTI_HEAP_OBJECT_EITHER,
-               [](jlong class_tag ATTRIBUTE_UNUSED,
-                  jlong size ATTRIBUTE_UNUSED,
+               []([[maybe_unused]] jlong class_tag,
+                  [[maybe_unused]] jlong size,
                   jlong* tag_ptr,
-                  void* user_data ATTRIBUTE_UNUSED) -> jvmtiIterationControl {
+                  [[maybe_unused]] void* user_data) -> jvmtiIterationControl {
                  *tag_ptr = kRedefinedObjectTag;
                  return JVMTI_ITERATION_CONTINUE;
                },
@@ -87,7 +87,7 @@ Java_art_Test2005_UpdateFieldValuesAndResumeThreads(JNIEnv* env,
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_Main_fastNativeSleepAndReturnInteger42(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+Java_Main_fastNativeSleepAndReturnInteger42(JNIEnv* env, [[maybe_unused]] jclass klass) {
   jclass integer_class = env->FindClass("java/lang/Integer");
   CHECK(integer_class != nullptr);
   jmethodID integer_value_of =

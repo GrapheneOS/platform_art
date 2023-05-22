@@ -36,7 +36,7 @@ struct BreakpointTargets {
   std::vector<SingleBreakpointTarget> bps;
 };
 
-static void VMInitCB(jvmtiEnv* jvmti, JNIEnv* env, jthread thr ATTRIBUTE_UNUSED) {
+static void VMInitCB(jvmtiEnv* jvmti, JNIEnv* env, [[maybe_unused]] jthread thr) {
   BreakpointTargets* all_targets = nullptr;
   jvmtiError err = jvmti->GetEnvironmentLocalStorage(reinterpret_cast<void**>(&all_targets));
   if (err != JVMTI_ERROR_NONE || all_targets == nullptr) {
@@ -350,7 +350,7 @@ enum class StartType {
 static jint AgentStart(StartType start,
                        JavaVM* vm,
                        char* options,
-                       void* reserved ATTRIBUTE_UNUSED) {
+                       [[maybe_unused]] void* reserved) {
   jvmtiEnv* jvmti = nullptr;
   jvmtiError error = JVMTI_ERROR_NONE;
   {

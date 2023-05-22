@@ -810,7 +810,7 @@ void Thread::InstallImplicitProtection() {
       // Keep space uninitialized as it can overflow the stack otherwise (should Clang actually
       // auto-initialize this local variable).
       volatile char space[kPageSize - (kAsanMultiplier * 256)] __attribute__((uninitialized));
-      char sink ATTRIBUTE_UNUSED = space[zero];  // NOLINT
+      [[maybe_unused]] char sink = space[zero];
       // Remove tag from the pointer. Nop in non-hwasan builds.
       uintptr_t addr = reinterpret_cast<uintptr_t>(
           __hwasan_tag_pointer != nullptr ? __hwasan_tag_pointer(space, 0) : space);
@@ -2148,8 +2148,7 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
 
   static constexpr size_t kMaxRepetition = 3u;
 
-  VisitMethodResult StartMethod(ArtMethod* m, size_t frame_nr ATTRIBUTE_UNUSED)
-      override
+  VisitMethodResult StartMethod(ArtMethod* m, [[maybe_unused]] size_t frame_nr) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
     ObjPtr<mirror::DexCache> dex_cache = m->GetDexCache();
@@ -2194,12 +2193,11 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
     return VisitMethodResult::kContinueMethod;
   }
 
-  VisitMethodResult EndMethod(ArtMethod* m ATTRIBUTE_UNUSED) override {
+  VisitMethodResult EndMethod([[maybe_unused]] ArtMethod* m) override {
     return VisitMethodResult::kContinueMethod;
   }
 
-  void VisitWaitingObject(ObjPtr<mirror::Object> obj, ThreadState state ATTRIBUTE_UNUSED)
-      override
+  void VisitWaitingObject(ObjPtr<mirror::Object> obj, [[maybe_unused]] ThreadState state) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     PrintObject(obj, "  - waiting on ", ThreadList::kInvalidThreadId);
   }
@@ -2531,8 +2529,8 @@ class MonitorExitVisitor : public SingleRootVisitor {
   explicit MonitorExitVisitor(Thread* self) : self_(self) { }
 
   // NO_THREAD_SAFETY_ANALYSIS due to MonitorExit.
-  void VisitRoot(mirror::Object* entered_monitor, const RootInfo& info ATTRIBUTE_UNUSED)
-      override NO_THREAD_SAFETY_ANALYSIS {
+  void VisitRoot(mirror::Object* entered_monitor,
+                 [[maybe_unused]] const RootInfo& info) override NO_THREAD_SAFETY_ANALYSIS {
     if (self_->HoldsLock(entered_monitor)) {
       LOG(WARNING) << "Calling MonitorExit on object "
                    << entered_monitor << " (" << entered_monitor->PrettyTypeOf() << ")"
@@ -3345,8 +3343,7 @@ jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRu
           soaa_(soaa_in) {}
 
    protected:
-    VisitMethodResult StartMethod(ArtMethod* m, size_t frame_nr ATTRIBUTE_UNUSED)
-        override
+    VisitMethodResult StartMethod(ArtMethod* m, [[maybe_unused]] size_t frame_nr) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       ObjPtr<mirror::StackTraceElement> obj = CreateStackTraceElement(
           soaa_, m, GetDexPc(/* abort on error */ false));
@@ -3357,7 +3354,7 @@ jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRu
       return VisitMethodResult::kContinueMethod;
     }
 
-    VisitMethodResult EndMethod(ArtMethod* m ATTRIBUTE_UNUSED) override {
+    VisitMethodResult EndMethod([[maybe_unused]] ArtMethod* m) override {
       lock_objects_.push_back({});
       lock_objects_[lock_objects_.size() - 1].swap(frame_lock_objects_);
 
@@ -3366,8 +3363,7 @@ jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRu
       return VisitMethodResult::kContinueMethod;
     }
 
-    void VisitWaitingObject(ObjPtr<mirror::Object> obj, ThreadState state ATTRIBUTE_UNUSED)
-        override
+    void VisitWaitingObject(ObjPtr<mirror::Object> obj, [[maybe_unused]] ThreadState state) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       wait_jobject_.reset(soaa_.AddLocalReference<jobject>(obj));
     }
@@ -3377,9 +3373,8 @@ jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRu
       wait_jobject_.reset(soaa_.AddLocalReference<jobject>(obj));
     }
     void VisitBlockedOnObject(ObjPtr<mirror::Object> obj,
-                              ThreadState state ATTRIBUTE_UNUSED,
-                              uint32_t owner_tid ATTRIBUTE_UNUSED)
-        override
+                              [[maybe_unused]] ThreadState state,
+                              [[maybe_unused]] uint32_t owner_tid) override
         REQUIRES_SHARED(Locks::mutator_lock_) {
       block_jobject_.reset(soaa_.AddLocalReference<jobject>(obj));
     }
@@ -4271,26 +4266,23 @@ class ReferenceMapVisitor : public StackVisitor {
 
   void VisitQuickFrameNonPrecise() REQUIRES_SHARED(Locks::mutator_lock_) {
     struct UndefinedVRegInfo {
-      UndefinedVRegInfo(ArtMethod* method ATTRIBUTE_UNUSED,
-                        const CodeInfo& code_info ATTRIBUTE_UNUSED,
-                        const StackMap& map ATTRIBUTE_UNUSED,
+      UndefinedVRegInfo([[maybe_unused]] ArtMethod* method,
+                        [[maybe_unused]] const CodeInfo& code_info,
+                        [[maybe_unused]] const StackMap& map,
                         RootVisitor& _visitor)
-          : visitor(_visitor) {
-      }
+          : visitor(_visitor) {}
 
       ALWAYS_INLINE
       void VisitStack(mirror::Object** ref,
-                      size_t stack_index ATTRIBUTE_UNUSED,
-                      const StackVisitor* stack_visitor)
-          REQUIRES_SHARED(Locks::mutator_lock_) {
+                      [[maybe_unused]] size_t stack_index,
+                      const StackVisitor* stack_visitor) REQUIRES_SHARED(Locks::mutator_lock_) {
         visitor(ref, JavaFrameRootInfo::kImpreciseVreg, stack_visitor);
       }
 
       ALWAYS_INLINE
       void VisitRegister(mirror::Object** ref,
-                         size_t register_index ATTRIBUTE_UNUSED,
-                         const StackVisitor* stack_visitor)
-          REQUIRES_SHARED(Locks::mutator_lock_) {
+                         [[maybe_unused]] size_t register_index,
+                         const StackVisitor* stack_visitor) REQUIRES_SHARED(Locks::mutator_lock_) {
         visitor(ref, JavaFrameRootInfo::kImpreciseVreg, stack_visitor);
       }
 
@@ -4541,8 +4533,8 @@ void Thread::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
 
 class VerifyRootVisitor : public SingleRootVisitor {
  public:
-  void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
-      override REQUIRES_SHARED(Locks::mutator_lock_) {
+  void VisitRoot(mirror::Object* root, [[maybe_unused]] const RootInfo& info) override
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     VerifyObject(root);
   }
 };

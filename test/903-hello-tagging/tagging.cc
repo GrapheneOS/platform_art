@@ -134,7 +134,7 @@ static jlong GetTag(jvmtiEnv* env, jobject obj) {
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL Java_art_Test903_testTagsInDifferentEnvs(
-    JNIEnv* env, jclass klass ATTRIBUTE_UNUSED, jobject obj, jlong base_tag, jint count) {
+    JNIEnv* env, [[maybe_unused]] jclass klass, jobject obj, jlong base_tag, jint count) {
   std::unique_ptr<jvmtiEnv*[]> envs = std::unique_ptr<jvmtiEnv*[]>(new jvmtiEnv*[count]);
   envs[0] = jvmti_env;
   for (int32_t i = 1; i != count; ++i) {

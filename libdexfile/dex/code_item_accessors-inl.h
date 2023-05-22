@@ -178,8 +178,7 @@ inline void CodeItemDebugInfoAccessor::Init<CompactDexFile::CodeItem>(
 
 template <>
 inline void CodeItemDebugInfoAccessor::Init<StandardDexFile::CodeItem>(
-    const StandardDexFile::CodeItem& code_item,
-    uint32_t dex_method_index ATTRIBUTE_UNUSED) {
+    const StandardDexFile::CodeItem& code_item, [[maybe_unused]] uint32_t dex_method_index) {
   debug_info_offset_ = code_item.debug_info_off_;
   CodeItemDataAccessor::Init(code_item);
 }
