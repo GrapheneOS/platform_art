@@ -29,6 +29,7 @@
         <option name="push" value="art-gtest-jars-MainEmptyUncompressed.jar->/data/local/tmp/art_standalone_libdexfile_tests/art-gtest-jars-MainEmptyUncompressed.jar" />
         <option name="push" value="art-gtest-jars-MultiDex.jar->/data/local/tmp/art_standalone_libdexfile_tests/art-gtest-jars-MultiDex.jar" />
         <option name="push" value="art-gtest-jars-Nested.jar->/data/local/tmp/art_standalone_libdexfile_tests/art-gtest-jars-Nested.jar" />
+        <option name="push" value="art-gtest-jars-VerifierDeps.dex->/data/local/tmp/art_standalone_libdexfile_tests/art-gtest-jars-VerifierDeps.dex" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.GTest" >
