@@ -814,7 +814,7 @@ class RuntimeImageHelper {
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
     }
-    for (auto it : array_classes_) {
+    for (auto& it : array_classes_) {
       mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
