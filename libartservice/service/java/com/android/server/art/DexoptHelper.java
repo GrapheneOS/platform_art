@@ -58,7 +58,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -222,14 +222,14 @@ public class DexoptHelper {
     private PackageDexoptResult dexoptPackage(@NonNull PackageState pkgState,
             @NonNull DexoptParams params, @NonNull CancellationSignal cancellationSignal) {
         List<DexContainerFileDexoptResult> results = new ArrayList<>();
-        Supplier<PackageDexoptResult> createResult = ()
+        Function<Integer, PackageDexoptResult> createResult = (packageLevelStatus)
                 -> PackageDexoptResult.create(
-                        pkgState.getPackageName(), results, cancellationSignal.isCanceled());
+                        pkgState.getPackageName(), results, packageLevelStatus);
 
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         if (!canDexoptPackage(pkgState)) {
-            return createResult.get();
+            return createResult.apply(null /* packageLevelStatus */);
         }
 
         if ((params.getFlags() & ArtFlags.FLAG_FOR_SINGLE_SPLIT) != 0) {
@@ -240,7 +240,7 @@ public class DexoptHelper {
         try (var tracing = new Utils.Tracing("dexopt")) {
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 if (cancellationSignal.isCanceled()) {
-                    return createResult.get();
+                    return createResult.apply(DexoptResult.DEXOPT_CANCELLED);
                 }
 
                 results.addAll(
@@ -250,7 +250,7 @@ public class DexoptHelper {
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
                 if (cancellationSignal.isCanceled()) {
-                    return createResult.get();
+                    return createResult.apply(DexoptResult.DEXOPT_CANCELLED);
                 }
 
                 results.addAll(
@@ -258,11 +258,11 @@ public class DexoptHelper {
                                 .dexopt());
             }
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return null;
+            Utils.logArtdException(e);
+            return createResult.apply(DexoptResult.DEXOPT_FAILED);
         }
 
-        return createResult.get();
+        return createResult.apply(null /* packageLevelStatus */);
     }
 
     private boolean canDexoptPackage(@NonNull PackageState pkgState) {
