@@ -213,8 +213,8 @@ public final class ArtManagerLocal {
 
             return DeleteResult.create(freedBytes);
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return null;
+            Utils.logArtdException(e);
+            return DeleteResult.create(0 /* freedBytes */);
         }
     }
 
@@ -251,56 +251,61 @@ public final class ArtManagerLocal {
         PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
+        List<Pair<DetailedDexInfo, Abi>> dexAndAbis = new ArrayList<>();
+
+        if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
+            for (DetailedPrimaryDexInfo dexInfo :
+                    PrimaryDexUtils.getDetailedDexInfo(pkgState, pkg)) {
+                if (!dexInfo.hasCode()) {
+                    continue;
+                }
+                for (Abi abi : Utils.getAllAbis(pkgState)) {
+                    dexAndAbis.add(Pair.create(dexInfo, abi));
+                }
+            }
+        }
+
+        if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
+            for (SecondaryDexInfo dexInfo :
+                    mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
+                    dexAndAbis.add(Pair.create(dexInfo, abi));
+                }
+            }
+        }
+
         try {
             List<DexContainerFileDexoptStatus> statuses = new ArrayList<>();
 
-            if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
-                for (DetailedPrimaryDexInfo dexInfo :
-                        PrimaryDexUtils.getDetailedDexInfo(pkgState, pkg)) {
-                    if (!dexInfo.hasCode()) {
-                        continue;
-                    }
-                    for (Abi abi : Utils.getAllAbis(pkgState)) {
-                        try {
-                            GetDexoptStatusResult result = mInjector.getArtd().getDexoptStatus(
-                                    dexInfo.dexPath(), abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
-                                    true /* isPrimaryDex */, abi.isPrimaryAbi(), abi.name(),
-                                    result.compilerFilter, result.compilationReason,
-                                    result.locationDebugString));
-                        } catch (ServiceSpecificException e) {
-                            statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
-                                    true /* isPrimaryDex */, abi.isPrimaryAbi(), abi.name(),
-                                    "error", "error", e.getMessage()));
-                        }
-                    }
-                }
-            }
-
-            if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                for (SecondaryDexInfo dexInfo :
-                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
-                    for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
-                        try {
-                            GetDexoptStatusResult result = mInjector.getArtd().getDexoptStatus(
-                                    dexInfo.dexPath(), abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
-                                    false /* isPrimaryDex */, abi.isPrimaryAbi(), abi.name(),
-                                    result.compilerFilter, result.compilationReason,
-                                    result.locationDebugString));
-                        } catch (ServiceSpecificException e) {
-                            statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
-                                    false /* isPrimaryDex */, abi.isPrimaryAbi(), abi.name(),
-                                    "error", "error", e.getMessage()));
-                        }
-                    }
+            for (Pair<DetailedDexInfo, Abi> pair : dexAndAbis) {
+                DetailedDexInfo dexInfo = pair.first;
+                Abi abi = pair.second;
+                try {
+                    GetDexoptStatusResult result = mInjector.getArtd().getDexoptStatus(
+                            dexInfo.dexPath(), abi.isa(), dexInfo.classLoaderContext());
+                    statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
+                            dexInfo instanceof DetailedPrimaryDexInfo, abi.isPrimaryAbi(),
+                            abi.name(), result.compilerFilter, result.compilationReason,
+                            result.locationDebugString));
+                } catch (ServiceSpecificException e) {
+                    statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
+                            dexInfo instanceof DetailedPrimaryDexInfo, abi.isPrimaryAbi(),
+                            abi.name(), "error", "error", e.getMessage()));
                 }
             }
 
             return DexoptStatus.create(statuses);
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return null;
+            Utils.logArtdException(e);
+            List<DexContainerFileDexoptStatus> statuses = new ArrayList<>();
+            for (Pair<DetailedDexInfo, Abi> pair : dexAndAbis) {
+                DetailedDexInfo dexInfo = pair.first;
+                Abi abi = pair.second;
+                statuses.add(DexContainerFileDexoptStatus.create(dexInfo.dexPath(),
+                        dexInfo instanceof DetailedPrimaryDexInfo, abi.isPrimaryAbi(), abi.name(),
+                        "error", "error", e.getMessage()));
+            }
+            return DexoptStatus.create(statuses);
         }
     }
 
@@ -343,7 +348,7 @@ public final class ArtManagerLocal {
                         AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
             }
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
+            Utils.logArtdException(e);
         }
     }
 
@@ -758,8 +763,7 @@ public final class ArtManagerLocal {
                 }
             }
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return null;
+            throw new SnapshotProfileException(e);
         }
     }
 
@@ -885,6 +889,7 @@ public final class ArtManagerLocal {
      *
      * This is done in a mark-and-sweep approach.
      *
+     * @return The amount of the disk space freed by the cleanup, in bytes.
      * @hide
      */
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -943,8 +948,8 @@ public final class ArtManagerLocal {
             }
             return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
         } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return -1;
+            Utils.logArtdException(e);
+            return 0;
         }
     }
 
@@ -1127,10 +1132,7 @@ public final class ArtManagerLocal {
             }
 
             return fd;
-        } catch (RemoteException e) {
-            e.rethrowFromSystemServer();
-            return null;
-        } catch (IOException e) {
+        } catch (IOException | RemoteException e) {
             throw new SnapshotProfileException(e);
         }
     }

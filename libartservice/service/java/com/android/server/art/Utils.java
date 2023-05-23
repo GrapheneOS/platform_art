@@ -25,6 +25,7 @@ import android.app.role.RoleManager;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Build;
+import android.os.DeadObjectException;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemClock;
@@ -34,6 +35,7 @@ import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
+import android.util.Slog;
 import android.util.SparseArray;
 
 import androidx.annotation.RequiresApi;
@@ -431,6 +433,22 @@ public final class Utils {
         }
 
         return null;
+    }
+
+    public static void logArtdException(@NonNull RemoteException e) {
+        String message = "An error occurred when calling artd";
+        if (e instanceof DeadObjectException) {
+            // We assume that `DeadObjectException` only happens in two cases:
+            // 1. artd crashed, in which case a native stack trace was logged.
+            // 2. artd was killed before system server during device shutdown, in which case the
+            //    exception is expected.
+            // In either case, we don't need to surface the exception from here.
+            // The Java stack trace is intentionally omitted because it's not helpful.
+            Log.e(TAG, message);
+        } else {
+            // Not expected. Log wtf to surface it.
+            Slog.wtf(TAG, message, e);
+        }
     }
 
     @AutoValue
