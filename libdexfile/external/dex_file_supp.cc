@@ -21,9 +21,6 @@
 #include <mutex>
 #include <sys/stat.h>
 
-#include <android-base/mapped_file.h>
-#include <android-base/stringprintf.h>
-
 #ifndef STATIC_LIB
 // Not used in the static lib, so avoid a dependency on this header in
 // libdexfile_support_static.
