@@ -446,8 +446,6 @@ art_cc_library_static {
         "//apex_available:platform",
         "com.android.art",
         "com.android.art.debug",
-        "com.android.media",
-        "com.android.media.swcodec",
         "com.android.runtime",
     ],
 }
