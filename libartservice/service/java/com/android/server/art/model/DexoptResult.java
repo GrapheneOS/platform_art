@@ -19,6 +19,7 @@ package com.android.server.art.model;
 import android.annotation.DurationMillisLong;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
@@ -139,9 +140,9 @@ public abstract class DexoptResult {
         /** @hide */
         public static @NonNull PackageDexoptResult create(@NonNull String packageName,
                 @NonNull List<DexContainerFileDexoptResult> dexContainerFileDexoptResults,
-                boolean isCanceled) {
+                @Nullable @DexoptResultStatus Integer packageLevelStatus) {
             return new AutoValue_DexoptResult_PackageDexoptResult(
-                    packageName, dexContainerFileDexoptResults, isCanceled);
+                    packageName, dexContainerFileDexoptResults, packageLevelStatus);
         }
 
         /** The package name. */
@@ -155,16 +156,16 @@ public abstract class DexoptResult {
         getDexContainerFileDexoptResults();
 
         /** @hide */
-        public abstract boolean isCanceled();
+        @Nullable @DexoptResultStatus public abstract Integer getPackageLevelStatus();
 
         /** The overall status of the package. */
         public @DexoptResultStatus int getStatus() {
-            return isCanceled() ? DEXOPT_CANCELLED
-                                : getDexContainerFileDexoptResults()
-                                          .stream()
-                                          .mapToInt(result -> result.getStatus())
-                                          .max()
-                                          .orElse(DEXOPT_SKIPPED);
+            return getPackageLevelStatus() != null ? getPackageLevelStatus()
+                                                   : getDexContainerFileDexoptResults()
+                                                             .stream()
+                                                             .mapToInt(result -> result.getStatus())
+                                                             .max()
+                                                             .orElse(DEXOPT_SKIPPED);
         }
 
         /** True if the package has any artifacts updated by this operation. */
