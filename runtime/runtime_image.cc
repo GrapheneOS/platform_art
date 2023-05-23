@@ -809,25 +809,25 @@ class RuntimeImageHelper {
     ScopedTrace relocate_native_pointers("Relocate native pointers");
     ScopedObjectAccess soa(Thread::Current());
     NativePointerVisitor visitor(this);
-    for (auto entry : classes_) {
+    for (auto&& entry : classes_) {
       mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[entry.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
     }
-    for (auto& it : array_classes_) {
-      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[it.second]);
+    for (auto&& entry : array_classes_) {
+      mirror::Class* cls = reinterpret_cast<mirror::Class*>(&objects_[entry.second]);
       cls->FixupNativePointers(cls, kRuntimePointerSize, visitor);
       RelocateMethodPointerArrays(cls, visitor);
     }
-    for (auto it : native_relocations_) {
-      if (it.second.first == NativeRelocationKind::kImTable) {
-        ImTable* im_table = reinterpret_cast<ImTable*>(im_tables_.data() + it.second.second);
+    for (auto&& entry : native_relocations_) {
+      if (entry.second.first == NativeRelocationKind::kImTable) {
+        ImTable* im_table = reinterpret_cast<ImTable*>(im_tables_.data() + entry.second.second);
         RelocateImTable(im_table, visitor);
       }
     }
-    for (auto it : dex_caches_) {
-      mirror::DexCache* cache = reinterpret_cast<mirror::DexCache*>(&objects_[it.second]);
-      RelocateDexCacheArrays(cache, *it.first, visitor);
+    for (auto&& entry : dex_caches_) {
+      mirror::DexCache* cache = reinterpret_cast<mirror::DexCache*>(&objects_[entry.second]);
+      RelocateDexCacheArrays(cache, *entry.first, visitor);
     }
   }
 
