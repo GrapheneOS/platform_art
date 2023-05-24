@@ -167,6 +167,11 @@ bool DexCache::ShouldAllocateFullArrayAtStartup() {
     return false;
   }
 
+  if (runtime->IsZygote()) {
+    // Zygote doesn't have a notion of startup.
+    return false;
+  }
+
   if (runtime->GetStartupCompleted()) {
     // We only allocate full arrays during app startup.
     return false;
