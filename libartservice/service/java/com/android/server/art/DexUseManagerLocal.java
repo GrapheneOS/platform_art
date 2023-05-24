@@ -789,7 +789,7 @@ public class DexUseManagerLocal {
      * @hide
      */
     @Immutable
-    public abstract static class SecondaryDexInfo {
+    public abstract static class SecondaryDexInfo implements DetailedDexInfo {
         // Special encoding used to denote a foreign ClassLoader was found when trying to encode
         // class loader contexts for each classpath element in a ClassLoader.
         // Must be in sync with `kUnsupportedClassLoaderContextEncoding` in
