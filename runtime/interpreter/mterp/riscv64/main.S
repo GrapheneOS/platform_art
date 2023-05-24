@@ -100,7 +100,7 @@ ENTRY \name
     SETUP_SAVE_REFS_ONLY_FRAME
     call \helper
     RESTORE_SAVE_REFS_ONLY_FRAME
-    lw t0, THREAD_EXCEPTION_OFFSET(xSELF)
+    ld t0, THREAD_EXCEPTION_OFFSET(xSELF)
     bnez t0, nterp_deliver_pending_exception
     ret
 END \name
@@ -177,7 +177,7 @@ END \name
     mv \old_sp, sp
     .cfi_def_cfa_register \old_sp
     mv sp, t0
-    sw \old_sp, -8(\refs)
+    sd \old_sp, -8(\refs)
     CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
 
     // Put nulls in reference array.
