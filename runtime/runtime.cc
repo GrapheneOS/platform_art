@@ -531,7 +531,7 @@ Runtime::~Runtime() {
   // Destroy allocators before shutting down the MemMap because they may use it.
   java_vm_.reset();
   linear_alloc_.reset();
-  startup_linear_alloc_.reset();
+  delete ReleaseStartupLinearAlloc();
   linear_alloc_arena_pool_.reset();
   arena_pool_.reset();
   jit_arena_pool_.reset();
@@ -1734,7 +1734,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     linear_alloc_arena_pool_.reset(new MemMapArenaPool(low_4gb));
   }
   linear_alloc_.reset(CreateLinearAlloc());
-  startup_linear_alloc_.reset(CreateLinearAlloc());
+  startup_linear_alloc_.store(CreateLinearAlloc(), std::memory_order_relaxed);
 
   small_lrt_allocator_ = new jni::SmallLrtAllocator();
 
@@ -3367,6 +3367,7 @@ void Runtime::ResetStartupCompleted() {
 }
 
 bool Runtime::NotifyStartupCompleted() {
+  DCHECK(!IsZygote());
   bool expected = false;
   if (!startup_completed_.compare_exchange_strong(expected, true, std::memory_order_seq_cst)) {
     // Right now NotifyStartupCompleted will be called up to twice, once from profiler and up to
