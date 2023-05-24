@@ -67,8 +67,9 @@ TEST_F(DexDumpTest, BadFlagCombination) {
 
 TEST_F(DexDumpTest, FullPlainOutput) {
   std::string error_msg;
-  ASSERT_TRUE(Exec({"-d", "-f", "-h", "-l", "plain", "-o", "/dev/null",
-    dex_file_}, &error_msg)) << error_msg;
+  ASSERT_TRUE(
+      Exec({"-d", "-f", "-h", "-s", "-l", "plain", "-o", "/dev/null", dex_file_}, &error_msg))
+      << error_msg;
 }
 
 TEST_F(DexDumpTest, XMLOutput) {
