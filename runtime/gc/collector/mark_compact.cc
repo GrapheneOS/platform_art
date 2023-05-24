@@ -78,6 +78,7 @@
 #endif  // __NR_userfaultfd
 #endif  // __BIONIC__
 
+#ifdef ART_TARGET_ANDROID
 namespace {
 
 using ::android::base::GetBoolProperty;
@@ -85,6 +86,7 @@ using ::android::base::ParseBool;
 using ::android::base::ParseBoolResult;
 
 }  // namespace
+#endif
 
 namespace art {
 
