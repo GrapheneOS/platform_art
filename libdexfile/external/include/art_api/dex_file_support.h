@@ -22,8 +22,6 @@
 #include <memory>
 #include <string>
 
-#include <android-base/macros.h>
-
 #include "art_api/dex_file_external.h"
 
 namespace art_api {
@@ -128,7 +126,11 @@ class DexFile {
 
   ADexFile* const self_;
 
-  DISALLOW_COPY_AND_ASSIGN(DexFile);
+  // Have to expand DISALLOW_COPY_AND_ASSIGN here, since we cannot depend on
+  // libbase headers without re-exporting them, and that may make them override
+  // the non-ABI compatible headers that the libdexfile_support user may have.
+  DexFile(const DexFile&) = delete;
+  void operator=(const DexFile&) = delete;
 };
 
 }  // namespace dex
