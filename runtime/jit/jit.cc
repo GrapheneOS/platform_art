@@ -71,7 +71,7 @@ static constexpr uint32_t kJitStressDefaultOptimizeThreshold = kJitDefaultOptimi
 static constexpr uint32_t kJitSlowStressDefaultOptimizeThreshold =
     kJitStressDefaultOptimizeThreshold / 2;
 
-static constexpr uint32_t kJitDefaultWarmupThreshold = 0xffff;
+static constexpr uint32_t kJitDefaultWarmupThreshold = 0x3fff;
 // Different warm-up threshold constants. These default to the equivalent warmup thresholds divided
 // by 2, but can be overridden at the command-line.
 static constexpr uint32_t kJitStressDefaultWarmupThreshold = kJitDefaultWarmupThreshold / 2;
