@@ -2078,6 +2078,8 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   }
 
   if (first_failure.has_value()) {
+    LOG(ERROR) << "Compilation failed, stage: " << first_failure->first
+               << " status: " << first_failure->second;
     metrics.SetStage(first_failure->first);
     metrics.SetStatus(first_failure->second);
 
