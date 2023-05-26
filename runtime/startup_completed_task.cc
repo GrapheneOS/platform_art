@@ -45,75 +45,95 @@ class UnlinkStartupDexCacheVisitor : public DexCacheVisitor {
 };
 
 void StartupCompletedTask::Run(Thread* self) {
-  VLOG(startup) << "StartupCompletedTask running";
   Runtime* const runtime = Runtime::Current();
-  if (!runtime->NotifyStartupCompleted()) {
-    return;
-  }
-
-  // Maybe generate a runtime app image. If the runtime is debuggable, boot
-  // classpath classes can be dynamically changed, so don't bother generating an
-  // image.
-  if (!runtime->IsJavaDebuggable()) {
-    std::string compiler_filter;
-    std::string compilation_reason;
-    runtime->GetAppInfo()->GetPrimaryApkOptimizationStatus(&compiler_filter, &compilation_reason);
-    CompilerFilter::Filter filter;
-    if (CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter) &&
-        !CompilerFilter::IsAotCompilationEnabled(filter)) {
-      std::string error_msg;
-      if (!RuntimeImage::WriteImageToDisk(&error_msg)) {
-        LOG(DEBUG) << "Could not write temporary image to disk " << error_msg;
-      }
-    }
-  }
-
-  {
-    ScopedTrace trace("Releasing dex caches and app image spaces metadata");
-    ScopedObjectAccess soa(Thread::Current());
-
-    {
-      UnlinkStartupDexCacheVisitor visitor;
-      ReaderMutexLock mu(self, *Locks::dex_lock_);
-      runtime->GetClassLinker()->VisitDexCaches(&visitor);
-    }
-
-    // Request a checkpoint to make sure no threads are:
-    // - accessing the image space metadata section when we madvise it
-    // - accessing dex caches when we free them
-    static struct EmptyClosure : Closure {
-      void Run([[maybe_unused]] Thread* thread) override {}
-    } closure;
-
-    runtime->GetThreadList()->RunCheckpoint(&closure);
-
-    // Now delete dex cache arrays from both images and startup linear alloc in
-    // a critical section. The critical section is to ensure there is no
-    // possibility the GC can temporarily see those arrays.
-    gc::ScopedGCCriticalSection sgcs(soa.Self(),
-                                     gc::kGcCauseDeletingDexCacheArrays,
-                                     gc::kCollectorTypeCriticalSection);
-    for (gc::space::ContinuousSpace* space : runtime->GetHeap()->GetContinuousSpaces()) {
-      if (space->IsImageSpace()) {
-        gc::space::ImageSpace* image_space = space->AsImageSpace();
-        if (image_space->GetImageHeader().IsAppImage()) {
-          image_space->ReleaseMetadata();
+  if (runtime->NotifyStartupCompleted()) {
+    // Maybe generate a runtime app image. If the runtime is debuggable, boot
+    // classpath classes can be dynamically changed, so don't bother generating an
+    // image.
+    if (!runtime->IsJavaDebuggable()) {
+      std::string compiler_filter;
+      std::string compilation_reason;
+      runtime->GetAppInfo()->GetPrimaryApkOptimizationStatus(&compiler_filter, &compilation_reason);
+      CompilerFilter::Filter filter;
+      if (CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter) &&
+          !CompilerFilter::IsAotCompilationEnabled(filter)) {
+        std::string error_msg;
+        if (!RuntimeImage::WriteImageToDisk(&error_msg)) {
+          LOG(DEBUG) << "Could not write temporary image to disk " << error_msg;
         }
       }
     }
 
-    std::unique_ptr<LinearAlloc> startup_linear_alloc(runtime->ReleaseStartupLinearAlloc());
-    if (startup_linear_alloc != nullptr) {
-      ScopedTrace trace2("Delete startup linear alloc");
-      ArenaPool* arena_pool = startup_linear_alloc->GetArenaPool();
-      startup_linear_alloc.reset();
-      arena_pool->TrimMaps();
-    }
+    ScopedObjectAccess soa(self);
+    DeleteStartupDexCaches(self, /* called_by_gc= */ false);
   }
 
   // Delete the thread pool used for app image loading since startup is assumed to be completed.
   ScopedTrace trace2("Delete thread pool");
-  runtime->DeleteThreadPool();
+  Runtime::Current()->DeleteThreadPool();
+}
+
+void StartupCompletedTask::DeleteStartupDexCaches(Thread* self, bool called_by_gc) {
+  VLOG(startup) << "StartupCompletedTask running";
+  Runtime* const runtime = Runtime::Current();
+
+  ScopedTrace trace("Releasing dex caches and app image spaces metadata");
+
+  static struct EmptyClosure : Closure {
+    void Run([[maybe_unused]] Thread* thread) override {}
+  } closure;
+
+  // Fetch the startup linear alloc so no other thread tries to allocate there.
+  std::unique_ptr<LinearAlloc> startup_linear_alloc(runtime->ReleaseStartupLinearAlloc());
+
+  // Request a checkpoint to make sure all threads see we have started up and
+  // won't allocate in the startup linear alloc. Without this checkpoint what
+  // could happen is (T0 == self):
+  // 1) T1 fetches startup alloc, allocates an array there.
+  // 2) T0 goes over the dex caches, clear dex cache arrays in the startup alloc.
+  // 3) T1 sets the dex cache array from startup alloc in a dex cache.
+  // 4) T0 releases startup alloc.
+  //
+  // With this checkpoint, 3) cannot happen as T0 waits for T1 to reach the
+  // checkpoint.
+  runtime->GetThreadList()->RunCheckpoint(&closure);
+
+  {
+    UnlinkStartupDexCacheVisitor visitor;
+    ReaderMutexLock mu(self, *Locks::dex_lock_);
+    runtime->GetClassLinker()->VisitDexCaches(&visitor);
+  }
+
+
+  // Request a checkpoint to make sure no threads are:
+  // - accessing the image space metadata section when we madvise it
+  // - accessing dex caches when we free them
+  runtime->GetThreadList()->RunCheckpoint(&closure);
+
+  // If this isn't the GC calling `DeleteStartupDexCaches` and a GC may be
+  // running, wait for it to be complete. We don't want it to see these dex
+  // caches.
+  if (!called_by_gc) {
+    runtime->GetHeap()->WaitForGcToComplete(gc::kGcCauseDeletingDexCacheArrays, self);
+  }
+
+  // At this point, we know no other thread can see the arrays, nor the GC. So
+  // we can safely release them.
+  for (gc::space::ContinuousSpace* space : runtime->GetHeap()->GetContinuousSpaces()) {
+    if (space->IsImageSpace()) {
+      gc::space::ImageSpace* image_space = space->AsImageSpace();
+      if (image_space->GetImageHeader().IsAppImage()) {
+        image_space->ReleaseMetadata();
+      }
+    }
+  }
+
+  if (startup_linear_alloc != nullptr) {
+    ScopedTrace trace2("Delete startup linear alloc");
+    ArenaPool* arena_pool = startup_linear_alloc->GetArenaPool();
+    startup_linear_alloc.reset();
+    arena_pool->TrimMaps();
+  }
 }
 
 }  // namespace art
