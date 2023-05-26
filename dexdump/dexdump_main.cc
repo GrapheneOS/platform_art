@@ -39,8 +39,9 @@ static const char* gProgName = "dexdump";
  */
 static void usage() {
   LOG(ERROR) << "Copyright (C) 2007 The Android Open Source Project\n";
-  LOG(ERROR) << gProgName << ": [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-j] [-l layout] [-n]"
-                  "  [-o outfile] dexfile...\n";
+  LOG(ERROR) << gProgName
+             << ": [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-j] [-l layout] [-n]"
+                "  [-s] [-o outfile] dexfile...\n";
   LOG(ERROR) << " -a : display annotations";
   LOG(ERROR) << " -c : verify checksum and exit";
   LOG(ERROR) << " -d : disassemble code sections";
@@ -53,6 +54,7 @@ static void usage() {
   LOG(ERROR) << " -l : output layout, either 'plain' or 'xml'";
   LOG(ERROR) << " -n : don't display debug information";
   LOG(ERROR) << " -o : output file name (defaults to stdout)";
+  LOG(ERROR) << " -s : display all strings from string_ids header section";
 }
 
 /*
@@ -67,7 +69,7 @@ int dexdumpDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (true) {
-    const int ic = getopt(argc, argv, "acdefghijl:no:");
+    const int ic = getopt(argc, argv, "acdefghijl:no:s");
     if (ic < 0) {
       break;  // done
     }
@@ -114,6 +116,9 @@ int dexdumpDriver(int argc, char** argv) {
         break;
       case 'o':  // output file
         gOptions.outputFileName = optarg;
+        break;
+      case 's':  // display all strings
+        gOptions.showAllStrings = true;
         break;
       default:
         wantUsage = true;
