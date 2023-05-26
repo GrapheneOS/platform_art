@@ -51,6 +51,7 @@ struct Options {
   bool verbose;
   OutputFormat outputFormat;
   const char* outputFileName;
+  bool showAllStrings;
 };
 
 /* Prototypes. */
