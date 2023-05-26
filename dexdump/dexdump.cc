@@ -1902,6 +1902,37 @@ static void dumpCallSite(const DexFile* pDexFile, u4 idx) {
 }
 
 /*
+ * Used to decide if we want to print or skip a string from string_ids
+ */
+static int isPrintable(const char* s) {
+  for (size_t i = 0; i < strlen(s); i++) {
+    if (!isprint((s[i]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+ * Show all printable string in the string_ids section
+ */
+static void dumpStrings(const DexFile* pDexFile) {
+  const DexFile::Header& pHeader = pDexFile->GetHeader();
+  fprintf(gOutFile, "\nDisplaying %u strings from string_ids:\n", pHeader.string_ids_size_);
+
+  for (uint32_t i = 0; i < pHeader.string_ids_size_; i++) {
+    dex::StringIndex idx = static_cast<dex::StringIndex>(i);
+    const char* string = pDexFile->StringDataByIdx(idx);
+    if (!isPrintable(string)) {
+      string = "skipped (not printable)";
+    }
+    fprintf(gOutFile, "  string[%06u] - '%s'\n", i, string);
+  }
+
+  fprintf(gOutFile, "\n");
+}
+
+/*
  * Dumps the requested sections of the file.
  */
 static void processDexFile(const char* fileName,
@@ -1918,6 +1949,11 @@ static void processDexFile(const char* fileName,
   // Headers.
   if (gOptions.showFileHeaders) {
     dumpFileHeader(pDexFile);
+  }
+
+  // Strings.
+  if (gOptions.showAllStrings) {
+    dumpStrings(pDexFile);
   }
 
   // Iterate over all classes.
