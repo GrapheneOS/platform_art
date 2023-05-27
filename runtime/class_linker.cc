@@ -145,6 +145,7 @@
 #include "runtime.h"
 #include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
+#include "startup_completed_task.h"
 #include "thread-inl.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -10789,9 +10790,12 @@ void ClassLinker::CleanupClassLoaders() {
       }
     }
   }
+  if (to_delete.empty()) {
+    return;
+  }
   std::set<const OatFile*> unregistered_oat_files;
-  if (!to_delete.empty()) {
-    JavaVMExt* vm = self->GetJniEnv()->GetVm();
+  JavaVMExt* vm = self->GetJniEnv()->GetVm();
+  {
     WriterMutexLock mu(self, *Locks::dex_lock_);
     for (auto it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ) {
       const DexFile* dex_file = it->first;
@@ -10820,6 +10824,7 @@ void ClassLinker::CleanupClassLoaders() {
       DeleteClassLoader(self, data, /*cleanup_cha=*/ true);
     }
   }
+  Runtime* runtime = Runtime::Current();
   if (!unregistered_oat_files.empty()) {
     for (const OatFile* oat_file : unregistered_oat_files) {
       // Notify the fault handler about removal of the executable code range if needed.
@@ -10828,9 +10833,17 @@ void ClassLinker::CleanupClassLoaders() {
       DCHECK_LE(exec_offset, oat_file->Size());
       size_t exec_size = oat_file->Size() - exec_offset;
       if (exec_size != 0u) {
-        Runtime::Current()->RemoveGeneratedCodeRange(oat_file->Begin() + exec_offset, exec_size);
+        runtime->RemoveGeneratedCodeRange(oat_file->Begin() + exec_offset, exec_size);
       }
     }
+  }
+
+  if (runtime->GetStartupLinearAlloc() != nullptr) {
+    // Because the startup linear alloc can contain dex cache arrays associated
+    // to class loaders that got unloaded, we need to delete these
+    // arrays.
+    StartupCompletedTask::DeleteStartupDexCaches(self, /* called_by_gc= */ true);
+    DCHECK_EQ(runtime->GetStartupLinearAlloc(), nullptr);
   }
 }
 
