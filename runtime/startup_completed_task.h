@@ -28,6 +28,8 @@ class StartupCompletedTask : public gc::HeapTask {
   explicit StartupCompletedTask(uint64_t target_run_time) : gc::HeapTask(target_run_time) {}
 
   void Run(Thread* self) override;
+  static void DeleteStartupDexCaches(Thread* self, bool called_by_gc)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
 }  // namespace art
