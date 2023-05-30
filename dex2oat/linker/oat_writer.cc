@@ -486,12 +486,12 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* loc
   for (; i < vdex_file.GetNumberOfDexFiles(); ++i) {
     current_dex_data = vdex_file.GetNextDexFileData(current_dex_data, i);
     if (current_dex_data == nullptr) {
-      LOG(ERROR) << "Unexpected number of dex files in " << location;
+      LOG(ERROR) << "Unexpected number of dex files in vdex " << location;
       return false;
     }
 
     if (!DexFileLoader::IsMagicValid(current_dex_data)) {
-      LOG(ERROR) << "Invalid magic in " << location;
+      LOG(ERROR) << "Invalid magic in vdex file created from " << location;
       return false;
     }
     // We used `zipped_dex_file_locations_` to keep the strings in memory.
@@ -505,12 +505,12 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* loc
   }
 
   if (vdex_file.GetNextDexFileData(current_dex_data, i) != nullptr) {
-    LOG(ERROR) << "Unexpected number of dex files in " << location;
+    LOG(ERROR) << "Unexpected number of dex files in vdex " << location;
     return false;
   }
 
   if (oat_dex_files_.empty()) {
-    LOG(ERROR) << "No dex files in " << location;
+    LOG(ERROR) << "No dex files in vdex file created from " << location;
     return false;
   }
   return true;
