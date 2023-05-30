@@ -128,6 +128,7 @@ using gc::space::ImageSpace;
 
 static constexpr size_t kDefaultMinDexFilesForSwap = 2;
 static constexpr size_t kDefaultMinDexFileCumulativeSizeForSwap = 20 * MB;
+static constexpr char kInputVdexPlaceholderName[] = "vdex";
 
 // Compiler filter override for very large apps.
 static constexpr CompilerFilter::Filter kLargeAppFilter = CompilerFilter::kVerify;
@@ -695,7 +696,7 @@ class Dex2Oat final {
     }
 
     if ((image_fd_ != -1) && (oat_fd_ == -1)) {
-      Usage("--image-fd must be used with --oat_fd and --output_vdex_fd");
+      Usage("--image-fd must be used with --oat-fd and --output-vdex-fd");
     }
 
     if (!parser_options->oat_symbols.empty() && oat_fd_ != -1) {
@@ -1336,7 +1337,7 @@ class Dex2Oat final {
           std::string error_msg;
           input_vdex_file_ = VdexFile::Open(input_vdex_fd_,
                                             s.st_size,
-                                            "vdex",
+                                            kInputVdexPlaceholderName,
                                             /* writable */ false,
                                             /* low_4gb */ false,
                                             &error_msg);
@@ -2616,7 +2617,12 @@ class Dex2Oat final {
     TimingLogger::ScopedTiming t2("AddDexFileSources", timings_);
     if (input_vdex_file_ != nullptr && input_vdex_file_->HasDexSection()) {
       DCHECK_EQ(oat_writers_.size(), 1u);
-      const std::string& name = zip_location_.empty() ? dex_locations_[0] : zip_location_;
+      const std::string& name =
+          input_vdex_file_->GetName() != kInputVdexPlaceholderName ?
+              input_vdex_file_->GetName() :
+              // We don't strictly know the input vdex location. Use the input
+              // dex instead - it's better than nothing.
+              "vdex for " + (zip_location_.empty() ? dex_locations_[0] : zip_location_);
       DCHECK(!name.empty());
       if (!oat_writers_[0]->AddVdexDexFilesSource(*input_vdex_file_.get(), name.c_str())) {
         return false;
