@@ -28,7 +28,6 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::ProfilePath;
-using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::testing::HasError;
 using ::android::base::testing::HasValue;
 using ::android::base::testing::WithMessage;
