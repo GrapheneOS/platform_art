@@ -37,6 +37,8 @@ Calling public java.lang.Class java.lang.Class.componentType() with params: []
 public java.lang.Class java.lang.Class.componentType() on (obsolete)class Main$Transform with [] = null
 Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() with params: []
 public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() on (obsolete)class Main$Transform with [] = null
+Calling public java.util.Optional java.lang.Class.describeConstable() with params: []
+public java.util.Optional java.lang.Class.describeConstable() on (obsolete)class Main$Transform with [] = Optional[ClassDesc[Main$Transform]]
 Calling public java.lang.String java.lang.Class.descriptorString() with params: []
 public java.lang.String java.lang.Class.descriptorString() on (obsolete)class Main$Transform with [] = LMain$Transform;
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
@@ -246,6 +248,8 @@ Calling public boolean java.lang.Class.isEnum() with params: []
 public boolean java.lang.Class.isEnum() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public boolean java.lang.Class.isFinalizable() with params: []
 public boolean java.lang.Class.isFinalizable() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
+Calling public boolean java.lang.Class.isHidden() with params: []
+public boolean java.lang.Class.isHidden() on (obsolete)class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isInstance(java.lang.Object) with params: [[null, foo, NOT_USED_STRING, class Main$Transform]]
 public boolean java.lang.Class.isInstance(java.lang.Object) on (obsolete)class Main$Transform with [null] = false
 public boolean java.lang.Class.isInstance(java.lang.Object) on (obsolete)class Main$Transform with [foo] = false
@@ -305,6 +309,8 @@ Calling public java.lang.Class java.lang.Class.componentType() with params: []
 public java.lang.Class java.lang.Class.componentType() on class Main$Transform with [] = null
 Calling public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() with params: []
 public java.lang.invoke.TypeDescriptor$OfField java.lang.Class.componentType() on class Main$Transform with [] = null
+Calling public java.util.Optional java.lang.Class.describeConstable() with params: []
+public java.util.Optional java.lang.Class.describeConstable() on class Main$Transform with [] = Optional[ClassDesc[Main$Transform]]
 Calling public java.lang.String java.lang.Class.descriptorString() with params: []
 public java.lang.String java.lang.Class.descriptorString() on class Main$Transform with [] = LMain$Transform;
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
@@ -514,6 +520,8 @@ Calling public boolean java.lang.Class.isEnum() with params: []
 public boolean java.lang.Class.isEnum() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isFinalizable() with params: []
 public boolean java.lang.Class.isFinalizable() on class Main$Transform with [] = false
+Calling public boolean java.lang.Class.isHidden() with params: []
+public boolean java.lang.Class.isHidden() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isInstance(java.lang.Object) with params: [[null, foo, NOT_USED_STRING, class Main$Transform]]
 public boolean java.lang.Class.isInstance(java.lang.Object) on class Main$Transform with [null] = false
 public boolean java.lang.Class.isInstance(java.lang.Object) on class Main$Transform with [foo] = false
