@@ -17,65 +17,82 @@
 #ifndef ART_RUNTIME_BASE_ATOMIC_PAIR_H_
 #define ART_RUNTIME_BASE_ATOMIC_PAIR_H_
 
-#include "base/macros.h"
+#include <android-base/logging.h>
 
+#include <atomic>
 #include <type_traits>
 
+#include "base/macros.h"
+
 namespace art {
+
+// Implement 16-byte atomic pair using the seq-lock synchronization algorithm.
+// This is currently only used for DexCache.
+//
+// This uses top 4-bytes of the key as version counter and lock bit,
+// which means the stored pair key can not use those bytes.
+//
+// This allows us to read the cache without exclusive access to the cache line.
+//
+// The 8-byte atomic pair uses the normal single-instruction implementation.
+//
+static constexpr uint64_t kSeqMask = (0xFFFFFFFFull << 32);
+static constexpr uint64_t kSeqLock = (0x80000000ull << 32);
+static constexpr uint64_t kSeqIncr = (0x00000001ull << 32);
 
 // std::pair<> is not trivially copyable and as such it is unsuitable for atomic operations.
 template <typename IntType>
 struct PACKED(2 * sizeof(IntType)) AtomicPair {
   static_assert(std::is_integral_v<IntType>);
 
-  constexpr AtomicPair() : first(0), second(0) { }
-  AtomicPair(IntType f, IntType s) : first(f), second(s) { }
-  AtomicPair(const AtomicPair&) = default;
-  AtomicPair& operator=(const AtomicPair&) = default;
+  AtomicPair(IntType f, IntType s) : key(f), val(s) {}
 
-  IntType first;
-  IntType second;
+  IntType key;
+  IntType val;
 };
 
 template <typename IntType>
-ALWAYS_INLINE static inline AtomicPair<IntType> AtomicPairLoadAcquire(
-    std::atomic<AtomicPair<IntType>>* target) {
+ALWAYS_INLINE static inline AtomicPair<IntType> AtomicPairLoadAcquire(AtomicPair<IntType>* pair) {
+  static_assert(std::is_trivially_copyable<AtomicPair<IntType>>::value);
+  auto* target = reinterpret_cast<std::atomic<AtomicPair<IntType>>*>(pair);
   return target->load(std::memory_order_acquire);
 }
 
 template <typename IntType>
-ALWAYS_INLINE static inline void AtomicPairStoreRelease(std::atomic<AtomicPair<IntType>>* target,
+ALWAYS_INLINE static inline void AtomicPairStoreRelease(AtomicPair<IntType>* pair,
                                                         AtomicPair<IntType> value) {
+  static_assert(std::is_trivially_copyable<AtomicPair<IntType>>::value);
+  auto* target = reinterpret_cast<std::atomic<AtomicPair<IntType>>*>(pair);
   target->store(value, std::memory_order_release);
 }
 
-// LLVM uses generic lock-based implementation for x86_64, we can do better with CMPXCHG16B.
-#if defined(__x86_64__)
-ALWAYS_INLINE static inline AtomicPair<uint64_t> AtomicPairLoadAcquire(
-    std::atomic<AtomicPair<uint64_t>>* target) {
-  uint64_t first, second;
-  __asm__ __volatile__(
-      "lock cmpxchg16b (%2)"
-      : "=&a"(first), "=&d"(second)
-      : "r"(target), "a"(0), "d"(0), "b"(0), "c"(0)
-      : "cc");
-  return {first, second};
+ALWAYS_INLINE static inline AtomicPair<uint64_t> AtomicPairLoadAcquire(AtomicPair<uint64_t>* pair) {
+  auto* key_ptr = reinterpret_cast<std::atomic_uint64_t*>(&pair->key);
+  auto* val_ptr = reinterpret_cast<std::atomic_uint64_t*>(&pair->val);
+  while (true) {
+    uint64_t key0 = key_ptr->load(std::memory_order_acquire);
+    uint64_t val = val_ptr->load(std::memory_order_acquire);
+    uint64_t key1 = key_ptr->load(std::memory_order_relaxed);
+    uint64_t key = key0 & ~kSeqMask;
+    if (LIKELY((key0 & kSeqLock) == 0 && key0 == key1)) {
+      return {key, val};
+    }
+  }
 }
 
-ALWAYS_INLINE static inline void AtomicPairStoreRelease(
-    std::atomic<AtomicPair<uint64_t>>* target, AtomicPair<uint64_t> value) {
-  uint64_t first, second;
-  __asm__ __volatile__ (
-      "movq (%2), %%rax\n\t"
-      "movq 8(%2), %%rdx\n\t"
-      "1:\n\t"
-      "lock cmpxchg16b (%2)\n\t"
-      "jnz 1b"
-      : "=&a"(first), "=&d"(second)
-      : "r"(target), "b"(value.first), "c"(value.second)
-      : "cc");
+ALWAYS_INLINE static inline void AtomicPairStoreRelease(AtomicPair<uint64_t>* pair,
+                                                        AtomicPair<uint64_t> value) {
+  DCHECK((value.key & kSeqMask) == 0) << "Key=0x" << std::hex << value.key;
+  auto* key_ptr = reinterpret_cast<std::atomic_uint64_t*>(&pair->key);
+  auto* val_ptr = reinterpret_cast<std::atomic_uint64_t*>(&pair->val);
+  uint64_t key = key_ptr->load(std::memory_order_relaxed);
+  do {
+    key &= ~kSeqLock;  // Ensure that the CAS below fails if the lock bit is already set.
+  } while (!key_ptr->compare_exchange_weak(key, key | kSeqLock));
+  key = (((key & kSeqMask) + kSeqIncr) & ~kSeqLock) | (value.key & ~kSeqMask);
+  val_ptr->store(value.val, std::memory_order_release);
+  key_ptr->store(key, std::memory_order_release);
 }
-#endif  // defined(__x86_64__)
 
 }  // namespace art
 
