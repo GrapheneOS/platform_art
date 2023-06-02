@@ -174,7 +174,7 @@ class AssemblerTestBase : public testing::Test {
                 "--disassemble",
                 "--no-print-imm-hex",
                 "--no-show-raw-insn",
-                "--mattr=+F,+D",  // Disassemble "F" and "D" Standard Extensions.
+                "--mattr=+F,+D,+A",  // Disassemble "F", "D" and "A" Standard Extensions.
                 "-M",
                 "no-aliases"};
       default:
