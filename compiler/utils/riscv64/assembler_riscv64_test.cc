@@ -531,7 +531,83 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     DriverStr(expected, test_name);
   }
 
+  std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, uint32_t),
+                           const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::vector<int64_t> imms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
+    std::string str;
+    for (XRegister* reg1 : GetRegisters()) {
+      for (XRegister* reg2 : GetRegisters()) {
+        for (int64_t imm : imms) {
+          (GetAssembler()->*f)(*reg1, *reg2, dchecked_integral_cast<uint32_t>(imm));
+          std::string base = fmt;
+
+          ReplaceReg(REG1_TOKEN, GetRegisterName(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, GetRegisterName(*reg2), &base);
+          ReplaceAqRl(imm, &base);
+
+          str += base;
+          str += "\n";
+        }
+      }
+    }
+    return str;
+  }
+
+  std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, uint32_t),
+                            const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::vector<int64_t> imms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
+    std::string str;
+    for (XRegister* reg1 : GetRegisters()) {
+      for (XRegister* reg2 : GetRegisters()) {
+        for (XRegister* reg3 : GetRegisters()) {
+          for (int64_t imm : imms) {
+            (GetAssembler()->*f)(*reg1, *reg2, *reg3, dchecked_integral_cast<uint32_t>(imm));
+            std::string base = fmt;
+
+            ReplaceReg(REG1_TOKEN, GetRegisterName(*reg1), &base);
+            ReplaceReg(REG2_TOKEN, GetRegisterName(*reg2), &base);
+            ReplaceReg(REG3_TOKEN, GetRegisterName(*reg3), &base);
+            ReplaceAqRl(imm, &base);
+
+            str += base;
+            str += "\n";
+          }
+        }
+      }
+    }
+    return str;
+  }
+
  private:
+  static constexpr const char* AQRL_TOKEN = "{aqrl}";
+
+  void ReplaceAqRl(int64_t aqrl, /*inout*/ std::string* str) {
+    const char* replacement;
+    switch (aqrl) {
+      case 0:
+        replacement = "";
+        break;
+      case 1:
+        replacement = ".rl";
+        break;
+      case 2:
+        replacement = ".aq";
+        break;
+      case 3:
+        replacement = ".aqrl";
+        break;
+      default:
+        LOG(FATAL) << "Unexpected value for `aqrl`: " << aqrl;
+        UNREACHABLE();
+    }
+    size_t aqrl_index = str->find(AQRL_TOKEN);
+    if (aqrl_index != std::string::npos) {
+      str->replace(aqrl_index, ConstexprStrLen(AQRL_TOKEN), replacement);
+    }
+  }
+
   std::vector<riscv64::XRegister*> registers_;
   std::map<riscv64::XRegister, std::string, RISCV64CpuRegisterCompare> secondary_register_names_;
 
@@ -762,6 +838,46 @@ TEST_F(AssemblerRISCV64Test, Sraw) {
   DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Sraw, "sraw {reg1}, {reg2}, {reg3}"), "Sraw");
 }
 
+TEST_F(AssemblerRISCV64Test, Fence) {
+  auto get_fence_type_string = [](uint32_t fence_type) {
+    CHECK_LE(fence_type, 0xfu);
+    std::string result;
+    if ((fence_type & kFenceInput) != 0u) {
+      result += "i";
+    }
+    if ((fence_type & kFenceOutput) != 0u) {
+      result += "o";
+    }
+    if ((fence_type & kFenceRead) != 0u) {
+      result += "r";
+    }
+    if ((fence_type & kFenceWrite) != 0u) {
+      result += "w";
+    }
+    if (result.empty()) {
+      result += "0";
+    }
+    return result;
+  };
+
+  std::string expected;
+  // Note: The `pred` and `succ` are 4 bits each.
+  // Some combinations are not really useful but the assembler can emit them all.
+  for (uint32_t pred = 0u; pred != 0x10; ++pred) {
+    for (uint32_t succ = 0u; succ != 0x10; ++succ) {
+      __ Fence(pred, succ);
+      expected +=
+          "fence " + get_fence_type_string(pred) + ", " + get_fence_type_string(succ) + "\n";
+    }
+  }
+  DriverStr(expected, "Fence");
+}
+
+TEST_F(AssemblerRISCV64Test, FenceI) {
+  __ FenceI();
+  DriverStr("fence.i", "FenceI");
+}
+
 TEST_F(AssemblerRISCV64Test, Mul) {
   DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Mul, "mul {reg1}, {reg2}, {reg3}"), "Mul");
 }
@@ -812,6 +928,132 @@ TEST_F(AssemblerRISCV64Test, Remw) {
 
 TEST_F(AssemblerRISCV64Test, Remuw) {
   DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Remuw, "remuw {reg1}, {reg2}, {reg3}"), "Remuw");
+}
+
+TEST_F(AssemblerRISCV64Test, LrW) {
+  DriverStr(RepeatRRAqRl(&riscv64::Riscv64Assembler::LrW, "lr.w{aqrl} {reg1}, ({reg2})"), "LrW");
+}
+
+TEST_F(AssemblerRISCV64Test, LrD) {
+  DriverStr(RepeatRRAqRl(&riscv64::Riscv64Assembler::LrD, "lr.d{aqrl} {reg1}, ({reg2})"), "LrD");
+}
+
+TEST_F(AssemblerRISCV64Test, ScW) {
+  DriverStr(RepeatRRRAqRl(&riscv64::Riscv64Assembler::ScW, "sc.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "ScW");
+}
+
+TEST_F(AssemblerRISCV64Test, ScD) {
+  DriverStr(RepeatRRRAqRl(&riscv64::Riscv64Assembler::ScD, "sc.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "ScD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoSwapW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoSwapW, "amoswap.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoSwapW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoSwapD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoSwapD, "amoswap.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoSwapD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoAddW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoAddW, "amoadd.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoAddW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoAddD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoAddD, "amoadd.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoAddD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoXorW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoXorW, "amoxor.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoXorW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoXorD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoXorD, "amoxor.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoXorD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoAndW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoAndW, "amoand.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoAndW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoAndD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoAndD, "amoand.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoAndD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoOrW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoOrW, "amoor.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoOrW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoOrD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoOrD, "amoor.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoOrD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMinW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMinW, "amomin.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMinW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMinD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMinD, "amomin.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMinD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMaxW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMaxW, "amomax.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMaxW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMaxD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMaxD, "amomax.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMaxD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMinuW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMinuW, "amominu.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMinuW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMinuD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMinuD, "amominu.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMinuD");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMaxuW) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMaxuW, "amomaxu.w{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMaxuW");
+}
+
+TEST_F(AssemblerRISCV64Test, AmoMaxuD) {
+  DriverStr(RepeatRRRAqRl(
+                &riscv64::Riscv64Assembler::AmoMaxuD, "amomaxu.d{aqrl} {reg1}, {reg2}, ({reg3})"),
+            "AmoMaxuD");
 }
 
 TEST_F(AssemblerRISCV64Test, FLw) {
