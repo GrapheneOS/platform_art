@@ -52,6 +52,16 @@ static constexpr size_t kRiscv64HalfwordSize = 2;
 static constexpr size_t kRiscv64WordSize = 4;
 static constexpr size_t kRiscv64DoublewordSize = 8;
 
+// the type for fence
+enum FenceType {
+  kFenceNone = 0,
+  kFenceWrite = 1,
+  kFenceRead = 2,
+  kFenceOutput = 4,
+  kFenceInput = 8,
+  kFenceDefault = 0xf,
+};
+
 class Riscv64Label : public Label {
  public:
   Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
@@ -220,6 +230,12 @@ class Riscv64Assembler final : public Assembler {
   void Srlw(XRegister rd, XRegister rs1, XRegister rs2);
   void Sraw(XRegister rd, XRegister rs1, XRegister rs2);
 
+  // Fence instruction (RV32I): opcode = 0xf, funct3 = 0
+  void Fence(uint32_t pred = kFenceDefault, uint32_t succ = kFenceDefault);
+
+  // "Zifencei" Standard Extension, opcode = 0xf, funct3 = 1
+  void FenceI();
+
   // RV32M Standard Extension: opcode = 0x33, funct3 from 0x0 ~ 0x7
   void Mul(XRegister rd, XRegister rs1, XRegister rs2);
   void Mulh(XRegister rd, XRegister rs1, XRegister rs2);
@@ -236,6 +252,30 @@ class Riscv64Assembler final : public Assembler {
   void Divuw(XRegister rd, XRegister rs1, XRegister rs2);
   void Remw(XRegister rd, XRegister rs1, XRegister rs2);
   void Remuw(XRegister rd, XRegister rs1, XRegister rs2);
+
+  // RV32A/RV64A Standard Extension
+  void LrW(XRegister rd, XRegister rs1, uint32_t aqrl);
+  void LrD(XRegister rd, XRegister rs1, uint32_t aqrl);
+  void ScW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void ScD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
 
   // FP load/store instructions (RV32F+RV32D): opcode = 0x07, 0x27
   void FLw(FRegister rd, XRegister rs1, int32_t offset);
