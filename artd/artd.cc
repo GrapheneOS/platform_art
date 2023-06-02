@@ -807,7 +807,7 @@ ndk::ScopedAStatus Artd::dexopt(
 
   std::unique_ptr<ClassLoaderContext> context = nullptr;
   if (in_classLoaderContext.has_value()) {
-    context = ClassLoaderContext::Create(in_classLoaderContext->c_str());
+    context = ClassLoaderContext::Create(in_classLoaderContext.value());
     if (context == nullptr) {
       return Fatal(
           ART_FORMAT("Class loader context '{}' is invalid", in_classLoaderContext.value()));
@@ -896,7 +896,7 @@ ndk::ScopedAStatus Artd::dexopt(
   std::vector<std::unique_ptr<File>> context_files;
   if (context != nullptr) {
     std::vector<std::string> flattened_context = context->FlattenDexPaths();
-    std::string dex_dir = Dirname(in_dexFile.c_str());
+    std::string dex_dir = Dirname(in_dexFile);
     std::vector<int> context_fds;
     for (const std::string& context_element : flattened_context) {
       std::string context_path = std::filesystem::path(dex_dir).append(context_element);
