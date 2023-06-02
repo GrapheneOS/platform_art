@@ -41,7 +41,11 @@ enum class FPRoundingMode : uint32_t {
   kRUP = 0x3,  // Round Up (towards +Infinity)
   kRMM = 0x4,  // Round to Nearest, ties to Max Magnitude
   kDYN = 0x7,  // Dynamic rounding mode
-  kDefault = kDYN
+  kDefault = kDYN,
+  // Some instructions never need to round even though the spec includes the RM field.
+  // To simplify testing, emit the RM as 0 by default for these instructions because that's what
+  // `clang` does and because the `llvm-objdump` fails to disassemble the other rounding modes.
+  kIgnored = 0
 };
 
 static constexpr size_t kRiscv64HalfwordSize = 2;
@@ -49,17 +53,97 @@ static constexpr size_t kRiscv64WordSize = 4;
 static constexpr size_t kRiscv64DoublewordSize = 8;
 
 class Riscv64Label : public Label {
+ public:
+  Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
+
+  Riscv64Label(Riscv64Label&& src)
+      : Label(std::move(src)), prev_branch_id_(src.prev_branch_id_) {}
+
+ private:
+  static constexpr uint32_t kNoPrevBranchId = std::numeric_limits<uint32_t>::max();
+
+  uint32_t prev_branch_id_;  // To get distance from preceding branch, if any.
+
+  friend class Riscv64Assembler;
+  DISALLOW_COPY_AND_ASSIGN(Riscv64Label);
+};
+
+// Assembler literal is a value embedded in code, retrieved using a PC-relative load.
+class Literal {
+ public:
+  static constexpr size_t kMaxSize = 8;
+
+  Literal(uint32_t size, const uint8_t* data) : label_(), size_(size) {
+    DCHECK_LE(size, Literal::kMaxSize);
+    memcpy(data_, data, size);
+  }
+
+  template <typename T>
+  T GetValue() const {
+    DCHECK_EQ(size_, sizeof(T));
+    T value;
+    memcpy(&value, data_, sizeof(T));
+    return value;
+  }
+
+  uint32_t GetSize() const { return size_; }
+
+  const uint8_t* GetData() const { return data_; }
+
+  Riscv64Label* GetLabel() { return &label_; }
+
+  const Riscv64Label* GetLabel() const { return &label_; }
+
+ private:
+  Riscv64Label label_;
+  const uint32_t size_;
+  uint8_t data_[kMaxSize];
+
+  DISALLOW_COPY_AND_ASSIGN(Literal);
+};
+
+// Jump table: table of labels emitted after the code and before the literals. Similar to literals.
+class JumpTable {
+ public:
+  explicit JumpTable(ArenaVector<Riscv64Label*>&& labels) : label_(), labels_(std::move(labels)) {}
+
+  size_t GetSize() const { return labels_.size() * sizeof(int32_t); }
+
+  const ArenaVector<Riscv64Label*>& GetData() const { return labels_; }
+
+  Riscv64Label* GetLabel() { return &label_; }
+
+  const Riscv64Label* GetLabel() const { return &label_; }
+
+ private:
+  Riscv64Label label_;
+  ArenaVector<Riscv64Label*> labels_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTable);
 };
 
 class Riscv64Assembler final : public Assembler {
  public:
   explicit Riscv64Assembler(ArenaAllocator* allocator,
                             const Riscv64InstructionSetFeatures* instruction_set_features = nullptr)
-      : Assembler(allocator) {
+      : Assembler(allocator),
+        branches_(allocator->Adapter(kArenaAllocAssembler)),
+        overwriting_(false),
+        overwrite_location_(0),
+        literals_(allocator->Adapter(kArenaAllocAssembler)),
+        long_literals_(allocator->Adapter(kArenaAllocAssembler)),
+        jump_tables_(allocator->Adapter(kArenaAllocAssembler)),
+        last_position_adjustment_(0),
+        last_old_position_(0),
+        last_branch_id_(0) {
     UNUSED(instruction_set_features);
+    cfi().DelayEmittingAdvancePCs();
   }
 
   virtual ~Riscv64Assembler() {
+    for (auto& branch : branches_) {
+      CHECK(branch.IsResolved());
+    }
   }
 
   size_t CodeSize() const override { return Assembler::CodeSize(); }
@@ -254,7 +338,7 @@ class Riscv64Assembler final : public Assembler {
     FCvtSD(rd, rs1, FPRoundingMode::kDefault);
   }
   void FCvtDS(FRegister rd, FRegister rs1) {
-    FCvtDS(rd, rs1, FPRoundingMode::kDefault);
+    FCvtDS(rd, rs1, FPRoundingMode::kIgnored);
   }
 
   // FP compare instructions (RV32F+RV32D): opcode = 0x53, funct7 = 0b101000D
@@ -293,9 +377,9 @@ class Riscv64Assembler final : public Assembler {
   void FCvtLuS(XRegister rd, FRegister rs1) { FCvtLuS(rd, rs1, FPRoundingMode::kDefault); }
   void FCvtLuD(XRegister rd, FRegister rs1) { FCvtLuD(rd, rs1, FPRoundingMode::kDefault); }
   void FCvtSW(FRegister rd, XRegister rs1) { FCvtSW(rd, rs1, FPRoundingMode::kDefault); }
-  void FCvtDW(FRegister rd, XRegister rs1) { FCvtDW(rd, rs1, FPRoundingMode::kDefault); }
+  void FCvtDW(FRegister rd, XRegister rs1) { FCvtDW(rd, rs1, FPRoundingMode::kIgnored); }
   void FCvtSWu(FRegister rd, XRegister rs1) { FCvtSWu(rd, rs1, FPRoundingMode::kDefault); }
-  void FCvtDWu(FRegister rd, XRegister rs1) { FCvtDWu(rd, rs1, FPRoundingMode::kDefault); }
+  void FCvtDWu(FRegister rd, XRegister rs1) { FCvtDWu(rd, rs1, FPRoundingMode::kIgnored); }
   void FCvtSL(FRegister rd, XRegister rs1) { FCvtSL(rd, rs1, FPRoundingMode::kDefault); }
   void FCvtDL(FRegister rd, XRegister rs1) { FCvtDL(rd, rs1, FPRoundingMode::kDefault); }
   void FCvtSLu(FRegister rd, XRegister rs1) { FCvtSLu(rd, rs1, FPRoundingMode::kDefault); }
@@ -356,14 +440,61 @@ class Riscv64Assembler final : public Assembler {
   void Jalr(XRegister rd, XRegister rs);
   void Ret();
 
+  // Jumps and branches to a label.
+  void Beqz(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Bnez(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Blez(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Bgez(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Bltz(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Bgtz(XRegister rs, Riscv64Label* label, bool is_bare = false);
+  void Beq(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bne(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Ble(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bge(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Blt(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bgt(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bleu(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bgeu(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bltu(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Bgtu(XRegister rs, XRegister rt, Riscv64Label* label, bool is_bare = false);
+  void Jal(XRegister rd, Riscv64Label* label, bool is_bare = false);
+  void J(Riscv64Label* label, bool is_bare = false);
+  void Jal(Riscv64Label* label, bool is_bare = false);
+
+  // Literal load.
+  void Lw(XRegister rd, Literal* literal);
+  void Lwu(XRegister rd, Literal* literal);
+  void Ld(XRegister rd, Literal* literal);
+
   /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
-  void Bind([[maybe_unused]] Label* label) override {
-    UNIMPLEMENTED(FATAL) << "TODO: Support branches.";
-  }
+  void Bind(Label* label) override { Bind(down_cast<Riscv64Label*>(label)); }
+
   void Jump([[maybe_unused]] Label* label) override {
     UNIMPLEMENTED(FATAL) << "Do not use Jump for RISCV64";
   }
+
+  void Bind(Riscv64Label* label);
+
+  // Load label address using PC-relative loads.
+  void LoadLabelAddress(XRegister rd, Riscv64Label* label);
+
+  // Create a new literal with a given value.
+  // NOTE:Use `Identity<>` to force the template parameter to be explicitly specified.
+  template <typename T>
+  Literal* NewLiteral(typename Identity<T>::type value) {
+    static_assert(std::is_integral<T>::value, "T must be an integral type.");
+    return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
+  }
+
+  // Create a new literal with the given data.
+  Literal* NewLiteral(size_t size, const uint8_t* data);
+
+  // Create a jump table for the given labels that will be emitted when finalizing.
+  // When the table is emitted, offsets will be relative to the location of the table.
+  // The table location is determined by the location of its label (the label precedes
+  // the table data) and should be loaded using LoadLabelAddress().
+  JumpTable* CreateJumpTable(ArenaVector<Riscv64Label*>&& labels);
 
  public:
   // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
@@ -375,7 +506,197 @@ class Riscv64Assembler final : public Assembler {
   // Emit branches and finalize all instructions.
   void FinalizeInstructions(const MemoryRegion& region) override;
 
+  // Returns the current location of a label.
+  //
+  // This function must be used instead of `Riscv64Label::GetPosition()`
+  // which returns assembler's internal data instead of an actual location.
+  //
+  // The location can change during branch fixup in `FinalizeCode()`. Before that,
+  // the location is not final and therefore not very useful to external users,
+  // so they should preferably retrieve the location only after `FinalizeCode()`.
+  uint32_t GetLabelLocation(const Riscv64Label* label) const;
+
+  // Get the final position of a label after local fixup based on the old position
+  // recorded before FinalizeCode().
+  uint32_t GetAdjustedPosition(uint32_t old_position);
+
  private:
+  enum BranchCondition : uint8_t {
+    kCondEQ,
+    kCondNE,
+    kCondLT,
+    kCondGE,
+    kCondLE,
+    kCondGT,
+    kCondLTU,
+    kCondGEU,
+    kCondLEU,
+    kCondGTU,
+    kUncond,
+  };
+
+  // Note that PC-relative literal loads are handled as pseudo branches because they need
+  // to be emitted after branch relocation to use correct offsets.
+  class Branch {
+   public:
+    enum Type : uint8_t {
+      // TODO(riscv64): Support 16-bit instructions ("C" Standard Extension).
+
+      // Short branches (can be promoted to longer).
+      kCondBranch,
+      kUncondBranch,
+      kCall,
+      // Short branches (can't be promoted to longer).
+      // TODO(riscv64): Do we need these (untested) bare branches, or can we remove them?
+      kBareCondBranch,
+      kBareUncondBranch,
+      kBareCall,
+
+      // Medium branch (can be promoted to long).
+      kCondBranch21,
+
+      // Long branches.
+      kLongCondBranch,
+      kLongUncondBranch,
+      kLongCall,
+
+      // Label.
+      kLabel,
+
+      // Literals.
+      kLiteral,
+      kLiteralUnsigned,
+      kLiteralLong,
+      // TODO(riscv64): Add FP literals.
+    };
+
+    // Bit sizes of offsets defined as enums to minimize chance of typos.
+    enum OffsetBits {
+      kOffset13 = 13,
+      kOffset21 = 21,
+      kOffset32 = 32,
+    };
+
+    static constexpr uint32_t kUnresolved = 0xffffffff;  // Unresolved target_
+    static constexpr uint32_t kMaxBranchLength = 12;  // In bytes.
+
+    struct BranchInfo {
+      // Branch length in bytes.
+      uint32_t length;
+      // The offset in bytes of the PC used in the (only) PC-relative instruction from
+      // the start of the branch sequence. RISC-V always uses the address of the PC-relative
+      // instruction as the PC, so this is essentially the offset of that instruction.
+      uint32_t pc_offset;
+      // How large (in bits) a PC-relative offset can be for a given type of branch.
+      OffsetBits offset_size;
+    };
+    static const BranchInfo branch_info_[/* Type */];
+
+    // Unconditional branch or call.
+    Branch(uint32_t location, uint32_t target, XRegister rd, bool is_bare);
+    // Conditional branch.
+    Branch(uint32_t location,
+           uint32_t target,
+           BranchCondition condition,
+           XRegister lhs_reg,
+           XRegister rhs_reg,
+           bool is_bare);
+    // Label address (in literal area) or literal.
+    Branch(uint32_t location, uint32_t target, XRegister rd, Type label_or_literal_type);
+
+    // Some conditional branches with lhs = rhs are effectively NOPs, while some
+    // others are effectively unconditional.
+    static bool IsNop(BranchCondition condition, XRegister lhs, XRegister rhs);
+    static bool IsUncond(BranchCondition condition, XRegister lhs, XRegister rhs);
+
+    static BranchCondition OppositeCondition(BranchCondition cond);
+
+    Type GetType() const;
+    BranchCondition GetCondition() const;
+    XRegister GetLeftRegister() const;
+    XRegister GetRightRegister() const;
+    uint32_t GetTarget() const;
+    uint32_t GetLocation() const;
+    uint32_t GetOldLocation() const;
+    uint32_t GetLength() const;
+    uint32_t GetOldLength() const;
+    uint32_t GetEndLocation() const;
+    uint32_t GetOldEndLocation() const;
+    bool IsBare() const;
+    bool IsResolved() const;
+
+    // Returns the bit size of the signed offset that the branch instruction can handle.
+    OffsetBits GetOffsetSize() const;
+
+    // Calculates the distance between two byte locations in the assembler buffer and
+    // returns the number of bits needed to represent the distance as a signed integer.
+    static OffsetBits GetOffsetSizeNeeded(uint32_t location, uint32_t target);
+
+    // Resolve a branch when the target is known.
+    void Resolve(uint32_t target);
+
+    // Relocate a branch by a given delta if needed due to expansion of this or another
+    // branch at a given location by this delta (just changes location_ and target_).
+    void Relocate(uint32_t expand_location, uint32_t delta);
+
+    // If necessary, updates the type by promoting a short branch to a longer branch
+    // based on the branch location and target. Returns the amount (in bytes) by
+    // which the branch size has increased.
+    uint32_t PromoteIfNeeded();
+
+    // Returns the offset into assembler buffer that shall be used as the base PC for
+    // offset calculation. RISC-V always uses the address of the PC-relative instruction
+    // as the PC, so this is essentially the location of that instruction.
+    uint32_t GetOffsetLocation() const;
+
+    // Calculates and returns the offset ready for encoding in the branch instruction(s).
+    int32_t GetOffset() const;
+
+   private:
+    // Completes branch construction by determining and recording its type.
+    void InitializeType(Type initial_type);
+    // Helper for the above.
+    void InitShortOrLong(OffsetBits ofs_size, Type short_type, Type long_type, Type longest_type);
+
+    uint32_t old_location_;  // Offset into assembler buffer in bytes.
+    uint32_t location_;      // Offset into assembler buffer in bytes.
+    uint32_t target_;        // Offset into assembler buffer in bytes.
+
+    XRegister lhs_reg_;          // Left-hand side register in conditional branches or
+                                 // destination register in calls or literals.
+    XRegister rhs_reg_;          // Right-hand side register in conditional branches.
+    BranchCondition condition_;  // Condition for conditional branches.
+
+    Type type_;      // Current type of the branch.
+    Type old_type_;  // Initial type of the branch.
+  };
+
+  // Branch and literal fixup.
+
+  void EmitBcond(BranchCondition cond, XRegister rs, XRegister rt, int32_t offset);
+  void EmitBranch(Branch* branch);
+  void EmitBranches();
+  void EmitJumpTables();
+  void EmitLiterals();
+
+  void FinalizeLabeledBranch(Riscv64Label* label);
+  void Bcond(Riscv64Label* label,
+             bool is_bare,
+             BranchCondition condition,
+             XRegister lhs,
+             XRegister rhs);
+  void Buncond(Riscv64Label* label, XRegister rd, bool is_bare);
+  void LoadLiteral(Literal* literal, XRegister rd, Branch::Type literal_type);
+
+  Branch* GetBranch(uint32_t branch_id);
+  const Branch* GetBranch(uint32_t branch_id) const;
+
+  void ReserveJumpTableSpace();
+  void PromoteBranches();
+  void PatchCFI();
+
+  // Emit helpers.
+
   template <typename Reg1, typename Reg2>
   void EmitI(int32_t imm12, Reg1 rs1, uint32_t funct3, Reg2 rd, uint32_t opcode) {
     DCHECK(IsInt<12>(imm12)) << imm12;
@@ -490,6 +811,26 @@ class Riscv64Assembler final : public Assembler {
                         static_cast<uint32_t>(rd) << 7 | opcode;
     Emit(encoding);
   }
+
+  ArenaVector<Branch> branches_;
+
+  // Whether appending instructions at the end of the buffer or overwriting the existing ones.
+  bool overwriting_;
+  // The current overwrite location.
+  uint32_t overwrite_location_;
+
+  // Use `std::deque<>` for literal labels to allow insertions at the end
+  // without invalidating pointers and references to existing elements.
+  ArenaDeque<Literal> literals_;
+  ArenaDeque<Literal> long_literals_;  // 64-bit literals separated for alignment reasons.
+
+  // Jump table list.
+  ArenaDeque<JumpTable> jump_tables_;
+
+  // Data for `GetAdjustedPosition()`, see the description there.
+  uint32_t last_position_adjustment_;
+  uint32_t last_old_position_;
+  uint32_t last_branch_id_;
 
   static constexpr uint32_t kXlen = 64;
 
