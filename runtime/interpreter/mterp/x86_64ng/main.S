@@ -1987,6 +1987,7 @@ NterpPutObjectInstanceField:
    GET_VREG rINST, rINSTq                  # vB (object we're operating on)
    testl   rINST, rINST                    # is object null?
    je      common_errNullObject
+   POISON_HEAP_REF ecx
    movl %ecx, (rINSTq,%rax,1)
    testl %ecx, %ecx
    je 4f
@@ -2010,6 +2011,7 @@ NterpPutObjectInstanceField:
    testl   rINST, rINST                    # is object null?
    je      common_errNullObject
    negl %eax
+   POISON_HEAP_REF ecx
    movl %ecx, (rINSTq,%rax,1)
    testl %ecx, %ecx
    je 5f
@@ -2032,6 +2034,7 @@ NterpGetObjectInstanceField:
    testb $$READ_BARRIER_TEST_VALUE, GRAY_BYTE_OFFSET(%ecx)
    movl (%rcx,%rax,1), %eax
    jnz 3f
+   UNPOISON_HEAP_REF eax  // Affects flags, so we cannot unpoison before the jnz.
 4:
    andb    $$0xf,rINSTbl                   # rINST <- A
    SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
@@ -2050,6 +2053,7 @@ NterpGetObjectInstanceField:
    negl %eax
    jmp 1b
 3:
+   UNPOISON_HEAP_REF eax
    // reg00 is eax
    call art_quick_read_barrier_mark_reg00
    jmp 4b
@@ -2064,6 +2068,7 @@ NterpPutObjectStaticField:
    cmpq $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 3f
 5:
+   POISON_HEAP_REF ebp
    movl %ebp, (%eax, %edx, 1)
    testl %ebp, %ebp
    je 4f
@@ -2089,6 +2094,7 @@ NterpPutObjectStaticField:
    cmpq $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 7f
 6:
+   POISON_HEAP_REF ebp
    movl %ebp, (%eax, %edx, 1)
    testl %ebp, %ebp
    je 8f
@@ -2117,6 +2123,7 @@ NterpGetObjectStaticField:
    testb $$READ_BARRIER_TEST_VALUE, GRAY_BYTE_OFFSET(%eax)
    movl (%eax, %edx, 1), %eax
    jnz 3f
+   UNPOISON_HEAP_REF eax  // Affects flags, so we cannot unpoison before the jnz.
 4:
    SET_VREG_OBJECT %eax, rINSTq            # fp[A] <- value
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -2130,6 +2137,7 @@ NterpGetObjectStaticField:
    andq $$-2, %rax
    jmp 1b
 3:
+   UNPOISON_HEAP_REF eax
    call art_quick_read_barrier_mark_reg00
    jmp 4b
 5:

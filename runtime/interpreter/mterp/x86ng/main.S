@@ -2061,6 +2061,7 @@ NterpPutObjectInstanceField:
    GET_VREG rINST, rINST                   # vB (object we're operating on)
    testl   rINST, rINST                    # is object null?
    je      common_errNullObject
+   POISON_HEAP_REF ecx
    movl %ecx, (rINST, %eax, 1)
    testl %ecx, %ecx
    je 4f
@@ -2090,6 +2091,7 @@ NterpPutObjectInstanceField:
    GET_VREG rINST, rINST                   # vB (object we're operating on)
    testl   rINST, rINST                    # is object null?
    je      common_errNullObject
+   POISON_HEAP_REF ecx
    movl %ecx, (rINST, %eax, 1)
    testl %ecx, %ecx
    je 5f
@@ -2112,6 +2114,7 @@ NterpGetObjectInstanceField:
    testb $$READ_BARRIER_TEST_VALUE, GRAY_BYTE_OFFSET(%ecx)
    movl (%ecx,%eax,1), %eax
    jnz 3f
+   UNPOISON_HEAP_REF eax  // Affects flags, so we cannot unpoison before the jnz.
 4:
    andb    $$0xf,rINSTbl                   # rINST <- A
    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
@@ -2130,6 +2133,7 @@ NterpGetObjectInstanceField:
    negl %eax
    jmp 1b
 3:
+   UNPOISON_HEAP_REF eax
    // reg00 is eax
    call art_quick_read_barrier_mark_reg00
    jmp 4b
@@ -2144,6 +2148,7 @@ NterpPutObjectStaticField:
    cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 3f
 5:
+   POISON_HEAP_REF ebx  // `rINST` is `%ebx` but we need to pass `ebx`.
    movl rINST, (%eax, %ecx, 1)
    testl rINST, rINST
    je 4f
@@ -2169,6 +2174,7 @@ NterpPutObjectStaticField:
    cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 7f
 6:
+   POISON_HEAP_REF ebx  // `rINST` is `%ebx` but we need to pass `ebx`.
    movl rINST, (%eax, %ecx, 1)
    testl rINST, rINST
    je 8f
@@ -2197,6 +2203,7 @@ NterpGetObjectStaticField:
    testb $$READ_BARRIER_TEST_VALUE, GRAY_BYTE_OFFSET(%eax)
    movl (%eax, %ecx, 1), %eax
    jnz 3f
+   UNPOISON_HEAP_REF eax  // Affects flags, so we cannot unpoison before the jnz.
 4:
    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
@@ -2210,6 +2217,7 @@ NterpGetObjectStaticField:
    CLEAR_VOLATILE_MARKER %eax
    jmp 1b
 3:
+   UNPOISON_HEAP_REF eax
    call art_quick_read_barrier_mark_reg00
    jmp 4b
 5:

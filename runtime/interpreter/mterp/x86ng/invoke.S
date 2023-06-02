@@ -86,6 +86,7 @@
    .endif
    movl (rFP, %ecx, 4), %ecx
    movl MIRROR_OBJECT_CLASS_OFFSET(%ecx), %edx
+   UNPOISON_HEAP_REF edx
    // Test the first two bits of the fetched ArtMethod:
    // - If the first bit is set, this is a method on j.l.Object
    // - If the second bit is set, this is a default method.
@@ -163,6 +164,7 @@
    movl (rFP, %ecx, 4), %ecx
    // Note: if ecx is null, this will be handled by our SIGSEGV handler.
    movl MIRROR_OBJECT_CLASS_OFFSET(%ecx), %edx
+   UNPOISON_HEAP_REF edx
    movl MIRROR_CLASS_VTABLE_OFFSET_32(%edx, %eax, 4), %eax
    jmp $helper
 2:
