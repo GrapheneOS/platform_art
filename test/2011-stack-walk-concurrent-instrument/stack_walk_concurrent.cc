@@ -88,7 +88,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitAndInstrumentStack(JNIEnv*,
   CHECK(other != nullptr);
   ScopedSuspendAll ssa(__FUNCTION__);
   Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(other,
-                                                                  /* deopt_all_frames= */ false);
+                                                                  /* force_deopt= */ false);
   bool resumed = art::Runtime::Current()->GetThreadList()->Resume(other, SuspendReason::kInternal);
   CHECK(resumed);
   instrumented = true;
