@@ -70,7 +70,7 @@ void Riscv64Assembler::Emit(uint32_t value) {
 
 /////////////////////////////// RV64 VARIANTS extension ///////////////////////////////
 
-/////////////////////////////// RV64 "IM" Instructions ///////////////////////////////
+//////////////////////////////// RV64 "I" Instructions ////////////////////////////////
 
 // LUI/AUIPC (RV32I, with sign-extension on RV64I), opcode = 0x17, 0x37
 
@@ -295,6 +295,24 @@ void Riscv64Assembler::Sraw(XRegister rd, XRegister rs1, XRegister rs2) {
   EmitR(0x20, rs2, rs1, 0x5, rd, 0x3b);
 }
 
+// Fence instruction (RV32I): opcode = 0xf, funct3 = 0
+void Riscv64Assembler::Fence(uint32_t pred, uint32_t succ) {
+  DCHECK(IsUint<4>(pred));
+  DCHECK(IsUint<4>(succ));
+  EmitI(/* normal fence */ 0x0 << 8 | pred << 4 | succ, 0x0, 0x0, 0x0, 0xf);
+}
+
+//////////////////////////////// RV64 "I" Instructions  END ////////////////////////////////
+
+/////////////////////////// RV64 "Zifencei" Instructions  START ////////////////////////////
+
+// "Zifencei" Standard Extension, opcode = 0xf, funct3 = 1
+void Riscv64Assembler::FenceI() { EmitI(0x0, 0x0, 0x1, 0x0, 0xf); }
+
+//////////////////////////// RV64 "Zifencei" Instructions  END /////////////////////////////
+
+/////////////////////////////// RV64 "M" Instructions  START ///////////////////////////////
+
 // RV32M Standard Extension: opcode = 0x33, funct3 from 0x0 ~ 0x7
 
 void Riscv64Assembler::Mul(XRegister rd, XRegister rs1, XRegister rs2) {
@@ -351,7 +369,99 @@ void Riscv64Assembler::Remuw(XRegister rd, XRegister rs1, XRegister rs2) {
   EmitR(0x1, rs2, rs1, 0x7, rd, 0x3b);
 }
 
-/////////////////////////////// RV64 "IM" Instructions  END ///////////////////////////////
+//////////////////////////////// RV64 "M" Instructions  END ////////////////////////////////
+
+/////////////////////////////// RV64 "A" Instructions  START ///////////////////////////////
+
+void Riscv64Assembler::LrW(XRegister rd, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x2, aqrl, 0x0, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::LrD(XRegister rd, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x2, aqrl, 0x0, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::ScW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x3, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::ScD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x3, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x1, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x1, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x0, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x0, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x4, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x4, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0xc, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0xc, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x8, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x8, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x10, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x10, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x14, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x14, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x18, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x18, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x1c, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+}
+
+void Riscv64Assembler::AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
+  EmitR4(0x1c, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+}
+
+/////////////////////////////// RV64 "A" Instructions  END ///////////////////////////////
 
 /////////////////////////////// RV64 "FD" Instructions  START ///////////////////////////////
 
