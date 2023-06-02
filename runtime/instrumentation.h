@@ -557,9 +557,9 @@ class Instrumentation {
   //    example, after updating local variables)
   //  - to call method entry / exit hooks for tracing. For this we instrument
   //    the stack frame to run entry / exit hooks but we don't need to deoptimize.
-  // deopt_all_frames indicates whether the frames need to deoptimize or not.
-  void InstrumentThreadStack(Thread* thread, bool deopt_all_frames) REQUIRES(Locks::mutator_lock_);
-  void InstrumentAllThreadStacks(bool deopt_all_frames) REQUIRES(Locks::mutator_lock_)
+  // force_deopt indicates whether the frames need to deoptimize or not.
+  void InstrumentThreadStack(Thread* thread, bool force_deopt) REQUIRES(Locks::mutator_lock_);
+  void InstrumentAllThreadStacks(bool force_deopt) REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_);
 
   // Force all currently running frames to be deoptimized back to interpreter. This should only be
