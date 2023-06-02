@@ -142,8 +142,15 @@ class AssemblerTestBase : public testing::Test {
     InstructionSet isa = GetIsa();
     switch (isa) {
       case InstructionSet::kRiscv64:
-        // TODO: Support compression (RV32C) in assembler and tests (add `c` to `-march=`).
-        return {FindTool("clang"), "--compile", "-target", "riscv64-linux-gnu", "-march=rv64imafd"};
+        // TODO(riscv64): Support compression (RV32C) in assembler and tests (add `c` to `-march=`).
+        return {FindTool("clang"),
+                "--compile",
+                "-target",
+                "riscv64-linux-gnu",
+                "-march=rv64imafd",
+                // Force the assembler to fully emit branch instructions instead of leaving
+                // offsets unresolved with relocation information for the linker.
+                "-mno-relax"};
       case InstructionSet::kX86:
         return {FindTool("clang"), "--compile", "-target", "i386-linux-gnu"};
       case InstructionSet::kX86_64:
@@ -167,6 +174,7 @@ class AssemblerTestBase : public testing::Test {
                 "--disassemble",
                 "--no-print-imm-hex",
                 "--no-show-raw-insn",
+                "--mattr=+F,+D",  // Disassemble "F" and "D" Standard Extensions.
                 "-M",
                 "no-aliases"};
       default:
