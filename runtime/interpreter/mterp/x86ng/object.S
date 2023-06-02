@@ -7,6 +7,7 @@
    testl %eax, %eax
    je .L${opcode}_resume
    // Fast path without read barriers.
+   POISON_HEAP_REF ecx  // Poison class reference for in-memory comparison.
    cmpl MIRROR_OBJECT_CLASS_OFFSET(%eax), %ecx
    jne ${slow_path}
 .L${opcode}_resume:
@@ -21,6 +22,7 @@
    jmp 1b
 
 %def op_check_cast_slow_path():
+   UNPOISON_HEAP_REF ecx  // Unpoison class reference poisoned in main path.
    cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 2f
 1:
@@ -45,6 +47,7 @@
    testl %eax, %eax
    je .L${opcode}_resume
    // Fast path without read barriers.
+   POISON_HEAP_REF ecx  // Poison class reference for in-memory comparison.
    cmpl MIRROR_OBJECT_CLASS_OFFSET(%eax), %ecx
    jne ${slow_path}
 .L${opcode}_set_one:
@@ -63,6 +66,7 @@
    jmp 1b
 
 %def op_instance_of_slow_path():
+   UNPOISON_HEAP_REF ecx  // Unpoison class reference poisoned in main path.
    cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 2f
    testl $$MIRROR_CLASS_IS_INTERFACE_FLAG, MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%ecx)
@@ -70,8 +74,10 @@
    cmpl $$0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%ecx)
    jne 3f
    movl MIRROR_OBJECT_CLASS_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
 1:
    movl MIRROR_CLASS_SUPER_CLASS_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
    cmpl %eax, %ecx
    je .L${opcode}_set_one
    testl %eax, %eax

@@ -7,6 +7,7 @@
    testl %edi, %edi
    je .L${opcode}_resume
    // Fast path without read barriers.
+   POISON_HEAP_REF esi  // Poison class reference for in-memory comparison.
    cmpl MIRROR_OBJECT_CLASS_OFFSET(%edi), %esi
    jne ${slow_path}
 .L${opcode}_resume:
@@ -21,13 +22,16 @@
    jmp 1b
 
 %def op_check_cast_slow_path():
+   UNPOISON_HEAP_REF esi  // Unpoison class reference poisoned in main path.
    testl $$MIRROR_CLASS_IS_INTERFACE_FLAG, MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rsi)
    jne 2f
    movl MIRROR_OBJECT_CLASS_OFFSET(%edi), %eax
+   UNPOISON_HEAP_REF eax
    cmpl $$0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%rsi)
    jne 2f
 1:
    movl MIRROR_CLASS_SUPER_CLASS_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
    cmpl %eax, %esi
    je .L${opcode}_resume
    testl %eax, %eax
@@ -45,10 +49,12 @@
    jmp 3b
 5:
    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
    // Check if object is an array.
    testl %eax, %eax
    je 2b
    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%esi), %ecx
+   UNPOISON_HEAP_REF ecx
    cmpl $$0, MIRROR_CLASS_SUPER_CLASS_OFFSET(%ecx)
    jne 2b
    cmpw $$0, MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET(%ecx)
@@ -90,6 +96,7 @@
    testl %edi, %edi
    je .L${opcode}_set_vreg
    // Fast path without read barriers.
+   POISON_HEAP_REF esi  // Poison class reference for in-memory comparison.
    cmpl MIRROR_OBJECT_CLASS_OFFSET(%edi), %esi
    jne ${slow_path}
 .L${opcode}_set_one:
@@ -100,6 +107,7 @@
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 
 %def op_instance_of_slow_path():
+   UNPOISON_HEAP_REF esi  // Unpoison class reference poisoned in main path.
    // Go slow path if we are marking. Checking now allows
    // not going to slow path if the super class hierarchy check fails.
    cmpq $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
@@ -107,10 +115,12 @@
    testl $$MIRROR_CLASS_IS_INTERFACE_FLAG, MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rsi)
    jne 5f
    movl MIRROR_OBJECT_CLASS_OFFSET(%edi), %eax
+   UNPOISON_HEAP_REF eax
    cmpl $$0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%rsi)
    jne 3f
 1:
    movl MIRROR_CLASS_SUPER_CLASS_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
    cmpl %eax, %esi
    je .L${opcode}_set_one
    testl %eax, %eax
@@ -120,10 +130,12 @@
    jmp       .L${opcode}_resume
 3:
    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%eax), %eax
+   UNPOISON_HEAP_REF eax
    // Check if object is an array.
    testl %eax, %eax
    je 2b
    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%esi), %ecx
+   UNPOISON_HEAP_REF ecx
    cmpl $$0, MIRROR_CLASS_SUPER_CLASS_OFFSET(%ecx)
    jne 5f
    cmpw $$0, MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET(%ecx)

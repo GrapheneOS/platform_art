@@ -22,10 +22,12 @@
     testb $$READ_BARRIER_TEST_VALUE, GRAY_BYTE_OFFSET(%edi)
     $load   $data_offset(%rdi,%rsi,$shift), %eax
     jnz 2f
+    UNPOISON_HEAP_REF eax  // Affects flags, so we cannot unpoison before the jnz.
 1:
     SET_VREG_OBJECT %eax, rINSTq
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 2:
+    UNPOISON_HEAP_REF eax
     // reg00 is eax
     call art_quick_read_barrier_mark_reg00
     jmp 1b

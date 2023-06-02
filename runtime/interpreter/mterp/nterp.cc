@@ -19,6 +19,7 @@
  */
 #include "nterp.h"
 
+#include "arch/instruction_set.h"
 #include "base/quasi_atomic.h"
 #include "class_linker-inl.h"
 #include "dex/dex_instruction_utils.h"
@@ -35,8 +36,20 @@ namespace art {
 namespace interpreter {
 
 bool IsNterpSupported() {
-  return !kPoisonHeapReferences && kReserveMarkingRegister &&
-         kRuntimeISA != InstructionSet::kRiscv64;
+  switch (kRuntimeISA) {
+    case InstructionSet::kArm:
+    case InstructionSet::kThumb2:
+    case InstructionSet::kArm64:
+      return !kPoisonHeapReferences && kReserveMarkingRegister;
+    case InstructionSet::kRiscv64:
+      // TODO(riscv64): Support nterp.
+      return false;
+    case InstructionSet::kX86:
+    case InstructionSet::kX86_64:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
