@@ -72,7 +72,6 @@ using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
-using ::aidl::com::android::server::art::GetDexoptStatusResult;
 using ::aidl::com::android::server::art::IArtdCancellationSignal;
 using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
@@ -392,7 +391,7 @@ class ArtdTest : public CommonArtTest {
                  std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
     RunDexopt(Property(&ndk::ScopedAStatus::getExceptionCode, expected_status),
               std::move(aidl_return_matcher),
-              cancellation_signal);
+              std::move(cancellation_signal));
   }
 
   void RunDexopt(Matcher<ndk::ScopedAStatus> status_matcher,
