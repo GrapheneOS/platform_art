@@ -18,6 +18,7 @@
 #define ART_LIBDEXFILE_DEX_CLASS_ACCESSOR_H_
 
 #include "code_item_accessors.h"
+#include "dex/dex_file.h"
 #include "dex_file_types.h"
 #include "invoke_type.h"
 #include "modifiers.h"
@@ -279,7 +280,7 @@ class ClassAccessor {
 
   ClassAccessor(const DexFile& dex_file,
                 const uint8_t* class_data,
-                uint32_t class_def_index = dex::kDexNoIndex,
+                uint32_t class_def_index = DexFile::kDexNoIndex32,
                 bool parse_hiddenapi_class_data = false);
 
   // Return the code item for a method.
