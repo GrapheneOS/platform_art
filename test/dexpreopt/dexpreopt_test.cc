@@ -198,12 +198,7 @@ android::base::Result<std::vector<std::string>> GetSystemServerArtifactsMappedOd
   if (pids.size() != 1) {
     return Errorf("There should be exactly one `system_server` process, found {}", pids.size());
   }
-  // Unlike boot images, app images don't get unmapped if the runtime rejects them in some cases
-  // (e.g., CLC mismatch). Therefore, we need to check the PROT_EXEC flag to ensure that they are
-  // valid.
-  // The ODEX files always contain executable code because system server jars are compiled with the
-  // "speed" filter.
-  return GetMappedFiles(pids[0], ".odex", PROT_EXEC);
+  return GetMappedFiles(pids[0], ".odex", PROT_READ);
 }
 
 TEST(DexpreoptTest, ForZygote) {
