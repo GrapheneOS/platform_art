@@ -770,6 +770,13 @@ class Riscv64Assembler final : public Assembler {
 
   // Emit helpers.
 
+  // I-type instruction:
+  //
+  //    31                   20 19     15 14 12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . . . . . . . . | . . . . | . . | . . . . | . . . . . . ]
+  //   [        imm11:0            rs1   funct3     rd        opcode   ]
+  //   -----------------------------------------------------------------
   template <typename Reg1, typename Reg2>
   void EmitI(int32_t imm12, Reg1 rs1, uint32_t funct3, Reg2 rd, uint32_t opcode) {
     DCHECK(IsInt<12>(imm12)) << imm12;
@@ -782,6 +789,13 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // R-type instruction:
+  //
+  //    31         25 24     20 19     15 14 12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . . . | . . . . | . . . . | . . | . . . . | . . . . . . ]
+  //   [   funct7        rs2       rs1   funct3     rd        opcode   ]
+  //   -----------------------------------------------------------------
   template <typename Reg1, typename Reg2, typename Reg3>
   void EmitR(uint32_t funct7, Reg1 rs2, Reg2 rs1, uint32_t funct3, Reg3 rd, uint32_t opcode) {
     DCHECK(IsUint<7>(funct7));
@@ -796,28 +810,37 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // R-type instruction variant for floating-point fused multiply-add/sub (F[N]MADD/ F[N]MSUB):
+  //
+  //    31     27  25 24     20 19     15 14 12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . | . | . . . . | . . . . | . . | . . . . | . . . . . . ]
+  //   [  rs3     fmt    rs2       rs1   funct3     rd        opcode   ]
+  //   -----------------------------------------------------------------
   template <typename Reg1, typename Reg2, typename Reg3, typename Reg4>
-  void EmitR4(Reg1 rs3,
-              uint32_t funct2,
-              Reg2 rs2,
-              Reg3 rs1,
-              uint32_t funct3,
-              Reg4 rd,
-              uint32_t opcode) {
+  void EmitR4(
+      Reg1 rs3, uint32_t fmt, Reg2 rs2, Reg3 rs1, uint32_t funct3, Reg4 rd, uint32_t opcode) {
     DCHECK(IsUint<5>(static_cast<uint32_t>(rs3)));
-    DCHECK(IsUint<2>(funct2));
+    DCHECK(IsUint<2>(fmt));
     DCHECK(IsUint<5>(static_cast<uint32_t>(rs2)));
     DCHECK(IsUint<5>(static_cast<uint32_t>(rs1)));
     DCHECK(IsUint<3>(funct3));
     DCHECK(IsUint<5>(static_cast<uint32_t>(rd)));
     DCHECK(IsUint<7>(opcode));
-    uint32_t encoding = static_cast<uint32_t>(rs3) << 27 | static_cast<uint32_t>(funct2) << 25 |
+    uint32_t encoding = static_cast<uint32_t>(rs3) << 27 | static_cast<uint32_t>(fmt) << 25 |
                         static_cast<uint32_t>(rs2) << 20 | static_cast<uint32_t>(rs1) << 15 |
                         static_cast<uint32_t>(funct3) << 12 | static_cast<uint32_t>(rd) << 7 |
                         opcode;
     Emit(encoding);
   }
 
+  // S-type instruction:
+  //
+  //    31         25 24     20 19     15 14 12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . . . | . . . . | . . . . | . . | . . . . | . . . . . . ]
+  //   [   imm11:5       rs2       rs1   funct3   imm4:0      opcode   ]
+  //   -----------------------------------------------------------------
   template <typename Reg1, typename Reg2>
   void EmitS(int32_t imm12, Reg1 rs2, Reg2 rs1, uint32_t funct3, uint32_t opcode) {
     DCHECK(IsInt<12>(imm12)) << imm12;
@@ -832,6 +855,13 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // I-type instruction variant for shifts (SLLI / SRLI / SRAI):
+  //
+  //    31       26 25       20 19     15 14 12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . . | . . . . . | . . . . | . . | . . . . | . . . . . . ]
+  //   [  imm11:6  imm5:0(shamt)   rs1   funct3     rd        opcode   ]
+  //   -----------------------------------------------------------------
   void EmitI6(uint32_t funct6,
               uint32_t imm6,
               XRegister rs1,
@@ -850,6 +880,13 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // B-type instruction:
+  //
+  //   31 30       25 24     20 19     15 14 12 11    8 7 6           0
+  //   -----------------------------------------------------------------
+  //   [ | . . . . . | . . . . | . . . . | . . | . . . | | . . . . . . ]
+  //  imm12 imm11:5      rs2       rs1   funct3 imm4:1 imm11  opcode   ]
+  //   -----------------------------------------------------------------
   void EmitB(int32_t offset, XRegister rs2, XRegister rs1, uint32_t funct3, uint32_t opcode) {
     DCHECK_ALIGNED(offset, 2);
     DCHECK(IsInt<13>(offset)) << offset;
@@ -865,6 +902,13 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // U-type instruction:
+  //
+  //    31                                   12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ . . . . . . . . . . . . . . . . . . . | . . . . | . . . . . . ]
+  //   [                imm31:12                    rd        opcode   ]
+  //   -----------------------------------------------------------------
   void EmitU(uint32_t imm20, XRegister rd, uint32_t opcode) {
     CHECK(IsUint<20>(imm20)) << imm20;
     DCHECK(IsUint<5>(static_cast<uint32_t>(rd)));
@@ -873,6 +917,13 @@ class Riscv64Assembler final : public Assembler {
     Emit(encoding);
   }
 
+  // J-type instruction:
+  //
+  //   31 30               21   19           12 11      7 6           0
+  //   -----------------------------------------------------------------
+  //   [ | . . . . . . . . . | | . . . . . . . | . . . . | . . . . . . ]
+  //  imm20    imm10:1      imm11   imm19:12        rd        opcode   ]
+  //   -----------------------------------------------------------------
   void EmitJ(int32_t offset, XRegister rd, uint32_t opcode) {
     DCHECK_ALIGNED(offset, 2);
     CHECK(IsInt<21>(offset)) << offset;
