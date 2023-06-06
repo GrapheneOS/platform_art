@@ -158,6 +158,13 @@ public class DeviceState {
         pushAndBindMount(localFile, "/system/framework/services.jar");
     }
 
+    /** Simulates that a system server jar is bad. */
+    public void simulateBadSystemServerJar() throws Exception {
+        File tempFile = File.createTempFile("empty", ".jar");
+        tempFile.deleteOnExit();
+        pushAndBindMount(tempFile, "/system/framework/services.jar");
+    }
+
     public void makeDex2oatFail() throws Exception {
         setProperty("dalvik.vm.boot-dex2oat-threads", "-1");
     }

@@ -1620,12 +1620,6 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     metrics.SetTrigger(data_result.GetTrigger());
   }
 
-  // If partial compilation is disabled, we should compile everything regardless of what's in
-  // `compilation_options`.
-  if (compilation_required && !config_.GetPartialCompilation()) {
-    return cleanup_and_compile_all();
-  }
-
   // Always keep the cache info.
   checked_artifacts.push_back(cache_info_filename_);
 
@@ -1995,9 +1989,19 @@ OnDeviceRefresh::CompileSystemServer(const std::string& staging_dir,
 }
 
 WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
-                                              const CompilationOptions& compilation_options) const {
+                                              CompilationOptions compilation_options) const {
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
+
+  // If partial compilation is disabled, we should compile everything regardless of what's in
+  // `compilation_options`.
+  if (!config_.GetPartialCompilation()) {
+    compilation_options = CompilationOptions::CompileAll(*this);
+    if (!RemoveArtifactsDirectory()) {
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
+      return ExitCode::kCleanupFailed;
+    }
+  }
 
   if (!EnsureDirectoryExists(config_.GetArtifactDirectory())) {
     LOG(ERROR) << "Failed to prepare artifact directory";
