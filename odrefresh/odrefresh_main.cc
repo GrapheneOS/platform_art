@@ -20,6 +20,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "android-base/parsebool.h"
 #include "android-base/properties.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -37,6 +38,8 @@
 namespace {
 
 using ::android::base::GetProperty;
+using ::android::base::ParseBool;
+using ::android::base::ParseBoolResult;
 using ::android::base::StartsWith;
 using ::art::odrefresh::CompilationOptions;
 using ::art::odrefresh::ExitCode;
@@ -155,8 +158,8 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
       config->SetStagingDir(value);
     } else if (ArgumentEquals(arg, "--dry-run")) {
       config->SetDryRun();
-    } else if (ArgumentEquals(arg, "--partial-compilation")) {
-      config->SetPartialCompilation(true);
+    } else if (ArgumentMatches(arg, "--partial-compilation=", &value)) {
+      config->SetPartialCompilation(ParseBool(value) == ParseBoolResult::kTrue);
     } else if (ArgumentEquals(arg, "--no-refresh")) {
       config->SetRefresh(false);
     } else if (ArgumentEquals(arg, "--minimal")) {
