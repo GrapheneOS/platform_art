@@ -24,6 +24,7 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
+import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
 import org.junit.Before;
@@ -450,6 +451,36 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
         mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
         mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
+    }
+
+    /**
+     * If the compilation is skipped because a previous attempt partially failed, odrefresh should
+     * not clear existing artifacts.
+     */
+    @Test
+    public void verifyArtifactsKeptWhenCompilationSkippedNoPartialCompilation() throws Exception {
+        // Simulate that the compilation is partially failed.
+        mDeviceState.simulateBadSystemServerJar();
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefreshNoPartialCompilation();
+
+        // Verify the test setup: boot images are still generated.
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
+
+        // Rerun odrefresh. The compilation is skipped this time.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        CommandResult result = mTestUtils.runOdrefreshNoPartialCompilation();
+
+        // Existing artifacts should be kept.
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
+
+        // Note that the existing artifacts may be manipulated (CVE-2021-39689). Make sure odrefresh
+        // returns `kOkay` rather than `kCompilationSuccess` or `kCompilationFailed`, so that odsign
+        // only verifies the artifacts but not sign them.
+        assertThat(result.getExitCode()).isEqualTo(0);
     }
 
     private Set<String> simulateMissingArtifacts() throws Exception {
