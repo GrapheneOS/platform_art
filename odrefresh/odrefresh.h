@@ -173,8 +173,7 @@ class OnDeviceRefresh final {
   CheckArtifactsAreUpToDate(OdrMetrics& metrics,
                             /*out*/ CompilationOptions* compilation_options) const;
 
-  WARN_UNUSED ExitCode Compile(OdrMetrics& metrics,
-                               const CompilationOptions& compilation_options) const;
+  WARN_UNUSED ExitCode Compile(OdrMetrics& metrics, CompilationOptions compilation_options) const;
 
   WARN_UNUSED bool RemoveArtifactsDirectory() const;
 
