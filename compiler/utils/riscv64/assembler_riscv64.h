@@ -230,8 +230,13 @@ class Riscv64Assembler final : public Assembler {
   void Srlw(XRegister rd, XRegister rs1, XRegister rs2);
   void Sraw(XRegister rd, XRegister rs1, XRegister rs2);
 
+  // Environment call and breakpoint (RV32I), opcode = 0x73
+  void Ecall();
+  void Ebreak();
+
   // Fence instruction (RV32I): opcode = 0xf, funct3 = 0
   void Fence(uint32_t pred = kFenceDefault, uint32_t succ = kFenceDefault);
+  void FenceTso();
 
   // "Zifencei" Standard Extension, opcode = 0xf, funct3 = 1
   void FenceI();
@@ -276,6 +281,14 @@ class Riscv64Assembler final : public Assembler {
   void AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
   void AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
   void AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+
+  // "Zicsr" Standard Extension, opcode = 0x73, funct3 from 0x1 ~ 0x3 and 0x5 ~ 0x7
+  void Csrrw(XRegister rd, uint32_t csr, XRegister rs1);
+  void Csrrs(XRegister rd, uint32_t csr, XRegister rs1);
+  void Csrrc(XRegister rd, uint32_t csr, XRegister rs1);
+  void Csrrwi(XRegister rd, uint32_t csr, uint32_t uimm5);
+  void Csrrsi(XRegister rd, uint32_t csr, uint32_t uimm5);
+  void Csrrci(XRegister rd, uint32_t csr, uint32_t uimm5);
 
   // FP load/store instructions (RV32F+RV32D): opcode = 0x07, 0x27
   void FLw(FRegister rd, XRegister rs1, int32_t offset);
@@ -439,6 +452,7 @@ class Riscv64Assembler final : public Assembler {
   // These pseudo instructions are from "RISC-V Assembly Programmer's Manual".
 
   void Nop();
+  void Li(XRegister rd, int64_t imm);
   void Mv(XRegister rd, XRegister rs);
   void Not(XRegister rd, XRegister rs);
   void Neg(XRegister rd, XRegister rs);
@@ -479,6 +493,22 @@ class Riscv64Assembler final : public Assembler {
   void Jalr(XRegister rs);
   void Jalr(XRegister rd, XRegister rs);
   void Ret();
+
+  // Pseudo instructions for accessing control and status registers
+  void RdCycle(XRegister rd);
+  void RdTime(XRegister rd);
+  void RdInstret(XRegister rd);
+  void Csrr(XRegister rd, uint32_t csr);
+  void Csrw(uint32_t csr, XRegister rs);
+  void Csrs(uint32_t csr, XRegister rs);
+  void Csrc(uint32_t csr, XRegister rs);
+  void Csrwi(uint32_t csr, uint32_t uimm5);
+  void Csrsi(uint32_t csr, uint32_t uimm5);
+  void Csrci(uint32_t csr, uint32_t uimm5);
+
+  // Macros for loading constants.
+  void LoadConst32(XRegister rd, int32_t value);
+  void LoadConst64(XRegister rd, int64_t value);
 
   // Jumps and branches to a label.
   void Beqz(XRegister rs, Riscv64Label* label, bool is_bare = false);
@@ -734,6 +764,9 @@ class Riscv64Assembler final : public Assembler {
   void ReserveJumpTableSpace();
   void PromoteBranches();
   void PatchCFI();
+
+  // Implementation helper for `Li()`, `LoadConst32()` and `LoadConst64()`.
+  void LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp);
 
   // Emit helpers.
 
