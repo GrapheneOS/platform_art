@@ -413,6 +413,45 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.assertModifiedAfter(Set.of(OdsignTestUtils.CACHE_INFO_FILE), timeMs);
     }
 
+    /**
+     * Regression test of CVE-2021-39689 (b/206090748): if the device doesn't have the odsign
+     * security fix, there's a risk that the existing artifacts may be manipulated, and odsign will
+     * mistakenly sign them. Therefore, odrefresh should clear all artifacts and regenerate them.
+     * I.e., no matter the compilation succeeds or not, no existing artifacts should be left.
+     *
+     * On contrary, if the device has the odsign security fix, odrefresh should keep existing
+     * artifacts (see {@link #verifyMissingArtifactTriggersCompilation}).
+     */
+    @Test
+    public void verifyArtifactsClearedWhenNoPartialCompilation() throws Exception {
+        // Remove arbitrary system server artifacts to trigger compilation.
+        simulateMissingArtifacts();
+
+        // The successful case.
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefreshNoPartialCompilation();
+
+        // Existing artifacts should be replaced with new ones.
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
+        mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
+
+        // Remove arbitrary system server artifacts to trigger compilation again.
+        simulateMissingArtifacts();
+
+        // The failed case.
+        mDeviceState.makeDex2oatFail();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefreshNoPartialCompilation();
+
+        // Existing artifacts should be gone.
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedPrimaryBootImage());
+        mTestUtils.assertFilesNotExist(mTestUtils.getExpectedBootImageMainlineExtension());
+        mTestUtils.assertFilesNotExist(mTestUtils.getSystemServerExpectedArtifacts());
+    }
+
     private Set<String> simulateMissingArtifacts() throws Exception {
         Set<String> missingArtifacts = new HashSet<>();
         String sample = mTestUtils.getSystemServerExpectedArtifacts().iterator().next();
