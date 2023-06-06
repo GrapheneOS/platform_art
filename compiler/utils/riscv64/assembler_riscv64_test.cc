@@ -36,13 +36,13 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
                                                   riscv64::Riscv64Label,
                                                   riscv64::XRegister,
                                                   riscv64::FRegister,
-                                                  uint32_t> {
+                                                  int32_t> {
  public:
   using Base = AssemblerTest<riscv64::Riscv64Assembler,
                              riscv64::Riscv64Label,
                              riscv64::XRegister,
                              riscv64::FRegister,
-                             uint32_t>;
+                             int32_t>;
 
   AssemblerRISCV64Test()
       : instruction_set_features_(Riscv64InstructionSetFeatures::FromVariant("default", nullptr)) {}
@@ -177,7 +177,9 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     return secondary_register_names_[reg];
   }
 
-  uint32_t CreateImmediate(int64_t imm_value) override { return imm_value; }
+  int32_t CreateImmediate(int64_t imm_value) override {
+    return dchecked_integral_cast<int32_t>(imm_value);
+  }
 
   template <typename Emit>
   std::string RepeatInsn(size_t count, const std::string& insn, Emit&& emit) {
@@ -194,6 +196,130 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     DCHECK_ALIGNED(size, sizeof(uint32_t));
     const size_t num_nops = size / sizeof(uint32_t);
     return RepeatInsn(num_nops, "nop\n", [&]() { __ Nop(); });
+  }
+
+  template <typename EmitLoadConst>
+  void TestLoadConst64(const std::string& test_name,
+                       bool can_use_tmp,
+                       EmitLoadConst&& emit_load_const) {
+    std::string expected;
+    // Test standard immediates. Unlike other instructions, `Li()` accepts an `int64_t` but
+    // this is unsupported by `CreateImmediate()`, so we cannot use `RepeatRIb()` for these.
+    // Note: This `CreateImmediateValuesBits()` call does not produce any values where
+    // `LoadConst64()` would emit different code from `Li()`.
+    for (int64_t value : CreateImmediateValuesBits(64, /*as_uint=*/ false)) {
+      emit_load_const(A0, value);
+      expected += "li a0, " + std::to_string(value) + "\n";
+    }
+    // Test various registers with a few small values.
+    // (Even Zero is an accepted register even if that does not really load the requested value.)
+    for (XRegister* reg : GetRegisters()) {
+      if (can_use_tmp && *reg == TMP) {
+        continue;  // Not a valid target register.
+      }
+      std::string rd = GetRegisterName(*reg);
+      emit_load_const(*reg, -1);
+      expected += "li " + rd + ", -1\n";
+      emit_load_const(*reg, 0);
+      expected += "li " + rd + ", 0\n";
+      emit_load_const(*reg, 1);
+      expected += "li " + rd + ", 1\n";
+    }
+    // Test some significant values. Some may just repeat the tests above but other values
+    // show some complex patterns, even exposing a value where clang (and therefore also this
+    // assembler) does not generate the shortest sequence.
+    // For the following values, `LoadConst64()` emits the same code as `Li()`.
+    int64_t test_values1[] = {
+        // Small values, either ADDI, ADDI+SLLI, LUI, or LUI+ADDIW.
+        // The ADDI+LUI is presumably used to allow shorter code for RV64C.
+        -4097, -4096, -4095, -2176, -2049, -2048, -2047, -1025, -1024, -1023, -2, -1,
+        0, 1, 2, 1023, 1024, 1025, 2047, 2048, 2049, 2176, 4095, 4096, 4097,
+        // Just below std::numeric_limits<int32_t>::min()
+        INT64_C(-0x80000001),  // LUI+ADDI
+        INT64_C(-0x80000800),  // LUI+ADDI
+        INT64_C(-0x80000801),  // LUI+ADDIW+SLLI+ADDI; LUI+ADDI+ADDI would be shorter.
+        INT64_C(-0x80000800123),  // LUI+ADDIW+SLLI+ADDI
+        INT64_C(0x0123450000000123),  // LUI+SLLI+ADDI
+        INT64_C(-0x7654300000000123),  // LUI+SLLI+ADDI
+        INT64_C(0x0fffffffffff0000),  // LUI+SRLI
+        INT64_C(0x0ffffffffffff000),  // LUI+SRLI
+        INT64_C(0x0ffffffffffff010),  // LUI+ADDIW+SRLI
+        INT64_C(0x0fffffffffffff10),  // ADDI+SLLI+ADDI; LUI+ADDIW+SRLI would be same length.
+        INT64_C(0x0fffffffffffff80),  // ADDI+SRLI
+        INT64_C(0x0ffffffff7ffff80),  // LUI+ADDI+SRLI
+        INT64_C(0x0123450000001235),  // LUI+SLLI+ADDI+SLLI+ADDI
+        INT64_C(0x0123450000001234),  // LUI+SLLI+ADDI+SLLI
+        INT64_C(0x0000000fff808010),  // LUI+SLLI+SRLI
+        INT64_C(0x00000000fff80801),  // LUI+SLLI+SRLI
+        INT64_C(0x00000000ffffffff),  // ADDI+SRLI
+        INT64_C(0x00000001ffffffff),  // ADDI+SRLI
+        INT64_C(0x00000003ffffffff),  // ADDI+SRLI
+        INT64_C(0x00000000ffc00801),  // LUI+ADDIW+SLLI+ADDI
+        INT64_C(0x00000001fffff7fe),  // ADDI+SLLI+SRLI
+    };
+    for (int64_t value : test_values1) {
+      emit_load_const(A0, value);
+      expected += "li a0, " + std::to_string(value) + "\n";
+    }
+    // For the following values, `LoadConst64()` emits different code than `Li()`.
+    std::pair<int64_t, const char*> test_values2[] = {
+        // Li:        LUI+ADDIW+SLLI+ADDI+SLLI+ADDI+SLLI+ADDI
+        // LoadConst: LUI+ADDIW+LUI+ADDIW+SLLI+ADD (using TMP)
+        { INT64_C(0x1234567812345678),
+          "li {reg1}, 0x12345678 / 8\n"  // Trailing zero bits in high word are handled by SLLI.
+          "li {reg2}, 0x12345678\n"
+          "slli {reg1}, {reg1}, 32 + 3\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+        { INT64_C(0x1234567887654321),
+          "li {reg1}, 0x12345678 + 1\n"  // One higher to compensate for negative TMP.
+          "li {reg2}, 0x87654321 - 0x100000000\n"
+          "slli {reg1}, {reg1}, 32\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+        { INT64_C(-0x1234567887654321),
+          "li {reg1}, -0x12345678 - 1\n"  // High 32 bits of the constant.
+          "li {reg2}, 0x100000000 - 0x87654321\n"  // Low 32 bits of the constant.
+          "slli {reg1}, {reg1}, 32\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+
+        // Li:        LUI+SLLI+ADDI+SLLI+ADDI+SLLI
+        // LoadConst: LUI+LUI+SLLI+ADD (using TMP)
+        { INT64_C(0x1234500012345000),
+          "lui {reg1}, 0x12345\n"
+          "lui {reg2}, 0x12345\n"
+          "slli {reg1}, {reg1}, 44 - 12\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+        { INT64_C(0x0123450012345000),
+          "lui {reg1}, 0x12345\n"
+          "lui {reg2}, 0x12345\n"
+          "slli {reg1}, {reg1}, 40 - 12\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+
+        // Li:        LUI+ADDIW+SLLI+ADDI+SLLI+ADDI
+        // LoadConst: LUI+LUI+ADDIW+SLLI+ADD (using TMP)
+        { INT64_C(0x0001234512345678),
+          "lui {reg1}, 0x12345\n"
+          "li {reg2}, 0x12345678\n"
+          "slli {reg1}, {reg1}, 32 - 12\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+        { INT64_C(0x0012345012345678),
+          "lui {reg1}, 0x12345\n"
+          "li {reg2}, 0x12345678\n"
+          "slli {reg1}, {reg1}, 36 - 12\n"
+          "add {reg1}, {reg1}, {reg2}\n" },
+    };
+    for (auto [value, fmt] : test_values2) {
+      emit_load_const(A0, value);
+      if (can_use_tmp) {
+        std::string base = fmt;
+        ReplaceReg(REG1_TOKEN, GetRegisterName(A0), &base);
+        ReplaceReg(REG2_TOKEN, GetRegisterName(TMP), &base);
+        expected += base;
+      } else {
+        expected += "li a0, " + std::to_string(value) + "\n";
+      }
+    }
+
+    DriverStr(expected, test_name);
   }
 
   auto GetPrintBcond() {
@@ -540,12 +666,11 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
       for (XRegister* reg2 : GetRegisters()) {
         for (int64_t imm : imms) {
           (GetAssembler()->*f)(*reg1, *reg2, dchecked_integral_cast<uint32_t>(imm));
-          std::string base = fmt;
 
+          std::string base = fmt;
           ReplaceReg(REG1_TOKEN, GetRegisterName(*reg1), &base);
           ReplaceReg(REG2_TOKEN, GetRegisterName(*reg2), &base);
           ReplaceAqRl(imm, &base);
-
           str += base;
           str += "\n";
         }
@@ -564,13 +689,12 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
         for (XRegister* reg3 : GetRegisters()) {
           for (int64_t imm : imms) {
             (GetAssembler()->*f)(*reg1, *reg2, *reg3, dchecked_integral_cast<uint32_t>(imm));
-            std::string base = fmt;
 
+            std::string base = fmt;
             ReplaceReg(REG1_TOKEN, GetRegisterName(*reg1), &base);
             ReplaceReg(REG2_TOKEN, GetRegisterName(*reg2), &base);
             ReplaceReg(REG3_TOKEN, GetRegisterName(*reg3), &base);
             ReplaceAqRl(imm, &base);
-
             str += base;
             str += "\n";
           }
@@ -580,8 +704,97 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     return str;
   }
 
+  std::string RepeatCsrrX(void (Riscv64Assembler::*f)(XRegister, uint32_t, XRegister),
+                          const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::vector<int64_t> csrs = CreateImmediateValuesBits(12, /*as_uint=*/ true);
+    std::string str;
+    for (XRegister* reg1 : GetRegisters()) {
+      for (int64_t csr : csrs) {
+        for (XRegister* reg2 : GetRegisters()) {
+          (GetAssembler()->*f)(*reg1, dchecked_integral_cast<uint32_t>(csr), *reg2);
+
+          std::string base = fmt;
+          ReplaceReg(REG1_TOKEN, GetRegisterName(*reg1), &base);
+          ReplaceCsrrImm(CSR_TOKEN, csr, &base);
+          ReplaceReg(REG2_TOKEN, GetRegisterName(*reg2), &base);
+          str += base;
+          str += "\n";
+        }
+      }
+    }
+    return str;
+  }
+
+  std::string RepeatCsrrXi(void (Riscv64Assembler::*f)(XRegister, uint32_t, uint32_t),
+                           const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::vector<int64_t> csrs = CreateImmediateValuesBits(12, /*as_uint=*/ true);
+    std::vector<int64_t> uimms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
+    std::string str;
+    for (XRegister* reg : GetRegisters()) {
+      for (int64_t csr : csrs) {
+        for (int64_t uimm : uimms) {
+          (GetAssembler()->*f)(
+              *reg, dchecked_integral_cast<uint32_t>(csr), dchecked_integral_cast<uint32_t>(uimm));
+
+          std::string base = fmt;
+          ReplaceReg(REG_TOKEN, GetRegisterName(*reg), &base);
+          ReplaceCsrrImm(CSR_TOKEN, csr, &base);
+          ReplaceCsrrImm(UIMM_TOKEN, uimm, &base);
+          str += base;
+          str += "\n";
+        }
+      }
+    }
+    return str;
+  }
+
+  template <typename EmitCssrX>
+  void TestCsrrXMacro(const std::string& test_name,
+                      const std::string& fmt,
+                      EmitCssrX&& emit_csrrx) {
+    std::vector<int64_t> csrs = CreateImmediateValuesBits(12, /*as_uint=*/ true);
+    std::string expected;
+    for (XRegister* reg : GetRegisters()) {
+      for (int64_t csr : csrs) {
+        emit_csrrx(dchecked_integral_cast<uint32_t>(csr), *reg);
+
+        std::string base = fmt;
+        ReplaceReg(REG_TOKEN, GetRegisterName(*reg), &base);
+        ReplaceCsrrImm(CSR_TOKEN, csr, &base);
+        expected += base;
+        expected += "\n";
+      }
+    }
+    DriverStr(expected, test_name);
+  }
+
+  template <typename EmitCssrXi>
+  void TestCsrrXiMacro(const std::string& test_name,
+                       const std::string& fmt,
+                       EmitCssrXi&& emit_csrrxi) {
+    std::vector<int64_t> csrs = CreateImmediateValuesBits(12, /*as_uint=*/ true);
+    std::vector<int64_t> uimms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
+    std::string expected;
+    for (int64_t csr : csrs) {
+      for (int64_t uimm : uimms) {
+        emit_csrrxi(dchecked_integral_cast<uint32_t>(csr), dchecked_integral_cast<uint32_t>(uimm));
+
+        std::string base = fmt;
+        ReplaceCsrrImm(CSR_TOKEN, csr, &base);
+        ReplaceCsrrImm(UIMM_TOKEN, uimm, &base);
+        expected += base;
+        expected += "\n";
+      }
+    }
+    DriverStr(expected, test_name);
+  }
+
  private:
   static constexpr const char* AQRL_TOKEN = "{aqrl}";
+  static constexpr const char* CSR_TOKEN = "{csr}";
+  static constexpr const char* UIMM_TOKEN = "{uimm}";
 
   void ReplaceAqRl(int64_t aqrl, /*inout*/ std::string* str) {
     const char* replacement;
@@ -605,6 +818,15 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     size_t aqrl_index = str->find(AQRL_TOKEN);
     if (aqrl_index != std::string::npos) {
       str->replace(aqrl_index, ConstexprStrLen(AQRL_TOKEN), replacement);
+    }
+  }
+
+  static void ReplaceCsrrImm(const std::string& imm_token,
+                             int64_t imm,
+                             /*inout*/ std::string* str) {
+    size_t imm_index = str->find(imm_token);
+    if (imm_index != std::string::npos) {
+      str->replace(imm_index, imm_token.length(), std::to_string(imm));
     }
   }
 
@@ -838,6 +1060,16 @@ TEST_F(AssemblerRISCV64Test, Sraw) {
   DriverStr(RepeatRRR(&riscv64::Riscv64Assembler::Sraw, "sraw {reg1}, {reg2}, {reg3}"), "Sraw");
 }
 
+TEST_F(AssemblerRISCV64Test, Ecall) {
+  __ Ecall();
+  DriverStr("ecall\n", "Ecall");
+}
+
+TEST_F(AssemblerRISCV64Test, Ebreak) {
+  __ Ebreak();
+  DriverStr("ebreak\n", "Ebreak");
+}
+
 TEST_F(AssemblerRISCV64Test, Fence) {
   auto get_fence_type_string = [](uint32_t fence_type) {
     CHECK_LE(fence_type, 0xfu);
@@ -871,6 +1103,11 @@ TEST_F(AssemblerRISCV64Test, Fence) {
     }
   }
   DriverStr(expected, "Fence");
+}
+
+TEST_F(AssemblerRISCV64Test, FenceTso) {
+  __ FenceTso();
+  DriverStr("fence.tso", "FenceTso");
 }
 
 TEST_F(AssemblerRISCV64Test, FenceI) {
@@ -1054,6 +1291,36 @@ TEST_F(AssemblerRISCV64Test, AmoMaxuD) {
   DriverStr(RepeatRRRAqRl(
                 &riscv64::Riscv64Assembler::AmoMaxuD, "amomaxu.d{aqrl} {reg1}, {reg2}, ({reg3})"),
             "AmoMaxuD");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrw) {
+  DriverStr(RepeatCsrrX(&riscv64::Riscv64Assembler::Csrrw, "csrrw {reg1}, {csr}, {reg2}"),
+            "Csrrw");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrs) {
+  DriverStr(RepeatCsrrX(&riscv64::Riscv64Assembler::Csrrs, "csrrs {reg1}, {csr}, {reg2}"),
+            "Csrrs");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrc) {
+  DriverStr(RepeatCsrrX(&riscv64::Riscv64Assembler::Csrrc, "csrrc {reg1}, {csr}, {reg2}"),
+            "Csrrc");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrwi) {
+  DriverStr(RepeatCsrrXi(&riscv64::Riscv64Assembler::Csrrwi, "csrrwi {reg}, {csr}, {uimm}"),
+            "Csrrwi");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrsi) {
+  DriverStr(RepeatCsrrXi(&riscv64::Riscv64Assembler::Csrrsi, "csrrsi {reg}, {csr}, {uimm}"),
+            "Csrrsi");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrrci) {
+  DriverStr(RepeatCsrrXi(&riscv64::Riscv64Assembler::Csrrci, "csrrci {reg}, {csr}, {uimm}"),
+            "Csrrci");
 }
 
 TEST_F(AssemblerRISCV64Test, FLw) {
@@ -1324,6 +1591,12 @@ TEST_F(AssemblerRISCV64Test, Nop) {
   DriverStr("addi zero,zero,0", "Nop");
 }
 
+TEST_F(AssemblerRISCV64Test, Li) {
+  TestLoadConst64("Li",
+                  /*can_use_tmp=*/ false,
+                  [&](XRegister rd, int64_t value) { __ Li(rd, value); });
+}
+
 TEST_F(AssemblerRISCV64Test, Mv) {
   DriverStr(RepeatRR(&riscv64::Riscv64Assembler::Mv, "addi {reg1}, {reg2}, 0"), "Mv");
 }
@@ -1505,6 +1778,64 @@ TEST_F(AssemblerRISCV64Test, Jalr0) {
 TEST_F(AssemblerRISCV64Test, Ret) {
   __ Ret();
   DriverStr("ret\n", "Ret");
+}
+
+TEST_F(AssemblerRISCV64Test, RdCycle) {
+  DriverStr(RepeatR(&riscv64::Riscv64Assembler::RdCycle, "rdcycle {reg}\n"), "RdCycle");
+}
+
+TEST_F(AssemblerRISCV64Test, RdTime) {
+  DriverStr(RepeatR(&riscv64::Riscv64Assembler::RdTime, "rdtime {reg}\n"), "RdTime");
+}
+
+TEST_F(AssemblerRISCV64Test, RdInstret) {
+  DriverStr(RepeatR(&riscv64::Riscv64Assembler::RdInstret, "rdinstret {reg}\n"), "RdInstret");
+}
+
+TEST_F(AssemblerRISCV64Test, Csrr) {
+  TestCsrrXMacro(
+      "Csrr", "csrr {reg}, {csr}", [&](uint32_t csr, XRegister rd) { __ Csrr(rd, csr); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrw) {
+  TestCsrrXMacro(
+      "Csrw", "csrw {csr}, {reg}", [&](uint32_t csr, XRegister rs) { __ Csrw(csr, rs); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrs) {
+  TestCsrrXMacro(
+      "Csrs", "csrs {csr}, {reg}", [&](uint32_t csr, XRegister rs) { __ Csrs(csr, rs); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrc) {
+  TestCsrrXMacro(
+      "Csrc", "csrc {csr}, {reg}", [&](uint32_t csr, XRegister rs) { __ Csrc(csr, rs); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrwi) {
+  TestCsrrXiMacro(
+      "Csrwi", "csrwi {csr}, {uimm}", [&](uint32_t csr, uint32_t uimm) { __ Csrwi(csr, uimm); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrsi) {
+  TestCsrrXiMacro(
+      "Csrsi", "csrsi {csr}, {uimm}", [&](uint32_t csr, uint32_t uimm) { __ Csrsi(csr, uimm); });
+}
+
+TEST_F(AssemblerRISCV64Test, Csrci) {
+  TestCsrrXiMacro(
+      "Csrci", "csrci {csr}, {uimm}", [&](uint32_t csr, uint32_t uimm) { __ Csrci(csr, uimm); });
+}
+
+TEST_F(AssemblerRISCV64Test, LoadConst32) {
+  // `LoadConst32()` emits the same code sequences as `Li()` for 32-bit values.
+  DriverStr(RepeatRIb(&Riscv64Assembler::LoadConst32, -32, "li {reg}, {imm}"), "LoadConst32");
+}
+
+TEST_F(AssemblerRISCV64Test, LoadConst64) {
+  TestLoadConst64("LoadConst64",
+                  /*can_use_tmp=*/ true,
+                  [&](XRegister rd, int64_t value) { __ LoadConst64(rd, value); });
 }
 
 TEST_F(AssemblerRISCV64Test, BcondForward3KiB) {
