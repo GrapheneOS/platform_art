@@ -18,6 +18,7 @@
 
 #include "base/bit_utils.h"
 #include "base/casts.h"
+#include "base/logging.h"
 #include "base/memory_region.h"
 
 namespace art {
@@ -41,6 +42,11 @@ ALWAYS_INLINE static inline std::pair<uint32_t, int32_t> SplitOffset(int32_t off
   uint32_t imm20 = static_cast<uint32_t>(near_offset) >> 12;
   // Return the result as a pair.
   return std::make_pair(imm20, short_offset);
+}
+
+ALWAYS_INLINE static inline int32_t ToInt12(uint32_t uint12) {
+  DCHECK(IsUint<12>(uint12));
+  return static_cast<int32_t>(uint12 - ((uint12 & 0x800) << 1));
 }
 
 void Riscv64Assembler::FinalizeCode() {
@@ -295,11 +301,24 @@ void Riscv64Assembler::Sraw(XRegister rd, XRegister rs1, XRegister rs2) {
   EmitR(0x20, rs2, rs1, 0x5, rd, 0x3b);
 }
 
+// Environment call and breakpoint (RV32I), opcode = 0x73
+
+void Riscv64Assembler::Ecall() { EmitI(0x0, 0x0, 0x0, 0x0, 0x73); }
+
+void Riscv64Assembler::Ebreak() { EmitI(0x1, 0x0, 0x0, 0x0, 0x73); }
+
 // Fence instruction (RV32I): opcode = 0xf, funct3 = 0
+
 void Riscv64Assembler::Fence(uint32_t pred, uint32_t succ) {
   DCHECK(IsUint<4>(pred));
   DCHECK(IsUint<4>(succ));
   EmitI(/* normal fence */ 0x0 << 8 | pred << 4 | succ, 0x0, 0x0, 0x0, 0xf);
+}
+
+void Riscv64Assembler::FenceTso() {
+  static constexpr uint32_t kPred = kFenceWrite | kFenceRead;
+  static constexpr uint32_t kSucc = kFenceWrite | kFenceRead;
+  EmitI(ToInt12(/* TSO fence */ 0x8 << 8 | kPred << 4 | kSucc), 0x0, 0x0, 0x0, 0xf);
 }
 
 //////////////////////////////// RV64 "I" Instructions  END ////////////////////////////////
@@ -462,6 +481,36 @@ void Riscv64Assembler::AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint
 }
 
 /////////////////////////////// RV64 "A" Instructions  END ///////////////////////////////
+
+///////////////////////////// RV64 "Zicsr" Instructions  START /////////////////////////////
+
+// "Zicsr" Standard Extension, opcode = 0x73, funct3 from 0x1 ~ 0x3 and 0x5 ~ 0x7
+
+void Riscv64Assembler::Csrrw(XRegister rd, uint32_t csr, XRegister rs1) {
+  EmitI(ToInt12(csr), rs1, 0x1, rd, 0x73);
+}
+
+void Riscv64Assembler::Csrrs(XRegister rd, uint32_t csr, XRegister rs1) {
+  EmitI(ToInt12(csr), rs1, 0x2, rd, 0x73);
+}
+
+void Riscv64Assembler::Csrrc(XRegister rd, uint32_t csr, XRegister rs1) {
+  EmitI(ToInt12(csr), rs1, 0x3, rd, 0x73);
+}
+
+void Riscv64Assembler::Csrrwi(XRegister rd, uint32_t csr, uint32_t uimm5) {
+  EmitI(ToInt12(csr), uimm5, 0x5, rd, 0x73);
+}
+
+void Riscv64Assembler::Csrrsi(XRegister rd, uint32_t csr, uint32_t uimm5) {
+  EmitI(ToInt12(csr), uimm5, 0x6, rd, 0x73);
+}
+
+void Riscv64Assembler::Csrrci(XRegister rd, uint32_t csr, uint32_t uimm5) {
+  EmitI(ToInt12(csr), uimm5, 0x7, rd, 0x73);
+}
+
+////////////////////////////// RV64 "Zicsr" Instructions  END //////////////////////////////
 
 /////////////////////////////// RV64 "FD" Instructions  START ///////////////////////////////
 
@@ -746,6 +795,10 @@ void Riscv64Assembler::FClassD(XRegister rd, FRegister rs1) {
 
 void Riscv64Assembler::Nop() { Addi(Zero, Zero, 0); }
 
+void Riscv64Assembler::Li(XRegister rd, int64_t imm) {
+  LoadImmediate(rd, imm, /*can_use_tmp=*/ false);
+}
+
 void Riscv64Assembler::Mv(XRegister rd, XRegister rs) { Addi(rd, rs, 0); }
 
 void Riscv64Assembler::Not(XRegister rd, XRegister rs) { Xori(rd, rs, -1); }
@@ -849,6 +902,55 @@ void Riscv64Assembler::Jalr(XRegister rs) { Jalr(RA, rs, 0); }
 void Riscv64Assembler::Jalr(XRegister rd, XRegister rs) { Jalr(rd, rs, 0); }
 
 void Riscv64Assembler::Ret() { Jalr(Zero, RA, 0); }
+
+void Riscv64Assembler::RdCycle(XRegister rd) {
+  Csrrs(rd, 0xc00, Zero);
+}
+
+void Riscv64Assembler::RdTime(XRegister rd) {
+  Csrrs(rd, 0xc01, Zero);
+}
+
+void Riscv64Assembler::RdInstret(XRegister rd) {
+  Csrrs(rd, 0xc02, Zero);
+}
+
+void Riscv64Assembler::Csrr(XRegister rd, uint32_t csr) {
+  Csrrs(rd, csr, Zero);
+}
+
+void Riscv64Assembler::Csrw(uint32_t csr, XRegister rs) {
+  Csrrw(Zero, csr, rs);
+}
+
+void Riscv64Assembler::Csrs(uint32_t csr, XRegister rs) {
+  Csrrs(Zero, csr, rs);
+}
+
+void Riscv64Assembler::Csrc(uint32_t csr, XRegister rs) {
+  Csrrc(Zero, csr, rs);
+}
+
+void Riscv64Assembler::Csrwi(uint32_t csr, uint32_t uimm5) {
+  Csrrwi(Zero, csr, uimm5);
+}
+
+void Riscv64Assembler::Csrsi(uint32_t csr, uint32_t uimm5) {
+  Csrrsi(Zero, csr, uimm5);
+}
+
+void Riscv64Assembler::Csrci(uint32_t csr, uint32_t uimm5) {
+  Csrrci(Zero, csr, uimm5);
+}
+
+void Riscv64Assembler::LoadConst32(XRegister rd, int32_t value) {
+  LoadImmediate(rd, value, /*can_use_tmp=*/ false);  // No need to use TMP for 32-bit values.
+}
+
+void Riscv64Assembler::LoadConst64(XRegister rd, int64_t value) {
+  CHECK_NE(rd, TMP);
+  LoadImmediate(rd, value, /*can_use_tmp=*/ true);
+}
 
 void Riscv64Assembler::Beqz(XRegister rs, Riscv64Label* label, bool is_bare) {
   Beq(rs, Zero, label, is_bare);
@@ -1715,6 +1817,209 @@ void Riscv64Assembler::EmitLiterals() {
         buffer_.Emit<uint8_t>(literal.GetData()[i]);
       }
     }
+  }
+}
+
+void Riscv64Assembler::LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp) {
+  DCHECK_IMPLIES(can_use_tmp, rd != TMP);
+
+  // Helper lambdas.
+  auto addi = [&](XRegister rd, XRegister rs, int32_t imm) { Addi(rd, rs, imm); };
+  auto addiw = [&](XRegister rd, XRegister rs, int32_t imm) { Addiw(rd, rs, imm); };
+  auto slli = [&](XRegister rd, XRegister rs, int32_t imm) { Slli(rd, rs, imm); };
+  auto lui = [&](XRegister rd, uint32_t imm20) { Lui(rd, imm20); };
+
+  // Simple LUI+ADDI/W can handle value range [-0x80000800, 0x7fffffff].
+  auto is_simple_li_value = [](int64_t value) {
+    return value >= INT64_C(-0x80000800) && value <= INT64_C(0x7fffffff);
+  };
+  auto emit_simple_li_helper = [&](XRegister rd,
+                                   int64_t value,
+                                   auto&& addi,
+                                   auto&& addiw,
+                                   auto&& slli,
+                                   auto&& lui) {
+    DCHECK(is_simple_li_value(value)) << "0x" << std::hex << value;
+    if (IsInt<12>(value)) {
+      addi(rd, Zero, value);
+    } else if (CTZ(value) < 12 && IsInt(6 + CTZ(value), value)) {
+      // This path yields two 16-bit instructions with the "C" Standard Extension.
+      addi(rd, Zero, value >> CTZ(value));
+      slli(rd, rd, CTZ(value));
+    } else if (value < INT64_C(-0x80000000)) {
+      int32_t small_value = dchecked_integral_cast<int32_t>(value - INT64_C(-0x80000000));
+      DCHECK(IsInt<12>(small_value));
+      DCHECK_LT(small_value, 0);
+      lui(rd, 1u << 19);
+      addi(rd, rd, small_value);
+    } else {
+      DCHECK(IsInt<32>(value));
+      // Note: Similar to `SplitOffset()` but we can target the full 32-bit range with ADDIW.
+      int64_t near_value = (value + 0x800) & ~0xfff;
+      int32_t small_value = value - near_value;
+      DCHECK(IsInt<12>(small_value));
+      uint32_t imm20 = static_cast<uint32_t>(near_value) >> 12;
+      DCHECK_NE(imm20, 0u);  // Small values are handled above.
+      lui(rd, imm20);
+      if (small_value != 0) {
+        addiw(rd, rd, small_value);
+      }
+    }
+  };
+  auto emit_simple_li = [&](XRegister rd, int64_t value) {
+    emit_simple_li_helper(rd, value, addi, addiw, slli, lui);
+  };
+  auto count_simple_li_instructions = [&](int64_t value) {
+    size_t num_instructions = 0u;
+    auto count_rri = [&](XRegister, XRegister, int32_t) { ++num_instructions; };
+    auto count_ru = [&](XRegister, uint32_t) { ++num_instructions; };
+    emit_simple_li_helper(Zero, value, count_rri, count_rri, count_rri, count_ru);
+    return num_instructions;
+  };
+
+  // If LUI+ADDI/W is not enough, we can generate up to 3 SLLI+ADDI afterwards (up to 8 instructions
+  // total). The ADDI from the first SLLI+ADDI pair can be a no-op.
+  auto emit_with_slli_addi_helper = [&](XRegister rd,
+                                        int64_t value,
+                                        auto&& addi,
+                                        auto&& addiw,
+                                        auto&& slli,
+                                        auto&& lui) {
+    static constexpr size_t kMaxNumSllAddi = 3u;
+    int32_t addi_values[kMaxNumSllAddi];
+    size_t sll_shamts[kMaxNumSllAddi];
+    size_t num_sll_addi = 0u;
+    while (!is_simple_li_value(value)) {
+      DCHECK_LT(num_sll_addi, kMaxNumSllAddi);
+      // Prepare sign-extended low 12 bits for ADDI.
+      int64_t addi_value = (value & 0xfff) - ((value & 0x800) << 1);
+      DCHECK(IsInt<12>(addi_value));
+      int64_t remaining = value - addi_value;
+      size_t shamt = CTZ(remaining);
+      DCHECK_GE(shamt, 12u);
+      addi_values[num_sll_addi] = addi_value;
+      sll_shamts[num_sll_addi] = shamt;
+      value = remaining >> shamt;
+      ++num_sll_addi;
+    }
+    if (num_sll_addi != 0u && IsInt<20>(value) && !IsInt<12>(value)) {
+      // If `sll_shamts[num_sll_addi - 1u]` was only 12, we would have stopped
+      // the decomposition a step earlier with smaller `num_sll_addi`.
+      DCHECK_GT(sll_shamts[num_sll_addi - 1u], 12u);
+      // Emit the signed 20-bit value with LUI and reduce the SLLI shamt by 12 to compensate.
+      sll_shamts[num_sll_addi - 1u] -= 12u;
+      lui(rd, dchecked_integral_cast<uint32_t>(value & 0xfffff));
+    } else {
+      emit_simple_li_helper(rd, value, addi, addiw, slli, lui);
+    }
+    for (size_t i = num_sll_addi; i != 0u; ) {
+      --i;
+      slli(rd, rd, sll_shamts[i]);
+      if (addi_values[i] != 0) {
+        addi(rd, rd, addi_values[i]);
+      }
+    }
+  };
+  auto emit_with_slli_addi = [&](XRegister rd, int64_t value) {
+    emit_with_slli_addi_helper(rd, value, addi, addiw, slli, lui);
+  };
+  auto count_instructions_with_slli_addi = [&](int64_t value) {
+    size_t num_instructions = 0u;
+    auto count_rri = [&](XRegister, XRegister, int32_t) { ++num_instructions; };
+    auto count_ru = [&](XRegister, uint32_t) { ++num_instructions; };
+    emit_with_slli_addi_helper(Zero, value, count_rri, count_rri, count_rri, count_ru);
+    return num_instructions;
+  };
+
+  size_t insns_needed = count_instructions_with_slli_addi(imm);
+  size_t trailing_slli_shamt = 0u;
+  if (insns_needed > 2u) {
+    // Sometimes it's better to end with a SLLI even when the above code would end with ADDI.
+    if ((imm & 1) == 0 && (imm & 0xfff) != 0) {
+      int64_t value = imm >> CTZ(imm);
+      size_t new_insns_needed = count_instructions_with_slli_addi(value) + /*SLLI*/ 1u;
+      DCHECK_GT(new_insns_needed, 2u);
+      if (insns_needed > new_insns_needed) {
+        insns_needed = new_insns_needed;
+        trailing_slli_shamt = CTZ(imm);
+      }
+    }
+
+    // Sometimes we can emit a shorter sequence that ends with SRLI.
+    if (imm > 0) {
+      size_t shamt = CLZ(static_cast<uint64_t>(imm));
+      DCHECK_LE(shamt, 32u);  // Otherwise we would not get here as `insns_needed` would be <= 2.
+      if (imm == dchecked_integral_cast<int64_t>(MaxInt<uint64_t>(64 - shamt))) {
+        Addi(rd, Zero, -1);
+        Srli(rd, rd, shamt);
+        return;
+      }
+
+      int64_t value = static_cast<int64_t>(static_cast<uint64_t>(imm) << shamt);
+      DCHECK_LT(value, 0);
+      if (is_simple_li_value(value)){
+        size_t new_insns_needed = count_simple_li_instructions(value) + /*SRLI*/ 1u;
+        // In case of equal number of instructions, clang prefers the sequence without SRLI.
+        if (new_insns_needed < insns_needed) {
+          // If we emit ADDI, we set low bits that shall be shifted out to one in line with clang,
+          // effectively choosing to emit the negative constant closest to zero.
+          int32_t shifted_out = dchecked_integral_cast<int32_t>(MaxInt<uint32_t>(shamt));
+          DCHECK_EQ(value & shifted_out, 0);
+          emit_simple_li(rd, (value & 0xfff) == 0 ? value : value + shifted_out);
+          Srli(rd, rd, shamt);
+          return;
+        }
+      }
+
+      size_t ctz = CTZ(static_cast<uint64_t>(value));
+      if (IsInt(ctz + 20, value)) {
+        size_t new_insns_needed = /*ADDI or LUI*/ 1u + /*SLLI*/ 1u + /*SRLI*/ 1u;
+        if (new_insns_needed < insns_needed) {
+          // Clang prefers ADDI+SLLI+SRLI over LUI+SLLI+SRLI.
+          if (IsInt(ctz + 12, value)) {
+            Addi(rd, Zero, value >> ctz);
+            Slli(rd, rd, ctz);
+          } else {
+            Lui(rd, (static_cast<uint64_t>(value) >> ctz) & 0xfffffu);
+            Slli(rd, rd, ctz - 12);
+          }
+          Srli(rd, rd, shamt);
+          return;
+        }
+      }
+    }
+
+    // If we can use `TMP`, try using it to emit a shorter sequence.
+    // Without `TMP`, the sequence is up to 8 instructions, with `TMP` only up to 6.
+    if (can_use_tmp) {
+      int64_t low = (imm & 0xffffffff) - ((imm & 0x80000000) << 1);
+      int64_t remainder = imm - low;
+      size_t slli_shamt = CTZ(remainder);
+      DCHECK_GE(slli_shamt, 32u);
+      int64_t high = remainder >> slli_shamt;
+      size_t new_insns_needed =
+          ((IsInt<20>(high) || (high & 0xfff) == 0u) ? 1u : 2u) +
+          count_simple_li_instructions(low) +
+          /*SLLI+ADD*/ 2u;
+      if (new_insns_needed < insns_needed) {
+        DCHECK_NE(low & 0xfffff000, 0);
+        if (IsInt<20>(high) && !IsInt<12>(high)) {
+          // Emit the signed 20-bit value with LUI and reduce the SLLI shamt by 12 to compensate.
+          Lui(rd, static_cast<uint32_t>(high & 0xfffff));
+          slli_shamt -= 12;
+        } else {
+          emit_simple_li(rd, high);
+        }
+        emit_simple_li(TMP, low);
+        Slli(rd, rd, slli_shamt);
+        Add(rd, rd, TMP);
+        return;
+      }
+    }
+  }
+  emit_with_slli_addi(rd, trailing_slli_shamt != 0u ? imm >> trailing_slli_shamt : imm);
+  if (trailing_slli_shamt != 0u) {
+    Slli(rd, rd, trailing_slli_shamt);
   }
 }
 
