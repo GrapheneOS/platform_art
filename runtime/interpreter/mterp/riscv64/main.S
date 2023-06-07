@@ -70,7 +70,11 @@
     // Padding of 3 * 4 bytes to get 16 bytes alignment of code entry.
     .4byte 0, 0, 0
     // OatQuickMethodHeader `data_` field. Note that the top two bits must be clear.
-    .4byte (\end - \name)
+    // The calculation must be based on the current address to emit relocation data,
+    // otherwise the size calculated by the assembler could be wrong after linking.
+    // (Alternatively, we could use `.option norelax` to suppress linker optimizations.)
+1:
+    .4byte (\end - /* \name */ (1b + 4))
 \name:
 .endm
 
