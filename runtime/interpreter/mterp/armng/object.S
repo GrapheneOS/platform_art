@@ -8,6 +8,7 @@
    cmp     r0, #0
    beq     .L${opcode}_resume
    ldr     r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r2
    // Fast path: do a comparison without read barrier.
    cmp     r1, r2
    bne     ${slow_path}
@@ -29,10 +30,12 @@
    tst     r3, #MIRROR_CLASS_IS_INTERFACE_FLAG
    bne     2f
    ldr     r3, [r1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF r3
    cmp     r3, #0
    bne     5f
 1:
    ldr     r2, [r2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r2
    cmp     r1, r2
    beq     .L${opcode}_resume
    cmp     r2, #0
@@ -49,10 +52,12 @@
 5:
    // Class in r1 is an array, r3 is the component type.
    ldr     r2, [r2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF r2
    // Check if object is an array.
    cmp     r2, #0
    beq     2b
    ldr     r4, [r3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r4
    cmp     r4, #0
    // If the super class of the component type is not null, go slow path.
    bne     2b
@@ -75,6 +80,7 @@
    cmp     r0, #0
    beq     .L${opcode}_resume
    ldr     r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r2
    // Fast path: do a comparison without read barrier.
    cmp     r1, r2
    bne     ${slow_path}
@@ -103,10 +109,12 @@
    tst     r3, #MIRROR_CLASS_IS_INTERFACE_FLAG
    bne     5f
    ldr     r3, [r1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF r3
    cmp     r3, #0
    bne     3f
 1:
    ldr     r2, [r2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r2
    cmp     r1, r2
    beq     .L${opcode}_set_one
    cmp     r2, #0
@@ -117,10 +125,12 @@
 3:
    // Class in r1 is an array, r3 is the component type.
    ldr     r2, [r2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF r2
    // Check if object is an array.
    cmp     r2, #0
    beq     2b
    ldr     r4, [r3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r4
    cmp     r4, #0
    bne     5f
    ldrh    r3, [r3, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
@@ -167,6 +177,7 @@
    SET_VREG_WIDE_BY_ADDR r0, r1, r2    // fp[A] <- value
    .elseif $is_object
    $load   r0, [r3, r0]
+   UNPOISON_HEAP_REF r0
    TEST_IF_MARKING .L${opcode}_read_barrier
 .L${opcode}_resume_after_read_barrier:
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
@@ -209,6 +220,7 @@
    $load   r0, [r3, r0]
    dmb     ish
    .if $is_object
+   UNPOISON_HEAP_REF r0
    TEST_IF_MARKING .L${opcode}_read_barrier
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
    .else
@@ -257,6 +269,7 @@
    add     r1, r1, r0
    strd    r2, r3, [r1]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, r4
    $store  r4, [r1, r0]
    WRITE_BARRIER_IF_OBJECT $is_object, r4, r1, .L${opcode}_skip_write_barrier, r0
    .endif
@@ -301,6 +314,7 @@
    cmp     r1, #0
    beq     common_errNullObject
    dmb     ish
+   POISON_HEAP_REF_IF_OBJECT $is_object, r4
    $store  r4, [r1, r0]
    dmb     ish
    WRITE_BARRIER_IF_OBJECT $is_object, r4, r1, .L${opcode}_slow_path_skip_write_barrier, r0
@@ -345,6 +359,7 @@
    SET_VREG_WIDE_BY_ADDR r0, r1, r2    // fp[A] <- value
    .elseif $is_object
    $load   r0, [r0, r1]
+   UNPOISON_HEAP_REF r0
    // No need to check the marking register, we know it's not set here.
 .L${opcode}_after_reference_load:
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
@@ -359,6 +374,7 @@
    bl      art_quick_read_barrier_mark_reg00
    .if $is_object
    ldr     r0, [r0, r1]
+   UNPOISON_HEAP_REF r0
 .L${opcode}_mark_after_load:
    // Here, we know the marking register is set.
    bl      art_quick_read_barrier_mark_reg00
@@ -393,6 +409,7 @@
    $load   r0, [r0, r1]
    dmb     ish
    .if $is_object
+   UNPOISON_HEAP_REF r0
    TEST_IF_MARKING .L${opcode}_mark_after_load
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
    .else
@@ -444,6 +461,7 @@
    add     r0, r0, r1
    strd    r2, r3, [r0]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, r4
    $store  r4, [r0, r1]
    WRITE_BARRIER_IF_OBJECT $is_object, r4, r0, .L${opcode}_skip_write_barrier, r1
    .endif
@@ -487,6 +505,7 @@
    dmb     ish
    .else
    dmb     ish
+   POISON_HEAP_REF_IF_OBJECT $is_object r4
    $store  r4, [r0, r1]
    dmb     ish
    WRITE_BARRIER_IF_OBJECT $is_object, r4, r0, .L${opcode}_slow_path_skip_write_barrier, r1
