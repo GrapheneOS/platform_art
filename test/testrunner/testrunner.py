@@ -388,7 +388,7 @@ def run_tests(tests):
   Args:
     tests: The set of tests to be run.
   """
-  options_all = ''
+  args_all = []
 
   # jvm does not run with all these combinations,
   # or at least it doesn't make sense for most of them.
@@ -413,37 +413,37 @@ def run_tests(tests):
   total_test_count *= target_address_combinations
 
   if env.ART_TEST_WITH_STRACE:
-    options_all += ' --strace'
+    args_all += ['--strace']
 
   if env.ART_TEST_RUN_TEST_ALWAYS_CLEAN:
-    options_all += ' --always-clean'
+    args_all += ['--always-clean']
 
   if env.ART_TEST_BISECTION:
-    options_all += ' --bisection-search'
+    args_all += ['--bisection-search']
 
   if gdb:
-    options_all += ' --gdb'
+    args_all += ['--gdb']
     if gdb_arg:
-      options_all += ' --gdb-arg ' + gdb_arg
+      args_all += ['--gdb-arg', gdb_arg]
 
   if dump_cfg:
-    options_all += ' --dump-cfg ' + dump_cfg
+    args_all += ['--dump-cfg', dump_cfg]
   if gdb_dex2oat:
-    options_all += ' --gdb-dex2oat'
+    args_all += ['--gdb-dex2oat']
     if gdb_dex2oat_args:
-      options_all += f' --gdb-dex2oat-args "{gdb_dex2oat_args}"'
+      args_all += ['--gdb-dex2oat-args', f'{gdb_dex2oat_args}']
 
-  options_all += ' ' + ' '.join(run_test_option)
+  args_all += run_test_option
 
   if runtime_option:
     for opt in runtime_option:
-      options_all += ' --runtime-option ' + opt
+      args_all += ['--runtime-option', opt]
   if with_agent:
     for opt in with_agent:
-      options_all += ' --with-agent ' + opt
+      args_all += ['--with-agent', opt]
 
   if dex2oat_jobs != -1:
-    options_all += ' --dex2oat-jobs ' + str(dex2oat_jobs)
+    args_all += ['--dex2oat-jobs', str(dex2oat_jobs)]
 
   def iter_config(tests, input_variants, user_input_variants):
     config = itertools.product(tests, input_variants, user_input_variants['run'],
@@ -492,121 +492,123 @@ def run_tests(tests):
       variant_set = {target, run, prebuild, compiler, relocate, trace, gc, jni,
                      image, debuggable, jvmti, cdex_level, address_size}
 
-      options_test = global_options
+      args_test = global_options
 
       if target == 'host':
-        options_test += ' --host'
+        args_test += ['--host']
       elif target == 'jvm':
-        options_test += ' --jvm'
+        args_test += ['--jvm']
 
       # Honor ART_TEST_CHROOT, ART_TEST_ANDROID_ROOT, ART_TEST_ANDROID_ART_ROOT,
       # ART_TEST_ANDROID_I18N_ROOT, and ART_TEST_ANDROID_TZDATA_ROOT but only
       # for target tests.
       if target == 'target':
         if env.ART_TEST_CHROOT:
-          options_test += ' --chroot ' + env.ART_TEST_CHROOT
+          args_test += ['--chroot', env.ART_TEST_CHROOT]
         if env.ART_TEST_ANDROID_ROOT:
-          options_test += ' --android-root ' + env.ART_TEST_ANDROID_ROOT
+          args_test += ['--android-root', env.ART_TEST_ANDROID_ROOT]
         if env.ART_TEST_ANDROID_I18N_ROOT:
-            options_test += ' --android-i18n-root ' + env.ART_TEST_ANDROID_I18N_ROOT
+            args_test += ['--android-i18n-root', env.ART_TEST_ANDROID_I18N_ROOT]
         if env.ART_TEST_ANDROID_ART_ROOT:
-          options_test += ' --android-art-root ' + env.ART_TEST_ANDROID_ART_ROOT
+          args_test += ['--android-art-root', env.ART_TEST_ANDROID_ART_ROOT]
         if env.ART_TEST_ANDROID_TZDATA_ROOT:
-          options_test += ' --android-tzdata-root ' + env.ART_TEST_ANDROID_TZDATA_ROOT
+          args_test += ['--android-tzdata-root', env.ART_TEST_ANDROID_TZDATA_ROOT]
 
       if run == 'ndebug':
-        options_test += ' -O'
+        args_test += ['-O']
 
       if prebuild == 'prebuild':
-        options_test += ' --prebuild'
+        args_test += ['--prebuild']
       elif prebuild == 'no-prebuild':
-        options_test += ' --no-prebuild'
+        args_test += ['--no-prebuild']
 
       if cdex_level:
         # Add option and remove the cdex- prefix.
-        options_test += ' --compact-dex-level ' + cdex_level.replace('cdex-','')
+        args_test += ['--compact-dex-level', cdex_level.replace('cdex-','')]
 
       if compiler == 'optimizing':
-        options_test += ' --optimizing'
+        args_test += ['--optimizing']
       elif compiler == 'regalloc_gc':
-        options_test += ' --optimizing -Xcompiler-option --register-allocation-strategy=graph-color'
+        args_test += ['--optimizing',
+                '-Xcompiler-option',
+                '--register-allocation-strategy=graph-color']
       elif compiler == 'interpreter':
-        options_test += ' --interpreter'
+        args_test += ['--interpreter']
       elif compiler == 'interp-ac':
-        options_test += ' --interpreter --verify-soft-fail'
+        args_test += ['--interpreter', '--verify-soft-fail']
       elif compiler == 'jit':
-        options_test += ' --jit'
+        args_test += ['--jit']
       elif compiler == 'jit-on-first-use':
-        options_test += ' --jit --runtime-option -Xjitthreshold:0'
+        args_test += ['--jit', '--runtime-option', '-Xjitthreshold:0']
       elif compiler == 'speed-profile':
-        options_test += ' --random-profile'
+        args_test += ['--random-profile']
       elif compiler == 'baseline':
-        options_test += ' --baseline'
+        args_test += ['--baseline']
 
       if relocate == 'relocate':
-        options_test += ' --relocate'
+        args_test += ['--relocate']
       elif relocate == 'no-relocate':
-        options_test += ' --no-relocate'
+        args_test += ['--no-relocate']
 
       if trace == 'trace':
-        options_test += ' --trace'
+        args_test += ['--trace']
       elif trace == 'stream':
-        options_test += ' --trace --stream'
+        args_test += [' --trace --stream']
 
       if gc == 'gcverify':
-        options_test += ' --gcverify'
+        args_test += ['--gcverify']
       elif gc == 'gcstress':
-        options_test += ' --gcstress'
+        args_test += ['--gcstress']
 
       if jni == 'forcecopy':
-        options_test += ' --runtime-option -Xjniopts:forcecopy'
+        args_test += ['--runtime-option', '-Xjniopts:forcecopy']
       elif jni == 'checkjni':
-        options_test += ' --runtime-option -Xcheck:jni'
+        args_test += ['--runtime-option', '-Xcheck:jni']
 
       if image == 'no-image':
-        options_test += ' --no-image'
+        args_test += ['--no-image']
 
       if debuggable == 'debuggable':
-        options_test += ' --debuggable --runtime-option -Xopaque-jni-ids:true'
+        args_test += ['--debuggable', '--runtime-option', '-Xopaque-jni-ids:true']
 
       if jvmti == 'jvmti-stress':
-        options_test += ' --jvmti-trace-stress --jvmti-redefine-stress --jvmti-field-stress'
+        args_test += ['--jvmti-trace-stress', '--jvmti-redefine-stress', '--jvmti-field-stress']
       elif jvmti == 'field-stress':
-        options_test += ' --jvmti-field-stress'
+        args_test += ['--jvmti-field-stress']
       elif jvmti == 'trace-stress':
-        options_test += ' --jvmti-trace-stress'
+        args_test += ['--jvmti-trace-stress']
       elif jvmti == 'redefine-stress':
-        options_test += ' --jvmti-redefine-stress'
+        args_test += ['--jvmti-redefine-stress']
       elif jvmti == 'step-stress':
-        options_test += ' --jvmti-step-stress'
+        args_test += ['--jvmti-step-stress']
 
       if address_size == '64':
-        options_test += ' --64'
+        args_test += ['--64']
 
       # b/36039166: Note that the path lengths must kept reasonably short.
       temp_path = tempfile.mkdtemp(dir=env.ART_HOST_TEST_DIR)
-      options_test = '--temp-path {} '.format(temp_path) + options_test
+      args_test = ['--temp-path', temp_path] + args_test
 
       # Run the run-test script using the prebuilt python.
       python3_bin = env.ANDROID_BUILD_TOP + "/prebuilts/build-tools/path/linux-x86/python3"
-      run_test_sh = python3_bin + ' ' + env.ANDROID_BUILD_TOP + '/art/test/run-test'
-      command = ' '.join((run_test_sh, options_test, ' '.join(extra_arguments[target]), test))
-      return executor.submit(run_test, command, test, variant_set, test_name)
+      run_test_sh = env.ANDROID_BUILD_TOP + '/art/test/run-test'
+      args_test = [python3_bin, run_test_sh] + args_test + extra_arguments[target] + [test]
+      return executor.submit(run_test, args_test, test, variant_set, test_name)
 
   #  Use a context-manager to handle cleaning up the extracted zipapex if needed.
   with handle_zipapex(zipapex_loc) as zipapex_opt:
-    options_all += zipapex_opt
+    args_all += zipapex_opt
     global n_thread
     with concurrent.futures.ThreadPoolExecutor(max_workers=n_thread) as executor:
       test_futures = []
       for config_tuple in config:
         target = config_tuple[1]
         for address_size in _user_input_variants['address_sizes_target'][target]:
-          test_futures.append(start_combination(executor, config_tuple, options_all, address_size))
+          test_futures.append(start_combination(executor, config_tuple, args_all, address_size))
 
       for config_tuple in uncombinated_config:
         test_futures.append(
-            start_combination(executor, config_tuple, options_all, ""))  # no address size
+            start_combination(executor, config_tuple, args_all, ""))  # no address size
 
       try:
         tests_done = 0
@@ -637,16 +639,16 @@ def handle_zipapex(ziploc):
       subprocess.check_call(["unzip", "-qq", ziploc, "apex_payload.zip", "-d", tmpdir])
       subprocess.check_call(
         ["unzip", "-qq", os.path.join(tmpdir, "apex_payload.zip"), "-d", tmpdir])
-      yield " --runtime-extracted-zipapex " + tmpdir
+      yield ['--runtime-extracted-zipapex', tmpdir]
   else:
-    yield ""
+    yield []
 
 def _popen(**kwargs):
   if sys.version_info.major == 3 and sys.version_info.minor >= 6:
     return subprocess.Popen(encoding=sys.stdout.encoding, **kwargs)
   return subprocess.Popen(**kwargs)
 
-def run_test(command, test, test_variant, test_name):
+def run_test(args, test, test_variant, test_name):
   """Runs the test.
 
   It invokes art/test/run-test script to run the test. The output of the script
@@ -665,6 +667,8 @@ def run_test(command, test, test_variant, test_name):
   Returns: a tuple of testname, status, optional failure info, and test time.
   """
   try:
+    command = ' '.join(args)
+
     if is_test_disabled(test, test_variant):
       test_skipped = True
       test_time = datetime.timedelta()
@@ -677,7 +681,7 @@ def run_test(command, test, test_variant, test_name):
       environ["FULL_TEST_NAME"] = test_name
       if gdb or gdb_dex2oat:
         proc = _popen(
-          args=command.split(),
+          args=args,
           env=environ,
           stderr=subprocess.STDOUT,
           universal_newlines=True,
@@ -685,7 +689,7 @@ def run_test(command, test, test_variant, test_name):
         )
       else:
         proc = _popen(
-          args=command.split(),
+          args=args,
           env=environ,
           stderr=subprocess.STDOUT,
           stdout = subprocess.PIPE,
