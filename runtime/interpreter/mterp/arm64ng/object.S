@@ -7,6 +7,7 @@
    GET_VREG w0, w2                     // w0<- vA (object)
    cbz     w0, .L${opcode}_resume
    ldr     w2, [x0, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w2
    // Fast path: do a comparison without read barrier.
    cmp     w1, w2
    bne     ${slow_path}
@@ -32,9 +33,11 @@
    ldr     w3, [x1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
    tbnz    w3, #MIRROR_CLASS_IS_INTERFACE_FLAG_BIT, 2f
    ldr     w3, [x1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF w3
    cbnz    w3, 5f
 1:
    ldr     w2, [x2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w2
    cmp     w1, w2
    beq     .L${opcode}_resume
    cbnz    w2, 1b
@@ -50,9 +53,11 @@
 5:
    // Class in w1 is an array, w3 is the component type.
    ldr     w2, [x2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF w2
    // Check if object is an array.
    cbz     w2, 2b
    ldr     w4, [x3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w4
    // If the super class of the component type is not null, go slow path.
    cbnz    w4, 2b
    ldrh    w3, [x3, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
@@ -74,6 +79,7 @@
    GET_VREG w0, w2                     // w0<- vB (object)
    cbz     w0, .L${opcode}_resume
    ldr     w2, [x0, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w2
    // Fast path: do a comparison without read barrier.
    cmp     w1, w2
    bne     ${slow_path}
@@ -101,9 +107,11 @@
    ldr     w3, [x1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
    tbnz    w3, #MIRROR_CLASS_IS_INTERFACE_FLAG_BIT, 5f
    ldr     w3, [x1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF w3
    cbnz    w3, 3f
 1:
    ldr     w2, [x2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w2
    cmp     w1, w2
    beq     .L${opcode}_set_one
    cbnz    w2, 1b
@@ -113,10 +121,12 @@
 3:
    // Class in x1 is an array, x3 is the component type of x1, and x2 is the class of the object.
    ldr     w2, [x2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   UNPOISON_HEAP_REF w2
    // Check if object is an array.
    cbz     w2, 2b
    // Check of x1 is Object[]
    ldr     w4, [x3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w4
    // If the super class is not Object, go to slow path.
    cbnz    w4, 5f
    // Super class is null, this could either be a primitive array or Object[].
@@ -161,6 +171,7 @@
    SET_VREG_WIDE x0, w2                // fp[A] <- value
    .elseif $is_object
    $load   w0, [x3, x0]
+   UNPOISON_HEAP_REF w0
    TEST_IF_MARKING .L${opcode}_read_barrier
 .L${opcode}_resume_after_read_barrier:
    SET_VREG_OBJECT w0, w2              // fp[A] <- value
@@ -196,6 +207,7 @@
    SET_VREG_WIDE x0, w2                // fp[A] <- value
    .elseif $is_object
    $volatile_load w0, [x3]
+   UNPOISON_HEAP_REF w0
    TEST_IF_MARKING .L${opcode}_read_barrier
    SET_VREG_OBJECT w0, w2              // fp[A] <- value
    .else
@@ -242,6 +254,7 @@
    .if $wide
    $store  x26, [x2, x0]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, w26
    $store  w26, [x2, x0]
    WRITE_BARRIER_IF_OBJECT $is_object, w26, w2, .L${opcode}_skip_write_barrier
    .endif
@@ -274,6 +287,7 @@
    .if $wide
    $volatile_store x26, [x3]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, w26
    $volatile_store w26, [x3]
    WRITE_BARRIER_IF_OBJECT $is_object, w26, w2, .L${opcode}_slow_path_skip_write_barrier
    .endif
@@ -314,6 +328,7 @@
    SET_VREG_WIDE x0, w2                // fp[A] <- value
    .elseif $is_object
    $load   w0, [x0, x1]
+   UNPOISON_HEAP_REF w0
    // No need to check the marking register, we know it's not set here.
 .L${opcode}_after_reference_load:
    SET_VREG_OBJECT w0, w2              // fp[A] <- value
@@ -328,6 +343,7 @@
    bl      art_quick_read_barrier_mark_reg00
    .if $is_object
    $load   w0, [x0, x1]
+   UNPOISON_HEAP_REF w0
 .L${opcode}_mark_after_load:
    // Here, we know the marking register is set.
    bl      art_quick_read_barrier_mark_reg00
@@ -356,6 +372,7 @@
    SET_VREG_WIDE x0, w2                // fp[A] <- value
    .elseif $is_object
    $volatile_load w0, [x0]
+   UNPOISON_HEAP_REF w0
    TEST_IF_MARKING .L${opcode}_mark_after_load
    SET_VREG_OBJECT w0, w2              // fp[A] <- value
    .else
@@ -406,6 +423,7 @@
    .if $wide
    $store  x26, [x0, x1]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, w26
    $store  w26, [x0, x1]
    WRITE_BARRIER_IF_OBJECT $is_object, w26, w0, .L${opcode}_skip_write_barrier
    .endif
@@ -442,6 +460,7 @@
    .if $wide
    $volatile_store    x26, [x1]
    .else
+   POISON_HEAP_REF_IF_OBJECT $is_object, w26
    $volatile_store    w26, [x1]
    WRITE_BARRIER_IF_OBJECT $is_object, w26, w0, .L${opcode}_slow_path_skip_write_barrier
    .endif

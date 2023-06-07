@@ -70,10 +70,11 @@
    b NterpCommonInvokePolymorphicRange
 
 %def invoke_interface(range=""):
+%  slow_path = add_slow_path(invoke_interface_slow_path, range)
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-%  fetch_from_thread_cache("x26", miss_label="5f")
-1:
+%  fetch_from_thread_cache("x26", miss_label=slow_path)
+.L${opcode}_resume:
    // First argument is the 'this' pointer.
    FETCH w1, 2
    .if !$range
@@ -82,13 +83,14 @@
    GET_VREG w1, w1
    // Note: if w1 is null, this will be handled by our SIGSEGV handler.
    ldr w2, [x1, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w2
    // Test the first two bits of the fetched ArtMethod:
    // - If the first bit is set, this is a method on j.l.Object
    // - If the second bit is set, this is a default method.
    tst w26, #0x3
-   b.ne 3f
+   b.ne 2f
    ldrh w3, [x26, #ART_METHOD_IMT_INDEX_OFFSET]
-2:
+1:
    ldr x2, [x2, #MIRROR_CLASS_IMT_PTR_OFFSET_64]
    ldr x0, [x2, w3, uxtw #3]
    .if $range
@@ -96,13 +98,13 @@
    .else
    b NterpCommonInvokeInterface
    .endif
-3:
-   tbnz w26, #0, 4f
+2:
+   tbnz w26, #0, 3f
    and x26, x26, #-4
    ldrh w3, [x26, #ART_METHOD_METHOD_INDEX_OFFSET]
    and w3, w3, #ART_METHOD_IMT_MASK
-   b 2b
-4:
+   b 1b
+3:
    lsr w26, w26, #16
    add w2, w2, #MIRROR_CLASS_VTABLE_OFFSET_64
    ldr x0, [x2, w26, uxtw #3]
@@ -111,13 +113,14 @@
    .else
    b NterpCommonInvokeInstance
    .endif
-5:
+
+%def invoke_interface_slow_path(range):
    mov x0, xSELF
    ldr x1, [sp]
    mov x2, xPC
    bl nterp_get_method
    mov x26, x0
-   b 1b
+   b .L${opcode}_resume
 
 %def op_invoke_interface():
 %  invoke_interface(range="0")
@@ -155,6 +158,7 @@
    GET_VREG w1, w1
    // Note: if w1 is null, this will be handled by our SIGSEGV handler.
    ldr w0, [x1, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF w0
    add w0, w0, #MIRROR_CLASS_VTABLE_OFFSET_64
    ldr x0, [x0, w2, uxtw #3]
    b $helper
