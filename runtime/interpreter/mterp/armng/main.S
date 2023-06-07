@@ -1451,6 +1451,12 @@ END \name
    GOTO_OPCODE ip
 .endm
 
+.macro POISON_HEAP_REF_IF_OBJECT is_object, rRef
+   .if \is_object
+   POISON_HEAP_REF \rRef
+   .endif
+.endm
+
 .macro WRITE_BARRIER_IF_OBJECT is_object, value, holder, label, tmp
    .if \is_object
    // In T32, we would use `SMART_CBZ \value, \label`
