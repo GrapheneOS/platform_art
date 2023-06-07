@@ -284,7 +284,6 @@ class OatWriter {
                      /*out*/ std::vector<MemMap>* opened_dex_files_map);
   bool LayoutDexFile(OatDexFile* oat_dex_file);
   bool OpenDexFiles(File* file,
-                    bool verify,
                     /*inout*/ std::vector<MemMap>* opened_dex_files_map,
                     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
   void WriteQuickeningInfo(/*out*/std::vector<uint8_t>* buffer);
