@@ -40,13 +40,13 @@ bool IsNterpSupported() {
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:
     case InstructionSet::kArm64:
-      return kReserveMarkingRegister;
+      return kReserveMarkingRegister && !kUseTableLookupReadBarrier;
     case InstructionSet::kRiscv64:
       // TODO(riscv64): Support nterp.
       return false;
     case InstructionSet::kX86:
     case InstructionSet::kX86_64:
-      return true;
+      return !kUseTableLookupReadBarrier;
     default:
       return false;
   }
