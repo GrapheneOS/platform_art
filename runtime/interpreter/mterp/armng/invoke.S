@@ -87,6 +87,7 @@
    GET_VREG r1, r1
    // Note: if r1 is null, this will be handled by our SIGSEGV handler.
    ldr r2, [r1, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r2
    // Test the first two bits of the fetched ArtMethod:
    // - If the first bit is set, this is a method on j.l.Object
    // - If the second bit is set, this is a default method.
@@ -162,6 +163,7 @@
    GET_VREG r1, r1
    // Note: if r1 is null, this will be handled by our SIGSEGV handler.
    ldr r0, [r1, #MIRROR_OBJECT_CLASS_OFFSET]
+   UNPOISON_HEAP_REF r0
    add r0, r0, #MIRROR_CLASS_VTABLE_OFFSET_32
    ldr r0, [r0, r2, lsl #2]
    b $helper
