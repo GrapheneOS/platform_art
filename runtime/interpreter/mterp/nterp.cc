@@ -39,7 +39,6 @@ bool IsNterpSupported() {
   switch (kRuntimeISA) {
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:
-      return !kPoisonHeapReferences && kReserveMarkingRegister;
     case InstructionSet::kArm64:
       return kReserveMarkingRegister;
     case InstructionSet::kRiscv64:
