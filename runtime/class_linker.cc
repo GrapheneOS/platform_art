@@ -4289,6 +4289,14 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const OatDexFil
     return dex_cache;
   }
   // Failure, dump diagnostic and abort.
+  if (dex_cache_data == nullptr) {
+    LOG(FATAL_WITHOUT_ABORT) << "NULL dex_cache_data";
+  } else {
+    LOG(FATAL_WITHOUT_ABORT)
+        << "dex_cache_data=" << dex_cache_data
+        << " weak_root=" << dex_cache_data->weak_root
+        << " decoded_weak_root=" << self->DecodeJObject(dex_cache_data->weak_root);
+  }
   for (const auto& entry : dex_caches_) {
     const DexCacheData& data = entry.second;
     if (DecodeDexCacheLocked(self, &data) != nullptr) {
@@ -4300,7 +4308,10 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const OatDexFil
           << " oat_dex_file=" << other_oat_dex_file
           << " oat_file=" << oat_file
           << " oat_location=" << (oat_file == nullptr ? "null" : oat_file->GetLocation())
-          << " dex_file=" << &entry.first;
+          << " dex_file=" << &entry.first
+          << " weak_root=" << data.weak_root
+          << " decoded_weak_root=" << self->DecodeJObject(data.weak_root)
+          << " dex_cache_data=" << &data;
     }
   }
   LOG(FATAL) << "Failed to find DexCache for OatDexFile "
