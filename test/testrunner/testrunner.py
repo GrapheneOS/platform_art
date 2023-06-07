@@ -431,7 +431,7 @@ def run_tests(tests):
   if gdb_dex2oat:
     options_all += ' --gdb-dex2oat'
     if gdb_dex2oat_args:
-      options_all += ' --gdb-dex2oat-args ' + gdb_dex2oat_args
+      options_all += f' --gdb-dex2oat-args "{gdb_dex2oat_args}"'
 
   options_all += ' ' + ' '.join(run_test_option)
 
