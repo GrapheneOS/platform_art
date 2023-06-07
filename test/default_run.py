@@ -653,7 +653,7 @@ def default_run(ctx, args, **kwargs):
       GDB = f"{GDBSERVER_DEVICE} --no-startup-with-shell 127.0.0.1{GDBSERVER_PORT}"
     else:
       GDB = "gdb"
-      GDB_ARGS += f" --args {DALVIKVM}"
+      GDB_ARGS += f" -d '{ANDROID_BUILD_TOP}' --args {DALVIKVM}"
 
   if INTERPRETER:
     INT_OPTS += " -Xint"
@@ -823,7 +823,8 @@ def default_run(ctx, args, **kwargs):
 
     if USE_GDB_DEX2OAT:
       nonlocal GDB_DEX2OAT_EXTRA_ARGS
-      dex2oat_cmdline += f"gdb {GDB_DEX2OAT_EXTRA_ARGS} --args "
+      dex2oat_cmdline += f"gdb {GDB_DEX2OAT_EXTRA_ARGS} \
+                          -d '{ANDROID_BUILD_TOP}' --args "
 
     dex2oat_cmdline += f"'{ANDROID_ART_BIN_DIR}/{dex2oat_binary}' \
                         {COMPILE_FLAGS} \
