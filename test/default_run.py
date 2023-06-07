@@ -65,7 +65,7 @@ def parse_args(argv):
   argp.add_argument("--gdb", action="store_true")
   argp.add_argument("--gdb-arg", default=[], action="append")
   argp.add_argument("--gdb-dex2oat", action="store_true")
-  argp.add_argument("--gdb-dex2oat-args", default=[], action="append")
+  argp.add_argument("--gdb-dex2oat-args")
   argp.add_argument("--gdbserver", action="store_true")
   argp.add_argument("--gdbserver-bin")
   argp.add_argument("--gdbserver-port", default=":5039")
@@ -265,8 +265,7 @@ def default_run(ctx, args, **kwargs):
   ANDROID_FLAGS = ""
   GDB = ""
   GDB_ARGS = ""
-  GDB_DEX2OAT = ""
-  GDB_DEX2OAT_ARGS = ""
+  GDB_DEX2OAT_EXTRA_ARGS = ""
   GDBSERVER_DEVICE = "gdbserver"
   GDBSERVER_HOST = "gdbserver"
   HAVE_IMAGE = args.image
@@ -428,8 +427,8 @@ def default_run(ctx, args, **kwargs):
   for arg in args.gdb_arg:
     GDB_ARGS += f" {arg}"
   if args.gdb_dex2oat_args:
-    for arg in arg.split(";"):
-      GDB_DEX2OAT_ARGS += f"{arg} "
+    for arg in args.gdb_dex2oat_args.split(";"):
+      GDB_DEX2OAT_EXTRA_ARGS += f'"{arg}" '
   if args.zygote:
     ZYGOTE = "-Xzygote"
     print("Spawning from zygote")
@@ -788,44 +787,6 @@ def default_run(ctx, args, **kwargs):
       profman_cmdline = f"{profman_cmdline} --generate-test-profile={DEX_LOCATION}/{TEST_NAME}.prof \
           --generate-test-profile-seed=0"
 
-  def get_prebuilt_lldb_path():
-    CLANG_BASE = "prebuilts/clang/host"
-    CLANG_VERSION = check_output(
-        f"{ANDROID_BUILD_TOP}/build/soong/scripts/get_clang_version.py"
-    ).strip()
-    uname = check_output("uname -s", shell=True).strip()
-    if uname == "Darwin":
-      PREBUILT_NAME = "darwin-x86"
-    elif uname == "Linux":
-      PREBUILT_NAME = "linux-x86"
-    else:
-      print(
-          "Unknown host $(uname -s). Unsupported for debugging dex2oat with LLDB.",
-          file=sys.stderr)
-      return
-    CLANG_PREBUILT_HOST_PATH = f"{ANDROID_BUILD_TOP}/{CLANG_BASE}/{PREBUILT_NAME}/{CLANG_VERSION}"
-    # If the clang prebuilt directory exists and the reported clang version
-    # string does not, then it is likely that the clang version reported by the
-    # get_clang_version.py script does not match the expected directory name.
-    if isdir(f"{ANDROID_BUILD_TOP}/{CLANG_BASE}/{PREBUILT_NAME}"):
-      assert isdir(CLANG_PREBUILT_HOST_PATH), (
-          "The prebuilt clang directory exists, but the specific "
-          "clang\nversion reported by get_clang_version.py does not exist in "
-          "that path.\nPlease make sure that the reported clang version "
-          "resides in the\nprebuilt clang directory!")
-
-    # The lldb-server binary is a dependency of lldb.
-    os.environ[
-        "LLDB_DEBUGSERVER_PATH"] = f"{CLANG_PREBUILT_HOST_PATH}/runtimes_ndk_cxx/x86_64/lldb-server"
-
-    # Set the current terminfo directory to TERMINFO so that LLDB can read the
-    # termcap database.
-    terminfo = re.search("/.*/terminfo/", check_output("infocmp"))
-    if terminfo:
-      os.environ["TERMINFO"] = terminfo[0]
-
-    return f"{CLANG_PREBUILT_HOST_PATH}/bin/lldb.sh"
-
   def write_dex2oat_cmdlines(name: str):
     nonlocal dex2oat_cmdline, dm_cmdline, vdex_cmdline
 
@@ -854,18 +815,17 @@ def default_run(ctx, args, **kwargs):
     if enable_app_image:
       app_image = f"--app-image-file={DEX_LOCATION}/oat/{ISA}/{name}.art --resolve-startup-const-strings=true"
 
-    nonlocal GDB_DEX2OAT, GDB_DEX2OAT_ARGS
-    if USE_GDB_DEX2OAT:
-      prebuilt_lldb_path = get_prebuilt_lldb_path()
-      GDB_DEX2OAT = f"{prebuilt_lldb_path} -f"
-      GDB_DEX2OAT_ARGS += " -- "
-
     dex2oat_binary = DEX2OAT_DEBUG_BINARY
     if TEST_IS_NDEBUG:
       dex2oat_binary = DEX2OAT_NDEBUG_BINARY
-    dex2oat_cmdline = f"{INVOKE_WITH} {GDB_DEX2OAT} \
-                        {ANDROID_ART_BIN_DIR}/{dex2oat_binary} \
-                        {GDB_DEX2OAT_ARGS} \
+
+    dex2oat_cmdline = f"{INVOKE_WITH} "
+
+    if USE_GDB_DEX2OAT:
+      nonlocal GDB_DEX2OAT_EXTRA_ARGS
+      dex2oat_cmdline += f"gdb {GDB_DEX2OAT_EXTRA_ARGS} --args "
+
+    dex2oat_cmdline += f"'{ANDROID_ART_BIN_DIR}/{dex2oat_binary}' \
                         {COMPILE_FLAGS} \
                         --boot-image={BOOT_IMAGE} \
                         --dex-file={DEX_LOCATION}/{name}.jar \
