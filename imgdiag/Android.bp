@@ -28,7 +28,10 @@ package {
 cc_defaults {
     name: "imgdiag-defaults",
     host_supported: true,
-    srcs: ["imgdiag.cc"],
+    srcs: [
+        "imgdiag.cc",
+        "page_util.cc",
+    ],
     defaults: ["art_defaults"],
 
     // Note that this tool needs to be built for both 32-bit and 64-bit since it requires
@@ -102,4 +105,48 @@ art_cc_test {
             required: ["imgdiagd"],
         },
     },
+}
+
+cc_defaults {
+    name: "pageinfo-defaults",
+    host_supported: true,
+    srcs: [
+        "page_info.cc",
+        "page_util.cc",
+    ],
+    defaults: ["art_defaults"],
+
+    compile_multilib: "both",
+
+    shared_libs: [
+        "libbase",
+    ],
+    static_libs: [
+        "libprocinfo",
+    ],
+    header_libs: [
+        "art_cmdlineparser_headers",
+    ],
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+    symlink_preferred_arch: true,
+}
+
+art_cc_binary {
+    name: "pageinfo",
+    defaults: ["pageinfo-defaults"],
+    shared_libs: [
+        "libart",
+        "libartbase",
+    ],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
 }
