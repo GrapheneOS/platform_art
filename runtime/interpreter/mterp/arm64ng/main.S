@@ -203,25 +203,39 @@
 /*
  * Get/set the 64-bit value from a Dalvik register.
  */
+.macro LOAD_SCALED_VREG_MASK scaled_mask_reg, unscaled_mask
+    mov     \scaled_mask_reg, \unscaled_mask << 2
+.endm
+.macro EXTRACT_SCALED_VREG scaled_vreg, scaled_mask_reg, src_reg, lsb
+    .if \lsb < 2
+    and     \scaled_vreg, \scaled_mask_reg, \src_reg, lsl #(2 - \lsb)
+    .else
+    and     \scaled_vreg, \scaled_mask_reg, \src_reg, lsr #(\lsb - 2)
+    .endif
+.endm
+.macro GET_VREG_WIDE_PRESCALED reg, scaled_vreg
+    ldr     \reg, [xFP, \scaled_vreg, uxtw]
+.endm
 .macro GET_VREG_WIDE reg, vreg
-    add     ip2, xFP, \vreg, uxtw #2
-    ldr     \reg, [ip2]
+    lsl     wip2, \vreg, #2
+    GET_VREG_WIDE_PRESCALED \reg, wip2
+.endm
+.macro SET_VREG_WIDE_PRESCALED reg, scaled_vreg
+    str     \reg, [xFP, \scaled_vreg, uxtw]
+    str     xzr, [xREFS, \scaled_vreg, uxtw]
 .endm
 .macro SET_VREG_WIDE reg, vreg
-    add     ip2, xFP, \vreg, uxtw #2
-    str     \reg, [ip2]
-    add     ip2, xREFS, \vreg, uxtw #2
-    str     xzr, [ip2]
+    lsl     wip2, \vreg, #2
+    SET_VREG_WIDE_PRESCALED \reg, wip2
+.endm
+.macro GET_VREG_DOUBLE_PRESCALED reg, scaled_vreg
+    GET_VREG_WIDE_PRESCALED \reg, \scaled_vreg
 .endm
 .macro GET_VREG_DOUBLE reg, vreg
-    add     ip2, xFP, \vreg, uxtw #2
-    ldr     \reg, [ip2]
+    GET_VREG_WIDE \reg, \vreg
 .endm
 .macro SET_VREG_DOUBLE reg, vreg
-    add     ip2, xFP, \vreg, uxtw #2
-    str     \reg, [ip2]
-    add     ip2, xREFS, \vreg, uxtw #2
-    str     xzr, [ip2]
+    SET_VREG_WIDE \reg, \vreg
 .endm
 
 /*
