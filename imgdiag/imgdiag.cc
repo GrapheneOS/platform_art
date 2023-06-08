@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
+#include <android-base/parseint.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <functional>
 #include <map>
@@ -26,9 +30,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <android-base/parseint.h>
 #include "android-base/stringprintf.h"
-
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/array_ref.h"
@@ -36,6 +38,7 @@
 #include "base/string_view_cpp20.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "cmdline.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "image-inl.h"
@@ -44,14 +47,9 @@
 #include "oat.h"
 #include "oat_file.h"
 #include "oat_file_manager.h"
-#include "scoped_thread_state_change-inl.h"
-
+#include "page_util.h"
 #include "procinfo/process_map.h"
-#include "cmdline.h"
-
-#include <signal.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -1294,14 +1292,14 @@ class ImgDiagDumper {
 
       uint64_t page_count = 0xC0FFEE;
       // TODO: virtual_page_idx needs to be from the same process
-      int dirtiness = (IsPageDirty(&image_pagemap_file_,     // Image-diff-pid procmap
-                                   &zygote_pagemap_file_,    // Zygote procmap
-                                   &kpageflags_file_,
-                                   &kpagecount_file_,
+      int dirtiness = (IsPageDirty(image_pagemap_file_,   // Image-diff-pid procmap
+                                   zygote_pagemap_file_,  // Zygote procmap
+                                   kpageflags_file_,
+                                   kpagecount_file_,
                                    virtual_page_idx,  // compare same page in image
                                    virtual_page_idx,  // and zygote
-                                   &page_count,
-                                   error_msg));
+                                   /*out*/ page_count,
+                                   /*out*/ *error_msg));
       if (dirtiness < 0) {
         return false;
       } else if (dirtiness > 0) {
@@ -1545,126 +1543,39 @@ class ImgDiagDumper {
     return true;
   }
 
-  // Note: On failure, `*page_frame_number` shall be clobbered.
-  static bool GetPageFrameNumber(File* page_map_file,
-                                 size_t virtual_page_index,
-                                 /*out*/ uint64_t* page_frame_number,
-                                 /*out*/ std::string* error_msg) {
-    CHECK(page_frame_number != nullptr);
-    return GetPageFrameNumbers(page_map_file,
-                               virtual_page_index,
-                               ArrayRef<uint64_t>(page_frame_number, 1u),
-                               error_msg);
-  }
-
-  // Note: On failure, `page_frame_numbers[.]` shall be clobbered.
-  static bool GetPageFrameNumbers(File* page_map_file,
-                                  size_t virtual_page_index,
-                                  /*out*/ ArrayRef<uint64_t> page_frame_numbers,
-                                  /*out*/ std::string* error_msg) {
-    CHECK(page_map_file != nullptr);
-    CHECK_NE(page_frame_numbers.size(), 0u);
-    CHECK(page_frame_numbers.data() != nullptr);
-    CHECK(error_msg != nullptr);
-
-    // Read 64-bit entries from /proc/$pid/pagemap to get the physical page frame numbers.
-    if (!page_map_file->PreadFully(page_frame_numbers.data(),
-                                   page_frame_numbers.size() * kPageMapEntrySize,
-                                   virtual_page_index * kPageMapEntrySize)) {
-      *error_msg = StringPrintf("Failed to read the virtual page index entries from %s, error: %s",
-                                page_map_file->GetPath().c_str(),
-                                strerror(errno));
-      return false;
-    }
-
-    // Extract page frame numbers from pagemap entries.
-    for (uint64_t& page_frame_number : page_frame_numbers) {
-      page_frame_number &= kPageFrameNumberMask;
-    }
-
-    return true;
-  }
-
-  // Note: On failure, `page_flags_or_counts[.]` shall be clobbered.
-  static bool GetPageFlagsOrCounts(File* kpage_file,
-                                   ArrayRef<const uint64_t> page_frame_numbers,
-                                   /*out*/ ArrayRef<uint64_t> page_flags_or_counts,
-                                   /*out*/ std::string* error_msg) {
-    static_assert(kPageFlagsEntrySize == kPageCountEntrySize, "entry size check");
-    CHECK_NE(page_frame_numbers.size(), 0u);
-    CHECK_EQ(page_flags_or_counts.size(), page_frame_numbers.size());
-    CHECK(kpage_file != nullptr);
-    CHECK(page_frame_numbers.data() != nullptr);
-    CHECK(page_flags_or_counts.data() != nullptr);
-    CHECK(error_msg != nullptr);
-
-    size_t size = page_frame_numbers.size();
-    size_t i = 0;
-    while (i != size) {
-      size_t start = i;
-      ++i;
-      while (i != size && page_frame_numbers[i] - page_frame_numbers[start] == i - start) {
-        ++i;
-      }
-      // Read 64-bit entries from /proc/kpageflags or /proc/kpagecount.
-      if (!kpage_file->PreadFully(page_flags_or_counts.data() + start,
-                                  (i - start) * kPageMapEntrySize,
-                                  page_frame_numbers[start] * kPageFlagsEntrySize)) {
-        *error_msg = StringPrintf("Failed to read the page flags or counts from %s, error: %s",
-                                  kpage_file->GetPath().c_str(),
-                                  strerror(errno));
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  static int IsPageDirty(File* page_map_file,
-                         File* clean_pagemap_file,
-                         File* kpageflags_file,
-                         File* kpagecount_file,
+  static int IsPageDirty(File& page_map_file,
+                         File& clean_pagemap_file,
+                         File& kpageflags_file,
+                         File& kpagecount_file,
                          size_t virtual_page_idx,
                          size_t clean_virtual_page_idx,
                          // Out parameters:
-                         uint64_t* page_count, std::string* error_msg) {
-    CHECK(page_map_file != nullptr);
-    CHECK(clean_pagemap_file != nullptr);
-    CHECK_NE(page_map_file, clean_pagemap_file);
-    CHECK(kpageflags_file != nullptr);
-    CHECK(kpagecount_file != nullptr);
-    CHECK(page_count != nullptr);
-    CHECK(error_msg != nullptr);
+                         uint64_t& page_count,
+                         std::string& error_msg) {
+    CHECK_NE(page_map_file.GetPath(), clean_pagemap_file.GetPath());
 
     // Constants are from https://www.kernel.org/doc/Documentation/vm/pagemap.txt
 
     uint64_t page_frame_number = 0;
-    if (!GetPageFrameNumber(page_map_file, virtual_page_idx, &page_frame_number, error_msg)) {
+    if (!GetPageFrameNumber(page_map_file, virtual_page_idx, page_frame_number, error_msg)) {
       return -1;
     }
 
     uint64_t page_frame_number_clean = 0;
-    if (!GetPageFrameNumber(clean_pagemap_file, clean_virtual_page_idx, &page_frame_number_clean,
-                            error_msg)) {
+    if (!GetPageFrameNumber(
+            clean_pagemap_file, clean_virtual_page_idx, page_frame_number_clean, error_msg)) {
       return -1;
     }
 
     // Read 64-bit entry from /proc/kpageflags to get the dirty bit for a page
     uint64_t kpage_flags_entry = 0;
-    if (!kpageflags_file->PreadFully(&kpage_flags_entry,
-                                     kPageFlagsEntrySize,
-                                     page_frame_number * kPageFlagsEntrySize)) {
-      *error_msg = StringPrintf("Failed to read the page flags from %s",
-                                kpageflags_file->GetPath().c_str());
+    if (!GetPageFlagsOrCount(
+            kpageflags_file, page_frame_number, /*out*/ kpage_flags_entry, error_msg)) {
       return -1;
     }
 
     // Read 64-bit entyry from /proc/kpagecount to get mapping counts for a page
-    if (!kpagecount_file->PreadFully(page_count /*out*/,
-                                     kPageCountEntrySize,
-                                     page_frame_number * kPageCountEntrySize)) {
-      *error_msg = StringPrintf("Failed to read the page count from %s",
-                                kpagecount_file->GetPath().c_str());
+    if (!GetPageFlagsOrCount(kpagecount_file, page_frame_number, /*out*/ page_count, error_msg)) {
       return -1;
     }
 
@@ -1672,21 +1583,6 @@ class ImgDiagDumper {
     CHECK_EQ(kpage_flags_entry & kPageFlagsNoPageMask, 0u);
     // The page frame must be memory mapped
     CHECK_NE(kpage_flags_entry & kPageFlagsMmapMask, 0u);
-
-    // Page is dirty, i.e. has diverged from file, if the 4th bit is set to 1
-    bool flags_dirty = (kpage_flags_entry & kPageFlagsDirtyMask) != 0;
-
-    // page_frame_number_clean must come from the *same* process
-    // but a *different* mmap than page_frame_number
-    if (flags_dirty) {
-      // FIXME: This check sometimes fails and the reason is not understood. b/123852774
-      if (page_frame_number != page_frame_number_clean) {
-        LOG(ERROR) << "Check failed: page_frame_number != page_frame_number_clean "
-            << "(page_frame_number=" << page_frame_number
-            << ", page_frame_number_clean=" << page_frame_number_clean << ")"
-            << " count: " << *page_count << " flags: 0x" << std::hex << kpage_flags_entry;
-      }
-    }
 
     return (page_frame_number != page_frame_number_clean) ? 1 : 0;
   }
@@ -1713,17 +1609,6 @@ class ImgDiagDumper {
   static std::string GetImageLocationBaseName(const std::string& image_location) {
     return BaseName(std::string(image_location));
   }
-
-  static constexpr size_t kPageMapEntrySize = sizeof(uint64_t);
-  // bits 0-54 [in /proc/$pid/pagemap]
-  static constexpr uint64_t kPageFrameNumberMask = (1ULL << 55) - 1;
-
-  static constexpr size_t kPageFlagsEntrySize = sizeof(uint64_t);
-  static constexpr size_t kPageCountEntrySize = sizeof(uint64_t);
-  static constexpr uint64_t kPageFlagsDirtyMask = (1ULL << 4);  // in /proc/kpageflags
-  static constexpr uint64_t kPageFlagsNoPageMask = (1ULL << 20);  // in /proc/kpageflags
-  static constexpr uint64_t kPageFlagsMmapMask = (1ULL << 11);  // in /proc/kpageflags
-
 
   std::ostream* os_;
   pid_t image_diff_pid_;  // Dump image diff against boot.art if pid is non-negative
