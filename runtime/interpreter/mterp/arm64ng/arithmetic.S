@@ -141,21 +141,22 @@
      *      xor-long, add-double, sub-double, mul-double, div-double, rem-double
      */
     /* binop vAA, vBB, vCC */
-    FETCH w0, 1                         // w0<- CCBB
-    lsr     w4, wINST, #8               // w4<- AA
-    lsr     w2, w0, #8                  // w2<- CC
-    and     w1, w0, #255                // w1<- BB
-    GET_VREG_WIDE $r2, w2               // w2<- vCC
-    GET_VREG_WIDE $r1, w1               // w1<- vBB
+    FETCH w0, 1                           // w0<- CCBB
+    LOAD_SCALED_VREG_MASK w5, 0xff        // w5<- ff * sizeof(vreg)
+    EXTRACT_SCALED_VREG w4, w5, wINST, 8  // w4<- AA * sizeof(vreg)
+    EXTRACT_SCALED_VREG w2, w5, w0, 8     // w2<- CC * sizeof(vreg)
+    EXTRACT_SCALED_VREG w1, w5, w0, 0     // w1<- BB * sizeof(vreg)
+    GET_VREG_WIDE_PRESCALED $r2, w2       // w2<- vCC
+    GET_VREG_WIDE_PRESCALED $r1, w1       // w1<- vBB
     .if $chkzero
-    cbz     $r2, common_errDivideByZero  // is second operand zero?
+    cbz     $r2, common_errDivideByZero   // is second operand zero?
     .endif
-    FETCH_ADVANCE_INST 2                // advance rPC, load rINST
+    FETCH_ADVANCE_INST 2                  // advance rPC, load rINST
     $preinstr
-    $instr                              // $result<- op, w0-w4 changed
-    GET_INST_OPCODE ip                  // extract opcode from rINST
-    SET_VREG_WIDE $result, w4           // vAA<- $result
-    GOTO_OPCODE ip                      // jump to next instruction
+    $instr                                // $result<- op, w0-w4 changed
+    GET_INST_OPCODE ip                    // extract opcode from rINST
+    SET_VREG_WIDE_PRESCALED $result, w4   // vAA<- $result
+    GOTO_OPCODE ip                        // jump to next instruction
     /* 11-14 instructions */
 
 %def binopWide2addr(preinstr="", instr="add x0, x0, x1", r0="x0", r1="x1", chkzero="0"):
@@ -300,11 +301,12 @@
 
 %def op_cmp_long():
     FETCH w0, 1                         // w0<- CCBB
+    LOAD_SCALED_VREG_MASK w5, 0xff      // w4<- ff * sizeof(vreg)
     lsr     w4, wINST, #8               // w4<- AA
-    and     w2, w0, #255                // w2<- BB
-    lsr     w3, w0, #8                  // w3<- CC
-    GET_VREG_WIDE x1, w2
-    GET_VREG_WIDE x2, w3
+    EXTRACT_SCALED_VREG w2, w5, w0, 0   // w2<- BB * sizeof(vreg)
+    EXTRACT_SCALED_VREG w3, w5, w0, 8   // w3<- CC * sizeof(vreg)
+    GET_VREG_WIDE_PRESCALED x1, w2
+    GET_VREG_WIDE_PRESCALED x2, w3
     cmp     x1, x2
     cset    w0, ne
     cneg    w0, w0, lt
