@@ -1659,6 +1659,8 @@ class HLoopInformationOutwardIterator : public ValueObject {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_ARM64(M)
 
+#define FOR_EACH_CONCRETE_INSTRUCTION_RISCV64(M)
+
 #ifndef ART_ENABLE_CODEGEN_x86
 #define FOR_EACH_CONCRETE_INSTRUCTION_X86(M)
 #else
