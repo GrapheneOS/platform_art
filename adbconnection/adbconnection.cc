@@ -859,6 +859,36 @@ bool ValidateJdwpOptions(const std::string& opts) {
   return res;
 }
 
+#if defined(__ANDROID__)
+void FixLogfile(JdwpArgs& parameters) {
+  const std::string kLogfile = "logfile";
+  // On Android, an app will not have write access to the cwd (which is "/").
+  // If a relative path was provided, we need to patch it with a writable
+  // location. For now, we use /data/data/<PKG_NAME>.
+  // Note that /data/local/tmp/ was also considered but it not a good candidate since apps don't
+  // have write access to it.
+
+  if (!parameters.contains(kLogfile)) {
+    return;
+  }
+
+  std::string& logfile = parameters.get(kLogfile);
+  if (logfile.front() == '/') {
+    // We only fix logfile if it is not using an absolute path
+    return;
+  }
+
+  std::string packageName = art::Runtime::Current()->GetProcessPackageName();
+  if (packageName.empty()) {
+    VLOG(jdwp) << "Unable to fix relative path logfile='" + logfile + "' without package name.";
+    return;
+  }
+  parameters.put(kLogfile, "/data/data/" + packageName + "/" + logfile);
+}
+#else
+void FixLogfile(JdwpArgs&) {}
+#endif
+
 std::string AdbConnectionState::MakeAgentArg() {
   const std::string& opts = art::Runtime::Current()->GetJdwpOptions();
   DCHECK(ValidateJdwpOptions(opts));
@@ -882,6 +912,9 @@ std::string AdbConnectionState::MakeAgentArg() {
 
   parameters.put("transport", "dt_fd_forward");
   parameters.put("address", std::to_string(remote_agent_control_sock_));
+
+  // If logfile is relative, we need to fix it.
+  FixLogfile(parameters);
 
   // TODO Get agent_name_ from something user settable?
   return agent_name_ + "=" + parameters.join();
