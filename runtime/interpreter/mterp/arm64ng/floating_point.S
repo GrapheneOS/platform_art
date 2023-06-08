@@ -69,20 +69,24 @@
     SET_VREG_DOUBLE $r0, w2             // vAA<- result
     GOTO_OPCODE ip                      // jump to next instruction
 
-%def fcmp(wide="", r1="s1", r2="s2", cond="lt"):
+%def fcmp(r1="s1", r2="s2", cond="lt"):
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
      */
     /* op vAA, vBB, vCC */
     FETCH w0, 1                         // w0<- CCBB
+%  if r1.startswith("d"):
+    LOAD_SCALED_VREG_MASK w5, 0xff      // w4<- ff * sizeof(vreg)
+    lsr     w4, wINST, #8               // w4<- AA
+    EXTRACT_SCALED_VREG w2, w5, w0, 0   // w2<- BB * sizeof(vreg)
+    EXTRACT_SCALED_VREG w3, w5, w0, 8   // w3<- CC * sizeof(vreg)
+    GET_VREG_DOUBLE_PRESCALED $r1, w2
+    GET_VREG_DOUBLE_PRESCALED $r2, w3
+%  else:
     lsr     w4, wINST, #8               // w4<- AA
     and     w2, w0, #255                // w2<- BB
     lsr     w3, w0, #8                  // w3<- CC
-%  if r1.startswith("d"):
-    GET_VREG_DOUBLE $r1, w2
-    GET_VREG_DOUBLE $r2, w3
-%  else:
     GET_VREG $r1, w2
     GET_VREG $r2, w3
 %  #endif
@@ -188,16 +192,16 @@
 %  fbinop2addr(instr="fadd   s2, s0, s1")
 
 %def op_cmpg_double():
-%  fcmp(wide="_WIDE", r1="d1", r2="d2", cond="cc")
+%  fcmp(r1="d1", r2="d2", cond="cc")
 
 %def op_cmpg_float():
-%  fcmp(wide="", r1="s1", r2="s2", cond="cc")
+%  fcmp(r1="s1", r2="s2", cond="cc")
 
 %def op_cmpl_double():
-%  fcmp(wide="_WIDE", r1="d1", r2="d2", cond="lt")
+%  fcmp(r1="d1", r2="d2", cond="lt")
 
 %def op_cmpl_float():
-%  fcmp(wide="", r1="s1", r2="s2", cond="lt")
+%  fcmp(r1="s1", r2="s2", cond="lt")
 
 %def op_div_double():
 %  fbinopWide(instr="fdiv d0, d1, d2", result="d0", r1="d1", r2="d2")
