@@ -205,6 +205,12 @@ void ConcurrentCopying::MarkHeapReference(mirror::HeapReference<mirror::Object>*
           break;
         }
       } while (!field->CasWeakRelaxed(from_ref, to_ref));
+      // "Relaxed" is not technically sufficient by C++ rules. However, we use a "release"
+      // operation to originally store the forwarding pointer, or a constructor fence if we
+      // directly obtained to_ref from Copy(). We then count on the fact that all later accesses
+      // to the to_ref object are data/address-dependent on the forwarding pointer, and there is
+      // no reasonable way for the compiler to eliminate that depenency. This is very similar to
+      // the reasoning we must use for final fields in any case.
     }
   } else {
     // Used for preserving soft references, should be OK to not have a CAS here since there should be
@@ -3843,6 +3849,7 @@ bool ConcurrentCopying::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror
           break;
         }
       } while (!field->CasWeakRelaxed(from_ref, to_ref));
+      // See comment in MarkHeapReference() for memory ordering.
     } else {
       field->Assign(to_ref);
     }
