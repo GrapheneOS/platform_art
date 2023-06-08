@@ -21,6 +21,7 @@
 #include "obj_ptr.h"
 #include "object.h"
 #include "object_reference.h"
+#include "string.h"
 
 namespace art {
 
@@ -77,11 +78,10 @@ class MANAGED ClassLoader : public Object {
       REQUIRES(!Locks::classlinker_classes_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  HeapReference<String> name_;
   HeapReference<Object> packages_;
   HeapReference<ClassLoader> parent_;
   HeapReference<Object> proxyCache_;
-  // Native pointer to class table, need to zero this out when image writing.
-  [[maybe_unused]] uint32_t padding_;
   uint64_t allocator_;
   uint64_t class_table_;
 
