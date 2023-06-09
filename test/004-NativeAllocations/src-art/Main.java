@@ -50,11 +50,13 @@ public class Main {
         long maxMem = Runtime.getRuntime().maxMemory();
         int size = (int)(maxMem / 32);
         int allocationCount = 256;
+        final long startTime = System.currentTimeMillis();
 
         ReferenceQueue<Object> queue = new ReferenceQueue<Object>();
         ref = allocPhantom(queue);
         long total = 0;
-        for (int i = 0; !ref.isEnqueued() && i < allocationCount; ++i) {
+        int i;
+        for (i = 0; !ref.isEnqueued() && i < allocationCount; ++i) {
             runtime.registerNativeAllocation(size);
             total += size;
 
@@ -69,7 +71,14 @@ public class Main {
         // pretty unlikely (though technically still possible) that GC was
         // triggered as intended.
         if (queue.remove(MAX_EXPECTED_GC_DURATION_MS) == null) {
-            throw new RuntimeException("GC failed to complete");
+            System.out.println("GC failed to complete after " + i
+                + " iterations, is_enqueued = " + ref.isEnqueued());
+            System.out.println("size = " + size + ", elapsed msecs = "
+                + (System.currentTimeMillis() - startTime));
+            Thread.sleep(MAX_EXPECTED_GC_DURATION_MS);
+            System.out.println("After delay, queue.poll() = " + queue.poll()
+                + " is_enqueued = " + ref.isEnqueued());
+            System.out.println("elapsed msecs = " + (System.currentTimeMillis() - startTime));
         }
 
         while (total > 0) {
