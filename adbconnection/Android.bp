@@ -28,7 +28,10 @@ package {
 cc_defaults {
     name: "adbconnection-defaults",
     host_supported: true,
-    srcs: ["adbconnection.cc"],
+    srcs: [
+        "adbconnection.cc",
+        "jdwpargs.cc",
+    ],
     defaults: ["art_defaults"],
 
     // Note that this tool needs to be built for both 32-bit and 64-bit since it requires
