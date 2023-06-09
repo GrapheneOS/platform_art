@@ -506,9 +506,30 @@ class Riscv64Assembler final : public Assembler {
   void Csrsi(uint32_t csr, uint32_t uimm5);
   void Csrci(uint32_t csr, uint32_t uimm5);
 
+  // Load/store macros for arbitrary 32-bit offsets.
+  void Loadb(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadh(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadw(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadd(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadbu(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadhu(XRegister rd, XRegister rs1, int32_t offset);
+  void Loadwu(XRegister rd, XRegister rs1, int32_t offset);
+  void Storeb(XRegister rs2, XRegister rs1, int32_t offset);
+  void Storeh(XRegister rs2, XRegister rs1, int32_t offset);
+  void Storew(XRegister rs2, XRegister rs1, int32_t offset);
+  void Stored(XRegister rs2, XRegister rs1, int32_t offset);
+  void FLoadw(FRegister rd, XRegister rs1, int32_t offset);
+  void FLoadd(FRegister rd, XRegister rs1, int32_t offset);
+  void FStorew(FRegister rs2, XRegister rs1, int32_t offset);
+  void FStored(FRegister rs2, XRegister rs1, int32_t offset);
+
   // Macros for loading constants.
   void LoadConst32(XRegister rd, int32_t value);
   void LoadConst64(XRegister rd, int64_t value);
+
+  // Macros for adding constants.
+  void AddConst32(XRegister rd, XRegister rs1, int32_t value);
+  void AddConst64(XRegister rd, XRegister rs1, int64_t value);
 
   // Jumps and branches to a label.
   void Beqz(XRegister rs, Riscv64Label* label, bool is_bare = false);
@@ -532,9 +553,11 @@ class Riscv64Assembler final : public Assembler {
   void Jal(Riscv64Label* label, bool is_bare = false);
 
   // Literal load.
-  void Lw(XRegister rd, Literal* literal);
-  void Lwu(XRegister rd, Literal* literal);
-  void Ld(XRegister rd, Literal* literal);
+  void Loadw(XRegister rd, Literal* literal);
+  void Loadwu(XRegister rd, Literal* literal);
+  void Loadd(XRegister rd, Literal* literal);
+  void FLoadw(FRegister rd, Literal* literal);
+  void FLoadd(FRegister rd, Literal* literal);
 
   /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
@@ -567,9 +590,6 @@ class Riscv64Assembler final : public Assembler {
   JumpTable* CreateJumpTable(ArenaVector<Riscv64Label*>&& labels);
 
  public:
-  // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
-  void Emit(uint32_t value);
-
   // Emit slow paths queued during assembly and promote short branches to long if needed.
   void FinalizeCode() override;
 
@@ -637,7 +657,8 @@ class Riscv64Assembler final : public Assembler {
       kLiteral,
       kLiteralUnsigned,
       kLiteralLong,
-      // TODO(riscv64): Add FP literals.
+      kLiteralFloat,
+      kLiteralDouble,
     };
 
     // Bit sizes of offsets defined as enums to minimize chance of typos.
@@ -671,8 +692,9 @@ class Riscv64Assembler final : public Assembler {
            XRegister lhs_reg,
            XRegister rhs_reg,
            bool is_bare);
-    // Label address (in literal area) or literal.
+    // Label address or literal.
     Branch(uint32_t location, uint32_t target, XRegister rd, Type label_or_literal_type);
+    Branch(uint32_t location, uint32_t target, FRegister rd, Type literal_type);
 
     // Some conditional branches with lhs = rhs are effectively NOPs, while some
     // others are effectively unconditional.
@@ -685,6 +707,7 @@ class Riscv64Assembler final : public Assembler {
     BranchCondition GetCondition() const;
     XRegister GetLeftRegister() const;
     XRegister GetRightRegister() const;
+    FRegister GetFRegister() const;
     uint32_t GetTarget() const;
     uint32_t GetLocation() const;
     uint32_t GetOldLocation() const;
@@ -735,6 +758,7 @@ class Riscv64Assembler final : public Assembler {
     XRegister lhs_reg_;          // Left-hand side register in conditional branches or
                                  // destination register in calls or literals.
     XRegister rhs_reg_;          // Right-hand side register in conditional branches.
+    FRegister freg_;             // Destination register in FP literals.
     BranchCondition condition_;  // Condition for conditional branches.
 
     Type type_;      // Current type of the branch.
@@ -756,7 +780,8 @@ class Riscv64Assembler final : public Assembler {
              XRegister lhs,
              XRegister rhs);
   void Buncond(Riscv64Label* label, XRegister rd, bool is_bare);
-  void LoadLiteral(Literal* literal, XRegister rd, Branch::Type literal_type);
+  template <typename XRegisterOrFRegister>
+  void LoadLiteral(Literal* literal, XRegisterOrFRegister rd, Branch::Type literal_type);
 
   Branch* GetBranch(uint32_t branch_id);
   const Branch* GetBranch(uint32_t branch_id) const;
@@ -764,6 +789,12 @@ class Riscv64Assembler final : public Assembler {
   void ReserveJumpTableSpace();
   void PromoteBranches();
   void PatchCFI();
+
+  // Emit data (e.g. encoded instruction or immediate) to the instruction stream.
+  void Emit(uint32_t value);
+
+  // Adjust base register and offset if needed for load/store with a large offset.
+  void AdjustBaseAndOffset(XRegister& base, int32_t& offset);
 
   // Implementation helper for `Li()`, `LoadConst32()` and `LoadConst64()`.
   void LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp);

@@ -626,6 +626,176 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     DriverStr(expected, test_name);
   }
 
+  template <typename EmitOp>
+  void TestAddConst(const std::string& test_name,
+                    size_t bits,
+                    const std::string& suffix,
+                    EmitOp&& emit_op) {
+    int64_t kImm12s[] = {
+        0, 1, 2, 0xff, 0x100, 0x1ff, 0x200, 0x3ff, 0x400, 0x7ff,
+        -1, -2, -0x100, -0x101, -0x200, -0x201, -0x400, -0x401, -0x800,
+    };
+    int64_t kSimplePositiveValues[] = {
+        0x800, 0x801, 0xbff, 0xc00, 0xff0, 0xff7, 0xff8, 0xffb, 0xffc, 0xffd, 0xffe,
+    };
+    int64_t kSimpleNegativeValues[] = {
+        -0x801, -0x802, -0xbff, -0xc00, -0xff0, -0xff8, -0xffc, -0xffe, -0xfff, -0x1000,
+    };
+    std::vector<int64_t> large_values = CreateImmediateValuesBits(bits, /*as_uint=*/ false);
+    auto kept_end = std::remove_if(large_values.begin(),
+                                   large_values.end(),
+                                   [](int64_t value) { return IsInt<13>(value); });
+    large_values.erase(kept_end, large_values.end());
+    large_values.push_back(0xfff);
+
+    std::string tmp_name = GetRegisterName(TMP);
+
+    std::string expected;
+    for (XRegister* rd : GetRegisters()) {
+      std::string rd_name = GetRegisterName(*rd);
+      std::string addi_rd = "addi" + suffix + " " + rd_name + ", ";
+      std::string add_rd = "add" + suffix + " " + rd_name + ", ";
+      for (XRegister* rs1 : GetRegisters()) {
+        // TMP can be the destination register but not the source register.
+        if (*rs1 == TMP) {
+          continue;
+        }
+        std::string rs1_name = GetRegisterName(*rs1);
+
+        for (int64_t imm : kImm12s) {
+          emit_op(*rd, *rs1, imm);
+          expected += addi_rd + rs1_name + ", " + std::to_string(imm) + "\n";
+        }
+
+        auto emit_simple_ops = [&](ArrayRef<const int64_t> imms, int64_t adjustment) {
+          for (int64_t imm : imms) {
+            emit_op(*rd, *rs1, imm);
+            expected += addi_rd + rs1_name + ", " + std::to_string(adjustment) + "\n" +
+                        addi_rd + rd_name + ", " + std::to_string(imm - adjustment) + "\n";
+          }
+        };
+        emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveValues), 0x7ff);
+        emit_simple_ops(ArrayRef<const int64_t>(kSimpleNegativeValues), -0x800);
+
+        for (int64_t imm : large_values) {
+          emit_op(*rd, *rs1, imm);
+          expected += "li " + tmp_name + ", " + std::to_string(imm) + "\n" +
+                      add_rd + rs1_name + ", " + tmp_name + "\n";
+        }
+      }
+    }
+    DriverStr(expected, test_name);
+  }
+
+  template <typename EmitOp>
+  std::string RepeatLoadStoreArbitraryOffset(const std::string& head, EmitOp&& emit_op) {
+    int64_t kImm12s[] = {
+        0, 1, 2, 0xff, 0x100, 0x1ff, 0x200, 0x3ff, 0x400, 0x7ff,
+        -1, -2, -0x100, -0x101, -0x200, -0x201, -0x400, -0x401, -0x800,
+    };
+    int64_t kSimplePositiveOffsetsAlign8[] = {
+        0x800, 0x801, 0xbff, 0xc00, 0xff0, 0xff4, 0xff6, 0xff7
+    };
+    int64_t kSimplePositiveOffsetsAlign4[] = {
+        0xff8, 0xff9, 0xffa, 0xffb
+    };
+    int64_t kSimplePositiveOffsetsAlign2[] = {
+        0xffc, 0xffd
+    };
+    int64_t kSimplePositiveOffsetsNoAlign[] = {
+        0xffe
+    };
+    int64_t kSimpleNegativeOffsets[] = {
+        -0x801, -0x802, -0xbff, -0xc00, -0xff0, -0xff8, -0xffc, -0xffe, -0xfff, -0x1000,
+    };
+    int64_t kSplitOffsets[] = {
+        0xfff, 0x1000, 0x1001, 0x17ff, 0x1800, 0x1fff, 0x2000, 0x2001, 0x27ff, 0x2800,
+        0x7fffe7ff, 0x7fffe800, 0x7fffefff, 0x7ffff000, 0x7ffff001, 0x7ffff7ff,
+        -0x1001, -0x1002, -0x17ff, -0x1800, -0x1801, -0x2000, -0x2001, -0x2800, -0x2801,
+        -0x7ffff000, -0x7ffff001, -0x7ffff800, -0x7ffff801, -0x7fffffff, -0x80000000,
+    };
+    int64_t kSpecialOffsets[] = {
+        0x7ffff800, 0x7ffff801, 0x7ffffffe, 0x7fffffff
+    };
+
+    std::string tmp_name = GetRegisterName(TMP);
+    std::string expected;
+    for (XRegister* rs1 : GetRegisters()) {
+      if (*rs1 == TMP) {
+        continue;  // TMP cannot be the address base register.
+      }
+      std::string rs1_name = GetRegisterName(*rs1);
+
+      for (int64_t imm : kImm12s) {
+        emit_op(*rs1, imm);
+        expected += head + ", " + std::to_string(imm) + "(" + rs1_name + ")" + "\n";
+      }
+
+      auto emit_simple_ops = [&](ArrayRef<const int64_t> imms, int64_t adjustment) {
+        for (int64_t imm : imms) {
+          emit_op(*rs1, imm);
+          expected +=
+              "addi " + tmp_name + ", " + rs1_name + ", " + std::to_string(adjustment) + "\n" +
+              head + ", " + std::to_string(imm - adjustment) + "(" + tmp_name + ")" + "\n";
+        }
+      };
+      emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveOffsetsAlign8), 0x7f8);
+      emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveOffsetsAlign4), 0x7fc);
+      emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveOffsetsAlign2), 0x7fe);
+      emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveOffsetsNoAlign), 0x7ff);
+      emit_simple_ops(ArrayRef<const int64_t>(kSimpleNegativeOffsets), -0x800);
+
+      for (int64_t imm : kSplitOffsets) {
+        emit_op(*rs1, imm);
+        uint32_t imm20 = ((imm >> 12) + ((imm >> 11) & 1)) & 0xfffff;
+        int32_t small_offset = (imm & 0xfff) - ((imm & 0x800) << 1);
+        expected += "lui " + tmp_name + ", " + std::to_string(imm20) + "\n"
+                    "add " + tmp_name + ", " + tmp_name + ", " + rs1_name + "\n" +
+                    head + ", " + std::to_string(small_offset) + "(" + tmp_name + ")\n";
+      }
+
+      for (int64_t imm : kSpecialOffsets) {
+        emit_op(*rs1, imm);
+        expected +=
+            "lui " + tmp_name + ", 0x80000\n"
+            "addiw " + tmp_name + ", " + tmp_name + ", " + std::to_string(imm - 0x80000000) + "\n" +
+            "add " + tmp_name + ", " + tmp_name + ", " + rs1_name + "\n" +
+            head + ", (" + tmp_name + ")\n";
+      }
+    }
+    return expected;
+  }
+
+  void TestLoadStoreArbitraryOffset(const std::string& test_name,
+                                    const std::string& insn,
+                                    void (Riscv64Assembler::*fn)(XRegister, XRegister, int32_t),
+                                    bool is_store) {
+    std::string expected;
+    for (XRegister* rd : GetRegisters()) {
+      // TMP can be the target register for loads but not for stores where loading the
+      // adjusted address to TMP would clobber the value we want to store.
+      if (is_store && *rd == TMP) {
+        continue;
+      }
+      expected += RepeatLoadStoreArbitraryOffset(
+          insn + " " + GetRegisterName(*rd),
+          [&](XRegister rs1, int64_t offset) { (GetAssembler()->*fn)(*rd, rs1, offset); });
+    }
+    DriverStr(expected, test_name);
+  }
+
+  void TestFPLoadStoreArbitraryOffset(const std::string& test_name,
+                                      const std::string& insn,
+                                      void (Riscv64Assembler::*fn)(FRegister, XRegister, int32_t)) {
+    std::string expected;
+    for (FRegister* rd : GetFPRegisters()) {
+      expected += RepeatLoadStoreArbitraryOffset(
+          insn + " " + GetFPRegName(*rd),
+          [&](XRegister rs1, int64_t offset) { (GetAssembler()->*fn)(*rd, rs1, offset); });
+    }
+    DriverStr(expected, test_name);
+  }
+
   void TestLoadLiteral(const std::string& test_name, bool with_padding_for_long) {
     std::string expected;
     Literal* narrow_literal = __ NewLiteral<uint32_t>(0x12345678);
@@ -638,13 +808,26 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     };
     for (XRegister* reg : GetRegisters()) {
       if (*reg != Zero) {
-        __ Lw(*reg, narrow_literal);
+        __ Loadw(*reg, narrow_literal);
         print_load("lw", *reg, "2");
-        __ Lwu(*reg, narrow_literal);
+        __ Loadwu(*reg, narrow_literal);
         print_load("lwu", *reg, "2");
-        __ Ld(*reg, wide_literal);
+        __ Loadd(*reg, wide_literal);
         print_load("ld", *reg, "3");
       }
+    }
+    std::string tmp = GetRegisterName(TMP);
+    auto print_fp_load = [&](const std::string& load, FRegister rd, const std::string& label) {
+      std::string rd_name = GetFPRegName(rd);
+      expected += "1:\n"
+                  "auipc " + tmp + ", %pcrel_hi(" + label + "f)\n" +
+                  load + " " + rd_name + ", %pcrel_lo(1b)(" + tmp + ")\n";
+    };
+    for (FRegister* freg : GetFPRegisters()) {
+      __ FLoadw(*freg, narrow_literal);
+      print_fp_load("flw", *freg, "2");
+      __ FLoadd(*freg, wide_literal);
+      print_fp_load("fld", *freg, "3");
     }
     // All literal loads above emit 8 bytes of code. The narrow literal shall emit 4 bytes of code.
     // If we do not add another instruction, we shall end up with padding before the long literal.
@@ -1838,6 +2021,20 @@ TEST_F(AssemblerRISCV64Test, LoadConst64) {
                   [&](XRegister rd, int64_t value) { __ LoadConst64(rd, value); });
 }
 
+TEST_F(AssemblerRISCV64Test, AddConst32) {
+  auto emit_op = [&](XRegister rd, XRegister rs1, int64_t value) {
+    __ AddConst32(rd, rs1, dchecked_integral_cast<int32_t>(value));
+  };
+  TestAddConst("AddConst32", 32, /*suffix=*/ "w", emit_op);
+}
+
+TEST_F(AssemblerRISCV64Test, AddConst64) {
+  auto emit_op = [&](XRegister rd, XRegister rs1, int64_t value) {
+    __ AddConst64(rd, rs1, value);
+  };
+  TestAddConst("AddConst64", 64, /*suffix=*/ "", emit_op);
+}
+
 TEST_F(AssemblerRISCV64Test, BcondForward3KiB) {
   TestBcondForward("BcondForward3KiB", 3 * KB, "1", GetPrintBcond());
 }
@@ -2071,6 +2268,66 @@ TEST_F(AssemblerRISCV64Test, CallOverMaxOffset21Backward) {
                       GetPrintCall("2"));
 }
 
+TEST_F(AssemblerRISCV64Test, Loadb) {
+  TestLoadStoreArbitraryOffset("Loadb", "lb", &Riscv64Assembler::Loadb, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadh) {
+  TestLoadStoreArbitraryOffset("Loadh", "lh", &Riscv64Assembler::Loadh, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadw) {
+  TestLoadStoreArbitraryOffset("Loadw", "lw", &Riscv64Assembler::Loadw, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadd) {
+  TestLoadStoreArbitraryOffset("Loadd", "ld", &Riscv64Assembler::Loadd, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadbu) {
+  TestLoadStoreArbitraryOffset("Loadbu", "lbu", &Riscv64Assembler::Loadbu, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadhu) {
+  TestLoadStoreArbitraryOffset("Loadhu", "lhu", &Riscv64Assembler::Loadhu, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Loadwu) {
+  TestLoadStoreArbitraryOffset("Loadwu", "lwu", &Riscv64Assembler::Loadwu, /*is_store=*/ false);
+}
+
+TEST_F(AssemblerRISCV64Test, Storeb) {
+  TestLoadStoreArbitraryOffset("Storeb", "sb", &Riscv64Assembler::Storeb, /*is_store=*/ true);
+}
+
+TEST_F(AssemblerRISCV64Test, Storeh) {
+  TestLoadStoreArbitraryOffset("Storeh", "sh", &Riscv64Assembler::Storeh, /*is_store=*/ true);
+}
+
+TEST_F(AssemblerRISCV64Test, Storew) {
+  TestLoadStoreArbitraryOffset("Storew", "sw", &Riscv64Assembler::Storew, /*is_store=*/ true);
+}
+
+TEST_F(AssemblerRISCV64Test, Stored) {
+  TestLoadStoreArbitraryOffset("Stored", "sd", &Riscv64Assembler::Stored, /*is_store=*/ true);
+}
+
+TEST_F(AssemblerRISCV64Test, FLoadw) {
+  TestFPLoadStoreArbitraryOffset("FLoadw", "flw", &Riscv64Assembler::FLoadw);
+}
+
+TEST_F(AssemblerRISCV64Test, FLoadd) {
+  TestFPLoadStoreArbitraryOffset("FLoadd", "fld", &Riscv64Assembler::FLoadd);
+}
+
+TEST_F(AssemblerRISCV64Test, FStorew) {
+  TestFPLoadStoreArbitraryOffset("FStorew", "fsw", &Riscv64Assembler::FStorew);
+}
+
+TEST_F(AssemblerRISCV64Test, FStored) {
+  TestFPLoadStoreArbitraryOffset("FStored", "fsd", &Riscv64Assembler::FStored);
+}
+
 TEST_F(AssemblerRISCV64Test, LoadLabelAddress) {
   std::string expected;
   constexpr size_t kNumLoadsForward = 4 * KB;
@@ -2095,12 +2352,12 @@ TEST_F(AssemblerRISCV64Test, LoadLabelAddress) {
   DriverStr(expected, "LoadLabelAddress");
 }
 
-TEST_F(AssemblerRISCV64Test, LoadLiteralWithPadingForLong) {
-  TestLoadLiteral("LoadLiteralWithPadingForLong", /*with_padding_for_long=*/ true);
+TEST_F(AssemblerRISCV64Test, LoadLiteralWithPaddingForLong) {
+  TestLoadLiteral("LoadLiteralWithPaddingForLong", /*with_padding_for_long=*/ true);
 }
 
-TEST_F(AssemblerRISCV64Test, LoadLiteralWithoutPadingForLong) {
-  TestLoadLiteral("LoadLiteralWithoutPadingForLong", /*with_padding_for_long=*/ false);
+TEST_F(AssemblerRISCV64Test, LoadLiteralWithoutPaddingForLong) {
+  TestLoadLiteral("LoadLiteralWithoutPaddingForLong", /*with_padding_for_long=*/ false);
 }
 
 TEST_F(AssemblerRISCV64Test, JumpTable) {
