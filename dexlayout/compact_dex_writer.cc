@@ -270,7 +270,7 @@ void CompactDexWriter::WriteHeader(Stream* stream) {
   CompactDexFile::WriteMagic(&header.magic_[0]);
   CompactDexFile::WriteCurrentVersion(&header.magic_[0]);
   header.checksum_ = header_->Checksum();
-  std::copy_n(header_->Signature(), DexFile::kSha1DigestSize, header.signature_);
+  header.signature_ = header_->Signature();
   header.file_size_ = header_->FileSize();
   // Since we are not necessarily outputting the same format as the input, avoid using the stored
   // header size.

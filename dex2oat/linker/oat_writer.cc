@@ -278,6 +278,7 @@ class OatWriter::OatDexFile {
 
   // The checksum of the dex file.
   const uint32_t dex_file_location_checksum_;
+  const DexFile::Sha1 dex_file_sha1_;
 
   // Offset of the dex file in the vdex file. Set when writing dex files in
   // SeekToDexFile.
@@ -2640,6 +2641,7 @@ bool OatWriter::CheckOatSize(OutputStream* out, size_t file_offset, size_t relat
     DO_STAT(size_oat_dex_file_location_size_);
     DO_STAT(size_oat_dex_file_location_data_);
     DO_STAT(size_oat_dex_file_location_checksum_);
+    DO_STAT(size_oat_dex_file_sha1_);
     DO_STAT(size_oat_dex_file_offset_);
     DO_STAT(size_oat_dex_file_class_offsets_offset_);
     DO_STAT(size_oat_dex_file_lookup_table_offset_);
@@ -3421,6 +3423,7 @@ bool OatWriter::LayoutDexFile(OatDexFile* oat_dex_file) {
     }
   }
   CHECK_EQ(oat_dex_file->dex_file_location_checksum_, dex_file->GetLocationChecksum());
+  CHECK(oat_dex_file->dex_file_sha1_ == dex_file->GetSha1());
   return true;
 }
 
@@ -3799,6 +3802,7 @@ OatWriter::OatDexFile::OatDexFile(std::unique_ptr<const DexFile> dex_file)
       dex_file_location_size_(strlen(dex_file_location_->c_str())),
       dex_file_location_data_(dex_file_location_->c_str()),
       dex_file_location_checksum_(dex_file_->GetLocationChecksum()),
+      dex_file_sha1_(dex_file_->GetSha1()),
       dex_file_offset_(0u),
       lookup_table_offset_(0u),
       class_offsets_offset_(0u),
@@ -3811,18 +3815,12 @@ OatWriter::OatDexFile::OatDexFile(std::unique_ptr<const DexFile> dex_file)
       class_offsets_() {}
 
 size_t OatWriter::OatDexFile::SizeOf() const {
-  return sizeof(dex_file_location_size_)
-          + dex_file_location_size_
-          + sizeof(dex_file_location_checksum_)
-          + sizeof(dex_file_offset_)
-          + sizeof(class_offsets_offset_)
-          + sizeof(lookup_table_offset_)
-          + sizeof(method_bss_mapping_offset_)
-          + sizeof(type_bss_mapping_offset_)
-          + sizeof(public_type_bss_mapping_offset_)
-          + sizeof(package_type_bss_mapping_offset_)
-          + sizeof(string_bss_mapping_offset_)
-          + sizeof(dex_sections_layout_offset_);
+  return sizeof(dex_file_location_size_) + dex_file_location_size_ +
+         sizeof(dex_file_location_checksum_) + sizeof(dex_file_sha1_) + sizeof(dex_file_offset_) +
+         sizeof(class_offsets_offset_) + sizeof(lookup_table_offset_) +
+         sizeof(method_bss_mapping_offset_) + sizeof(type_bss_mapping_offset_) +
+         sizeof(public_type_bss_mapping_offset_) + sizeof(package_type_bss_mapping_offset_) +
+         sizeof(string_bss_mapping_offset_) + sizeof(dex_sections_layout_offset_);
 }
 
 bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream* out) const {
@@ -3846,6 +3844,12 @@ bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream* out) cons
     return false;
   }
   oat_writer->size_oat_dex_file_location_checksum_ += sizeof(dex_file_location_checksum_);
+
+  if (!out->WriteFully(&dex_file_sha1_, sizeof(dex_file_sha1_))) {
+    PLOG(ERROR) << "Failed to write dex file sha1 to " << out->GetLocation();
+    return false;
+  }
+  oat_writer->size_oat_dex_file_sha1_ += sizeof(dex_file_sha1_);
 
   if (!out->WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {
     PLOG(ERROR) << "Failed to write dex file offset to " << out->GetLocation();
