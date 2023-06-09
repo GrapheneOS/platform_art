@@ -36,6 +36,10 @@
 namespace art {
 namespace mirror {
 
+// Whether to allocate full dex cache arrays during startup. Currently disabled
+// while debugging b/283632504.
+static constexpr bool kEnableFullArraysAtStartup = false;
+
 void DexCache::Initialize(const DexFile* dex_file, ObjPtr<ClassLoader> class_loader) {
   DCHECK(GetDexFile() == nullptr);
   DCHECK(GetStrings() == nullptr);
@@ -161,6 +165,9 @@ ObjPtr<ClassLoader> DexCache::GetClassLoader() {
 }
 
 bool DexCache::ShouldAllocateFullArrayAtStartup() {
+  if (!kEnableFullArraysAtStartup) {
+    return false;
+  }
   Runtime* runtime = Runtime::Current();
   if (runtime->IsAotCompiler()) {
     // To save on memory in dex2oat, we don't allocate full arrays by default.
