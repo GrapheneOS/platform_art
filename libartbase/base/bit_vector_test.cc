@@ -353,6 +353,7 @@ TEST(BitVector, MovementFree) {
     EXPECT_TRUE(bv.IsBitSet(13));
     {
       BitVector bv2(std::move(bv));
+      // NOLINTNEXTLINE - checking underlying storage has been freed
       ASSERT_TRUE(bv.GetRawStorage() == nullptr);
       EXPECT_TRUE(bv2.IsBitSet(13));
       EXPECT_EQ(alloc.FreeCount(), 0u);

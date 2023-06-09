@@ -196,7 +196,7 @@ TEST_F(FdFileTest, MoveConstructor) {
   int old_fd = file.Fd();
 
   FdFile file2(std::move(file));
-  EXPECT_FALSE(file.IsOpened());
+  EXPECT_FALSE(file.IsOpened());  // NOLINT - checking file is no longer opened after move
   EXPECT_TRUE(file2.IsOpened());
   EXPECT_EQ(old_fd, file2.Fd());
 
