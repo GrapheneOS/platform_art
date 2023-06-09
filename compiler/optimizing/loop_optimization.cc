@@ -482,6 +482,7 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
       vector_runtime_test_b_(nullptr),
       vector_map_(nullptr),
       vector_permanent_map_(nullptr),
+      vector_external_set_(nullptr),
       vector_mode_(kSequential),
       vector_preheader_(nullptr),
       vector_header_(nullptr),
@@ -542,12 +543,14 @@ bool HLoopOptimization::LocalRun() {
       std::less<HInstruction*>(), loop_allocator_->Adapter(kArenaAllocLoopOptimization));
   ScopedArenaSafeMap<HInstruction*, HInstruction*> perm(
       std::less<HInstruction*>(), loop_allocator_->Adapter(kArenaAllocLoopOptimization));
+  ScopedArenaSet<HInstruction*> ext_set(loop_allocator_->Adapter(kArenaAllocLoopOptimization));
   // Attach.
   iset_ = &iset;
   reductions_ = &reds;
   vector_refs_ = &refs;
   vector_map_ = &map;
   vector_permanent_map_ = &perm;
+  vector_external_set_ = &ext_set;
   // Traverse.
   const bool did_loop_opt = TraverseLoopsInnerToOuter(top_loop_);
   // Detach.
@@ -556,6 +559,8 @@ bool HLoopOptimization::LocalRun() {
   vector_refs_ = nullptr;
   vector_map_ = nullptr;
   vector_permanent_map_ = nullptr;
+  vector_external_set_ = nullptr;
+
   return did_loop_opt;
 }
 
@@ -1290,6 +1295,23 @@ void HLoopOptimization::Vectorize(LoopNode* node,
   // Remove the original loop by disconnecting the body block
   // and removing all instructions from the header.
   block->DisconnectAndDelete();
+
+  if (IsInPredicatedVectorizationMode()) {
+    // Assigns governing predicates (all true) to the vector operations inserted outside the loop.
+    //
+    // TODO: Adjust GVN to support VecPredSetAll sharing.
+    for (auto it : *vector_external_set_) {
+      HVecOperation* vec_op = it->AsVecOperation();
+      HVecPredSetAll* set_pred = new (global_allocator_) HVecPredSetAll(global_allocator_,
+                                                                        graph_->GetIntConstant(1),
+                                                                        vec_op->GetPackedType(),
+                                                                        vec_op->GetVectorLength(),
+                                                                        0u);
+      vec_op->GetBlock()->InsertInstructionBefore(set_pred, vec_op);
+      vec_op->SetMergingGoverningPredicate(set_pred);
+    }
+  }
+
   while (!header->GetFirstInstruction()->IsGoto()) {
     header->RemoveInstruction(header->GetFirstInstruction());
   }
@@ -1353,6 +1375,8 @@ void HLoopOptimization::GenerateNewLoop(LoopNode* node,
   vector_header_->AddInstruction(new (global_allocator_) HIf(cond));
   vector_index_ = phi;
   vector_permanent_map_->clear();  // preserved over unrolling
+  vector_external_set_->clear();
+
   for (uint32_t u = 0; u < unroll; u++) {
     // Generate instruction map.
     vector_map_->clear();
@@ -1442,10 +1466,13 @@ bool HLoopOptimization::VectorizeDef(LoopNode* node,
         VectorizeDotProdIdiom(node, instruction, generate_code, type, restrictions) ||
         (TrySetVectorType(type, &restrictions) &&
          VectorizeUse(node, instruction, generate_code, type, restrictions))) {
+      DCHECK(!instruction->IsPhi());
       if (generate_code) {
-        HInstruction* new_red = vector_map_->Get(instruction);
-        vector_permanent_map_->Put(new_red, vector_map_->Get(redit->second));
-        vector_permanent_map_->Overwrite(redit->second, new_red);
+        HInstruction* new_red_vec_op = vector_map_->Get(instruction);
+        HInstruction* original_phi = redit->second;
+        DCHECK(original_phi->IsPhi());
+        vector_permanent_map_->Put(new_red_vec_op, vector_map_->Get(original_phi));
+        vector_permanent_map_->Overwrite(original_phi, new_red_vec_op);
       }
       return true;
     }
@@ -1485,9 +1512,7 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
     // Deal with vector restrictions.
     bool is_string_char_at = instruction->AsArrayGet()->IsStringCharAt();
 
-    if (is_string_char_at && (HasVectorRestrictions(restrictions, kNoStringCharAt) ||
-                              IsInPredicatedVectorizationMode())) {
-      // TODO: Support CharAt for predicated mode.
+    if (is_string_char_at && (HasVectorRestrictions(restrictions, kNoStringCharAt))) {
       return false;
     }
     // Accept a right-hand-side array base[index] for
@@ -1712,6 +1737,7 @@ bool HLoopOptimization::TrySetVectorType(DataType::Type type, uint64_t* restrict
           case DataType::Type::kUint16:
           case DataType::Type::kInt16:
             *restrictions |= kNoDiv |
+                             kNoStringCharAt |   // TODO: support in predicated mode.
                              kNoSignedHAdd |
                              kNoUnsignedHAdd |
                              kNoUnroundedHAdd |
@@ -1855,15 +1881,7 @@ void HLoopOptimization::GenerateVecInv(HInstruction* org, DataType::Type type) {
       vector = new (global_allocator_)
           HVecReplicateScalar(global_allocator_, input, type, vector_length_, kNoDexPc);
       vector_permanent_map_->Put(org, Insert(vector_preheader_, vector));
-      if (IsInPredicatedVectorizationMode()) {
-        HVecPredSetAll* set_pred = new (global_allocator_) HVecPredSetAll(global_allocator_,
-                                                                          graph_->GetIntConstant(1),
-                                                                          type,
-                                                                          vector_length_,
-                                                                          0u);
-        vector_preheader_->InsertInstructionBefore(set_pred, vector);
-        vector->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
-      }
+      vector_external_set_->insert(vector);
     }
     vector_map_->Put(org, vector);
   }
@@ -1936,18 +1954,18 @@ void HLoopOptimization::GenerateVecMem(HInstruction* org,
   vector_map_->Put(org, vector);
 }
 
-void HLoopOptimization::GenerateVecReductionPhi(HPhi* phi) {
-  DCHECK(reductions_->find(phi) != reductions_->end());
-  DCHECK(reductions_->Get(phi->InputAt(1)) == phi);
+void HLoopOptimization::GenerateVecReductionPhi(HPhi* orig_phi) {
+  DCHECK(reductions_->find(orig_phi) != reductions_->end());
+  DCHECK(reductions_->Get(orig_phi->InputAt(1)) == orig_phi);
   HInstruction* vector = nullptr;
   if (vector_mode_ == kSequential) {
     HPhi* new_phi = new (global_allocator_) HPhi(
-        global_allocator_, kNoRegNumber, 0, phi->GetType());
+        global_allocator_, kNoRegNumber, 0, orig_phi->GetType());
     vector_header_->AddPhi(new_phi);
     vector = new_phi;
   } else {
     // Link vector reduction back to prior unrolled update, or a first phi.
-    auto it = vector_permanent_map_->find(phi);
+    auto it = vector_permanent_map_->find(orig_phi);
     if (it != vector_permanent_map_->end()) {
       vector = it->second;
     } else {
@@ -1957,7 +1975,7 @@ void HLoopOptimization::GenerateVecReductionPhi(HPhi* phi) {
       vector = new_phi;
     }
   }
-  vector_map_->Put(phi, vector);
+  vector_map_->Put(orig_phi, vector);
 }
 
 void HLoopOptimization::GenerateVecReductionPhiInputs(HPhi* phi, HInstruction* reduction) {
@@ -1992,15 +2010,7 @@ void HLoopOptimization::GenerateVecReductionPhiInputs(HPhi* phi, HInstruction* r
                                                                     vector_length,
                                                                     kNoDexPc));
     }
-    if (IsInPredicatedVectorizationMode()) {
-      HVecPredSetAll* set_pred = new (global_allocator_) HVecPredSetAll(global_allocator_,
-                                                                        graph_->GetIntConstant(1),
-                                                                        type,
-                                                                        vector_length,
-                                                                        0u);
-      vector_preheader_->InsertInstructionBefore(set_pred, new_init);
-      new_init->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
-    }
+    vector_external_set_->insert(new_init);
   } else {
     new_init = ReduceAndExtractIfNeeded(new_init);
   }
@@ -2029,20 +2039,12 @@ HInstruction* HLoopOptimization::ReduceAndExtractIfNeeded(HInstruction* instruct
       HVecReduce* reduce = new (global_allocator_) HVecReduce(
           global_allocator_, instruction, type, vector_length, kind, kNoDexPc);
       exit->InsertInstructionBefore(reduce, exit->GetFirstInstruction());
+      vector_external_set_->insert(reduce);
       instruction = new (global_allocator_) HVecExtractScalar(
           global_allocator_, reduce, type, vector_length, 0, kNoDexPc);
       exit->InsertInstructionAfter(instruction, reduce);
 
-      if (IsInPredicatedVectorizationMode()) {
-        HVecPredSetAll* set_pred = new (global_allocator_) HVecPredSetAll(global_allocator_,
-                                                                          graph_->GetIntConstant(1),
-                                                                          type,
-                                                                          vector_length,
-                                                                          0u);
-        exit->InsertInstructionBefore(set_pred, reduce);
-        reduce->SetMergingGoverningPredicate(set_pred);
-        instruction->AsVecOperation()->SetMergingGoverningPredicate(set_pred);
-      }
+      vector_external_set_->insert(instruction);
     }
   }
   return instruction;

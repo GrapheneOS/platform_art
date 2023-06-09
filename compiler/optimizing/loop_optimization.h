@@ -369,6 +369,11 @@ class HLoopOptimization : public HOptimization {
   // Contents reside in phase-local heap memory.
   ScopedArenaSafeMap<HInstruction*, HInstruction*>* vector_permanent_map_;
 
+  // Tracks vector operations that are inserted outside of the loop (preheader, exit)
+  // as part of vectorization (e.g. replicate scalar for loop invariants and reduce ops
+  // for loop reductions).
+  ScopedArenaSet<HInstruction*>* vector_external_set_;
+
   // Temporary vectorization bookkeeping.
   VectorMode vector_mode_;  // synthesis mode
   HBasicBlock* vector_preheader_;  // preheader of the new loop
