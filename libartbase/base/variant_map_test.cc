@@ -126,6 +126,7 @@ TEST(VariantMaps, RuleOfFive) {
 
   // Test move constructor
   FruitMap fmMoved(std::move(fmFilledCopy));
+  // NOLINTNEXTLINE - checking underlying storage has been freed
   EXPECT_EQ(size_t(0), fmFilledCopy.Size());
   EXPECT_EQ(size_t(2), fmMoved.Size());
   EXPECT_EQ(*fmFilled.Get(FruitMap::Apple), *fmMoved.Get(FruitMap::Apple));
@@ -136,6 +137,7 @@ TEST(VariantMaps, RuleOfFive) {
   fmMoved2.Set(FruitMap::Apple, 12345);  // This value will be clobbered after the move
 
   fmMoved2 = std::move(fmFilledCopy2);
+  // NOLINTNEXTLINE - checking underlying storage has been freed
   EXPECT_EQ(size_t(0), fmFilledCopy2.Size());
   EXPECT_EQ(size_t(2), fmMoved2.Size());
   EXPECT_EQ(*fmFilled.Get(FruitMap::Apple), *fmMoved2.Get(FruitMap::Apple));
