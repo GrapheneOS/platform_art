@@ -63,7 +63,7 @@ class Dex2oatCtsTest : public CommonArtTest, public Dex2oatScratchDirs {
   }
 };
 
-// Run dex2oat with --enable-palette-compilation-hooks to force calls to
+// Run dex2oat with --force-palette-compilation-hooks to force calls to
 // PaletteNotify{Start,End}Dex2oatCompilation.
 TEST_F(Dex2oatCtsTest, CompilationHooks) {
   const std::string dex_location = GetTestDexFileName("Main");
