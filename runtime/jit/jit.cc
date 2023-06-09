@@ -810,6 +810,7 @@ class JitCompileTask final : public Task {
         compilation_kind_(compilation_kind),
         scoped_compilation_(std::move(sc)) {
     DCHECK(scoped_compilation_.OwnsCompilation());
+    // NOLINTNEXTLINE - OwnsCompilation is still valid after move constructor
     DCHECK(!sc.OwnsCompilation());
   }
 

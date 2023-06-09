@@ -36,6 +36,7 @@ art_clang_tidy_errors = [
     "bugprone-macro-parentheses",
     "bugprone-unused-raii", // Protect scoped things like MutexLock.
     "bugprone-unused-return-value",
+    "bugprone-use-after-move",
     "bugprone-virtual-near-miss",
     "misc-unused-using-decls",
     "modernize-use-bool-literals",
