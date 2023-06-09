@@ -1,6 +1,6 @@
 [Ljava/lang/Object;, null]
 1
-[Ljava/lang/String;, Ljava/lang/Object;Ljava/io/Serializable;Ljava/lang/Comparable<Ljava/lang/String;>;Ljava/lang/CharSequence;]
+[Ljava/lang/String;, Ljava/lang/Object;Ljava/io/Serializable;Ljava/lang/Comparable<Ljava/lang/String;>;Ljava/lang/CharSequence;Ljava/lang/constant/Constable;Ljava/lang/constant/ConstantDesc;]
 11
 [Ljava/lang/Math;, null]
 11
