@@ -28,7 +28,7 @@ public class Main {
   /// CHECK-DAG: <<Mul:f\d+>>  Mul [<<Get>>,<<Cons>>]              loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:               ArraySet [{{l\d+}},<<Phi>>,<<Mul>>] loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: void Main.unroll(float[], float[]) loop_optimization (after)
+  /// CHECK-START-{X86_64,ARM64}: void Main.unroll(float[], float[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons:f\d+>> FloatConstant 2.5                    loop:none
 
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -65,7 +65,7 @@ public class Main {
     }
   }
 
-  /// CHECK-START-ARM64: void Main.stencil(int[], int[], int) loop_optimization (after)
+  /// CHECK-START-{X86_64,ARM64}: void Main.stencil(int[], int[], int) loop_optimization (after)
   /// CHECK-DAG: <<CP1:i\d+>>   IntConstant 1                         loop:none
   /// CHECK-DAG: <<CP2:i\d+>>   IntConstant 2                         loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -96,6 +96,62 @@ public class Main {
   /// CHECK-FI:
   private static void stencil(int[] a, int[] b, int n) {
     for (int i = 1; i < n - 1; i++) {
+      a[i] = b[i - 1] + b[i] + b[i + 1];
+    }
+  }
+
+  // Array size is chosen to be such a constant, that the loop trip count (in the test below)
+  // is a multiple of vector length and unroll factor; hence clean up is needed exclusively for
+  // the array references test.
+  public static final int STENCIL_ARRAY_SIZE = 130;
+
+  /// CHECK-START-{X86_64,ARM64}: void Main.$noinline$stencilConstSize(int[], int[]) loop_optimization (after)
+  /// CHECK-DAG: <<C0:i\d+>>    IntConstant 0
+  /// CHECK-DAG: <<CP1:i\d+>>   IntConstant 1
+  /// CHECK-DAG: <<CP2:i\d+>>   IntConstant 2
+  /// CHECK-DAG: <<Arr0:l\d+>>  ParameterValue
+  /// CHECK-DAG: <<Arr1:l\d+>>  ParameterValue
+  /// CHECK-DAG: <<ArrCh:z\d+>> NotEqual [<<Arr0>>,<<Arr1>>]         loop:none
+  /// CHECK-DAG: <<TCSel:i\d+>> Select [<<C0>>,{{i\d+}},<<ArrCh>>]   loop:none
+  /// CHECK-DAG: <<PhiV:i\d+>>  Phi [<<C0>>,{{i\d+}}]                loop:<<LoopV:B\d+>> outer_loop:none
+  //
+  /// CHECK-IF:     hasIsaFeature("sve")
+  //
+  ///     CHECK-DAG: <<LoopP:j\d+>> VecPredWhile [<<PhiV>>,{{i\d+}}]                loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add1:i\d+>>  Add [<<PhiV>>,<<CP1>>]                          loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get1:d\d+>>  VecLoad [{{l\d+}},<<PhiV>>,<<LoopP>>]           loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get2:d\d+>>  VecLoad [{{l\d+}},<<Add1>>,<<LoopP>>]           loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add2:d\d+>>  VecAdd [<<Get1>>,<<Get2>>,<<LoopP>>]            loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add3:i\d+>>  Add [<<PhiV>>,<<CP2>>]                          loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get3:d\d+>>  VecLoad [{{l\d+}},<<Add3>>,<<LoopP>>]           loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add4:d\d+>>  VecAdd [<<Add2>>,<<Get3>>,<<LoopP>>]            loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG:                VecStore [{{l\d+}},<<Add1>>,<<Add4>>,<<LoopP>>] loop:<<LoopV>>      outer_loop:none
+  //
+  /// CHECK-ELSE:
+  //
+  ///     CHECK-DAG: <<Add1:i\d+>>  Add [<<PhiV>>,<<CP1>>]                          loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get1:d\d+>>  VecLoad [{{l\d+}},<<PhiV>>]                     loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get2:d\d+>>  VecLoad [{{l\d+}},<<Add1>>]                     loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add2:d\d+>>  VecAdd [<<Get1>>,<<Get2>>]                      loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add3:i\d+>>  Add [<<PhiV>>,<<CP2>>]                          loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Get3:d\d+>>  VecLoad [{{l\d+}},<<Add3>>]                     loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG: <<Add4:d\d+>>  VecAdd [<<Add2>>,<<Get3>>]                      loop:<<LoopV>>      outer_loop:none
+  ///     CHECK-DAG:                VecStore [{{l\d+}},<<Add1>>,<<Add4>>]           loop:<<LoopV>>      outer_loop:none
+  //
+  /// CHECK-FI:
+  //
+  // Cleanup loop.
+  //
+  /// CHECK-DAG: <<PhiS:i\d+>>   Phi [<<PhiV>>,{{i\d+}}]             loop:<<LoopS:B\d+>> outer_loop:none
+  /// CHECK-DAG:                 ArrayGet                            loop:<<LoopS>>      outer_loop:none
+  /// CHECK-DAG:                 ArrayGet                            loop:<<LoopS>>      outer_loop:none
+  /// CHECK-DAG:                 ArrayGet                            loop:<<LoopS>>      outer_loop:none
+  /// CHECK-DAG:                 ArraySet                            loop:<<LoopS>>      outer_loop:none
+  //
+  // Checks the disambiguation runtime test for array references.
+  //
+  private static void $noinline$stencilConstSize(int[] a, int[] b) {
+    for (int i = 1; i < STENCIL_ARRAY_SIZE - 1; i++) {
       a[i] = b[i - 1] + b[i] + b[i + 1];
     }
   }
@@ -217,7 +273,7 @@ public class Main {
   /// CHECK-DAG: <<Add2>>       Add [<<Phi2>>,<<Get>>]     loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add1>>       Add [<<Phi1>>,<<L1>>]      loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: long Main.longInductionReduction(long[]) loop_optimization (after)
+  /// CHECK-START-{X86_64,ARM64}: long Main.longInductionReduction(long[]) loop_optimization (after)
   /// CHECK-DAG: <<L0:j\d+>>    LongConstant 0               loop:none
   /// CHECK-DAG: <<L1:j\d+>>    LongConstant 1               loop:none
   /// CHECK-DAG: <<I0:i\d+>>    IntConstant 0                loop:none
@@ -260,7 +316,7 @@ public class Main {
   /// CHECK-DAG:                ArraySet [{{l\d+}},<<Phi>>,<<Cnv>>] loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add>>        Add [<<Phi>>,<<I1>>]                loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: void Main.intVectorLongInvariant(int[], long[]) loop_optimization (after)
+  /// CHECK-START-{X86_64,ARM64}: void Main.intVectorLongInvariant(int[], long[]) loop_optimization (after)
   /// CHECK-DAG: <<I0:i\d+>>    IntConstant 0                       loop:none
   /// CHECK-DAG: <<I1:i\d+>>    IntConstant 1                       loop:none
   /// CHECK-DAG: <<Get:j\d+>>   ArrayGet [{{l\d+}},<<I0>>]          loop:none
@@ -300,7 +356,7 @@ public class Main {
   /// CHECK-DAG:                ArraySet [{{l\d+}},<<Phi>>,<<Cnv2>>] loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add>>        Add [<<Phi>>,<<I1>>]                 loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: void Main.longCanBeDoneWithInt(int[], int[]) loop_optimization (after)
+  /// CHECK-START-{X86_64,ARM64}: void Main.longCanBeDoneWithInt(int[], int[]) loop_optimization (after)
   /// CHECK-DAG: <<I0:i\d+>>    IntConstant 0                       loop:none
   /// CHECK-DAG: <<L1:j\d+>>    LongConstant 1                      loop:none
   /// CHECK-DAG: <<Cnv:i\d+>>   TypeConversion [<<L1>>]             loop:none
@@ -345,13 +401,17 @@ public class Main {
     }
   }
 
+  private static void initArrayStencil(int[] arr) {
+    for (int i = 0; i < arr.length; i++) {
+      arr[i] = i;
+    }
+  }
+
   static void testStencil1() {
     int[] a = new int[100];
     int[] b = new int[100];
-    for (int i = 0; i < 100; i++) {
-      a[i] = 0;
-      b[i] = i;
-    }
+    initArrayStencil(b);
+
     stencil(a, b, 100);
     for (int i = 1; i < 99; i++) {
       int e = i + i + i;
@@ -360,13 +420,35 @@ public class Main {
     }
   }
 
+  // Checks the disambiguation runtime test for array references.
+  static void testStencilConstSize() {
+    int[] a = new int[STENCIL_ARRAY_SIZE];
+    int[] b = new int[STENCIL_ARRAY_SIZE];
+    initArrayStencil(b);
+
+    for (int i = 1; i < STENCIL_ARRAY_SIZE - 1; i++) {
+    $noinline$stencilConstSize(a, b);
+      // (i - 1) + i + (i + 1) = 3 * i.
+      int e = i + i + i;
+      expectEquals(e, a[i]);
+      expectEquals(i, b[i]);
+    }
+
+    initArrayStencil(b);
+    $noinline$stencilConstSize(b, b);
+
+    for (int i = 1; i < STENCIL_ARRAY_SIZE - 1; i++) {
+      // The formula of the ith member of recurrent def: b[i] = b[i-1] + (i) + (i+1).
+      int e = i * (i + 2);
+      expectEquals(e, b[i]);
+    }
+  }
+
   static void testStencil2() {
     int[] a = new int[100];
     int[] b = new int[100];
-    for (int i = 0; i < 100; i++) {
-      a[i] = 0;
-      b[i] = i;
-    }
+    initArrayStencil(b);
+
     stencilSubInt(a, b, 100);
     for (int i = 1; i < 99; i++) {
       int e = i + i + i;
@@ -378,10 +460,8 @@ public class Main {
   static void testStencil3() {
     int[] a = new int[100];
     int[] b = new int[100];
-    for (int i = 0; i < 100; i++) {
-      a[i] = 0;
-      b[i] = i;
-    }
+    initArrayStencil(b);
+
     stencilAddInt(a, b, 100);
     for (int i = 1; i < 99; i++) {
       int e = i + i + i;
@@ -408,6 +488,7 @@ public class Main {
   public static void main(String[] args) {
     testUnroll();
     testStencil1();
+    testStencilConstSize();
     testStencil2();
     testStencil3();
     testTypes();
