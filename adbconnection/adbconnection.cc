@@ -14,11 +14,18 @@
  * limitations under the License.
  */
 
+#include "adbconnection.h"
+
+#include <jni.h>
+#include <sys/eventfd.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
+#include <sys/un.h>
+
 #include <array>
 #include <cstddef>
 #include <iterator>
-
-#include "adbconnection.h"
 
 #include "adbconnection/client.h"
 #include "android-base/endian.h"
@@ -32,26 +39,18 @@
 #include "base/mutex.h"
 #include "base/socket_peer_is_trusted.h"
 #include "debugger.h"
+#include "fd_transport.h"
+#include "jdwpargs.h"
 #include "jni/java_vm_ext.h"
 #include "jni/jni_env_ext.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/throwable.h"
 #include "nativehelper/scoped_local_ref.h"
+#include "poll.h"
 #include "runtime-inl.h"
 #include "runtime_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
-
-#include "fd_transport.h"
-
-#include "poll.h"
-
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <sys/un.h>
-#include <sys/eventfd.h>
-#include <jni.h>
 
 namespace adbconnection {
 
@@ -863,16 +862,29 @@ bool ValidateJdwpOptions(const std::string& opts) {
 std::string AdbConnectionState::MakeAgentArg() {
   const std::string& opts = art::Runtime::Current()->GetJdwpOptions();
   DCHECK(ValidateJdwpOptions(opts));
+
+  VLOG(jdwp) << "Raw jdwp options '" + opts + "'";
+  JdwpArgs parameters = JdwpArgs(opts);
+
+  // See the comment above for why we need to be server=y. Since the agent defaults to server=n
+  // we must always set it.
+  parameters.put("server", "y");
+
+  // See the comment above for why we need to be suspend=n. Since the agent defaults to
+  // suspend=y we must always set it.
+  parameters.put("suspend", "n");
+
+  std::string ddm_already_active = "n";
+  if (notified_ddm_active_) {
+    ddm_already_active = "y";
+  }
+  parameters.put("ddm_already_active", ddm_already_active);
+
+  parameters.put("transport", "dt_fd_forward");
+  parameters.put("address", std::to_string(remote_agent_control_sock_));
+
   // TODO Get agent_name_ from something user settable?
-  return agent_name_ + "=" + opts + (opts.empty() ? "" : ",") +
-      "ddm_already_active=" + (notified_ddm_active_ ? "y" : "n") + "," +
-      // See the comment above for why we need to be server=y. Since the agent defaults to server=n
-      // we will add it if it wasn't already present for the convenience of the user.
-      (ContainsArgument(opts, "server=y") ? "" : "server=y,") +
-      // See the comment above for why we need to be suspend=n. Since the agent defaults to
-      // suspend=y we will add it if it wasn't already present.
-      (ContainsArgument(opts, "suspend=n") ? "" : "suspend=n,") +
-      "transport=dt_fd_forward,address=" + std::to_string(remote_agent_control_sock_);
+  return agent_name_ + "=" + parameters.join();
 }
 
 void AdbConnectionState::StopDebuggerThreads() {
