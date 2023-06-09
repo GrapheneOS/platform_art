@@ -84,7 +84,7 @@ public class Main {
   ///     CHECK-DAG:                    Add [<<I>>,{{i\d+}}]                     loop:<<Loop>>      outer_loop:none
   ///     CHECK-DAG: <<PostLoopP:j\d+>> VecPredSetAll [<<TrueC>>]                loop:none
   ///     CHECK-DAG: <<Red:d\d+>>       VecReduce [<<Phi>>,<<PostLoopP>>]        loop:none
-  ///     CHECK-DAG: <<Extr:i\d+>>      VecExtractScalar [<<Red>>,<<PostLoopP>>] loop:none
+  ///     CHECK-DAG: <<Extr:i\d+>>      VecExtractScalar [<<Red>>,{{j\d+}}]      loop:none
   //
   /// CHECK-ELSE:
   //
