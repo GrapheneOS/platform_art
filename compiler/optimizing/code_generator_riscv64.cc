@@ -357,13 +357,123 @@ void InstructionCodeGeneratorRISCV64::GenConditionalMove(HSelect* select) {
 }
 
 void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DCHECK_EQ(instruction->InputCount(), 2u);
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  DataType::Type type = instruction->GetResultType();
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      HInstruction* right = instruction->InputAt(1);
+      bool can_use_imm = false;
+      if (right->IsConstant()) {
+        int64_t imm = CodeGenerator::GetInt64ValueOf(right->AsConstant());
+        can_use_imm = IsInt<12>(instruction->IsSub() ? -imm : imm);
+      }
+      if (can_use_imm) {
+        locations->SetInAt(1, Location::ConstantLocation(right->AsConstant()));
+      } else {
+        locations->SetInAt(1, Location::RequiresRegister());
+      }
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected " << instruction->DebugName() << " type " << type;
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type type = instruction->GetType();
+  LocationSummary* locations = instruction->GetLocations();
+
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64: {
+      XRegister rd = locations->Out().AsRegister<XRegister>();
+      XRegister rs1 = locations->InAt(0).AsRegister<XRegister>();
+      Location rs2_location = locations->InAt(1);
+
+      bool use_imm = rs2_location.IsConstant();
+      XRegister rs2 = use_imm ? kNoXRegister : rs2_location.AsRegister<XRegister>();
+      int64_t imm = use_imm ? CodeGenerator::GetInt64ValueOf(rs2_location.GetConstant()) : 0;
+
+      if (instruction->IsAnd()) {
+        if (use_imm) {
+          __ Andi(rd, rs1, imm);
+        } else {
+          __ And(rd, rs1, rs2);
+        }
+      } else if (instruction->IsOr()) {
+        if (use_imm) {
+          __ Ori(rd, rs1, imm);
+        } else {
+          __ Or(rd, rs1, rs2);
+        }
+      } else if (instruction->IsXor()) {
+        if (use_imm) {
+          __ Xori(rd, rs1, imm);
+        } else {
+          __ Xor(rd, rs1, rs2);
+        }
+      } else {
+        DCHECK(instruction->IsAdd() || instruction->IsSub());
+        if (type == DataType::Type::kInt32) {
+          if (use_imm) {
+            __ Addiw(rd, rs1, instruction->IsSub() ? -imm : imm);
+          } else if (instruction->IsAdd()) {
+            __ Addw(rd, rs1, rs2);
+          } else {
+            DCHECK(instruction->IsSub());
+            __ Subw(rd, rs1, rs2);
+          }
+        } else {
+          if (use_imm) {
+            __ Addi(rd, rs1, instruction->IsSub() ? -imm : imm);
+          } else if (instruction->IsAdd()) {
+            __ Add(rd, rs1, rs2);
+          } else {
+            DCHECK(instruction->IsSub());
+            __ Sub(rd, rs1, rs2);
+          }
+        }
+      }
+      break;
+    }
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64: {
+      FRegister rd = locations->Out().AsFpuRegister<FRegister>();
+      FRegister rs1 = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister rs2 = locations->InAt(1).AsFpuRegister<FRegister>();
+      if (instruction->IsAdd()) {
+        if (type == DataType::Type::kFloat32) {
+          __ FAddS(rd, rs1, rs2);
+        } else {
+          __ FAddD(rd, rs1, rs2);
+        }
+      } else {
+        DCHECK(instruction->IsSub());
+        if (type == DataType::Type::kFloat32) {
+          __ FSubS(rd, rs1, rs2);
+        } else {
+          __ FSubD(rd, rs1, rs2);
+        }
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected binary operation type " << type;
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::HandleCondition(HCondition* instruction) {
@@ -555,23 +665,19 @@ void InstructionCodeGeneratorRISCV64::VisitAbs(HAbs* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitAdd(HAdd* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitAdd(HAdd* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitAnd(HAnd* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitAnd(HAnd* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitArrayGet(HArrayGet* instruction) {
@@ -1196,13 +1302,11 @@ void InstructionCodeGeneratorRISCV64::VisitNullCheck(HNullCheck* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitOr(HOr* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitOr(HOr* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitPackedSwitch(HPackedSwitch* instruction) {
@@ -1388,13 +1492,11 @@ void InstructionCodeGeneratorRISCV64::VisitSelect(HSelect* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitSub(HSub* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitSub(HSub* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitSuspendCheck(HSuspendCheck* instruction) {
@@ -1446,13 +1548,11 @@ void InstructionCodeGeneratorRISCV64::VisitUShr(HUShr* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitXor(HXor* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitXor(HXor* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitVecReplicateScalar(HVecReplicateScalar* instruction) {
