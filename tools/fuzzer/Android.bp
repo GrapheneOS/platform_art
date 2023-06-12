@@ -30,8 +30,6 @@ cc_fuzz {
     defaults: [
         // Run in release mode since debug is too slow.
         "libart_static_defaults",
-        // TODO(b/186902856): remove once libart-compiler is merged into libart
-        "libart-compiler_static_defaults",
         // To allow the ART module to build correctly.
         "art_module_source_build_defaults",
     ],
@@ -52,10 +50,7 @@ cc_fuzz {
     dictionary: "dex.dict",
     fuzz_config: {
         triage_assignee: "art-perf-team@google.com",
-        cc: [
-            "solanes@google.com",
-            "art-bugs@google.com",
-        ],
+        cc: ["solanes@google.com", "art-bugs@google.com"],
         componentid: 86431,
         acknowledgement: [
             "Santiago Aboy Solanes of Google",
