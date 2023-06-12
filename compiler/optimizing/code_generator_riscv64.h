@@ -393,9 +393,14 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
                            SlowPathCode* slow_path = nullptr) override;
   void MoveFromReturnRegister(Location trg, DataType::Type type) override;
 
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+
+  void MaybeIncrementHotness(bool is_frame_entry);
+
  private:
   Riscv64Assembler assembler_;
   LocationsBuilderRISCV64 location_builder_;
+  Riscv64Label frame_entry_label_;
 };
 
 }  // namespace riscv64

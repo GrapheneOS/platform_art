@@ -20,8 +20,12 @@
 #include "android-base/macros.h"
 #include "arch/riscv64/registers_riscv64.h"
 #include "base/macros.h"
+#include "dwarf/register.h"
 #include "intrinsics_list.h"
+#include "jit/profiling_info.h"
 #include "optimizing/nodes.h"
+#include "utils/label.h"
+#include "utils/stack_checks.h"
 
 namespace art {
 namespace riscv64 {
@@ -35,7 +39,6 @@ static constexpr FRegister kFpuCalleeSaves[] = {
     FS0, FS1, FS2, FS3, FS4, FS5, FS6, FS7, FS8, FS9, FS10, FS11
 };
 
-#define __                   down_cast<CodeGeneratorRISCV64*>(codegen_)->GetAssembler()->  // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kRiscv64PointerSize, x).Int32Value()
 
 Location Riscv64ReturnLocation(DataType::Type return_type) {
@@ -97,6 +100,8 @@ Location InvokeDexCallingConventionVisitorRISCV64::GetNextLocation(DataType::Typ
   return next_location;
 }
 
+#define __ down_cast<CodeGeneratorRISCV64*>(codegen)->GetAssembler()->  // NOLINT
+
 void LocationsBuilderRISCV64::HandleInvoke(HInvoke* instruction) {
   UNUSED(instruction);
   LOG(FATAL) << "Unimplemented";
@@ -113,6 +118,30 @@ Location LocationsBuilderRISCV64::FpuRegisterOrConstantForStore(HInstruction* in
   LOG(FATAL) << "Unimplemented";
   UNREACHABLE();
 }
+
+class CompileOptimizedSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  CompileOptimizedSlowPathRISCV64() : SlowPathCodeRISCV64(/*instruction=*/ nullptr) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    uint32_t entrypoint_offset =
+        GetThreadOffset<kRiscv64PointerSize>(kQuickCompileOptimized).Int32Value();
+    __ Bind(GetEntryLabel());
+    __ Loadd(RA, TR, entrypoint_offset);
+    // Note: we don't record the call here (and therefore don't generate a stack
+    // map), as the entrypoint should never be suspended.
+    __ Jalr(RA);
+    __ J(GetExitLabel());
+  }
+
+  const char* GetDescription() const override { return "CompileOptimizedSlowPath"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathRISCV64);
+};
+
+#undef __
+#define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
 InstructionCodeGeneratorRISCV64::InstructionCodeGeneratorRISCV64(HGraph* graph,
                                                                  CodeGeneratorRISCV64* codegen)
@@ -343,7 +372,7 @@ void InstructionCodeGeneratorRISCV64::GenTableBasedPackedSwitch(XRegister reg,
 
 int32_t InstructionCodeGeneratorRISCV64::VecAddress(LocationSummary* locations,
                                                     size_t size,
-                                                    /* out */ XRegister* adjusted_base) {
+                                                    /*out*/ XRegister* adjusted_base) {
   UNUSED(locations);
   UNUSED(size);
   UNUSED(adjusted_base);
@@ -1905,6 +1934,8 @@ static constexpr bool kIsIntrinsicUnimplemented[] = {
 
 }  // namespace detail
 
+#define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
+
 CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
                                            const CompilerOptions& compiler_options,
                                            OptimizingCompilerStats* stats)
@@ -1923,8 +1954,224 @@ CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
   LOG(FATAL) << "Unimplemented";
 }
 
-void CodeGeneratorRISCV64::GenerateFrameEntry() { LOG(FATAL) << "Unimplemented"; }
-void CodeGeneratorRISCV64::GenerateFrameExit() { LOG(FATAL) << "Unimplemented"; }
+void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
+  if (GetCompilerOptions().CountHotnessInCompiledCode()) {
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister method = is_frame_entry ? kArtMethodRegister : srs.AllocateXRegister();
+    if (!is_frame_entry) {
+      __ Loadd(method, SP, 0);
+    }
+    XRegister counter = srs.AllocateXRegister();
+    __ Loadhu(counter, method, ArtMethod::HotnessCountOffset().Int32Value());
+    Riscv64Label done;
+    DCHECK_EQ(0u, interpreter::kNterpHotnessValue);
+    __ Beqz(counter, &done);  // Can clobber `TMP` if taken.
+    __ Addi(counter, counter, -1);
+    // We may not have another scratch register available for `Storeh`()`,
+    // so we must use the `Sh()` function directly.
+    static_assert(IsInt<12>(ArtMethod::HotnessCountOffset().Int32Value()));
+    __ Sh(counter, method, ArtMethod::HotnessCountOffset().Int32Value());
+    __ Bind(&done);
+  }
+
+  if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+    SlowPathCodeRISCV64* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathRISCV64();
+    AddSlowPath(slow_path);
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    DCHECK(!HasEmptyFrame());
+    uint64_t address = reinterpret_cast64<uint64_t>(info);
+    Riscv64Label done;
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister tmp = srs.AllocateXRegister();
+    __ LoadConst64(tmp, address);
+    XRegister counter = srs.AllocateXRegister();
+    __ Loadhu(counter, tmp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value());
+    __ Beqz(counter, slow_path->GetEntryLabel());  // Can clobber `TMP` if taken.
+    __ Addi(counter, counter, -1);
+    // We do not have another scratch register available for `Storeh`()`,
+    // so we must use the `Sh()` function directly.
+    static_assert(IsInt<12>(ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
+    __ Sh(counter, tmp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value());
+    __ Bind(slow_path->GetExitLabel());
+  }
+}
+
+void CodeGeneratorRISCV64::GenerateMemoryBarrier(MemBarrierKind kind) {
+  switch (kind) {
+    case MemBarrierKind::kAnyAny:
+    case MemBarrierKind::kAnyStore:
+    case MemBarrierKind::kLoadAny:
+    case MemBarrierKind::kStoreStore: {
+      // TODO(riscv64): Use more specific fences.
+      __ Fence();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected memory barrier " << kind;
+      UNREACHABLE();
+  }
+}
+
+void CodeGeneratorRISCV64::GenerateFrameEntry() {
+  // Check if we need to generate the clinit check. We will jump to the
+  // resolution stub if the class is not initialized and the executing thread is
+  // not the thread initializing it.
+  // We do this before constructing the frame to get the correct stack trace if
+  // an exception is thrown.
+  if (GetCompilerOptions().ShouldCompileWithClinitCheck(GetGraph()->GetArtMethod())) {
+    Riscv64Label resolution;
+    Riscv64Label memory_barrier;
+
+    static constexpr uint32_t kShiftedVisiblyInitializedValue =
+        enum_cast<uint32_t>(ClassStatus::kVisiblyInitialized) << status_lsb_position;
+    static constexpr uint32_t kShiftedInitializedValue =
+        enum_cast<uint32_t>(ClassStatus::kInitialized) << status_lsb_position;
+    static constexpr uint32_t kShiftedInitializingValue =
+        enum_cast<uint32_t>(ClassStatus::kInitializing) << status_lsb_position;
+
+    // We shall load the full 32-bit status word with sign-extension and compare as unsigned
+    // to the sign-extended status values above. This yields the same comparison as loading and
+    // materializing unsigned but the constant is materialized with a single LUI instruction.
+    auto extend64 = [](uint32_t shifted_status_value) {
+      DCHECK_GE(shifted_status_value, 0x80000000u);
+      return static_cast<int64_t>(shifted_status_value) - (INT64_C(1) << 32);
+    };
+
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister tmp = srs.AllocateXRegister();
+    XRegister tmp2 = srs.AllocateXRegister();
+
+    // We don't emit a read barrier here to save on code size. We rely on the
+    // resolution trampoline to do a clinit check before re-entering this code.
+    __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
+    __ Loadw(tmp, tmp2, mirror::Class::StatusOffset().SizeValue());  // Sign-extended.
+
+    // Check if we're visibly initialized.
+    __ Li(tmp2, extend64(kShiftedVisiblyInitializedValue));
+    __ Bgeu(tmp, tmp2, &frame_entry_label_);  // Can clobber `TMP` if taken.
+
+    // Check if we're initialized and jump to code that does a memory barrier if so.
+    __ Li(tmp2, extend64(kShiftedInitializedValue));
+    __ Bgeu(tmp, tmp2, &memory_barrier);  // Can clobber `TMP` if taken.
+
+    // Check if we're initializing and the thread initializing is the one
+    // executing the code.
+    __ Li(tmp2, extend64(kShiftedInitializingValue));
+    __ Bltu(tmp, tmp2, &resolution);  // Can clobber `TMP` if taken.
+
+    __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
+    __ Loadw(tmp, tmp2, mirror::Class::ClinitThreadIdOffset().Int32Value());
+    __ Loadw(tmp2, TR, Thread::TidOffset<kRiscv64PointerSize>().Int32Value());
+    __ Beq(tmp, tmp2, &frame_entry_label_);
+    __ Bind(&resolution);
+
+    // Jump to the resolution stub.
+    ThreadOffset64 entrypoint_offset =
+        GetThreadOffset<kRiscv64PointerSize>(kQuickQuickResolutionTrampoline);
+    __ Loadd(tmp, TR, entrypoint_offset.Int32Value());
+    __ Jr(tmp);
+
+    __ Bind(&memory_barrier);
+    GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
+  __ Bind(&frame_entry_label_);
+
+  bool do_overflow_check =
+      FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kRiscv64) || !IsLeafMethod();
+
+  if (do_overflow_check) {
+    __ Loadw(
+        Zero, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(InstructionSet::kRiscv64)));
+    RecordPcInfo(nullptr, 0);
+  }
+
+  if (!HasEmptyFrame()) {
+    // Make sure the frame size isn't unreasonably large.
+    if (GetFrameSize() > GetStackOverflowReservedBytes(InstructionSet::kRiscv64)) {
+      LOG(FATAL) << "Stack frame larger than "
+                 << GetStackOverflowReservedBytes(InstructionSet::kRiscv64) << " bytes";
+    }
+
+    // Spill callee-saved registers.
+
+    uint32_t frame_size = GetFrameSize();
+
+    IncreaseFrame(frame_size);
+
+    uint32_t offset = frame_size;
+    for (size_t i = arraysize(kCoreCalleeSaves); i != 0; ) {
+      --i;
+      XRegister reg = kCoreCalleeSaves[i];
+      if (allocated_registers_.ContainsCoreRegister(reg)) {
+        offset -= kRiscv64DoublewordSize;
+        __ Stored(reg, SP, offset);
+        __ cfi().RelOffset(dwarf::Reg::Riscv64Core(reg), offset);
+      }
+    }
+
+    for (size_t i = arraysize(kFpuCalleeSaves); i != 0; ) {
+      --i;
+      FRegister reg = kFpuCalleeSaves[i];
+      if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
+        offset -= kRiscv64DoublewordSize;
+        __ FStored(reg, SP, offset);
+        __ cfi().RelOffset(dwarf::Reg::Riscv64Fp(reg), offset);
+      }
+    }
+
+    // Save the current method if we need it. Note that we do not
+    // do this in HCurrentMethod, as the instruction might have been removed
+    // in the SSA graph.
+    if (RequiresCurrentMethod()) {
+      __ Stored(kArtMethodRegister, SP, 0);
+    }
+
+    if (GetGraph()->HasShouldDeoptimizeFlag()) {
+      // Initialize should_deoptimize flag to 0.
+      __ Storew(Zero, SP, GetStackOffsetOfShouldDeoptimizeFlag());
+    }
+  }
+  MaybeIncrementHotness(/*is_frame_entry=*/ true);
+}
+
+void CodeGeneratorRISCV64::GenerateFrameExit() {
+  __ cfi().RememberState();
+
+  if (!HasEmptyFrame()) {
+    // Restore callee-saved registers.
+
+    // For better instruction scheduling restore RA before other registers.
+    uint32_t offset = GetFrameSize();
+    for (size_t i = arraysize(kCoreCalleeSaves); i != 0; ) {
+      --i;
+      XRegister reg = kCoreCalleeSaves[i];
+      if (allocated_registers_.ContainsCoreRegister(reg)) {
+        offset -= kRiscv64DoublewordSize;
+        __ Loadd(reg, SP, offset);
+        __ cfi().Restore(dwarf::Reg::Riscv64Core(reg));
+      }
+    }
+
+    for (size_t i = arraysize(kFpuCalleeSaves); i != 0; ) {
+      --i;
+      FRegister reg = kFpuCalleeSaves[i];
+      if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
+        offset -= kRiscv64DoublewordSize;
+        __ FLoadd(reg, SP, offset);
+        __ cfi().Restore(dwarf::Reg::Riscv64Fp(reg));
+      }
+    }
+
+    DecreaseFrame(GetFrameSize());
+  }
+
+  __ Jr(RA);
+
+  __ cfi().RestoreState();
+  __ cfi().DefCFAOffset(GetFrameSize());
+}
 
 void CodeGeneratorRISCV64::Bind(HBasicBlock* block) {
   UNUSED(block);
@@ -2046,13 +2293,15 @@ void CodeGeneratorRISCV64::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_poi
 }
 
 void CodeGeneratorRISCV64::IncreaseFrame(size_t adjustment) {
-  UNUSED(adjustment);
-  LOG(FATAL) << "Unimplemented";
+  int32_t adjustment32 = dchecked_integral_cast<int32_t>(adjustment);
+  __ AddConst32(SP, SP, -adjustment32);
+  GetAssembler()->cfi().AdjustCFAOffset(adjustment32);
 }
 
 void CodeGeneratorRISCV64::DecreaseFrame(size_t adjustment) {
-  UNUSED(adjustment);
-  LOG(FATAL) << "Unimplemented";
+  int32_t adjustment32 = dchecked_integral_cast<int32_t>(adjustment);
+  __ AddConst32(SP, SP, adjustment32);
+  GetAssembler()->cfi().AdjustCFAOffset(-adjustment32);
 }
 
 void CodeGeneratorRISCV64::GenerateNop() { LOG(FATAL) << "Unimplemented"; }
