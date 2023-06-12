@@ -236,8 +236,9 @@ class OdRefreshTest : public CommonArtTest {
     mock_exec_utils_ = mock_exec_utils.get();
 
     metrics_ = std::make_unique<OdrMetrics>(dalvik_cache_dir_);
+    cache_info_xml_ = dalvik_cache_dir_ + "/cache-info.xml";
     odrefresh_ = std::make_unique<OnDeviceRefresh>(
-        config_, dalvik_cache_dir_ + "/cache-info.xml", std::move(mock_exec_utils));
+        config_, cache_info_xml_, std::move(mock_exec_utils));
   }
 
   void TearDown() override {
@@ -273,6 +274,7 @@ class OdRefreshTest : public CommonArtTest {
   std::string services_jar_profile_;
   std::string dirty_image_objects_file_;
   std::string preloaded_classes_file_;
+  std::string cache_info_xml_;
 };
 
 TEST_F(OdRefreshTest, PrimaryBootImage) {
@@ -291,7 +293,8 @@ TEST_F(OdRefreshTest, PrimaryBootImage) {
                                     ElementsAre(FdOf(core_oj_jar_), FdOf(framework_jar_)))),
                   Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot.oat")),
                   Contains(Flag("--base=", _)),
-                  Not(Contains(Flag("--boot-image=", _))))))
+                  Not(Contains(Flag("--boot-image=", _))),
+                  Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
 
   // Ignore the invocation for the mainline extension.
@@ -330,7 +333,8 @@ TEST_F(OdRefreshTest, BootImageMainlineExtension) {
                                         FdOf(framework_wifi_jar_)))),
           Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot-conscrypt.oat")),
           Not(Contains(Flag("--base=", _))),
-          Contains(Flag("--boot-image=", _)))))
+          Contains(Flag("--boot-image=", _)),
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
 
   EXPECT_EQ(odrefresh_->Compile(
@@ -429,14 +433,16 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", location_provider_jar_)),
                                         Contains("--class-loader-context=PCL[]"),
-                                        Not(Contains(Flag("--class-loader-context-fds=", _))))))
+                                        Not(Contains(Flag("--class-loader-context-fds=", _))),
+                                        Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
           AllOf(Contains(Flag("--dex-file=", services_jar_)),
                 Contains(Flag("--class-loader-context=", "PCL[{}]"_format(location_provider_jar_))),
-                Contains(Flag("--class-loader-context-fds=", FdOf(location_provider_jar_))))))
+                Contains(Flag("--class-loader-context-fds=", FdOf(location_provider_jar_))),
+                Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -445,7 +451,8 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
           Contains(Flag("--class-loader-context=",
                         "PCL[];PCL[{}:{}]"_format(location_provider_jar_, services_jar_))),
           Contains(ListFlag("--class-loader-context-fds=",
-                            ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))))))
+                            ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))),
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -454,7 +461,8 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
           Contains(Flag("--class-loader-context=",
                         "PCL[];PCL[{}:{}]"_format(location_provider_jar_, services_jar_))),
           Contains(ListFlag("--class-loader-context-fds=",
-                            ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))))))
+                            ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))),
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
       .WillOnce(Return(0));
 
   EXPECT_EQ(

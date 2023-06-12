@@ -462,7 +462,10 @@ Parser CreateDex2oatArgumentParser() {
       .Define("--force-palette-compilation-hooks")
           .WithHelp("Force PaletteNotify{Start,End}Dex2oatCompilation calls.")
           .IntoKey(M::ForcePaletteCompilationHooks)
-      .Ignore({"--comments=_"});
+      .Ignore({
+        "--comments=_",
+        "--cache-info-fd=_",  // Handled in mark_compact.cc.
+      });
   // clang-format on
 
   AddCompilerOptionsArgumentParserOptions<Dex2oatArgumentMap>(*parser_builder);
