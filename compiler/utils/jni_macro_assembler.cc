@@ -25,6 +25,9 @@
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "arm64/jni_macro_assembler_arm64.h"
 #endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+#include "riscv64/jni_macro_assembler_riscv64.h"
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "x86/jni_macro_assembler_x86.h"
 #endif
@@ -78,6 +81,10 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
 #ifdef ART_ENABLE_CODEGEN_arm64
     case InstructionSet::kArm64:
       return MacroAsm64UniquePtr(new (allocator) arm64::Arm64JNIMacroAssembler(allocator));
+#endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return MacroAsm64UniquePtr(new (allocator) riscv64::Riscv64JNIMacroAssembler(allocator));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case InstructionSet::kX86_64:
