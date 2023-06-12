@@ -132,6 +132,7 @@ art_cc_defaults {
         riscv64: {
             srcs: [
                 "utils/riscv64/assembler_riscv64.cc",
+                "utils/riscv64/jni_macro_assembler_riscv64.cc",
                 "utils/riscv64/managed_register_riscv64.cc",
             ],
         },
