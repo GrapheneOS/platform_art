@@ -242,16 +242,7 @@ bool Jit::LoadSymbol(T* address, const char* name, std::string* error_msg) {
   return true;
 }
 
-#ifdef ART_STATIC_LIBART
-extern "C" JitCompilerInterface* jit_load();
-#endif
-
 bool Jit::LoadCompilerLibrary(std::string* error_msg) {
-#ifdef ART_STATIC_LIBART
-  (void)error_msg;
-  jit_load_ = &jit_load;
-  return true;
-#else
   jit_library_handle_ = dlopen(
       kIsDebugBuild ? "libartd-compiler.so" : "libart-compiler.so", RTLD_NOW);
   if (jit_library_handle_ == nullptr) {
@@ -265,7 +256,6 @@ bool Jit::LoadCompilerLibrary(std::string* error_msg) {
     return false;
   }
   return true;
-#endif
 }
 
 bool Jit::CompileMethodInternal(ArtMethod* method,
