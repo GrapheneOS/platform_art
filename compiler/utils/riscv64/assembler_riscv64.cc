@@ -1049,11 +1049,11 @@ void AddConstImpl(XRegister rd,
   constexpr int32_t kLowestValueForSimpleAdjustment = 2 * kNegativeValueSimpleAdjustment;
 
   if (value >= 0 && value <= kHighestValueForSimpleAdjustment) {
-    addi(rd, rs1, kPositiveValueSimpleAdjustment);
-    addi(rd, rd, value - kPositiveValueSimpleAdjustment);
+    addi(TMP, rs1, kPositiveValueSimpleAdjustment);
+    addi(rd, TMP, value - kPositiveValueSimpleAdjustment);
   } else if (value < 0 && value >= kLowestValueForSimpleAdjustment) {
-    addi(rd, rs1, kNegativeValueSimpleAdjustment);
-    addi(rd, rd, value - kNegativeValueSimpleAdjustment);
+    addi(TMP, rs1, kNegativeValueSimpleAdjustment);
+    addi(rd, TMP, value - kNegativeValueSimpleAdjustment);
   } else {
     add_large(rd, rs1, value);
   }
