@@ -28,89 +28,6 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-// Common dependencies for libart-compiler_deps and libartd-compiler_deps.
-cc_defaults {
-    name: "libart-compiler_common_deps",
-    shared_libs: [
-        "libbase",
-        "liblzma", // libelffile(d) dependency; must be repeated here since it's a static lib.
-        "libartpalette",
-    ],
-    header_libs: [
-        "libart_generated_headers",
-    ],
-}
-
-// Dependencies of libart-compiler, used to propagate libart-compiler deps when static linking.
-art_cc_defaults {
-    name: "libart-compiler_deps",
-    defaults: ["libart-compiler_common_deps"],
-    shared_libs: [
-        "libartbase",
-        "libprofile",
-        "libdexfile",
-    ],
-    static_libs: ["libelffile"],
-    codegen: {
-        arm: {
-            // VIXL assembly support for ARM targets.
-            static_libs: [
-                "libvixl",
-            ],
-        },
-        arm64: {
-            // VIXL assembly support for ARM64 targets.
-            static_libs: [
-                "libvixl",
-            ],
-        },
-    },
-    runtime_libs: [
-        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
-        // `libart-disassembler.so`.
-        "libart-disassembler",
-    ],
-}
-
-// Dependencies of libartd-compiler, used to propagate libartd-compiler deps when static linking.
-art_cc_defaults {
-    name: "libartd-compiler_deps",
-    defaults: ["libart-compiler_common_deps"],
-    shared_libs: [
-        "libartbased",
-        "libprofiled",
-        "libdexfiled",
-    ],
-    static_libs: ["libelffiled"],
-    codegen: {
-        arm: {
-            // VIXL assembly support for ARM targets.
-            static_libs: [
-                "libvixld",
-            ],
-            // Export vixl headers as they are included in this library's headers used by tests.
-            export_static_lib_headers: [
-                "libvixld",
-            ],
-        },
-        arm64: {
-            // VIXL assembly support for ARM64 targets.
-            static_libs: [
-                "libvixld",
-            ],
-            // Export vixl headers as they are included in this library's headers used by tests.
-            export_static_lib_headers: [
-                "libvixld",
-            ],
-        },
-    },
-    runtime_libs: [
-        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
-        // `libartd-disassembler.so`.
-        "libartd-disassembler",
-    ],
-}
-
 art_cc_defaults {
     name: "libart-compiler-defaults",
     defaults: ["art_defaults"],
@@ -294,13 +211,35 @@ art_cc_library {
         "libart-compiler-defaults",
         "dex2oat-pgo-defaults",
         "art_hugepage_defaults",
-        "libart-compiler_deps",
     ],
+    codegen: {
+        arm: {
+            // VIXL assembly support for ARM targets.
+            static_libs: [
+                "libvixl",
+            ],
+        },
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static_libs: [
+                "libvixl",
+            ],
+        },
+    },
     shared_libs: [
-        // libart is not included in libart-compiler_deps to allow libart-compiler(-for-test)
-        // select suitable libart library (either with or without LTO).
         "libart",
+        "libartbase",
+        "libartpalette",
+        "libprofile",
+        "libdexfile",
     ],
+    static_libs: ["libelffile"],
+    runtime_libs: [
+        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
+        // `libart-disassembler.so`.
+        "libart-disassembler",
+    ],
+
     target: {
         android: {
             lto: {
@@ -312,22 +251,6 @@ art_cc_library {
         "com.android.art",
         "com.android.art.debug",
         "test_broken_com.android.art",
-    ],
-}
-
-// For static linking with gtests. Same as `libart-compiler`, but without LTO.
-// When gtests static link a library with LTO enabled, they are also built with LTO.
-// This makes the build process use a lot of memory. b/277207452
-art_cc_library_static {
-    name: "libart-compiler-for-test",
-    defaults: [
-        "libart-compiler-defaults",
-        "dex2oat-pgo-defaults",
-        "art_hugepage_defaults",
-        "libart-compiler_deps",
-    ],
-    header_libs: [
-        "libart_headers",
     ],
 }
 
@@ -344,32 +267,48 @@ cc_defaults {
     whole_static_libs: ["libart-compiler"],
 }
 
-// libart-compiler_static_defaults for standalone gtests.
-// Uses libart-for-test_static_defaults instead of libart_static_defaults.
-// Uses libart-compiler-for-test instead of libart-compiler.
-cc_defaults {
-    name: "libart-compiler-for-test_static_defaults",
-    defaults: [
-        "libart-compiler_static_base_defaults",
-        "libart-disassembler_static_defaults",
-        "libart-for-test_static_defaults",
-        "libartbase_static_defaults",
-        "libdexfile_static_defaults",
-        "libprofile_static_defaults",
-    ],
-    whole_static_libs: ["libart-compiler-for-test"],
-}
-
 art_cc_library {
     name: "libartd-compiler",
     defaults: [
         "art_debug_defaults",
         "libart-compiler-defaults",
-        "libartd-compiler_deps",
     ],
+    codegen: {
+        arm: {
+            // VIXL assembly support for ARM targets.
+            static_libs: [
+                "libvixld",
+            ],
+            // Export vixl headers as they are included in this library's headers used by tests.
+            export_static_lib_headers: [
+                "libvixld",
+            ],
+        },
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static_libs: [
+                "libvixld",
+            ],
+            // Export vixl headers as they are included in this library's headers used by tests.
+            export_static_lib_headers: [
+                "libvixld",
+            ],
+        },
+    },
     shared_libs: [
+        "libartbased",
         "libartd",
+        "libartpalette",
+        "libprofiled",
+        "libdexfiled",
     ],
+    static_libs: ["libelffiled"],
+    runtime_libs: [
+        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
+        // `libartd-disassembler.so`.
+        "libartd-disassembler",
+    ],
+
     apex_available: [
         "com.android.art.debug",
         // TODO(b/183882457): This lib doesn't go into com.android.art, but
@@ -392,45 +331,42 @@ cc_defaults {
     whole_static_libs: ["libartd-compiler"],
 }
 
-// libartd-compiler_static_defaults for standalone gtests.
-// Uses libartd-for-test_static_defaults instead of libart_static_defaults.
-cc_defaults {
-    name: "libartd-compiler-for-test_static_defaults",
-    defaults: [
-        "libart-compiler_static_base_defaults",
-        "libartbased_static_defaults",
-        "libartd-disassembler_static_defaults",
-        "libartd-for-test_static_defaults",
-        "libdexfiled_static_defaults",
-        "libprofiled_static_defaults",
-    ],
-    whole_static_libs: ["libartd-compiler"],
-}
-
 // Properties common to `libart-compiler-gtest` and `libartd-compiler-gtest`.
 art_cc_defaults {
     name: "libart-compiler-gtest-common",
     srcs: [
         "common_compiler_test.cc",
     ],
+    shared_libs: [
+        "libbase",
+    ],
 }
 
-art_cc_library_static {
+art_cc_library {
     name: "libart-compiler-gtest",
     defaults: [
         "libart-gtest-defaults",
         "libart-compiler-gtest-common",
-        "libart-compiler-for-test_static_defaults",
+    ],
+    shared_libs: [
+        "libart-compiler",
+        "libart-disassembler",
+        "libartbase-art-gtest",
+        "libart-runtime-gtest",
     ],
 }
 
-art_cc_library_static {
+art_cc_library {
     name: "libartd-compiler-gtest",
     defaults: [
-        "art_debug_defaults",
-        "libart-gtest-defaults",
+        "libartd-gtest-defaults",
         "libart-compiler-gtest-common",
-        "libartd-compiler-for-test_static_defaults",
+    ],
+    shared_libs: [
+        "libartd-compiler",
+        "libartd-disassembler",
+        "libartbased-art-gtest",
+        "libartd-runtime-gtest",
     ],
 }
 
@@ -539,6 +475,11 @@ art_cc_defaults {
         "libnativehelper_header_only",
     ],
 
+    shared_libs: [
+        "libnativeloader",
+        "libunwindstack",
+    ],
+
     target: {
         host: {
             shared_libs: [
@@ -556,8 +497,15 @@ art_cc_test {
         "art_gtest_defaults",
         "art_compiler_tests_defaults",
     ],
-    static_libs: [
+    shared_libs: [
+        "libprofiled",
         "libartd-simulator-container",
+        "liblzma",
+    ],
+    static_libs: [
+        "libartd-compiler",
+        "libelffiled",
+        "libvixld",
     ],
 }
 
@@ -569,8 +517,21 @@ art_cc_test {
         "art_compiler_tests_defaults",
     ],
     data: [":generate-boot-image"],
+    shared_libs: [
+        "libprofile",
+        "liblzma",
+        "libartpalette",
+    ],
     static_libs: [
+        // For now, link `libart-simulator-container` statically for simplicity,
+        // to save the added complexity to package it in test suites (along with
+        // other test artifacts) and install it on device during tests.
+        // TODO(b/192070541): Consider linking `libart-simulator-container`
+        // dynamically.
         "libart-simulator-container",
+        "libart-compiler",
+        "libelffile",
+        "libvixl",
     ],
     test_config: "art_standalone_compiler_tests.xml",
 }
@@ -591,7 +552,7 @@ art_cc_test {
                 "utils/assembler_thumb_test.cc",
             ],
         },
-        riscv64: {
+        riscv64 : {
             srcs: [
                 "utils/riscv64/assembler_riscv64_test.cc",
             ],
@@ -607,7 +568,12 @@ art_cc_test {
             ],
         },
     },
+    shared_libs: [
+        "liblzma",
+    ],
     static_libs: [
+        "libartd-compiler",
+        "libelffiled",
         "libvixld",
     ],
 }
