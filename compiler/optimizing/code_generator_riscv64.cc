@@ -2516,9 +2516,26 @@ void CodeGeneratorRISCV64::GenerateVirtualCall(HInvokeVirtual* invoke,
 }
 
 void CodeGeneratorRISCV64::MoveFromReturnRegister(Location trg, DataType::Type type) {
-  UNUSED(trg);
-  UNUSED(type);
-  LOG(FATAL) << "Unimplemented";
+  if (!trg.IsValid()) {
+    DCHECK_EQ(type, DataType::Type::kVoid);
+    return;
+  }
+
+  DCHECK_NE(type, DataType::Type::kVoid);
+
+  if (DataType::IsIntegralType(type) || type == DataType::Type::kReference) {
+    XRegister trg_reg = trg.AsRegister<XRegister>();
+    XRegister res_reg = Riscv64ReturnLocation(type).AsRegister<XRegister>();
+    if (trg_reg != res_reg) {
+      __ Mv(trg_reg, res_reg);
+    }
+  } else {
+    FRegister trg_reg = trg.AsFpuRegister<FRegister>();
+    FRegister res_reg = Riscv64ReturnLocation(type).AsFpuRegister<FRegister>();
+    if (trg_reg != res_reg) {
+      __ FMvD(trg_reg, res_reg);  // 64-bit move is OK also for `float`.
+    }
+  }
 }
 
 }  // namespace riscv64
