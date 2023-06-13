@@ -1183,6 +1183,11 @@ void Riscv64Assembler::FLoadd(FRegister rd, Literal* literal) {
   LoadLiteral(literal, rd, Branch::kLiteralDouble);
 }
 
+void Riscv64Assembler::Unimp() {
+  // TODO(riscv64): use 16-bit zero C.UNIMP once we support compression
+  Emit(0xC0001073);
+}
+
 /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
 const Riscv64Assembler::Branch::BranchInfo Riscv64Assembler::Branch::branch_info_[] = {
