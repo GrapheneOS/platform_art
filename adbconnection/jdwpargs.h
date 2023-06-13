@@ -37,6 +37,10 @@ class JdwpArgs {
   // Add a key / value
   void put(const std::string& key, const std::string& value);
 
+  bool contains(const std::string& key) { return store.find(key) != store.end(); }
+
+  std::string& get(const std::string& key) { return store[key]; }
+
   // Concatenate all key/value into a command separated list of "key=value" entries.
   std::string join();
 
