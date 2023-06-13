@@ -1526,6 +1526,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
           PushFpr4(val);
         }
       } else {
+        // FIXME(riscv64): Excessive FP args can be passed in available GPRs.
         stack_entries_++;
         PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
         fpr_index_ = 0;
@@ -1561,6 +1562,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
         PushFpr8(val);
         fpr_index_ -= kRegistersNeededForDouble;
       } else {
+        // FIXME(riscv64): Excessive FP args can be passed in available GPRs.
         if (DoubleStackNeedsPadding()) {
           PushStack(0);
           stack_entries_++;

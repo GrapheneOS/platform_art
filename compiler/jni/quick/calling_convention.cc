@@ -29,6 +29,10 @@
 #include "jni/quick/arm64/calling_convention_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_riscv64
+#include "jni/quick/riscv64/calling_convention_riscv64.h"
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "jni/quick/x86/calling_convention_x86.h"
 #endif
@@ -59,6 +63,12 @@ std::unique_ptr<ManagedRuntimeCallingConvention> ManagedRuntimeCallingConvention
     case InstructionSet::kArm64:
       return std::unique_ptr<ManagedRuntimeCallingConvention>(
           new (allocator) arm64::Arm64ManagedRuntimeCallingConvention(
+              is_static, is_synchronized, shorty));
+#endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return std::unique_ptr<ManagedRuntimeCallingConvention>(
+          new (allocator) riscv64::Riscv64ManagedRuntimeCallingConvention(
               is_static, is_synchronized, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
