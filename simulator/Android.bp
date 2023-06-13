@@ -83,24 +83,34 @@ cc_defaults {
     srcs: [
         "code_simulator_container.cc",
     ],
-    header_libs: [
-        "libart_simulator_headers",
-        "libbase_headers",
-        "libart_headers",
-        "art_libartbase_headers",
+    shared_libs: [
+        "libbase",
     ],
+
+    header_libs: ["libart_simulator_headers"],
     export_include_dirs: ["."], // TODO: Consider a proper separation.
 }
 
-art_cc_library_static {
+art_cc_library {
     name: "libart-simulator-container",
     defaults: ["libart_simulator_container_defaults"],
+    shared_libs: [
+        "libartbase",
+        "libart",
+    ],
 }
 
-art_cc_library_static {
+art_cc_library {
     name: "libartd-simulator-container",
     defaults: [
         "art_debug_defaults",
         "libart_simulator_container_defaults",
+    ],
+    shared_libs: [
+        "libartbased",
+        "libartd",
+    ],
+    apex_available: [
+        "com.android.art.debug",
     ],
 }
