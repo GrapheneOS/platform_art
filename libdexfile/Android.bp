@@ -306,8 +306,12 @@ art_cc_defaults {
         ":art-gtest-jars-VerifierDeps",
     ],
     header_libs: ["jni_headers"],
+    static_libs: [
+        "libziparchive",
+    ],
     shared_libs: [
         "libunwindstack",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
 }
 

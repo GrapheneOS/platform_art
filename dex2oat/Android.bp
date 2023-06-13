@@ -440,24 +440,37 @@ art_cc_library_static {
     srcs: [
         "common_compiler_driver_test.cc",
     ],
+    shared_libs: [
+        "libart-compiler-gtest",
+        "libart-runtime-gtest",
+        "libart-compiler",
+        "libart-disassembler",
+        "libbase",
+        "liblz4", // libart-dex2oat dependency; must be repeated here since it's a static lib.
+        "liblog",
+    ],
     static_libs: [
         "libart-dex2oat",
-        "libart-gtest",
     ],
 }
 
 art_cc_library_static {
     name: "libartd-dex2oat-gtest",
-    defaults: [
-        "art_debug_defaults",
-        "libart-gtest-defaults",
-    ],
+    defaults: ["libartd-gtest-defaults"],
     srcs: [
         "common_compiler_driver_test.cc",
     ],
+    shared_libs: [
+        "libartd-compiler-gtest",
+        "libartd-runtime-gtest",
+        "libartd-compiler",
+        "libartd-disassembler",
+        "libbase",
+        "liblz4", // libartd-dex2oat dependency; must be repeated here since it's a static lib.
+        "liblog",
+    ],
     static_libs: [
         "libartd-dex2oat",
-        "libartd-gtest",
     ],
 }
 
@@ -543,10 +556,17 @@ art_cc_defaults {
         },
     },
 
+    static_libs: [
+        "libziparchive",
+    ],
     shared_libs: [
+        "libartpalette",
+        "libbase",
         "libcrypto",
         "liblz4", // libart(d)-dex2oat dependency; must be repeated here since it's a static lib.
         "liblog",
+        "libsigchain",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
 }
 
@@ -558,11 +578,18 @@ art_cc_test {
         "art_gtest_defaults",
         "art_dex2oat_tests_defaults",
     ],
+    shared_libs: [
+        "libartbased",
+        "libartd-dexlayout",
+        "liblzma",
+        "libprofiled",
+    ],
     static_libs: [
+        "libartd-compiler",
         "libartd-dex2oat",
         "libartd-dex2oat-gtest",
+        "libelffiled",
         "libvixld",
-        "libartd-dexlayout",
     ],
 }
 
@@ -574,11 +601,18 @@ art_cc_test {
         "art_dex2oat_tests_defaults",
     ],
     data: [":generate-boot-image"],
+    shared_libs: [
+        "libart-dexlayout",
+        "libartbase",
+        "liblzma",
+        "libprofile",
+    ],
     static_libs: [
+        "libart-compiler",
         "libart-dex2oat",
         "libart-dex2oat-gtest",
+        "libelffile",
         "libvixl",
-        "libart-dexlayout",
     ],
     test_config: "art_standalone_dex2oat_tests.xml",
 }
@@ -596,6 +630,12 @@ art_cc_test {
         ":art-gtest-jars-MultiDexUncompressedAligned",
         ":art-gtest-jars-Nested",
         ":generate-boot-image",
+    ],
+    shared_libs: [
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
+    ],
+    static_libs: [
+        "libziparchive",
     ],
     test_config: "art_standalone_dex2oat_cts_tests.xml",
     test_suites: ["cts"],
