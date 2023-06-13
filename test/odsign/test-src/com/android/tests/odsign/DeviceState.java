@@ -80,11 +80,6 @@ public class DeviceState {
                     "device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, flag));
         }
 
-        if (!mMutatedPhenotypeFlags.isEmpty()) {
-            mTestInfo.getDevice().executeShellV2Command(
-                    "device_config set_sync_disabled_for_tests none");
-        }
-
         for (var entry : mDeletedFiles.entrySet()) {
             mTestInfo.getDevice().executeShellV2Command(
                     String.format("cp '%s' '%s'", entry.getValue(), entry.getKey()));
@@ -189,11 +184,6 @@ public class DeviceState {
                     .isEqualTo("null");
             mMutatedPhenotypeFlags.add(key);
         }
-
-        // Disable phenotype flag syncing. Potentially, we can set `set_sync_disabled_for_tests` to
-        // `until_reboot`, but setting it to `persistent` prevents unrelated system crashes/restarts
-        // from affecting the test. `set_sync_disabled_for_tests` is reset in `restore` anyway.
-        mTestUtils.assertCommandSucceeds("device_config set_sync_disabled_for_tests persistent");
 
         if (value != null) {
             mTestUtils.assertCommandSucceeds(String.format(
