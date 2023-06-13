@@ -331,6 +331,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   HGraphVisitor* GetLocationBuilder() override { return &location_builder_; }
 
+  void MaybeGenerateInlineCacheCheck(HInstruction* instruction, XRegister klass);
+
   void SetupBlockedRegisters() const override;
 
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) override;
@@ -407,6 +409,22 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void MaybeIncrementHotness(bool is_frame_entry);
 
   bool CanUseImplicitSuspendCheck() const;
+
+  //
+  // Heap poisoning.
+  //
+
+  // Poison a heap reference contained in `reg`.
+  void PoisonHeapReference(XRegister reg);
+
+  // Unpoison a heap reference contained in `reg`.
+  void UnpoisonHeapReference(XRegister reg);
+
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(XRegister reg);
+
+  // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybeUnpoisonHeapReference(XRegister reg);
 
  private:
   Riscv64Assembler assembler_;
