@@ -77,6 +77,7 @@ constexpr uint32_t shifted_initialized_value =
     enum_cast<uint32_t>(ClassStatus::kInitialized) << (status_lsb_position % kBitsPerByte);
 
 class Assembler;
+class CodeGenerationData;
 class CodeGenerator;
 class CompilerOptions;
 class StackMapStream;
@@ -852,8 +853,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   DisassemblyInformation* disasm_info_;
 
  private:
-  class CodeGenerationData;
-
   void InitializeCodeGenerationData();
   size_t GetStackOffsetOfSavedRegister(size_t index);
   void GenerateSlowPaths();
