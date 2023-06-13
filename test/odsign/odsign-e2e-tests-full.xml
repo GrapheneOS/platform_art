@@ -19,6 +19,11 @@
 
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
 
+    <!-- Disable syncing to prevent overwriting flags during testing. -->
+    <target_preparer class="com.android.tradefed.targetprep.DeviceSetup" >
+      <option name="disable-device-config-sync" value="true" />
+    </target_preparer>
+
     <test class="com.android.tradefed.testtype.HostTest" >
         <option name="jar" value="odsign_e2e_tests_full.jar" />
     </test>
