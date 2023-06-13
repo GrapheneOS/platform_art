@@ -323,7 +323,7 @@ ArrayRef<const ManagedRegister> Arm64JniCallingConvention::CalleeSaveRegisters()
       static_assert(kCalleeSaveRegisters[lr_index].Equals(
                         Arm64ManagedRegister::FromXRegister(LR)));
       return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters).SubArray(
-          /*pos*/ lr_index, /*length=*/ 1u);
+          /*pos=*/ lr_index, /*length=*/ 1u);
     }
   } else {
     return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
