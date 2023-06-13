@@ -2623,24 +2623,52 @@ void CodeGeneratorRISCV64::GenerateExplicitNullCheck(HNullCheck* instruction) {
 
 HLoadString::LoadKind CodeGeneratorRISCV64::GetSupportedLoadStringKind(
     HLoadString::LoadKind desired_string_load_kind) {
-  UNUSED(desired_string_load_kind);
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  switch (desired_string_load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+    case HLoadString::LoadKind::kBootImageRelRo:
+    case HLoadString::LoadKind::kBssEntry:
+      DCHECK(!Runtime::Current()->UseJitCompilation());
+      break;
+    case HLoadString::LoadKind::kJitBootImageAddress:
+    case HLoadString::LoadKind::kJitTableAddress:
+      DCHECK(Runtime::Current()->UseJitCompilation());
+      break;
+    case HLoadString::LoadKind::kRuntimeCall:
+      break;
+  }
+  return desired_string_load_kind;
 }
 
 HLoadClass::LoadKind CodeGeneratorRISCV64::GetSupportedLoadClassKind(
     HLoadClass::LoadKind desired_class_load_kind) {
-  UNUSED(desired_class_load_kind);
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  switch (desired_class_load_kind) {
+    case HLoadClass::LoadKind::kInvalid:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
+    case HLoadClass::LoadKind::kReferrersClass:
+      break;
+    case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
+    case HLoadClass::LoadKind::kBootImageRelRo:
+    case HLoadClass::LoadKind::kBssEntry:
+    case HLoadClass::LoadKind::kBssEntryPublic:
+    case HLoadClass::LoadKind::kBssEntryPackage:
+      DCHECK(!Runtime::Current()->UseJitCompilation());
+      break;
+    case HLoadClass::LoadKind::kJitBootImageAddress:
+    case HLoadClass::LoadKind::kJitTableAddress:
+      DCHECK(Runtime::Current()->UseJitCompilation());
+      break;
+    case HLoadClass::LoadKind::kRuntimeCall:
+      break;
+  }
+  return desired_class_load_kind;
 }
 
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorRISCV64::GetSupportedInvokeStaticOrDirectDispatch(
     const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info, ArtMethod* method) {
-  UNUSED(desired_dispatch_info);
   UNUSED(method);
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  // On RISCV64 we support all dispatch types.
+  return desired_dispatch_info;
 }
 
 void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke) {
