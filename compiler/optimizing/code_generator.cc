@@ -44,6 +44,7 @@
 #include "base/leb128.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
+#include "code_generation_data.h"
 #include "dex/bytecode_utils.h"
 #include "dex/code_item_accessors-inl.h"
 #include "graph_visualizer.h"
@@ -139,122 +140,6 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
     }
   }
   return true;
-}
-
-class CodeGenerator::CodeGenerationData : public DeletableArenaObject<kArenaAllocCodeGenerator> {
- public:
-  static std::unique_ptr<CodeGenerationData> Create(ArenaStack* arena_stack,
-                                                    InstructionSet instruction_set) {
-    ScopedArenaAllocator allocator(arena_stack);
-    void* memory = allocator.Alloc<CodeGenerationData>(kArenaAllocCodeGenerator);
-    return std::unique_ptr<CodeGenerationData>(
-        ::new (memory) CodeGenerationData(std::move(allocator), instruction_set));
-  }
-
-  ScopedArenaAllocator* GetScopedAllocator() {
-    return &allocator_;
-  }
-
-  void AddSlowPath(SlowPathCode* slow_path) {
-    slow_paths_.emplace_back(std::unique_ptr<SlowPathCode>(slow_path));
-  }
-
-  ArrayRef<const std::unique_ptr<SlowPathCode>> GetSlowPaths() const {
-    return ArrayRef<const std::unique_ptr<SlowPathCode>>(slow_paths_);
-  }
-
-  StackMapStream* GetStackMapStream() { return &stack_map_stream_; }
-
-  void ReserveJitStringRoot(StringReference string_reference, Handle<mirror::String> string) {
-    jit_string_roots_.Overwrite(string_reference,
-                                reinterpret_cast64<uint64_t>(string.GetReference()));
-  }
-
-  uint64_t GetJitStringRootIndex(StringReference string_reference) const {
-    return jit_string_roots_.Get(string_reference);
-  }
-
-  size_t GetNumberOfJitStringRoots() const {
-    return jit_string_roots_.size();
-  }
-
-  void ReserveJitClassRoot(TypeReference type_reference, Handle<mirror::Class> klass) {
-    jit_class_roots_.Overwrite(type_reference, reinterpret_cast64<uint64_t>(klass.GetReference()));
-  }
-
-  uint64_t GetJitClassRootIndex(TypeReference type_reference) const {
-    return jit_class_roots_.Get(type_reference);
-  }
-
-  size_t GetNumberOfJitClassRoots() const {
-    return jit_class_roots_.size();
-  }
-
-  size_t GetNumberOfJitRoots() const {
-    return GetNumberOfJitStringRoots() + GetNumberOfJitClassRoots();
-  }
-
-  void EmitJitRoots(/*out*/std::vector<Handle<mirror::Object>>* roots)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
- private:
-  CodeGenerationData(ScopedArenaAllocator&& allocator, InstructionSet instruction_set)
-      : allocator_(std::move(allocator)),
-        stack_map_stream_(&allocator_, instruction_set),
-        slow_paths_(allocator_.Adapter(kArenaAllocCodeGenerator)),
-        jit_string_roots_(StringReferenceValueComparator(),
-                          allocator_.Adapter(kArenaAllocCodeGenerator)),
-        jit_class_roots_(TypeReferenceValueComparator(),
-                         allocator_.Adapter(kArenaAllocCodeGenerator)) {
-    slow_paths_.reserve(kDefaultSlowPathsCapacity);
-  }
-
-  static constexpr size_t kDefaultSlowPathsCapacity = 8;
-
-  ScopedArenaAllocator allocator_;
-  StackMapStream stack_map_stream_;
-  ScopedArenaVector<std::unique_ptr<SlowPathCode>> slow_paths_;
-
-  // Maps a StringReference (dex_file, string_index) to the index in the literal table.
-  // Entries are intially added with a pointer in the handle zone, and `EmitJitRoots`
-  // will compute all the indices.
-  ScopedArenaSafeMap<StringReference, uint64_t, StringReferenceValueComparator> jit_string_roots_;
-
-  // Maps a ClassReference (dex_file, type_index) to the index in the literal table.
-  // Entries are intially added with a pointer in the handle zone, and `EmitJitRoots`
-  // will compute all the indices.
-  ScopedArenaSafeMap<TypeReference, uint64_t, TypeReferenceValueComparator> jit_class_roots_;
-};
-
-void CodeGenerator::CodeGenerationData::EmitJitRoots(
-    /*out*/std::vector<Handle<mirror::Object>>* roots) {
-  DCHECK(roots->empty());
-  roots->reserve(GetNumberOfJitRoots());
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  size_t index = 0;
-  for (auto& entry : jit_string_roots_) {
-    // Update the `roots` with the string, and replace the address temporarily
-    // stored to the index in the table.
-    uint64_t address = entry.second;
-    roots->emplace_back(reinterpret_cast<StackReference<mirror::Object>*>(address));
-    DCHECK(roots->back() != nullptr);
-    DCHECK(roots->back()->IsString());
-    entry.second = index;
-    // Ensure the string is strongly interned. This is a requirement on how the JIT
-    // handles strings. b/32995596
-    class_linker->GetInternTable()->InternStrong(roots->back()->AsString());
-    ++index;
-  }
-  for (auto& entry : jit_class_roots_) {
-    // Update the `roots` with the class, and replace the address temporarily
-    // stored to the index in the table.
-    uint64_t address = entry.second;
-    roots->emplace_back(reinterpret_cast<StackReference<mirror::Object>*>(address));
-    DCHECK(roots->back() != nullptr);
-    DCHECK(roots->back()->IsClass());
-    entry.second = index;
-    ++index;
-  }
 }
 
 ScopedArenaAllocator* CodeGenerator::GetScopedAllocator() {
