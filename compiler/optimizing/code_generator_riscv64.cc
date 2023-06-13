@@ -1812,17 +1812,11 @@ size_t CodeGeneratorRISCV64::RestoreFloatingPointRegister(size_t stack_index, ui
 }
 
 void CodeGeneratorRISCV64::DumpCoreRegister(std::ostream& stream, int reg) const {
-  UNUSED(stream);
-  UNUSED(reg);
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  stream << XRegister(reg);
 }
 
 void CodeGeneratorRISCV64::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  UNUSED(stream);
-  UNUSED(reg);
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  stream << FRegister(reg);
 }
 
 void CodeGeneratorRISCV64::Finalize() {
