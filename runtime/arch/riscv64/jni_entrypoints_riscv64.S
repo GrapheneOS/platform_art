@@ -123,6 +123,7 @@ END art_jni_dlsym_lookup_stub
 // JNI dlsym lookup stub for @CriticalNative.
 ENTRY art_jni_dlsym_lookup_critical_stub
     // The hidden arg holding the tagged method is t6 (loaded by art_quick_generic_jni_trampoline).
+    // FIXME(riscv64): Use T0 to align with the JNI calling convention.
     // Bit 0 set means generic JNI.
     // For generic JNI we already have a managed frame, so we reuse the art_jni_dlsym_lookup_stub.
     andi  t6, t6, 1
