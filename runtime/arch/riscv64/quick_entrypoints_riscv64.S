@@ -340,6 +340,7 @@ ENTRY art_quick_generic_jni_trampoline
     fld  fa6, 8*14(sp)
     fld  fa7, 8*15(sp)
 
+    // FIXME(riscv64): Use T0 to align with the JNI calling convention.
     ld  t6, 8*16(sp)  // @CriticalNative arg, used by art_jni_dlsym_lookup_critical_stub
 
     ld  t1, 8*17(sp)  // restore stack
@@ -414,6 +415,7 @@ ENTRY art_quick_method_exit_hook
     SETUP_SAVE_EVERYTHING_FRAME \
         RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
 
+    // frame_size is passed in A4 from JITed code and `art_quick_generic_jni_trampoline`.
     addi a3, sp, SAVE_EVERYTHING_FRAME_OFFSET_FA0  // FP result ptr in kSaveEverything frame
     addi a2, sp, SAVE_EVERYTHING_FRAME_OFFSET_A0   // integer result ptr in kSaveEverything frame
     addi a1, sp, FRAME_SIZE_SAVE_EVERYTHING        // ArtMethod**
