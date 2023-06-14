@@ -129,8 +129,7 @@ class EntrypointsOrderTest : public CommonArtTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mutator_lock, held_mutexes, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, held_mutexes, flip_function,
                         sizeof(void*) * kLockLevelCount);
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, flip_function, method_verifier, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, method_verifier, thread_local_mark_stack, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, flip_function, thread_local_mark_stack, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_mark_stack, async_exception, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, async_exception, top_reflective_handle_scope,
                         sizeof(void*));
