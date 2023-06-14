@@ -42,49 +42,49 @@ inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool preci
   // We only expect 0 to be a precise constant.
   DCHECK_IMPLIES(value == 0, precise);
   if (precise && (value >= kMinSmallConstant) && (value <= kMaxSmallConstant)) {
-    return *small_precise_constants_[value - kMinSmallConstant];
+    return *down_cast<const ConstantType*>(entries_[value - kMinSmallConstant]);
   }
   return FromCat1NonSmallConstant(value, precise);
 }
 
 inline const BooleanType& RegTypeCache::Boolean() {
-  return *BooleanType::GetInstance();
+  return *down_cast<const BooleanType*>(entries_[kBooleanCacheId]);
 }
 inline const ByteType& RegTypeCache::Byte() {
-  return *ByteType::GetInstance();
+  return *down_cast<const ByteType*>(entries_[kByteCacheId]);
 }
 inline const CharType& RegTypeCache::Char() {
-  return *CharType::GetInstance();
+  return *down_cast<const CharType*>(entries_[kCharCacheId]);
 }
 inline const ShortType& RegTypeCache::Short() {
-  return *ShortType::GetInstance();
+  return *down_cast<const ShortType*>(entries_[kShortCacheId]);
 }
 inline const IntegerType& RegTypeCache::Integer() {
-  return *IntegerType::GetInstance();
+  return *down_cast<const IntegerType*>(entries_[kIntCacheId]);
 }
 inline const FloatType& RegTypeCache::Float() {
-  return *FloatType::GetInstance();
+  return *down_cast<const FloatType*>(entries_[kFloatCacheId]);
 }
 inline const LongLoType& RegTypeCache::LongLo() {
-  return *LongLoType::GetInstance();
+  return *down_cast<const LongLoType*>(entries_[kLongLoCacheId]);
 }
 inline const LongHiType& RegTypeCache::LongHi() {
-  return *LongHiType::GetInstance();
+  return *down_cast<const LongHiType*>(entries_[kLongHiCacheId]);
 }
 inline const DoubleLoType& RegTypeCache::DoubleLo() {
-  return *DoubleLoType::GetInstance();
+  return *down_cast<const DoubleLoType*>(entries_[kDoubleLoCacheId]);
 }
 inline const DoubleHiType& RegTypeCache::DoubleHi() {
-  return *DoubleHiType::GetInstance();
+  return *down_cast<const DoubleHiType*>(entries_[kDoubleHiCacheId]);
 }
 inline const UndefinedType& RegTypeCache::Undefined() {
-  return *UndefinedType::GetInstance();
+  return *down_cast<const UndefinedType*>(entries_[kUndefinedCacheId]);
 }
 inline const ConflictType& RegTypeCache::Conflict() {
-  return *ConflictType::GetInstance();
+  return *down_cast<const ConflictType*>(entries_[kConflictCacheId]);
 }
 inline const NullType& RegTypeCache::Null() {
-  return *NullType::GetInstance();
+  return *down_cast<const NullType*>(entries_[kNullCacheId]);
 }
 
 inline const ImpreciseConstType& RegTypeCache::ByteConstant() {
@@ -186,9 +186,9 @@ inline RegTypeType& RegTypeCache::AddEntry(RegTypeType* new_entry) {
   DCHECK(new_entry != nullptr);
   entries_.push_back(new_entry);
   if (new_entry->HasClass()) {
-    ObjPtr<mirror::Class> klass = new_entry->GetClass();
+    Handle<mirror::Class> klass = new_entry->GetClassHandle();
     DCHECK(!klass->IsPrimitive());
-    klass_entries_.push_back(std::make_pair(GcRoot<mirror::Class>(klass), new_entry));
+    klass_entries_.push_back(std::make_pair(klass, new_entry));
   }
   return *new_entry;
 }
