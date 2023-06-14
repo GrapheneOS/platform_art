@@ -109,7 +109,6 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "trace.h"
-#include "verifier/method_verifier.h"
 #include "verify_object.h"
 #include "well_known_classes-inl.h"
 
@@ -4433,9 +4432,6 @@ void Thread::VisitRoots(RootVisitor* visitor) {
       mapper.VisitShadowFrame(record->GetShadowFrame());
     }
   }
-  for (auto* verifier = tlsPtr_.method_verifier; verifier != nullptr; verifier = verifier->link_) {
-    verifier->VisitRoots(visitor, RootInfo(kRootNativeStack, thread_id));
-  }
   // Visit roots on this thread's stack
   RuntimeContextType context;
   RootCallbackVisitor visitor_to_callback(visitor, thread_id);
@@ -4638,16 +4634,6 @@ bool Thread::UnprotectStack() {
   void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
   VLOG(threads) << "Unprotecting stack at " << pregion;
   return mprotect(pregion, kStackOverflowProtectedSize, PROT_READ|PROT_WRITE) == 0;
-}
-
-void Thread::PushVerifier(verifier::MethodVerifier* verifier) {
-  verifier->link_ = tlsPtr_.method_verifier;
-  tlsPtr_.method_verifier = verifier;
-}
-
-void Thread::PopVerifier(verifier::MethodVerifier* verifier) {
-  CHECK_EQ(tlsPtr_.method_verifier, verifier);
-  tlsPtr_.method_verifier = verifier->link_;
 }
 
 size_t Thread::NumberOfHeldMutexes() const {

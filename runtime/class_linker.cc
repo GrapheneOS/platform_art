@@ -1077,8 +1077,6 @@ void ClassLinker::FinishInit(Thread* self) {
   // initialize the StackOverflowError class (as it might require running the verifier). Instead,
   // ensure that the class will be initialized.
   if (kMemoryToolIsAvailable && !Runtime::Current()->IsAotCompiler()) {
-    verifier::ClassVerifier::Init(this);  // Need to prepare the verifier.
-
     ObjPtr<mirror::Class> soe_klass = FindSystemClass(self, "Ljava/lang/StackOverflowError;");
     if (soe_klass == nullptr || !EnsureInitialized(self, hs.NewHandle(soe_klass), true, true)) {
       // Strange, but don't crash.
