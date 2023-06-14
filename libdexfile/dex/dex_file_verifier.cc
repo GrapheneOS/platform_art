@@ -215,8 +215,11 @@ class DexFileVerifier {
   // Check a list. The head is assumed to be at *ptr, and elements to be of size element_size. If
   // successful, the ptr will be moved forward the amount covered by the list.
   bool CheckList(size_t element_size, const char* label, const uint8_t* *ptr);
-  // Checks whether the offset is zero (when size is zero) or that the offset falls within the area
-  // claimed by the file.
+  // Checks:
+  //   * the offset is zero (when size is zero),
+  //   * the offset falls within the area claimed by the file,
+  //   * the offset + size also falls within the area claimed by the file, and
+  //   * the alignment of the section
   bool CheckValidOffsetAndSize(uint32_t offset, uint32_t size, size_t alignment, const char* label);
   // Checks whether the size is less than the limit.
   ALWAYS_INLINE bool CheckSizeLimit(uint32_t size, uint32_t limit, const char* label) {
@@ -556,6 +559,13 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
     ErrorStringPrintf("Offset(%d) should be within file size(%zu) for %s.", offset, size_, label);
     return false;
   }
+  // Check that offset + size is within the file size. Note that we use `<` to allow the section to
+  // end at the same point as the file. Check written as a subtraction to be safe from overfow.
+  if (size_ - offset < size) {
+    ErrorStringPrintf(
+        "Section end(%d) should be within file size(%zu) for %s.", offset + size, size_, label);
+    return false;
+  }
   if (alignment != 0 && !IsAlignedParam(offset, alignment)) {
     ErrorStringPrintf("Offset(%d) should be aligned by %zu for %s.", offset, alignment, label);
     return false;
@@ -607,7 +617,7 @@ bool DexFileVerifier::CheckHeader() {
                               /* alignment= */ 0,
                               "link") &&
       CheckValidOffsetAndSize(header_->map_off_,
-                              header_->map_off_,
+                              sizeof(dex::MapList),
                               /* alignment= */ 4,
                               "map") &&
       CheckValidOffsetAndSize(header_->string_ids_off_,
