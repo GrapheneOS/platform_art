@@ -113,10 +113,15 @@ class PACKED(4) OatQuickMethodHeader {
   }
 
   bool Contains(uintptr_t pc) const {
+    uintptr_t code_start = reinterpret_cast<uintptr_t>(code_);
     // We should not call `Contains` on a stub or trampoline.
-    DCHECK_NE(data_, kInvalidData) << std::hex << reinterpret_cast<uintptr_t>(code_);
-    // Remove hwasan tag to make comparison below valid. The PC from the stack does not have it.
-    uintptr_t code_start = reinterpret_cast<uintptr_t>(HWASanUntag(code_));
+    DCHECK_NE(data_, kInvalidData) << std::hex << code_start;
+// Let's not make assumptions about other architectures.
+#if defined(__aarch64__) || defined(__riscv__) || defined(__riscv)
+    // Verify that the code pointer is not tagged. Memory for code gets allocated with
+    // mspace_memalign or memory mapped from a file, neither of which is tagged by MTE/HWASan.
+    DCHECK_EQ(code_start, reinterpret_cast<uintptr_t>(code_start) & ((UINT64_C(1) << 56) - 1));
+#endif
     static_assert(kRuntimeISA != InstructionSet::kThumb2, "kThumb2 cannot be a runtime ISA");
     if (kRuntimeISA == InstructionSet::kArm) {
       // On Thumb-2, the pc is offset by one.
