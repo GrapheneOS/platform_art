@@ -559,6 +559,9 @@ class Riscv64Assembler final : public Assembler {
   void FLoadw(FRegister rd, Literal* literal);
   void FLoadd(FRegister rd, Literal* literal);
 
+  // Illegal instruction that triggers SIGILL.
+  void Unimp();
+
   /////////////////////////////// RV64 MACRO Instructions END ///////////////////////////////
 
   void Bind(Label* label) override { Bind(down_cast<Riscv64Label*>(label)); }

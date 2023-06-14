@@ -2328,6 +2328,11 @@ TEST_F(AssemblerRISCV64Test, FStored) {
   TestFPLoadStoreArbitraryOffset("FStored", "fsd", &Riscv64Assembler::FStored);
 }
 
+TEST_F(AssemblerRISCV64Test, Unimp) {
+  __ Unimp();
+  DriverStr("unimp\n", "Unimp");
+}
+
 TEST_F(AssemblerRISCV64Test, LoadLabelAddress) {
   std::string expected;
   constexpr size_t kNumLoadsForward = 4 * KB;
