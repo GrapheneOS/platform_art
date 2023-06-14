@@ -82,7 +82,6 @@ class Throwable;
 }  // namespace mirror
 
 namespace verifier {
-class MethodVerifier;
 class VerifierDeps;
 }  // namespace verifier
 
@@ -1389,9 +1388,6 @@ class Thread {
     return false;
   }
 
-  void PushVerifier(verifier::MethodVerifier* verifier);
-  void PopVerifier(verifier::MethodVerifier* verifier);
-
   void InitStringEntryPoints();
 
   void ModifyDebugDisallowReadBarrier(int8_t delta) {
@@ -1961,7 +1957,6 @@ class Thread {
                                thread_local_alloc_stack_end(nullptr),
                                mutator_lock(nullptr),
                                flip_function(nullptr),
-                               method_verifier(nullptr),
                                thread_local_mark_stack(nullptr),
                                async_exception(nullptr),
                                top_reflective_handle_scope(nullptr),
@@ -2109,9 +2104,6 @@ class Thread {
 
     // The function used for thread flip.
     Closure* flip_function;
-
-    // Current method verifier, used for root marking.
-    verifier::MethodVerifier* method_verifier;
 
     union {
       // Thread-local mark stack for the concurrent copying collector.

@@ -113,6 +113,8 @@ class MethodVerifier {
   // No classes will be loaded.
   static MethodVerifier* CalculateVerificationInfo(Thread* self,
                                                    ArtMethod* method,
+                                                   Handle<mirror::DexCache> dex_cache,
+                                                   Handle<mirror::ClassLoader> class_loader,
                                                    uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -155,15 +157,7 @@ class MethodVerifier {
                                uint32_t api_level)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void Init(ClassLinker* class_linker) REQUIRES_SHARED(Locks::mutator_lock_);
-  static void Shutdown();
-
   virtual ~MethodVerifier();
-
-  static void VisitStaticRoots(RootVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void VisitRoots(RootVisitor* visitor, const RootInfo& roots)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const CodeItemDataAccessor& CodeItem() const {
     return code_item_accessor_;
@@ -290,6 +284,9 @@ class MethodVerifier {
 
   // The thread we're verifying on.
   Thread* const self_;
+
+  // Handles for classes in the `RegTypeCache`.
+  VariableSizedHandleScope handles_;
 
   // Arena allocator.
   ArenaStack arena_stack_;

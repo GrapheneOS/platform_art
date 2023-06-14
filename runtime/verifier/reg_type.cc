@@ -40,21 +40,7 @@ namespace verifier {
 
 using android::base::StringPrintf;
 
-const UndefinedType* UndefinedType::instance_ = nullptr;
-const ConflictType* ConflictType::instance_ = nullptr;
-const BooleanType* BooleanType::instance_ = nullptr;
-const ByteType* ByteType::instance_ = nullptr;
-const ShortType* ShortType::instance_ = nullptr;
-const CharType* CharType::instance_ = nullptr;
-const FloatType* FloatType::instance_ = nullptr;
-const LongLoType* LongLoType::instance_ = nullptr;
-const LongHiType* LongHiType::instance_ = nullptr;
-const DoubleLoType* DoubleLoType::instance_ = nullptr;
-const DoubleHiType* DoubleHiType::instance_ = nullptr;
-const IntegerType* IntegerType::instance_ = nullptr;
-const NullType* NullType::instance_ = nullptr;
-
-PrimitiveType::PrimitiveType(ObjPtr<mirror::Class> klass,
+PrimitiveType::PrimitiveType(Handle<mirror::Class> klass,
                              const std::string_view& descriptor,
                              uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
@@ -62,13 +48,13 @@ PrimitiveType::PrimitiveType(ObjPtr<mirror::Class> klass,
   CHECK(!descriptor.empty());
 }
 
-Cat1Type::Cat1Type(ObjPtr<mirror::Class> klass,
+Cat1Type::Cat1Type(Handle<mirror::Class> klass,
                    const std::string_view& descriptor,
                    uint16_t cache_id)
     : PrimitiveType(klass, descriptor, cache_id) {
 }
 
-Cat2Type::Cat2Type(ObjPtr<mirror::Class> klass,
+Cat2Type::Cat2Type(Handle<mirror::Class> klass,
                    const std::string_view& descriptor,
                    uint16_t cache_id)
     : PrimitiveType(klass, descriptor, cache_id) {
@@ -135,191 +121,11 @@ std::string IntegerType::Dump() const {
   return "Integer";
 }
 
-const DoubleHiType* DoubleHiType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                                 const std::string_view& descriptor,
-                                                 uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new DoubleHiType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void DoubleHiType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const DoubleLoType* DoubleLoType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                                 const std::string_view& descriptor,
-                                                 uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new DoubleLoType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void DoubleLoType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const LongLoType* LongLoType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                             const std::string_view& descriptor,
-                                             uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new LongLoType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-const LongHiType* LongHiType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                             const std::string_view& descriptor,
-                                             uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new LongHiType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void LongHiType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-void LongLoType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const FloatType* FloatType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                           const std::string_view& descriptor,
-                                           uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new FloatType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void FloatType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const CharType* CharType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                         const std::string_view& descriptor,
-                                         uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new CharType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void CharType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const ShortType* ShortType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                           const std::string_view& descriptor,
-                                           uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new ShortType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void ShortType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const ByteType* ByteType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                         const std::string_view& descriptor,
-                                         uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new ByteType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void ByteType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const IntegerType* IntegerType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                               const std::string_view& descriptor,
-                                               uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new IntegerType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void IntegerType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const ConflictType* ConflictType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                                 const std::string_view& descriptor,
-                                                 uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new ConflictType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void ConflictType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-const BooleanType* BooleanType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                               const std::string_view& descriptor,
-                                               uint16_t cache_id) {
-  CHECK(BooleanType::instance_ == nullptr);
-  instance_ = new BooleanType(klass, descriptor, cache_id);
-  return BooleanType::instance_;
-}
-
-void BooleanType::Destroy() {
-  if (BooleanType::instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
 std::string UndefinedType::Dump() const REQUIRES_SHARED(Locks::mutator_lock_) {
   return "Undefined";
 }
 
-const UndefinedType* UndefinedType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                                   const std::string_view& descriptor,
-                                                   uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new UndefinedType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void UndefinedType::Destroy() {
-  if (instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
-PreciseReferenceType::PreciseReferenceType(ObjPtr<mirror::Class> klass,
+PreciseReferenceType::PreciseReferenceType(Handle<mirror::Class> klass,
                                            const std::string_view& descriptor,
                                            uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
@@ -935,12 +741,8 @@ void RegType::CheckInvariants() const {
   if (!klass_.IsNull()) {
     CHECK(!descriptor_.empty()) << *this;
     std::string temp;
-    CHECK_EQ(descriptor_, klass_.Read()->GetDescriptor(&temp)) << *this;
+    CHECK_EQ(descriptor_, klass_->GetDescriptor(&temp)) << *this;
   }
-}
-
-void RegType::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) const {
-  klass_.VisitRootIfNonNull(visitor, root_info);
 }
 
 void UninitializedThisReferenceType::CheckInvariants() const {
@@ -950,19 +752,19 @@ void UninitializedThisReferenceType::CheckInvariants() const {
 void UnresolvedUninitializedThisRefType::CheckInvariants() const {
   CHECK_EQ(GetAllocationPc(), 0U) << *this;
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_.IsNull()) << *this;
+  CHECK(!HasClass()) << *this;
 }
 
 void UnresolvedUninitializedRefType::CheckInvariants() const {
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_.IsNull()) << *this;
+  CHECK(!HasClass()) << *this;
 }
 
 UnresolvedMergedType::UnresolvedMergedType(const RegType& resolved,
                                            const BitVector& unresolved,
                                            const RegTypeCache* reg_type_cache,
                                            uint16_t cache_id)
-    : UnresolvedType("", cache_id),
+    : UnresolvedType(reg_type_cache->GetNullHandle(), "", cache_id),
       reg_type_cache_(reg_type_cache),
       resolved_part_(resolved),
       unresolved_types_(unresolved, false, unresolved.GetAllocator()) {
@@ -973,7 +775,7 @@ void UnresolvedMergedType::CheckInvariants() const {
 
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
-  CHECK(klass_.IsNull()) << *this;
+  CHECK(!HasClass()) << *this;
 
   CHECK(!resolved_part_.IsConflict());
   CHECK(resolved_part_.IsReferenceTypes());
@@ -1017,13 +819,13 @@ bool UnresolvedMergedType::IsObjectArrayTypes() const {
 
 void UnresolvedReferenceType::CheckInvariants() const {
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_.IsNull()) << *this;
+  CHECK(!HasClass()) << *this;
 }
 
 void UnresolvedSuperClass::CheckInvariants() const {
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
-  CHECK(klass_.IsNull()) << *this;
+  CHECK(!HasClass()) << *this;
   CHECK_NE(unresolved_child_id_, 0U) << *this;
 }
 
@@ -1031,22 +833,6 @@ std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
   os << rhs.Dump();
   return os;
 }
-
-const NullType* NullType::CreateInstance(ObjPtr<mirror::Class> klass,
-                                         const std::string_view& descriptor,
-                                         uint16_t cache_id) {
-  CHECK(instance_ == nullptr);
-  instance_ = new NullType(klass, descriptor, cache_id);
-  return instance_;
-}
-
-void NullType::Destroy() {
-  if (NullType::instance_ != nullptr) {
-    delete instance_;
-    instance_ = nullptr;
-  }
-}
-
 
 }  // namespace verifier
 }  // namespace art

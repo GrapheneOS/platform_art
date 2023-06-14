@@ -26,6 +26,7 @@
 #include "base/scoped_arena_containers.h"
 #include "dex/primitive.h"
 #include "gc_root.h"
+#include "handle_scope.h"
 
 namespace art {
 
@@ -68,17 +69,8 @@ class RegTypeCache {
   RegTypeCache(ClassLinker* class_linker,
                bool can_load_classes,
                ScopedArenaAllocator& allocator,
+               VariableSizedHandleScope& handles,
                bool can_suspend = true);
-  ~RegTypeCache();
-  static void Init(ClassLinker* class_linker) REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!RegTypeCache::primitive_initialized_) {
-      CHECK_EQ(RegTypeCache::primitive_count_, 0);
-      CreatePrimitiveAndSmallConstantTypes(class_linker);
-      CHECK_EQ(RegTypeCache::primitive_count_, kNumPrimitivesAndSmallConstants);
-      RegTypeCache::primitive_initialized_ = true;
-    }
-  }
-  static void ShutDown();
   const art::verifier::RegType& GetFromId(uint16_t id) const;
   const RegType& From(ObjPtr<mirror::ClassLoader> loader, const char* descriptor, bool precise)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -161,14 +153,31 @@ class RegTypeCache {
   void Dump(std::ostream& os) REQUIRES_SHARED(Locks::mutator_lock_);
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
-  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void VisitStaticRoots(RootVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   ClassLinker* GetClassLinker() {
     return class_linker_;
   }
+
+  Handle<mirror::Class> GetNullHandle() const {
+    return null_handle_;
+  }
+
+  static constexpr int32_t kMinSmallConstant = -1;
+  static constexpr int32_t kMaxSmallConstant = 4;
+  static constexpr int32_t kNumSmallConstants = kMaxSmallConstant - kMinSmallConstant + 1;
+  static constexpr size_t kNumPrimitivesAndSmallConstants = 13 + kNumSmallConstants;
+  static constexpr int32_t kBooleanCacheId = kNumSmallConstants;
+  static constexpr int32_t kByteCacheId = kNumSmallConstants + 1;
+  static constexpr int32_t kShortCacheId = kNumSmallConstants + 2;
+  static constexpr int32_t kCharCacheId = kNumSmallConstants + 3;
+  static constexpr int32_t kIntCacheId = kNumSmallConstants + 4;
+  static constexpr int32_t kLongLoCacheId = kNumSmallConstants + 5;
+  static constexpr int32_t kLongHiCacheId = kNumSmallConstants + 6;
+  static constexpr int32_t kFloatCacheId = kNumSmallConstants + 7;
+  static constexpr int32_t kDoubleLoCacheId = kNumSmallConstants + 8;
+  static constexpr int32_t kDoubleHiCacheId = kNumSmallConstants + 9;
+  static constexpr int32_t kUndefinedCacheId = kNumSmallConstants + 10;
+  static constexpr int32_t kConflictCacheId = kNumSmallConstants + 11;
+  static constexpr int32_t kNullCacheId = kNumSmallConstants + 12;
 
  private:
   void FillPrimitiveAndSmallConstantTypes() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -187,32 +196,18 @@ class RegTypeCache {
   // verifier and return a string view.
   std::string_view AddString(const std::string_view& str);
 
-  static void CreatePrimitiveAndSmallConstantTypes(ClassLinker* class_linker)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // A quick look up for popular small constants.
-  static constexpr int32_t kMinSmallConstant = -1;
-  static constexpr int32_t kMaxSmallConstant = 4;
-  static const PreciseConstType* small_precise_constants_[kMaxSmallConstant -
-                                                          kMinSmallConstant + 1];
-
-  static constexpr size_t kNumPrimitivesAndSmallConstants =
-      13 + (kMaxSmallConstant - kMinSmallConstant + 1);
-
-  // Have the well known global primitives been created?
-  static bool primitive_initialized_;
-
-  // Number of well known primitives that will be copied into a RegTypeCache upon construction.
-  static uint16_t primitive_count_;
-
   // The actual storage for the RegTypes.
   ScopedArenaVector<const RegType*> entries_;
 
   // Fast lookup for quickly finding entries that have a matching class.
-  ScopedArenaVector<std::pair<GcRoot<mirror::Class>, const RegType*>> klass_entries_;
+  ScopedArenaVector<std::pair<Handle<mirror::Class>, const RegType*>> klass_entries_;
 
   // Arena allocator.
   ScopedArenaAllocator& allocator_;
+
+  // Handle scope containing classes.
+  VariableSizedHandleScope& handles_;
+  ScopedNullHandle<mirror::Class> null_handle_;
 
   ClassLinker* class_linker_;
 
