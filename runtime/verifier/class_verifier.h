@@ -34,7 +34,6 @@ namespace art {
 class ClassLinker;
 class CompilerCallbacks;
 class DexFile;
-class RootVisitor;
 class Thread;
 
 namespace dex {
@@ -67,12 +66,6 @@ class ClassVerifier {
                                  HardFailLogMode log_level,
                                  uint32_t api_level,
                                  std::string* error)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  static void Init(ClassLinker* class_linker) REQUIRES_SHARED(Locks::mutator_lock_);
-  static void Shutdown();
-
-  static void VisitStaticRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:

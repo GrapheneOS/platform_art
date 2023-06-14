@@ -4950,9 +4950,10 @@ MethodVerifier::MethodVerifier(Thread* self,
                                bool allow_thread_suspension,
                                bool aot_mode)
     : self_(self),
+      handles_(self),
       arena_stack_(arena_pool),
       allocator_(&arena_stack_),
-      reg_types_(class_linker, can_load_classes, allocator_, allow_thread_suspension),
+      reg_types_(class_linker, can_load_classes, allocator_, handles_, allow_thread_suspension),
       reg_table_(allocator_),
       work_insn_idx_(dex::kDexNoIndex),
       dex_method_idx_(dex_method_idx),
@@ -4966,11 +4967,9 @@ MethodVerifier::MethodVerifier(Thread* self,
       class_linker_(class_linker),
       verifier_deps_(verifier_deps),
       link_(nullptr) {
-  self->PushVerifier(this);
 }
 
 MethodVerifier::~MethodVerifier() {
-  Thread::Current()->PopVerifier(this);
   STLDeleteElements(&failure_messages_);
 }
 
@@ -5168,10 +5167,9 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
 MethodVerifier* MethodVerifier::CalculateVerificationInfo(
       Thread* self,
       ArtMethod* method,
+      Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader,
       uint32_t dex_pc) {
-  StackHandleScope<2> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method->GetClassLoader()));
   std::unique_ptr<impl::MethodVerifier<false>> verifier(
       new impl::MethodVerifier<false>(self,
                                       Runtime::Current()->GetClassLinker(),
@@ -5305,22 +5303,6 @@ MethodVerifier* MethodVerifier::CreateVerifier(Thread* self,
                                          access_flags,
                                          verify_to_dump,
                                          api_level);
-}
-
-void MethodVerifier::Init(ClassLinker* class_linker) {
-  art::verifier::RegTypeCache::Init(class_linker);
-}
-
-void MethodVerifier::Shutdown() {
-  verifier::RegTypeCache::ShutDown();
-}
-
-void MethodVerifier::VisitStaticRoots(RootVisitor* visitor) {
-  RegTypeCache::VisitStaticRoots(visitor);
-}
-
-void MethodVerifier::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
-  reg_types_.VisitRoots(visitor, root_info);
 }
 
 std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {

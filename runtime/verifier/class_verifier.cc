@@ -187,17 +187,5 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
   return failure_data.kind;
 }
 
-void ClassVerifier::Init(ClassLinker* class_linker) {
-  MethodVerifier::Init(class_linker);
-}
-
-void ClassVerifier::Shutdown() {
-  MethodVerifier::Shutdown();
-}
-
-void ClassVerifier::VisitStaticRoots(RootVisitor* visitor) {
-  MethodVerifier::VisitStaticRoots(visitor);
-}
-
 }  // namespace verifier
 }  // namespace art
