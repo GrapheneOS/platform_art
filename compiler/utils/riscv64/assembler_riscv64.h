@@ -66,7 +66,7 @@ class Riscv64Label : public Label {
  public:
   Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
 
-  Riscv64Label(Riscv64Label&& src)
+  Riscv64Label(Riscv64Label&& src) noexcept
       : Label(std::move(src)), prev_branch_id_(src.prev_branch_id_) {}
 
  private:
