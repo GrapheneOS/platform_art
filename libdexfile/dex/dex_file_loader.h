@@ -32,7 +32,6 @@ namespace art {
 
 class MemMap;
 class OatDexFile;
-class ScopedTrace;
 class ZipArchive;
 
 enum class DexFileLoaderErrorCode {
@@ -71,6 +70,53 @@ class DexFileLoader {
   // Return the (possibly synthetic) dex location for a multidex entry. This is dex_location for
   // index == 0, and dex_location + multi-dex-separator + GetMultiDexClassesDexName(index) else.
   static std::string GetMultiDexLocation(size_t index, const char* dex_location);
+
+  // Returns combined checksum of one or more dex files (one checksum for the whole multidex set).
+  //
+  // This uses the source path provided to DexFileLoader constructor.
+  //
+  // Returns false on error.  Sets *checksum to nullopt for an empty set.
+  bool GetMultiDexChecksum(/*out*/ std::optional<uint32_t>* checksum,
+                           /*out*/ std::string* error_msg,
+                           /*out*/ bool* only_contains_uncompressed_dex = nullptr);
+
+  // Returns combined checksum of one or more dex files (one checksum for the whole multidex set).
+  //
+  // This uses already open dex files.
+  //
+  // It starts iteration at index 'i', which must be a primary dex file,
+  // and it sets 'i' to the next primary dex file or to end of the array.
+  template <typename DexFilePtrVector>  // array|vector<unique_ptr|DexFile|OatDexFile*>.
+  static uint32_t GetMultiDexChecksum(const DexFilePtrVector& dex_files,
+                                      /*inout*/ size_t* i) {
+    CHECK_LT(*i, dex_files.size()) << "No dex files";
+    std::optional<uint32_t> checksum;
+    for (; *i < dex_files.size(); ++(*i)) {
+      const char* location = dex_files[*i]->GetLocation().c_str();
+      if (!checksum.has_value()) {                         // First dex file.
+        CHECK(!IsMultiDexLocation(location)) << location;  // Expect primary dex.
+      } else if (!IsMultiDexLocation(location)) {          // Later dex file.
+        break;  // Found another primary dex file, terminate iteration.
+      }
+      checksum = checksum.value_or(kEmptyMultiDexChecksum) ^ dex_files[*i]->GetLocationChecksum();
+    }
+    CHECK(checksum.has_value());
+    return checksum.value();
+  }
+
+  // Calculate checksum of dex files in a vector, starting at index 0.
+  // It will CHECK that the whole vector is consumed (i.e. there is just one primary dex file).
+  template <typename DexFilePtrVector>
+  static uint32_t GetMultiDexChecksum(const DexFilePtrVector& dex_files) {
+    size_t i = 0;
+    uint32_t checksum = GetMultiDexChecksum(dex_files, &i);
+    CHECK_EQ(i, dex_files.size());
+    return checksum;
+  }
+
+  // Non-zero initial value for multi-dex to catch bugs if multi-dex checksum is compared
+  // directly to DexFile::GetLocationChecksum without going through GetMultiDexChecksum.
+  static constexpr uint32_t kEmptyMultiDexChecksum = 1;
 
   // Returns the canonical form of the given dex location.
   //
