@@ -19,6 +19,8 @@
 #include "base/bit_utils_iterator.h"
 #include "dwarf/register.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "indirect_reference_table.h"
+#include "lock_word.h"
 #include "managed_register_riscv64.h"
 #include "offsets.h"
 #include "thread.h"
@@ -374,8 +376,17 @@ void Riscv64JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
 void Riscv64JNIMacroAssembler::DecodeJNITransitionOrLocalJObject(ManagedRegister m_reg,
                                                                  JNIMacroLabel* slow_path,
                                                                  JNIMacroLabel* resume) {
-  // TODO(riscv64): Implement this.
-  UNUSED(m_reg, slow_path, resume);
+  // This implements the fast-path of `Thread::DecodeJObject()`.
+  constexpr int64_t kGlobalOrWeakGlobalMask = IndirectReferenceTable::GetGlobalOrWeakGlobalMask();
+  DCHECK(IsInt<12>(kGlobalOrWeakGlobalMask));
+  constexpr int64_t kIndirectRefKindMask = IndirectReferenceTable::GetIndirectRefKindMask();
+  DCHECK(IsInt<12>(kIndirectRefKindMask));
+  XRegister reg = m_reg.AsRiscv64().AsXRegister();
+  __ Beqz(reg, Riscv64JNIMacroLabel::Cast(resume)->AsRiscv64());  // Skip test and load for null.
+  __ Andi(TMP, reg, kGlobalOrWeakGlobalMask);
+  __ Bnez(TMP, Riscv64JNIMacroLabel::Cast(slow_path)->AsRiscv64());
+  __ Andi(reg, reg, ~kIndirectRefKindMask);
+  __ Loadw(reg, reg, 0);
 }
 
 void Riscv64JNIMacroAssembler::VerifyObject([[maybe_unused]] ManagedRegister m_src,
@@ -423,12 +434,14 @@ void Riscv64JNIMacroAssembler::TryToTransitionFromNativeToRunnable(
 }
 
 void Riscv64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
-  // TODO(riscv64): Implement this.
-  UNUSED(label);
+  __ Loadw(TMP, TR, Thread::ThreadFlagsOffset<kRiscv64PointerSize>().Int32Value());
+  DCHECK(IsInt<12>(dchecked_integral_cast<int32_t>(Thread::SuspendOrCheckpointRequestFlags())));
+  __ Andi(TMP, TMP, dchecked_integral_cast<int32_t>(Thread::SuspendOrCheckpointRequestFlags()));
+  __ Bnez(TMP, Riscv64JNIMacroLabel::Cast(label)->AsRiscv64());
 }
 
 void Riscv64JNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {
-  __ Loadd(TMP, TR, Thread::ExceptionOffset<kArm64PointerSize>().Int32Value());
+  __ Loadd(TMP, TR, Thread::ExceptionOffset<kRiscv64PointerSize>().Int32Value());
   __ Bnez(TMP, Riscv64JNIMacroLabel::Cast(label)->AsRiscv64());
 }
 
@@ -436,8 +449,8 @@ void Riscv64JNIMacroAssembler::DeliverPendingException() {
   // Pass exception object as argument.
   // Don't care about preserving A0 as this won't return.
   // Note: The scratch register from `ExceptionPoll()` may have been clobbered.
-  __ Loadd(A0, TR, Thread::ExceptionOffset<kArm64PointerSize>().Int32Value());
-  __ Loadd(RA, TR, QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pDeliverException).Int32Value());
+  __ Loadd(A0, TR, Thread::ExceptionOffset<kRiscv64PointerSize>().Int32Value());
+  __ Loadd(RA, TR, QUICK_ENTRYPOINT_OFFSET(kRiscv64PointerSize, pDeliverException).Int32Value());
   __ Jalr(RA);
   // Call should never return.
   __ Ebreak();
@@ -459,7 +472,7 @@ void Riscv64JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnary
   DCHECK(gUseReadBarrier);
 
   XRegister test_reg = TMP;
-  int32_t is_gc_marking_offset = Thread::IsGcMarkingOffset<kArm64PointerSize>().Int32Value();
+  int32_t is_gc_marking_offset = Thread::IsGcMarkingOffset<kRiscv64PointerSize>().Int32Value();
   __ Loadw(test_reg, TR, is_gc_marking_offset);
   switch (cond) {
     case JNIMacroUnaryCondition::kZero:
@@ -474,21 +487,37 @@ void Riscv64JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnary
   }
 }
 
-void Riscv64JNIMacroAssembler::TestMarkBit(ManagedRegister ref,
+void Riscv64JNIMacroAssembler::TestMarkBit(ManagedRegister m_ref,
                                            JNIMacroLabel* label,
                                            JNIMacroUnaryCondition cond) {
-  // TODO(riscv64): Implement this.
-  UNUSED(ref, label, cond);
+  DCHECK(kUseBakerReadBarrier);
+  XRegister ref = m_ref.AsRiscv64().AsXRegister();
+  __ Loadw(TMP, ref, mirror::Object::MonitorOffset().Int32Value());
+  // Move the bit we want to check to the sign bit, so that we can use BGEZ/BLTZ
+  // to check it. Extracting the bit for BEQZ/BNEZ would require one more instruction.
+  static_assert(LockWord::kMarkBitStateSize == 1u);
+  __ Slliw(TMP, TMP, 31 - LockWord::kMarkBitStateShift);
+  switch (cond) {
+    case JNIMacroUnaryCondition::kZero:
+      __ Bgez(TMP, Riscv64JNIMacroLabel::Cast(label)->AsRiscv64());
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      __ Bltz(TMP, Riscv64JNIMacroLabel::Cast(label)->AsRiscv64());
+      break;
+    default:
+      LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(cond);
+      UNREACHABLE();
+  }
 }
 
 void Riscv64JNIMacroAssembler::TestByteAndJumpIfNotZero(uintptr_t address, JNIMacroLabel* label) {
-  XRegister test_reg = TMP;
   int32_t small_offset = dchecked_integral_cast<int32_t>(address & 0xfff) -
                          dchecked_integral_cast<int32_t>((address & 0x800) << 1);
-  int32_t remainder = static_cast<int64_t>(address) - small_offset;
-  __ Li(test_reg, remainder);
-  __ Lb(test_reg, test_reg, small_offset);
-  __ Bnez(test_reg, down_cast<Riscv64Label*>(Riscv64JNIMacroLabel::Cast(label)->AsRiscv64()));
+  int64_t remainder = static_cast<int64_t>(address) - small_offset;
+  // Note: We use `TMP2` here because `TMP` can be used by `LoadConst64()`.
+  __ LoadConst64(TMP2, remainder);
+  __ Lb(TMP2, TMP2, small_offset);
+  __ Bnez(TMP2, down_cast<Riscv64Label*>(Riscv64JNIMacroLabel::Cast(label)->AsRiscv64()));
 }
 
 void Riscv64JNIMacroAssembler::Bind(JNIMacroLabel* label) {
@@ -510,7 +539,7 @@ void Riscv64JNIMacroAssembler::CreateJObject(ManagedRegister m_dest,
     if (!dest.Equals(ref)) {
       __ Li(dest.AsXRegister(), 0);
     }
-    __ Bnez(ref.AsXRegister(), &null_label);
+    __ Beqz(ref.AsXRegister(), &null_label);
   }
   __ AddConst64(dest.AsXRegister(), SP, spilled_reference_offset.Int32Value());
   if (null_allowed) {
@@ -518,7 +547,7 @@ void Riscv64JNIMacroAssembler::CreateJObject(ManagedRegister m_dest,
   }
 }
 
-#undef ___
+#undef __
 
 }  // namespace riscv64
 }  // namespace art
