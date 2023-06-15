@@ -166,6 +166,12 @@ std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocato
           new (allocator) arm64::Arm64JniCallingConvention(
               is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
 #endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return std::unique_ptr<JniCallingConvention>(
+          new (allocator) riscv64::Riscv64JniCallingConvention(
+              is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case InstructionSet::kX86:
       return std::unique_ptr<JniCallingConvention>(
