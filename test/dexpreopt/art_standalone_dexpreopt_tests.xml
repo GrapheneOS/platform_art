@@ -19,11 +19,6 @@
 
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
-    <!-- Disable syncing to prevent overwriting flags during testing. -->
-    <target_preparer class="com.android.tradefed.targetprep.DeviceSetup" >
-      <option name="disable-device-config-sync" value="true" />
-    </target_preparer>
-
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="{MODULE}->/data/local/tmp/{MODULE}/{MODULE}" />
