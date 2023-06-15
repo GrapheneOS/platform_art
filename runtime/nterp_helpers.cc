@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arch/instruction_set.h"
 #include "art_method-inl.h"
 #include "dex/code_item_accessors.h"
 #include "entrypoints/quick/callee_save_frame.h"
@@ -232,6 +233,28 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
       // run them with nterp.
       method->IsProxyMethod()) {
     return false;
+  }
+  if (isa == InstructionSet::kRiscv64) {
+    if (method->DexInstructionData().TriesSize() != 0u) {
+      return false;  // Riscv64 nterp does not support exception handling yet.
+    }
+    if (method->DexInstructionData().InsSize() != 0u) {
+      return false;  // Riscv64 nterp does not support argument processing yet.
+    }
+    for (DexInstructionPcPair pair : method->DexInstructions()) {
+      // TODO(riscv64): Add support for more instructions.
+      // Remove the check when all instructions are supported.
+      switch (pair->Opcode()) {
+        // Unused opcodes are rejected by the verifier, so we should not see them here.
+        // Use one of them to avoid compilation error:
+        // `error: loop will run at most once (loop increment never executed)
+        // [-Werror,-Wunreachable-code-loop-increment]`
+        case Instruction::UNUSED_3F:
+          break;
+        default:
+          return false;
+      }
+    }
   }
   // There is no need to add the alignment padding size for comparison with aligned limit.
   size_t frame_size_without_padding = NterpGetFrameSizeWithoutPadding(method, isa);
