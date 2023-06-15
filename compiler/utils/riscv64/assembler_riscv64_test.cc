@@ -649,6 +649,7 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     large_values.push_back(0xfff);
 
     std::string tmp_name = GetRegisterName(TMP);
+    std::string addi_tmp = "addi" + suffix + " " + tmp_name + ", ";
 
     std::string expected;
     for (XRegister* rd : GetRegisters()) {
@@ -670,8 +671,8 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
         auto emit_simple_ops = [&](ArrayRef<const int64_t> imms, int64_t adjustment) {
           for (int64_t imm : imms) {
             emit_op(*rd, *rs1, imm);
-            expected += addi_rd + rs1_name + ", " + std::to_string(adjustment) + "\n" +
-                        addi_rd + rd_name + ", " + std::to_string(imm - adjustment) + "\n";
+            expected += addi_tmp + rs1_name + ", " + std::to_string(adjustment) + "\n" +
+                        addi_rd + tmp_name + ", " + std::to_string(imm - adjustment) + "\n";
           }
         };
         emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveValues), 0x7ff);

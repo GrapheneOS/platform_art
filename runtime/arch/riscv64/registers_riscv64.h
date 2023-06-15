@@ -69,6 +69,7 @@ enum XRegister {
   // Aliases.
   TR = S1,    // ART Thread Register - managed runtime
   TMP = T6,   // Reserved for special uses, such as assembler macro instructions.
+  TMP2 = T5,  // Reserved for special uses, such as assembler macro instructions.
 };
 
 std::ostream& operator<<(std::ostream& os, const XRegister& rhs);
