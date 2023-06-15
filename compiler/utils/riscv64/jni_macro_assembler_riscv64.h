@@ -61,11 +61,11 @@ class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, 
   // Store routines.
   void Store(FrameOffset offs, ManagedRegister src, size_t size) override;
   void Store(ManagedRegister base, MemberOffset offs, ManagedRegister src, size_t size) override;
-  void StoreRawPtr(FrameOffset dest, ManagedRegister src) override;
-  void StoreStackPointerToThread(ThreadOffset64 thr_offs, bool tag_sp) override;
+  void StoreRawPtr(FrameOffset offs, ManagedRegister src) override;
+  void StoreStackPointerToThread(ThreadOffset64 offs, bool tag_sp) override;
 
   // Load routines.
-  void Load(ManagedRegister dest, FrameOffset src, size_t size) override;
+  void Load(ManagedRegister dest, FrameOffset offs, size_t size) override;
   void Load(ManagedRegister dest, ManagedRegister base, MemberOffset offs, size_t size) override;
   void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset64 offs) override;
 
@@ -83,8 +83,8 @@ class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, 
   void ZeroExtend(ManagedRegister mreg, size_t size) override;
 
   // Exploit fast access in managed code to Thread::Current().
-  void GetCurrentThread(ManagedRegister tr) override;
-  void GetCurrentThread(FrameOffset dest_offset) override;
+  void GetCurrentThread(ManagedRegister dest) override;
+  void GetCurrentThread(FrameOffset offset) override;
 
   // Decode JNI transition or local `jobject`. For (weak) global `jobject`, jump to slow path.
   void DecodeJNITransitionOrLocalJObject(ManagedRegister reg,
@@ -137,14 +137,20 @@ class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, 
   void TestByteAndJumpIfNotZero(uintptr_t address, JNIMacroLabel* label) override;
   // Code at this offset will serve as the target for the Jump call.
   void Bind(JNIMacroLabel* label) override;
+
+ private:
+  void CreateJObject(ManagedRegister m_dest,
+                     FrameOffset spilled_reference_offset,
+                     ManagedRegister m_ref,
+                     bool null_allowed);
 };
 
 class Riscv64JNIMacroLabel final
     : public JNIMacroLabelCommon<Riscv64JNIMacroLabel,
-                                 art::Label,
+                                 Riscv64Label,
                                  InstructionSet::kRiscv64> {
  public:
-  art::Label* AsRiscv64() {
+  Riscv64Label* AsRiscv64() {
     return AsPlatformLabel();
   }
 };

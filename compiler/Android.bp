@@ -557,6 +557,7 @@ art_cc_test {
         riscv64 : {
             srcs: [
                 "utils/riscv64/assembler_riscv64_test.cc",
+                "utils/riscv64/jni_macro_assembler_riscv64_test.cc",
             ],
         },
         x86: {
