@@ -4245,16 +4245,16 @@ void Heap::RemoveRememberedSet(space::Space* space) {
   CHECK(remembered_sets_.find(space) == remembered_sets_.end());
 }
 
-void Heap::ClearMarkedObjects() {
+void Heap::ClearMarkedObjects(bool release_eagerly) {
   // Clear all of the spaces' mark bitmaps.
   for (const auto& space : GetContinuousSpaces()) {
     if (space->GetLiveBitmap() != nullptr && !space->HasBoundBitmaps()) {
-      space->GetMarkBitmap()->Clear();
+      space->GetMarkBitmap()->Clear(release_eagerly);
     }
   }
   // Clear the marked objects in the discontinous space object sets.
   for (const auto& space : GetDiscontinuousSpaces()) {
-    space->GetMarkBitmap()->Clear();
+    space->GetMarkBitmap()->Clear(release_eagerly);
   }
 }
 
