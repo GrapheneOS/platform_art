@@ -52,7 +52,7 @@ void TrackedArena::Release() {
       // MADV_REMOVE fails if invoked on anonymous mapping, which could happen
       // if the arena is released before userfaultfd-GC starts using memfd. So
       // use MADV_DONTNEED.
-      ZeroAndReleasePages(Begin(), Size());
+      ZeroAndReleaseMemory(Begin(), Size());
     }
     std::fill_n(first_obj_array_.get(), Size() / kPageSize, nullptr);
     bytes_allocated_ = 0;
