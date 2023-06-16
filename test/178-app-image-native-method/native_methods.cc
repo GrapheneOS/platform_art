@@ -26,7 +26,7 @@
 
 namespace art {
 
-static inline bool VerifyManyParameters(
+static inline jint VerifyManyParameters(
     jint i1, jlong l1, jfloat f1, jdouble d1,
     jint i2, jlong l2, jfloat f2, jdouble d2,
     jint i3, jlong l3, jfloat f3, jdouble d3,
@@ -35,15 +35,39 @@ static inline bool VerifyManyParameters(
     jint i6, jlong l6, jfloat f6, jdouble d6,
     jint i7, jlong l7, jfloat f7, jdouble d7,
     jint i8, jlong l8, jfloat f8, jdouble d8) {
-  return
-      (i1 == 11) && (l1 == 12) && (f1 == 13.0) && (d1 == 14.0) &&
-      (i2 == 21) && (l2 == 22) && (f2 == 23.0) && (d2 == 24.0) &&
-      (i3 == 31) && (l3 == 32) && (f3 == 33.0) && (d3 == 34.0) &&
-      (i4 == 41) && (l4 == 42) && (f4 == 43.0) && (d4 == 44.0) &&
-      (i5 == 51) && (l5 == 52) && (f5 == 53.0) && (d5 == 54.0) &&
-      (i6 == 61) && (l6 == 62) && (f6 == 63.0) && (d6 == 64.0) &&
-      (i7 == 71) && (l7 == 72) && (f7 == 73.0) && (d7 == 74.0) &&
-      (i8 == 81) && (l8 == 82) && (f8 == 83.0) && (d8 == 84.0);
+  if (i1 != 11) return -1;
+  if (l1 != 12) return -2;
+  if (f1 != 13.0) return -3;
+  if (d1 != 14.0) return -4;
+  if (i2 != 21) return -5;
+  if (l2 != 22) return -6;
+  if (f2 != 23.0) return -7;
+  if (d2 != 24.0) return -8;
+  if (i3 != 31) return -9;
+  if (l3 != 32) return -10;
+  if (f3 != 33.0) return -11;
+  if (d3 != 34.0) return -12;
+  if (i4 != 41) return -13;
+  if (l4 != 42) return -14;
+  if (f4 != 43.0) return -15;
+  if (d4 != 44.0) return -16;
+  if (i5 != 51) return -17;
+  if (l5 != 52) return -18;
+  if (f5 != 53.0) return -19;
+  if (d5 != 54.0) return -20;
+  if (i6 != 61) return -21;
+  if (l6 != 62) return -22;
+  if (f6 != 63.0) return -23;
+  if (d6 != 64.0) return -24;
+  if (i7 != 71) return -25;
+  if (l7 != 72) return -26;
+  if (f7 != 73.0) return -27;
+  if (d7 != 74.0) return -28;
+  if (i8 != 81) return -29;
+  if (l8 != 82) return -30;
+  if (f8 != 83.0) return -31;
+  if (d8 != 84.0) return -32;
+  return 42;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_Test_nativeMethodVoid(JNIEnv*, jclass) {
@@ -64,7 +88,7 @@ extern "C" JNIEXPORT jint JNICALL Java_Test_nativeMethodWithManyParameters(
     jint i6, jlong l6, jfloat f6, jdouble d6,
     jint i7, jlong l7, jfloat f7, jdouble d7,
     jint i8, jlong l8, jfloat f8, jdouble d8) {
-  bool ok = VerifyManyParameters(
+  return VerifyManyParameters(
       i1, l1, f1, d1,
       i2, l2, f2, d2,
       i3, l3, f3, d3,
@@ -73,7 +97,6 @@ extern "C" JNIEXPORT jint JNICALL Java_Test_nativeMethodWithManyParameters(
       i6, l6, f6, d6,
       i7, l7, f7, d7,
       i8, l8, f8, d8);
-  return ok ? 42 : -1;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_TestFast_nativeMethodVoid(JNIEnv*, jclass) {
@@ -94,7 +117,7 @@ extern "C" JNIEXPORT jint JNICALL Java_TestFast_nativeMethodWithManyParameters(
     jint i6, jlong l6, jfloat f6, jdouble d6,
     jint i7, jlong l7, jfloat f7, jdouble d7,
     jint i8, jlong l8, jfloat f8, jdouble d8) {
-  bool ok = VerifyManyParameters(
+  return VerifyManyParameters(
       i1, l1, f1, d1,
       i2, l2, f2, d2,
       i3, l3, f3, d3,
@@ -103,7 +126,6 @@ extern "C" JNIEXPORT jint JNICALL Java_TestFast_nativeMethodWithManyParameters(
       i6, l6, f6, d6,
       i7, l7, f7, d7,
       i8, l8, f8, d8);
-  return ok ? 42 : -1;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_TestCritical_nativeMethodVoid() {
@@ -123,7 +145,7 @@ extern "C" JNIEXPORT jint JNICALL Java_TestCritical_nativeMethodWithManyParamete
     jint i6, jlong l6, jfloat f6, jdouble d6,
     jint i7, jlong l7, jfloat f7, jdouble d7,
     jint i8, jlong l8, jfloat f8, jdouble d8) {
-  bool ok = VerifyManyParameters(
+  return VerifyManyParameters(
       i1, l1, f1, d1,
       i2, l2, f2, d2,
       i3, l3, f3, d3,
@@ -132,7 +154,6 @@ extern "C" JNIEXPORT jint JNICALL Java_TestCritical_nativeMethodWithManyParamete
       i6, l6, f6, d6,
       i7, l7, f7, d7,
       i8, l8, f8, d8);
-  return ok ? 42 : -1;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_CriticalSignatures_nativeILFFFFD(
@@ -634,7 +655,7 @@ extern "C" JNIEXPORT jint JNICALL Java_CriticalClinitCheck_nativeMethodWithManyP
     jint i6, jlong l6, jfloat f6, jdouble d6,
     jint i7, jlong l7, jfloat f7, jdouble d7,
     jint i8, jlong l8, jfloat f8, jdouble d8) {
-  bool ok = VerifyManyParameters(
+  return VerifyManyParameters(
       i1, l1, f1, d1,
       i2, l2, f2, d2,
       i3, l3, f3, d3,
@@ -643,7 +664,6 @@ extern "C" JNIEXPORT jint JNICALL Java_CriticalClinitCheck_nativeMethodWithManyP
       i6, l6, f6, d6,
       i7, l7, f7, d7,
       i8, l8, f8, d8);
-  return ok ? 42 : -1;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_b189235039CallThrough(JNIEnv* env, jobject m) {
