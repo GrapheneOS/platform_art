@@ -69,28 +69,6 @@ static constexpr size_t kArenaAllocatorMemoryReportThreshold = 8 * MB;
 static constexpr const char* kPassNameSeparator = "$";
 
 /**
- * Used by the code generator, to allocate the code in a vector.
- */
-class CodeVectorAllocator final : public CodeAllocator {
- public:
-  explicit CodeVectorAllocator(ArenaAllocator* allocator)
-      : memory_(allocator->Adapter(kArenaAllocCodeBuffer)) {}
-
-  uint8_t* Allocate(size_t size) override {
-    memory_.resize(size);
-    return &memory_[0];
-  }
-
-  ArrayRef<const uint8_t> GetMemory() const override { return ArrayRef<const uint8_t>(memory_); }
-  uint8_t* GetData() { return memory_.data(); }
-
- private:
-  ArenaVector<uint8_t> memory_;
-
-  DISALLOW_COPY_AND_ASSIGN(CodeVectorAllocator);
-};
-
-/**
  * Filter to apply to the visualizer. Methods whose name contain that filter will
  * be dumped.
  */
@@ -361,7 +339,6 @@ class OptimizingCompiler final : public Compiler {
 
   // Create a 'CompiledMethod' for an optimized graph.
   CompiledMethod* Emit(ArenaAllocator* allocator,
-                       CodeVectorAllocator* code_allocator,
                        CodeGenerator* codegen,
                        bool is_intrinsic,
                        const dex::CodeItem* item) const;
@@ -372,10 +349,8 @@ class OptimizingCompiler final : public Compiler {
   // 1) Builds the graph. Returns null if it failed to build it.
   // 2) Transforms the graph to SSA. Returns null if it failed.
   // 3) Runs optimizations on the graph, including register allocator.
-  // 4) Generates code with the `code_allocator` provided.
   CodeGenerator* TryCompile(ArenaAllocator* allocator,
                             ArenaStack* arena_stack,
-                            CodeVectorAllocator* code_allocator,
                             const DexCompilationUnit& dex_compilation_unit,
                             ArtMethod* method,
                             CompilationKind compilation_kind,
@@ -383,7 +358,6 @@ class OptimizingCompiler final : public Compiler {
 
   CodeGenerator* TryCompileIntrinsic(ArenaAllocator* allocator,
                                      ArenaStack* arena_stack,
-                                     CodeVectorAllocator* code_allocator,
                                      const DexCompilationUnit& dex_compilation_unit,
                                      ArtMethod* method,
                                      VariableSizedHandleScope* handles) const;
@@ -719,7 +693,6 @@ static ArenaVector<linker::LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* 
 }
 
 CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* allocator,
-                                         CodeVectorAllocator* code_allocator,
                                          CodeGenerator* codegen,
                                          bool is_intrinsic,
                                          const dex::CodeItem* code_item_for_osr_check) const {
@@ -729,7 +702,7 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* allocator,
   CompiledCodeStorage* storage = GetCompiledCodeStorage();
   CompiledMethod* compiled_method = storage->CreateCompiledMethod(
       codegen->GetInstructionSet(),
-      code_allocator->GetMemory(),
+      codegen->GetCode(),
       ArrayRef<const uint8_t>(stack_map),
       ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data()),
       ArrayRef<const linker::LinkerPatch>(linker_patches),
@@ -749,7 +722,6 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* allocator,
 
 CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
                                               ArenaStack* arena_stack,
-                                              CodeVectorAllocator* code_allocator,
                                               const DexCompilationUnit& dex_compilation_unit,
                                               ArtMethod* method,
                                               CompilationKind compilation_kind,
@@ -914,7 +886,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
                     regalloc_strategy,
                     compilation_stats_.get());
 
-  codegen->Compile(code_allocator);
+  codegen->Compile();
   pass_observer.DumpDisassembly();
 
   MaybeRecordStat(compilation_stats_.get(), MethodCompilationStat::kCompiledBytecode);
@@ -924,7 +896,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
 CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
     ArenaAllocator* allocator,
     ArenaStack* arena_stack,
-    CodeVectorAllocator* code_allocator,
     const DexCompilationUnit& dex_compilation_unit,
     ArtMethod* method,
     VariableSizedHandleScope* handles) const {
@@ -1013,7 +984,7 @@ CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
     return nullptr;
   }
 
-  codegen->Compile(code_allocator);
+  codegen->Compile();
   pass_observer.DumpDisassembly();
 
   VLOG(compiler) << "Compiled intrinsic: " << method->GetIntrinsic()
@@ -1037,7 +1008,6 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
   DCHECK(runtime->IsAotCompiler());
   ArenaAllocator allocator(runtime->GetArenaPool());
   ArenaStack arena_stack(runtime->GetArenaPool());
-  CodeVectorAllocator code_allocator(&allocator);
   std::unique_ptr<CodeGenerator> codegen;
   bool compiled_intrinsic = false;
   {
@@ -1071,7 +1041,6 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
       codegen.reset(
           TryCompileIntrinsic(&allocator,
                               &arena_stack,
-                              &code_allocator,
                               dex_compilation_unit,
                               method,
                               &handles));
@@ -1083,7 +1052,6 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
       codegen.reset(
           TryCompile(&allocator,
                      &arena_stack,
-                     &code_allocator,
                      dex_compilation_unit,
                      method,
                      compiler_options.IsBaseline()
@@ -1094,7 +1062,6 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
   }
   if (codegen.get() != nullptr) {
     compiled_method = Emit(&allocator,
-                           &code_allocator,
                            codegen.get(),
                            compiled_intrinsic,
                            compiled_intrinsic ? nullptr : code_item);
@@ -1177,19 +1144,16 @@ CompiledMethod* OptimizingCompiler::JniCompile(uint32_t access_flags,
           /*verified_method=*/ nullptr,
           dex_cache,
           compiling_class);
-      CodeVectorAllocator code_allocator(&allocator);
       // Go to native so that we don't block GC during compilation.
       ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
       std::unique_ptr<CodeGenerator> codegen(
           TryCompileIntrinsic(&allocator,
                               &arena_stack,
-                              &code_allocator,
                               dex_compilation_unit,
                               method,
                               &handles));
       if (codegen != nullptr) {
         return Emit(&allocator,
-                    &code_allocator,
                     codegen.get(),
                     /*is_intrinsic=*/ true,
                     /*item=*/ nullptr);
@@ -1342,7 +1306,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   }
 
   ArenaStack arena_stack(runtime->GetJitArenaPool());
-  CodeVectorAllocator code_allocator(&allocator);
   VariableSizedHandleScope handles(self);
 
   std::unique_ptr<CodeGenerator> codegen;
@@ -1365,7 +1328,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     codegen.reset(
         TryCompile(&allocator,
                    &arena_stack,
-                   &code_allocator,
                    dex_compilation_unit,
                    method,
                    compilation_kind,
@@ -1381,7 +1343,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   ArrayRef<const uint8_t> reserved_data;
   if (!code_cache->Reserve(self,
                            region,
-                           code_allocator.GetMemory().size(),
+                           codegen->GetAssembler()->CodeSize(),
                            stack_map.size(),
                            /*number_of_roots=*/codegen->GetNumberOfJitRoots(),
                            method,
@@ -1394,7 +1356,9 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   const uint8_t* roots_data = reserved_data.data();
 
   std::vector<Handle<mirror::Object>> roots;
-  codegen->EmitJitRoots(code_allocator.GetData(), roots_data, &roots);
+  codegen->EmitJitRoots(const_cast<uint8_t*>(codegen->GetAssembler()->CodeBufferBaseAddress()),
+                        roots_data,
+                        &roots);
   // The root Handle<>s filled by the codegen reference entries in the VariableSizedHandleScope.
   DCHECK(std::all_of(roots.begin(),
                      roots.end(),
@@ -1418,7 +1382,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     info.is_optimized = true;
     info.is_code_address_text_relative = false;
     info.code_address = reinterpret_cast<uintptr_t>(code);
-    info.code_size = code_allocator.GetMemory().size();
+    info.code_size = codegen->GetAssembler()->CodeSize(),
     info.frame_size_in_bytes = codegen->GetFrameSize();
     info.code_info = stack_map.size() == 0 ? nullptr : stack_map.data();
     info.cfi = ArrayRef<const uint8_t>(*codegen->GetAssembler()->cfi().data());
@@ -1429,7 +1393,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                           region,
                           method,
                           reserved_code,
-                          code_allocator.GetMemory(),
+                          codegen->GetCode(),
                           reserved_data,
                           roots,
                           ArrayRef<const uint8_t>(stack_map),
@@ -1444,7 +1408,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
 
   Runtime::Current()->GetJit()->AddMemoryUsage(method, allocator.BytesUsed());
   if (jit_logger != nullptr) {
-    jit_logger->WriteLog(code, code_allocator.GetMemory().size(), method);
+    jit_logger->WriteLog(code, codegen->GetAssembler()->CodeSize(), method);
   }
 
   if (kArenaAllocatorCountAllocations) {

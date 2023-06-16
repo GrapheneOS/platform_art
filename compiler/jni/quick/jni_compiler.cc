@@ -724,7 +724,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
-  __ FinalizeInstructions(code);
+  __ CopyInstructions(code);
 
   return JniCompiledMethod(instruction_set,
                            std::move(managed_code),

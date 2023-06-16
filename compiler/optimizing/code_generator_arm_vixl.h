@@ -620,7 +620,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
     block_labels_.resize(GetGraph()->GetBlocks().size());
   }
 
-  void Finalize(CodeAllocator* allocator) override;
+  void Finalize() override;
 
   bool NeedsTwoRegisters(DataType::Type type) const override {
     return type == DataType::Type::kFloat64 || type == DataType::Type::kInt64;
