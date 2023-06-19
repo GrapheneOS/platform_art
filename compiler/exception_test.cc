@@ -69,9 +69,10 @@ class ExceptionTest : public CommonRuntimeTest {
 
     dex_ = my_klass_->GetDexCache()->GetDexFile();
 
+    std::vector<uint8_t> fake_code;
     uint32_t code_size = 12;
     for (size_t i = 0 ; i < code_size; i++) {
-      fake_code_.push_back(0x70 | i);
+      fake_code.push_back(0x70 | i);
     }
 
     const uint32_t native_pc_offset = 4u;
@@ -96,16 +97,23 @@ class ExceptionTest : public CommonRuntimeTest {
     const size_t header_size = sizeof(OatQuickMethodHeader);
     const size_t code_alignment = GetInstructionSetCodeAlignment(kRuntimeISA);
 
-    fake_header_code_and_maps_.resize(stack_maps_size + header_size + code_size + code_alignment);
-    // NB: The start of the vector might not have been allocated the desired alignment.
+    fake_header_code_and_maps_size_ = stack_maps_size + header_size + code_size + code_alignment;
+    // Use mmap to make sure we get untagged memory here. Real code gets allocated using
+    // mspace_memalign which is never tagged.
+    fake_header_code_and_maps_ = static_cast<uint8_t*>(mmap(nullptr,
+                                                            fake_header_code_and_maps_size_,
+                                                            PROT_READ | PROT_WRITE,
+                                                            MAP_PRIVATE | MAP_ANONYMOUS,
+                                                            -1,
+                                                            0));
     uint8_t* code_ptr =
       AlignUp(&fake_header_code_and_maps_[stack_maps_size + header_size], code_alignment);
 
     memcpy(&fake_header_code_and_maps_[0], stack_map.data(), stack_maps_size);
-    OatQuickMethodHeader method_header(code_ptr - fake_header_code_and_maps_.data());
+    OatQuickMethodHeader method_header(code_ptr - fake_header_code_and_maps_);
     static_assert(std::is_trivially_copyable<OatQuickMethodHeader>::value, "Cannot use memcpy");
     memcpy(code_ptr - header_size, &method_header, header_size);
-    memcpy(code_ptr, fake_code_.data(), fake_code_.size());
+    memcpy(code_ptr, fake_code.data(), fake_code.size());
 
     if (kRuntimeISA == InstructionSet::kArm) {
       // Check that the Thumb2 adjustment will be a NOP, see EntryPointToCodePointer().
@@ -123,10 +131,12 @@ class ExceptionTest : public CommonRuntimeTest {
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
   }
 
+  void TearDown() override { munmap(fake_header_code_and_maps_, fake_header_code_and_maps_size_); }
+
   const DexFile* dex_;
 
-  std::vector<uint8_t> fake_code_;
-  std::vector<uint8_t> fake_header_code_and_maps_;
+  size_t fake_header_code_and_maps_size_;
+  uint8_t* fake_header_code_and_maps_;
 
   ArtMethod* method_f_;
   ArtMethod* method_g_;
