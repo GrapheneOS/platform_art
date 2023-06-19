@@ -199,9 +199,6 @@ art_cc_test {
         "art_gtest_defaults",
         "art_profman_tests_defaults",
     ],
-    shared_libs: [
-        "libprofiled",
-    ],
     target: {
         host: {
             required: ["profmand"],
@@ -217,9 +214,6 @@ art_cc_test {
         "art_profman_tests_defaults",
     ],
     data: [":generate-boot-image"],
-    shared_libs: [
-        "libprofile",
-    ],
     target: {
         host: {
             required: ["profman"],

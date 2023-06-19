@@ -114,10 +114,6 @@ art_cc_library {
 art_cc_defaults {
     name: "art_libartpalette_tests_defaults",
     srcs: ["apex/palette_test.cc"],
-    shared_libs: [
-        "libartpalette",
-        "libnativehelper",
-    ],
     target: {
         android: {
             static_libs: ["libmodules-utils-build"],
