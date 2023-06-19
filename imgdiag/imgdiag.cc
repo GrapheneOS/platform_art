@@ -1552,8 +1552,8 @@ class ImgDiagDumper {
                          // Out parameters:
                          uint64_t& page_count,
                          std::string& error_msg) {
-    // Checking that files don't point to the same thing breaks art_imgdiag_tests,
-    // because the test runs imgdiag with zygote_diff_pid equal to image_diff_pid.
+    // Check that files are not the same. Note that actual file paths can be equal, such as in
+    // ImgDiagTest.ImageDiffPidSelf, where imgdiag compares memory pages against itself.
     // CHECK_NE(page_map_file.GetPath(), clean_pagemap_file.GetPath());
     CHECK_NE(&page_map_file, &clean_pagemap_file);
 
