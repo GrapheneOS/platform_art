@@ -19,7 +19,7 @@
 #include "base/globals.h"
 #include "gtest/gtest.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 TEST(Riscv64ManagedRegister, NoRegister) {
