@@ -66,13 +66,13 @@ def isEnvTrue(var):
 
 
 def extract_apex(apex_path, deapexer_path, debugfs_path, fsckerofs_path,
-                 blkid_path, tmpdir):
+                 tmpdir):
   _, apex_name = os.path.split(apex_path)
   extract_path = os.path.join(tmpdir, apex_name)
   if os.path.exists(extract_path):
     shutil.rmtree(extract_path)
   subprocess.check_call([deapexer_path, '--debugfs', debugfs_path,
-                         '--fsckerofs', fsckerofs_path, '--blkid', blkid_path,
+                         '--fsckerofs', fsckerofs_path,
                          'extract', apex_path, extract_path],
                         stdout=subprocess.DEVNULL)
   return extract_path
@@ -899,9 +899,6 @@ def art_apex_test_main(test_args):
     if not test_args.fsckerofs:
       logging.error("Need fsck.erofs.")
       return 1
-    if not test_args.blkid:
-      logging.error("Need blkid.")
-      return 1
 
   if test_args.host:
     # Host APEX.
@@ -941,7 +938,7 @@ def art_apex_test_main(test_args):
         # Extract the apex. It would be nice to use the output from "deapexer list"
         # to avoid this work, but it doesn't provide info about executable bits.
         apex_dir = extract_apex(test_args.apex, test_args.deapexer, test_args.debugfs,
-                                test_args.fsckerofs, test_args.blkid, test_args.tmpdir)
+                                test_args.fsckerofs, test_args.tmpdir)
       apex_provider = TargetApexProvider(apex_dir)
   except (zipfile.BadZipFile, zipfile.LargeZipFile) as e:
     logging.error('Failed to create provider: %s', e)
@@ -1028,7 +1025,6 @@ def art_apex_test_default(test_parser):
   test_args = test_parser.parse_args(['unused'])  # For consistency.
   test_args.debugfs = '%s/bin/debugfs' % host_out
   test_args.fsckerofs = '%s/bin/fsck.erofs' % host_out
-  test_args.blkid = '%s/bin/blkid_static' % host_out
   test_args.tmpdir = '.'
   test_args.tree = False
   test_args.list = False
@@ -1085,7 +1081,6 @@ if __name__ == "__main__":
   parser.add_argument('--deapexer', help='Path to deapexer')
   parser.add_argument('--debugfs', help='Path to debugfs')
   parser.add_argument('--fsckerofs', help='Path to fsck.erofs')
-  parser.add_argument('--blkid', help='Path to blkid')
 
   parser.add_argument('--bitness', help='Bitness to check', choices=BITNESS_ALL,
                       default=BITNESS_AUTO)

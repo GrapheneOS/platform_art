@@ -107,7 +107,6 @@ activate_apex() {
     mkdir -p $src_apex_path
     $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $ANDROID_HOST_OUT/bin/debugfs_static \
       --fsckerofs_path $ANDROID_HOST_OUT/bin/fsck.erofs \
-      --blkid_path $ANDROID_HOST_OUT/bin/blkid_static \
       extract ${src_apex_file} $src_apex_path
   fi
 
