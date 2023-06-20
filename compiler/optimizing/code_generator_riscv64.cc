@@ -1198,13 +1198,11 @@ void InstructionCodeGeneratorRISCV64::VisitCompare(HCompare* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitConstructorFence(HConstructorFence* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  instruction->SetLocations(nullptr);
 }
-
-void InstructionCodeGeneratorRISCV64::VisitConstructorFence(HConstructorFence* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void InstructionCodeGeneratorRISCV64::VisitConstructorFence(
+    [[maybe_unused]] HConstructorFence* instruction) {
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
 }
 
 void LocationsBuilderRISCV64::VisitCurrentMethod(HCurrentMethod* instruction) {
