@@ -60,7 +60,6 @@ if [ ! -d $ANDROID_BUILD_TOP/frameworks/base ]; then
 fi
 
 deapex_binaries=(
-  blkid_static
   deapexer
   debugfs_static
   fsck.erofs
@@ -220,7 +219,6 @@ for apex_module in ${apex_modules[@]}; do
       art_apex_test_args="$art_apex_test_args --deapexer $HOST_OUT/bin/deapexer"
       art_apex_test_args="$art_apex_test_args --debugfs $HOST_OUT/bin/debugfs_static"
       art_apex_test_args="$art_apex_test_args --fsckerofs $HOST_OUT/bin/fsck.erofs"
-      art_apex_test_args="$art_apex_test_args --blkid $HOST_OUT/bin/blkid_static"
     fi
     case $apex_module in
       (*.debug)   test_only_args="--flavor debug";;
