@@ -89,7 +89,7 @@ class OptimizingCFITest : public CFITest, public OptimizingUnitTestHelper {
 
   void Finish() {
     code_gen_->GenerateFrameExit();
-    code_gen_->Finalize(&code_allocator_);
+    code_gen_->Finalize();
   }
 
   void Check(InstructionSet isa,
@@ -97,7 +97,7 @@ class OptimizingCFITest : public CFITest, public OptimizingUnitTestHelper {
              const std::vector<uint8_t>& expected_asm,
              const std::vector<uint8_t>& expected_cfi) {
     // Get the outputs.
-    ArrayRef<const uint8_t> actual_asm = code_allocator_.GetMemory();
+    ArrayRef<const uint8_t> actual_asm = code_gen_->GetCode();
     Assembler* opt_asm = code_gen_->GetAssembler();
     ArrayRef<const uint8_t> actual_cfi(*(opt_asm->cfi().data()));
 
@@ -123,27 +123,9 @@ class OptimizingCFITest : public CFITest, public OptimizingUnitTestHelper {
   }
 
  private:
-  class InternalCodeAllocator : public CodeAllocator {
-   public:
-    InternalCodeAllocator() {}
-
-    uint8_t* Allocate(size_t size) override {
-      memory_.resize(size);
-      return memory_.data();
-    }
-
-    ArrayRef<const uint8_t> GetMemory() const override { return ArrayRef<const uint8_t>(memory_); }
-
-   private:
-    std::vector<uint8_t> memory_;
-
-    DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
-  };
-
   HGraph* graph_;
   std::unique_ptr<CodeGenerator> code_gen_;
   ArenaVector<HBasicBlock*> blocks_;
-  InternalCodeAllocator code_allocator_;
 };
 
 #define TEST_ISA(isa)                                                 \

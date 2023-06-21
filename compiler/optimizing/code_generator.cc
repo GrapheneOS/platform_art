@@ -263,7 +263,7 @@ void CodeGenerator::InitializeCodeGenerationData() {
   code_generation_data_ = CodeGenerationData::Create(graph_->GetArenaStack(), GetInstructionSet());
 }
 
-void CodeGenerator::Compile(CodeAllocator* allocator) {
+void CodeGenerator::Compile() {
   InitializeCodeGenerationData();
 
   // The register allocator already called `InitializeCodeGeneration`,
@@ -328,17 +328,13 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
   }
 
   // Finalize instructions in assember;
-  Finalize(allocator);
+  Finalize();
 
   GetStackMapStream()->EndMethod(GetAssembler()->CodeSize());
 }
 
-void CodeGenerator::Finalize(CodeAllocator* allocator) {
-  size_t code_size = GetAssembler()->CodeSize();
-  uint8_t* buffer = allocator->Allocate(code_size);
-
-  MemoryRegion code(buffer, code_size);
-  GetAssembler()->FinalizeInstructions(code);
+void CodeGenerator::Finalize() {
+  GetAssembler()->FinalizeCode();
 }
 
 void CodeGenerator::EmitLinkerPatches(

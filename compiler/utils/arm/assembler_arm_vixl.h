@@ -218,7 +218,7 @@ class ArmVIXLAssembler final : public Assembler {
   const uint8_t* CodeBufferBaseAddress() const override;
 
   // Copy instructions out of assembly buffer into the given region of memory.
-  void FinalizeInstructions(const MemoryRegion& region) override;
+  void CopyInstructions(const MemoryRegion& region) override;
 
   void Bind([[maybe_unused]] Label* label) override {
     UNIMPLEMENTED(FATAL) << "Do not use Bind(Label*) for ARM";
