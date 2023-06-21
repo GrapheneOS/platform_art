@@ -465,7 +465,6 @@ LockWord JniCompilerTest::GetLockWord(jobject obj) {
 #define JNI_TEST(TestName) \
   JNI_TEST_NORMAL_ONLY(TestName)                 \
   TEST_F(JniCompilerTest, TestName ## FastCompiler) {    \
-    TEST_DISABLED_FOR_RISCV64(); \
     ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@FastNative JNI with compiler");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
@@ -473,7 +472,6 @@ LockWord JniCompilerTest::GetLockWord(jobject obj) {
   }                                              \
                                                  \
   TEST_F(JniCompilerTest, TestName ## FastGeneric) { \
-    TEST_DISABLED_FOR_RISCV64(); \
     ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@FastNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \

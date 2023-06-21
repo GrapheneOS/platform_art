@@ -143,6 +143,8 @@ class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, 
                      FrameOffset spilled_reference_offset,
                      ManagedRegister m_ref,
                      bool null_allowed);
+
+  ART_FRIEND_TEST(JniMacroAssemblerRiscv64Test, CreateJObject);
 };
 
 class Riscv64JNIMacroLabel final
