@@ -167,28 +167,6 @@ class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
 };
 #endif
 
-class InternalCodeAllocator : public CodeAllocator {
- public:
-  InternalCodeAllocator() : size_(0) { }
-
-  uint8_t* Allocate(size_t size) override {
-    size_ = size;
-    memory_.reset(new uint8_t[size]);
-    return memory_.get();
-  }
-
-  size_t GetSize() const { return size_; }
-  ArrayRef<const uint8_t> GetMemory() const override {
-    return ArrayRef<const uint8_t>(memory_.get(), size_);
-  }
-
- private:
-  size_t size_;
-  std::unique_ptr<uint8_t[]> memory_;
-
-  DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
-};
-
 static bool CanExecuteOnHardware(InstructionSet target_isa) {
   return (target_isa == kRuntimeISA)
       // Handle the special case of ARM, with two instructions sets (ARM32 and Thumb-2).
@@ -247,8 +225,7 @@ static void VerifyGeneratedCode(InstructionSet target_isa,
 }
 
 template <typename Expected>
-static void Run(const InternalCodeAllocator& allocator,
-                const CodeGenerator& codegen,
+static void Run(const CodeGenerator& codegen,
                 bool has_result,
                 Expected expected) {
   InstructionSet target_isa = codegen.GetInstructionSet();
@@ -260,7 +237,7 @@ static void Run(const InternalCodeAllocator& allocator,
   };
   CodeHolder code_holder;
   const void* method_code =
-      code_holder.MakeExecutable(allocator.GetMemory(), ArrayRef<const uint8_t>(), target_isa);
+      code_holder.MakeExecutable(codegen.GetCode(), ArrayRef<const uint8_t>(), target_isa);
 
   using fptr = Expected (*)();
   fptr f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(method_code));
@@ -294,9 +271,8 @@ static void RunCodeNoCheck(CodeGenerator* codegen,
     register_allocator->AllocateRegisters();
   }
   hook_before_codegen(graph);
-  InternalCodeAllocator allocator;
-  codegen->Compile(&allocator);
-  Run(allocator, *codegen, has_result, expected);
+  codegen->Compile();
+  Run(*codegen, has_result, expected);
 }
 
 template <typename Expected>
