@@ -173,7 +173,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
     // Calculate the base address of the managed frame.
     leal (%esp, %eax, 1), %eax
 
-    leal 1(%eax), %ecx            // Prepare namaged SP tagged for a GenericJNI frame.
+    leal 1(%eax), %ecx            // Prepare managed SP tagged for a GenericJNI frame.
     testl LITERAL(ACCESS_FLAGS_METHOD_IS_NATIVE), ART_METHOD_ACCESS_FLAGS_OFFSET(%ebx)
     jnz .Lcritical_skip_prepare_runtime_method
 
