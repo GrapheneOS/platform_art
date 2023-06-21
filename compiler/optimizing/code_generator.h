@@ -87,18 +87,6 @@ namespace linker {
 class LinkerPatch;
 }  // namespace linker
 
-class CodeAllocator {
- public:
-  CodeAllocator() {}
-  virtual ~CodeAllocator() {}
-
-  virtual uint8_t* Allocate(size_t size) = 0;
-  virtual ArrayRef<const uint8_t> GetMemory() const = 0;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(CodeAllocator);
-};
-
 class SlowPathCode : public DeletableArenaObject<kArenaAllocSlowPaths> {
  public:
   explicit SlowPathCode(HInstruction* instruction) : instruction_(instruction) {
@@ -205,7 +193,7 @@ class FieldAccessCallingConvention {
 class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
  public:
   // Compiles the graph to executable instructions.
-  void Compile(CodeAllocator* allocator);
+  void Compile();
   static std::unique_ptr<CodeGenerator> Create(HGraph* graph,
                                                const CompilerOptions& compiler_options,
                                                OptimizingCompilerStats* stats = nullptr);
@@ -226,7 +214,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   }
 
   virtual void Initialize() = 0;
-  virtual void Finalize(CodeAllocator* allocator);
+  virtual void Finalize();
   virtual void EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* linker_patches);
   virtual bool NeedsThunkCode(const linker::LinkerPatch& patch) const;
   virtual void EmitThunkCode(const linker::LinkerPatch& patch,
@@ -735,6 +723,11 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   static QuickEntrypointEnum GetArrayAllocationEntrypoint(HNewArray* new_array);
   static ScaleFactor ScaleFactorForType(DataType::Type type);
+
+  ArrayRef<const uint8_t> GetCode() const {
+    return ArrayRef<const uint8_t>(GetAssembler().CodeBufferBaseAddress(),
+                                   GetAssembler().CodeSize());
+  }
 
  protected:
   // Patch info used for recording locations of required linker patches and their targets,

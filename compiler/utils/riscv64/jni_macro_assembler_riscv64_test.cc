@@ -47,7 +47,7 @@ class JniMacroAssemblerRiscv64Test : public AssemblerTestBase {
     size_t cs = assembler_.CodeSize();
     std::vector<uint8_t> data(cs);
     MemoryRegion code(&data[0], data.size());
-    assembler_.FinalizeInstructions(code);
+    assembler_.CopyInstructions(code);
     Driver(data, assembly_text, test_name);
   }
 

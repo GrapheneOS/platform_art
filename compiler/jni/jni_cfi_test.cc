@@ -99,7 +99,7 @@ class JNICFITest : public CFITest {
     jni_asm->FinalizeCode();
     std::vector<uint8_t> actual_asm(jni_asm->CodeSize());
     MemoryRegion code(&actual_asm[0], actual_asm.size());
-    jni_asm->FinalizeInstructions(code);
+    jni_asm->CopyInstructions(code);
     ASSERT_EQ(jni_asm->cfi().GetCurrentCFAOffset(), frame_size);
     const std::vector<uint8_t>& actual_cfi = *(jni_asm->cfi().data());
 

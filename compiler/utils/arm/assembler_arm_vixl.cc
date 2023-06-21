@@ -52,7 +52,7 @@ const uint8_t* ArmVIXLAssembler::CodeBufferBaseAddress() const {
   return vixl_masm_.GetBuffer().GetStartAddress<const uint8_t*>();
 }
 
-void ArmVIXLAssembler::FinalizeInstructions(const MemoryRegion& region) {
+void ArmVIXLAssembler::CopyInstructions(const MemoryRegion& region) {
   // Copy the instructions from the buffer.
   MemoryRegion from(vixl_masm_.GetBuffer()->GetStartAddress<void*>(), CodeSize());
   region.CopyFrom(0, from);

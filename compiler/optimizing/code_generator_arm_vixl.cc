@@ -2025,7 +2025,7 @@ void CodeGeneratorARMVIXL::FixJumpTables() {
 
 #define __ reinterpret_cast<ArmVIXLAssembler*>(GetAssembler())->GetVIXLAssembler()->  // NOLINT
 
-void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
+void CodeGeneratorARMVIXL::Finalize() {
   FixJumpTables();
 
   // Emit JIT baker read barrier slow paths.
@@ -2038,11 +2038,11 @@ void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
   }
 
   GetAssembler()->FinalizeCode();
-  CodeGenerator::Finalize(allocator);
+  CodeGenerator::Finalize();
 
   // Verify Baker read barrier linker patches.
   if (kIsDebugBuild) {
-    ArrayRef<const uint8_t> code = allocator->GetMemory();
+    ArrayRef<const uint8_t> code(GetCode());
     for (const BakerReadBarrierPatchInfo& info : baker_read_barrier_patches_) {
       DCHECK(info.label.IsBound());
       uint32_t literal_offset = info.label.GetLocation();
@@ -9874,7 +9874,7 @@ void CodeGeneratorARMVIXL::EmitThunkCode(const linker::LinkerPatch& patch,
   assembler.FinalizeCode();
   code->resize(assembler.CodeSize());
   MemoryRegion code_region(code->data(), code->size());
-  assembler.FinalizeInstructions(code_region);
+  assembler.CopyInstructions(code_region);
 }
 
 VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateUint32Literal(
