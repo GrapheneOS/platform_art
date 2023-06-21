@@ -2269,11 +2269,6 @@ void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv*, jclass, jfloat f1, jfloat
 }
 
 void JniCompilerTest::StackArgsFloatsFirstImpl() {
-  if (check_generic_jni_) {
-    // FIXME(riscv64): Fix FP argument passing in GenericJNI.
-    TEST_DISABLED_FOR_RISCV64();
-  }
-
   SetUpForTest(true, "stackArgsFloatsFirst", "(FFFFFFFFFFIIIIIIIIII)V",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_stackArgsFloatsFirst));
 
