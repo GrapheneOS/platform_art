@@ -397,7 +397,7 @@ void ConcurrentCopying::BindBitmaps() {
           // It is OK to clear the bitmap with mutators running since the only place it is read is
           // VisitObjects which has exclusion with CC.
           region_space_bitmap_ = region_space_->GetMarkBitmap();
-          region_space_bitmap_->Clear(ShouldEagerlyReleaseMemoryToOS());
+          region_space_bitmap_->Clear();
         }
       }
     }
@@ -467,7 +467,7 @@ void ConcurrentCopying::InitializePhase() {
     LOG(INFO) << "GC end of InitializePhase";
   }
   if (use_generational_cc_ && !young_gen_) {
-    region_space_bitmap_->Clear(ShouldEagerlyReleaseMemoryToOS());
+    region_space_bitmap_->Clear();
   }
   mark_stack_mode_.store(ConcurrentCopying::kMarkStackModeThreadLocal, std::memory_order_relaxed);
   // Mark all of the zygote large objects without graying them.
@@ -2808,26 +2808,14 @@ void ConcurrentCopying::ReclaimPhase() {
     // Cleared bytes and objects, populated by the call to RegionSpace::ClearFromSpace below.
     uint64_t cleared_bytes;
     uint64_t cleared_objects;
-    bool should_eagerly_release_memory = ShouldEagerlyReleaseMemoryToOS();
     {
       TimingLogger::ScopedTiming split4("ClearFromSpace", GetTimings());
-      region_space_->ClearFromSpace(&cleared_bytes,
-                                    &cleared_objects,
-                                    /*clear_bitmap*/ !young_gen_,
-                                    should_eagerly_release_memory);
+      region_space_->ClearFromSpace(&cleared_bytes, &cleared_objects, /*clear_bitmap*/ !young_gen_);
       // `cleared_bytes` and `cleared_objects` may be greater than the from space equivalents since
       // RegionSpace::ClearFromSpace may clear empty unevac regions.
       CHECK_GE(cleared_bytes, from_bytes);
       CHECK_GE(cleared_objects, from_objects);
     }
-
-    // If we need to release available memory to the OS, go over all free
-    // regions which the kernel might still cache.
-    if (should_eagerly_release_memory) {
-      TimingLogger::ScopedTiming split4("Release free regions", GetTimings());
-      region_space_->ReleaseFreeRegions();
-    }
-
     // freed_bytes could conceivably be negative if we fall back to nonmoving space and have to
     // pad to a larger size.
     int64_t freed_bytes = (int64_t)cleared_bytes - (int64_t)to_bytes;
@@ -3787,7 +3775,6 @@ void ConcurrentCopying::FinishPhase() {
     CHECK(revoked_mark_stacks_.empty());
     CHECK_EQ(pooled_mark_stacks_.size(), kMarkStackPoolSize);
   }
-  bool should_eagerly_release_memory = ShouldEagerlyReleaseMemoryToOS();
   // kVerifyNoMissingCardMarks relies on the region space cards not being cleared to avoid false
   // positives.
   if (!kVerifyNoMissingCardMarks && !use_generational_cc_) {
@@ -3795,8 +3782,8 @@ void ConcurrentCopying::FinishPhase() {
     // We do not currently use the region space cards at all, madvise them away to save ram.
     heap_->GetCardTable()->ClearCardRange(region_space_->Begin(), region_space_->Limit());
   } else if (use_generational_cc_ && !young_gen_) {
-    region_space_inter_region_bitmap_.Clear(should_eagerly_release_memory);
-    non_moving_space_inter_region_bitmap_.Clear(should_eagerly_release_memory);
+    region_space_inter_region_bitmap_.Clear();
+    non_moving_space_inter_region_bitmap_.Clear();
   }
   {
     MutexLock mu(self, skipped_blocks_lock_);
@@ -3806,7 +3793,7 @@ void ConcurrentCopying::FinishPhase() {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
     {
       WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
-      heap_->ClearMarkedObjects(should_eagerly_release_memory);
+      heap_->ClearMarkedObjects();
     }
     if (kUseBakerReadBarrier && kFilterModUnionCards) {
       TimingLogger::ScopedTiming split("FilterModUnionCards", GetTimings());
