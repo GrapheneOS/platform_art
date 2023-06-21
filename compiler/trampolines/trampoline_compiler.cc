@@ -28,6 +28,10 @@
 #include "utils/arm64/assembler_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_riscv64
+#include "utils/riscv64/assembler_riscv64.h"
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "utils/x86/assembler_x86.h"
 #endif
@@ -129,48 +133,34 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 
 #ifdef ART_ENABLE_CODEGEN_riscv64
 namespace riscv64 {
-static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
-    ArenaAllocator* /*allocator*/, EntryPointCallingConvention abi, ThreadOffset64 offset) {
-  if (abi == kJniAbi) {
-    // TODO(riscv64): implement this properly once we have macro-assembler for RISC-V.
-    std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(2));
-    uint8_t* bytes = entry_stub->data();
+static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* allocator,
+                                                                    EntryPointCallingConvention abi,
+                                                                    ThreadOffset64 offset) {
+  Riscv64Assembler assembler(allocator);
 
-    // 0000    unimp
-    bytes[0] = 0x00;
-    bytes[1] = 0x00;
-
-    return std::move(entry_stub);
-  } else {
-    CHECK_LE(offset.Int32Value(), 0x7ff);
-    uint8_t offset_hi = (offset.Int32Value() & 0x7ff) >> 4;
-    uint8_t offset_lo = (offset.Int32Value() & 0xf) << 4;
-
-    std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(6));
-    uint8_t* bytes = entry_stub->data();
-
-    if (abi == kInterpreterAbi) {
-      // Thread* is first argument (A0) in interpreter ABI.
-      // xxx53283     ld t0, xxx(a0)
-      bytes[0] = 0x83;
-      bytes[1] = 0x32;
-      bytes[2] = offset_lo | 0x05;
-      bytes[3] = offset_hi;
-    } else {
-      // abi == kQuickAbi: TR holds Thread*.
-      // xxx4b283     ld t0, xxx(s1)
-      bytes[0] = 0x83;
-      bytes[1] = 0xb2;
-      bytes[2] = offset_lo | 0x04;
-      bytes[3] = offset_hi;
-    }
-
-    // 8282    jr t0
-    bytes[4] = 0x82;
-    bytes[5] = 0x82;
-
-    return std::move(entry_stub);
+  switch (abi) {
+    case kInterpreterAbi:  // Thread* is first argument (A0) in interpreter ABI.
+      __ Loadd(TMP, A0, offset.Int32Value());
+      __ Jr(TMP);
+      break;
+    case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
+      // TODO(riscv64): implement this.
+      __ Unimp();
+      break;
+    case kQuickAbi:  // TR holds Thread*.
+      // FIXME(riscv64): Do not clobber the hidden arg T0, see the JNI calling convention.
+      __ Loadd(T0, TR, offset.Int32Value());
+      __ Jr(T0);
+      break;
   }
+
+  __ FinalizeCode();
+  size_t cs = __ CodeSize();
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
+  MemoryRegion code(entry_stub->data(), entry_stub->size());
+  __ CopyInstructions(code);
+
+  return std::move(entry_stub);
 }
 }  // namespace riscv64
 #endif  // ART_ENABLE_CODEGEN_riscv64
