@@ -419,7 +419,7 @@
     stxr   w10, w11, [x8]
     cbnz   w10, 1b                    // If the store failed, retry.
     ret
-2:  // w10: original lock word, w9: thread id, w11: w10 ^ w11
+2:  // w10: original lock word, w9: thread id, w11: w10 ^ w9
                                       // Check lock word state and thread id together,
     tst    w11, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
     b.ne   \slow_lock
