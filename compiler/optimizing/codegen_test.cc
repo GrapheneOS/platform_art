@@ -733,8 +733,7 @@ TEST_F(CodegenTest, ARMVIXLParallelMoveResolver) {
   move->AddMove(Location::StackSlot(8192), Location::StackSlot(0), DataType::Type::kInt32, nullptr);
   codegen.GetMoveResolver()->EmitNativeCode(move);
 
-  InternalCodeAllocator code_allocator;
-  codegen.Finalize(&code_allocator);
+  codegen.Finalize();
 }
 #endif
 
@@ -785,8 +784,7 @@ TEST_F(CodegenTest, ARM64ParallelMoveResolverB34760542) {
                 nullptr);
   codegen.GetMoveResolver()->EmitNativeCode(move);
 
-  InternalCodeAllocator code_allocator;
-  codegen.Finalize(&code_allocator);
+  codegen.Finalize();
 }
 
 // Check that ParallelMoveResolver works fine for ARM64 for both cases when SIMD is on and off.
@@ -821,8 +819,7 @@ TEST_F(CodegenTest, ARM64ParallelMoveResolverSIMD) {
     graph->SetHasSIMD(false);
   }
 
-  InternalCodeAllocator code_allocator;
-  codegen.Finalize(&code_allocator);
+  codegen.Finalize();
 }
 
 // Check that ART ISA Features are propagated to VIXL for arm64 (using cortex-a75 as example).

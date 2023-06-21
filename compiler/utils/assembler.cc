@@ -57,18 +57,21 @@ void AssemblerBuffer::ProcessFixups(const MemoryRegion& region) {
     fixup->Process(region, fixup->position());
     fixup = fixup->previous();
   }
-}
-
-
-void AssemblerBuffer::FinalizeInstructions(const MemoryRegion& instructions) {
-  // Copy the instructions from the buffer.
-  MemoryRegion from(reinterpret_cast<void*>(contents()), Size());
-  instructions.CopyFrom(0, from);
-  // Process fixups in the instructions.
-  ProcessFixups(instructions);
 #ifndef NDEBUG
   fixups_processed_ = true;
 #endif
+}
+
+
+void AssemblerBuffer::ProcessFixups() {
+  MemoryRegion from(reinterpret_cast<void*>(contents()), Size());
+  ProcessFixups(from);
+}
+
+
+void AssemblerBuffer::CopyInstructions(const MemoryRegion& instructions) {
+  MemoryRegion from(reinterpret_cast<void*>(contents()), Size());
+  instructions.CopyFrom(0, from);
 }
 
 

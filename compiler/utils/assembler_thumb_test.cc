@@ -79,7 +79,7 @@ class ArmVIXLAssemblerTest : public AssemblerTestBase {
     size_t cs = __ CodeSize();
     std::vector<uint8_t> managed_code(cs);
     MemoryRegion code(&managed_code[0], managed_code.size());
-    __ FinalizeInstructions(code);
+    __ CopyInstructions(code);
 
     DumpAndCheck(managed_code, testname, expected);
   }
