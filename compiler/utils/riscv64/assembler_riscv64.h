@@ -593,11 +593,9 @@ class Riscv64Assembler final : public Assembler {
   JumpTable* CreateJumpTable(ArenaVector<Riscv64Label*>&& labels);
 
  public:
-  // Emit slow paths queued during assembly and promote short branches to long if needed.
+  // Emit slow paths queued during assembly, promote short branches to long if needed,
+  // and emit branches.
   void FinalizeCode() override;
-
-  // Emit branches and finalize all instructions.
-  void FinalizeInstructions(const MemoryRegion& region) override;
 
   // Returns the current location of a label.
   //

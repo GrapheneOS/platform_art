@@ -91,7 +91,7 @@ class Arm64Assembler final : public Assembler {
   const uint8_t* CodeBufferBaseAddress() const override;
 
   // Copy instructions out of assembly buffer into the given region of memory.
-  void FinalizeInstructions(const MemoryRegion& region) override;
+  void CopyInstructions(const MemoryRegion& region) override;
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs);
 
