@@ -735,11 +735,6 @@ void JniCompilerTest::CompileAndRunIntMethodThroughStubImpl() {
 JNI_TEST(CompileAndRunIntMethodThroughStub)
 
 void JniCompilerTest::CompileAndRunStaticIntMethodThroughStubImpl() {
-  if (!check_generic_jni_) {
-    // TODO(riscv64): Implement `art_jni_dlsym_lookup_critical_stub`.
-    TEST_DISABLED_FOR_RISCV64();
-  }
-
   SetUpForTest(true, "sbar", "(I)I", nullptr);
   // calling through stub will link with &Java_MyClassNatives_sbar{,_1Fast,_1Critical}
 
@@ -2154,11 +2149,6 @@ void JniCompilerTest::WithoutImplementationRefReturnImpl() {
 JNI_TEST(WithoutImplementationRefReturn)
 
 void JniCompilerTest::StaticWithoutImplementationImpl() {
-  if (!check_generic_jni_) {
-    // TODO(riscv64): Implement `art_jni_dlsym_lookup_critical_stub`.
-    TEST_DISABLED_FOR_RISCV64();
-  }
-
   // This will lead to error messages in the log.
   ScopedLogSeverity sls(LogSeverity::FATAL);
 

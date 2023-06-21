@@ -148,9 +148,8 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
       __ Unimp();
       break;
     case kQuickAbi:  // TR holds Thread*.
-      // FIXME(riscv64): Do not clobber the hidden arg T0, see the JNI calling convention.
-      __ Loadd(T0, TR, offset.Int32Value());
-      __ Jr(T0);
+      __ Loadd(TMP, TR, offset.Int32Value());
+      __ Jr(TMP);
       break;
   }
 
