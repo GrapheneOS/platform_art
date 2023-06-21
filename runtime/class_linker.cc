@@ -1691,6 +1691,7 @@ void AppImageLoadingHelper::Update(
           // consistent with `StartupCompletedTask`.
           dex_cache->UnlinkStartupCaches();
         }
+        VLOG(image) << "App image registers dex file " << dex_file->GetLocation();
         class_linker->RegisterDexFileLocked(*dex_file, dex_cache, class_loader.Get());
       }
     }
