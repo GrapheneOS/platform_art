@@ -25,6 +25,8 @@
 
 #include "gtest/gtest.h"
 
+#include "indirect_reference_table.h"
+#include "lock_word.h"
 #include "jni/quick/calling_convention.h"
 #include "utils/riscv64/jni_macro_assembler_riscv64.h"
 #include "utils/assembler_test_base.h"
@@ -34,6 +36,8 @@
 
 namespace art HIDDEN {
 namespace riscv64 {
+
+#define __ assembler_.
 
 class JniMacroAssemblerRiscv64Test : public AssemblerTestBase {
  public:
@@ -59,6 +63,13 @@ class JniMacroAssemblerRiscv64Test : public AssemblerTestBase {
     return Riscv64ManagedRegister::FromFRegister(reg);
   }
 
+  std::string EmitRet() {
+    __ RemoveFrame(/*frame_size=*/ 0u,
+                   /*callee_save_regs=*/ ArrayRef<const ManagedRegister>(),
+                   /*may_suspend=*/ false);
+    return "ret\n";
+  }
+
   static const size_t kWordSize = 4u;
   static const size_t kDoubleWordSize = 8u;
 
@@ -66,8 +77,6 @@ class JniMacroAssemblerRiscv64Test : public AssemblerTestBase {
   ArenaAllocator allocator_;
   Riscv64JNIMacroAssembler assembler_;
 };
-
-#define __ assembler_.
 
 TEST_F(JniMacroAssemblerRiscv64Test, StackFrame) {
   std::string expected;
@@ -260,6 +269,27 @@ TEST_F(JniMacroAssemblerRiscv64Test, Load) {
   DriverStr(expected, "Load");
 }
 
+TEST_F(JniMacroAssemblerRiscv64Test, CreateJObject) {
+  std::string expected;
+
+  __ CreateJObject(AsManaged(A0), FrameOffset(8), AsManaged(A0), /*null_allowed=*/ true);
+  expected += "beqz a0, 1f\n"
+              "addi a0, sp, 8\n"
+              "1:\n";
+  __ CreateJObject(AsManaged(A1), FrameOffset(12), AsManaged(A1), /*null_allowed=*/ false);
+  expected += "addi a1, sp, 12\n";
+  __ CreateJObject(AsManaged(A2), FrameOffset(16), AsManaged(A3), /*null_allowed=*/ true);
+  expected += "li a2, 0\n"
+              "beqz a3, 2f\n"
+              "addi a2, sp, 16\n"
+              "2:\n";
+  __ CreateJObject(AsManaged(A4), FrameOffset(2048), AsManaged(A5), /*null_allowed=*/ false);
+  expected += "addi t6, sp, 2047\n"
+              "addi a4, t6, 1\n";
+
+  DriverStr(expected, "CreateJObject");
+}
+
 TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
   // TODO(riscv64): Test `MoveArguments()`.
   // We do not add the test yet while there is an outstanding FIXME in `MoveArguments()`.
@@ -292,6 +322,36 @@ TEST_F(JniMacroAssemblerRiscv64Test, GetCurrentThread) {
               "sd s1, 0x408(t6)\n";
 
   DriverStr(expected, "GetCurrentThread");
+}
+
+TEST_F(JniMacroAssemblerRiscv64Test, DecodeJNITransitionOrLocalJObject) {
+  std::string expected;
+
+  constexpr int64_t kGlobalOrWeakGlobalMask = IndirectReferenceTable::GetGlobalOrWeakGlobalMask();
+  constexpr int64_t kIndirectRefKindMask = IndirectReferenceTable::GetIndirectRefKindMask();
+
+  std::unique_ptr<JNIMacroLabel> slow_path = __ CreateLabel();
+  std::unique_ptr<JNIMacroLabel> resume = __ CreateLabel();
+
+  __ DecodeJNITransitionOrLocalJObject(AsManaged(A0), slow_path.get(), resume.get());
+  expected += "beqz a0, 1f\n"
+              "andi t6, a0, " + std::to_string(kGlobalOrWeakGlobalMask) + "\n"
+              "bnez t6, 2f\n"
+              "andi a0, a0, ~" + std::to_string(kIndirectRefKindMask) + "\n"
+              "lw a0, (a0)\n";
+
+  __ Bind(resume.get());
+  expected += "1:\n";
+
+  expected += EmitRet();
+
+  __ Bind(slow_path.get());
+  expected += "2:\n";
+
+  __ Jump(resume.get());
+  expected += "j 1b\n";
+
+  DriverStr(expected, "DecodeJNITransitionOrLocalJObject");
 }
 
 TEST_F(JniMacroAssemblerRiscv64Test, JumpCodePointer) {
@@ -333,6 +393,33 @@ TEST_F(JniMacroAssemblerRiscv64Test, Call) {
   DriverStr(expected, "Call");
 }
 
+TEST_F(JniMacroAssemblerRiscv64Test, SuspendCheck) {
+  std::string expected;
+
+  ThreadOffset64 thread_flags_offet = Thread::ThreadFlagsOffset<kRiscv64PointerSize>();
+
+  std::unique_ptr<JNIMacroLabel> slow_path = __ CreateLabel();
+  std::unique_ptr<JNIMacroLabel> resume = __ CreateLabel();
+
+  __ SuspendCheck(slow_path.get());
+  expected += "lw t6, " + std::to_string(thread_flags_offet.Int32Value()) + "(s1)\n"
+              "andi t6, t6, " + std::to_string(Thread::SuspendOrCheckpointRequestFlags()) + "\n"
+              "bnez t6, 2f\n";
+
+  __ Bind(resume.get());
+  expected += "1:\n";
+
+  expected += EmitRet();
+
+  __ Bind(slow_path.get());
+  expected += "2:\n";
+
+  __ Jump(resume.get());
+  expected += "j 1b";
+
+  DriverStr(expected, "SuspendCheck");
+}
+
 TEST_F(JniMacroAssemblerRiscv64Test, Exception) {
   std::string expected;
 
@@ -345,10 +432,7 @@ TEST_F(JniMacroAssemblerRiscv64Test, Exception) {
   expected += "ld t6, " + std::to_string(exception_offset.Int32Value()) + "(s1)\n"
               "bnez t6, 1f\n";
 
-  __ RemoveFrame(/*frame_size=*/ 0u,
-                 /*callee_save_regs=*/ ArrayRef<const ManagedRegister>(),
-                 /*may_suspend=*/ false);
-  expected += "ret\n";
+  expected += EmitRet();
 
   __ Bind(slow_path.get());
   expected += "1:\n";
@@ -387,11 +471,77 @@ TEST_F(JniMacroAssemblerRiscv64Test, JumpLabel) {
 }
 
 TEST_F(JniMacroAssemblerRiscv64Test, ReadBarrier) {
-  // TODO(riscv64): Test `TestGcMarking()` and `TestMarkBit()`.
+  std::string expected;
+
+  ThreadOffset64 is_gc_marking_offset = Thread::IsGcMarkingOffset<kRiscv64PointerSize>();
+  MemberOffset monitor_offset = mirror::Object::MonitorOffset();
+
+  std::unique_ptr<JNIMacroLabel> slow_path = __ CreateLabel();
+  std::unique_ptr<JNIMacroLabel> resume = __ CreateLabel();
+
+  __ TestGcMarking(slow_path.get(), JNIMacroUnaryCondition::kNotZero);
+  expected += "lw t6, " + std::to_string(is_gc_marking_offset.Int32Value()) + "(s1)\n"
+              "bnez t6, 2f\n";
+
+  __ TestGcMarking(slow_path.get(), JNIMacroUnaryCondition::kZero);
+  expected += "lw t6, " + std::to_string(is_gc_marking_offset.Int32Value()) + "(s1)\n"
+              "beqz t6, 2f\n";
+
+  __ Bind(resume.get());
+  expected += "1:\n";
+
+  expected += EmitRet();
+
+  __ Bind(slow_path.get());
+  expected += "2:\n";
+
+  __ TestMarkBit(AsManaged(A0), resume.get(), JNIMacroUnaryCondition::kNotZero);
+  expected += "lw t6, " + std::to_string(monitor_offset.Int32Value()) + "(a0)\n"
+              "slliw t6, t6, " + std::to_string(31 - LockWord::kMarkBitStateShift) + "\n"
+              "bltz t6, 1b\n";
+
+  __ TestMarkBit(AsManaged(T0), resume.get(), JNIMacroUnaryCondition::kZero);
+  expected += "lw t6, " + std::to_string(monitor_offset.Int32Value()) + "(t0)\n"
+              "slliw t6, t6, " + std::to_string(31 - LockWord::kMarkBitStateShift) + "\n"
+              "bgez t6, 1b\n";
+
+  DriverStr(expected, "ReadBarrier");
 }
 
 TEST_F(JniMacroAssemblerRiscv64Test, TestByteAndJumpIfNotZero) {
-  // TODO(riscv64): Test `TestByteAndJumpIfNotZero()`.
+  // Note: The `TestByteAndJumpIfNotZero()` takes the address as a `uintptr_t`.
+  // Use 32-bit addresses, so that we can include this test in 32-bit host tests.
+
+  std::string expected;
+
+  std::unique_ptr<JNIMacroLabel> slow_path = __ CreateLabel();
+  std::unique_ptr<JNIMacroLabel> resume = __ CreateLabel();
+
+  __ TestByteAndJumpIfNotZero(0x12345678u, slow_path.get());
+  expected += "lui t5, 0x12345\n"
+              "lb t5, 0x678(t5)\n"
+              "bnez t5, 2f\n";
+
+  __ TestByteAndJumpIfNotZero(0x87654321u, slow_path.get());
+  expected += "lui t5, 0x87654/4\n"
+              "slli t5, t5, 2\n"
+              "lb t5, 0x321(t5)\n"
+              "bnez t5, 2f\n";
+
+  __ Bind(resume.get());
+  expected += "1:\n";
+
+  expected += EmitRet();
+
+  __ Bind(slow_path.get());
+  expected += "2:\n";
+
+  __ TestByteAndJumpIfNotZero(0x456789abu, resume.get());
+  expected += "lui t5, 0x45678+1\n"
+              "lb t5, 0x9ab-0x1000(t5)\n"
+              "bnez t5, 1b\n";
+
+  DriverStr(expected, "TestByteAndJumpIfNotZero");
 }
 
 #undef __
