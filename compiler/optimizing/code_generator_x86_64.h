@@ -468,7 +468,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void SetupBlockedRegisters() const override;
   void DumpCoreRegister(std::ostream& stream, int reg) const override;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const override;
-  void Finalize(CodeAllocator* allocator) override;
+  void Finalize() override;
 
   InstructionSet GetInstructionSet() const override {
     return InstructionSet::kX86_64;
