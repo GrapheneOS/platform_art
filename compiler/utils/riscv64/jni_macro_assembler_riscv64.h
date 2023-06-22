@@ -31,7 +31,7 @@
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, PointerSize::k64> {
