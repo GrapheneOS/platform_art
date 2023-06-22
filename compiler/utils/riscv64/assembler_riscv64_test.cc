@@ -25,7 +25,7 @@
 
 #define __ GetAssembler()->
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 struct RISCV64CpuRegisterCompare {

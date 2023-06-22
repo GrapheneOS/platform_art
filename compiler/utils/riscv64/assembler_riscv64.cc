@@ -21,7 +21,7 @@
 #include "base/logging.h"
 #include "base/memory_region.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 static_assert(static_cast<size_t>(kRiscv64PointerSize) == kRiscv64DoublewordSize,

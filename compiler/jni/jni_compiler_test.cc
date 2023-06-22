@@ -2272,9 +2272,6 @@ void JniCompilerTest::StackArgsFloatsFirstImpl() {
   if (check_generic_jni_) {
     // FIXME(riscv64): Fix FP argument passing in GenericJNI.
     TEST_DISABLED_FOR_RISCV64();
-    // TODO(riscv64): This test passes with compiled JNI stubs but the compiled code
-    // does not perform NaN-boxing of float args passed in GPRs. The test should be
-    // extended to check 64-bit values of these float args.
   }
 
   SetUpForTest(true, "stackArgsFloatsFirst", "(FFFFFFFFFFIIIIIIIIII)V",
