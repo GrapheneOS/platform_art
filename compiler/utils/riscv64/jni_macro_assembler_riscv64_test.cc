@@ -291,8 +291,283 @@ TEST_F(JniMacroAssemblerRiscv64Test, CreateJObject) {
 }
 
 TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
-  // TODO(riscv64): Test `MoveArguments()`.
-  // We do not add the test yet while there is an outstanding FIXME in `MoveArguments()`.
+  std::string expected;
+
+  static constexpr FrameOffset kInvalidReferenceOffset =
+      JNIMacroAssembler<kArmPointerSize>::kInvalidReferenceOffset;
+  static constexpr size_t kNativePointerSize = static_cast<size_t>(kRiscv64PointerSize);
+
+  // Normal or @FastNative static with parameters "LIJIJILJI".
+  // Note: This shall not spill references to the stack. The JNI compiler spills
+  // references in an separate initial pass before moving arguments and creating `jobject`s.
+  ArgumentLocation move_dests1[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kNativePointerSize),  // `jclass`
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), kNativePointerSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+      ArgumentLocation(FrameOffset(0), kNativePointerSize),
+      ArgumentLocation(FrameOffset(8), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(16), kVRegSize),
+  };
+  ArgumentLocation move_srcs1[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A0), kNativePointerSize),  // `jclass`
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+      ArgumentLocation(FrameOffset(76), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(84), kVRegSize),
+  };
+  FrameOffset move_refs1[] {
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(40),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(72),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests1),
+                   ArrayRef<ArgumentLocation>(move_srcs1),
+                   ArrayRef<FrameOffset>(move_refs1));
+  expected += "beqz a7, 1f\n"
+              "addi a7, sp, 72\n"
+              "1:\n"
+              "sd a7, 0(sp)\n"
+              "ld t5, 76(sp)\n"
+              "sd t5, 8(sp)\n"
+              "lw t5, 84(sp)\n"
+              "sw t5, 16(sp)\n"
+              "mv a7, a6\n"
+              "mv a6, a5\n"
+              "mv a5, a4\n"
+              "mv a4, a3\n"
+              "mv a3, a2\n"
+              "li a2, 0\n"
+              "beqz a1, 2f\n"
+              "add a2, sp, 40\n"
+              "2:\n"
+              "mv a1, a0\n";
+
+  // Normal or @FastNative with parameters "LLIJIJIJLI" (first is `this`).
+  // Note: This shall not spill references to the stack. The JNI compiler spills
+  // references in an separate initial pass before moving arguments and creating `jobject`s.
+  ArgumentLocation move_dests2[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kNativePointerSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), kNativePointerSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+      ArgumentLocation(FrameOffset(0), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(8), kNativePointerSize),
+      ArgumentLocation(FrameOffset(16), kVRegSize),
+  };
+  ArgumentLocation move_srcs2[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+      ArgumentLocation(FrameOffset(76), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(84), kVRegSize),
+      ArgumentLocation(FrameOffset(88), kVRegSize),
+  };
+  FrameOffset move_refs2[] {
+      FrameOffset(40),
+      FrameOffset(44),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(84),
+      FrameOffset(kInvalidReferenceOffset),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests2),
+                   ArrayRef<ArgumentLocation>(move_srcs2),
+                   ArrayRef<FrameOffset>(move_refs2));
+  // Args in A1-A7 do not move but references are converted to `jobject`.
+  expected += "addi a1, sp, 40\n"
+              "beqz a2, 1f\n"
+              "addi a2, sp, 44\n"
+              "1:\n"
+              "ld t5, 76(sp)\n"
+              "sd t5, 0(sp)\n"
+              "lw t5, 84(sp)\n"
+              "beqz t5, 2f\n"
+              "addi t5, sp, 84\n"
+              "2:\n"
+              "sd t5, 8(sp)\n"
+              "lw t5, 88(sp)\n"
+              "sw t5, 16(sp)\n";
+
+  // Normal or @FastNative static with parameters "FDFDFDFDFDIJIJIJL".
+  ArgumentLocation move_dests3[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kNativePointerSize),  // `jclass`
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA0), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA1), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA2), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA3), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA4), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA5), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA6), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA7), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(0), kVRegSize),
+      ArgumentLocation(FrameOffset(8), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(16), kNativePointerSize),
+  };
+  ArgumentLocation move_srcs3[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A0), kNativePointerSize),  // `jclass`
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA0), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA1), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA2), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA3), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA4), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA5), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA6), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA7), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(88), kVRegSize),
+      ArgumentLocation(FrameOffset(92), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+  };
+  FrameOffset move_refs3[] {
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(88),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests3),
+                   ArrayRef<ArgumentLocation>(move_srcs3),
+                   ArrayRef<FrameOffset>(move_refs3));
+  // FP args in FA0-FA7 do not move.
+  expected += "sw a5, 0(sp)\n"
+              "sd a6, 8(sp)\n"
+              "beqz a7, 1f\n"
+              "addi a7, sp, 88\n"
+              "1:\n"
+              "sd a7, 16(sp)\n"
+              "mv a5, a2\n"
+              "mv a6, a3\n"
+              "mv a7, a4\n"
+              "lw a2, 88(sp)\n"
+              "ld a3, 92(sp)\n"
+              "mv a4, a1\n"
+              "mv a1, a0\n";
+
+  // @CriticalNative with parameters "DFDFDFDFIDJIJFDIIJ".
+  ArgumentLocation move_dests4[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA0), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA1), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA2), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA7), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A0), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), kVRegSize),
+      ArgumentLocation(FrameOffset(0), kVRegSize),
+      ArgumentLocation(FrameOffset(8), 2 * kVRegSize),
+  };
+  ArgumentLocation move_srcs4[] = {
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA0), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA1), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA2), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA4), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA6), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromFRegister(FA7), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A1), kVRegSize),
+      ArgumentLocation(FrameOffset(92), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A2), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A3), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A4), 2 * kVRegSize),
+      ArgumentLocation(FrameOffset(112), kVRegSize),
+      ArgumentLocation(FrameOffset(116), 2 * kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A5), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A6), kVRegSize),
+      ArgumentLocation(Riscv64ManagedRegister::FromXRegister(A7), 2 * kVRegSize),
+  };
+  FrameOffset move_refs4[] {
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+      FrameOffset(kInvalidReferenceOffset),
+  };
+  __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests4),
+                   ArrayRef<ArgumentLocation>(move_srcs4),
+                   ArrayRef<FrameOffset>(move_refs4));
+  // FP args in FA0-FA7 and integral args in A2-A4 do not move.
+  expected += "sw a6, 0(sp)\n"
+              "sd a7, 8(sp)\n"
+              "mv a0, a1\n"
+              "ld a1, 92(sp)\n"
+              "ld a6, 116(sp)\n"
+              "mv a7, a5\n"
+              "lw a5, 112(sp)\n";
+
+  DriverStr(expected, "MoveArguments");
 }
 
 TEST_F(JniMacroAssemblerRiscv64Test, Move) {
