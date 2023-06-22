@@ -67,6 +67,7 @@ class Riscv64Label : public Label {
   Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
 
   Riscv64Label(Riscv64Label&& src) noexcept
+      // NOLINTNEXTLINE - src.prev_branch_id_ is valid after the move
       : Label(std::move(src)), prev_branch_id_(src.prev_branch_id_) {}
 
  private:
