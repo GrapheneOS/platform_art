@@ -25,7 +25,7 @@
 #include "offsets.h"
 #include "thread.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 static constexpr size_t kSpillSize = 8;  // Both GPRs and FPRs
@@ -237,15 +237,6 @@ void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   DCHECK_EQ(arg_count, srcs.size());
   DCHECK_EQ(arg_count, refs.size());
 
-  // Convert reference registers to `jobject` values.
-  for (size_t i = 0; i != arg_count; ++i) {
-    if (refs[i] != kInvalidReferenceOffset && srcs[i].IsRegister()) {
-      // Note: We can clobber `srcs[i]` here as the register cannot hold more than one argument.
-      ManagedRegister src_i_reg = srcs[i].GetRegister();
-      CreateJObject(src_i_reg, refs[i], src_i_reg, /*null_allowed=*/ i != 0u);
-    }
-  }
-
   auto get_mask = [](ManagedRegister reg) -> uint64_t {
     Riscv64ManagedRegister riscv64_reg = reg.AsRiscv64();
     if (riscv64_reg.IsXRegister()) {
@@ -261,7 +252,7 @@ void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   };
 
   // Collect registers to move while storing/copying args to stack slots.
-  // Convert copied references to `jobject`.
+  // Convert processed references to `jobject`.
   uint64_t src_regs = 0u;
   uint64_t dest_regs = 0u;
   for (size_t i = 0; i != arg_count; ++i) {
@@ -276,23 +267,29 @@ void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
     }
     if (dest.IsRegister()) {
       if (src.IsRegister() && src.GetRegister().Equals(dest.GetRegister())) {
-        // Nothing to do.
+        // No move is necessary but we may need to convert a reference to a `jobject`.
+        if (ref != kInvalidReferenceOffset) {
+          CreateJObject(dest.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+        }
       } else {
         if (src.IsRegister()) {
           src_regs |= get_mask(src.GetRegister());
         }
         dest_regs |= get_mask(dest.GetRegister());
       }
-    } else if (src.IsRegister()) {
-      Store(dest.GetFrameOffset(), src.GetRegister(), dest.GetSize());
     } else {
       // Note: We use `TMP2` here because `TMP` can be used by `Store()`.
-      Riscv64ManagedRegister tmp2 = Riscv64ManagedRegister::FromXRegister(TMP2);
-      Load(tmp2, src.GetFrameOffset(), src.GetSize());
-      if (ref != kInvalidReferenceOffset) {
-        CreateJObject(tmp2, ref, tmp2, /*null_allowed=*/ i != 0u);
+      Riscv64ManagedRegister reg = src.IsRegister()
+          ? src.GetRegister().AsRiscv64()
+          : Riscv64ManagedRegister::FromXRegister(TMP2);
+      if (!src.IsRegister()) {
+        Load(reg, src.GetFrameOffset(), src.GetSize());
       }
-      Store(dest.GetFrameOffset(), tmp2, dest.GetSize());
+      if (ref != kInvalidReferenceOffset) {
+        DCHECK_NE(i, 0u);
+        CreateJObject(reg, ref, reg, /*null_allowed=*/ true);
+      }
+      Store(dest.GetFrameOffset(), reg, dest.GetSize());
     }
   }
 
@@ -314,18 +311,19 @@ void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       if ((dest_reg_mask & src_regs) != 0u) {
         continue;  // Cannot clobber this register yet.
       }
-      // FIXME(riscv64): FP args can be passed in GPRs if all argument FPRs have been used.
-      // In that case, a `float` needs to be NaN-boxed. However, we do not have sufficient
-      // information here to determine whether we're loading a `float` or a narrow integral arg.
-      // We shall need to change the macro assembler interface to pass this information.
       if (src.IsRegister()) {
-        Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
+        if (ref != kInvalidReferenceOffset) {
+          DCHECK_NE(i, 0u);  // The `this` arg remains in the same register (handled above).
+          CreateJObject(dest.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ true);
+        } else {
+          Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
+        }
         src_regs &= ~get_mask(src.GetRegister());  // Allow clobbering source register.
       } else {
         Load(dest.GetRegister(), src.GetFrameOffset(), dest.GetSize());
-        if (ref != kInvalidReferenceOffset) {
-          CreateJObject(dest.GetRegister(), ref, dest.GetRegister(), /*null_allowed=*/ i != 0u);
-        }
+        // No `jobject` conversion needed. There are enough arg registers in managed ABI
+        // to hold all references that yield a register arg `jobject` in native ABI.
+        DCHECK_EQ(ref, kInvalidReferenceOffset);
       }
       dest_regs &= ~get_mask(dest.GetRegister());  // Destination register was filled.
     }

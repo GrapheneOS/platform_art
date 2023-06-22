@@ -31,7 +31,7 @@
 #include "utils/assembler.h"
 #include "utils/label.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 enum class FPRoundingMode : uint32_t {
