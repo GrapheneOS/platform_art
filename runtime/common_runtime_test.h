@@ -270,58 +270,42 @@ class CheckJniAbortCatcher {
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
 
-#define TEST_DISABLED() \
-  do { \
-    printf("WARNING: TEST DISABLED\n"); \
-    return; \
-  } while (false)
+#define TEST_DISABLED() GTEST_SKIP() << "WARNING: TEST DISABLED";
 
-#define TEST_DISABLED_FOR_ARM() \
+#define TEST_DISABLED_FOR_ARM()                                                        \
   if (kRuntimeISA == InstructionSet::kArm || kRuntimeISA == InstructionSet::kThumb2) { \
-    printf("WARNING: TEST DISABLED FOR ARM\n"); \
-    return; \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR ARM";                                  \
   }
 
-#define TEST_DISABLED_FOR_ARM64() \
-  if (kRuntimeISA == InstructionSet::kArm64) { \
-    printf("WARNING: TEST DISABLED FOR ARM64\n"); \
-    return; \
+#define TEST_DISABLED_FOR_ARM64()                       \
+  if (kRuntimeISA == InstructionSet::kArm64) {          \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR ARM64"; \
   }
 
-#define TEST_DISABLED_FOR_X86() \
-  if (kRuntimeISA == InstructionSet::kX86) { \
-    printf("WARNING: TEST DISABLED FOR X86\n"); \
-    return; \
+#define TEST_DISABLED_FOR_X86()                       \
+  if (kRuntimeISA == InstructionSet::kX86) {          \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR X86"; \
   }
 
-#define TEST_DISABLED_FOR_X86_64() \
-  if (kRuntimeISA == InstructionSet::kX86_64) { \
-    printf("WARNING: TEST DISABLED FOR X86_64\n"); \
-    return; \
+#define TEST_DISABLED_FOR_X86_64()                       \
+  if (kRuntimeISA == InstructionSet::kX86_64) {          \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR X86_64"; \
   }
 
-#define TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS() \
-  if (!gUseReadBarrier || !kUseBakerReadBarrier) { \
-    printf("WARNING: TEST DISABLED FOR GC WITHOUT BAKER READ BARRIER\n"); \
-    return; \
+#define TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS()                             \
+  if (!gUseReadBarrier || !kUseBakerReadBarrier) {                              \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR GC WITHOUT BAKER READ BARRIER"; \
   }
 
-#define TEST_DISABLED_FOR_HEAP_POISONING() \
-  if (kPoisonHeapReferences) { \
-    printf("WARNING: TEST DISABLED FOR HEAP POISONING\n"); \
-    return; \
+#define TEST_DISABLED_FOR_MEMORY_TOOL_WITH_HEAP_POISONING_WITHOUT_READ_BARRIERS()              \
+  if (kRunningOnMemoryTool && kPoisonHeapReferences && !gUseReadBarrier) {                     \
+    GTEST_SKIP()                                                                               \
+        << "WARNING: TEST DISABLED FOR MEMORY TOOL WITH HEAP POISONING WITHOUT READ BARRIERS"; \
   }
 
-#define TEST_DISABLED_FOR_MEMORY_TOOL_WITH_HEAP_POISONING_WITHOUT_READ_BARRIERS() \
-  if (kRunningOnMemoryTool && kPoisonHeapReferences && !gUseReadBarrier) { \
-    printf("WARNING: TEST DISABLED FOR MEMORY TOOL WITH HEAP POISONING WITHOUT READ BARRIERS\n"); \
-    return; \
-  }
-
-#define TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT() \
-  if (CacheOperationsMaySegFault()) { \
-    printf("WARNING: TEST DISABLED ON KERNEL THAT SEGFAULT ON CACHE OPERATIONS\n"); \
-    return; \
+#define TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT()                                   \
+  if (CacheOperationsMaySegFault()) {                                                     \
+    GTEST_SKIP() << "WARNING: TEST DISABLED ON KERNEL THAT SEGFAULT ON CACHE OPERATIONS"; \
   }
 
 }  // namespace art
