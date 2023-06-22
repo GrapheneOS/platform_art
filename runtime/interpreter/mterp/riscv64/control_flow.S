@@ -55,15 +55,31 @@
 %def op_sparse_switch():
 %  op_packed_switch(func="NterpDoSparseSwitch")
 
-/*
- * Return a 32-bit value.
- */
+// Return a 32-bit value.
+// Clobbers: t0
 %def op_return(is_object="0", is_void="0", is_wide="0"):
+    .if $is_void
+    // Thread fence for constructor
+    fence w, w
+    .else
     unimp
+    .endif  // is_void
+
+    CFI_REMEMBER_STATE
+    ld t0, -8(xREFS)  // caller's interpreted frame pointer
+    mv sp, t0
+    .cfi_def_cfa sp, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    RESTORE_ALL_CALLEE_SAVES
+    DECREASE_FRAME FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    ret
+    .cfi_restore_state
+    CFI_DEF_CFA_BREG_PLUS_UCONST CFI_REFS, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
 
 %def op_return_object():
 %  op_return(is_object="1", is_void="0", is_wide="0")
 
+// return-void
+// Format 10x: 00|0e
 %def op_return_void():
 %  op_return(is_object="0", is_void="1", is_wide="0")
 
