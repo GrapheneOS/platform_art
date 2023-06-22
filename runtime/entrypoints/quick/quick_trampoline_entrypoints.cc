@@ -1341,6 +1341,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
  public:
 #if defined(__arm__)
   static constexpr bool kNativeSoftFloatAbi = true;
+  static constexpr bool kNativeSoftFloatAfterHardFloat = false;
   static constexpr size_t kNumNativeGprArgs = 4;  // 4 arguments passed in GPRs, r0-r3
   static constexpr size_t kNumNativeFprArgs = 0;  // 0 arguments passed in FPRs.
 
@@ -1353,6 +1354,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kNaNBoxing = false;
 #elif defined(__aarch64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr bool kNativeSoftFloatAfterHardFloat = false;
   static constexpr size_t kNumNativeGprArgs = 8;  // 8 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 8;  // 8 arguments passed in FPRs.
 
@@ -1365,6 +1367,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kNaNBoxing = false;
 #elif defined(__riscv)
   static constexpr bool kNativeSoftFloatAbi = false;
+  static constexpr bool kNativeSoftFloatAfterHardFloat = true;
   static constexpr size_t kNumNativeGprArgs = 8;
   static constexpr size_t kNumNativeFprArgs = 8;
 
@@ -1377,6 +1380,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kNaNBoxing = true;
 #elif defined(__i386__)
   static constexpr bool kNativeSoftFloatAbi = false;  // Not using int registers for fp
+  static constexpr bool kNativeSoftFloatAfterHardFloat = false;
   static constexpr size_t kNumNativeGprArgs = 0;  // 0 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 0;  // 0 arguments passed in FPRs.
 
@@ -1389,6 +1393,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kNaNBoxing = false;
 #elif defined(__x86_64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr bool kNativeSoftFloatAfterHardFloat = false;
   static constexpr size_t kNumNativeGprArgs = 6;  // 6 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 8;  // 8 arguments passed in FPRs.
 
@@ -1507,30 +1512,30 @@ template<class T> class BuildNativeCallFrameStateMachine {
     return fpr_index_ > 0;
   }
 
-  void AdvanceFloat(float val) {
+  void AdvanceFloat(uint32_t val) {
     if (kNativeSoftFloatAbi) {
-      AdvanceInt(bit_cast<uint32_t, float>(val));
-    } else {
-      if (HaveFloatFpr()) {
-        fpr_index_--;
-        if (kRegistersNeededForDouble == 1) {
-          if (kNaNBoxing) {
-            // NaN boxing: no widening, just use the bits, but reset upper bits to 1s.
-            // See e.g. RISC-V manual, D extension, section "NaN Boxing of Narrower Values".
-            PushFpr8(0xFFFFFFFF00000000lu | static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
-          } else {
-            // No widening, just use the bits.
-            PushFpr8(static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
-          }
+      AdvanceInt(val);
+    } else if (HaveFloatFpr()) {
+      fpr_index_--;
+      if (kRegistersNeededForDouble == 1) {
+        if (kNaNBoxing) {
+          // NaN boxing: no widening, just use the bits, but reset upper bits to 1s.
+          // See e.g. RISC-V manual, D extension, section "NaN Boxing of Narrower Values".
+          PushFpr8(UINT64_C(0xFFFFFFFF00000000) | static_cast<uint64_t>(val));
         } else {
-          PushFpr4(val);
+          // No widening, just use the bits.
+          PushFpr8(static_cast<uint64_t>(val));
         }
       } else {
-        // FIXME(riscv64): Excessive FP args can be passed in available GPRs.
-        stack_entries_++;
-        PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
-        fpr_index_ = 0;
+        PushFpr4(val);
       }
+    } else if (kNativeSoftFloatAfterHardFloat) {
+      // After using FP arg registers, pass FP args in general purpose registers or on the stack.
+      AdvanceInt(val);
+    } else {
+      stack_entries_++;
+      PushStack(static_cast<uintptr_t>(val));
+      fpr_index_ = 0;
     }
   }
 
@@ -1553,30 +1558,30 @@ template<class T> class BuildNativeCallFrameStateMachine {
   void AdvanceDouble(uint64_t val) {
     if (kNativeSoftFloatAbi) {
       AdvanceLong(val);
-    } else {
-      if (HaveDoubleFpr()) {
-        if (DoubleFprNeedsPadding()) {
-          PushFpr4(0);
-          fpr_index_--;
-        }
-        PushFpr8(val);
-        fpr_index_ -= kRegistersNeededForDouble;
-      } else {
-        // FIXME(riscv64): Excessive FP args can be passed in available GPRs.
-        if (DoubleStackNeedsPadding()) {
-          PushStack(0);
-          stack_entries_++;
-        }
-        if (kRegistersNeededForDouble == 1) {
-          PushStack(static_cast<uintptr_t>(val));
-          stack_entries_++;
-        } else {
-          PushStack(static_cast<uintptr_t>(val & 0xFFFFFFFF));
-          PushStack(static_cast<uintptr_t>((val >> 32) & 0xFFFFFFFF));
-          stack_entries_ += 2;
-        }
-        fpr_index_ = 0;
+    } else if (HaveDoubleFpr()) {
+      if (DoubleFprNeedsPadding()) {
+        PushFpr4(0);
+        fpr_index_--;
       }
+      PushFpr8(val);
+      fpr_index_ -= kRegistersNeededForDouble;
+    } else if (kNativeSoftFloatAfterHardFloat) {
+      // After using FP arg registers, pass FP args in general purpose registers or on the stack.
+      AdvanceLong(val);
+    } else {
+      if (DoubleStackNeedsPadding()) {
+        PushStack(0);
+        stack_entries_++;
+      }
+      if (kRegistersNeededForDouble == 1) {
+        PushStack(static_cast<uintptr_t>(val));
+        stack_entries_++;
+      } else {
+        PushStack(static_cast<uintptr_t>(val & 0xFFFFFFFF));
+        PushStack(static_cast<uintptr_t>((val >> 32) & 0xFFFFFFFF));
+        stack_entries_ += 2;
+      }
+      fpr_index_ = 0;
     }
   }
 
@@ -1915,7 +1920,7 @@ void BuildGenericJniFrameVisitor::Visit() {
       break;
     }
     case Primitive::kPrimFloat:
-      sm_.AdvanceFloat(*reinterpret_cast<float*>(GetParamAddress()));
+      sm_.AdvanceFloat(*reinterpret_cast<uint32_t*>(GetParamAddress()));
       current_vreg_ += 1u;
       break;
     case Primitive::kPrimBoolean:  // Fall-through.
