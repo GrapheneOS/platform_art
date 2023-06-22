@@ -355,7 +355,6 @@ void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
   const uint64_t total_ns = logger.GetTotalNs();
   const double seconds = NsToMs(total_ns) / 1000.0;
   const uint64_t freed_bytes = GetTotalFreedBytes();
-  const uint64_t freed_objects = GetTotalFreedObjects();
   const uint64_t scanned_bytes = GetTotalScannedBytes();
   {
     MutexLock mu(Thread::Current(), pause_histogram_lock_);
@@ -388,10 +387,8 @@ void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
   const double cpu_seconds = NsToMs(GetTotalCpuTime()) / 1000.0;
   os << GetName() << " total time: " << PrettyDuration(total_ns)
      << " mean time: " << PrettyDuration(total_ns / iterations) << "\n"
-     << GetName() << " freed: " << freed_objects
-     << " objects with total size " << PrettySize(freed_bytes) << "\n"
-     << GetName() << " throughput: " << freed_objects / seconds << "/s / "
-     << PrettySize(freed_bytes / seconds) << "/s"
+     << GetName() << " freed: " << PrettySize(freed_bytes) << "\n"
+     << GetName() << " throughput: " << PrettySize(freed_bytes / seconds) << "/s"
      << "  per cpu-time: "
      << static_cast<uint64_t>(freed_bytes / cpu_seconds) << "/s / "
      << PrettySize(freed_bytes / cpu_seconds) << "/s\n"

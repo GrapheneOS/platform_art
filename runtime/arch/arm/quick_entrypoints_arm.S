@@ -1175,9 +1175,6 @@ ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, art
     //
     // (Note: The actual check is done by checking that the object's class pointer is non-null.
     // Also, unlike rosalloc, the object can never be observed as null).
-    ldr    r1, [rSELF, #THREAD_LOCAL_OBJECTS_OFFSET]          // Increment thread_local_objects.
-    add    r1, r1, #1
-    str    r1, [rSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
     POISON_HEAP_REF r0
     str    r0, [r2, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
     mov    r0, r2
@@ -1236,9 +1233,6 @@ GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, art
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
     add    r2, r2, r3
     str    r2, [rSELF, #THREAD_LOCAL_POS_OFFSET]              // Store new thread_local_pos.
-    ldr    r2, [rSELF, #THREAD_LOCAL_OBJECTS_OFFSET]          // Increment thread_local_objects.
-    add    r2, r2, #1
-    str    r2, [rSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
     POISON_HEAP_REF r0
     str    r0, [r3, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
     str    r1, [r3, #MIRROR_ARRAY_LENGTH_OFFSET]              // Store the array length.
