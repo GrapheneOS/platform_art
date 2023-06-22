@@ -297,62 +297,55 @@ using CommonArtTestWithParam = CommonArtTestBase<testing::TestWithParam<Param>>;
 // matches the given name.
 std::vector<pid_t> GetPidByName(const std::string& process_name);
 
-#define TEST_DISABLED_FOR_TARGET() \
-  if (kIsTargetBuild) { \
-    printf("WARNING: TEST DISABLED FOR TARGET\n"); \
-    return; \
+#define TEST_DISABLED_FOR_TARGET()                       \
+  if (kIsTargetBuild) {                                  \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR TARGET"; \
   }
 
-#define TEST_DISABLED_FOR_HOST() \
-  if (!kIsTargetBuild) { \
-    printf("WARNING: TEST DISABLED FOR HOST\n"); \
-    return; \
+#define TEST_DISABLED_FOR_HOST()                       \
+  if (!kIsTargetBuild) {                               \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR HOST"; \
   }
 
-#define TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS() \
-  if (!kHostStaticBuildEnabled) { \
-    printf("WARNING: TEST DISABLED FOR NON-STATIC HOST BUILDS\n"); \
-    return; \
+#define TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS()                       \
+  if (!kHostStaticBuildEnabled) {                                        \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR NON-STATIC HOST BUILDS"; \
   }
 
-#define TEST_DISABLED_FOR_MEMORY_TOOL() \
-  if (kRunningOnMemoryTool) { \
-    printf("WARNING: TEST DISABLED FOR MEMORY TOOL\n"); \
-    return; \
+#define TEST_DISABLED_FOR_MEMORY_TOOL()                       \
+  if (kRunningOnMemoryTool) {                                 \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR MEMORY TOOL"; \
   }
 
-#define TEST_DISABLED_FOR_HEAP_POISONING() \
-  if (kPoisonHeapReferences) { \
-    printf("WARNING: TEST DISABLED FOR HEAP POISONING\n"); \
-    return; \
+#define TEST_DISABLED_FOR_HEAP_POISONING()                       \
+  if (kPoisonHeapReferences) {                                   \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR HEAP POISONING"; \
   }
 }  // namespace art
 
-#define TEST_DISABLED_FOR_MEMORY_TOOL_WITH_HEAP_POISONING() \
-  if (kRunningOnMemoryTool && kPoisonHeapReferences) { \
-    printf("WARNING: TEST DISABLED FOR MEMORY TOOL WITH HEAP POISONING\n"); \
-    return; \
+#define TEST_DISABLED_FOR_MEMORY_TOOL_WITH_HEAP_POISONING()                       \
+  if (kRunningOnMemoryTool && kPoisonHeapReferences) {                            \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR MEMORY TOOL WITH HEAP POISONING"; \
   }
 
-#define TEST_DISABLED_FOR_RISCV64() \
-  if (kRuntimeISA == InstructionSet::kRiscv64) { \
-    printf("WARNING: TEST DISABLED FOR RISCV64\n"); \
-    return; \
+#define TEST_DISABLED_FOR_RISCV64()                       \
+  if (kRuntimeISA == InstructionSet::kRiscv64) {          \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR RISCV64"; \
   }
 
 // Don't print messages on setup to avoid getting multiple "test disabled" messages for one test.
 // Setup phase may need to be disabled as some test rely on having boot image / compiler / other
 // things that are not implemented for RISC-V.
-#define TEST_SETUP_DISABLED_FOR_RISCV64() \
+#define TEST_SETUP_DISABLED_FOR_RISCV64()        \
   if (kRuntimeISA == InstructionSet::kRiscv64) { \
-    return; \
+    GTEST_SKIP();                                \
   }
 
 // Don't print messages on teardown to avoid getting multiple "test disabled" messages for one test.
 // Teardown phase may need to be disabled to match the disabled setup phase for some tests.
-#define TEST_TEARDOWN_DISABLED_FOR_RISCV64() \
+#define TEST_TEARDOWN_DISABLED_FOR_RISCV64()     \
   if (kRuntimeISA == InstructionSet::kRiscv64) { \
-    return; \
+    GTEST_SKIP();                                \
   }
 
 #endif  // ART_LIBARTBASE_BASE_COMMON_ART_TEST_H_
