@@ -120,6 +120,12 @@
                         "non-deterministic. Same for 913."]
     },
     {
+        "tests": "2264-throwing-systemcleaner",
+        "variant": "gcstress | gcverify",
+        "description": ["failing for unknown reasons"],
+        "bug": "http://b/288355042"
+    },
+    {
         "tests": ["1946-list-descriptors"],
         "variant": "gcverify | trace",
         "description": "This test is rather slow and gcverify or trace often cause it to timeout."
