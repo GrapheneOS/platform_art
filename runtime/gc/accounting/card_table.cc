@@ -106,7 +106,7 @@ void CardTable::ClearCardRange(uint8_t* start, uint8_t* end) {
   static_assert(kCardClean == 0, "kCardClean must be 0");
   uint8_t* start_card = CardFromAddr(start);
   uint8_t* end_card = CardFromAddr(end);
-  ZeroAndReleasePages(start_card, end_card - start_card);
+  ZeroAndReleaseMemory(start_card, end_card - start_card);
 }
 
 bool CardTable::AddrIsInCardTable(const void* addr) const {
