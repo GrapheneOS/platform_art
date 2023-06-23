@@ -315,6 +315,22 @@ const Iteration* GarbageCollector::GetCurrentIteration() const {
   return heap_->GetCurrentGcIteration();
 }
 
+bool GarbageCollector::ShouldEagerlyReleaseMemoryToOS() const {
+  Runtime* runtime = Runtime::Current();
+  // Zygote isn't a memory heavy process, we should always instantly release memory to the OS.
+  if (runtime->IsZygote()) {
+    return true;
+  }
+  if (GetCurrentIteration()->GetGcCause() == kGcCauseExplicit) {
+    // Our behavior with explicit GCs is to always release any available memory.
+    return true;
+  }
+  // Keep on the memory if the app is in foreground. If it is in background or
+  // goes into the background (see invocation with cause kGcCauseCollectorTransition),
+  // release the memory.
+  return !runtime->InJankPerceptibleProcessState();
+}
+
 void GarbageCollector::RecordFree(const ObjectBytePair& freed) {
   GetCurrentIteration()->freed_.Add(freed);
   heap_->RecordFree(freed.objects, freed.bytes);
