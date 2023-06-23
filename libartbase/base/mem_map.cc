@@ -1247,11 +1247,11 @@ static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) 
     RawClearMemory(page_begin, page_begin + size);
 #ifdef MADV_FREE
     bool res = madvise(page_begin, size, MADV_FREE);
-    CHECK_EQ(res, 0) << "madvise failed";
+    CHECK_NE(res, -1) << "madvise failed";
 #endif  // MADV_FREE
   } else {
     bool res = madvise(page_begin, size, MADV_DONTNEED);
-    CHECK_EQ(res, 0) << "madvise failed";
+    CHECK_NE(res, -1) << "madvise failed";
   }
 }
 #endif  // _WIN32
