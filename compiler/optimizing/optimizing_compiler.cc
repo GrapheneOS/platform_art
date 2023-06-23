@@ -414,11 +414,19 @@ void OptimizingCompiler::DumpInstructionSetFeaturesToCfg() const {
   std::string isa_string =
       std::string("isa:") + GetInstructionSetString(features->GetInstructionSet());
   std::string features_string = "isa_features:" + features->GetFeatureString();
+  std::string read_barrier_type = "none";
+  if (gUseReadBarrier) {
+    if (art::kUseBakerReadBarrier)
+      read_barrier_type = "baker";
+    else if (art::kUseTableLookupReadBarrier)
+      read_barrier_type = "tablelookup";
+  }
+  std::string read_barrier_string = ART_FORMAT("read_barrier_type:{}", read_barrier_type);
   // It is assumed that visualizer_output_ is empty when calling this function, hence the fake
   // compilation block containing the ISA features will be printed at the beginning of the .cfg
   // file.
-  *visualizer_output_
-      << HGraphVisualizer::InsertMetaDataAsCompilationBlock(isa_string + ' ' + features_string);
+  *visualizer_output_ << HGraphVisualizer::InsertMetaDataAsCompilationBlock(
+      isa_string + ' ' + features_string + ' ' + read_barrier_string);
 }
 
 bool OptimizingCompiler::CanCompileMethod([[maybe_unused]] uint32_t method_idx,

@@ -129,6 +129,7 @@ def evaluate_line(checker_line, variables):
   assert checker_line.is_eval_content_statement()
   # Required for eval.
   hasIsaFeature = lambda feature: variables["ISA_FEATURES"].get(feature, False)
+  readBarrierType = lambda barrier_type: variables["READ_BARRIER_TYPE"] == barrier_type
   eval_string = "".join(get_eval_text(expr,
                                       variables,
                                       checker_line) for expr in checker_line.expressions)

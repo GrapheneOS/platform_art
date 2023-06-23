@@ -77,6 +77,12 @@ def _parse_c1_line(c1_file, line, line_no, state, filename):
           features[feature_name] = is_enabled
 
         c1_file.set_isa_features(features)
+
+      # Check what type of read barrier is used
+      match = re.search(r"read_barrier_type:(\w+)", method_name)
+      if match:
+        c1_file.set_read_barrier_type(match.group(1))
+
       else:
         state.last_method_name = method_name
     elif line == "end_compilation":
