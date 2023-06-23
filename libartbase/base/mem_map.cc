@@ -839,20 +839,9 @@ void MemMap::ReleaseReservedMemory(size_t byte_count) {
   }
 }
 
-void MemMap::MadviseDontNeedAndZero() {
-  if (base_begin_ != nullptr || base_size_ != 0) {
-    if (!kMadviseZeroes) {
-      memset(base_begin_, 0, base_size_);
-    }
-#ifdef _WIN32
-    // It is benign not to madvise away the pages here.
-    PLOG(WARNING) << "MemMap::MadviseDontNeedAndZero does not madvise on Windows.";
-#else
-    int result = madvise(base_begin_, base_size_, MADV_DONTNEED);
-    if (result == -1) {
-      PLOG(WARNING) << "madvise failed";
-    }
-#endif
+void MemMap::FillWithZero(bool release_eagerly) {
+  if (base_begin_ != nullptr && base_size_ != 0) {
+    ZeroMemory(base_begin_, base_size_, release_eagerly);
   }
 }
 
@@ -1246,7 +1235,28 @@ void MemMap::TryReadable() {
   }
 }
 
-void ZeroAndReleasePages(void* address, size_t length) {
+static void inline RawClearMemory(uint8_t* begin, uint8_t* end) {
+  std::fill(begin, end, 0);
+}
+
+#ifndef _WIN32
+static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) {
+  DCHECK(IsAligned<kPageSize>(page_begin));
+  DCHECK(IsAligned<kPageSize>(page_begin + size));
+  if (resident) {
+    RawClearMemory(page_begin, page_begin + size);
+#ifdef MADV_FREE
+    bool res = madvise(page_begin, size, MADV_FREE);
+    CHECK_EQ(res, 0) << "madvise failed";
+#endif  // MADV_FREE
+  } else {
+    bool res = madvise(page_begin, size, MADV_DONTNEED);
+    CHECK_EQ(res, 0) << "madvise failed";
+  }
+}
+#endif  // _WIN32
+
+void ZeroMemory(void* address, size_t length, bool release_eagerly) {
   if (length == 0) {
     return;
   }
@@ -1256,20 +1266,51 @@ void ZeroAndReleasePages(void* address, size_t length) {
   uint8_t* const page_end = AlignDown(mem_end, kPageSize);
   if (!kMadviseZeroes || page_begin >= page_end) {
     // No possible area to madvise.
-    std::fill(mem_begin, mem_end, 0);
-  } else {
-    // Spans one or more pages.
-    DCHECK_LE(mem_begin, page_begin);
-    DCHECK_LE(page_begin, page_end);
-    DCHECK_LE(page_end, mem_end);
-    std::fill(mem_begin, page_begin, 0);
-#ifdef _WIN32
-    LOG(WARNING) << "ZeroAndReleasePages does not madvise on Windows.";
-#else
-    CHECK_NE(madvise(page_begin, page_end - page_begin, MADV_DONTNEED), -1) << "madvise failed";
-#endif
-    std::fill(page_end, mem_end, 0);
+    RawClearMemory(mem_begin, mem_end);
+    return;
   }
+  // Spans one or more pages.
+  DCHECK_LE(mem_begin, page_begin);
+  DCHECK_LE(page_begin, page_end);
+  DCHECK_LE(page_end, mem_end);
+#ifdef _WIN32
+  UNUSED(release_eagerly);
+  LOG(WARNING) << "ZeroMemory does not madvise on Windows.";
+  RawClearMemory(mem_begin, mem_end);
+#else
+  RawClearMemory(mem_begin, page_begin);
+  RawClearMemory(page_end, mem_end);
+  if (!release_eagerly) {
+    size_t vec_len = (page_end - page_begin) / kPageSize;
+    std::unique_ptr<unsigned char[]> vec(new unsigned char[vec_len]);
+    if (mincore(page_begin, page_end - page_begin, vec.get()) == 0) {
+      uint8_t* current_page = page_begin;
+      size_t current_size = kPageSize;
+      uint32_t old_state = vec[0] & 0x1;
+      for (size_t i = 1; i < vec_len; ++i) {
+        uint32_t new_state = vec[i] & 0x1;
+        if (old_state == new_state) {
+          current_size += kPageSize;
+        } else {
+          ClearMemory(current_page, current_size, old_state);
+          current_page = current_page + current_size;
+          current_size = kPageSize;
+          old_state = new_state;
+        }
+      }
+      ClearMemory(current_page, current_size, old_state);
+      return;
+    }
+    static bool logged_about_mincore = false;
+    if (!logged_about_mincore) {
+      PLOG(WARNING) << "mincore failed, falling back to madvise MADV_DONTNEED";
+      logged_about_mincore = true;
+    }
+    // mincore failed, fall through to MADV_DONTNEED.
+  }
+  bool res = madvise(page_begin, page_end - page_begin, MADV_DONTNEED);
+  CHECK_NE(res, -1) << "madvise failed";
+#endif
 }
 
 void MemMap::AlignBy(size_t alignment, bool align_both_ends) {
