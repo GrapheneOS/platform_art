@@ -348,7 +348,7 @@ ENTRY art_jni_dlsym_lookup_critical_stub
     sd    t3, FRAME_SIZE_SAVE_REFS_AND_ARGS+0(t1)
     sd    t4, FRAME_SIZE_SAVE_REFS_AND_ARGS+8(t1)
     addi  t1, t1, -16
-    bnez  t2, .Lcritical_skip_copy_args_back
+    bnez  t2, .Lcritical_copy_args_back_loop
 .Lcritical_skip_copy_args_back:
 
     // Remove the frame reservation.

@@ -37,6 +37,7 @@
 #include "base/casts.h"
 #include "base/globals.h"
 #include "base/memory_region.h"
+#include "gc_root.h"
 
 namespace art HIDDEN {
 
@@ -96,5 +97,22 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
       UNREACHABLE();
   }
 }
+
+template <PointerSize kPointerSize>
+void JNIMacroAssembler<kPointerSize>::LoadGcRootWithoutReadBarrier(ManagedRegister dest,
+                                                                   ManagedRegister base,
+                                                                   MemberOffset offs) {
+  static_assert(sizeof(uint32_t) == sizeof(GcRoot<mirror::Object>));
+  Load(dest, base, offs, sizeof(uint32_t));
+}
+
+template
+void JNIMacroAssembler<PointerSize::k32>::LoadGcRootWithoutReadBarrier(ManagedRegister dest,
+                                                                       ManagedRegister base,
+                                                                       MemberOffset offs);
+template
+void JNIMacroAssembler<PointerSize::k64>::LoadGcRootWithoutReadBarrier(ManagedRegister dest,
+                                                                       ManagedRegister base,
+                                                                       MemberOffset offs);
 
 }  // namespace art

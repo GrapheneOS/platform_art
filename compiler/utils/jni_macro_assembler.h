@@ -129,8 +129,13 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   // Load routines
   virtual void Load(ManagedRegister dest, FrameOffset src, size_t size) = 0;
   virtual void Load(ManagedRegister dest, ManagedRegister base, MemberOffset offs, size_t size) = 0;
-
   virtual void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset<kPointerSize> offs) = 0;
+
+  // Load reference from a `GcRoot<>`. The default is to load as `jint`. Some architectures
+  // (say, RISC-V) override this to provide a different sign- or zero-extension.
+  virtual void LoadGcRootWithoutReadBarrier(ManagedRegister dest,
+                                            ManagedRegister base,
+                                            MemberOffset offs);
 
   // Copying routines
 
