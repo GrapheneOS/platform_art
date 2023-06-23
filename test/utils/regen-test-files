@@ -752,6 +752,15 @@ class Generator:
         configuration.appendChild(xml_comment)
       for t in self.tests:
         append_module_controller_configuration(t)
+      for t in self.tests:
+        if t in ["CtsLibcoreTestCases", "CtsLibcoreOjTestCases"]:
+          xml_comment = root.createComment(
+            " core-test-mode=mts tells ExpectationBasedFilter to exclude @NonMts Tests ")
+          configuration.appendChild(xml_comment)
+          option = root.createElement("option")
+          option.setAttribute("name", "compatibility:module-arg")
+          option.setAttribute("value", f"{t}:instrumentation-arg:core-test-mode:=mts")
+          configuration.appendChild(option)
 
       xml_str = root.toprettyxml(indent = XML_INDENT, encoding = "utf-8")
 
