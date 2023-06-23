@@ -209,6 +209,36 @@ END \name
     call art_quick_test_suspend
 .endm
 
+// Fetch one or more half-word units from an offset past the current PC.
+// The offset is specified in 16-bit code units.
+//
+// A \width flag allows reading 32 bits (2 units) or 64 bits (4 units) from the offset.
+// The RISC-V ISA supports unaligned accesses for these wider loads.
+//
+// Default behavior loads one code unit with unsigned zext.
+// The \signed flag is for signed sext, for shorter loads.
+//
+// Does not advance xPC.
+.macro FETCH reg, count, signed=0, width=16
+    .if \width == 16
+      .if \signed
+        lh  \reg, (\count*2)(xPC)
+      .else
+        lhu  \reg, (\count*2)(xPC)
+      .endif
+    .elseif \width == 32
+      .if \signed
+        lw  \reg, (\count*2)(xPC)
+      .else
+        lwu  \reg, (\count*2)(xPC)
+      .endif
+    .elseif \width == 64
+      ld  \reg, (\count*2)(xPC)
+    .else
+      unimp  // impossible
+    .endif
+.endm
+
 // Fetch the next instruction, from xPC into xINST.
 // Does not advance xPC.
 .macro FETCH_INST
@@ -226,7 +256,7 @@ END \name
     addi xPC, xPC, (\count*2)
 .endm
 
-// Uses: \reg
+// Clobbers: \reg
 .macro GET_INST_OPCODE reg
     and \reg, xINST, 0xFF
 .endm
@@ -283,13 +313,61 @@ END \name
     j 2b
 .endm
 
+// 32 bit read
+// Clobbers: \reg
+// Safe if \reg == \vreg.
+.macro GET_VREG reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add \vreg, xFP, \vreg  // vreg addr in register array
+    lw \reg, (\vreg)       // reg := fp[vreg]
+.endm
+
+// 32 bit write
 // Clobbers: t0, \vreg
 .macro SET_VREG reg, vreg
     slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add t0, xFP, \vreg  // vreg address inside register array
-    sw \reg, (t0)  // store value in vreg
-    add t0, xREFS, \vreg  // vreg address inside reference array
-    sw zero, (t0)  // not an object, null out reference
+    add t0, xFP, \vreg     // vreg addr in register array
+    sw \reg, (t0)          // fp[vreg] := reg
+    add t0, xREFS, \vreg   // vreg addr in reference array
+    sw zero, (t0)          // refs[vreg] := null
+.endm
+
+// 64 bit read
+// Clobbers: \reg
+// Safe if \reg == \vreg.
+.macro GET_VREG_WIDE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add \vreg, xFP, \vreg  // vreg addr in register array
+    ld \reg, (\vreg)       // reg := fp[vreg](lo) | fp[vreg+1](hi)
+.endm
+
+// 64 bit write
+// Clobbers: t0, \vreg
+.macro SET_VREG_WIDE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add t0, xFP, \vreg     // vreg addr in register array
+    sd \reg, (t0)          // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
+    add t0, xREFS, \vreg   // vreg addr in reference array
+    sd zero, (t0)          // refs[vreg] := null ; refs[vreg+1] := null
+.endm
+
+// Object read
+// Clobbers: \reg
+// Safe if \reg == \vreg.
+.macro GET_VREG_OBJECT reg, vreg
+    slliw \vreg, \vreg, 2    // vreg id to byte offset
+    add \vreg, xREFS, \vreg  // vreg addr in reference array
+    lw \reg, (\vreg)         // reg := refs[vreg]
+.endm
+
+// Object write
+// Clobbers: t0, \vreg
+.macro SET_VREG_OBJECT reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add t0, xFP, \vreg     // vreg addr in register array
+    sw \reg, (t0)          // fp[vreg] := reg
+    add t0, xREFS, \vreg   // vreg addr in reference array
+    sw \reg, (t0)          // refs[vreg] := reg
 .endm
 
 %def entry():
