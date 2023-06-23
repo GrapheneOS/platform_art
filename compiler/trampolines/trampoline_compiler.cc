@@ -144,8 +144,12 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
       __ Jr(TMP);
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
-      // TODO(riscv64): implement this.
-      __ Unimp();
+      // Note: We use `TMP2` here because `TMP` can be used for source address by `Loadd()`.
+      __ Loadd(TMP2,
+               A0,
+               JNIEnvExt::SelfOffset(static_cast<size_t>(kRiscv64PointerSize)).Int32Value());
+      __ Loadd(TMP, TMP2, offset.Int32Value());
+      __ Jr(TMP);
       break;
     case kQuickAbi:  // TR holds Thread*.
       __ Loadd(TMP, TR, offset.Int32Value());
