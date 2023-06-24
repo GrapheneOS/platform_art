@@ -1245,6 +1245,8 @@ static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) 
   DCHECK(IsAligned<kPageSize>(page_begin + size));
   if (resident) {
     RawClearMemory(page_begin, page_begin + size);
+    // Note we check madvise return value against -1, as it seems old kernels
+    // can return 1.
 #ifdef MADV_FREE
     bool res = madvise(page_begin, size, MADV_FREE);
     CHECK_NE(res, -1) << "madvise failed";
@@ -1280,6 +1282,8 @@ void ZeroMemory(void* address, size_t length, bool release_eagerly) {
 #else
   RawClearMemory(mem_begin, page_begin);
   RawClearMemory(page_end, mem_end);
+// mincore() is linux-specific syscall.
+#if defined(__linux__)
   if (!release_eagerly) {
     size_t vec_len = (page_end - page_begin) / kPageSize;
     std::unique_ptr<unsigned char[]> vec(new unsigned char[vec_len]);
@@ -1308,9 +1312,10 @@ void ZeroMemory(void* address, size_t length, bool release_eagerly) {
     }
     // mincore failed, fall through to MADV_DONTNEED.
   }
+#endif  // __linux__
   bool res = madvise(page_begin, page_end - page_begin, MADV_DONTNEED);
   CHECK_NE(res, -1) << "madvise failed";
-#endif
+#endif  // _WIN32
 }
 
 void MemMap::AlignBy(size_t alignment, bool align_both_ends) {
