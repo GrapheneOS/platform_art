@@ -252,6 +252,20 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
       // Remove the check when all instructions are supported.
       // Cases are listed in opcode order (DEX_INSTRUCTION_LIST).
       switch (pair->Opcode()) {
+        case Instruction::NOP:
+        case Instruction::MOVE:
+        case Instruction::MOVE_FROM16:
+        case Instruction::MOVE_16:
+        case Instruction::MOVE_WIDE:
+        case Instruction::MOVE_WIDE_FROM16:
+        case Instruction::MOVE_WIDE_16:
+        case Instruction::MOVE_OBJECT:
+        case Instruction::MOVE_OBJECT_FROM16:
+        case Instruction::MOVE_OBJECT_16:
+        case Instruction::MOVE_RESULT:
+        case Instruction::MOVE_RESULT_WIDE:
+        case Instruction::MOVE_RESULT_OBJECT:
+        case Instruction::MOVE_EXCEPTION:
         case Instruction::RETURN_VOID:
         case Instruction::RETURN:
         case Instruction::RETURN_WIDE:
