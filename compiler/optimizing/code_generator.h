@@ -812,6 +812,10 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   StackMapStream* GetStackMapStream();
 
+  CodeGenerationData* GetCodeGenerationData() {
+    return code_generation_data_.get();
+  }
+
   void ReserveJitStringRoot(StringReference string_reference, Handle<mirror::String> string);
   uint64_t GetJitStringRootIndex(StringReference string_reference);
   void ReserveJitClassRoot(TypeReference type_reference, Handle<mirror::Class> klass);
