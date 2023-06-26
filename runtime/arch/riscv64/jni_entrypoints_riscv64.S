@@ -135,7 +135,7 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Call artCriticalNativeFrameSize(method, caller_pc)
     mv    a0, t0  // a0 := method (from hidden arg)
-    mv    a1, ra  // x1 := caller_pc
+    mv    a1, ra  // a1 := caller_pc
     call  artCriticalNativeFrameSize
 
     // Move frame size to T2.
