@@ -999,14 +999,7 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       boot_image_other_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
       call_entrypoint_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
       baker_read_barrier_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
-      uint32_literals_(std::less<uint32_t>(),
-                       graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
-      uint64_literals_(std::less<uint64_t>(),
-                       graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
-      jit_string_patches_(StringReferenceValueComparator(),
-                          graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
-      jit_class_patches_(TypeReferenceValueComparator(),
-                         graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      jit_patches_(&assembler_, graph->GetAllocator()),
       jit_baker_read_barrier_slow_paths_(std::less<uint32_t>(),
                                          graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)) {
   // Save the link register (containing the return address) to mimic Quick.
@@ -1304,7 +1297,7 @@ void CodeGeneratorARM64::MaybeIncrementHotness(bool is_frame_entry) {
     UseScratchRegisterScope temps(masm);
     Register temp = temps.AcquireX();
     Register counter = temps.AcquireW();
-    __ Ldr(temp, DeduplicateUint64Literal(address));
+    __ Ldr(temp, jit_patches_.DeduplicateUint64Literal(address));
     __ Ldrh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Cbz(counter, slow_path->GetEntryLabel());
     __ Add(counter, counter, -1);
@@ -4788,7 +4781,8 @@ void CodeGeneratorARM64::LoadMethod(MethodLoadKind load_kind, Location temp, HIn
     case MethodLoadKind::kJitDirectAddress: {
       // Load method address from literal pool.
       __ Ldr(XRegisterFrom(temp),
-             DeduplicateUint64Literal(reinterpret_cast<uint64_t>(invoke->GetResolvedMethod())));
+             jit_patches_.DeduplicateUint64Literal(
+                 reinterpret_cast<uint64_t>(invoke->GetResolvedMethod())));
       break;
     }
     case MethodLoadKind::kRuntimeCall: {
@@ -5129,25 +5123,8 @@ vixl::aarch64::Label* CodeGeneratorARM64::NewPcRelativePatch(
   return label;
 }
 
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateBootImageAddressLiteral(
-    uint64_t address) {
-  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address));
-}
-
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitStringLiteral(
-    const DexFile& dex_file, dex::StringIndex string_index, Handle<mirror::String> handle) {
-  ReserveJitStringRoot(StringReference(&dex_file, string_index), handle);
-  return jit_string_patches_.GetOrCreate(
-      StringReference(&dex_file, string_index),
-      [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* value= */ 0u); });
-}
-
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateJitClassLiteral(
-    const DexFile& dex_file, dex::TypeIndex type_index, Handle<mirror::Class> handle) {
-  ReserveJitClassRoot(TypeReference(&dex_file, type_index), handle);
-  return jit_class_patches_.GetOrCreate(
-      TypeReference(&dex_file, type_index),
-      [this]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(/* value= */ 0u); });
+void CodeGeneratorARM64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
+  jit_patches_.EmitJitRootPatches(code, roots_data, *GetCodeGenerationData());
 }
 
 void CodeGeneratorARM64::EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label,
@@ -5372,18 +5349,6 @@ void CodeGeneratorARM64::EmitThunkCode(const linker::LinkerPatch& patch,
   code->resize(assembler.CodeSize());
   MemoryRegion code_region(code->data(), code->size());
   assembler.CopyInstructions(code_region);
-}
-
-vixl::aarch64::Literal<uint32_t>* CodeGeneratorARM64::DeduplicateUint32Literal(uint32_t value) {
-  return uint32_literals_.GetOrCreate(
-      value,
-      [this, value]() { return __ CreateLiteralDestroyedWithPool<uint32_t>(value); });
-}
-
-vixl::aarch64::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateUint64Literal(uint64_t value) {
-  return uint64_literals_.GetOrCreate(
-      value,
-      [this, value]() { return __ CreateLiteralDestroyedWithPool<uint64_t>(value); });
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
@@ -7053,32 +7018,6 @@ void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instructi
         mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
     __ Ldr(XRegisterFrom(locations->Out()),
            MemOperand(XRegisterFrom(locations->Out()), method_offset));
-  }
-}
-
-static void PatchJitRootUse(uint8_t* code,
-                            const uint8_t* roots_data,
-                            vixl::aarch64::Literal<uint32_t>* literal,
-                            uint64_t index_in_table) {
-  uint32_t literal_offset = literal->GetOffset();
-  uintptr_t address =
-      reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
-  uint8_t* data = code + literal_offset;
-  reinterpret_cast<uint32_t*>(data)[0] = dchecked_integral_cast<uint32_t>(address);
-}
-
-void CodeGeneratorARM64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {
-  for (const auto& entry : jit_string_patches_) {
-    const StringReference& string_reference = entry.first;
-    vixl::aarch64::Literal<uint32_t>* table_entry_literal = entry.second;
-    uint64_t index_in_table = GetJitStringRootIndex(string_reference);
-    PatchJitRootUse(code, roots_data, table_entry_literal, index_in_table);
-  }
-  for (const auto& entry : jit_class_patches_) {
-    const TypeReference& type_reference = entry.first;
-    vixl::aarch64::Literal<uint32_t>* table_entry_literal = entry.second;
-    uint64_t index_in_table = GetJitClassRootIndex(type_reference);
-    PatchJitRootUse(code, roots_data, table_entry_literal, index_in_table);
   }
 }
 
