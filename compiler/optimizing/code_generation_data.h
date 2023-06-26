@@ -17,9 +17,12 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATION_DATA_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATION_DATA_H_
 
+#include <memory>
+
 #include "arch/instruction_set.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
+#include "code_generator.h"
 #include "dex/string_reference.h"
 #include "dex/type_reference.h"
 #include "handle.h"
@@ -29,8 +32,6 @@
 #include "stack_map_stream.h"
 
 namespace art HIDDEN {
-
-class SlowPathCode;
 
 class CodeGenerationData : public DeletableArenaObject<kArenaAllocCodeGenerator> {
  public:
