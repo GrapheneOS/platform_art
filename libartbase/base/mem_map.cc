@@ -1239,7 +1239,7 @@ static void inline RawClearMemory(uint8_t* begin, uint8_t* end) {
   std::fill(begin, end, 0);
 }
 
-#ifndef _WIN32
+#if defined(__linux__)
 static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) {
   DCHECK(IsAligned<kPageSize>(page_begin));
   DCHECK(IsAligned<kPageSize>(page_begin + size));
@@ -1256,7 +1256,7 @@ static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) 
     CHECK_NE(res, -1) << "madvise failed";
   }
 }
-#endif  // _WIN32
+#endif  // __linux__
 
 void ZeroMemory(void* address, size_t length, bool release_eagerly) {
   if (length == 0) {
@@ -1312,6 +1312,8 @@ void ZeroMemory(void* address, size_t length, bool release_eagerly) {
     }
     // mincore failed, fall through to MADV_DONTNEED.
   }
+#else
+  UNUSED(release_eagerly);
 #endif  // __linux__
   bool res = madvise(page_begin, page_end - page_begin, MADV_DONTNEED);
   CHECK_NE(res, -1) << "madvise failed";
