@@ -271,14 +271,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
   }
 
-  static uint32_t ComputeRegisterMask(const int* registers, size_t length) {
-    uint32_t mask = 0;
-    for (size_t i = 0, e = length; i < e; ++i) {
-      mask |= (1 << registers[i]);
-    }
-    return mask;
-  }
-
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
@@ -758,6 +750,15 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
+
+  template <typename RegType>
+  static uint32_t ComputeRegisterMask(const RegType* registers, size_t length) {
+    uint32_t mask = 0;
+    for (size_t i = 0, e = length; i < e; ++i) {
+      mask |= (1 << registers[i]);
+    }
+    return mask;
+  }
 
   // Returns the location of the first spilled entry for floating point registers,
   // relative to the stack pointer.
