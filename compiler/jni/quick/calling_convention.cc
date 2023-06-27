@@ -124,7 +124,7 @@ bool ManagedRuntimeCallingConvention::IsCurrentArgPossiblyNull() {
 }
 
 size_t ManagedRuntimeCallingConvention::CurrentParamSize() {
-  return ParamSize(itr_args_);
+  return ParamSize(itr_args_, /*reference_size=*/ sizeof(mirror::HeapReference<mirror::Object>));
 }
 
 bool ManagedRuntimeCallingConvention::IsCurrentParamAReference() {
@@ -204,7 +204,7 @@ bool JniCallingConvention::HasNext() {
   if (IsCurrentArgExtraForJni()) {
     return true;
   } else {
-    unsigned int arg_pos = GetIteratorPositionWithinShorty();
+    size_t arg_pos = GetIteratorPositionWithinShorty();
     return arg_pos < NumArgs();
   }
 }
@@ -236,7 +236,7 @@ bool JniCallingConvention::IsCurrentParamAReference() {
                               &return_value)) {
     return return_value;
   } else {
-    int arg_pos = GetIteratorPositionWithinShorty();
+    size_t arg_pos = GetIteratorPositionWithinShorty();
     return IsParamAReference(arg_pos);
   }
 }
@@ -258,7 +258,7 @@ bool JniCallingConvention::IsCurrentParamAFloatOrDouble() {
                               &return_value)) {
     return return_value;
   } else {
-    int arg_pos = GetIteratorPositionWithinShorty();
+    size_t arg_pos = GetIteratorPositionWithinShorty();
     return IsParamAFloatOrDouble(arg_pos);
   }
 }
@@ -272,7 +272,7 @@ bool JniCallingConvention::IsCurrentParamADouble() {
                               &return_value)) {
     return return_value;
   } else {
-    int arg_pos = GetIteratorPositionWithinShorty();
+    size_t arg_pos = GetIteratorPositionWithinShorty();
     return IsParamADouble(arg_pos);
   }
 }
@@ -286,7 +286,7 @@ bool JniCallingConvention::IsCurrentParamALong() {
                               &return_value)) {
     return return_value;
   } else {
-    int arg_pos = GetIteratorPositionWithinShorty();
+    size_t arg_pos = GetIteratorPositionWithinShorty();
     return IsParamALong(arg_pos);
   }
 }
@@ -295,8 +295,9 @@ size_t JniCallingConvention::CurrentParamSize() const {
   if (IsCurrentArgExtraForJni()) {
     return static_cast<size_t>(frame_pointer_size_);  // JNIEnv or jobject/jclass
   } else {
-    int arg_pos = GetIteratorPositionWithinShorty();
-    return ParamSize(arg_pos);
+    size_t arg_pos = GetIteratorPositionWithinShorty();
+    // References are converted to `jobject` for the native call. Pass `frame_pointer_size_`.
+    return ParamSize(arg_pos, /*reference_size=*/ static_cast<size_t>(frame_pointer_size_));
   }
 }
 
@@ -321,7 +322,7 @@ bool JniCallingConvention::HasSelfClass() const {
   }
 }
 
-unsigned int JniCallingConvention::GetIteratorPositionWithinShorty() const {
+size_t JniCallingConvention::GetIteratorPositionWithinShorty() const {
   // We need to subtract out the extra JNI arguments if we want to use this iterator position
   // with the inherited CallingConvention member functions, which rely on scanning the shorty.
   // Note that our shorty does *not* include the JNIEnv, jclass/jobject parameters.

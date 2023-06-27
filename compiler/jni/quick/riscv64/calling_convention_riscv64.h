@@ -65,6 +65,7 @@ class Riscv64JniCallingConvention final : public JniCallingConvention {
   ArrayRef<const ManagedRegister> ArgumentScratchRegisters() const override;
   uint32_t CoreSpillMask() const override;
   uint32_t FpSpillMask() const override;
+  size_t CurrentParamSize() const override;
   bool IsCurrentParamInRegister() override;
   bool IsCurrentParamOnStack() override;
   ManagedRegister CurrentParamRegister() override;
