@@ -16,15 +16,6 @@
 
 #include "asm_support_riscv64.S"
 
-UNDEFINED art_jni_method_start
-UNDEFINED art_jni_method_end
-UNDEFINED art_jni_read_barrier
-UNDEFINED art_jni_method_entry_hook
-UNDEFINED art_jni_lock_object_no_inline
-UNDEFINED art_jni_lock_object
-UNDEFINED art_jni_unlock_object_no_inline
-UNDEFINED art_jni_unlock_object
-
 
 // 8 argument GPRS: a0 - a7 and 8 argument FPRs: fa0 - fa7
 #define ALL_ARGS_SIZE (8 * (8 + 8))
@@ -35,49 +26,92 @@ UNDEFINED art_jni_unlock_object
     INCREASE_FRAME (ALL_ARGS_SIZE + \extra_space)
 
     // Argument GPRs a0 - a7.
-    SAVE_GPR a0, (8*0)
-    SAVE_GPR a1, (8*1)
-    SAVE_GPR a2, (8*2)
-    SAVE_GPR a3, (8*3)
-    SAVE_GPR a4, (8*4)
-    SAVE_GPR a5, (8*5)
-    SAVE_GPR a6, (8*6)
-    SAVE_GPR a7, (8*7)
+    sd    a0, (8*0)(sp)
+    sd    a1, (8*1)(sp)
+    sd    a2, (8*2)(sp)
+    sd    a3, (8*3)(sp)
+    sd    a4, (8*4)(sp)
+    sd    a5, (8*5)(sp)
+    sd    a6, (8*6)(sp)
+    sd    a7, (8*7)(sp)
 
     // Argument FPRs fa0 - fa7.
-    SAVE_FPR fa0, (8*8)
-    SAVE_FPR fa1, (8*9)
-    SAVE_FPR fa2, (8*10)
-    SAVE_FPR fa3, (8*11)
-    SAVE_FPR fa4, (8*12)
-    SAVE_FPR fa5, (8*13)
-    SAVE_FPR fa6, (8*14)
-    SAVE_FPR fa7, (8*15)
+    fsd   fa0, (8*8)(sp)
+    fsd   fa1, (8*9)(sp)
+    fsd   fa2, (8*10)(sp)
+    fsd   fa3, (8*11)(sp)
+    fsd   fa4, (8*12)(sp)
+    fsd   fa5, (8*13)(sp)
+    fsd   fa6, (8*14)(sp)
+    fsd   fa7, (8*15)(sp)
 .endm
 
 
 .macro RESTORE_ALL_ARGS_DECREASE_FRAME extra_space
     // Argument GPRs a0 - a7.
-    RESTORE_GPR a0, (8*0)
-    RESTORE_GPR a1, (8*1)
-    RESTORE_GPR a2, (8*2)
-    RESTORE_GPR a3, (8*3)
-    RESTORE_GPR a4, (8*4)
-    RESTORE_GPR a5, (8*5)
-    RESTORE_GPR a6, (8*6)
-    RESTORE_GPR a7, (8*7)
+    ld    a0, (8*0)(sp)
+    ld    a1, (8*1)(sp)
+    ld    a2, (8*2)(sp)
+    ld    a3, (8*3)(sp)
+    ld    a4, (8*4)(sp)
+    ld    a5, (8*5)(sp)
+    ld    a6, (8*6)(sp)
+    ld    a7, (8*7)(sp)
 
     // Argument FPRs fa0 - fa7.
-    RESTORE_FPR fa0, (8*8)
-    RESTORE_FPR fa1, (8*9)
-    RESTORE_FPR fa2, (8*10)
-    RESTORE_FPR fa3, (8*11)
-    RESTORE_FPR fa4, (8*12)
-    RESTORE_FPR fa5, (8*13)
-    RESTORE_FPR fa6, (8*14)
-    RESTORE_FPR fa7, (8*15)
+    fld   fa0, (8*8)(sp)
+    fld   fa1, (8*9)(sp)
+    fld   fa2, (8*10)(sp)
+    fld   fa3, (8*11)(sp)
+    fld   fa4, (8*12)(sp)
+    fld   fa5, (8*13)(sp)
+    fld   fa6, (8*14)(sp)
+    fld   fa7, (8*15)(sp)
 
     DECREASE_FRAME (ALL_ARGS_SIZE + \extra_space)
+.endm
+
+
+.macro JNI_SAVE_MANAGED_ARGS_TRAMPOLINE name, cxx_name, arg1 = "none"
+    .extern \cxx_name
+ENTRY \name
+    // Save args and RA.
+    SAVE_ALL_ARGS_INCREASE_FRAME /*padding*/ 8 + /*RA*/ 8
+    SAVE_GPR ra, (ALL_ARGS_SIZE + /*padding*/ 8)
+    // Call `cxx_name()`.
+    .ifnc \arg1, none
+        mv    a0, \arg1
+    .endif
+    call   \cxx_name
+    // Restore RA and args and return.
+    RESTORE_GPR ra, (ALL_ARGS_SIZE + /*padding*/ 8)
+    RESTORE_ALL_ARGS_DECREASE_FRAME /*padding*/ 8 + /*RA*/ 8
+    ret
+END \name
+.endm
+
+
+.macro JNI_SAVE_RETURN_VALUE_TRAMPOLINE name, cxx_name, arg1, arg2 = "none"
+    .extern \cxx_name
+ENTRY \name
+    // Save return registers and return address.
+    INCREASE_FRAME 32
+    sd    a0, 0(sp)
+    fsd   fa0, 8(sp)
+    SAVE_GPR ra, 24
+    // Call `cxx_name()`.
+    mv    a0, \arg1
+    .ifnc \arg2, none
+        mv    a1, \arg2
+    .endif
+    call  \cxx_name
+    // Restore result registers and return.
+    ld    a0, 0(sp)
+    fld   fa0, 8(sp)
+    RESTORE_GPR ra, 24
+    DECREASE_FRAME 32
+    ret
+END \name
 .endm
 
 
@@ -413,3 +447,107 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_jni_dlsym_lookup_critical_stub
+
+    /*
+     * Read barrier for the method's declaring class needed by JNI stub for static methods.
+     * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
+     */
+// The method argument is already in a0 for call to `artJniReadBarrier(ArtMethod*)`.
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier
+
+    /*
+     * Trampoline to `artJniMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, xSELF
+
+    /*
+     * Trampoline to `artJniMethodEntryHook` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_entry_hook, artJniMethodEntryHook, xSELF
+
+    /*
+     * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_monitored_method_start, artJniMonitoredMethodStart, xSELF
+
+    /*
+     * Trampoline to `artJniMethodEnd()` that preserves all return registers.
+     */
+JNI_SAVE_RETURN_VALUE_TRAMPOLINE art_jni_method_end, artJniMethodEnd, xSELF
+
+    /*
+     * Trampoline to `artJniMonitoredMethodEnd()` that preserves all return registers.
+     */
+JNI_SAVE_RETURN_VALUE_TRAMPOLINE art_jni_monitored_method_end, artJniMonitoredMethodEnd, xSELF
+
+    /*
+     * Entry from JNI stub that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` (the same as for managed code) for the
+     * difficult cases, may block for GC.
+     * Custom calling convention:
+     *     T0 holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     All argument registers need to be preserved.
+     */
+ENTRY art_jni_lock_object
+    LOCK_OBJECT_FAST_PATH t0, art_jni_lock_object_no_inline, /*can_be_null*/ 0
+END art_jni_lock_object
+
+    /*
+     * Entry from JNI stub that calls `artLockObjectFromCode()`
+     * (the same as for managed code), may block for GC.
+     * Custom calling convention:
+     *     T0 holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     All argument registers need to be preserved.
+     */
+    .extern artLockObjectFromCode
+ENTRY art_jni_lock_object_no_inline
+    // This is also the slow path for art_jni_lock_object.
+    // Save args and RA.
+    SAVE_ALL_ARGS_INCREASE_FRAME /*padding*/ 8 + /*RA*/ 8
+    SAVE_GPR ra, (ALL_ARGS_SIZE + /*padding*/ 8)
+    // Call `artLockObjectFromCode()`.
+    mv    a0, t0                     // Pass the object to lock.
+    mv    a1, xSELF                  // Pass Thread::Current().
+    call  artLockObjectFromCode      // (Object* obj, Thread*)
+    // Restore return address.
+    RESTORE_GPR ra, (ALL_ARGS_SIZE + /*padding*/ 8)
+    // Check result.
+    bnez   a0, 1f
+    // Restore register args a0-a7, fa0-fa7 and return.
+    RESTORE_ALL_ARGS_DECREASE_FRAME /*padding*/ 8 + /*RA*/ 8
+    ret
+    .cfi_adjust_cfa_offset (ALL_ARGS_SIZE + /*padding*/ 8 + /*RA*/ 8)
+1:
+    // All args are irrelevant when throwing an exception. Remove the spill area.
+    DECREASE_FRAME (ALL_ARGS_SIZE + /*padding*/ 8 + /*RA*/ 8)
+    // Make a tail call to `artDeliverPendingExceptionFromCode()`.
+    // Rely on the JNI transition frame constructed in the JNI stub.
+    mv     a0, xSELF                           // Pass Thread::Current().
+    tail   artDeliverPendingExceptionFromCode  // (Thread*)
+END art_jni_lock_object_no_inline
+
+    /*
+     * Entry from JNI stub that tries to unlock the object in a fast path and calls
+     * `artJniUnlockObject()` for the difficult cases. Note that failure to unlock
+     * is fatal, so we do not need to check for exceptions in the slow path.
+     * Custom calling convention:
+     *     T0 holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     Return registers a0 and fa0 need to be preserved.
+     */
+ENTRY art_jni_unlock_object
+    UNLOCK_OBJECT_FAST_PATH t0, art_jni_unlock_object_no_inline, /*can_be_null*/ 0
+END art_jni_unlock_object
+
+    /*
+     * Entry from JNI stub that calls `artJniUnlockObject()`. Note that failure to
+     * unlock is fatal, so we do not need to check for exceptions.
+     * Custom calling convention:
+     *     T0 holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     Return registers a0 and fa0 need to be preserved.
+     */
+    // This is also the slow path for art_jni_unlock_object.
+JNI_SAVE_RETURN_VALUE_TRAMPOLINE art_jni_unlock_object_no_inline, artJniUnlockObject, t0, xSELF

@@ -795,6 +795,4 @@ UNDEFINED art_quick_throw_null_pointer_exception
 UNDEFINED art_quick_throw_stack_overflow
 UNDEFINED art_quick_throw_string_bounds
 UNDEFINED art_quick_update_inline_cache
-UNDEFINED art_jni_monitored_method_start
-UNDEFINED art_jni_monitored_method_end
 UNDEFINED art_quick_indexof
