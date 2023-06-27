@@ -1142,8 +1142,7 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
                     kNumberOfCpuRegisters,
                     kNumberOfXmmRegisters,
                     kNumberOfRegisterPairs,
-                    ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
-                                        arraysize(kCoreCalleeSaves))
+                    ComputeRegisterMask(kCoreCalleeSaves, arraysize(kCoreCalleeSaves))
                         | (1 << kFakeReturnRegister),
                     0,
                     compiler_options,
