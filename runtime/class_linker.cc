@@ -2204,11 +2204,16 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
   }
 
   if (!runtime->IsAotCompiler()) {
-    // If we are profiling the boot classpath, disable the shared memory for
-    // boot image method optimization. We need to disable it before doing
-    // ResetCounter below, as counters of shared memory method always hold the
-    // "hot" value.
-    if (runtime->GetJITOptions()->GetProfileSaverOptions().GetProfileBootClassPath()) {
+    // If the boot image is not loaded by the zygote, we don't need the shared
+    // memory optimization.
+    // If we are profiling the boot classpath, we disable the shared memory
+    // optimization to make sure boot classpath methods all get properly
+    // profiled.
+    //
+    // We need to disable the flag before doing ResetCounter below, as counters
+    // of shared memory method always hold the "hot" value.
+    if (!runtime->IsZygote() ||
+        runtime->GetJITOptions()->GetProfileSaverOptions().GetProfileBootClassPath()) {
       header.VisitPackedArtMethods([&](ArtMethod& method) REQUIRES_SHARED(Locks::mutator_lock_) {
         method.ClearMemorySharedMethod();
       }, space->Begin(), image_pointer_size_);
