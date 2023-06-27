@@ -1533,11 +1533,9 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
                     kNumberOfCpuRegisters,
                     kNumberOfFloatRegisters,
                     kNumberOfCpuRegisterPairs,
-                    ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
-                                        arraysize(kCoreCalleeSaves))
+                    ComputeRegisterMask(kCoreCalleeSaves, arraysize(kCoreCalleeSaves))
                         | (1 << kFakeReturnRegister),
-                    ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
-                                        arraysize(kFpuCalleeSaves)),
+                    ComputeRegisterMask(kFpuCalleeSaves, arraysize(kFpuCalleeSaves)),
                     compiler_options,
                     stats,
                     ArrayRef<const bool>(detail::kIsIntrinsicUnimplemented)),
