@@ -327,8 +327,7 @@ TEST_F(CmdlineParserTest, TestLogVerbosity) {
   }
 }  // TEST_F
 
-// TODO: Enable this b/19274810
-TEST_F(CmdlineParserTest, DISABLED_TestXGcOption) {
+TEST_F(CmdlineParserTest, TestXGcOption) {
   /*
    * Test success
    */
