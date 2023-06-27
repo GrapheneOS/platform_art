@@ -178,14 +178,18 @@ class CallingConvention : public DeletableArenaObject<kArenaAllocCallingConventi
   size_t NumReferenceArgs() const {
     return num_ref_args_;
   }
-  size_t ParamSize(unsigned int param) const {
+  size_t ParamSize(size_t param, size_t reference_size) const {
     DCHECK_LT(param, NumArgs());
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
-      return sizeof(mirror::HeapReference<mirror::Object>);  // this argument
+      return reference_size;  // this argument
     }
-    size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[param]));
+    Primitive::Type type = Primitive::GetType(shorty_[param]);
+    if (type == Primitive::kPrimNot) {
+      return reference_size;
+    }
+    size_t result = Primitive::ComponentSize(type);
     if (result >= 1 && result < 4) {
       result = 4;
     }
@@ -344,7 +348,7 @@ class JniCallingConvention : public CallingConvention {
     return IsCurrentParamALong() || IsCurrentParamADouble();
   }
   bool IsCurrentParamJniEnv();
-  size_t CurrentParamSize() const;
+  virtual size_t CurrentParamSize() const;
   virtual bool IsCurrentParamInRegister() = 0;
   virtual bool IsCurrentParamOnStack() = 0;
   virtual ManagedRegister CurrentParamRegister() = 0;
@@ -432,7 +436,7 @@ class JniCallingConvention : public CallingConvention {
   bool HasSelfClass() const;
 
   // Returns the position of itr_args_, fixed up by removing the offset of extra JNI arguments.
-  unsigned int GetIteratorPositionWithinShorty() const;
+  size_t GetIteratorPositionWithinShorty() const;
 
   // Is the current argument (at the iterator) an extra argument for JNI?
   bool IsCurrentArgExtraForJni() const;

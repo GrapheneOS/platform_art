@@ -446,14 +446,12 @@ LockWord JniCompilerTest::GetLockWord(jobject obj) {
 // 1) synchronized keyword
 # define JNI_TEST_NORMAL_ONLY(TestName)          \
   TEST_F(JniCompilerTest, TestName ## NormalCompiler) { \
-    TEST_DISABLED_FOR_RISCV64(); \
     ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("Normal JNI with compiler");    \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
     TestName ## Impl();                          \
   }                                              \
   TEST_F(JniCompilerTest, TestName ## NormalGeneric) { \
-    TEST_DISABLED_FOR_RISCV64(); \
     ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("Normal JNI with generic");     \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
