@@ -588,10 +588,13 @@ void AddNativeDebugInfoForJit(const void* code_ptr,
                                             /*allow_packing=*/ allow_packing,
                                             /*is_compressed=*/ false);
 
-  VLOG(jit)
-      << "JIT mini-debug-info added"
-      << " for " << code_ptr
-      << " size=" << PrettySize(symfile.size());
+  if (code_ptr == nullptr) {
+    VLOG(jit) << "JIT mini-debug-info added for new type, size=" << PrettySize(symfile.size());
+  } else {
+    VLOG(jit)
+        << "JIT mini-debug-info added for native code at " << code_ptr
+        << ", size=" << PrettySize(symfile.size());
+  }
 
   // Automatically repack entries on regular basis to save space.
   // Pack (but don't compress) recent entries - this is cheap and reduces memory use by ~4x.
