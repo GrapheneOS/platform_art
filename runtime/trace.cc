@@ -871,13 +871,22 @@ void Trace::FinishTracing() {
     os << "gc-count=" <<  Runtime::Current()->GetStat(KIND_GC_INVOCATIONS) << "\n";
   }
   os << StringPrintf("%cthreads\n", kTraceTokenChar);
-  DumpThreadList(os);
+  {
+    // TODO(b/280558212): Moving the Mutexlock out of DumpThreadList to try and
+    // narrow down where seg fault is happening. Change this after the bug is
+    // fixed.
+    Thread* self = Thread::Current();
+    CHECK_NE(self, nullptr);
+    MutexLock mu(self, tracing_lock_);
+    DumpThreadList(os);
+  }
   os << StringPrintf("%cmethods\n", kTraceTokenChar);
   DumpMethodList(os);
   os << StringPrintf("%cend\n", kTraceTokenChar);
   std::string header(os.str());
 
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
+    DCHECK_NE(trace_file_.get(), nullptr);
     // It is expected that this method is called when all other threads are suspended, so there
     // cannot be any writes to trace_file_ after finish tracing.
     // Write a special token to mark the end of trace records and the start of
@@ -1290,7 +1299,6 @@ void Trace::DumpMethodList(std::ostream& os) {
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
-  MutexLock mu(Thread::Current(), tracing_lock_);
   for (const auto& it : threads_list_) {
     os << GetThreadEncoding(it.first) << "\t" << it.second << "\n";
   }
