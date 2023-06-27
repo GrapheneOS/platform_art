@@ -114,6 +114,8 @@ using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
 using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
 
+constexpr uid_t kRootUid = 0;
+
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
   return make_scope_guard([old_logger = std::move(old_logger)]() mutable {
@@ -1837,6 +1839,11 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpClassesAndMethods) {
 }
 
 TEST_F(ArtdTest, cleanup) {
+  // TODO(b/289037540): Fix this.
+  if (getuid() != kRootUid) {
+    GTEST_SKIP() << "This test requires root access";
+  }
+
   std::vector<std::string> gc_removed_files;
   std::vector<std::string> gc_kept_files;
 
