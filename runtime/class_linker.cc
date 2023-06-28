@@ -2424,7 +2424,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
         ObjPtr<mirror::Object> old_ref = root.Read<kWithoutReadBarrier>();
         if (old_ref != nullptr) {
-          DCHECK(old_ref->IsClass());
+          DCHECK(old_ref->IsClass() || old_ref->IsString());
           root.VisitRoot(visitor, RootInfo(kRootStickyClass));
           ObjPtr<mirror::Object> new_ref = root.Read<kWithoutReadBarrier>();
           // Concurrent moving GC marked new roots through the to-space invariant.
