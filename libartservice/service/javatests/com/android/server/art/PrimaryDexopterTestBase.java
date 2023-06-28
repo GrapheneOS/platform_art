@@ -150,8 +150,6 @@ public class PrimaryDexopterTestBase {
         lenient().when(pkgState.getPackageName()).thenReturn(PKG_NAME);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn("arm64-v8a");
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
-        lenient().when(pkgState.isSystem()).thenReturn(false);
-        lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
         lenient().when(pkgState.getAppId()).thenReturn(UID);
         lenient().when(pkgState.getSharedLibraryDependencies()).thenReturn(new ArrayList<>());
         lenient().when(pkgState.getStateForUser(any())).thenReturn(mPkgUserStateNotInstalled);

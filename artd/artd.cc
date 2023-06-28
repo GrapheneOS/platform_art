@@ -18,8 +18,8 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
-#include <sys/statfs.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -64,6 +64,7 @@
 #include "cmdline_types.h"
 #include "exec_utils.h"
 #include "file_utils.h"
+#include "fstab/fstab.h"
 #include "oat_file_assistant.h"
 #include "oat_file_assistant_context.h"
 #include "path_utils.h"
@@ -71,10 +72,6 @@
 #include "selinux/android.h"
 #include "tools/cmdline_builder.h"
 #include "tools/tools.h"
-
-#ifdef __BIONIC__
-#include <linux/incrementalfs.h>
-#endif
 
 namespace art {
 namespace artd {
@@ -106,6 +103,7 @@ using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringReplace;
 using ::android::base::WriteStringToFd;
+using ::android::fs_mgr::FstabEntry;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
@@ -1068,22 +1066,35 @@ ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
   return ScopedAStatus::ok();
 }
 
-ScopedAStatus Artd::isIncrementalFsPath(const std::string& in_dexFile [[maybe_unused]],
-                                        bool* _aidl_return) {
-#ifdef __BIONIC__
+ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_return) {
+  // The artifacts should be in the global dalvik-cache directory if:
+  // (1). the dex file is on a system partition, even if the partition is remounted read-write,
+  //      or
+  // (2). the dex file is in any other readonly location. (At the time of writing, this only
+  //      include Incremental FS.)
+  //
+  // We cannot rely on access(2) because:
+  // - It doesn't take effective capabilities into account, from which artd gets root access
+  //   to the filesystem.
+  // - The `faccessat` variant with the `AT_EACCESS` flag, which takes effective capabilities
+  //   into account, is not supported by bionic.
+
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
-  struct statfs st;
-  if (statfs(in_dexFile.c_str(), &st) != 0) {
-    PLOG(ERROR) << ART_FORMAT("Failed to statfs '{}'", in_dexFile);
-    *_aidl_return = false;
+
+  std::vector<FstabEntry> entries = OR_RETURN_NON_FATAL(GetProcMountsEntriesForPath(in_dexFile));
+  // The last one controls because `/proc/mounts` reflects the sequence of `mount`.
+  for (auto it = entries.rbegin(); it != entries.rend(); it++) {
+    if (it->fs_type == "overlay") {
+      // Ignore the overlays created by `remount`.
+      continue;
+    }
+    // We need to special-case Incremental FS since it is tagged as read-write while it's actually
+    // not.
+    *_aidl_return = (it->flags & MS_RDONLY) != 0 || it->fs_type == "incremental-fs";
     return ScopedAStatus::ok();
   }
-  *_aidl_return = st.f_type == INCFS_MAGIC_NUMBER;
-  return ScopedAStatus::ok();
-#else
-  *_aidl_return = false;
-  return ScopedAStatus::ok();
-#endif
+
+  return NonFatal(ART_FORMAT("Fstab entries not found for '{}'", in_dexFile));
 }
 
 Result<void> Artd::Start() {
