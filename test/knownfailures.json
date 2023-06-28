@@ -1580,11 +1580,5 @@
         "tests": ["2262-miranda-methods"],
         "variant": "jvm",
         "description": ["jvm doesn't seem to support calling miranda methods via CallNonVirtual."]
-    },
-    {
-        "tests": ["092-locale"],
-        "env_vars": {"ART_USE_READ_BARRIER": "false"},
-        "bug": "b/288532125",
-        "description": ["Crashes during shutdown"]
     }
 ]
