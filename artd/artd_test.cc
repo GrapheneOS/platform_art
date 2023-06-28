@@ -44,6 +44,7 @@
 #include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
+#include "android-base/result-gmock.h"
 #include "android-base/result.h"
 #include "android-base/scopeguard.h"
 #include "android-base/strings.h"
@@ -89,6 +90,7 @@ using ::android::base::ScopeGuard;
 using ::android::base::Split;
 using ::android::base::WriteStringToFd;
 using ::android::base::WriteStringToFile;
+using ::android::base::testing::HasValue;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyNumber;
@@ -1958,6 +1960,32 @@ TEST_F(ArtdTest, cleanup) {
   for (const std::string& path : gc_kept_files) {
     EXPECT_TRUE(std::filesystem::exists(path)) << ART_FORMAT("'{}' should be kept", path);
   }
+}
+
+TEST_F(ArtdTest, isInDalvikCache) {
+  TEST_DISABLED_FOR_HOST();
+
+  if (GetProcMountsEntriesForPath("/")->empty()) {
+    GTEST_SKIP() << "Skipped for chroot";
+  }
+
+  auto is_in_dalvik_cache = [this](const std::string& dex_file) -> Result<bool> {
+    bool result;
+    ndk::ScopedAStatus status = artd_->isInDalvikCache(dex_file, &result);
+    if (!status.isOk()) {
+      return Error() << status.getMessage();
+    }
+    return result;
+  };
+
+  EXPECT_THAT(is_in_dalvik_cache("/system/app/base.apk"), HasValue(true));
+  EXPECT_THAT(is_in_dalvik_cache("/system_ext/app/base.apk"), HasValue(true));
+  EXPECT_THAT(is_in_dalvik_cache("/vendor/app/base.apk"), HasValue(true));
+  EXPECT_THAT(is_in_dalvik_cache("/product/app/base.apk"), HasValue(true));
+  EXPECT_THAT(is_in_dalvik_cache("/data/app/base.apk"), HasValue(false));
+
+  // Test a path where we don't expect to find packages. The method should still work.
+  EXPECT_THAT(is_in_dalvik_cache("/foo"), HasValue(true));
 }
 
 }  // namespace
