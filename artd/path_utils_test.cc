@@ -258,6 +258,22 @@ TEST_F(PathUtilsTest, BuildVdexPath) {
       HasValue("/a/oat/arm64/b.vdex"));
 }
 
+TEST_F(PathUtilsTest, PathStartsWith) {
+  EXPECT_TRUE(PathStartsWith("/a/b", "/a"));
+  EXPECT_TRUE(PathStartsWith("/a/b", "/a/"));
+
+  EXPECT_FALSE(PathStartsWith("/a/c", "/a/b"));
+  EXPECT_FALSE(PathStartsWith("/ab", "/a"));
+
+  EXPECT_TRUE(PathStartsWith("/a", "/a"));
+  EXPECT_TRUE(PathStartsWith("/a/", "/a"));
+  EXPECT_TRUE(PathStartsWith("/a", "/a/"));
+
+  EXPECT_TRUE(PathStartsWith("/a", "/"));
+  EXPECT_TRUE(PathStartsWith("/", "/"));
+  EXPECT_FALSE(PathStartsWith("/", "/a"));
+}
+
 }  // namespace
 }  // namespace artd
 }  // namespace art
