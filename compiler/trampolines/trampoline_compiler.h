@@ -28,8 +28,6 @@
 namespace art HIDDEN {
 
 enum EntryPointCallingConvention {
-  // ABI of invocations to a method's interpreter entry point.
-  kInterpreterAbi,
   // ABI of calls to a method's native code, only used for native methods.
   kJniAbi,
   // ABI of calls to a method's quick code entry point.
