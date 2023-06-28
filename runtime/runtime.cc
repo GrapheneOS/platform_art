@@ -3014,7 +3014,7 @@ std::string Runtime::GetFaultMessage() {
 void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
   if (GetInstrumentation()->InterpretOnly()) {
-    argv->push_back("--compiler-filter=quicken");
+    argv->push_back("--compiler-filter=verify");
   }
 
   // Make the dex2oat instruction set match that of the launching runtime. If we have multiple

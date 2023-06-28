@@ -47,8 +47,6 @@ ClassStatus QuickCompilerCallbacks::GetPreviousClassState(ClassReference ref) {
     return ClassStatus::kNotReady;
   }
   DCHECK(compiler_driver_ != nullptr);
-  // In the case of the quicken filter: avoiding verification of quickened instructions, which the
-  // verifier doesn't currently support.
   // In the case of the verify filter, avoiding verifiying twice.
   return compiler_driver_->GetClassStatus(ref);
 }
