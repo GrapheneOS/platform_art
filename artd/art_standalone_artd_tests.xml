@@ -15,8 +15,6 @@
 -->
 <!-- Note: This test config file for {MODULE} is generated from a template. -->
 <configuration description="Runs {MODULE}.">
-    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
-
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="{MODULE}->/data/local/tmp/{MODULE}/{MODULE}" />
