@@ -98,14 +98,9 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
     LOG(FATAL) << "unimplemented";
     UNREACHABLE();
   }
-  Riscv64Assembler* GetAssembler() override {
-    LOG(FATAL) << "Unimplemented";
-    UNREACHABLE();
-  }
-  const Riscv64Assembler& GetAssembler() const override {
-    LOG(FATAL) << "Unimplemented";
-    UNREACHABLE();
-  }
+
+  Riscv64Assembler* GetAssembler() override { return &assembler_; }
+  const Riscv64Assembler& GetAssembler() const override { return assembler_; }
 
   HGraphVisitor* GetLocationBuilder() override {
     LOG(FATAL) << "Unimplemented";
@@ -182,6 +177,9 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
                            Location temp,
                            SlowPathCode* slow_path = nullptr) override;
   void MoveFromReturnRegister(Location trg, DataType::Type type) override;
+
+ private:
+  Riscv64Assembler assembler_;
 };
 
 }  // namespace riscv64
