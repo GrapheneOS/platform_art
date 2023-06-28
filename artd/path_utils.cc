@@ -28,6 +28,7 @@
 #include "base/file_utils.h"
 #include "file_utils.h"
 #include "fmt/format.h"
+#include "fstab/fstab.h"
 #include "oat_file_assistant.h"
 #include "tools/tools.h"
 
@@ -42,6 +43,10 @@ using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Error;
 using ::android::base::Result;
+using ::android::base::StartsWith;
+using ::android::fs_mgr::Fstab;
+using ::android::fs_mgr::FstabEntry;
+using ::android::fs_mgr::ReadFstabFromProcMounts;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
@@ -274,6 +279,27 @@ Result<std::string> BuildProfileOrDmPath(const ProfilePath& profile_path) {
 Result<std::string> BuildVdexPath(const VdexPath& vdex_path) {
   DCHECK(vdex_path.getTag() == VdexPath::artifactsPath);
   return OatPathToVdexPath(OR_RETURN(BuildOatPath(vdex_path.get<VdexPath::artifactsPath>())));
+}
+
+bool PathStartsWith(std::string_view path, std::string_view prefix) {
+  CHECK(!prefix.empty() && !path.empty() && prefix[0] == '/' && path[0] == '/');
+  android::base::ConsumeSuffix(&prefix, "/");
+  return StartsWith(path, prefix) &&
+         (path.length() == prefix.length() || path[prefix.length()] == '/');
+}
+
+Result<std::vector<FstabEntry>> GetProcMountsEntriesForPath(const std::string& path) {
+  Fstab fstab;
+  if (!ReadFstabFromProcMounts(&fstab)) {
+    return Errorf("Failed to read fstab from /proc/mounts");
+  }
+  std::vector<FstabEntry> entries;
+  for (FstabEntry& entry : fstab) {
+    if (PathStartsWith(path, entry.mount_point)) {
+      entries.push_back(std::move(entry));
+    }
+  }
+  return entries;
 }
 
 }  // namespace artd
