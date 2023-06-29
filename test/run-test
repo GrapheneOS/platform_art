@@ -994,6 +994,18 @@ if True:
     runner.chmod(0o777)
     return runner
 
+  def do_dump_cfg():
+    assert run_optimizing == "true", ("The CFG can be dumped only in"
+                                      " optimizing mode")
+    if target_mode == "yes":
+      if ON_VM:
+        run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/'
+            f'{cfg_output} {dump_cfg_path}"')
+      else:
+        run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+    else:
+      run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+
   # Test might not execute anything but we still expect the output files to exist.
   Path(test_stdout).touch()
   Path(test_stderr).touch()
@@ -1022,13 +1034,18 @@ if True:
     else:
       run("adb push {} {}".format(push_files, chroot_dex_location))
 
-    if ON_VM:
-      run(f"{SSH_CMD} {CHROOT_CMD} bash {DEX_LOCATION}/run.sh",
-          fail_message=f"Runner {chroot_dex_location}/run.sh failed")
-    else:
-      chroot_prefix = f"chroot {chroot}" if chroot else ""
-      run(f"adb shell {chroot_prefix} sh {DEX_LOCATION}/run.sh",
-          fail_message=f"Runner {chroot_dex_location}/run.sh failed")
+    try:
+      if ON_VM:
+        run(f"{SSH_CMD} {CHROOT_CMD} bash {DEX_LOCATION}/run.sh",
+            fail_message=f"Runner {chroot_dex_location}/run.sh failed")
+      else:
+        chroot_prefix = f"chroot {chroot}" if chroot else ""
+        run(f"adb shell {chroot_prefix} sh {DEX_LOCATION}/run.sh",
+            fail_message=f"Runner {chroot_dex_location}/run.sh failed")
+    finally:
+      # Copy the generated CFG to the specified path.
+      if dump_cfg == "true":
+        do_dump_cfg()
 
     # Copy the on-device stdout/stderr to host.
     pull_files = [test_stdout, test_stderr, "expected-stdout.txt", "expected-stderr.txt"]
@@ -1069,30 +1086,26 @@ if True:
     run(f'''echo "ABI: 'x86_64'" | cat - "{test_stdout}" "{test_stderr}"'''
         f"""| {ANDROID_BUILD_TOP}/development/scripts/stack | tail -n 3000""")
   print("####################", flush=True)
-  if proc_out.returncode != 0 or proc_err.returncode != 0:
-    kind = ((["stdout"] if proc_out.returncode != 0 else []) +
-            (["stderr"] if proc_err.returncode != 0 else []))
-    fail("{} did not match the expected file".format(" and ".join(kind)))
 
-  if run_checker == "yes":
-    if target_mode == "yes":
-      if ON_VM:
-        run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/{cfg_output}"')
-      else:
-        run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}"',
-        fail_message="CFG checker failed")
+  try:
+    if proc_out.returncode != 0 or proc_err.returncode != 0:
+      kind = ((["stdout"] if proc_out.returncode != 0 else []) +
+              (["stderr"] if proc_err.returncode != 0 else []))
+      fail("{} did not match the expected file".format(" and ".join(kind)))
 
-  # Copy the generated CFG to the specified path.
-  if dump_cfg == "true":
-    assert run_optimizing == "true", "The CFG can be dumped only in optimizing mode"
-    if target_mode == "yes":
-      if ON_VM:
-        run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/{cfg_output} {dump_cfg_output}"')
-      else:
-        run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
-    else:
-      run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+    if run_checker == "yes":
+      if target_mode == "yes":
+        if ON_VM:
+          run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/'
+              f'{cfg_output}"')
+        else:
+          run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+      run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}"',
+          fail_message="CFG checker failed")
+  finally:
+    # Copy the generated CFG to the specified path.
+    if dump_cfg == "true":
+      do_dump_cfg()
 
   clean_up(passed=True)
   print(f"{COLOR_GREEN}{test_dir}: PASSED{COLOR_NORMAL}")
