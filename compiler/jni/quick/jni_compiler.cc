@@ -621,7 +621,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
           main_jni_conv->CalleeSaveScratchRegisters()[0], kObjectReferenceSize);
       // Load the declaring class reference.
       DCHECK_EQ(ArtMethod::DeclaringClassOffset().SizeValue(), 0u);
-      __ Load(temp, method_register, MemberOffset(0u), kObjectReferenceSize);
+      __ LoadGcRootWithoutReadBarrier(temp, method_register, MemberOffset(0u));
       // Return to main path if the class object is marked.
       __ TestMarkBit(temp, jclass_read_barrier_return.get(), JNIMacroUnaryCondition::kNotZero);
     }
