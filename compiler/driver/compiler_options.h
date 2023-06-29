@@ -115,9 +115,7 @@ class CompilerOptions final {
   }
 
   bool IsAnyCompilationEnabled() const {
-    return CompilerFilter::IsAnyCompilationEnabled(compiler_filter_) &&
-           // TODO(riscv64): remove this when we have compiler support for RISC-V
-           GetInstructionSet() != InstructionSet::kRiscv64;
+    return CompilerFilter::IsAnyCompilationEnabled(compiler_filter_);
   }
 
   size_t GetHugeMethodThreshold() const {

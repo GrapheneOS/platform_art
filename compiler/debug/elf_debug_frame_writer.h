@@ -90,7 +90,26 @@ static void WriteCIE(InstructionSet isa, /*inout*/ std::vector<uint8_t>* buffer)
       return;
     }
     case InstructionSet::kRiscv64: {
-      UNIMPLEMENTED(FATAL);
+      dwarf::DebugFrameOpCodeWriter<> opcodes;
+      opcodes.DefCFA(Reg::Riscv64Core(2), 0);  // X2(SP).
+      // core registers.
+      for (int reg = 3; reg < 32; reg++) {  // Skip X0 (Zero), X1 (RA) and X2 (SP).
+        if ((reg >= 5 && reg < 8) || (reg >= 10 && reg < 18) || reg >= 28) {
+          opcodes.Undefined(Reg::Riscv64Core(reg));
+        } else {
+          opcodes.SameValue(Reg::Riscv64Core(reg));
+        }
+      }
+      // fp registers.
+      for (int reg = 0; reg < 32; reg++) {
+        if (reg < 8 || (reg >=10 && reg < 18) || reg >= 28) {
+          opcodes.Undefined(Reg::Riscv64Fp(reg));
+        } else {
+          opcodes.SameValue(Reg::Riscv64Fp(reg));
+        }
+      }
+      auto return_reg = Reg::Riscv64Core(1);  // X1(RA).
+      WriteCIE(is64bit, return_reg, opcodes, buffer);
       return;
     }
     case InstructionSet::kX86: {
