@@ -266,6 +266,12 @@ TEST_F(JniMacroAssemblerRiscv64Test, Load) {
   expected += "addi t6, s1, 0x7f8\n"
               "ld s11, 0x408(t6)\n";
 
+  __ LoadGcRootWithoutReadBarrier(AsManaged(T0), AsManaged(A0), MemberOffset(0));
+  expected += "lwu t0, 0(a0)\n";
+  __ LoadGcRootWithoutReadBarrier(AsManaged(T1), AsManaged(S2), MemberOffset(0x800));
+  expected += "addi t6, s2, 0x7f8\n"
+              "lwu t1, 8(t6)\n";
+
   DriverStr(expected, "Load");
 }
 
@@ -428,7 +434,7 @@ TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
               "1:\n"
               "ld t5, 76(sp)\n"
               "sd t5, 0(sp)\n"
-              "lw t5, 84(sp)\n"
+              "lwu t5, 84(sp)\n"
               "beqz t5, 2f\n"
               "addi t5, sp, 84\n"
               "2:\n"

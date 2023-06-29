@@ -236,6 +236,14 @@ void Riscv64JNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister m_dest, Thre
   Load(m_dest, tr, MemberOffset(offs.Int32Value()), static_cast<size_t>(kRiscv64PointerSize));
 }
 
+void Riscv64JNIMacroAssembler::LoadGcRootWithoutReadBarrier(ManagedRegister m_dest,
+                                                            ManagedRegister m_base,
+                                                            MemberOffset offs) {
+  Riscv64ManagedRegister base = m_base.AsRiscv64();
+  Riscv64ManagedRegister dest = m_dest.AsRiscv64();
+  __ Loadwu(dest.AsXRegister(), base.AsXRegister(), offs.Int32Value());
+}
+
 void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
                                              ArrayRef<ArgumentLocation> srcs,
                                              ArrayRef<FrameOffset> refs) {
@@ -291,7 +299,13 @@ void Riscv64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
           ? src.GetRegister().AsRiscv64()
           : Riscv64ManagedRegister::FromXRegister(TMP2);
       if (!src.IsRegister()) {
-        Load(reg, src.GetFrameOffset(), src.GetSize());
+        if (ref != kInvalidReferenceOffset) {
+          // We're loading the reference only for comparison with null, so it does not matter
+          // if we sign- or zero-extend but let's correctly zero-extend the reference anyway.
+          __ Loadwu(reg.AsRiscv64().AsXRegister(), SP, src.GetFrameOffset().SizeValue());
+        } else {
+          Load(reg, src.GetFrameOffset(), src.GetSize());
+        }
       }
       if (ref != kInvalidReferenceOffset) {
         DCHECK_NE(i, 0u);
