@@ -68,6 +68,9 @@ class Riscv64JNIMacroAssembler  : public JNIMacroAssemblerFwd<Riscv64Assembler, 
   void Load(ManagedRegister dest, FrameOffset offs, size_t size) override;
   void Load(ManagedRegister dest, ManagedRegister base, MemberOffset offs, size_t size) override;
   void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset64 offs) override;
+  void LoadGcRootWithoutReadBarrier(ManagedRegister dest,
+                                    ManagedRegister base,
+                                    MemberOffset offs) override;
 
   // Copying routines.
   void MoveArguments(ArrayRef<ArgumentLocation> dests,
