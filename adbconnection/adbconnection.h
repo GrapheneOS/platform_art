@@ -17,21 +17,19 @@
 #ifndef ART_ADBCONNECTION_ADBCONNECTION_H_
 #define ART_ADBCONNECTION_ADBCONNECTION_H_
 
+#include <jni.h>
 #include <stdint.h>
-#include <memory>
-#include <vector>
-#include <limits>
-
-#include "android-base/unique_fd.h"
-#include "adbconnection/client.h"
-
-#include "base/mutex.h"
-#include "base/array_ref.h"
-#include "runtime_callbacks.h"
-
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <jni.h>
+
+#include <limits>
+#include <memory>
+#include <vector>
+
+#include "adbconnection/client.h"
+#include "base/array_ref.h"
+#include "base/mutex.h"
+#include "runtime_callbacks.h"
 
 namespace adbconnection {
 
@@ -102,8 +100,6 @@ class AdbConnectionState {
   bool SetupAdbConnection();
 
   std::string MakeAgentArg();
-
-  android::base::unique_fd ReadFdFromAdb();
 
   void SendAgentFds(bool require_handshake);
 
