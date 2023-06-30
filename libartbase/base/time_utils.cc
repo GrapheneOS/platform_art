@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define _POSIX_THREAD_SAFE_FUNCTIONS  // For mingw localtime_r().
+
 #include "time_utils.h"
 
 #include <inttypes.h>
@@ -133,11 +135,6 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
 std::string GetIsoDate() {
   tm tmbuf;
   int ns;
-#ifdef _WIN32
-  time_t now = time(nullptr);
-  localtime_s(&tmbuf, &now);
-  ns = 0;
-#else
   if (__builtin_available(macOS 10.12, *)) {
     timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
@@ -148,7 +145,6 @@ std::string GetIsoDate() {
     localtime_r(&now, &tmbuf);
     ns = 0;
   }
-#endif
   char zone[16] = {};
   strftime(zone, sizeof(zone), "%z", &tmbuf);
   return StringPrintf("%04d-%02d-%02d %02d:%02d:%02d.%09d%s",
