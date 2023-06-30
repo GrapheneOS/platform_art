@@ -30,6 +30,7 @@
 #include "adbconnection/client.h"
 #include "android-base/endian.h"
 #include "android-base/stringprintf.h"
+#include "android-base/unique_fd.h"
 #include "art_field-inl.h"
 #include "art_method-alloc-inl.h"
 #include "base/file_utils.h"
@@ -481,10 +482,6 @@ void AdbConnectionState::SendAgentFds(bool require_handshake) {
     sent_agent_fds_ = true;
     VLOG(jdwp) << "Fds have been sent to jdwp agent!";
   }
-}
-
-android::base::unique_fd AdbConnectionState::ReadFdFromAdb() {
-  return android::base::unique_fd(adbconnection_client_receive_jdwp_fd(control_ctx_.get()));
 }
 
 bool AdbConnectionState::SetupAdbConnection() {
