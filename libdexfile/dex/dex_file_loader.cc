@@ -148,9 +148,72 @@ std::string DexFileLoader::GetMultiDexClassesDexName(size_t index) {
 }
 
 std::string DexFileLoader::GetMultiDexLocation(size_t index, const char* dex_location) {
-  return (index == 0)
-      ? dex_location
-      : StringPrintf("%s%cclasses%zu.dex", dex_location, kMultiDexSeparator, index + 1);
+  if (index == 0) {
+    return dex_location;
+  }
+  DCHECK(!IsMultiDexLocation(dex_location));
+  return StringPrintf("%s%cclasses%zu.dex", dex_location, kMultiDexSeparator, index + 1);
+}
+
+bool DexFileLoader::GetMultiDexChecksum(std::optional<uint32_t>* checksum,
+                                        std::string* error_msg,
+                                        bool* only_contains_uncompressed_dex) {
+  CHECK(checksum != nullptr);
+  checksum->reset();  // Return nullopt for an empty zip archive.
+
+  uint32_t magic;
+  if (!InitAndReadMagic(&magic, error_msg)) {
+    return false;
+  }
+
+  if (IsZipMagic(magic)) {
+    std::unique_ptr<ZipArchive> zip_archive(
+        file_.has_value() ?
+            ZipArchive::OpenFromOwnedFd(file_->Fd(), location_.c_str(), error_msg) :
+            ZipArchive::OpenFromMemory(
+                root_container_->Begin(), root_container_->Size(), location_.c_str(), error_msg));
+    if (zip_archive.get() == nullptr) {
+      DCHECK(!error_msg->empty());
+      return false;
+    }
+    if (only_contains_uncompressed_dex != nullptr) {
+      *only_contains_uncompressed_dex = true;
+    }
+    for (size_t i = 0;; ++i) {
+      std::string name = GetMultiDexClassesDexName(i);
+      std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(name.c_str(), error_msg));
+      if (zip_entry == nullptr) {
+        break;
+      }
+      if (only_contains_uncompressed_dex != nullptr) {
+        if (!(zip_entry->IsUncompressed() && zip_entry->IsAlignedTo(alignof(DexFile::Header)))) {
+          *only_contains_uncompressed_dex = false;
+        }
+      }
+      *checksum = checksum->value_or(kEmptyMultiDexChecksum) ^ zip_entry->GetCrc32();
+    }
+    return true;
+  }
+  if (!MapRootContainer(error_msg)) {
+    return false;
+  }
+  const uint8_t* begin = root_container_->Begin();
+  const uint8_t* end = root_container_->End();
+  for (const uint8_t* ptr = begin; ptr < end;) {
+    const auto* header = reinterpret_cast<const DexFile::Header*>(ptr);
+    size_t size = dchecked_integral_cast<size_t>(end - ptr);
+    if (size < sizeof(*header) || !IsMagicValid(ptr)) {
+      *error_msg = StringPrintf("Invalid dex header: '%s'", filename_.c_str());
+      return false;
+    }
+    if (size < header->file_size_) {
+      *error_msg = StringPrintf("Truncated dex file: '%s'", filename_.c_str());
+      return false;
+    }
+    *checksum = checksum->value_or(kEmptyMultiDexChecksum) ^ header->checksum_;
+    ptr += header->file_size_;
+  }
+  return true;
 }
 
 std::string DexFileLoader::GetDexCanonicalLocation(const char* dex_location) {
