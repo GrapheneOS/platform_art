@@ -941,100 +941,86 @@ void Riscv64Assembler::Csrci(uint32_t csr, uint32_t uimm5) {
 }
 
 void Riscv64Assembler::Loadb(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lb(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lb>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadh(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lh(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lh>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadw(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lw(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lw>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadd(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Ld(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Ld>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadbu(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lbu(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lbu>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadhu(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lhu(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lhu>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Loadwu(XRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  Lwu(rd, rs1, offset);
+  LoadFromOffset<&Riscv64Assembler::Lwu>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::Storeb(XRegister rs2, XRegister rs1, int32_t offset) {
-  CHECK_NE(rs2, TMP);
-  AdjustBaseAndOffset(rs1, offset);
-  Sb(rs2, rs1, offset);
+  StoreToOffset<&Riscv64Assembler::Sb>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::Storeh(XRegister rs2, XRegister rs1, int32_t offset) {
-  CHECK_NE(rs2, TMP);
-  AdjustBaseAndOffset(rs1, offset);
-  Sh(rs2, rs1, offset);
+  StoreToOffset<&Riscv64Assembler::Sh>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::Storew(XRegister rs2, XRegister rs1, int32_t offset) {
-  CHECK_NE(rs2, TMP);
-  AdjustBaseAndOffset(rs1, offset);
-  Sw(rs2, rs1, offset);
+  StoreToOffset<&Riscv64Assembler::Sw>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::Stored(XRegister rs2, XRegister rs1, int32_t offset) {
-  CHECK_NE(rs2, TMP);
-  AdjustBaseAndOffset(rs1, offset);
-  Sd(rs2, rs1, offset);
+  StoreToOffset<&Riscv64Assembler::Sd>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::FLoadw(FRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  FLw(rd, rs1, offset);
+  FLoadFromOffset<&Riscv64Assembler::FLw>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::FLoadd(FRegister rd, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  FLd(rd, rs1, offset);
+  FLoadFromOffset<&Riscv64Assembler::FLd>(rd, rs1, offset);
 }
 
 void Riscv64Assembler::FStorew(FRegister rs2, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  FSw(rs2, rs1, offset);
+  FStoreToOffset<&Riscv64Assembler::FSw>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::FStored(FRegister rs2, XRegister rs1, int32_t offset) {
-  AdjustBaseAndOffset(rs1, offset);
-  FSd(rs2, rs1, offset);
+  FStoreToOffset<&Riscv64Assembler::FSd>(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::LoadConst32(XRegister rd, int32_t value) {
-  LoadImmediate(rd, value, /*can_use_tmp=*/ false);  // No need to use TMP for 32-bit values.
+  // No need to use a temporary register for 32-bit values.
+  LoadImmediate(rd, value, /*can_use_tmp=*/ false);
 }
 
 void Riscv64Assembler::LoadConst64(XRegister rd, int64_t value) {
-  CHECK_NE(rd, TMP);
   LoadImmediate(rd, value, /*can_use_tmp=*/ true);
 }
 
 template <typename ValueType, typename Addi, typename AddLarge>
-void AddConstImpl(XRegister rd,
+void AddConstImpl(Riscv64Assembler* assembler,
+                  XRegister rd,
                   XRegister rs1,
                   ValueType value,
                   Addi&& addi,
                   AddLarge&& add_large) {
-  CHECK_NE(rs1, TMP);
+  ScratchRegisterScope srs(assembler);
+  // A temporary must be available for adjustment even if it's not needed.
+  // However, `rd` can be used as the temporary unless it's the same as `rs1` or SP.
+  DCHECK_IMPLIES(rd == rs1 || rd == SP, srs.AvailableXRegisters() != 0u);
+
   if (IsInt<12>(value)) {
     addi(rd, rs1, value);
     return;
@@ -1045,38 +1031,46 @@ void AddConstImpl(XRegister rd,
   constexpr int32_t kNegativeValueSimpleAdjustment = -0x800;
   constexpr int32_t kLowestValueForSimpleAdjustment = 2 * kNegativeValueSimpleAdjustment;
 
+  if (rd != rs1 && rd != SP) {
+    srs.IncludeXRegister(rd);
+  }
+  XRegister tmp = srs.AllocateXRegister();
   if (value >= 0 && value <= kHighestValueForSimpleAdjustment) {
-    addi(TMP, rs1, kPositiveValueSimpleAdjustment);
-    addi(rd, TMP, value - kPositiveValueSimpleAdjustment);
+    addi(tmp, rs1, kPositiveValueSimpleAdjustment);
+    addi(rd, tmp, value - kPositiveValueSimpleAdjustment);
   } else if (value < 0 && value >= kLowestValueForSimpleAdjustment) {
-    addi(TMP, rs1, kNegativeValueSimpleAdjustment);
-    addi(rd, TMP, value - kNegativeValueSimpleAdjustment);
+    addi(tmp, rs1, kNegativeValueSimpleAdjustment);
+    addi(rd, tmp, value - kNegativeValueSimpleAdjustment);
   } else {
-    add_large(rd, rs1, value);
+    add_large(rd, rs1, value, tmp);
   }
 }
 
 void Riscv64Assembler::AddConst32(XRegister rd, XRegister rs1, int32_t value) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  CHECK_EQ((1u << rd) & available_scratch_core_registers_, 0u);
   auto addiw = [&](XRegister rd, XRegister rs1, int32_t value) { Addiw(rd, rs1, value); };
-  auto add_large = [&](XRegister rd, XRegister rs1, int32_t value) {
-    LoadConst32(TMP, value);
-    Addw(rd, rs1, TMP);
+  auto add_large = [&](XRegister rd, XRegister rs1, int32_t value, XRegister tmp) {
+    LoadConst32(tmp, value);
+    Addw(rd, rs1, tmp);
   };
-  AddConstImpl(rd, rs1, value, addiw, add_large);
+  AddConstImpl(this, rd, rs1, value, addiw, add_large);
 }
 
 void Riscv64Assembler::AddConst64(XRegister rd, XRegister rs1, int64_t value) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  CHECK_EQ((1u << rd) & available_scratch_core_registers_, 0u);
   auto addi = [&](XRegister rd, XRegister rs1, int32_t value) { Addi(rd, rs1, value); };
-  auto add_large = [&](XRegister rd, XRegister rs1, int64_t value) {
-    // We cannot load TMP with `LoadConst64()`, so use `Li()`.
+  auto add_large = [&](XRegister rd, XRegister rs1, int64_t value, XRegister tmp) {
+    // We may not have another scratch register for `LoadConst64()`, so use `Li()`.
     // TODO(riscv64): Refactor `LoadImmediate()` so that we can reuse the code to detect
-    // when the code path using the `TMP` is beneficial, and use that path with a small
-    // modification - instead of adding the two parts togeter, add them individually
-    // to the input `rs1`. (This works as long as `rd` is not `TMP`.)
-    Li(TMP, value);
-    Add(rd, rs1, TMP);
+    // when the code path using the scratch reg is beneficial, and use that path with a
+    // small modification - instead of adding the two parts togeter, add them individually
+    // to the input `rs1`. (This works as long as `rd` is not the same as `tmp`.)
+    Li(tmp, value);
+    Add(rd, rs1, tmp);
   };
-  AddConstImpl(rd, rs1, value, addi, add_large);
+  AddConstImpl(this, rd, rs1, value, addi, add_large);
 }
 
 void Riscv64Assembler::Beqz(XRegister rs, Riscv64Label* label, bool is_bare) {
@@ -1998,8 +1992,11 @@ void Riscv64Assembler::EmitLiterals() {
 
 // This method is used to adjust the base register and offset pair for
 // a load/store when the offset doesn't fit into 12-bit signed integer.
-void Riscv64Assembler::AdjustBaseAndOffset(XRegister& base, int32_t& offset) {
-  CHECK_NE(base, TMP);  // The `TMP` is reserved for adjustment even if it's not needed.
+void Riscv64Assembler::AdjustBaseAndOffset(XRegister& base,
+                                           int32_t& offset,
+                                           ScratchRegisterScope& srs) {
+  // A scratch register must be available for adjustment even if it's not needed.
+  CHECK_NE(srs.AvailableXRegisters(), 0u);
   if (IsInt<12>(offset)) {
     return;
   }
@@ -2013,6 +2010,7 @@ void Riscv64Assembler::AdjustBaseAndOffset(XRegister& base, int32_t& offset) {
   constexpr int32_t kNegativeOffsetSimpleAdjustment = -0x800;
   constexpr int32_t kLowestOffsetForSimpleAdjustment = 2 * kNegativeOffsetSimpleAdjustment;
 
+  XRegister tmp = srs.AllocateXRegister();
   if (offset >= 0 && offset <= kHighestOffsetForSimpleAdjustment) {
     // Make the adjustment 8-byte aligned (0x7f8) except for offsets that cannot be reached
     // with this adjustment, then try 4-byte alignment, then just half of the offset.
@@ -2022,27 +2020,67 @@ void Riscv64Assembler::AdjustBaseAndOffset(XRegister& base, int32_t& offset) {
             ? kPositiveOffsetSimpleAdjustmentAligned4
             : offset / 2;
     DCHECK(IsInt<12>(adjustment));
-    Addi(TMP, base, adjustment);
+    Addi(tmp, base, adjustment);
     offset -= adjustment;
   } else if (offset < 0 && offset >= kLowestOffsetForSimpleAdjustment) {
-    Addi(TMP, base, kNegativeOffsetSimpleAdjustment);
+    Addi(tmp, base, kNegativeOffsetSimpleAdjustment);
     offset -= kNegativeOffsetSimpleAdjustment;
   } else if (offset >= 0x7ffff800) {
     // Support even large offsets outside the range supported by `SplitOffset()`.
-    LoadConst32(TMP, offset);
-    Add(TMP, TMP, base);
+    LoadConst32(tmp, offset);
+    Add(tmp, tmp, base);
     offset = 0;
   } else {
     auto [imm20, short_offset] = SplitOffset(offset);
-    Lui(TMP, imm20);
-    Add(TMP, TMP, base);
+    Lui(tmp, imm20);
+    Add(tmp, tmp, base);
     offset = short_offset;
   }
-  base = TMP;
+  base = tmp;
+}
+
+template <void (Riscv64Assembler::*insn)(XRegister, XRegister, int32_t)>
+void Riscv64Assembler::LoadFromOffset(XRegister rd, XRegister rs1, int32_t offset) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  CHECK_EQ((1u << rd) & available_scratch_core_registers_, 0u);
+  ScratchRegisterScope srs(this);
+  // If `rd` differs from `rs1`, allow using it as a temporary if needed.
+  if (rd != rs1) {
+    srs.IncludeXRegister(rd);
+  }
+  AdjustBaseAndOffset(rs1, offset, srs);
+  (this->*insn)(rd, rs1, offset);
+}
+
+template <void (Riscv64Assembler::*insn)(XRegister, XRegister, int32_t)>
+void Riscv64Assembler::StoreToOffset(XRegister rs2, XRegister rs1, int32_t offset) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  CHECK_EQ((1u << rs2) & available_scratch_core_registers_, 0u);
+  ScratchRegisterScope srs(this);
+  AdjustBaseAndOffset(rs1, offset, srs);
+  (this->*insn)(rs2, rs1, offset);
+}
+
+template <void (Riscv64Assembler::*insn)(FRegister, XRegister, int32_t)>
+void Riscv64Assembler::FLoadFromOffset(FRegister rd, XRegister rs1, int32_t offset) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  ScratchRegisterScope srs(this);
+  AdjustBaseAndOffset(rs1, offset, srs);
+  (this->*insn)(rd, rs1, offset);
+}
+
+template <void (Riscv64Assembler::*insn)(FRegister, XRegister, int32_t)>
+void Riscv64Assembler::FStoreToOffset(FRegister rs2, XRegister rs1, int32_t offset) {
+  CHECK_EQ((1u << rs1) & available_scratch_core_registers_, 0u);
+  ScratchRegisterScope srs(this);
+  AdjustBaseAndOffset(rs1, offset, srs);
+  (this->*insn)(rs2, rs1, offset);
 }
 
 void Riscv64Assembler::LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp) {
-  DCHECK_IMPLIES(can_use_tmp, rd != TMP);
+  CHECK_EQ((1u << rd) & available_scratch_core_registers_, 0u);
+  ScratchRegisterScope srs(this);
+  CHECK_IMPLIES(can_use_tmp, srs.AvailableXRegisters() != 0u);
 
   // Helper lambdas.
   auto addi = [&](XRegister rd, XRegister rs, int32_t imm) { Addi(rd, rs, imm); };
@@ -2210,8 +2248,8 @@ void Riscv64Assembler::LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp
       }
     }
 
-    // If we can use `TMP`, try using it to emit a shorter sequence.
-    // Without `TMP`, the sequence is up to 8 instructions, with `TMP` only up to 6.
+    // If we can use a scratch register, try using it to emit a shorter sequence. Without a
+    // scratch reg, the sequence is up to 8 instructions, with a scratch reg only up to 6.
     if (can_use_tmp) {
       int64_t low = (imm & 0xffffffff) - ((imm & 0x80000000) << 1);
       int64_t remainder = imm - low;
@@ -2224,6 +2262,7 @@ void Riscv64Assembler::LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp
           /*SLLI+ADD*/ 2u;
       if (new_insns_needed < insns_needed) {
         DCHECK_NE(low & 0xfffff000, 0);
+        XRegister tmp = srs.AllocateXRegister();
         if (IsInt<20>(high) && !IsInt<12>(high)) {
           // Emit the signed 20-bit value with LUI and reduce the SLLI shamt by 12 to compensate.
           Lui(rd, static_cast<uint32_t>(high & 0xfffff));
@@ -2231,9 +2270,9 @@ void Riscv64Assembler::LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp
         } else {
           emit_simple_li(rd, high);
         }
-        emit_simple_li(TMP, low);
+        emit_simple_li(tmp, low);
         Slli(rd, rd, slli_shamt);
-        Add(rd, rd, TMP);
+        Add(rd, rd, tmp);
         return;
       }
     }
