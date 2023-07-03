@@ -558,17 +558,8 @@ class Heap {
   size_t GetObjectsAllocated() const
       REQUIRES(!Locks::heap_bitmap_lock_);
 
-  // Returns the total number of objects allocated since the heap was created.
-  uint64_t GetObjectsAllocatedEver() const;
-
   // Returns the total number of bytes allocated since the heap was created.
   uint64_t GetBytesAllocatedEver() const;
-
-  // Returns the total number of objects freed since the heap was created.
-  // With default memory order, this should be viewed only as a hint.
-  uint64_t GetObjectsFreedEver(std::memory_order mo = std::memory_order_relaxed) const {
-    return total_objects_freed_ever_.load(mo);
-  }
 
   // Returns the total number of bytes freed since the heap was created.
   // With default memory order, this should be viewed only as a hint.

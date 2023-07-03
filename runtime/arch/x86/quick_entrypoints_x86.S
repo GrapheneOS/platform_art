@@ -972,7 +972,6 @@ MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
                                                         // as allocated object.
     addl %edx, %ecx                                     // Add the object size.
     movl %ecx, THREAD_LOCAL_POS_OFFSET(%ebx)            // Update thread_local_pos.
-    incl THREAD_LOCAL_OBJECTS_OFFSET(%ebx)              // Increase thread_local_objects.
                                                         // Store the class pointer in the header.
                                                         // No fence needed for x86.
     POISON_HEAP_REF eax
@@ -1034,7 +1033,6 @@ MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE, slowPathLabel)
     movl THREAD_LOCAL_POS_OFFSET(%ebx), %edi
     addl %edi, %edx                                            // Add the object size.
     movl %edx, THREAD_LOCAL_POS_OFFSET(%ebx)                   // Update thread_local_pos_
-    addl LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%ebx)         // Increase thread_local_objects.
                                                                // Store the class pointer in the
                                                                // header.
                                                                // No fence needed for x86.
