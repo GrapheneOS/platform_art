@@ -53,7 +53,7 @@ namespace jit {
 //
 //     Command line Example:
 //       $ perf record -k mono dalvikvm -Xcompiler-option --generate-debug-info -cp <classpath> Test
-//       $ perf inject -i perf.data -o perf.data.jitted
+//       $ perf inject -j -i perf.data -o perf.data.jitted
 //       $ perf report -i perf.data.jitted
 //       $ perf annotate -i perf.data.jitted
 //     NOTE:
