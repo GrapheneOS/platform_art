@@ -514,6 +514,9 @@ class OatDexFile final {
     return dex_file_location_;
   }
 
+  // Returns original path of DexFile that was the source of this OatDexFile.
+  const std::string& GetLocation() const { return dex_file_location_; }
+
   // Returns the canonical location of DexFile that was the source of this OatDexFile.
   const std::string& GetCanonicalDexFileLocation() const {
     return canonical_dex_file_location_;
@@ -523,6 +526,9 @@ class OatDexFile final {
   uint32_t GetDexFileLocationChecksum() const {
     return dex_file_location_checksum_;
   }
+
+  // Returns checksum of original DexFile that was the source of this OatDexFile;
+  uint32_t GetLocationChecksum() const { return dex_file_location_checksum_; }
 
   // Returns the OatClass for the class specified by the given DexFile class_def_index.
   OatFile::OatClass GetOatClass(uint16_t class_def_index) const;
