@@ -45,8 +45,6 @@ ASM_DEFINE(THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET,
            art::Thread::ThreadLocalAllocStackTopOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_LOCAL_END_OFFSET,
            art::Thread::ThreadLocalEndOffset<art::kRuntimePointerSize>().Int32Value())
-ASM_DEFINE(THREAD_LOCAL_OBJECTS_OFFSET,
-           art::Thread::ThreadLocalObjectsOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_LOCAL_POS_OFFSET,
            art::Thread::ThreadLocalPosOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_ROSALLOC_RUNS_OFFSET,
