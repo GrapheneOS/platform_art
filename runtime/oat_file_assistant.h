@@ -494,11 +494,9 @@ class OatFileAssistant {
   // location.
   OatStatus GivenOatFileStatus(const OatFile& file);
 
-  // Gets the dex checksums required for an up-to-date oat file.
-  // Returns cached_required_dex_checksums if the required checksums were located. Returns an empty
-  // list if `dex_location_` refers to a zip and there is no dex file in it. Returns nullptr if an
-  // error occurred. The caller shouldn't clean up or free the returned pointer.
-  const std::vector<uint32_t>* GetRequiredDexChecksums(std::string* error_msg);
+  // Gets the dex checksum required for an up-to-date oat file.
+  // Returns cached result from GetMultiDexChecksum.
+  bool GetRequiredDexChecksum(std::optional<uint32_t>* checksum, std::string* error);
 
   // Returns whether there is at least one boot image usable.
   bool IsPrimaryBootImageUsable();
@@ -555,8 +553,8 @@ class OatFileAssistant {
 
   // Cached value of the required dex checksums.
   // This should be accessed only by the GetRequiredDexChecksums() method.
-  std::optional<std::vector<uint32_t>> cached_required_dex_checksums_;
-  std::string cached_required_dex_checksums_error_;
+  std::optional<uint32_t> cached_required_dex_checksums_;
+  std::optional<std::string> cached_required_dex_checksums_error_;
   bool required_dex_checksums_attempted_ = false;
 
   // The AOT-compiled file of an app when the APK of the app is in /data.
