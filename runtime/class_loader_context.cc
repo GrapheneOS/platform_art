@@ -17,7 +17,6 @@
 #include "class_loader_context.h"
 
 #include <algorithm>
-#include <optional>
 
 #include "android-base/file.h"
 #include "android-base/parseint.h"
@@ -474,12 +473,14 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
       }
 
       std::string error_msg;
-      ArtDexFileLoader dex_file_loader(fd, location);
-      std::optional<uint32_t> dex_checksum;
       if (only_read_checksums) {
         bool zip_file_only_contains_uncompress_dex;
-        if (!dex_file_loader.GetMultiDexChecksum(
-                &dex_checksum, &error_msg, &zip_file_only_contains_uncompress_dex)) {
+        if (!ArtDexFileLoader::GetMultiDexChecksums(location.c_str(),
+                                                    &dex_checksums,
+                                                    &dex_locations,
+                                                    &error_msg,
+                                                    fd,
+                                                    &zip_file_only_contains_uncompress_dex)) {
           LOG(WARNING) << "Could not get dex checksums for location " << location << ", fd=" << fd;
           dex_files_state_ = kDexFilesOpenFailed;
         }
@@ -488,7 +489,8 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
         // contents. So pass true to verify_checksum.
         // We don't need to do structural dex file verification, we only need to
         // check the checksum, so pass false to verify.
-        size_t i = info->opened_dex_files.size();
+        size_t opened_dex_files_index = info->opened_dex_files.size();
+        ArtDexFileLoader dex_file_loader(location.c_str(), fd, location);
         if (!dex_file_loader.Open(/*verify=*/false,
                                   /*verify_checksum=*/true,
                                   &error_msg,
@@ -496,13 +498,12 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
           LOG(WARNING) << "Could not open dex files for location " << location << ", fd=" << fd;
           dex_files_state_ = kDexFilesOpenFailed;
         } else {
-          dex_checksum = DexFileLoader::GetMultiDexChecksum(info->opened_dex_files, &i);
-          DCHECK_EQ(i, info->opened_dex_files.size());
+          for (size_t k = opened_dex_files_index; k < info->opened_dex_files.size(); k++) {
+            std::unique_ptr<const DexFile>& dex = info->opened_dex_files[k];
+            dex_locations.push_back(dex->GetLocation());
+            dex_checksums.push_back(dex->GetLocationChecksum());
+          }
         }
-      }
-      if (dex_checksum.has_value()) {
-        dex_locations.push_back(location);
-        dex_checksums.push_back(dex_checksum.value());
       }
     }
 
@@ -517,8 +518,8 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
     // Note that this will also remove the paths that could not be opened.
     info->original_classpath = std::move(info->classpath);
     DCHECK(dex_locations.size() == dex_checksums.size());
-    info->classpath = std::move(dex_locations);
-    info->checksums = std::move(dex_checksums);
+    info->classpath = dex_locations;
+    info->checksums = dex_checksums;
     AddToWorkList(info, work_list);
   }
 
@@ -691,16 +692,16 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
     }
   }
 
-  for (size_t k = 0; k < info.opened_dex_files.size();) {
+  for (size_t k = 0; k < info.opened_dex_files.size(); k++) {
     const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
-    uint32_t checksum = DexFileLoader::GetMultiDexChecksum(info.opened_dex_files, &k);
-
     if (for_dex2oat) {
       // dex2oat only needs the base location. It cannot accept multidex locations.
       // So ensure we only add each file once.
       bool new_insert =
           seen_locations.insert(DexFileLoader::GetBaseLocation(dex_file->GetLocation())).second;
-      CHECK(new_insert);
+      if (!new_insert) {
+        continue;
+      }
     }
 
     std::string location = dex_file->GetLocation();
@@ -715,7 +716,7 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
 
     // dex2oat does not need the checksums.
     if (!for_dex2oat) {
-      checksums.push_back(checksum);
+      checksums.push_back(dex_file->GetLocationChecksum());
     }
   }
   EncodeClassPath(base_dir, locations, checksums, info.type, out);
@@ -1154,17 +1155,13 @@ bool ClassLoaderContext::CreateInfoFromClassLoader(
   }
 
   // Now that `info` is in the chain, populate dex files.
-  for (size_t i = 0; i < dex_files_loaded.size();) {
-    const DexFile* dex_file = dex_files_loaded[i];
-    uint32_t checksum = DexFileLoader::GetMultiDexChecksum(dex_files_loaded, &i);
+  for (const DexFile* dex_file : dex_files_loaded) {
     // Dex location of dex files loaded with InMemoryDexClassLoader is always bogus.
     // Use a magic value for the classpath instead.
     info->classpath.push_back((type == kInMemoryDexClassLoader) ?
                                   kInMemoryDexClassLoaderDexLocationMagic :
                                   dex_file->GetLocation());
-    info->checksums.push_back(checksum);
-  }
-  for (auto* dex_file : dex_files_loaded) {
+    info->checksums.push_back(dex_file->GetLocationChecksum());
     info->opened_dex_files.emplace_back(dex_file);
   }
 
@@ -1480,10 +1477,8 @@ std::set<const DexFile*> ClassLoaderContext::CheckForDuplicateDexFiles(
   // in the Android world) - and as such we decide not to warn on them.
   ClassLoaderInfo* info = class_loader_chain_.get();
   for (size_t k = 0; k < info->classpath.size(); k++) {
-    for (size_t i = 0; i < dex_files_to_check.size();) {
-      const DexFile* dex_file = dex_files_to_check[i];
-      uint32_t checksum = DexFileLoader::GetMultiDexChecksum(dex_files_to_check, &i);
-      if (info->checksums[k] == checksum &&
+    for (const DexFile* dex_file : dex_files_to_check) {
+      if (info->checksums[k] == dex_file->GetLocationChecksum() &&
           AreDexNameMatching(info->classpath[k], dex_file->GetLocation())) {
         result.insert(dex_file);
       }
