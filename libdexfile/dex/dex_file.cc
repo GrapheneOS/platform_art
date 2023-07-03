@@ -23,12 +23,12 @@
 #include <zlib.h>
 
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <sstream>
 #include <type_traits>
 
 #include "android-base/stringprintf.h"
-
 #include "base/enums.h"
 #include "base/hiddenapi_domain.h"
 #include "base/leb128.h"

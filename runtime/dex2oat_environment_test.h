@@ -18,6 +18,7 @@
 #define ART_RUNTIME_DEX2OAT_ENVIRONMENT_TEST_H_
 
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -98,8 +99,7 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     Dex2oatScratchDirs::SetUp(android_data_);
 
     // Verify the environment is as we expect
-    std::vector<uint32_t> checksums;
-    std::vector<std::string> dex_locations;
+    std::optional<uint32_t> checksum;
     std::string error_msg;
     ASSERT_TRUE(OS::FileExists(GetSystemImageFile().c_str()))
       << "Expected pre-compiled boot image to be at: " << GetSystemImageFile();
@@ -107,8 +107,8 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
       << "Expected dex file to be at: " << GetDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetResourceOnlySrc1().c_str()))
       << "Expected stripped dex file to be at: " << GetResourceOnlySrc1();
-    ASSERT_TRUE(ArtDexFileLoader::GetMultiDexChecksums(
-        GetResourceOnlySrc1().c_str(), &checksums, &dex_locations, &error_msg))
+    ArtDexFileLoader dex_file_loader0(GetResourceOnlySrc1());
+    ASSERT_TRUE(dex_file_loader0.GetMultiDexChecksum(&checksum, &error_msg))
         << "Expected stripped dex file to be stripped: " << GetResourceOnlySrc1();
     ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
       << "Expected dex file to be at: " << GetDexSrc2();
@@ -127,6 +127,9 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     ASSERT_TRUE(dex_file_loader2.Open(/* verify= */ true, kVerifyChecksum, &error_msg, &multi2))
         << error_msg;
     ASSERT_GT(multi2.size(), 1u);
+
+    ASSERT_EQ(multi1[0]->GetHeader().checksum_, multi2[0]->GetHeader().checksum_);
+    ASSERT_NE(multi1[1]->GetHeader().checksum_, multi2[1]->GetHeader().checksum_);
 
     ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
     ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
