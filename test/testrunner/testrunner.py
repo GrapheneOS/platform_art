@@ -535,7 +535,7 @@ def run_tests(tests):
       elif compiler == 'interpreter':
         args_test += ['--interpreter']
       elif compiler == 'interp-ac':
-        args_test += ['--interpreter', '--verify-soft-fail']
+        args_test += ['--switch-interpreter', '--verify-soft-fail']
       elif compiler == 'jit':
         args_test += ['--jit']
       elif compiler == 'jit-on-first-use':

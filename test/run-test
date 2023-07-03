@@ -409,6 +409,9 @@ if True:
     elif arg == "--interpreter":
       run_args += ["--interpreter"]
       shift()
+    elif arg == "--switch-interpreter":
+      run_args += ["--switch-interpreter"]
+      shift()
     elif arg == "--jit":
       run_args += ["--jit"]
       shift()
