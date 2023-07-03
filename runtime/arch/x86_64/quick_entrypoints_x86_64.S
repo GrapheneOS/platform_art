@@ -930,7 +930,6 @@ MACRO1(ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH, slowPathLabel)
     cmpq THREAD_LOCAL_END_OFFSET(%r8), %rcx                    // Check if it fits.
     ja   RAW_VAR(slowPathLabel)
     movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                    // Update thread_local_pos.
-    incq THREAD_LOCAL_OBJECTS_OFFSET(%r8)                      // Increase thread_local_objects.
                                                                // Store the class pointer in the
                                                                // header.
                                                                // No fence needed for x86.
@@ -952,7 +951,6 @@ MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE, slowPathLabel)
     cmpq THREAD_LOCAL_END_OFFSET(%rcx), %r9                    // Check if it fits.
     ja   RAW_VAR(slowPathLabel)
     movq %r9, THREAD_LOCAL_POS_OFFSET(%rcx)                    // Update thread_local_pos.
-    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%rcx)         // Increase thread_local_objects.
                                                                // Store the class pointer in the
                                                                // header.
                                                                // No fence needed for x86.

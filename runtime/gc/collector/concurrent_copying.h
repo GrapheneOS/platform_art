@@ -390,7 +390,6 @@ class ConcurrentCopying : public GarbageCollector {
   // A cache of Heap::GetMarkBitmap().
   accounting::HeapBitmap* heap_mark_bitmap_;
   size_t live_stack_freeze_size_;
-  size_t from_space_num_objects_at_first_pause_;  // Computed if kEnableFromSpaceAccountingCheck
   size_t from_space_num_bytes_at_first_pause_;  // Computed if kEnableFromSpaceAccountingCheck
   Atomic<int> is_mark_stack_push_disallowed_;
   enum MarkStackMode {
@@ -439,7 +438,6 @@ class ConcurrentCopying : public GarbageCollector {
   size_t objects_moved_gc_thread_;
   uint64_t bytes_scanned_;
   uint64_t cumulative_bytes_moved_;
-  uint64_t cumulative_objects_moved_;
 
   // The skipped blocks are memory blocks/chucks that were copies of
   // objects that were unused due to lost races (cas failures) at
