@@ -316,25 +316,18 @@ std::vector<T> GenerateComponents(
       return {};
     }
 
-    std::vector<uint32_t> checksums;
-    std::vector<std::string> dex_locations;
+    std::optional<uint32_t> checksum;
     std::string error_msg;
-    if (!ArtDexFileLoader::GetMultiDexChecksums(
-            actual_path.c_str(), &checksums, &dex_locations, &error_msg)) {
-      LOG(ERROR) << "Failed to get multi-dex checksums: " << error_msg;
+    ArtDexFileLoader dex_loader(actual_path);
+    if (!dex_loader.GetMultiDexChecksum(&checksum, &error_msg)) {
+      LOG(ERROR) << "Failed to get multi-dex checksum: " << error_msg;
       return {};
     }
 
-    std::ostringstream oss;
-    for (size_t i = 0; i < checksums.size(); ++i) {
-      if (i != 0) {
-        oss << ';';
-      }
-      oss << StringPrintf("%08x", checksums[i]);
-    }
-    const std::string checksum = oss.str();
+    const std::string checksum_str =
+        checksum.has_value() ? StringPrintf("%08x", checksum.value()) : std::string();
 
-    Result<T> component = custom_generator(path, static_cast<uint64_t>(sb.st_size), checksum);
+    Result<T> component = custom_generator(path, static_cast<uint64_t>(sb.st_size), checksum_str);
     if (!component.ok()) {
       LOG(ERROR) << "Failed to generate component: " << component.error();
       return {};
