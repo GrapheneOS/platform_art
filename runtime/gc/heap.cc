@@ -1268,11 +1268,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
        << PrettySize(GetBytesFreedEver() / total_seconds) << "/s"
        << " per cpu-time: "
        << PrettySize(GetBytesFreedEver() / total_cpu_seconds) << "/s\n";
-    os << "Mean GC object throughput: "
-       << (GetObjectsFreedEver() / total_seconds) << " objects/s\n";
   }
-  uint64_t total_objects_allocated = GetObjectsAllocatedEver();
-  os << "Total number of allocations " << total_objects_allocated << "\n";
   os << "Total bytes allocated " << PrettySize(GetBytesAllocatedEver()) << "\n";
   os << "Total bytes freed " << PrettySize(GetBytesFreedEver()) << "\n";
   os << "Free memory " << PrettySize(GetFreeMemory()) << "\n";
@@ -2078,15 +2074,6 @@ size_t Heap::GetObjectsAllocated() const {
   return total;
 }
 
-uint64_t Heap::GetObjectsAllocatedEver() const {
-  uint64_t total = GetObjectsFreedEver();
-  // If we are detached, we can't use GetObjectsAllocated since we can't change thread states.
-  if (Thread::Current() != nullptr) {
-    total += GetObjectsAllocated();
-  }
-  return total;
-}
-
 uint64_t Heap::GetBytesAllocatedEver() const {
   // Force the returned value to be monotonically increasing, in the sense that if this is called
   // at A and B, such that A happens-before B, then the call at B returns a value no smaller than
@@ -2876,8 +2863,8 @@ void Heap::LogGC(GcCause gc_cause, collector::GarbageCollector* collector) {
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
               << (is_sampled ? " (sampled)" : "")
-              << " GC freed "  << current_gc_iteration_.GetFreedObjects() << "("
-              << PrettySize(current_gc_iteration_.GetFreedBytes()) << ") AllocSpace objects, "
+              << " GC freed "
+              << PrettySize(current_gc_iteration_.GetFreedBytes()) << " AllocSpace bytes, "
               << current_gc_iteration_.GetFreedLargeObjects() << "("
               << PrettySize(current_gc_iteration_.GetFreedLargeObjectBytes()) << ") LOS objects, "
               << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
@@ -3628,7 +3615,7 @@ collector::GcType Heap::WaitForGcToCompleteLocked(GcCause cause, Thread* self) {
 
 void Heap::DumpForSigQuit(std::ostream& os) {
   os << "Heap: " << GetPercentFree() << "% free, " << PrettySize(GetBytesAllocated()) << "/"
-     << PrettySize(GetTotalMemory()) << "; " << GetObjectsAllocated() << " objects\n";
+     << PrettySize(GetTotalMemory());
   {
     os << "Image spaces:\n";
     ScopedObjectAccess soa(Thread::Current());
