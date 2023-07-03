@@ -26,7 +26,7 @@ public class Main {
         }
 
          try {
-            testInstanceOfNull();
+            testInstanceOfNull(null);
         } catch (IllegalAccessError e) {
             System.out.println("Got expected error instanceof null");
         }
@@ -64,10 +64,10 @@ public class Main {
         return ic instanceof InaccessibleClass;
     }
 
-    /// CHECK-START: boolean Main.testInstanceOfNull() register (after)
+    /// CHECK-START: boolean Main.testInstanceOfNull(java.lang.Object) register (after)
     /// CHECK: LoadClass class_name:other.InaccessibleClass
-    public static boolean testInstanceOfNull() {
-        return null instanceof InaccessibleClass;
+    public static boolean testInstanceOfNull(Object o) {
+        return o instanceof InaccessibleClass;
     }
 
     // TODO: write a test for for CheckCast with not null constant (after RTP can parse arguments).
