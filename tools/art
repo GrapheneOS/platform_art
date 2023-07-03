@@ -312,9 +312,6 @@ function run_art() {
               "$@"
   ret=$?
 
-  # Avoid polluting disk with 'oat' files after dalvikvm has finished.
-  cleanup_oat_directory_for_classpath "$@"
-
   # Forward exit code of dalvikvm.
   return $ret
 }
@@ -650,6 +647,9 @@ if [ "$JIT_PROFILE" = "yes" ]; then
           &> "$ANDROID_DATA/profile_gen.log"
   EXIT_STATUS=$?
 
+  # Remove generated oat files.
+  cleanup_oat_directory_for_classpath "$@"
+
   if [ $EXIT_STATUS != 0 ]; then
     echo "Profile run failed: " >&2
     cat "$ANDROID_DATA/profile_gen.log" >&2
@@ -686,8 +686,11 @@ if [ "$PERF" != "" ]; then
   if [ "$PERF" = report ]; then
     perf report -i $ANDROID_DATA/perf.data
   fi
-  echo "Perf data saved in: $ANDROID_DATA/perf.data"
+  echo "Perf data saved in: $ANDROID_DATA/perf.data. Generated oat files not removed."
 else
+  # Perf needs the odex files we generate for proper symbolization, so only remove them
+  # when not running with perf.
+  cleanup_oat_directory_for_classpath "$@"
   # Perf output is placed under $ANDROID_DATA so not cleaned when perf options used.
   clean_android_data
 fi
