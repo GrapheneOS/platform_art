@@ -16,7 +16,6 @@
 
 #include "runtime.h"
 
-#include <optional>
 #include <utility>
 
 #ifdef __linux__
@@ -2766,14 +2765,14 @@ void Runtime::RegisterAppInfo(const std::string& package_name,
   bool has_code = false;
   for (const std::string& path : code_paths) {
     std::string error_msg;
-    std::optional<uint32_t> checksum;
+    std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations;
-    DexFileLoader loader(path);
-    if (!loader.GetMultiDexChecksum(&checksum, &error_msg)) {
+    if (!ArtDexFileLoader::GetMultiDexChecksums(
+            path.c_str(), &checksums, &dex_locations, &error_msg)) {
       LOG(WARNING) << error_msg;
       continue;
     }
-    if (checksum.has_value()) {
+    if (dex_locations.size() > 0) {
       has_code = true;
       break;
     }
