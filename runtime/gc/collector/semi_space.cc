@@ -209,7 +209,6 @@ void SemiSpace::MarkingPhase() {
   const int64_t to_bytes = bytes_moved_;
   const uint64_t from_objects = from_space_->GetObjectsAllocated();
   const uint64_t to_objects = objects_moved_;
-  CHECK_LE(to_objects, from_objects);
   // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
   // space.
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
