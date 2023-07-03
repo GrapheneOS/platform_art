@@ -35,17 +35,19 @@ public class Main {
   /// CHECK-DAG:    Not     loop:none
   /// CHECK-DAG:    And     loop:none
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.and_not_64(long, long) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86AndNot loop:<<Loop:B\d+>> outer_loop:none
-  // CHECK-DAG:      X86AndNot loop:none
+  /// CHECK-START-X86_64: long Main.and_not_64(long, long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86AndNot loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:      X86AndNot loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.and_not_64(long, long) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      Not       loop:<<Loop>>      outer_loop:none
-  // CHECK-NOT:      And       loop:<<Loop>>      outer_loop:none
-  // CHECK-NOT:      Not       loop:none
-  // CHECK-NOT:      And       loop:none
+  /// CHECK-START-X86_64: long Main.and_not_64(long, long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      Not       loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT:      And       loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT:      Not       loop:none
+  /// CHECK-NOT:      And       loop:none
+  /// CHECK-FI:
   public static long and_not_64( long x, long y) {
     long j = 1;
     long k = 2;
@@ -65,18 +67,20 @@ public class Main {
   /// CHECK-DAG:    Not     loop:none
   /// CHECK-DAG:    And     loop:none
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.and_not_32(int, int) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86AndNot loop:<<Loop:B\d+>> outer_loop:none
-  // CHECK-DAG:      X86AndNot loop:<<Loop>>      outer_loop:none
-  // CHECK-DAG:      X86AndNot loop:none
+  /// CHECK-START-X86_64: int Main.and_not_32(int, int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86AndNot loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:      X86AndNot loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:      X86AndNot loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.and_not_32(int, int) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      Not       loop:<<Loop>>      outer_loop:none
-  // CHECK-NOT:      And       loop:<<Loop>>      outer_loop:none
-  // CHECK-NOT:      Not       loop:none
-  // CHECK-NOT:      And       loop:none
+  /// CHECK-START-X86_64: int Main.and_not_32(int, int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      Not       loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT:      And       loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT:      Not       loop:none
+  /// CHECK-NOT:      And       loop:none
+  /// CHECK-FI:
   public static int and_not_32( int x, int y) {
     int j = 1;
     int k = 2;
@@ -107,20 +111,22 @@ public class Main {
   /// CHECK-DAG:    And     loop:<<Loop>>      outer_loop:none
 
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.reset_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop:B\d+>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-START-X86_64: int Main.reset_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.reset_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      And                        loop:<<Loop>> outer_loop:none
+  /// CHECK-START-X86_64: int Main.reset_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      And                        loop:<<Loop>> outer_loop:none
+  /// CHECK-FI:
   public static int reset_lowest_set_bit_32(int x) {
     int y = x;
     int j = 5;
@@ -149,17 +155,19 @@ public class Main {
   /// CHECK-DAG:    Sub     loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:    And     loop:<<Loop>>      outer_loop:none
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.reset_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop:B\d+>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-START-X86_64: long Main.reset_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:<<Loop>> outer_loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.reset_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      And                        loop:<<Loop>> outer_loop:none
-  // CHECK-NOT:      Sub                        loop:<<Loop>> outer_loop:none
+  /// CHECK-START-X86_64: long Main.reset_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      And                        loop:<<Loop>> outer_loop:none
+  /// CHECK-NOT:      Sub                        loop:<<Loop>> outer_loop:none
+  /// CHECK-FI:
   public static long reset_lowest_set_bit_64(long x) {
     long y = x;
     long j = 5;
@@ -181,14 +189,16 @@ public class Main {
   /// CHECK-DAG:    Add     loop:none
   /// CHECK-DAG:    Xor     loop:none
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.get_mask_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:none
+  /// CHECK-START-X86_64: int Main.get_mask_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: int Main.get_mask_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      Add    loop:none
-  // CHECK-NOT:      Xor    loop:none
+  /// CHECK-START-X86_64: int Main.get_mask_lowest_set_bit_32(int) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      Add    loop:none
+  /// CHECK-NOT:      Xor    loop:none
+  /// CHECK-FI:
   public static int get_mask_lowest_set_bit_32(int x) {
     return (x-1) ^ x;
   }
@@ -197,14 +207,16 @@ public class Main {
   /// CHECK-DAG:    Sub     loop:none
   /// CHECK-DAG:    Xor     loop:none
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.get_mask_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
-  // CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:none
+  /// CHECK-START-X86_64: long Main.get_mask_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-DAG:      X86MaskOrResetLeastSetBit  loop:none
+  /// CHECK-FI:
 
-  // TODO:re-enable when checker supports isa features
-  // CHECK-START-X86_64: long Main.get_mask_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
-  // CHECK-NOT:      Sub    loop:none
-  // CHECK-NOT:      Xor    loop:none
+  /// CHECK-START-X86_64: long Main.get_mask_lowest_set_bit_64(long) instruction_simplifier_x86_64 (after)
+  /// CHECK-IF: hasIsaFeature('avx') or hasIsaFeature('avx2')
+  /// CHECK-NOT:      Sub    loop:none
+  /// CHECK-NOT:      Xor    loop:none
+  /// CHECK-FI:
   public static long get_mask_lowest_set_bit_64(long x) {
     return (x-1) ^ x;
   }
