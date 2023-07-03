@@ -615,7 +615,8 @@ if [ "$DEX2OAT_BCP" != "" ]; then
 fi
 
 if [ "$PERF" != "" ]; then
-  LAUNCH_WRAPPER="perf record -g --call-graph dwarf -F 10000 -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
+  # -k is for supporting jitted code.
+  LAUNCH_WRAPPER="perf record -k 1 -g --call-graph dwarf -F 10000 -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
   DEX2OAT_FLAGS+=(--generate-debug-info)
 fi
 
@@ -685,8 +686,12 @@ EXIT_STATUS=$?
 if [ "$PERF" != "" ]; then
   if [ "$PERF" = report ]; then
     perf report -i $ANDROID_DATA/perf.data
+  else
+    # Inject jitted code in perf.data. Keep the old perf.data for debugging.
+    mv $ANDROID_DATA/perf.data $ANDROID_DATA/perf.data.old
+    perf inject -j -i $ANDROID_DATA/perf.data.old -o $ANDROID_DATA/perf.data
+    echo "Perf data saved in: $ANDROID_DATA/perf.data. Generated oat files not removed."
   fi
-  echo "Perf data saved in: $ANDROID_DATA/perf.data. Generated oat files not removed."
 else
   # Perf needs the odex files we generate for proper symbolization, so only remove them
   # when not running with perf.
