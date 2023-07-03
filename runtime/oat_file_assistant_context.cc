@@ -17,7 +17,6 @@
 #include "oat_file_assistant_context.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -77,13 +76,13 @@ OatFileAssistantContext::OatFileAssistantContext(Runtime* runtime)
   // Fetch BCP checksums from the runtime.
   size_t bcp_index = 0;
   std::vector<std::string>* current_bcp_checksums = nullptr;
-  const std::vector<const DexFile*>& bcp_dex_files = runtime->GetClassLinker()->GetBootClassPath();
-  for (size_t i = 0; i < bcp_dex_files.size();) {
-    uint32_t checksum = DexFileLoader::GetMultiDexChecksum(bcp_dex_files, &i);
-    DCHECK_LT(bcp_index, runtime_options_->boot_class_path.size());
-    current_bcp_checksums = &bcp_checksums_by_index_[bcp_index++];
+  for (const DexFile* dex_file : runtime->GetClassLinker()->GetBootClassPath()) {
+    if (!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str())) {
+      DCHECK_LT(bcp_index, runtime_options_->boot_class_path.size());
+      current_bcp_checksums = &bcp_checksums_by_index_[bcp_index++];
+    }
     DCHECK_NE(current_bcp_checksums, nullptr);
-    current_bcp_checksums->push_back(StringPrintf("/%08x", checksum));
+    current_bcp_checksums->push_back(StringPrintf("/%08x", dex_file->GetLocationChecksum()));
   }
   DCHECK_EQ(bcp_index, runtime_options_->boot_class_path.size());
 
@@ -157,18 +156,23 @@ const std::vector<std::string>* OatFileAssistantContext::GetBcpChecksums(size_t 
     return &it->second;
   }
 
-  const std::vector<int>* fds = runtime_options_->boot_class_path_fds;
-  ArtDexFileLoader dex_loader(fds != nullptr ? (*fds)[bcp_index] : -1,
-                              runtime_options_->boot_class_path[bcp_index]);
-  std::optional<uint32_t> checksum;
-  if (!dex_loader.GetMultiDexChecksum(&checksum, error_msg)) {
+  std::vector<uint32_t> checksums;
+  std::vector<std::string> dex_locations;
+  if (!ArtDexFileLoader::GetMultiDexChecksums(
+          runtime_options_->boot_class_path[bcp_index].c_str(),
+          &checksums,
+          &dex_locations,
+          error_msg,
+          runtime_options_->boot_class_path_fds != nullptr ?
+              (*runtime_options_->boot_class_path_fds)[bcp_index] :
+              -1)) {
     return nullptr;
   }
 
-  DCHECK(checksum.has_value());
+  DCHECK(!checksums.empty());
   std::vector<std::string>& bcp_checksums = bcp_checksums_by_index_[bcp_index];
-  if (checksum.has_value()) {
-    bcp_checksums.push_back(StringPrintf("/%08x", checksum.value()));
+  for (uint32_t checksum : checksums) {
+    bcp_checksums.push_back(StringPrintf("/%08x", checksum));
   }
   return &bcp_checksums;
 }
