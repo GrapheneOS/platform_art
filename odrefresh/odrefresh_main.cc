@@ -27,7 +27,6 @@
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
-#include "base/mem_map.h"
 #include "base/stl_util.h"
 #include "odr_common.h"
 #include "odr_compilation_log.h"
@@ -269,7 +268,6 @@ int main(int argc, char** argv) {
   if (!config.GetCompilationOsMode()) {
     android::base::InitLogging(argv, android::base::LogdLogger(android::base::SYSTEM));
   }
-  art::MemMap::Init();  // Needed by DexFileLoader.
 
   argv += n;
   argc -= n;
