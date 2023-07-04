@@ -39,39 +39,41 @@ END ExecuteSwitchImplAsm
 
 
 .macro INVOKE_STUB_CREATE_FRAME
-    // Save ra, fp, xSELF (current thread) a4, a5 (they will be needed in the invoke stub return)
-    // and callee-save regs s3 - s5 that are clobbered here and in art_quick_invoke_(static_)_stub.
+    // Save RA, FP, xSELF (current thread), A4, A5 (they will be needed in the invoke stub return).
     INCREASE_FRAME 48
-    SAVE_GPR fp,    (8*0)
+    // Slot (8*0) is used for `ArtMethod*` (if no args), args or padding, see below.
     SAVE_GPR xSELF, (8*1)
     SAVE_GPR a4,    (8*2)
     SAVE_GPR a5,    (8*3)
-    SAVE_GPR s3,    (8*4)
+    SAVE_GPR fp,    (8*4)  // Store FP just under the return address.
     SAVE_GPR ra,    (8*5)
 
-    mv fp, sp  // save frame pointer
-    .cfi_def_cfa_register fp
+    // Make the new FP point to the location where we stored the old FP.
+    // Some stack-walking tools may rely on this simply-linked list of saved FPs.
+    addi fp, sp, (8*4)  // save frame pointer
+    .cfi_def_cfa fp, 48 - (8*4)
 
-    addi t0, a2, (__SIZEOF_POINTER__ + 0xf) // Reserve space for ArtMethod*, arguments and
-    andi t0, t0, ~0xf                       // round up for 16-byte stack alignment.
+    // We already have space for `ArtMethod*` on the stack but we need space for args above
+    // the `ArtMethod*`, so add sufficient space now, pushing the `ArtMethod*` slot down.
+    addi t0, a2, 0xf    // Reserve space for arguments and
+    andi t0, t0, ~0xf   // round up for 16-byte stack alignment.
     sub  sp, sp, t0
 
     mv xSELF, a3
 
     // Copy arguments on stack (4 bytes per slot):
-    //   a1: source address
-    //   a2: arguments length
-    //   s3: destination address.
-
-    add s3, sp, 8  // destination address is bottom of the stack + 8 bytes for ArtMethod* (null)
+    //   A1: source address
+    //   A2: arguments length
+    //   T0: destination address if there are any args.
 
     beqz a2, 2f      // loop through 4-byte arguments from the last to the first
+    addi t0, sp, 8   // destination address is bottom of the stack + 8 bytes for ArtMethod* (null)
 1:
     addi a2, a2, -4
-    add  t0, a1, a2  // t0 is the source address of the next copied argument
-    lw   t1, (t0)    // t1 is the 4 bytes at address t0
-    add  t0, s3, a2  // t0 is the destination address of the next copied argument
-    sw   t1, (t0)    // save t1 at the destination address t0
+    add  t1, a1, a2  // T1 is the source address of the next copied argument
+    lw   t2, (t1)    // T2 is the 4 bytes at address T1
+    add  t1, t0, a2  // T1 is the destination address of the next copied argument
+    sw   t2, (t1)    // save T2 at the destination address T1
     bnez a2, 1b
 2:
     sd zero, (sp)  // Store null into ArtMethod* at bottom of frame.
@@ -83,16 +85,14 @@ END ExecuteSwitchImplAsm
     ld   t0, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
     jalr t0
 
-    mv sp, fp  // restore frame pointer
-    .cfi_def_cfa_register sp
+    addi sp, fp, -(8*4)  // restore SP (see `INVOKE_STUB_CREATE_FRAME`)
+    .cfi_def_cfa sp, 48
 
-    // Restore ra, fp, xSELF (current thread) a4 (shorty), a5 (result pointer) and callee-save
-    // regs s3 - s5 from stack.
-    RESTORE_GPR fp,    (8*0)
+    // Restore ra, fp, xSELF (current thread) a4 (shorty), a5 (result pointer) from stack.
     RESTORE_GPR xSELF, (8*1)
     RESTORE_GPR a4,    (8*2)
     RESTORE_GPR a5,    (8*3)
-    RESTORE_GPR s3,    (8*4)
+    RESTORE_GPR fp,    (8*4)
     RESTORE_GPR ra,    (8*5)
     DECREASE_FRAME 48
 
@@ -130,137 +130,145 @@ ENTRY art_deliver_pending_exception
 END art_deliver_pending_exception
 
 
-// Macros for loading an argument into a register.
-//  label - the base name of the label of the load routine,
-//  reg - the register to load,
-//  args - pointer to current argument, incremented by size,
-//  size - the size of the register - 4 or 8 bytes,
+// The size of the handler emitted by `INVOKE_STUB_LOAD_REG` below.
+#define INVOKE_STUB_LOAD_REG_SIZE 8
+
+// The offset within `INVOKE_STUB_LOAD_REG` for skipping arguments.
+#define INVOKE_STUB_LOAD_REG_SKIP_OFFSET 6
+
+// Macro for loading an argument into a register.
 //  load - instruction used for loading,
-//  nh4_reg - the register to fill with the address of the next handler for 4-byte values,
-//  nh4_l - the base name of the label of the next handler for 4-byte values,
-//  nh8_reg - the register to fill with the address of the next handler for 8-byte values,
-//  nh8_l - the base name of the label of the next handler for 8-byte values,
+//  reg - the register to load,
+//  args - pointer to next argument,
+//  size - the size of the register - 4 or 8 bytes, used as an offset for the load,
+//  handler_reg - the register with the address of the handler (points to this handler on entry),
+//  handler_diff - the difference in bytes from the current to the next handler,
 //  cont - the base name of the label for continuing the shorty processing loop,
 //  sfx - suffix added to all labels to make labels unique for different users.
-.macro INVOKE_STUB_LOAD_REG label, reg, args, size, load, nh4_reg, nh4_l, nh8_reg, nh8_l, cont, sfx
-\label\sfx:
-    \load \reg, (\args)
-    addi  \args, \args, \size
-    la    \nh4_reg, \nh4_l\sfx
-    la    \nh8_reg, \nh8_l\sfx
-    j     \cont\sfx
-.endm
-
-
-// Macro for skipping an argument that does not fit into argument registers.
-//  label - the base name of the label of the skip routine,
-//  args - pointer to current argument, incremented by size,
-//  size - the size of the argument - 4 or 8 bytes,
-//  cont - the base name of the label for continuing the shorty processing loop,
-//  sfx - suffix added to all labels to make labels unique for different users.
-.macro INVOKE_STUB_SKIP_ARG label, args, size, cont, sfx
-\label\sfx:
-    addi \args, \args, \size
-    j    \cont\sfx
+.macro INVOKE_STUB_LOAD_REG load, reg, args, size, handler_reg, handler_diff, cont, sfx
+.Linvoke_stub_\load\reg\sfx:
+    \load  \reg, -\size(\args)
+    c.addi \handler_reg, \handler_diff
+.org .Linvoke_stub_\load\reg\sfx + INVOKE_STUB_LOAD_REG_SKIP_OFFSET  // Enforce skip offset.
+    c.j    \cont\sfx
+.org .Linvoke_stub_\load\reg\sfx + INVOKE_STUB_LOAD_REG_SIZE  // Enforce handler size.
 .endm
 
 
 // Fill registers a1 to a7 and fa0 to fa7 with parameters.
 // Parse the passed shorty to determine which register to load.
 //  a5 - shorty,
-//  s3 - points to arguments on the stack,
+//  t0 - points to arguments on the stack if any (undefined for static method without args),
 //  sfx - suffix added to all labels to make labels unique for different users.
 .macro INVOKE_STUB_LOAD_ALL_ARGS sfx
-    mv   t0, a5                        // Load shorty address,
-    addi t0, t0, 1                     // plus one to skip the return type.
+    addi t1, a5, 1                     // Load shorty address, plus one to skip the return type.
 
-    // Load this (if instance method) and addresses for routines that load argument GPRs and FPRs.
+    // Load this (if instance method) and record the number of GPRs to fill.
     .ifc \sfx, _instance
-        lw   a1, (s3)                  // Load "this" parameter,
-        addi s3, s3, 4                 // and increment arg pointer.
-        la   t3, .Lload4i2\sfx
-        la   t4, .Lload8i2\sfx
+        lw   a1, (t0)                  // Load "this" parameter,
+        addi t0, t0, 4                 // and increment arg pointer.
+        .equ NUM_GPRS_TO_FILL, 6
     .else
-        la   t3, .Lload4i1\sfx
-        la   t4, .Lload8i1\sfx
+        .equ NUM_GPRS_TO_FILL, 7
     .endif
-    la   t5, .Lload4f0\sfx
-    la   t6, .Lload8f0\sfx
+    .equ NUM_FPRS_TO_FILL, 8
+
+    // Load addresses for routines that load argument GPRs and FPRs.
+    lla  t4, .Lreg_handlers_start\sfx  // First handler for non-FP args.
+    addi t5, t4, (3 * NUM_GPRS_TO_FILL * INVOKE_STUB_LOAD_REG_SIZE)  // First handler for FP args.
 
     // Loop to fill registers.
 .Lfill_regs\sfx:
-    lb   t1, (t0)                      // Load next character in signature, and increment.
-    addi t0, t0, 1                     // and increment.
-    beqz t1, .Lcall_method\sfx         // Exit at end of signature. Shorty 0 terminated.
+    lb   t2, (t1)                      // Load next character in signature,
+    addi t1, t1, 1                     // and increment.
+    beqz t2, .Lcall_method\sfx         // Exit at end of signature. Shorty 0 terminated.
 
-    li   t2, 'J'
-    beq  t1, t2, .Lload_long\sfx       // Is this a long?
+    li   t3, 'L'
+    beq  t2, t3, .Lload_reference\sfx  // Is this a reference?
 
-    li   t2, 'F'
-    beq  t1, t2, .Lload_float\sfx      // Is this a float?
+    li   t3, 'J'
+    beq  t2, t3, .Lload_long\sfx       // Is this a long?
 
-    li   t2, 'D'
-    beq  t1, t2, .Lload_double\sfx     // Is this a double?
+    li   t3, 'F'
+    beq  t2, t3, .Lload_float\sfx      // Is this a float?
 
-    // Everything else uses a 4-byte GPR.
-    jr   t3
+    li   t3, 'D'
+    beq  t2, t3, .Lload_double\sfx     // Is this a double?
+
+    // Everything else uses a 4-byte value sign-extened to a 64 bit GPR.
+    addi t0, t0, 4
+    jalr x0, 0(t4)
+
+.Lload_reference\sfx:
+    addi t0, t0, 4
+    jalr x0, (NUM_GPRS_TO_FILL * INVOKE_STUB_LOAD_REG_SIZE)(t4)
 
 .Lload_long\sfx:
-    jr   t4
+    addi t0, t0, 8
+    jalr x0, (2 * NUM_GPRS_TO_FILL * INVOKE_STUB_LOAD_REG_SIZE)(t4)
 
 .Lload_float\sfx:
-    jr   t5
+    addi t0, t0, 4
+    jalr x0, 0(t5)
 
 .Lload_double\sfx:
-    jr   t6
+    addi t0, t0, 8
+    jalr x0, (NUM_FPRS_TO_FILL * INVOKE_STUB_LOAD_REG_SIZE)(t5)
 
-// Handlers for loading other args (not float/double/long) into 4-byte GPRs.
-    .ifnc \sfx, _instance
-        INVOKE_STUB_LOAD_REG \
-            .Lload4i1, a1, s3, 4, lw, t3, .Lload4i2, t4, .Lload8i2, .Lfill_regs, \sfx
-    .endif
-    INVOKE_STUB_LOAD_REG .Lload4i2, a2, s3, 4, lw, t3, .Lload4i3, t4, .Lload8i3, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4i3, a3, s3, 4, lw, t3, .Lload4i4, t4, .Lload8i4, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4i4, a4, s3, 4, lw, t3, .Lload4i5, t4, .Lload8i5, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4i5, a5, s3, 4, lw, t3, .Lload4i6, t4, .Lload8i6, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4i6, a6, s3, 4, lw, t3, .Lload4i7, t4, .Lload8i7, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4i7, a7, s3, 4, lw, t3, .Lskip4, t4, .Lskip8, .Lfill_regs, \sfx
+.Lreg_handlers_start\sfx:
 
-// Handlers for loading longs into 8-byte GPRs.
+// Handlers for loading other args (not reference/long/float/double) into GPRs.
     .ifnc \sfx, _instance
-        INVOKE_STUB_LOAD_REG \
-            .Lload8i1, a1, s3, 8, ld, t3, .Lload4i2, t4, .Lload8i2, .Lfill_regs, \sfx
+        INVOKE_STUB_LOAD_REG lw, a1, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
     .endif
-    INVOKE_STUB_LOAD_REG .Lload8i2, a2, s3, 8, ld, t3, .Lload4i3, t4, .Lload8i3, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8i3, a3, s3, 8, ld, t3, .Lload4i4, t4, .Lload8i4, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8i4, a4, s3, 8, ld, t3, .Lload4i5, t4, .Lload8i5, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8i5, a5, s3, 8, ld, t3, .Lload4i6, t4, .Lload8i6, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8i6, a6, s3, 8, ld, t3, .Lload4i7, t4, .Lload8i7, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8i7, a7, s3, 8, ld, t3, .Lskip4, t4, .Lskip8, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a2, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a3, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a4, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a5, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a6, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lw, a7, t0, 4, t4, INVOKE_STUB_LOAD_REG_SKIP_OFFSET, .Lfill_regs, \sfx
+
+// Handlers for loading reference args into GPRs.
+    .ifnc \sfx, _instance
+        INVOKE_STUB_LOAD_REG lwu, a1, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    .endif
+    INVOKE_STUB_LOAD_REG lwu, a2, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lwu, a3, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lwu, a4, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lwu, a5, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lwu, a6, t0, 4, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG lwu, a7, t0, 4, t4, INVOKE_STUB_LOAD_REG_SKIP_OFFSET, .Lfill_regs, \sfx
+
+// Handlers for loading long args into GPRs.
+    .ifnc \sfx, _instance
+        INVOKE_STUB_LOAD_REG ld, a1, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    .endif
+    INVOKE_STUB_LOAD_REG ld, a2, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG ld, a3, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG ld, a4, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG ld, a5, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG ld, a6, t0, 8, t4, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG ld, a7, t0, 8, t4, INVOKE_STUB_LOAD_REG_SKIP_OFFSET, .Lfill_regs, \sfx
 
 // Handlers for loading floats into FPRs.
-    INVOKE_STUB_LOAD_REG .Lload4f0, fa0, s3, 4, flw, t5, .Lload4f1, t6, .Lload8f1, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f1, fa1, s3, 4, flw, t5, .Lload4f2, t6, .Lload8f2, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f2, fa2, s3, 4, flw, t5, .Lload4f3, t6, .Lload8f3, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f3, fa3, s3, 4, flw, t5, .Lload4f4, t6, .Lload8f4, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f4, fa4, s3, 4, flw, t5, .Lload4f5, t6, .Lload8f5, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f5, fa5, s3, 4, flw, t5, .Lload4f6, t6, .Lload8f6, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f6, fa6, s3, 4, flw, t5, .Lload4f7, t6, .Lload8f7, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload4f7, fa7, s3, 4, flw, t5, .Lskip4, t6, .Lskip8, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa0, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa1, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa2, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa3, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa4, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa5, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa6, t0, 4, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG flw, fa7, t0, 4, t5, INVOKE_STUB_LOAD_REG_SKIP_OFFSET, .Lfill_regs, \sfx
 
 // Handlers for loading doubles into FPRs.
-    INVOKE_STUB_LOAD_REG .Lload8f0, fa0, s3, 8, fld, t5, .Lload4f1, t6, .Lload8f1, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f1, fa1, s3, 8, fld, t5, .Lload4f2, t6, .Lload8f2, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f2, fa2, s3, 8, fld, t5, .Lload4f3, t6, .Lload8f3, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f3, fa3, s3, 8, fld, t5, .Lload4f4, t6, .Lload8f4, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f4, fa4, s3, 8, fld, t5, .Lload4f5, t6, .Lload8f5, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f5, fa5, s3, 8, fld, t5, .Lload4f6, t6, .Lload8f6, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f6, fa6, s3, 8, fld, t5, .Lload4f7, t6, .Lload8f7, .Lfill_regs, \sfx
-    INVOKE_STUB_LOAD_REG .Lload8f7, fa7, s3, 8, fld, t5, .Lskip4, t6, .Lskip8, .Lfill_regs, \sfx
-
-// Handlers for skipping arguments that do not fit into registers.
-    INVOKE_STUB_SKIP_ARG .Lskip4, s3, 4, .Lfill_regs, \sfx
-    INVOKE_STUB_SKIP_ARG .Lskip8, s3, 8, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa0, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa1, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa2, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa3, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa4, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa5, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa6, t0, 8, t5, INVOKE_STUB_LOAD_REG_SIZE, .Lfill_regs, \sfx
+    INVOKE_STUB_LOAD_REG fld, fa7, t0, 8, t5, INVOKE_STUB_LOAD_REG_SKIP_OFFSET, .Lfill_regs, \sfx
 
 .Lcall_method\sfx:
 .endm
