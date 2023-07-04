@@ -318,14 +318,21 @@ class ExecutionState(object):
     self.last_variant = variant
 
 
-def match_test_case(test_case, c1_pass, instruction_set_features):
+def match_test_case(
+    test_case,
+    c1_pass,
+    instruction_set_features,
+    read_barrier_type):
   """ Runs a test case against a C1visualizer graph dump.
 
   Raises MatchFailedException when a statement cannot be satisfied.
   """
   assert test_case.name == c1_pass.name
 
-  initial_variables = {"ISA_FEATURES": instruction_set_features}
+  initial_variables = {
+      "ISA_FEATURES": instruction_set_features,
+      "READ_BARRIER_TYPE": read_barrier_type
+  }
   state = ExecutionState(c1_pass, initial_variables)
   test_statements = test_case.statements + [None]
   for statement in test_statements:
@@ -351,7 +358,11 @@ def match_files(checker_file, c1_file, target_arch, debuggable_mode, print_cfg):
 
     Logger.start_test(test_case.name)
     try:
-      match_test_case(test_case, c1_pass, c1_file.instruction_set_features)
+      match_test_case(
+          test_case,
+          c1_pass,
+          c1_file.instruction_set_features,
+          c1_file.read_barrier_type)
       Logger.test_passed()
     except MatchFailedException as e:
       line_no = c1_pass.start_line_no + e.line_no

@@ -17,15 +17,15 @@ Matching of check lines is carried out in the order of appearance in the
 source file. There are five types of check lines. Branching instructions are
 also supported and documented later in this file.
  - CHECK:      Must match an output line which appears in the output group
-               later than lines matched against any preceeding checks. Output
+               later than lines matched against any preceding checks. Output
                lines must therefore match the check lines in the same order.
                These are referred to as "in-order" checks in the code.
  - CHECK-DAG:  Must match an output line which appears in the output group
-               later than lines matched against any preceeding in-order checks.
+               later than lines matched against any preceding in-order checks.
                In other words, the order of output lines does not matter
                between consecutive DAG checks.
  - CHECK-NOT:  Must not match any output line which appears in the output group
-               later than lines matched against any preceeding checks and
+               later than lines matched against any preceding checks and
                earlier than lines matched against any subsequent checks.
                Surrounding non-negative checks (or boundaries of the group)
                therefore create a scope within which the statement is verified.

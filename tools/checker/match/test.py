@@ -101,7 +101,10 @@ class MatchLines_Test(unittest.TestCase):
 
 class MatchFiles_Test(unittest.TestCase):
 
-  def assertMatches(self, checker_string, c1_string, isa=None, instruction_set_features=None):
+  def assertMatches(self, checker_string, c1_string,
+                    isa=None,
+                    instruction_set_features=None,
+                    read_barrier_type="none"):
     checker_string = \
       """
         /// CHECK-START: MyMethod MyPass
@@ -117,6 +120,10 @@ class MatchFiles_Test(unittest.TestCase):
       joined_features = ",".join(
         name if present else "-" + name for name, present in instruction_set_features.items())
       meta_data += "isa_features:" + joined_features
+
+    if meta_data:
+      meta_data += " "
+    meta_data += f"read_barrier_type:{read_barrier_type}"
 
     meta_data_string = ""
     if meta_data:
@@ -145,11 +152,17 @@ class MatchFiles_Test(unittest.TestCase):
     c1_file = parse_c1_visualizer_stream("<c1-file>", io.StringIO(c1_string))
     assert len(checker_file.test_cases) == 1
     assert len(c1_file.passes) == 1
-    match_test_case(checker_file.test_cases[0], c1_file.passes[0], c1_file.instruction_set_features)
+    match_test_case(checker_file.test_cases[0],
+                    c1_file.passes[0],
+                    c1_file.instruction_set_features,
+                    c1_file.read_barrier_type)
 
-  def assertDoesNotMatch(self, checker_string, c1_string, isa=None, instruction_set_features=None):
+  def assertDoesNotMatch(self, checker_string, c1_string,
+                         isa=None,
+                         instruction_set_features=None,
+                         read_barrier_type="none"):
     with self.assertRaises(MatchFailedException):
-      self.assertMatches(checker_string, c1_string, isa, instruction_set_features)
+      self.assertMatches(checker_string, c1_string, isa, instruction_set_features, read_barrier_type)
 
   def assertBadStructure(self, checker_string, c1_string):
     with self.assertRaises(BadStructureException):
@@ -1008,4 +1021,197 @@ class MatchFiles_Test(unittest.TestCase):
       """,
       "some_isa",
       ImmutableDict({"feature1": False, "feature2": True})
+    )
+
+  def test_readBarrierType(self):
+    # CheckEval assertions with no read barrier
+    self.assertMatches(
+        """
+          /// CHECK-EVAL: readBarrierType('none')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="none"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('none')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="baker"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('none')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="tablelookup"
+    )
+
+    # CheckEval assertions with "baker" read barrier
+    self.assertMatches(
+        """
+          /// CHECK-EVAL: readBarrierType('baker')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="baker"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('baker')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="none"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('baker')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="tablelookup"
+    )
+
+    # CheckEval assertions with "tablelookup" read barrier
+    self.assertMatches(
+        """
+          /// CHECK-EVAL: readBarrierType('tablelookup')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="tablelookup"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('tablelookup')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="none"
+    )
+    self.assertDoesNotMatch(
+        """
+          /// CHECK-EVAL: readBarrierType('tablelookup')
+        """,
+        """
+        foo
+        """,
+        None,
+        read_barrier_type="baker"
+    )
+
+    # CheckIf assertions with no read barrier
+    self.assertMatches(
+      """
+        /// CHECK-IF: readBarrierType('none')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+      """,
+      """
+      foo
+      bar1
+      """,
+      None,
+      read_barrier_type="none"
+    )
+    self.assertMatches(
+      """
+        /// CHECK-IF: not readBarrierType('none')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+      """,
+      """
+      foo
+      bar2
+      """,
+      None,
+      read_barrier_type="none"
+    )
+
+    # CheckIf assertions with 'baker' read barrier
+    self.assertMatches(
+        """
+        /// CHECK-IF: readBarrierType('baker')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+        """,
+        """
+        foo
+        bar1
+        """,
+        None,
+        read_barrier_type="baker"
+    )
+    self.assertMatches(
+        """
+        /// CHECK-IF: not readBarrierType('baker')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+        """,
+        """
+        foo
+        bar2
+        """,
+        None,
+        read_barrier_type="baker"
+    )
+
+    # CheckIf assertions with 'tablelookup' read barrier
+    self.assertMatches(
+        """
+        /// CHECK-IF: readBarrierType('tablelookup')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+        """,
+        """
+        foo
+        bar1
+        """,
+        None,
+        read_barrier_type="tablelookup"
+    )
+    self.assertMatches(
+        """
+        /// CHECK-IF: not readBarrierType('tablelookup')
+        ///   CHECK: bar1
+        /// CHECK-ELSE:
+        ///   CHECK: bar2
+        /// CHECK-FI:
+        """,
+        """
+        foo
+        bar2
+        """,
+        None,
+        read_barrier_type="tablelookup"
     )
