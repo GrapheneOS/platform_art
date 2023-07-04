@@ -36,31 +36,8 @@ class ZipArchive;
 // Class that is used to open dex files and deal with corresponding multidex and location logic.
 class ArtDexFileLoader : public DexFileLoader {
  public:
-  using DexFileLoader::DexFileLoader;
-  virtual ~ArtDexFileLoader() { }
-
-  // Returns the checksums of a file for comparison with GetLocationChecksum().
-  // For .dex files, this is the single header checksum.
-  // For zip files, this is the zip entry CRC32 checksum for classes.dex and
-  // each additional multidex entry classes2.dex, classes3.dex, etc.
-  // If a valid zip_fd is provided the file content will be read directly from
-  // the descriptor and `filename` will be used as alias for error logging. If
-  // zip_fd is -1, the method will try to open the `filename` and read the
-  // content from it.
-  //
-  // The dex_locations vector will be populated with the corresponding multidex
-  // locations.
-  //
-  // Return true if the checksums could be found, false otherwise.
-  static bool GetMultiDexChecksums(const char* filename,
-                                   std::vector<uint32_t>* checksums,
-                                   std::vector<std::string>* dex_locations,
-                                   std::string* error_msg,
-                                   int zip_fd = -1,
-                                   bool* only_contains_uncompressed_dex = nullptr);
-
-  // Don't shadow overloads from base class.
-  using DexFileLoader::Open;
+  using DexFileLoader::DexFileLoader;  // Use constructors from base class.
+  using DexFileLoader::Open;           // Don't shadow overloads from base class.
 
   // Old signature preserved for app-compat.
   std::unique_ptr<const DexFile> Open(const uint8_t* base,
