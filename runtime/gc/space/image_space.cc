@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -3448,66 +3449,44 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
     return false;
   }
 
-  size_t dex_file_index = 0;
-  for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
-    // Skip multidex locations - These will be checked when we visit their
-    // corresponding primary non-multidex location.
-    if (DexFileLoader::IsMultiDexLocation(oat_dex_file->GetDexFileLocation().c_str())) {
-      continue;
-    }
-
+  size_t dex_file_index = 0;  // Counts only primary dex files.
+  const std::vector<const OatDexFile*>& oat_dex_files = oat_file.GetOatDexFiles();
+  for (size_t i = 0; i < oat_dex_files.size();) {
     DCHECK(dex_filenames.empty() || dex_file_index < dex_filenames.size());
-    const std::string& dex_file_location =
-        dex_filenames.empty() ? oat_dex_file->GetDexFileLocation() : dex_filenames[dex_file_index];
+    const std::string& dex_file_location = dex_filenames.empty() ?
+                                               oat_dex_files[i]->GetDexFileLocation() :
+                                               dex_filenames[dex_file_index];
     int dex_fd = dex_file_index < dex_fds.size() ? dex_fds[dex_file_index] : -1;
     dex_file_index++;
 
-    std::vector<uint32_t> checksums;
-    std::vector<std::string> dex_locations_ignored;
-    if (!ArtDexFileLoader::GetMultiDexChecksums(
-            dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg, dex_fd)) {
-      *error_msg = StringPrintf("ValidateOatFile failed to get checksums of dex file '%s' "
-                                "referenced by oat file %s: %s",
-                                dex_file_location.c_str(),
-                                oat_file.GetLocation().c_str(),
-                                error_msg->c_str());
+    if (DexFileLoader::IsMultiDexLocation(oat_dex_files[i]->GetDexFileLocation().c_str())) {
+      return false;  // Expected primary dex file.
+    }
+    uint32_t oat_checksum = DexFileLoader::GetMultiDexChecksum(oat_dex_files, &i);
+
+    // Original checksum.
+    std::optional<uint32_t> dex_checksum;
+    ArtDexFileLoader dex_loader(DupCloexec(dex_fd), dex_file_location);
+    if (!dex_loader.GetMultiDexChecksum(&dex_checksum, error_msg)) {
+      *error_msg = StringPrintf(
+          "ValidateOatFile failed to get checksum of dex file '%s' "
+          "referenced by oat file %s: %s",
+          dex_file_location.c_str(),
+          oat_file.GetLocation().c_str(),
+          error_msg->c_str());
       return false;
     }
-    CHECK(!checksums.empty());
-    if (checksums[0] != oat_dex_file->GetDexFileLocationChecksum()) {
-      *error_msg = StringPrintf("ValidateOatFile found checksum mismatch between oat file "
-                                "'%s' and dex file '%s' (0x%x != 0x%x)",
-                                oat_file.GetLocation().c_str(),
-                                dex_file_location.c_str(),
-                                oat_dex_file->GetDexFileLocationChecksum(),
-                                checksums[0]);
+    CHECK(dex_checksum.has_value());
+
+    if (oat_checksum != dex_checksum) {
+      *error_msg = StringPrintf(
+          "ValidateOatFile found checksum mismatch between oat file "
+          "'%s' and dex file '%s' (0x%x != 0x%x)",
+          oat_file.GetLocation().c_str(),
+          dex_file_location.c_str(),
+          oat_checksum,
+          dex_checksum.value());
       return false;
-    }
-
-    // Verify checksums for any related multidex entries.
-    for (size_t i = 1; i < checksums.size(); i++) {
-      std::string multi_dex_location = DexFileLoader::GetMultiDexLocation(
-          i,
-          dex_file_location.c_str());
-      const OatDexFile* multi_dex = oat_file.GetOatDexFile(multi_dex_location.c_str(),
-                                                           nullptr,
-                                                           error_msg);
-      if (multi_dex == nullptr) {
-        *error_msg = StringPrintf("ValidateOatFile oat file '%s' is missing entry '%s'",
-                                  oat_file.GetLocation().c_str(),
-                                  multi_dex_location.c_str());
-        return false;
-      }
-
-      if (checksums[i] != multi_dex->GetDexFileLocationChecksum()) {
-        *error_msg = StringPrintf("ValidateOatFile found checksum mismatch between oat file "
-                                  "'%s' and dex file '%s' (0x%x != 0x%x)",
-                                  oat_file.GetLocation().c_str(),
-                                  multi_dex_location.c_str(),
-                                  multi_dex->GetDexFileLocationChecksum(),
-                                  checksums[i]);
-        return false;
-      }
     }
   }
   return true;
@@ -3556,14 +3535,13 @@ std::string ImageSpace::GetBootClassPathChecksums(
       ArrayRef<const DexFile* const>(boot_class_path).SubArray(bcp_pos);
   DCHECK(boot_class_path_tail.empty() ||
          !DexFileLoader::IsMultiDexLocation(boot_class_path_tail.front()->GetLocation().c_str()));
-  for (const DexFile* dex_file : boot_class_path_tail) {
-    if (!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str())) {
-      if (!boot_image_checksum.empty()) {
-        boot_image_checksum += ':';
-      }
-      boot_image_checksum += kDexFileChecksumPrefix;
+  for (size_t i = 0; i < boot_class_path_tail.size();) {
+    uint32_t checksum = DexFileLoader::GetMultiDexChecksum(boot_class_path_tail, &i);
+    if (!boot_image_checksum.empty()) {
+      boot_image_checksum += ':';
     }
-    StringAppendF(&boot_image_checksum, "/%08x", dex_file->GetLocationChecksum());
+    boot_image_checksum += kDexFileChecksumPrefix;
+    StringAppendF(&boot_image_checksum, "/%08x", checksum);
   }
   return boot_image_checksum;
 }
