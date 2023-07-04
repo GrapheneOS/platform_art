@@ -25,9 +25,13 @@ class C1visualizerFile(PrintableMixin):
     self.full_file_name = filename
     self.passes = []
     self.instruction_set_features = ImmutableDict()
+    self.read_barrier_type = "none"
 
   def set_isa_features(self, features):
     self.instruction_set_features = ImmutableDict(features)
+
+  def set_read_barrier_type(self, read_barrier_type):
+    self.read_barrier_type = read_barrier_type
 
   def add_pass(self, new_pass):
     self.passes.append(new_pass)
@@ -41,7 +45,8 @@ class C1visualizerFile(PrintableMixin):
   def __eq__(self, other):
     return (isinstance(other, self.__class__)
             and self.passes == other.passes
-            and self.instruction_set_features == other.instruction_set_features)
+            and self.instruction_set_features == other.instruction_set_features
+            and self.read_barrier_type == other.read_barrier_type)
 
 
 class C1visualizerPass(PrintableMixin):
