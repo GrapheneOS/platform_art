@@ -276,6 +276,8 @@ class OatWriter::OatDexFile {
   const uint32_t dex_file_location_size_;
   const char* const dex_file_location_data_;
 
+  DexFile::Magic dex_file_magic_;
+
   // The checksum of the dex file.
   const uint32_t dex_file_location_checksum_;
   const DexFile::Sha1 dex_file_sha1_;
@@ -2640,6 +2642,7 @@ bool OatWriter::CheckOatSize(OutputStream* out, size_t file_offset, size_t relat
     DO_STAT(size_method_info_);
     DO_STAT(size_oat_dex_file_location_size_);
     DO_STAT(size_oat_dex_file_location_data_);
+    DO_STAT(size_oat_dex_file_magic_);
     DO_STAT(size_oat_dex_file_location_checksum_);
     DO_STAT(size_oat_dex_file_sha1_);
     DO_STAT(size_oat_dex_file_offset_);
@@ -3801,6 +3804,7 @@ OatWriter::OatDexFile::OatDexFile(std::unique_ptr<const DexFile> dex_file)
       offset_(0),
       dex_file_location_size_(strlen(dex_file_location_->c_str())),
       dex_file_location_data_(dex_file_location_->c_str()),
+      dex_file_magic_(dex_file_->GetHeader().magic_),
       dex_file_location_checksum_(dex_file_->GetLocationChecksum()),
       dex_file_sha1_(dex_file_->GetSha1()),
       dex_file_offset_(0u),
@@ -3815,7 +3819,7 @@ OatWriter::OatDexFile::OatDexFile(std::unique_ptr<const DexFile> dex_file)
       class_offsets_() {}
 
 size_t OatWriter::OatDexFile::SizeOf() const {
-  return sizeof(dex_file_location_size_) + dex_file_location_size_ +
+  return sizeof(dex_file_location_size_) + dex_file_location_size_ + sizeof(dex_file_magic_) +
          sizeof(dex_file_location_checksum_) + sizeof(dex_file_sha1_) + sizeof(dex_file_offset_) +
          sizeof(class_offsets_offset_) + sizeof(lookup_table_offset_) +
          sizeof(method_bss_mapping_offset_) + sizeof(type_bss_mapping_offset_) +
@@ -3838,6 +3842,12 @@ bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream* out) cons
     return false;
   }
   oat_writer->size_oat_dex_file_location_data_ += dex_file_location_size_;
+
+  if (!out->WriteFully(&dex_file_magic_, sizeof(dex_file_magic_))) {
+    PLOG(ERROR) << "Failed to write dex file magic to " << out->GetLocation();
+    return false;
+  }
+  oat_writer->size_oat_dex_file_magic_ += sizeof(dex_file_magic_);
 
   if (!out->WriteFully(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_))) {
     PLOG(ERROR) << "Failed to write dex file location checksum to " << out->GetLocation();

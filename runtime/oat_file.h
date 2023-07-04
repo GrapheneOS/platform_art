@@ -521,6 +521,8 @@ class OatDexFile final {
     return canonical_dex_file_location_;
   }
 
+  DexFile::Magic GetMagic() const { return dex_file_magic_; }
+
   // Returns checksum of original DexFile that was the source of this OatDexFile;
   uint32_t GetDexFileLocationChecksum() const {
     return dex_file_location_checksum_;
@@ -589,6 +591,7 @@ class OatDexFile final {
   OatDexFile(const OatFile* oat_file,
              const std::string& dex_file_location,
              const std::string& canonical_dex_file_location,
+             DexFile::Magic dex_file_magic,
              uint32_t dex_file_checksum,
              DexFile::Sha1 dex_file_sha1,
              const uint8_t* dex_file_pointer,
@@ -605,6 +608,7 @@ class OatDexFile final {
   // pointer in the DexFile.
   OatDexFile(const OatFile* oat_file,
              const uint8_t* dex_file_pointer,
+             DexFile::Magic dex_file_magic,
              uint32_t dex_file_checksum,
              DexFile::Sha1 dex_file_sha1,
              const std::string& dex_file_location,
@@ -619,6 +623,7 @@ class OatDexFile final {
   const OatFile* const oat_file_ = nullptr;
   const std::string dex_file_location_;
   const std::string canonical_dex_file_location_;
+  const DexFile::Magic dex_file_magic_ = {};
   const uint32_t dex_file_location_checksum_ = 0u;
   const DexFile::Sha1 dex_file_sha1_ = {};
   const uint8_t* const dex_file_pointer_ = nullptr;
