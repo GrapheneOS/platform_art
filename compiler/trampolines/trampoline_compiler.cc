@@ -129,19 +129,20 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
                                                                     EntryPointCallingConvention abi,
                                                                     ThreadOffset64 offset) {
   Riscv64Assembler assembler(allocator);
+  ScratchRegisterScope srs(&assembler);
+  XRegister tmp = srs.AllocateXRegister();
 
   switch (abi) {
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
-      // Note: We use `TMP2` here because `TMP` can be used for source address by `Loadd()`.
-      __ Loadd(TMP2,
+      __ Loadd(tmp,
                A0,
                JNIEnvExt::SelfOffset(static_cast<size_t>(kRiscv64PointerSize)).Int32Value());
-      __ Loadd(TMP, TMP2, offset.Int32Value());
-      __ Jr(TMP);
+      __ Loadd(tmp, tmp, offset.Int32Value());
+      __ Jr(tmp);
       break;
     case kQuickAbi:  // TR holds Thread*.
-      __ Loadd(TMP, TR, offset.Int32Value());
-      __ Jr(TMP);
+      __ Loadd(tmp, TR, offset.Int32Value());
+      __ Jr(tmp);
       break;
   }
 
