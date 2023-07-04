@@ -114,6 +114,8 @@ enum FRegister {
 
   kNumberOfFRegisters = 32,
   kNoFRegister = -1,  // Signals an illegal F register.
+
+  FTMP = FT11,  // Reserved for special uses, such as assembler macro instructions.
 };
 
 std::ostream& operator<<(std::ostream& os, const FRegister& rhs);
