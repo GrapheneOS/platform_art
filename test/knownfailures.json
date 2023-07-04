@@ -1334,23 +1334,11 @@
         "description": [ "Working as intended tests that don't pass with baseline." ]
     },
     {
-        "tests": ["1004-checker-volatile-ref-load"],
-        "env_vars": {"ART_USE_READ_BARRIER": "false"},
-        "bug": "b/140507091",
-        "description": ["Test containing Checker assertions expecting Baker read barriers."]
-    },
-    {
         "tests": ["2040-huge-native-alloc"],
         "env_vars": {"ART_USE_READ_BARRIER": "false"},
         "variant": "debug",
         "bug": "b/242181443",
         "description": ["Test fails due to delay delebrately added in the userfaultfd GC between marking and compaction."]
-    },
-    {
-        "tests": ["1004-checker-volatile-ref-load"],
-        "env_vars": {"ART_READ_BARRIER_TYPE": "TABLELOOKUP"},
-        "bug": "b/140507091",
-        "description": ["Test containing Checker assertions expecting Baker read barriers."]
     },
     {
         "tests": ["689-zygote-jit-deopt"],
