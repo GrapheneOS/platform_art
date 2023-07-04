@@ -34,6 +34,8 @@
 namespace art HIDDEN {
 namespace riscv64 {
 
+class ScratchRegisterScope;
+
 enum class FPRoundingMode : uint32_t {
   kRNE = 0x0,  // Round to Nearest, ties to Even
   kRTZ = 0x1,  // Round towards Zero
@@ -146,7 +148,9 @@ class Riscv64Assembler final : public Assembler {
         jump_tables_(allocator->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
-        last_branch_id_(0) {
+        last_branch_id_(0),
+        available_scratch_core_registers_((1u << TMP) | (1u << TMP2)),
+        available_scratch_fp_registers_(1u << FTMP) {
     UNUSED(instruction_set_features);
     cfi().DelayEmittingAdvancePCs();
   }
@@ -796,7 +800,17 @@ class Riscv64Assembler final : public Assembler {
   void Emit(uint32_t value);
 
   // Adjust base register and offset if needed for load/store with a large offset.
-  void AdjustBaseAndOffset(XRegister& base, int32_t& offset);
+  void AdjustBaseAndOffset(XRegister& base, int32_t& offset, ScratchRegisterScope& srs);
+
+  // Helper templates for loads/stores with 32-bit offsets.
+  template <void (Riscv64Assembler::*insn)(XRegister, XRegister, int32_t)>
+  void LoadFromOffset(XRegister rd, XRegister rs1, int32_t offset);
+  template <void (Riscv64Assembler::*insn)(XRegister, XRegister, int32_t)>
+  void StoreToOffset(XRegister rs2, XRegister rs1, int32_t offset);
+  template <void (Riscv64Assembler::*insn)(FRegister, XRegister, int32_t)>
+  void FLoadFromOffset(FRegister rd, XRegister rs1, int32_t offset);
+  template <void (Riscv64Assembler::*insn)(FRegister, XRegister, int32_t)>
+  void FStoreToOffset(FRegister rs2, XRegister rs1, int32_t offset);
 
   // Implementation helper for `Li()`, `LoadConst32()` and `LoadConst64()`.
   void LoadImmediate(XRegister rd, int64_t imm, bool can_use_tmp);
@@ -989,9 +1003,112 @@ class Riscv64Assembler final : public Assembler {
   uint32_t last_old_position_;
   uint32_t last_branch_id_;
 
+  uint32_t available_scratch_core_registers_;
+  uint32_t available_scratch_fp_registers_;
+
   static constexpr uint32_t kXlen = 64;
 
+  friend class ScratchRegisterScope;
+
   DISALLOW_COPY_AND_ASSIGN(Riscv64Assembler);
+};
+
+class ScratchRegisterScope {
+ public:
+  explicit ScratchRegisterScope(Riscv64Assembler* assembler)
+      : assembler_(assembler),
+        old_available_scratch_core_registers_(assembler->available_scratch_core_registers_),
+        old_available_scratch_fp_registers_(assembler->available_scratch_fp_registers_) {}
+
+  ~ScratchRegisterScope() {
+    assembler_->available_scratch_core_registers_ = old_available_scratch_core_registers_;
+    assembler_->available_scratch_fp_registers_ = old_available_scratch_fp_registers_;
+  }
+
+  // Alocate a scratch `XRegister`. There must be an available register to allocate.
+  XRegister AllocateXRegister() {
+    CHECK_NE(assembler_->available_scratch_core_registers_, 0u);
+    // Allocate the highest available scratch register (prefer TMP(T6) over TMP2(T5)).
+    uint32_t reg_num = (BitSizeOf(assembler_->available_scratch_core_registers_) - 1u) -
+                       CLZ(assembler_->available_scratch_core_registers_);
+    assembler_->available_scratch_core_registers_ &= ~(1u << reg_num);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfXRegisters));
+    return enum_cast<XRegister>(reg_num);
+  }
+
+  // Free a previously unavailable core register for use as a scratch register.
+  // This can be an arbitrary register, not necessarly the usual `TMP` or `TMP2`.
+  void FreeXRegister(XRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfXRegisters));
+    CHECK_EQ((1u << reg_num) & assembler_->available_scratch_core_registers_, 0u);
+    assembler_->available_scratch_core_registers_ |= 1u << reg_num;
+  }
+
+  // The number of available scratch core registers.
+  size_t AvailableXRegisters() {
+    return POPCOUNT(assembler_->available_scratch_core_registers_);
+  }
+
+  // Make sure a core register is available for use as a scratch register.
+  void IncludeXRegister(XRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfXRegisters));
+    assembler_->available_scratch_core_registers_ |= 1u << reg_num;
+  }
+
+  // Make sure a core register is not available for use as a scratch register.
+  void ExcludeXRegister(XRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfXRegisters));
+    assembler_->available_scratch_core_registers_ &= ~(1u << reg_num);
+  }
+
+  // Alocate a scratch `FRegister`. There must be an available register to allocate.
+  FRegister AllocateFRegister() {
+    CHECK_NE(assembler_->available_scratch_fp_registers_, 0u);
+    // Allocate the highest available scratch register (same as for core registers).
+    uint32_t reg_num = (BitSizeOf(assembler_->available_scratch_fp_registers_) - 1u) -
+                       CLZ(assembler_->available_scratch_fp_registers_);
+    assembler_->available_scratch_fp_registers_ &= ~(1u << reg_num);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfFRegisters));
+    return enum_cast<FRegister>(reg_num);
+  }
+
+  // Free a previously unavailable FP register for use as a scratch register.
+  // This can be an arbitrary register, not necessarly the usual `FTMP`.
+  void FreeFRegister(FRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfFRegisters));
+    CHECK_EQ((1u << reg_num) & assembler_->available_scratch_fp_registers_, 0u);
+    assembler_->available_scratch_fp_registers_ |= 1u << reg_num;
+  }
+
+  // The number of available scratch FP registers.
+  size_t AvailableFRegisters() {
+    return POPCOUNT(assembler_->available_scratch_fp_registers_);
+  }
+
+  // Make sure an FP register is available for use as a scratch register.
+  void IncludeFRegister(FRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfFRegisters));
+    assembler_->available_scratch_fp_registers_ |= 1u << reg_num;
+  }
+
+  // Make sure an FP register is not available for use as a scratch register.
+  void ExcludeFRegister(FRegister reg) {
+    uint32_t reg_num = enum_cast<uint32_t>(reg);
+    DCHECK_LT(reg_num, enum_cast<uint32_t>(kNumberOfFRegisters));
+    assembler_->available_scratch_fp_registers_ &= ~(1u << reg_num);
+  }
+
+ private:
+  Riscv64Assembler* const assembler_;
+  const uint32_t old_available_scratch_core_registers_;
+  const uint32_t old_available_scratch_fp_registers_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScratchRegisterScope);
 };
 
 }  // namespace riscv64

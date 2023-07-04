@@ -230,9 +230,9 @@ TEST_F(JniMacroAssemblerRiscv64Test, Store) {
   __ StoreStackPointerToThread(ThreadOffset64(512), /*tag_sp=*/ false);
   expected += "sd sp, 512(s1)\n";
   __ StoreStackPointerToThread(ThreadOffset64(3 * KB), /*tag_sp=*/ true);
-  expected += "ori t5, sp, 0x2\n"
-              "addi t6, s1, 0x7f8\n"
-              "sd t5, 0x408(t6)\n";
+  expected += "ori t6, sp, 0x2\n"
+              "addi t5, s1, 0x7f8\n"
+              "sd t6, 0x408(t5)\n";
 
   DriverStr(expected, "Store");
 }
@@ -351,10 +351,10 @@ TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
               "addi a7, sp, 72\n"
               "1:\n"
               "sd a7, 0(sp)\n"
-              "ld t5, 76(sp)\n"
-              "sd t5, 8(sp)\n"
-              "lw t5, 84(sp)\n"
-              "sd t5, 16(sp)\n"
+              "ld t6, 76(sp)\n"
+              "sd t6, 8(sp)\n"
+              "lw t6, 84(sp)\n"
+              "sd t6, 16(sp)\n"
               "mv a7, a6\n"
               "mv a6, a5\n"
               "mv a5, a4\n"
@@ -432,15 +432,15 @@ TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
               "beqz a2, 1f\n"
               "addi a2, sp, 44\n"
               "1:\n"
-              "ld t5, 76(sp)\n"
-              "sd t5, 0(sp)\n"
-              "lwu t5, 84(sp)\n"
-              "beqz t5, 2f\n"
-              "addi t5, sp, 84\n"
+              "ld t6, 76(sp)\n"
+              "sd t6, 0(sp)\n"
+              "lwu t6, 84(sp)\n"
+              "beqz t6, 2f\n"
+              "addi t6, sp, 84\n"
               "2:\n"
-              "sd t5, 8(sp)\n"
-              "lw t5, 88(sp)\n"
-              "sd t5, 16(sp)\n";
+              "sd t6, 8(sp)\n"
+              "lw t6, 88(sp)\n"
+              "sd t6, 16(sp)\n";
 
   // Normal or @FastNative static with parameters "FDFDFDFDFDIJIJIJL".
   ArgumentLocation move_dests3[] = {
@@ -634,10 +634,10 @@ TEST_F(JniMacroAssemblerRiscv64Test, MoveArguments) {
   __ MoveArguments(ArrayRef<ArgumentLocation>(move_dests5),
                    ArrayRef<ArgumentLocation>(move_srcs5),
                    ArrayRef<FrameOffset>(move_refs5));
-  expected += "ld t5, 88(sp)\n"
-              "sd t5, 0(sp)\n"
-              "lw t5, 96(sp)\n"
-              "sd t5, 8(sp)\n"
+  expected += "ld t6, 88(sp)\n"
+              "sd t6, 0(sp)\n"
+              "lw t6, 96(sp)\n"
+              "sd t6, 8(sp)\n"
               "mv a0, a1\n"
               "mv a1, a2\n"
               "mv a2, a3\n"
@@ -927,15 +927,15 @@ TEST_F(JniMacroAssemblerRiscv64Test, TestByteAndJumpIfNotZero) {
   std::unique_ptr<JNIMacroLabel> resume = __ CreateLabel();
 
   __ TestByteAndJumpIfNotZero(0x12345678u, slow_path.get());
-  expected += "lui t5, 0x12345\n"
-              "lb t5, 0x678(t5)\n"
-              "bnez t5, 2f\n";
+  expected += "lui t6, 0x12345\n"
+              "lb t6, 0x678(t6)\n"
+              "bnez t6, 2f\n";
 
   __ TestByteAndJumpIfNotZero(0x87654321u, slow_path.get());
-  expected += "lui t5, 0x87654/4\n"
-              "slli t5, t5, 2\n"
-              "lb t5, 0x321(t5)\n"
-              "bnez t5, 2f\n";
+  expected += "lui t6, 0x87654/4\n"
+              "slli t6, t6, 2\n"
+              "lb t6, 0x321(t6)\n"
+              "bnez t6, 2f\n";
 
   __ Bind(resume.get());
   expected += "1:\n";
@@ -946,9 +946,9 @@ TEST_F(JniMacroAssemblerRiscv64Test, TestByteAndJumpIfNotZero) {
   expected += "2:\n";
 
   __ TestByteAndJumpIfNotZero(0x456789abu, resume.get());
-  expected += "lui t5, 0x45678+1\n"
-              "lb t5, 0x9ab-0x1000(t5)\n"
-              "bnez t5, 1b\n";
+  expected += "lui t6, 0x45678+1\n"
+              "lb t6, 0x9ab-0x1000(t6)\n"
+              "bnez t6, 1b\n";
 
   DriverStr(expected, "TestByteAndJumpIfNotZero");
 }
