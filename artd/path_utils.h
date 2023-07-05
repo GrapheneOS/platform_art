@@ -23,6 +23,7 @@
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/result.h"
 #include "base/file_utils.h"
+#include "fstab/fstab.h"
 
 namespace art {
 namespace artd {
@@ -81,6 +82,15 @@ android::base::Result<std::string> BuildProfileOrDmPath(
 
 android::base::Result<std::string> BuildVdexPath(
     const aidl::com::android::server::art::VdexPath& vdex_path);
+
+// Returns true if `path` starts with `prefix` (i.e., if `prefix` represents a directory that
+// contains a file/directory at `path`, or if `prefix` and `path` represents the same
+// file/directory). Only supports absolute paths.
+bool PathStartsWith(std::string_view path, std::string_view prefix);
+
+// Returns the fstab entries in /proc/mounts for the given path.
+android::base::Result<std::vector<android::fs_mgr::FstabEntry>> GetProcMountsEntriesForPath(
+    const std::string& path);
 
 }  // namespace artd
 }  // namespace art
