@@ -200,27 +200,15 @@ public final class Utils {
     @NonNull
     public static boolean isInDalvikCache(@NonNull PackageState pkgState, @NonNull IArtd artd)
             throws RemoteException {
-        // The artifacts should be in the global dalvik-cache directory if:
-        // (1). the package is on a system partition, even if the partition is remounted read-write,
-        //      or
-        // (2). the package is in any other readonly location. (At the time of writing, this only
-        //      include Incremental FS.)
-        //
-        // Right now, we are using some heuristics to determine this. For (1), we can potentially
-        // use "libfstab" instead as a general solution, but for (2), unfortunately, we have to
-        // stick with heuristics.
-        //
-        // We cannot rely on access(2) because:
-        // - It doesn't take effective capabilities into account, from which artd gets root access
-        //   to the filesystem.
-        // - The `faccessat` variant with the `AT_EACCESS` flag, which takes effective capabilities
-        //   into account, is not supported by bionic.
-        //
-        // We cannot rely on `f_flags` returned by statfs(2) because:
-        // - Incremental FS is tagged as read-write while it's actually not.
-        return (pkgState.isSystem() && !pkgState.isUpdatedSystemApp())
-                || artd.isIncrementalFsPath(
-                        pkgState.getAndroidPackage().getSplits().get(0).getPath());
+        try {
+            return artd.isInDalvikCache(pkgState.getAndroidPackage().getSplits().get(0).getPath());
+        } catch (ServiceSpecificException e) {
+            // This should never happen. Ignore the error and conservatively use dalvik-cache to
+            // minimize the risk.
+            // TODO(jiakaiz): Throw the error instead of ignoring it.
+            Log.e(TAG, "Failed to determine the location of the artifacts", e);
+            return true;
+        }
     }
 
     /** Returns true if the given string is a valid compiler filter. */
