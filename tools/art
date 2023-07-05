@@ -618,6 +618,7 @@ if [ "$PERF" != "" ]; then
   # -k is for supporting jitted code.
   LAUNCH_WRAPPER="perf record -k 1 -g --call-graph dwarf -F 10000 -o $ANDROID_DATA/perf.data -e cycles:u $LAUNCH_WRAPPER"
   DEX2OAT_FLAGS+=(--generate-debug-info)
+  EXTRA_OPTIONS+=(-Xcompiler-option --generate-debug-info)
 fi
 
 if [ "$ALLOW_DEFAULT_JDWP" = "no" ]; then
