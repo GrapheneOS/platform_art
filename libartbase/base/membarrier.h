@@ -36,7 +36,7 @@ namespace art {
     kPrivateExpedited = (1 << 3),
     // MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED
     kRegisterPrivateExpedited = (1 << 4),
-    // MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED_SYNC_CORE
+    // MEMBARRIER_CMD_PRIVATE_EXPEDITED_SYNC_CORE
     kPrivateExpeditedSyncCore = (1 << 5),
     // MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED_SYNC_CORE
     kRegisterPrivateExpeditedSyncCore = (1 << 6)
