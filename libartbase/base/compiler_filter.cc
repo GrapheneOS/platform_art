@@ -163,7 +163,7 @@ bool CompilerFilter::ParseCompilerFilter(const char* option, Filter* filter) {
     *filter = kAssumeVerified;
   } else if (strcmp(option, "interpret-only") == 0) {
     LOG(WARNING) << "'interpret-only' is an obsolete compiler filter name that will be "
-                 << "removed in future releases, please use 'quicken' instead.";
+                 << "removed in future releases, please use 'verify' instead.";
     *filter = kVerify;
   } else if (strcmp(option, "verify-profile") == 0) {
     LOG(WARNING) << "'verify-profile' is an obsolete compiler filter name that will be "
