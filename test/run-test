@@ -1099,8 +1099,8 @@ if True:
     if run_checker == "yes":
       if target_mode == "yes":
         if ON_VM:
-          run(f'{SCP_CMD} "{SSH_USER}@${SSH_HOST}:{CHROOT}/{cfg_output_dir}/'
-              f'{cfg_output}"')
+          run(f'{SCP_CMD} "{SSH_USER}@{SSH_HOST}:{CHROOT}/{cfg_output_dir}/'
+              f'{cfg_output}" "{tmp_dir}"')
         else:
           run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
       run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}"',
