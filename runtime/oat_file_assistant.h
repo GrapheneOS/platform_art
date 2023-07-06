@@ -204,10 +204,8 @@ class OatFileAssistant {
   // compiler filter is at least as good as an oat file generated with the
   // given compiler filter otherwise, if its set to true, it checks whether
   // the oat file generated with the target filter will be downgraded as
-  // compared to the current state. For example, if the current compiler filter is
-  // quicken, and target filter is verify, it will recommend to dexopt, while
-  // if the target filter is speed profile, it will recommend to keep it in its
-  // current state.
+  // compared to the current state. For example, if the current compiler filter is verify and the
+  // target filter is speed profile it will recommend to keep it in its current state.
   // profile_changed should be true to indicate the profile has recently changed
   // for this dex location.
   // If the purpose of the dexopt is to downgrade the compiler filter,

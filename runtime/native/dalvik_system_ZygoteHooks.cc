@@ -187,8 +187,8 @@ static uint32_t EnableDebugFeatures(uint32_t runtime_flags) {
 
   const bool safe_mode = (runtime_flags & DEBUG_ENABLE_SAFEMODE) != 0;
   if (safe_mode) {
-    // Only quicken oat files.
-    runtime->AddCompilerOption("--compiler-filter=quicken");
+    // Only verify oat files.
+    runtime->AddCompilerOption("--compiler-filter=verify");
     runtime->SetSafeMode(true);
     runtime_flags &= ~DEBUG_ENABLE_SAFEMODE;
   }
