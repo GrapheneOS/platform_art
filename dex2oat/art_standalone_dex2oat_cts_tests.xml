@@ -67,4 +67,9 @@
 
     <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
+
+    <!-- Controller that will skip the module if a native bridge situation is detected.
+         For example: module wants to run arm and device is x86. This module tests art
+         internals which are never executed in native bridge situation. -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.NativeBridgeModuleController" />
 </configuration>
