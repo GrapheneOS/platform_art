@@ -93,7 +93,7 @@ enum class CopyOption {
 // ...
 // MethodBssMapping
 //
-// VmapTable         one variable sized VmapTable blob (CodeInfo or QuickeningInfo).
+// VmapTable         one variable sized VmapTable blob (CodeInfo).
 // VmapTable         VmapTables are deduplicated.
 // ...
 // VmapTable
@@ -286,7 +286,6 @@ class OatWriter {
   bool OpenDexFiles(File* file,
                     /*inout*/ std::vector<MemMap>* opened_dex_files_map,
                     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
-  void WriteQuickeningInfo(/*out*/std::vector<uint8_t>* buffer);
   void WriteTypeLookupTables(/*out*/std::vector<uint8_t>* buffer);
   void WriteVerifierDeps(verifier::VerifierDeps* verifier_deps,
                          /*out*/std::vector<uint8_t>* buffer);
@@ -397,9 +396,6 @@ class OatWriter {
   // Offset of section holding VerifierDeps inside Vdex.
   size_t vdex_verifier_deps_offset_;
 
-  // Offset of section holding quickening info inside Vdex.
-  size_t vdex_quickening_info_offset_;
-
   // Offset of type lookup tables inside Vdex.
   size_t vdex_lookup_tables_offset_;
 
@@ -500,15 +496,12 @@ class OatWriter {
   uint32_t size_vdex_header_;
   uint32_t size_vdex_checksums_;
   uint32_t size_dex_file_alignment_;
-  uint32_t size_quickening_table_offset_;
   uint32_t size_executable_offset_alignment_;
   uint32_t size_oat_header_;
   uint32_t size_oat_header_key_value_store_;
   uint32_t size_dex_file_;
   uint32_t size_verifier_deps_;
   uint32_t size_verifier_deps_alignment_;
-  uint32_t size_quickening_info_;
-  uint32_t size_quickening_info_alignment_;
   uint32_t size_vdex_lookup_table_alignment_;
   uint32_t size_vdex_lookup_table_;
   uint32_t size_interpreter_to_interpreter_bridge_;
