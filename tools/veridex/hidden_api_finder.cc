@@ -217,7 +217,7 @@ void HiddenApiFinder::Dump(std::ostream& os,
     // Dump potential reflection uses.
     for (const std::string& cls : classes_) {
       for (const std::string& name : strings_) {
-        std::string full_name = cls + "->" + name;
+        std::string full_name = ART_FORMAT("{}->{}", cls, name);
         if (hidden_api_.GetSignatureSource(full_name) != SignatureSource::APP &&
             hidden_api_.ShouldReport(full_name)) {
           hiddenapi::ApiList api_list = hidden_api_.GetApiList(full_name);

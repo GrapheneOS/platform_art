@@ -44,6 +44,7 @@ art_clang_tidy_errors = [
     "performance-faster-string-find",
     "performance-for-range-copy",
     "performance-implicit-conversion-in-loop",
+    "performance-inefficient-string-concatenation",
     "performance-inefficient-vector-operation",
     "performance-no-automatic-move",
     "performance-noexcept-move-constructor",

@@ -290,7 +290,7 @@ static void VerifyNonSingleImplementation(ObjPtr<mirror::Class> verify_class,
         std::string tmp = in->PrettyClass();
         while (in != failed) {
           in = in->GetSuperClass();
-          tmp = tmp + "->" + in->PrettyClass();
+          tmp += "->" + in->PrettyClass();
         }
         return tmp;
       };

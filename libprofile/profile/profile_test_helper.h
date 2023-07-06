@@ -174,7 +174,7 @@ class ProfileTestHelper {
       size_t method_name_index = (method_index / num_shared_ids) / num_shared_ids;
       std::string return_type = "LSharedType" + std::to_string(return_type_index) + ";";
       std::string arg_type = "LSharedType" + std::to_string(arg_type_index) + ";";
-      std::string signature = "(" + arg_type + ")" + return_type;
+      std::string signature = ART_FORMAT("({}){}", arg_type, return_type);
       builder.AddMethod(class_descriptor, signature, "m" + std::to_string(method_name_index));
     }
     storage.push_back(builder.Build(location, location_checksum));

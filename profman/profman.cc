@@ -901,8 +901,13 @@ class ProfMan final {
           }
           std::string inline_cache_string =
               GetInlineCacheLine(profile_info, id, dex_file.get(), dex_method_idx);
-          out_lines->insert(flags_string + type_string + kMethodSep + method_name +
-                            signature_string + inline_cache_string);
+          out_lines->insert(ART_FORMAT("{}{}{}{}{}{}",
+                                       flags_string,
+                                       type_string,
+                                       kMethodSep,
+                                       method_name,
+                                       signature_string,
+                                       inline_cache_string));
         }
       }
     }
