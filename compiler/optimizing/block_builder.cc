@@ -20,7 +20,6 @@
 #include "dex/bytecode_utils.h"
 #include "dex/code_item_accessors-inl.h"
 #include "dex/dex_file_exception_helpers.h"
-#include "quicken_info.h"
 
 namespace art HIDDEN {
 
@@ -40,9 +39,7 @@ HBasicBlockBuilder::HBasicBlockBuilder(HGraph* graph,
                       local_allocator->Adapter(kArenaAllocGraphBuilder)),
       throwing_blocks_(kDefaultNumberOfThrowingBlocks,
                        local_allocator->Adapter(kArenaAllocGraphBuilder)),
-      number_of_branches_(0u),
-      quicken_index_for_dex_pc_(std::less<uint32_t>(),
-                                local_allocator->Adapter(kArenaAllocGraphBuilder)) {}
+      number_of_branches_(0u) {}
 
 HBasicBlock* HBasicBlockBuilder::MaybeCreateBlockAt(uint32_t dex_pc) {
   return MaybeCreateBlockAt(dex_pc, dex_pc);
@@ -147,7 +144,6 @@ void HBasicBlockBuilder::ConnectBasicBlocks() {
   HBasicBlock* block = graph_->GetEntryBlock();
   graph_->AddBlock(block);
 
-  size_t quicken_index = 0;
   bool is_throwing_block = false;
   // Calculate the qucikening index here instead of CreateBranchTargets since it's easier to
   // calculate in dex_pc order.
@@ -158,8 +154,6 @@ void HBasicBlockBuilder::ConnectBasicBlocks() {
     // Check if this dex_pc address starts a new basic block.
     HBasicBlock* next_block = GetBlockAt(dex_pc);
     if (next_block != nullptr) {
-      // We only need quicken index entries for basic block boundaries.
-      quicken_index_for_dex_pc_.Put(dex_pc, quicken_index);
       if (block != nullptr) {
         // Last instruction did not end its basic block but a new one starts here.
         // It must have been a block falling through into the next one.
@@ -168,10 +162,6 @@ void HBasicBlockBuilder::ConnectBasicBlocks() {
       block = next_block;
       is_throwing_block = false;
       graph_->AddBlock(block);
-    }
-    // Make sure to increment this before the continues.
-    if (QuickenInfoTable::NeedsIndexForInstruction(&instruction)) {
-      ++quicken_index;
     }
 
     if (block == nullptr) {
@@ -481,10 +471,6 @@ void HBasicBlockBuilder::BuildIntrinsic() {
   // Connect blocks.
   entry_block->AddSuccessor(body);
   body->AddSuccessor(exit_block);
-}
-
-size_t HBasicBlockBuilder::GetQuickenIndex(uint32_t dex_pc) const {
-  return quicken_index_for_dex_pc_.Get(dex_pc);
 }
 
 }  // namespace art

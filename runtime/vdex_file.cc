@@ -40,7 +40,6 @@
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "mirror/class-inl.h"
-#include "quicken_info.h"
 #include "handle_scope-inl.h"
 #include "runtime.h"
 #include "verifier/verifier_deps.h"
