@@ -446,7 +446,7 @@ def get_vogar_command(test_name):
     cmd.append("--timeout {}".format(get_timeout_secs()))
     cmd.append("--toolchain d8 --language CUR")
     if args.jit:
-      cmd.append("--vm-arg -Xcompiler-option --vm-arg --compiler-filter=quicken")
+      cmd.append("--vm-arg -Xcompiler-option --vm-arg --compiler-filter=verify")
     cmd.append("--vm-arg -Xusejit:{}".format(str(args.jit).lower()))
 
   if args.verbose:

@@ -27,7 +27,6 @@
 #include "class_status.h"
 #include "dex/compact_offset_table.h"
 #include "dex/dex_file.h"
-#include "quicken_info.h"
 #include "handle.h"
 
 namespace art {
