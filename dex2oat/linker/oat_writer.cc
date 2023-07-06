@@ -69,7 +69,6 @@
 #include "oat.h"
 #include "oat_quick_method_header.h"
 #include "profile/profile_compilation_info.h"
-#include "quicken_info.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack_map.h"
 #include "stream/buffered_output_stream.h"
@@ -338,7 +337,6 @@ OatWriter::OatWriter(const CompilerOptions& compiler_options,
       vdex_dex_files_offset_(0u),
       vdex_dex_shared_data_offset_(0u),
       vdex_verifier_deps_offset_(0u),
-      vdex_quickening_info_offset_(0u),
       vdex_lookup_tables_offset_(0u),
       oat_checksum_(adler32(0L, Z_NULL, 0)),
       code_size_(0u),
@@ -361,15 +359,12 @@ OatWriter::OatWriter(const CompilerOptions& compiler_options,
       size_vdex_header_(0),
       size_vdex_checksums_(0),
       size_dex_file_alignment_(0),
-      size_quickening_table_offset_(0),
       size_executable_offset_alignment_(0),
       size_oat_header_(0),
       size_oat_header_key_value_store_(0),
       size_dex_file_(0),
       size_verifier_deps_(0),
       size_verifier_deps_alignment_(0),
-      size_quickening_info_(0),
-      size_quickening_info_alignment_(0),
       size_vdex_lookup_table_alignment_(0),
       size_vdex_lookup_table_(0),
       size_interpreter_to_interpreter_bridge_(0),
@@ -1276,7 +1271,7 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
       offset_ += code_size;
     }
 
-    // Exclude quickened dex methods (code_size == 0) since they have no native code.
+    // Exclude dex methods without native code.
     if (generate_debug_info_ && code_size != 0) {
       DCHECK(has_debug_info);
       const uint8_t* code_info = compiled_method->GetVmapTable().data();
@@ -2508,12 +2503,6 @@ bool OatWriter::WriteRodata(OutputStream* out) {
   return true;
 }
 
-void OatWriter::WriteQuickeningInfo([[maybe_unused]] /*out*/ std::vector<uint8_t>*) {
-  // Nothing to write. Leave `vdex_size_` untouched and unaligned.
-  vdex_quickening_info_offset_ = vdex_size_;
-  size_quickening_info_alignment_ = 0;
-}
-
 void OatWriter::WriteVerifierDeps(verifier::VerifierDeps* verifier_deps,
                                   /*out*/std::vector<uint8_t>* buffer) {
   if (verifier_deps == nullptr) {
@@ -2621,7 +2610,6 @@ bool OatWriter::CheckOatSize(OutputStream* out, size_t file_offset, size_t relat
     DO_STAT(size_vdex_header_);
     DO_STAT(size_vdex_checksums_);
     DO_STAT(size_dex_file_alignment_);
-    DO_STAT(size_quickening_table_offset_);
     DO_STAT(size_executable_offset_alignment_);
     DO_STAT(size_oat_header_);
     DO_STAT(size_oat_header_key_value_store_);
@@ -2630,8 +2618,6 @@ bool OatWriter::CheckOatSize(OutputStream* out, size_t file_offset, size_t relat
     DO_STAT(size_verifier_deps_alignment_);
     DO_STAT(size_vdex_lookup_table_);
     DO_STAT(size_vdex_lookup_table_alignment_);
-    DO_STAT(size_quickening_info_);
-    DO_STAT(size_quickening_info_alignment_);
     DO_STAT(size_interpreter_to_interpreter_bridge_);
     DO_STAT(size_interpreter_to_compiled_code_bridge_);
     DO_STAT(size_jni_dlsym_lookup_trampoline_);

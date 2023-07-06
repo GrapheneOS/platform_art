@@ -115,7 +115,7 @@ public abstract class Executor {
     commandBuilder.append("--oat-file=output.oat ");
     commandBuilder.append("--android-root=").append(device.getAndroidHostOut()).append(" ");
     commandBuilder.append("--dex-file=").append(programName).append(" ");
-    commandBuilder.append("--compiler-filter=quicken --runtime-arg -Xnorelocate ");
+    commandBuilder.append("--compiler-filter=verify --runtime-arg -Xnorelocate ");
 
     ExecutionResult verificationResult = device.executeCommand(commandBuilder.toString(), true,
         outputConsumer, errorConsumer);

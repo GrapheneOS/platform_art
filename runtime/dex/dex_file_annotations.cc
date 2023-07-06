@@ -37,7 +37,6 @@
 #include "mirror/object_array-inl.h"
 #include "oat_file.h"
 #include "obj_ptr-inl.h"
-#include "quicken_info.h"
 #include "reflection.h"
 #include "thread.h"
 #include "well_known_classes.h"
