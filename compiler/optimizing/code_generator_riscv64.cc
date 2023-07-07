@@ -872,13 +872,14 @@ void InstructionCodeGeneratorRISCV64::VisitDivZeroCheck(HDivZeroCheck* instructi
 }
 
 void LocationsBuilderRISCV64::VisitDoubleConstant(HDoubleConstant* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(instruction));
 }
 
-void InstructionCodeGeneratorRISCV64::VisitDoubleConstant(HDoubleConstant* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void InstructionCodeGeneratorRISCV64::VisitDoubleConstant(
+    [[maybe_unused]] HDoubleConstant* instruction) {
+  // Will be generated at use site.
 }
 
 void LocationsBuilderRISCV64::VisitEqual(HEqual* instruction) {
