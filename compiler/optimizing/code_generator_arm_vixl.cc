@@ -1909,6 +1909,7 @@ vixl32::Label* CodeGeneratorARMVIXL::GetFinalLabel(HInstruction* instruction,
 }
 
 namespace detail {
+
 // Mark which intrinsics we don't have handcrafted code for.
 template <Intrinsics T>
 struct IsUnimplemented {
@@ -1925,10 +1926,10 @@ UNIMPLEMENTED_INTRINSIC_LIST_ARM(TRUE_OVERRIDE)
 
 #include "intrinsics_list.h"
 static constexpr bool kIsIntrinsicUnimplemented[] = {
-  false,  // kNone
+    false,  // kNone
 #define IS_UNIMPLEMENTED(Intrinsic, ...) \
-  IsUnimplemented<Intrinsics::k##Intrinsic>().is_unimplemented,
-  INTRINSICS_LIST(IS_UNIMPLEMENTED)
+    IsUnimplemented<Intrinsics::k##Intrinsic>().is_unimplemented,
+    INTRINSICS_LIST(IS_UNIMPLEMENTED)
 #undef IS_UNIMPLEMENTED
 };
 #undef INTRINSICS_LIST
