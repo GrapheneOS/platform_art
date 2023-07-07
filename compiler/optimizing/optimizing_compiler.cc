@@ -451,7 +451,7 @@ bool OptimizingCompiler::RunBaselineOptimizations(HGraph* graph,
     case InstructionSet::kThumb2:
     case InstructionSet::kArm: {
       OptimizationDef arm_optimizations[] = {
-        OptDef(OptimizationPass::kCriticalNativeAbiFixupArm),
+          OptDef(OptimizationPass::kCriticalNativeAbiFixupArm),
       };
       return RunOptimizations(graph,
                               codegen,
@@ -463,7 +463,7 @@ bool OptimizingCompiler::RunBaselineOptimizations(HGraph* graph,
 #ifdef ART_ENABLE_CODEGEN_x86
     case InstructionSet::kX86: {
       OptimizationDef x86_optimizations[] = {
-        OptDef(OptimizationPass::kPcRelativeFixupsX86),
+          OptDef(OptimizationPass::kPcRelativeFixupsX86),
       };
       return RunOptimizations(graph,
                               codegen,
@@ -490,11 +490,11 @@ bool OptimizingCompiler::RunArchOptimizations(HGraph* graph,
     case InstructionSet::kThumb2:
     case InstructionSet::kArm: {
       OptimizationDef arm_optimizations[] = {
-        OptDef(OptimizationPass::kInstructionSimplifierArm),
-        OptDef(OptimizationPass::kSideEffectsAnalysis),
-        OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
-        OptDef(OptimizationPass::kCriticalNativeAbiFixupArm),
-        OptDef(OptimizationPass::kScheduling)
+          OptDef(OptimizationPass::kInstructionSimplifierArm),
+          OptDef(OptimizationPass::kSideEffectsAnalysis),
+          OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
+          OptDef(OptimizationPass::kCriticalNativeAbiFixupArm),
+          OptDef(OptimizationPass::kScheduling)
       };
       return RunOptimizations(graph,
                               codegen,
@@ -506,10 +506,10 @@ bool OptimizingCompiler::RunArchOptimizations(HGraph* graph,
 #ifdef ART_ENABLE_CODEGEN_arm64
     case InstructionSet::kArm64: {
       OptimizationDef arm64_optimizations[] = {
-        OptDef(OptimizationPass::kInstructionSimplifierArm64),
-        OptDef(OptimizationPass::kSideEffectsAnalysis),
-        OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
-        OptDef(OptimizationPass::kScheduling)
+          OptDef(OptimizationPass::kInstructionSimplifierArm64),
+          OptDef(OptimizationPass::kSideEffectsAnalysis),
+          OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
+          OptDef(OptimizationPass::kScheduling)
       };
       return RunOptimizations(graph,
                               codegen,
@@ -521,11 +521,11 @@ bool OptimizingCompiler::RunArchOptimizations(HGraph* graph,
 #ifdef ART_ENABLE_CODEGEN_x86
     case InstructionSet::kX86: {
       OptimizationDef x86_optimizations[] = {
-        OptDef(OptimizationPass::kInstructionSimplifierX86),
-        OptDef(OptimizationPass::kSideEffectsAnalysis),
-        OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
-        OptDef(OptimizationPass::kPcRelativeFixupsX86),
-        OptDef(OptimizationPass::kX86MemoryOperandGeneration)
+          OptDef(OptimizationPass::kInstructionSimplifierX86),
+          OptDef(OptimizationPass::kSideEffectsAnalysis),
+          OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
+          OptDef(OptimizationPass::kPcRelativeFixupsX86),
+          OptDef(OptimizationPass::kX86MemoryOperandGeneration)
       };
       return RunOptimizations(graph,
                               codegen,
@@ -537,10 +537,10 @@ bool OptimizingCompiler::RunArchOptimizations(HGraph* graph,
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case InstructionSet::kX86_64: {
       OptimizationDef x86_64_optimizations[] = {
-        OptDef(OptimizationPass::kInstructionSimplifierX86_64),
-        OptDef(OptimizationPass::kSideEffectsAnalysis),
-        OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
-        OptDef(OptimizationPass::kX86MemoryOperandGeneration)
+          OptDef(OptimizationPass::kInstructionSimplifierX86_64),
+          OptDef(OptimizationPass::kSideEffectsAnalysis),
+          OptDef(OptimizationPass::kGlobalValueNumbering, "GVN$after_arch"),
+          OptDef(OptimizationPass::kX86MemoryOperandGeneration)
       };
       return RunOptimizations(graph,
                               codegen,
@@ -615,68 +615,68 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   }
 
   OptimizationDef optimizations[] = {
-    // Initial optimizations.
-    OptDef(OptimizationPass::kConstantFolding),
-    OptDef(OptimizationPass::kInstructionSimplifier),
-    OptDef(OptimizationPass::kDeadCodeElimination,
-           "dead_code_elimination$initial"),
-    // Inlining.
-    OptDef(OptimizationPass::kInliner),
-    // Simplification (if inlining occurred, or if we analyzed the invoke as "always throwing").
-    OptDef(OptimizationPass::kConstantFolding,
-           "constant_folding$after_inlining",
-           OptimizationPass::kInliner),
-    OptDef(OptimizationPass::kInstructionSimplifier,
-           "instruction_simplifier$after_inlining",
-           OptimizationPass::kInliner),
-    OptDef(OptimizationPass::kDeadCodeElimination,
-           "dead_code_elimination$after_inlining",
-           OptimizationPass::kInliner),
-    // GVN.
-    OptDef(OptimizationPass::kSideEffectsAnalysis,
-           "side_effects$before_gvn"),
-    OptDef(OptimizationPass::kGlobalValueNumbering),
-    // Simplification (TODO: only if GVN occurred).
-    OptDef(OptimizationPass::kSelectGenerator),
-    OptDef(OptimizationPass::kAggressiveConstantFolding,
-           "constant_folding$after_gvn"),
-    OptDef(OptimizationPass::kInstructionSimplifier,
-           "instruction_simplifier$after_gvn"),
-    OptDef(OptimizationPass::kDeadCodeElimination,
-           "dead_code_elimination$after_gvn"),
-    // High-level optimizations.
-    OptDef(OptimizationPass::kSideEffectsAnalysis,
-           "side_effects$before_licm"),
-    OptDef(OptimizationPass::kInvariantCodeMotion),
-    OptDef(OptimizationPass::kInductionVarAnalysis),
-    OptDef(OptimizationPass::kBoundsCheckElimination),
-    OptDef(OptimizationPass::kLoopOptimization),
-    // Simplification.
-    OptDef(OptimizationPass::kConstantFolding,
-           "constant_folding$after_loop_opt"),
-    OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
-           "instruction_simplifier$after_loop_opt"),
-    OptDef(OptimizationPass::kDeadCodeElimination,
-           "dead_code_elimination$after_loop_opt"),
-    // Other high-level optimizations.
-    OptDef(OptimizationPass::kLoadStoreElimination),
-    OptDef(OptimizationPass::kCHAGuardOptimization),
-    OptDef(OptimizationPass::kCodeSinking),
-    // Simplification.
-    OptDef(OptimizationPass::kConstantFolding,
-           "constant_folding$before_codegen"),
-    // The codegen has a few assumptions that only the instruction simplifier
-    // can satisfy. For example, the code generator does not expect to see a
-    // HTypeConversion from a type to the same type.
-    OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
-           "instruction_simplifier$before_codegen"),
-    // Simplification may result in dead code that should be removed prior to
-    // code generation.
-    OptDef(OptimizationPass::kDeadCodeElimination,
-           "dead_code_elimination$before_codegen"),
-    // Eliminate constructor fences after code sinking to avoid
-    // complicated sinking logic to split a fence with many inputs.
-    OptDef(OptimizationPass::kConstructorFenceRedundancyElimination)
+      // Initial optimizations.
+      OptDef(OptimizationPass::kConstantFolding),
+      OptDef(OptimizationPass::kInstructionSimplifier),
+      OptDef(OptimizationPass::kDeadCodeElimination,
+             "dead_code_elimination$initial"),
+      // Inlining.
+      OptDef(OptimizationPass::kInliner),
+      // Simplification (if inlining occurred, or if we analyzed the invoke as "always throwing").
+      OptDef(OptimizationPass::kConstantFolding,
+             "constant_folding$after_inlining",
+             OptimizationPass::kInliner),
+      OptDef(OptimizationPass::kInstructionSimplifier,
+             "instruction_simplifier$after_inlining",
+             OptimizationPass::kInliner),
+      OptDef(OptimizationPass::kDeadCodeElimination,
+             "dead_code_elimination$after_inlining",
+             OptimizationPass::kInliner),
+      // GVN.
+      OptDef(OptimizationPass::kSideEffectsAnalysis,
+             "side_effects$before_gvn"),
+      OptDef(OptimizationPass::kGlobalValueNumbering),
+      // Simplification (TODO: only if GVN occurred).
+      OptDef(OptimizationPass::kSelectGenerator),
+      OptDef(OptimizationPass::kAggressiveConstantFolding,
+             "constant_folding$after_gvn"),
+      OptDef(OptimizationPass::kInstructionSimplifier,
+             "instruction_simplifier$after_gvn"),
+      OptDef(OptimizationPass::kDeadCodeElimination,
+             "dead_code_elimination$after_gvn"),
+      // High-level optimizations.
+      OptDef(OptimizationPass::kSideEffectsAnalysis,
+             "side_effects$before_licm"),
+      OptDef(OptimizationPass::kInvariantCodeMotion),
+      OptDef(OptimizationPass::kInductionVarAnalysis),
+      OptDef(OptimizationPass::kBoundsCheckElimination),
+      OptDef(OptimizationPass::kLoopOptimization),
+      // Simplification.
+      OptDef(OptimizationPass::kConstantFolding,
+             "constant_folding$after_loop_opt"),
+      OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
+             "instruction_simplifier$after_loop_opt"),
+      OptDef(OptimizationPass::kDeadCodeElimination,
+             "dead_code_elimination$after_loop_opt"),
+      // Other high-level optimizations.
+      OptDef(OptimizationPass::kLoadStoreElimination),
+      OptDef(OptimizationPass::kCHAGuardOptimization),
+      OptDef(OptimizationPass::kCodeSinking),
+      // Simplification.
+      OptDef(OptimizationPass::kConstantFolding,
+             "constant_folding$before_codegen"),
+      // The codegen has a few assumptions that only the instruction simplifier
+      // can satisfy. For example, the code generator does not expect to see a
+      // HTypeConversion from a type to the same type.
+      OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
+             "instruction_simplifier$before_codegen"),
+      // Simplification may result in dead code that should be removed prior to
+      // code generation.
+      OptDef(OptimizationPass::kDeadCodeElimination,
+             "dead_code_elimination$before_codegen"),
+      // Eliminate constructor fences after code sinking to avoid
+      // complicated sinking logic to split a fence with many inputs.
+      OptDef(OptimizationPass::kConstructorFenceRedundancyElimination)
   };
   RunOptimizations(graph,
                    codegen,
@@ -965,9 +965,9 @@ CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
   }
 
   OptimizationDef optimizations[] = {
-    // The codegen has a few assumptions that only the instruction simplifier
-    // can satisfy.
-    OptDef(OptimizationPass::kInstructionSimplifier),
+      // The codegen has a few assumptions that only the instruction simplifier
+      // can satisfy.
+      OptDef(OptimizationPass::kInstructionSimplifier),
   };
   RunOptimizations(graph,
                    codegen.get(),
