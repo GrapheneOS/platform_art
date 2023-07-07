@@ -235,6 +235,9 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
     return false;
   }
   if (isa == InstructionSet::kRiscv64) {
+    if (method->NeedsClinitCheckBeforeCall()) {
+      return false;  // Riscv64 nterp does not implement ExecuteNterpWithClinitImpl.
+    }
     if (method->GetDexFile()->IsCompactDexFile()) {
       return false;  // Riscv64 nterp does not support compact dex yet.
     }
