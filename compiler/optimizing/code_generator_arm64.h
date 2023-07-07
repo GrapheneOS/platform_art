@@ -57,24 +57,24 @@ static constexpr int kMaxMacroInstructionSizeInBytes = 15 * vixl::aarch64::kInst
 static constexpr int kInvokeCodeMarginSizeInBytes = 6 * kMaxMacroInstructionSizeInBytes;
 
 static const vixl::aarch64::Register kParameterCoreRegisters[] = {
-  vixl::aarch64::x1,
-  vixl::aarch64::x2,
-  vixl::aarch64::x3,
-  vixl::aarch64::x4,
-  vixl::aarch64::x5,
-  vixl::aarch64::x6,
-  vixl::aarch64::x7
+    vixl::aarch64::x1,
+    vixl::aarch64::x2,
+    vixl::aarch64::x3,
+    vixl::aarch64::x4,
+    vixl::aarch64::x5,
+    vixl::aarch64::x6,
+    vixl::aarch64::x7
 };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 static const vixl::aarch64::VRegister kParameterFPRegisters[] = {
-  vixl::aarch64::d0,
-  vixl::aarch64::d1,
-  vixl::aarch64::d2,
-  vixl::aarch64::d3,
-  vixl::aarch64::d4,
-  vixl::aarch64::d5,
-  vixl::aarch64::d6,
-  vixl::aarch64::d7
+    vixl::aarch64::d0,
+    vixl::aarch64::d1,
+    vixl::aarch64::d2,
+    vixl::aarch64::d3,
+    vixl::aarch64::d4,
+    vixl::aarch64::d5,
+    vixl::aarch64::d6,
+    vixl::aarch64::d7
 };
 static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegisters);
 
@@ -193,26 +193,28 @@ class JumpTableARM64 : public DeletableArenaObject<kArenaAllocSwitchTable> {
   DISALLOW_COPY_AND_ASSIGN(JumpTableARM64);
 };
 
-static const vixl::aarch64::Register kRuntimeParameterCoreRegisters[] =
-    { vixl::aarch64::x0,
-      vixl::aarch64::x1,
-      vixl::aarch64::x2,
-      vixl::aarch64::x3,
-      vixl::aarch64::x4,
-      vixl::aarch64::x5,
-      vixl::aarch64::x6,
-      vixl::aarch64::x7 };
+static const vixl::aarch64::Register kRuntimeParameterCoreRegisters[] = {
+    vixl::aarch64::x0,
+    vixl::aarch64::x1,
+    vixl::aarch64::x2,
+    vixl::aarch64::x3,
+    vixl::aarch64::x4,
+    vixl::aarch64::x5,
+    vixl::aarch64::x6,
+    vixl::aarch64::x7
+};
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static const vixl::aarch64::VRegister kRuntimeParameterFpuRegisters[] =
-    { vixl::aarch64::d0,
-      vixl::aarch64::d1,
-      vixl::aarch64::d2,
-      vixl::aarch64::d3,
-      vixl::aarch64::d4,
-      vixl::aarch64::d5,
-      vixl::aarch64::d6,
-      vixl::aarch64::d7 };
+static const vixl::aarch64::VRegister kRuntimeParameterFpuRegisters[] = {
+    vixl::aarch64::d0,
+    vixl::aarch64::d1,
+    vixl::aarch64::d2,
+    vixl::aarch64::d3,
+    vixl::aarch64::d4,
+    vixl::aarch64::d5,
+    vixl::aarch64::d6,
+    vixl::aarch64::d7
+};
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
 
