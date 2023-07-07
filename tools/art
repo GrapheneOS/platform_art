@@ -330,7 +330,9 @@ ALLOW_DEFAULT_JDWP="no"
 VERBOSE="no"
 CLEAN_OAT_FILES="yes"
 RUN_DEX2OAT="yes"
-EXTRA_OPTIONS=()
+# 'art' script is for benchmarking, so override default JIT thresholds that are
+# too conservative for benchmarking.
+EXTRA_OPTIONS=(-Xjitwarmupthreshold:4000 -Xjitthreshold:10000)
 DEX2OAT_FLAGS=()
 DEX2OAT_CLASSPATH=()
 GENERATE_APP_IMAGE="no"
