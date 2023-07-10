@@ -53,6 +53,7 @@ enum class FPRoundingMode : uint32_t {
 static constexpr size_t kRiscv64HalfwordSize = 2;
 static constexpr size_t kRiscv64WordSize = 4;
 static constexpr size_t kRiscv64DoublewordSize = 8;
+static constexpr size_t kRiscv64FloatRegSizeInBytes = 8;
 
 // the type for fence
 enum FenceType {
