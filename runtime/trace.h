@@ -286,14 +286,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   void DumpThreadList(std::ostream& os)
       REQUIRES(!Locks::thread_list_lock_) REQUIRES(tracing_lock_);
 
-  void RecordMethodEvent(Thread* thread,
-                         ArtMethod* method,
-                         TraceAction action,
-                         uint32_t thread_clock_diff,
-                         uint64_t timestamp) REQUIRES(!tracing_lock_);
-
-  // Encodes event in non-streaming mode. This assumes that there is enough space reserved to
-  // encode the entry.
+  // Encodes the trace event. This assumes that there is enough space reserved to encode the entry.
   void EncodeEventEntry(uint8_t* ptr,
                         uint16_t thread_id,
                         uint32_t method_index,
@@ -301,24 +294,24 @@ class Trace final : public instrumentation::InstrumentationListener {
                         uint32_t thread_clock_diff,
                         uint32_t wall_clock_diff) REQUIRES(tracing_lock_);
 
-  // These methods are used to encode events in streaming mode.
+  // Helper functions to record Thread / Method information when processing the
+  // events. These are used by streaming output mode. Non-streaming modes dump
+  // the methods and threads list at the end of tracing.
+  void RecordThreadInfo(Thread* thread);
+  void RecordMethodInfo(ArtMethod* method,
+                        uint32_t method_id,
+                        size_t* index,
+                        uint8_t* buf,
+                        size_t size) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(tracing_lock_);
 
-  // This records the method event in the per-thread buffer if there is sufficient space for the
-  // entire record. If the buffer is full then it just flushes the buffer and then records the
-  // entry.
-  void RecordStreamingMethodEvent(Thread* thread,
-                                  ArtMethod* method,
-                                  TraceAction action,
-                                  uint32_t thread_clock_diff,
-                                  uint64_t timestamp) REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!tracing_lock_);
-  // This encodes all the events in the per-thread trace buffer and writes it to the trace file.
-  // This acquires streaming lock to prevent any other threads writing concurrently. It is required
-  // to serialize these since each method is encoded with a unique id which is assigned when the
-  // method is seen for the first time in the recoreded events. So we need to serialize these
-  // flushes across threads.
-  void FlushStreamingBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!tracing_lock_);
+  // Flush tracing buffers from all the threads.
+  void FlushAllThreadBuffers() REQUIRES(!tracing_lock_, !Locks::thread_list_lock_);
+  // This encodes all the events in the per-thread trace buffer and writes it to the trace file /
+  // buffer. This acquires streaming lock to prevent any other threads writing concurrently. It is
+  // required to serialize these since each method is encoded with a unique id which is assigned
+  // when the method is seen for the first time in the recoreded events. So we need to serialize
+  // these flushes across threads.
+  void FlushBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
   // Ensures there is sufficient space in the buffer to record the requested_size. If there is not
   // enough sufficient space the current contents of the buffer are written to the file and
   // current_index is reset to 0. This doesn't check if buffer_size is big enough to hold the
@@ -327,16 +320,8 @@ class Trace final : public instrumentation::InstrumentationListener {
                    size_t* current_index,
                    size_t buffer_size,
                    size_t required_size);
-  // Writes header followed by data to the buffer at the current_index. This also updates the
-  // current_index to point to the next entry.
-  void WriteToBuf(uint8_t* header,
-                  size_t header_size,
-                  const std::string& data,
-                  size_t* current_index,
-                  uint8_t* buffer,
-                  size_t buffer_size);
 
-  uint32_t EncodeTraceMethod(ArtMethod* method) REQUIRES(tracing_lock_);
+  std::pair<uint32_t, bool> GetMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
   ArtMethod* DecodeTraceMethod(uint32_t tmid) REQUIRES(tracing_lock_);
   std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
