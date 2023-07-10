@@ -141,6 +141,45 @@ class CompileOptimizedSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathRISCV64);
 };
 
+class SuspendCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  SuspendCheckSlowPathRISCV64(HSuspendCheck* instruction, HBasicBlock* successor)
+      : SlowPathCodeRISCV64(instruction), successor_(successor) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    LocationSummary* locations = instruction_->GetLocations();
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);  // Only saves live vector registers for SIMD.
+    riscv64_codegen->InvokeRuntime(kQuickTestSuspend, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickTestSuspend, void, void>();
+    RestoreLiveRegisters(codegen, locations);  // Only restores live vector registers for SIMD.
+    if (successor_ == nullptr) {
+      __ J(GetReturnLabel());
+    } else {
+      __ J(riscv64_codegen->GetLabelOf(successor_));
+    }
+  }
+
+  Riscv64Label* GetReturnLabel() {
+    DCHECK(successor_ == nullptr);
+    return &return_label_;
+  }
+
+  const char* GetDescription() const override { return "SuspendCheckSlowPathRISCV64"; }
+
+  HBasicBlock* GetSuccessor() const { return successor_; }
+
+ private:
+  // If not null, the block to branch to after the suspend check.
+  HBasicBlock* const successor_;
+
+  // If `successor_` is null, the label to branch to after the suspend check.
+  Riscv64Label return_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathRISCV64);
+};
+
 #undef __
 #define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
@@ -166,9 +205,48 @@ void InstructionCodeGeneratorRISCV64::GenerateBitstringTypeCheckCompare(
 
 void InstructionCodeGeneratorRISCV64::GenerateSuspendCheck(HSuspendCheck* instruction,
                                                            HBasicBlock* successor) {
-  UNUSED(instruction);
-  UNUSED(successor);
-  LOG(FATAL) << "Unimplemented";
+  if (instruction->IsNoOp()) {
+    if (successor != nullptr) {
+      __ J(codegen_->GetLabelOf(successor));
+    }
+    return;
+  }
+
+  if (codegen_->CanUseImplicitSuspendCheck()) {
+    LOG(FATAL) << "Unimplemented ImplicitSuspendCheck";
+    return;
+  }
+
+  SuspendCheckSlowPathRISCV64* slow_path =
+      down_cast<SuspendCheckSlowPathRISCV64*>(instruction->GetSlowPath());
+
+  if (slow_path == nullptr) {
+    slow_path =
+        new (codegen_->GetScopedAllocator()) SuspendCheckSlowPathRISCV64(instruction, successor);
+    instruction->SetSlowPath(slow_path);
+    codegen_->AddSlowPath(slow_path);
+    if (successor != nullptr) {
+      DCHECK(successor->IsLoopHeader());
+    }
+  } else {
+    DCHECK_EQ(slow_path->GetSuccessor(), successor);
+  }
+
+  ScratchRegisterScope srs(GetAssembler());
+  XRegister tmp = srs.AllocateXRegister();
+  __ Loadw(tmp, TR, Thread::ThreadFlagsOffset<kRiscv64PointerSize>().Int32Value());
+  static_assert(Thread::SuspendOrCheckpointRequestFlags() != std::numeric_limits<uint32_t>::max());
+  static_assert(IsPowerOfTwo(Thread::SuspendOrCheckpointRequestFlags() + 1u));
+  // Shift out other bits. Use an instruction that can be 16-bit with the "C" Standard Extension.
+  __ Slli(tmp, tmp, CLZ(static_cast<uint64_t>(Thread::SuspendOrCheckpointRequestFlags())));
+  if (successor == nullptr) {
+    __ Bnez(tmp, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetReturnLabel());
+  } else {
+    __ Beqz(tmp, codegen_->GetLabelOf(successor));
+    __ J(slow_path->GetEntryLabel());
+    // slow_path will return to GetLabelOf(successor).
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateMinMaxInt(LocationSummary* locations, bool is_min) {
@@ -340,9 +418,26 @@ void InstructionCodeGeneratorRISCV64::GenerateFpCompareAndBranch(IfCondition con
 
 void InstructionCodeGeneratorRISCV64::HandleGoto(HInstruction* instruction,
                                                  HBasicBlock* successor) {
-  UNUSED(instruction);
-  UNUSED(successor);
-  LOG(FATAL) << "Unimplemented";
+  if (successor->IsExitBlock()) {
+    DCHECK(instruction->GetPrevious()->AlwaysThrows());
+    return;  // no code needed
+  }
+
+  HBasicBlock* block = instruction->GetBlock();
+  HInstruction* previous = instruction->GetPrevious();
+  HLoopInformation* info = block->GetLoopInformation();
+
+  if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
+    codegen_->MaybeIncrementHotness(/*is_frame_entry=*/ false);
+    GenerateSuspendCheck(info->GetSuspendCheck(), successor);
+    return;  // `GenerateSuspendCheck()` emitted the jump.
+  }
+  if (block->IsEntryBlock() && previous != nullptr && previous->IsSuspendCheck()) {
+    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
+  }
+  if (!codegen_->GoesToNextBlock(block, successor)) {
+    __ J(codegen_->GetLabelOf(successor));
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::GenPackedSwitchWithCompares(XRegister reg,
@@ -940,13 +1035,11 @@ void InstructionCodeGeneratorRISCV64::VisitFloatConstant(
 }
 
 void LocationsBuilderRISCV64::VisitGoto(HGoto* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  instruction->SetLocations(nullptr);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitGoto(HGoto* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleGoto(instruction, instruction->GetSuccessor());
 }
 
 void LocationsBuilderRISCV64::VisitGreaterThan(HGreaterThan* instruction) {
@@ -2022,6 +2115,11 @@ void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
     __ Sh(counter, tmp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value());
     __ Bind(slow_path->GetExitLabel());
   }
+}
+
+bool CodeGeneratorRISCV64::CanUseImplicitSuspendCheck() const {
+  // TODO(riscv64): Implement implicit suspend checks to reduce code size.
+  return false;
 }
 
 void CodeGeneratorRISCV64::GenerateMemoryBarrier(MemBarrierKind kind) {
