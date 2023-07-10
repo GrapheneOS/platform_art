@@ -1950,9 +1950,8 @@ CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
                     ArrayRef<const bool>(detail::kIsIntrinsicUnimplemented)),
       assembler_(graph->GetAllocator(),
                  compiler_options.GetInstructionSetFeatures()->AsRiscv64InstructionSetFeatures()),
-      location_builder_(graph, this) {
-  LOG(FATAL) << "Unimplemented";
-}
+      location_builder_(graph, this),
+      block_labels_(nullptr) {}
 
 void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
   if (GetCompilerOptions().CountHotnessInCompiledCode()) {
@@ -2173,10 +2172,7 @@ void CodeGeneratorRISCV64::GenerateFrameExit() {
   __ cfi().DefCFAOffset(GetFrameSize());
 }
 
-void CodeGeneratorRISCV64::Bind(HBasicBlock* block) {
-  UNUSED(block);
-  LOG(FATAL) << "Unimplemented";
-}
+void CodeGeneratorRISCV64::Bind(HBasicBlock* block) { __ Bind(GetLabelOf(block)); }
 
 size_t CodeGeneratorRISCV64::GetSIMDRegisterWidth() const {
   LOG(FATAL) << "Unimplemented";
