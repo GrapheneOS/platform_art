@@ -2568,16 +2568,17 @@ void Thread::Destroy(bool should_run_callbacks) {
 
   if (tlsPtr_.opeer != nullptr) {
     ScopedObjectAccess soa(self);
-    if (UNLIKELY(self->GetMethodTraceBuffer() != nullptr)) {
-      Trace::FlushThreadBuffer(self);
-      self->ResetMethodTraceBuffer();
-    }
     // We may need to call user-supplied managed code, do this before final clean-up.
     HandleUncaughtExceptions();
     RemoveFromThreadGroup();
     Runtime* runtime = Runtime::Current();
     if (runtime != nullptr && should_run_callbacks) {
       runtime->GetRuntimeCallbacks()->ThreadDeath(self);
+    }
+
+    if (UNLIKELY(self->GetMethodTraceBuffer() != nullptr)) {
+      Trace::FlushThreadBuffer(self);
+      self->ResetMethodTraceBuffer();
     }
 
     // this.nativePeer = 0;
