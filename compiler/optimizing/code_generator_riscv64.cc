@@ -1401,13 +1401,11 @@ void InstructionCodeGeneratorRISCV64::VisitReturn(HReturn* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitReturnVoid(HReturnVoid* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  instruction->SetLocations(nullptr);
 }
 
-void InstructionCodeGeneratorRISCV64::VisitReturnVoid(HReturnVoid* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void InstructionCodeGeneratorRISCV64::VisitReturnVoid([[maybe_unused]] HReturnVoid* instruction) {
+  codegen_->GenerateFrameExit();
 }
 
 void LocationsBuilderRISCV64::VisitRor(HRor* instruction) {
