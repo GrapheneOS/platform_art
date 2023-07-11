@@ -245,9 +245,7 @@ class PACKED(8) ImageHeader {
     kOomeWhenHandlingStackOverflow,   // Pre-allocated OOME when handling StackOverflowError.
     kNoClassDefFoundError,            // Pre-allocated NoClassDefFoundError.
     kClearedJniWeakSentinel,          // Pre-allocated sentinel for cleared weak JNI references.
-    kBootClassLoaderInstance,         // Pre-allocated phony BootClassLoader to
-                                      // hold the boot class table.
-    kIntrinsicObjectsStart,
+    kIntrinsicObjectsStart
   };
 
   /*
