@@ -217,6 +217,10 @@ class Runtime {
     return is_explicit_gc_disabled_;
   }
 
+  bool IsEagerlyReleaseExplicitGcDisabled() const {
+    return is_eagerly_release_explicit_gc_disabled_;
+  }
+
   std::string GetCompilerExecutable() const;
 
   const std::vector<std::string>& GetCompilerOptions() const {
@@ -1260,6 +1264,7 @@ class Runtime {
   bool must_relocate_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
+  bool is_eagerly_release_explicit_gc_disabled_;
   bool image_dex2oat_enabled_;
 
   std::string compiler_executable_;
