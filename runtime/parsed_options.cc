@@ -341,6 +341,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::BackgroundGc)
       .Define("-XX:+DisableExplicitGC")
           .IntoKey(M::DisableExplicitGC)
+      .Define("-XX:+DisableEagerlyReleaseExplicitGC")
+          .IntoKey(M::DisableEagerlyReleaseExplicitGC)
       .Define("-Xlockprofthreshold:_")
           .WithType<unsigned int>()
           .IntoKey(M::LockProfThreshold)
