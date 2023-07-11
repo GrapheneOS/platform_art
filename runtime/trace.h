@@ -364,28 +364,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Clock overhead.
   const uint32_t clock_overhead_ns_;
 
-  // Offset into buf_. The field is atomic to allow multiple writers
-  // to concurrently reserve space in the buffer. The newly written
-  // buffer contents are not read without some other form of thread
-  // synchronization, such as suspending all potential writers or
-  // acquiring *tracing_lock_. Reading cur_offset_ is thus never
-  // used to ensure visibility of any other objects, and all accesses
-  // are memory_order_relaxed.
-  //
-  // All accesses to buf_ in streaming mode occur whilst holding the
-  // streaming lock. In streaming mode, the buffer may be written out
-  // so cur_offset_ can move forwards and backwards.
-  //
-  // When not in streaming mode, the buf_ writes can come from
-  // multiple threads when the trace mode is kMethodTracing. When
-  // trace mode is kSampling, writes only come from the sampling
-  // thread.
-  //
-  // Reads to the buffer happen after the event sources writing to the
-  // buffer have been shutdown and all stores have completed. The
-  // stores are made visible in StopTracing() when execution leaves
-  // the ScopedSuspendAll block.
-  AtomicInteger cur_offset_;
+  size_t cur_offset_ GUARDED_BY(tracing_lock_);
 
   // Did we overflow the buffer recording traces?
   bool overflow_;

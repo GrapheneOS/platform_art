@@ -757,7 +757,7 @@ Trace::Trace(File* trace_file,
   }
   static_assert(18 <= kMinBufSize, "Minimum buffer size not large enough for trace header");
 
-  cur_offset_.store(kTraceHeaderLength, std::memory_order_relaxed);
+  cur_offset_ = kTraceHeaderLength;
 
   if (output_mode == TraceOutputMode::kStreaming) {
     // Flush the header information to the file. We use a per thread buffer, so
@@ -765,7 +765,7 @@ Trace::Trace(File* trace_file,
     if (!trace_file_->WriteFully(buf_.get(), kTraceHeaderLength)) {
       PLOG(WARNING) << "Failed streaming a tracing event.";
     }
-    cur_offset_.store(0, std::memory_order_relaxed);
+    cur_offset_ = 0;
   }
 
   // Thread index of 0 is a special identifier used to distinguish between trace
@@ -776,7 +776,8 @@ Trace::Trace(File* trace_file,
 void Trace::FinishTracing() {
   size_t final_offset = 0;
   if (trace_output_mode_ != TraceOutputMode::kStreaming) {
-    final_offset = cur_offset_.load(std::memory_order_relaxed);
+    MutexLock mu(Thread::Current(), tracing_lock_);
+    final_offset = cur_offset_;
   }
 
   // Compute elapsed time.
@@ -1069,7 +1070,7 @@ void Trace::FlushBuffer(Thread* thread) {
   } else {
     buffer_size = buffer_size_;
     buffer_ptr = buf_.get();
-    current_index = cur_offset_.load(std::memory_order_relaxed);
+    current_index = cur_offset_;
   }
 
   size_t num_entries = *(thread->GetMethodTraceIndexPtr());
@@ -1119,7 +1120,7 @@ void Trace::FlushBuffer(Thread* thread) {
   } else {
     // In non-streaming mode, we keep the data in the buffer and write to the
     // file when tracing has stopped. Just updated the offset of the buffer.
-    cur_offset_.store(current_index, std::memory_order_relaxed);
+    cur_offset_ = current_index;
   }
 }
 
