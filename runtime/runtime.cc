@@ -250,6 +250,7 @@ Runtime::Runtime()
       must_relocate_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
+      is_eagerly_release_explicit_gc_disabled_(false),
       image_dex2oat_enabled_(true),
       default_stack_size_(0),
       heap_(nullptr),
@@ -1504,6 +1505,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   is_zygote_ = runtime_options.Exists(Opt::Zygote);
   is_primary_zygote_ = runtime_options.Exists(Opt::PrimaryZygote);
   is_explicit_gc_disabled_ = runtime_options.Exists(Opt::DisableExplicitGC);
+  is_eagerly_release_explicit_gc_disabled_ =
+      runtime_options.Exists(Opt::DisableEagerlyReleaseExplicitGC);
   image_dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::ImageDex2Oat);
   dump_native_stack_on_sig_quit_ = runtime_options.GetOrDefault(Opt::DumpNativeStackOnSigQuit);
   allow_in_memory_compilation_ = runtime_options.Exists(Opt::AllowInMemoryCompilation);
