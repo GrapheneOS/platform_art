@@ -239,8 +239,6 @@ class Trace final : public instrumentation::InstrumentationListener {
   static std::vector<ArtMethod*>* AllocStackTrace();
   // Clear and store an old stack trace for later use.
   static void FreeStackTrace(std::vector<ArtMethod*>* stack_trace);
-  // Save id and name of a thread before it exits.
-  static void StoreExitingThreadInfo(Thread* thread);
 
   static TraceOutputMode GetOutputMode() REQUIRES(!Locks::trace_lock_);
   static TraceMode GetMode() REQUIRES(!Locks::trace_lock_);
@@ -329,8 +327,6 @@ class Trace final : public instrumentation::InstrumentationListener {
   void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
-  void UpdateThreadsList(Thread* thread);
-
   uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
   // Singleton instance of the Trace or null when no method tracing is active.
@@ -348,10 +344,8 @@ class Trace final : public instrumentation::InstrumentationListener {
   // File to write trace data out to, null if direct to ddms.
   std::unique_ptr<File> trace_file_;
 
-  // Buffer to store trace data. In streaming mode, this is protected
-  // by the tracing_lock_. In non-streaming mode, reserved regions
-  // are atomically allocated (using cur_offset_) for log entries to
-  // be written.
+  // Buffer to store trace data in non-streaming mode. This is only accessed in
+  // SuspendAll scope to flush the data from all threads into this buffer.
   std::unique_ptr<uint8_t[]> buf_;
 
   // Flags enabling extra tracing of things such as alloc counts.
@@ -400,9 +394,10 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Did we overflow the buffer recording traces?
   bool overflow_;
 
-  // Map of thread ids and names. We record the information when the threads are
-  // exiting and when the tracing has finished.
-  SafeMap<pid_t, std::string> threads_list_;
+  // Map of thread ids and names. This is used only in non-streaming mode, since we have to dump
+  // information about all threads in one block. In streaming mode, thread info is recorded directly
+  // in the file when we see the first even from this thread.
+  SafeMap<uint16_t, std::string> threads_list_;
 
   // Sampling profiler sampling interval.
   int interval_us_;

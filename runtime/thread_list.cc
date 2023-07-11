@@ -1332,9 +1332,6 @@ void ThreadList::Unregister(Thread* self, bool should_run_callbacks) {
   // list.
   self->Destroy(should_run_callbacks);
 
-  // If tracing, remember thread id and name before thread exits.
-  Trace::StoreExitingThreadInfo(self);
-
   uint32_t thin_lock_id = self->GetThreadId();
   while (true) {
     // Remove and delete the Thread* while holding the thread_list_lock_ and
