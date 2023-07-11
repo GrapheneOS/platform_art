@@ -39,6 +39,7 @@
 #include "barrier.h"
 #include "base/arena_allocator.h"
 #include "base/arena_bit_vector.h"
+#include "base/membarrier.h"
 #include "base/casts.h"
 #include "base/file_utils.h"
 #include "base/hash_map.h"
@@ -227,8 +228,8 @@ static void UpdateClassAfterVerification(Handle<mirror::Class> klass,
   }
 }
 
-// Callback responsible for making a batch of classes visibly initialized
-// after all threads have called it from a checkpoint, ensuring visibility.
+// Callback responsible for making a batch of classes visibly initialized after ensuring
+// visibility for all threads, either by using `membarrier()` or by running a checkpoint.
 class ClassLinker::VisiblyInitializedCallback final
     : public Closure, public IntrusiveForwardListNode<VisiblyInitializedCallback> {
  public:
@@ -269,9 +270,16 @@ class ClassLinker::VisiblyInitializedCallback final
   }
 
   void MakeVisible(Thread* self) {
-    DCHECK_EQ(thread_visibility_counter_.load(std::memory_order_relaxed), 0);
-    size_t count = Runtime::Current()->GetThreadList()->RunCheckpoint(this);
-    AdjustThreadVisibilityCounter(self, count);
+    if (class_linker_->visibly_initialize_classes_with_membarier_) {
+      // If the associated register command succeeded, this command should never fail.
+      int membarrier_result = art::membarrier(MembarrierCommand::kPrivateExpedited);
+      CHECK_EQ(membarrier_result, 0) << strerror(errno);
+      MarkVisiblyInitialized(self);
+    } else {
+      DCHECK_EQ(thread_visibility_counter_.load(std::memory_order_relaxed), 0);
+      size_t count = Runtime::Current()->GetThreadList()->RunCheckpoint(this);
+      AdjustThreadVisibilityCounter(self, count);
+    }
   }
 
   void Run(Thread* self) override {
@@ -283,27 +291,31 @@ class ClassLinker::VisiblyInitializedCallback final
     ssize_t old = thread_visibility_counter_.fetch_add(adjustment, std::memory_order_relaxed);
     if (old + adjustment == 0) {
       // All threads passed the checkpoint. Mark classes as visibly initialized.
-      {
-        ScopedObjectAccess soa(self);
-        StackHandleScope<1u> hs(self);
-        MutableHandle<mirror::Class> klass = hs.NewHandle<mirror::Class>(nullptr);
-        JavaVMExt* vm = self->GetJniEnv()->GetVm();
-        for (size_t i = 0, num = num_classes_; i != num; ++i) {
-          klass.Assign(ObjPtr<mirror::Class>::DownCast(self->DecodeJObject(classes_[i])));
-          vm->DeleteWeakGlobalRef(self, classes_[i]);
-          if (klass != nullptr) {
-            mirror::Class::SetStatus(klass, ClassStatus::kVisiblyInitialized, self);
-            class_linker_->FixupStaticTrampolines(self, klass.Get());
-          }
-        }
-        num_classes_ = 0u;
-      }
-      class_linker_->VisiblyInitializedCallbackDone(self, this);
+      MarkVisiblyInitialized(self);
     }
   }
 
-  // Making classes initialized in bigger batches helps with app startup for
-  // apps that initialize a lot of classes by running fewer checkpoints.
+  void MarkVisiblyInitialized(Thread* self) {
+    {
+      ScopedObjectAccess soa(self);
+      StackHandleScope<1u> hs(self);
+      MutableHandle<mirror::Class> klass = hs.NewHandle<mirror::Class>(nullptr);
+      JavaVMExt* vm = self->GetJniEnv()->GetVm();
+      for (size_t i = 0, num = num_classes_; i != num; ++i) {
+        klass.Assign(ObjPtr<mirror::Class>::DownCast(self->DecodeJObject(classes_[i])));
+        vm->DeleteWeakGlobalRef(self, classes_[i]);
+        if (klass != nullptr) {
+          mirror::Class::SetStatus(klass, ClassStatus::kVisiblyInitialized, self);
+          class_linker_->FixupStaticTrampolines(self, klass.Get());
+        }
+      }
+      num_classes_ = 0u;
+    }
+    class_linker_->VisiblyInitializedCallbackDone(self, this);
+  }
+
+  // Making classes initialized in bigger batches helps with app startup for apps
+  // that initialize a lot of classes by running fewer synchronization functions.
   // (On the other hand, bigger batches make class initialization checks more
   // likely to take a slow path but that is mitigated by making partially
   // filled buffers visibly initialized if we take the slow path many times.
@@ -319,6 +331,7 @@ class ClassLinker::VisiblyInitializedCallback final
   // to be run) and decremented once for each `Run()` execution. When it reaches 0,
   // whether after the increment or after a decrement, we know that `Run()` was executed
   // for all threads and therefore we can mark the classes as visibly initialized.
+  // Used only if the preferred `membarrier()` command is unsupported.
   std::atomic<ssize_t> thread_visibility_counter_;
 
   // List of barries to `Pass()` for threads that wait for the callback to complete.
@@ -569,6 +582,16 @@ static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
   VlogClassInitializationFailure(klass);
 }
 
+static bool RegisterMemBarrierForClassInitialization() {
+  if (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64) {
+    // Thanks to the x86 memory model, classes skip the initialized status, so there is no need
+    // to use `membarrier()` or other synchronization for marking classes visibly initialized.
+    return false;
+  }
+  int membarrier_result = art::membarrier(MembarrierCommand::kRegisterPrivateExpedited);
+  return membarrier_result == 0;
+}
+
 ClassLinker::ClassLinker(InternTable* intern_table, bool fast_class_not_found_exceptions)
     : boot_class_table_(new ClassTable()),
       failed_dex_cache_class_lookups_(0),
@@ -588,6 +611,8 @@ ClassLinker::ClassLinker(InternTable* intern_table, bool fast_class_not_found_ex
       image_pointer_size_(kRuntimePointerSize),
       visibly_initialized_callback_lock_("visibly initialized callback lock"),
       visibly_initialized_callback_(nullptr),
+      running_visibly_initialized_callbacks_(),
+      visibly_initialize_classes_with_membarier_(RegisterMemBarrierForClassInitialization()),
       critical_native_code_with_clinit_check_lock_("critical native code with clinit check lock"),
       critical_native_code_with_clinit_check_(),
       cha_(Runtime::Current()->IsAotCompiler() ? nullptr : new ClassHierarchyAnalysis()) {
