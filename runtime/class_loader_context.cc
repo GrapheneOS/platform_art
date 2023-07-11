@@ -455,7 +455,8 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
       // If path is relative, append it to the provided base directory.
       std::string location = cp_elem;
       if (location[0] != '/' && !classpath_dir.empty()) {
-        location = classpath_dir + (classpath_dir.back() == '/' ? "" : "/") + location;
+        location =
+            ART_FORMAT("{}{}{}", classpath_dir, classpath_dir.back() == '/' ? "" : "/", location);
       }
 
       // If file descriptors were provided for the class loader context dex paths,

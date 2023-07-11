@@ -194,7 +194,7 @@ class ElfDebugLineWriter {
           } else {
             directory_index = it->second;
           }
-          full_path = package_name + "/" + file_name;
+          full_path = ART_FORMAT("{}/{}", package_name, file_name);
         }
 
         // Add file entry.

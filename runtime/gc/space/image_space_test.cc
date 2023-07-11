@@ -83,14 +83,15 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
     std::vector<std::string> extra_args = {
         "--profile-file=" + profile_file.GetFilename(),
         "--runtime-arg",
-        "-Xbootclasspath:" + base_bcp_string + ':' + jar_name,
+        ART_FORMAT("-Xbootclasspath:{}:{}", base_bcp_string, jar_name),
         "--runtime-arg",
-        "-Xbootclasspath-locations:" + base_bcp_locations_string + ':' + jar_name,
+        ART_FORMAT("-Xbootclasspath-locations:{}:{}", base_bcp_locations_string, jar_name),
         "--boot-image=" + base_image_location,
     };
     std::string prefix = GetFilenameBase(base_image_location);
     std::string error_msg;
-    bool success = CompileBootImage(extra_args, image_dir + '/' + prefix, dex_files, &error_msg);
+    bool success =
+        CompileBootImage(extra_args, ART_FORMAT("{}/{}", image_dir, prefix), dex_files, &error_msg);
     ASSERT_TRUE(success) << error_msg;
     bcp.push_back(jar_name);
     bcp_locations.push_back(jar_name);
