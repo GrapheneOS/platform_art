@@ -198,18 +198,6 @@ ALWAYS_INLINE uint64_t GetMicroTime(uint64_t counter) {
 
 }  // namespace
 
-ArtMethod* Trace::DecodeTraceMethod(uint32_t tmid) {
-  uint32_t method_index = tmid >> TraceActionBits;
-  // This is used only for logging which is usually needed only for debugging ART. So it's not
-  // performance critical.
-  for (auto const& entry : art_method_id_map_) {
-    if (method_index == entry.second) {
-      return entry.first;
-    }
-  }
-  return nullptr;
-}
-
 std::pair<uint32_t, bool> Trace::GetMethodEncoding(ArtMethod* method) {
   auto it = art_method_id_map_.find(method);
   if (it != art_method_id_map_.end()) {
@@ -785,28 +773,6 @@ Trace::Trace(File* trace_file,
   current_thread_index_ = 1;
 }
 
-static uint64_t ReadBytes(uint8_t* buf, size_t bytes) {
-  uint64_t ret = 0;
-  for (size_t i = 0; i < bytes; ++i) {
-    ret |= static_cast<uint64_t>(buf[i]) << (i * 8);
-  }
-  return ret;
-}
-
-void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source) {
-  uint8_t* ptr = buf + kTraceHeaderLength;
-  uint8_t* end = buf + buf_size;
-
-  MutexLock mu(Thread::Current(), tracing_lock_);
-  while (ptr < end) {
-    uint32_t tmid = ReadBytes(ptr + 2, sizeof(tmid));
-    ArtMethod* method = DecodeTraceMethod(tmid);
-    TraceAction action = DecodeTraceAction(tmid);
-    LOG(INFO) << ArtMethod::PrettyMethod(method) << " " << static_cast<int>(action);
-    ptr += GetRecordSize(clock_source);
-  }
-}
-
 void Trace::FinishTracing() {
   size_t final_offset = 0;
   if (trace_output_mode_ != TraceOutputMode::kStreaming) {
@@ -882,11 +848,6 @@ void Trace::FinishTracing() {
       memcpy(data.data() + header.length(), buf_.get(), final_offset);
       Runtime::Current()->GetRuntimeCallbacks()->DdmPublishChunk(CHUNK_TYPE("MPSE"),
                                                                  ArrayRef<const uint8_t>(data));
-      const bool kDumpTraceInfo = false;
-      if (kDumpTraceInfo) {
-        LOG(INFO) << "Trace sent:\n" << header;
-        DumpBuf(buf_.get(), final_offset, clock_source_);
-      }
     } else {
       if (!trace_file_->WriteFully(header.c_str(), header.length()) ||
           !trace_file_->WriteFully(buf_.get(), final_offset)) {
