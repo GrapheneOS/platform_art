@@ -532,7 +532,7 @@ void AddCompiledBootClasspathFdsIfAny(
       }
     }
     CHECK(!artifact_dir.empty());
-    std::string image_path = artifact_dir + "/" + basename;
+    std::string image_path = ART_FORMAT("{}/{}", artifact_dir, basename);
     image_path = GetSystemImageFilename(image_path.c_str(), isa);
     std::unique_ptr<File> image_file(OS::OpenFileForReading(image_path.c_str()));
     if (image_file && image_file->IsValid()) {

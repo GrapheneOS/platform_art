@@ -159,8 +159,9 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
             StringPrintf("Method %s failed lock verification and will run slower.",
                          dex_file->PrettyMethod(method.GetIndex()).c_str());
         if (!gPrintedDxMonitorText) {
-          tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
-                      "and incorrect proguard optimizations.";
+          tmp +=
+              "\nCommon causes for lock verification issues are non-optimized dex code\n"
+              "and incorrect proguard optimizations.";
           gPrintedDxMonitorText = true;
         }
         LOG(WARNING) << tmp;

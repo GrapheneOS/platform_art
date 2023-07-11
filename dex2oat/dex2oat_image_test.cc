@@ -461,33 +461,33 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     ASSERT_FALSE(load_ok);
 
     // Load the primary and first extension with full path.
-    load_ok = load(base_location + ':' + mid_location);
+    load_ok = load(ART_FORMAT("{}:{}", base_location, mid_location));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(mid_bcp.size(), boot_image_spaces.size());
 
     // Load the primary with full path and fail to load first extension without full path.
-    load_ok = load(base_location + ':' + mid_name);
+    load_ok = load(ART_FORMAT("{}:{}", base_location, mid_name));
     ASSERT_TRUE(load_ok) << error_msg;  // Primary image loaded successfully.
     ASSERT_EQ(head_dex_files.size(), boot_image_spaces.size());  // But only the primary image.
 
     // Load all the libcore images with full paths.
-    load_ok = load(base_location + ':' + mid_location + ':' + tail_location);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_location, mid_location, tail_location));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());
 
     // Load the primary and first extension with full paths, fail to load second extension by name.
-    load_ok = load(base_location + ':' + mid_location + ':' + tail_name);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_location, mid_location, tail_name));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(mid_bcp.size(), boot_image_spaces.size());
 
     // Load the primary with full path and fail to load first extension without full path,
     // fail to load second extension because it depends on the first.
-    load_ok = load(base_location + ':' + mid_name + ':' + tail_location);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_location, mid_name, tail_location));
     ASSERT_TRUE(load_ok) << error_msg;  // Primary image loaded successfully.
     ASSERT_EQ(head_dex_files.size(), boot_image_spaces.size());  // But only the primary image.
 
     // Load the primary with full path and extensions with a specified search path.
-    load_ok = load(base_location + ':' + scratch_dir + '*');
+    load_ok = load(ART_FORMAT("{}:{}*", base_location, scratch_dir));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());
 
@@ -516,33 +516,33 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     ASSERT_FALSE(load_ok);
 
     // Load the primary and first extension without paths.
-    load_ok = load(base_name + ':' + mid_name);
+    load_ok = load(ART_FORMAT("{}:{}", base_name, mid_name));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(mid_bcp.size(), boot_image_spaces.size());
 
     // Load the primary without path and first extension with path.
-    load_ok = load(base_name + ':' + mid_location);
+    load_ok = load(ART_FORMAT("{}:{}", base_name, mid_location));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(mid_bcp.size(), boot_image_spaces.size());
 
     // Load the primary with full path and the first extension without full path.
-    load_ok = load(base_location + ':' + mid_name);
+    load_ok = load(ART_FORMAT("{}:{}", base_location, mid_name));
     ASSERT_TRUE(load_ok) << error_msg;  // Loaded successfully.
     ASSERT_EQ(mid_bcp.size(), boot_image_spaces.size());  // Including the extension.
 
     // Load all the libcore images without paths.
-    load_ok = load(base_name + ':' + mid_name + ':' + tail_name);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_name, mid_name, tail_name));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());
 
     // Load the primary and first extension with full paths and second extension by name.
-    load_ok = load(base_location + ':' + mid_location + ':' + tail_name);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_location, mid_location, tail_name));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());
 
     // Load the primary with full path, first extension without path,
     // and second extension with full path.
-    load_ok = load(base_location + ':' + mid_name + ':' + tail_location);
+    load_ok = load(ART_FORMAT("{}:{}:{}", base_location, mid_name, tail_location));
     ASSERT_TRUE(load_ok) << error_msg;  // Loaded successfully.
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());  // Including both extensions.
 
@@ -552,18 +552,18 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     ASSERT_EQ(full_bcp.size(), boot_image_spaces.size());
 
     // Fail to load any images with invalid image locations (named component after search paths).
-    load_ok = silent_load(base_location + ":*:" + tail_location);
+    load_ok = silent_load(ART_FORMAT("{}:*:{}", base_location, tail_location));
     ASSERT_FALSE(load_ok);
-    load_ok = silent_load(base_location + ':' + scratch_dir + "*:" + tail_location);
+    load_ok = silent_load(ART_FORMAT("{}:{}*:{}", base_location, scratch_dir, tail_location));
     ASSERT_FALSE(load_ok);
 
     // Load the primary and single-image extension with full path.
-    load_ok = load(base_location + ':' + single_location);
+    load_ok = load(ART_FORMAT("{}:{}", base_location, single_location));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size() + 1u, boot_image_spaces.size());
 
     // Load the primary with full path and single-image extension with a specified search path.
-    load_ok = load(base_location + ':' + single_dir + '*');
+    load_ok = load(ART_FORMAT("{}:{}*", base_location, single_dir));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size() + 1u, boot_image_spaces.size());
   }
@@ -595,29 +595,31 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     relocate = r;
 
     // Load primary boot image with a profile name.
-    bool load_ok = silent_load(base_location + "!" + single_profile_filename);
+    bool load_ok = silent_load(ART_FORMAT("{}!{}", base_location, single_profile_filename));
     ASSERT_TRUE(load_ok);
 
     // Try and fail to load with invalid spec, two profile name separators.
-    load_ok = silent_load(base_location + ":" + single_location + "!!arbitrary-profile-name");
+    load_ok =
+        silent_load(ART_FORMAT("{}:{}!!arbitrary-profile-name", base_location, single_location));
     ASSERT_FALSE(load_ok);
 
     // Try and fail to load with invalid spec, missing profile name.
-    load_ok = silent_load(base_location + ":" + single_location + "!");
+    load_ok = silent_load(ART_FORMAT("{}:{}!", base_location, single_location));
     ASSERT_FALSE(load_ok);
 
     // Try and fail to load with invalid spec, missing component name.
-    load_ok = silent_load(base_location + ":!" + single_profile_filename);
+    load_ok = silent_load(ART_FORMAT("{}:!{}", base_location, single_profile_filename));
     ASSERT_FALSE(load_ok);
 
     // Load primary boot image, specifying invalid extension component and profile name.
-    load_ok = load(base_location + ":/non-existent/" + single_name + "!non-existent-profile-name");
+    load_ok = load(
+        ART_FORMAT("{}:/non-existent/{}!non-existent-profile-name", base_location, single_name));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size(), boot_image_spaces.size());
 
     // Load primary boot image and the single extension, specifying invalid profile name.
     // (Load extension from file.)
-    load_ok = load(base_location + ":" + single_location + "!non-existent-profile-name");
+    load_ok = load(ART_FORMAT("{}:{}!non-existent-profile-name", base_location, single_location));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size() + 1u, boot_image_spaces.size());
     ASSERT_EQ(single_dex_files.size(),
@@ -627,7 +629,8 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     // invalid extension component name but a valid profile file.
     // (Running dex2oat to compile extension is disabled.)
     ASSERT_FALSE(Runtime::Current()->IsImageDex2OatEnabled());
-    load_ok = load(base_location + ":/non-existent/" + single_name + "!" + single_profile_filename);
+    load_ok = load(
+        ART_FORMAT("{}:/non-existent/{}!{}", base_location, single_name, single_profile_filename));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size(), boot_image_spaces.size());
 
@@ -635,7 +638,8 @@ TEST_F(Dex2oatImageTest, TestExtension) {
 
     // Load primary boot image and the single extension, specifying invalid extension
     // component name but a valid profile file. (Compile extension by running dex2oat.)
-    load_ok = load(base_location + ":/non-existent/" + single_name + "!" + single_profile_filename);
+    load_ok = load(
+        ART_FORMAT("{}:/non-existent/{}!{}", base_location, single_name, single_profile_filename));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size() + 1u, boot_image_spaces.size());
     ASSERT_EQ(single_dex_files.size(),
@@ -643,8 +647,12 @@ TEST_F(Dex2oatImageTest, TestExtension) {
 
     // Load primary boot image and two extensions, specifying invalid extension component
     // names but valid profile files. (Compile extensions by running dex2oat.)
-    load_ok = load(base_location + ":/non-existent/" + mid_name + "!" + mid_profile_filename
-                                 + ":/non-existent/" + tail_name + "!" + tail_profile_filename);
+    load_ok = load(ART_FORMAT("{}:/non-existent/{}!{}:/non-existent/{}!{}",
+                              base_location,
+                              mid_name,
+                              mid_profile_filename,
+                              tail_name,
+                              tail_profile_filename));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size() + 2u, boot_image_spaces.size());
     ASSERT_EQ(mid_dex_files.size(),
@@ -655,8 +663,11 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     // Load primary boot image and fail to load extensions, specifying invalid component
     // names but valid profile file only for the second one. As we fail to load the first
     // extension, the second extension has a missing dependency and cannot be compiled.
-    load_ok = load(base_location + ":/non-existent/" + mid_name
-                                 + ":/non-existent/" + tail_name + "!" + tail_profile_filename);
+    load_ok = load(ART_FORMAT("{}:/non-existent/{}:/non-existent/{}!{}",
+                              base_location,
+                              mid_name,
+                              tail_name,
+                              tail_profile_filename));
     ASSERT_TRUE(load_ok) << error_msg;
     ASSERT_EQ(head_dex_files.size(), boot_image_spaces.size());
 
