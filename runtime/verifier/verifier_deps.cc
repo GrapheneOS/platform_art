@@ -728,7 +728,7 @@ bool VerifierDeps::VerifyAssignability(Handle<mirror::ClassLoader> class_loader,
 
       DCHECK(destination->IsResolved() && source->IsResolved());
       if (!destination->IsAssignableFrom(source.Get())) {
-        *error_msg = "Class " + destination_desc + " not assignable from " + source_desc;
+        *error_msg = ART_FORMAT("Class {} not assignable from {}", destination_desc, source_desc);
         return false;
       }
     }

@@ -3734,7 +3734,7 @@ std::vector<std::string> ImageSpace::ExpandMultiImageLocations(
     if (last_dex_dot != std::string::npos) {
       name.resize(last_dex_dot);
     }
-    locations.push_back(base + name + extension);
+    locations.push_back(ART_FORMAT("{}{}{}", base, name, extension));
   }
   return locations;
 }

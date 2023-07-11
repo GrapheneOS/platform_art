@@ -650,8 +650,8 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     std::string expected;
     for (XRegister* rd : GetRegisters()) {
       std::string rd_name = GetRegisterName(*rd);
-      std::string addi_rd = "addi" + suffix + " " + rd_name + ", ";
-      std::string add_rd = "add" + suffix + " " + rd_name + ", ";
+      std::string addi_rd = ART_FORMAT("addi{} {}, ", suffix, rd_name);
+      std::string add_rd = ART_FORMAT("add{} {}, ", suffix, rd_name);
       for (XRegister* rs1 : GetRegisters()) {
         ScratchRegisterScope srs(GetAssembler());
         srs.ExcludeXRegister(*rs1);
@@ -659,18 +659,19 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
 
         std::string rs1_name = GetRegisterName(*rs1);
         std::string tmp_name = GetRegisterName((*rs1 != TMP) ? TMP : TMP2);
-        std::string addi_tmp = "addi" + suffix + " " + tmp_name + ", ";
+        std::string addi_tmp = ART_FORMAT("addi{} {}, ", suffix, tmp_name);
 
         for (int64_t imm : kImm12s) {
           emit_op(*rd, *rs1, imm);
-          expected += addi_rd + rs1_name + ", " + std::to_string(imm) + "\n";
+          expected += ART_FORMAT("{}{}, {}\n", addi_rd, rs1_name, std::to_string(imm));
         }
 
         auto emit_simple_ops = [&](ArrayRef<const int64_t> imms, int64_t adjustment) {
           for (int64_t imm : imms) {
             emit_op(*rd, *rs1, imm);
-            expected += addi_tmp + rs1_name + ", " + std::to_string(adjustment) + "\n" +
-                        addi_rd + tmp_name + ", " + std::to_string(imm - adjustment) + "\n";
+            expected += ART_FORMAT("{}{}, {}\n", addi_tmp, rs1_name, std::to_string(adjustment));
+            expected +=
+                ART_FORMAT("{}{}, {}\n", addi_rd, tmp_name, std::to_string(imm - adjustment));
           }
         };
         emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveValues), 0x7ff);
@@ -678,8 +679,8 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
 
         for (int64_t imm : large_values) {
           emit_op(*rd, *rs1, imm);
-          expected += "li " + tmp_name + ", " + std::to_string(imm) + "\n" +
-                      add_rd + rs1_name + ", " + tmp_name + "\n";
+          expected += ART_FORMAT("li {}, {}\n", tmp_name, std::to_string(imm));
+          expected += ART_FORMAT("{}{}, {}\n", add_rd, rs1_name, tmp_name);
         }
       }
     }
@@ -732,15 +733,15 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
 
       for (int64_t imm : kImm12s) {
         emit_op(*rs1, imm);
-        expected += head + ", " + std::to_string(imm) + "(" + rs1_name + ")" + "\n";
+        expected += ART_FORMAT("{}, {}({})\n", head, std::to_string(imm), rs1_name);
       }
 
       auto emit_simple_ops = [&](ArrayRef<const int64_t> imms, int64_t adjustment) {
         for (int64_t imm : imms) {
           emit_op(*rs1, imm);
           expected +=
-              "addi " + tmp_name + ", " + rs1_name + ", " + std::to_string(adjustment) + "\n" +
-              head + ", " + std::to_string(imm - adjustment) + "(" + tmp_name + ")" + "\n";
+              ART_FORMAT("addi {}, {}, {}\n", tmp_name, rs1_name, std::to_string(adjustment));
+          expected += ART_FORMAT("{}, {}({})\n", head, std::to_string(imm - adjustment), tmp_name);
         }
       };
       emit_simple_ops(ArrayRef<const int64_t>(kSimplePositiveOffsetsAlign8), 0x7f8);
@@ -753,18 +754,18 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
         emit_op(*rs1, imm);
         uint32_t imm20 = ((imm >> 12) + ((imm >> 11) & 1)) & 0xfffff;
         int32_t small_offset = (imm & 0xfff) - ((imm & 0x800) << 1);
-        expected += "lui " + tmp_name + ", " + std::to_string(imm20) + "\n"
-                    "add " + tmp_name + ", " + tmp_name + ", " + rs1_name + "\n" +
-                    head + ", " + std::to_string(small_offset) + "(" + tmp_name + ")\n";
+        expected += ART_FORMAT("lui {}, {}\n", tmp_name, std::to_string(imm20));
+        expected += ART_FORMAT("add {}, {}, {}\n", tmp_name, tmp_name, rs1_name);
+        expected += ART_FORMAT("{},{}({})\n", head, std::to_string(small_offset), tmp_name);
       }
 
       for (int64_t imm : kSpecialOffsets) {
         emit_op(*rs1, imm);
+        expected += ART_FORMAT("lui {}, 0x80000\n", tmp_name);
         expected +=
-            "lui " + tmp_name + ", 0x80000\n"
-            "addiw " + tmp_name + ", " + tmp_name + ", " + std::to_string(imm - 0x80000000) + "\n" +
-            "add " + tmp_name + ", " + tmp_name + ", " + rs1_name + "\n" +
-            head + ", (" + tmp_name + ")\n";
+            ART_FORMAT("addiw {}, {}, {}\n", tmp_name, tmp_name, std::to_string(imm - 0x80000000));
+        expected += ART_FORMAT("add {}, {}, {}\n", tmp_name, tmp_name, rs1_name);
+        expected += ART_FORMAT("{}, ({})\n", head, tmp_name);
       }
     }
     return expected;
@@ -2360,9 +2361,9 @@ TEST_F(AssemblerRISCV64Test, LoadLabelAddress) {
       DCHECK_NE(rd, Zero);
       std::string rd_name = GetRegisterName(rd);
       __ LoadLabelAddress(rd, &label);
-      expected += "1:\n"
-                  "auipc " + rd_name + ", %pcrel_hi(" + target_label + ")\n"
-                  "addi " + rd_name + ", " + rd_name + ", %pcrel_lo(1b)\n";
+      expected += "1:\n";
+      expected += ART_FORMAT("auipc {}, %pcrel_hi({})\n", rd_name, target_label);
+      expected += ART_FORMAT("addi {}, {}, %pcrel_lo(1b)\n", rd_name, rd_name);
     }
   };
   emit_batch(kNumLoadsForward, "2f");
