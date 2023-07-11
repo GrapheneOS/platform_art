@@ -68,7 +68,7 @@ void ArtField::VisitArrayRoots(RootVisitorType& visitor,
   DCHECK_LE(start_boundary, end_boundary);
   DCHECK_NE(array->size(), 0u);
   ArtField* first_field = &array->At(0);
-  DCHECK_LE(static_cast<void*>(end_boundary), static_cast<void*>(first_field + array->size()));
+  end_boundary = std::min(end_boundary, reinterpret_cast<uint8_t*>(first_field + array->size()));
   static constexpr size_t kFieldSize = sizeof(ArtField);
   // Confirm the assumption that ArtField size is power of two. It's important
   // as we assume so below (RoundUp).
