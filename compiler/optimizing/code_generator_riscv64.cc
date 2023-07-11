@@ -1531,13 +1531,27 @@ void InstructionCodeGeneratorRISCV64::VisitSub(HSub* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitSuspendCheck(HSuspendCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  // In suspend check slow path, usually there are no caller-save registers at all.
+  // If SIMD instructions are present, however, we force spilling all live SIMD
+  // registers in full width (since the runtime only saves/restores lower part).
+  locations->SetCustomSlowPathCallerSaves(GetGraph()->HasSIMD() ? RegisterSet::AllFpu() :
+                                                                  RegisterSet::Empty());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitSuspendCheck(HSuspendCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HBasicBlock* block = instruction->GetBlock();
+  if (block->GetLoopInformation() != nullptr) {
+    DCHECK(block->GetLoopInformation()->GetSuspendCheck() == instruction);
+    // The back edge will generate the suspend check.
+    return;
+  }
+  if (block->IsEntryBlock() && instruction->GetNext()->IsGoto()) {
+    // The goto will generate the suspend check.
+    return;
+  }
+  GenerateSuspendCheck(instruction, nullptr);
 }
 
 void LocationsBuilderRISCV64::VisitThrow(HThrow* instruction) {
