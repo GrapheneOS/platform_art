@@ -208,6 +208,11 @@ class MANAGED Class final : public Object {
   bool IsVisiblyInitialized() REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note: Avoiding the synchronization barrier for the visibly initialized check.
     ClassStatus status = GetStatus<kVerifyFlags, /*kWithSynchronizationBarrier=*/ false>();
+
+    // We need to prevent the compiler from reordering loads that depend
+    // on the class being visibly initialized before the status load above.
+    asm volatile ("" : : : "memory");
+
     return status == ClassStatus::kVisiblyInitialized;
   }
 
