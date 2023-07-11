@@ -321,7 +321,8 @@ bool GarbageCollector::ShouldEagerlyReleaseMemoryToOS() const {
   if (runtime->IsZygote()) {
     return true;
   }
-  if (GetCurrentIteration()->GetGcCause() == kGcCauseExplicit) {
+  if (GetCurrentIteration()->GetGcCause() == kGcCauseExplicit &&
+      !runtime->IsEagerlyReleaseExplicitGcDisabled()) {
     // Our behavior with explicit GCs is to always release any available memory.
     return true;
   }

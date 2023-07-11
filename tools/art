@@ -330,9 +330,11 @@ ALLOW_DEFAULT_JDWP="no"
 VERBOSE="no"
 CLEAN_OAT_FILES="yes"
 RUN_DEX2OAT="yes"
-# 'art' script is for benchmarking, so override default JIT thresholds that are
-# too conservative for benchmarking.
-EXTRA_OPTIONS=(-Xjitwarmupthreshold:4000 -Xjitthreshold:10000)
+# 'art' script is for benchmarking, so override:
+# - default JIT thresholds that are too conservative for benchmarking
+# - the eagerly releasing memory to the OS on explicit GC, which is more suited
+#   for multi-apps execution than benchmarks.
+EXTRA_OPTIONS=(-Xjitwarmupthreshold:4000 -Xjitthreshold:10000 -XX:+DisableEagerlyReleaseExplicitGC)
 DEX2OAT_FLAGS=()
 DEX2OAT_CLASSPATH=()
 GENERATE_APP_IMAGE="no"
