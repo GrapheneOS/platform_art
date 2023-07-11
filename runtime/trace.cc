@@ -576,29 +576,6 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   }
 }
 
-void Trace::UpdateThreadsList(Thread* thread) {
-  // TODO(mythria): Clean this up and update threads_list_ when recording the trace event similar
-  // to what we do for streaming case.
-  std::string name;
-  thread->GetThreadName(name);
-  // In tests, we destroy VM after already detaching the current thread. When a thread is
-  // detached we record the information about the threads_list_. We re-attach the current
-  // thread again as a "Shutdown thread" in the process of shutting down. So don't record
-  // information about shutdown threads.
-  if (name.compare("Shutdown thread") == 0) {
-    return;
-  }
-
-  // There can be races when unregistering a thread and stopping the trace and it is possible to
-  // update the list twice. For example, This information is updated here when stopping tracing and
-  // also when a thread is detaching. In thread detach, we first update this information and then
-  // remove the thread from the list of active threads. If the tracing was stopped in between these
-  // events, we can see two updates for the same thread. Since we need a trace_lock_ it isn't easy
-  // to prevent this race (for ex: update this information when holding thread_list_lock_). It is
-  // harmless to do two updates so just use overwrite here.
-  threads_list_.Overwrite(thread->GetTid(), name);
-}
-
 void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
@@ -659,9 +636,6 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
           the_trace->FlushBuffer(thread);
           thread->ResetMethodTraceBuffer();
         }
-        // Record threads here before resetting the_trace_ to prevent any races between
-        // unregistering the thread and resetting the_trace_.
-        the_trace->UpdateThreadsList(thread);
       }
     }
 
@@ -1029,29 +1003,35 @@ std::string Trace::GetMethodLine(ArtMethod* method, uint32_t method_index) {
 }
 
 void Trace::RecordThreadInfo(Thread* thread) {
-  if (trace_output_mode_ != TraceOutputMode::kStreaming) {
-    return;
-  }
-
   // This is the first event from this thread, so first record information about the thread.
   std::string thread_name;
   thread->GetThreadName(thread_name);
+
+  // In tests, we destroy VM after already detaching the current thread. We re-attach the current
+  // thread again as a "Shutdown thread" during the process of shutting down. So don't record
+  // information about shutdown threads since it overwrites the actual thread_name.
+  if (thread_name.compare("Shutdown thread") == 0) {
+    return;
+  }
+
+  MutexLock mu(Thread::Current(), tracing_lock_);
+  if (trace_output_mode_ != TraceOutputMode::kStreaming) {
+    threads_list_.Overwrite(GetThreadEncoding(thread->GetTid()), thread_name);
+    return;
+  }
+
   static constexpr size_t kThreadNameHeaderSize = 7;
   uint8_t header[kThreadNameHeaderSize];
+  Append2LE(header, 0);
+  header[2] = kOpNewThread;
+  Append2LE(header + 3, GetThreadEncoding(thread->GetTid()));
+  DCHECK(thread_name.length() < (1 << 16));
+  Append2LE(header + 5, static_cast<uint16_t>(thread_name.length()));
 
-  {
-    MutexLock mu(Thread::Current(), tracing_lock_);
-    Append2LE(header, 0);
-    header[2] = kOpNewThread;
-    Append2LE(header + 3, GetThreadEncoding(thread->GetTid()));
-    DCHECK(thread_name.length() < (1 << 16));
-    Append2LE(header + 5, static_cast<uint16_t>(thread_name.length()));
-
-    if (!trace_file_->WriteFully(header, kThreadNameHeaderSize) ||
-        !trace_file_->WriteFully(reinterpret_cast<const uint8_t*>(thread_name.c_str()),
-                                 thread_name.length())) {
-      PLOG(WARNING) << "Failed streaming a tracing event.";
-    }
+  if (!trace_file_->WriteFully(header, kThreadNameHeaderSize) ||
+      !trace_file_->WriteFully(reinterpret_cast<const uint8_t*>(thread_name.c_str()),
+                               thread_name.length())) {
+    PLOG(WARNING) << "Failed streaming a tracing event.";
   }
 }
 
@@ -1291,14 +1271,7 @@ void Trace::DumpMethodList(std::ostream& os) {
 
 void Trace::DumpThreadList(std::ostream& os) {
   for (const auto& it : threads_list_) {
-    os << GetThreadEncoding(it.first) << "\t" << it.second << "\n";
-  }
-}
-
-void Trace::StoreExitingThreadInfo(Thread* thread) {
-  MutexLock mu(thread, *Locks::trace_lock_);
-  if (the_trace_ != nullptr) {
-    the_trace_->UpdateThreadsList(thread);
+    os << it.first << "\t" << it.second << "\n";
   }
 }
 
