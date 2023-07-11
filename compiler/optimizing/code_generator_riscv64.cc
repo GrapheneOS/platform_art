@@ -1391,13 +1391,28 @@ void InstructionCodeGeneratorRISCV64::VisitRem(HRem* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitReturn(HReturn* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  DataType::Type return_type = instruction->InputAt(0)->GetType();
+  DCHECK_NE(return_type, DataType::Type::kVoid);
+  locations->SetInAt(0, Riscv64ReturnLocation(return_type));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitReturn(HReturn* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  if (GetGraph()->IsCompilingOsr()) {
+    // To simplify callers of an OSR method, we put a floating point return value
+    // in both floating point and core return registers.
+    switch (instruction->InputAt(0)->GetType()) {
+      case DataType::Type::kFloat32:
+        __ FMvXW(A0, FA0);
+        break;
+      case DataType::Type::kFloat64:
+        __ FMvXD(A0, FA0);
+        break;
+      default:
+        break;
+    }
+  }
+  codegen_->GenerateFrameExit();
 }
 
 void LocationsBuilderRISCV64::VisitReturnVoid(HReturnVoid* instruction) {
