@@ -184,18 +184,6 @@ static ObjPtr<mirror::Object> GetErroneousStateError(ObjPtr<mirror::Class> c)
   }
 }
 
-static void WriteBarrierOnClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (class_loader != nullptr) {
-    WriteBarrier::ForEveryFieldWrite(class_loader);
-    return;
-  }
-  ObjPtr<mirror::ClassLoader> boot_loader = Runtime::Current()->GetBootClassLoaderInstance();
-  if (boot_loader != nullptr) {
-    WriteBarrier::ForEveryFieldWrite(boot_loader);
-  }
-}
-
 static bool IsVerifyError(ObjPtr<mirror::Object> obj)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // This is slow, but we only use it for rethrowing an error, and for DCHECK.
@@ -1017,7 +1005,7 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   FinishInit(self);
 
-  VLOG(startup) << "ClassLinker::InitWithoutImage exiting";
+  VLOG(startup) << "ClassLinker::InitFromCompiler exiting";
 
   return true;
 }
@@ -2388,6 +2376,27 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
                           kVisitRootFlagStopLoggingNewRoots));
   }
   if ((flags & kVisitRootFlagAllRoots) != 0) {
+    // Argument for how root visiting deals with ArtField and ArtMethod roots.
+    // There is 3 GC cases to handle:
+    // Non moving concurrent:
+    // This case is easy to handle since the reference members of ArtMethod and ArtFields are held
+    // live by the class and class roots.
+    //
+    // Moving non-concurrent:
+    // This case needs to call visit VisitNativeRoots in case the classes or dex cache arrays move.
+    // To prevent missing roots, this case needs to ensure that there is no
+    // suspend points between the point which we allocate ArtMethod arrays and place them in a
+    // class which is in the class table.
+    //
+    // Moving concurrent:
+    // Need to make sure to not copy ArtMethods without doing read barriers since the roots are
+    // marked concurrently and we don't hold the classlinker_classes_lock_ when we do the copy.
+    //
+    // Use an unbuffered visitor since the class table uses a temporary GcRoot for holding decoded
+    // ClassTable::TableSlot. The buffered root visiting would access a stale stack location for
+    // these objects.
+    UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
+    boot_class_table_->VisitRoots(root_visitor);
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
     if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
       gc::Heap* const heap = Runtime::Current()->GetHeap();
@@ -3270,7 +3279,7 @@ ObjPtr<mirror::Class> ClassLinker::FindClass(Thread* self,
       old = result_ptr;  // For the comparison below, after releasing the lock.
       if (descriptor_equals) {
         class_table->InsertWithHash(result_ptr, hash);
-        WriteBarrierOnClassLoader(class_loader.Get());
+        WriteBarrier::ForEveryFieldWrite(class_loader.Get());
       }  // else throw below, after releasing the lock.
     }
   }
@@ -4100,9 +4109,11 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   data.class_table->InsertStrongRoot(dex_cache);
   // Make sure that the dex cache holds the classloader live.
   dex_cache->SetClassLoader(class_loader);
-  // Since we added a strong root to the class table, do the write barrier as required for
-  // remembered sets and generational GCs.
-  WriteBarrierOnClassLoader(class_loader);
+  if (class_loader != nullptr) {
+    // Since we added a strong root to the class table, do the write barrier as required for
+    // remembered sets and generational GCs.
+    WriteBarrier::ForEveryFieldWrite(class_loader);
+  }
   bool inserted = dex_caches_.emplace(&dex_file, std::move(data)).second;
   CHECK(inserted);
 }
@@ -4150,9 +4161,11 @@ void ClassLinker::RegisterExistingDexCache(ObjPtr<mirror::DexCache> dex_cache,
   WriterMutexLock mu(self, *Locks::dex_lock_);
   RegisterDexFileLocked(*dex_file, h_dex_cache.Get(), h_class_loader.Get());
   table->InsertStrongRoot(h_dex_cache.Get());
-  // Since we added a strong root to the class table, do the write barrier as required for
-  // remembered sets and generational GCs.
-  WriteBarrierOnClassLoader(h_class_loader.Get());
+  if (h_class_loader.Get() != nullptr) {
+    // Since we added a strong root to the class table, do the write barrier as required for
+    // remembered sets and generational GCs.
+    WriteBarrier::ForEveryFieldWrite(h_class_loader.Get());
+  }
 }
 
 static void ThrowDexFileAlreadyRegisteredError(Thread* self, const DexFile& dex_file)
@@ -4238,9 +4251,11 @@ ObjPtr<mirror::DexCache> ClassLinker::RegisterDexFile(const DexFile& dex_file,
     return nullptr;
   }
   table->InsertStrongRoot(h_dex_cache.Get());
-  // Since we added a strong root to the class table, do the write barrier as required for
-  // remembered sets and generational GCs.
-  WriteBarrierOnClassLoader(h_class_loader.Get());
+  if (h_class_loader.Get() != nullptr) {
+    // Since we added a strong root to the class table, do the write barrier as required for
+    // remembered sets and generational GCs.
+    WriteBarrier::ForEveryFieldWrite(h_class_loader.Get());
+  }
   VLOG(class_linker) << "Registered dex file " << dex_file.GetLocation();
   PaletteNotifyDexFileLoaded(dex_file.GetLocation().c_str());
   return h_dex_cache.Get();
@@ -4550,8 +4565,10 @@ ObjPtr<mirror::Class> ClassLinker::InsertClass(const char* descriptor,
     }
     VerifyObject(klass);
     class_table->InsertWithHash(klass, hash);
-    // This is necessary because we need to have the card dirtied for remembered sets.
-    WriteBarrierOnClassLoader(class_loader);
+    if (class_loader != nullptr) {
+      // This is necessary because we need to have the card dirtied for remembered sets.
+      WriteBarrier::ForEveryFieldWrite(class_loader);
+    }
     if (log_new_roots_) {
       new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
     }
@@ -6223,9 +6240,11 @@ bool ClassLinker::LinkClass(Thread* self,
       ClassTable* const table = InsertClassTableForClassLoader(class_loader);
       const ObjPtr<mirror::Class> existing =
           table->UpdateClass(descriptor, h_new_class.Get(), ComputeModifiedUtf8Hash(descriptor));
-      // We updated the class in the class table, perform the write barrier so that the GC knows
-      // about the change.
-      WriteBarrierOnClassLoader(class_loader);
+      if (class_loader != nullptr) {
+        // We updated the class in the class table, perform the write barrier so that the GC knows
+        // about the change.
+        WriteBarrier::ForEveryFieldWrite(class_loader);
+      }
       CHECK_EQ(existing, klass.Get());
       if (log_new_roots_) {
         new_class_roots_.push_back(GcRoot<mirror::Class>(h_new_class.Get()));
@@ -10760,10 +10779,10 @@ void ClassLinker::InsertDexFileInToClassLoader(ObjPtr<mirror::Object> dex_file,
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
   ClassTable* const table = ClassTableForClassLoader(class_loader);
   DCHECK(table != nullptr);
-  if (table->InsertStrongRoot(dex_file)) {
+  if (table->InsertStrongRoot(dex_file) && class_loader != nullptr) {
     // It was not already inserted, perform the write barrier to let the GC know the class loader's
     // class table was modified.
-    WriteBarrierOnClassLoader(class_loader);
+    WriteBarrier::ForEveryFieldWrite(class_loader);
   }
 }
 

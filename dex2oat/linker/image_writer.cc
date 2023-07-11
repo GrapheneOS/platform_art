@@ -149,7 +149,6 @@ static ObjPtr<mirror::ObjectArray<mirror::Object>> AllocateBootImageLiveObjects(
             runtime->GetPreAllocatedOutOfMemoryErrorWhenHandlingStackOverflow());
   set_entry(ImageHeader::kNoClassDefFoundError, runtime->GetPreAllocatedNoClassDefFoundError());
   set_entry(ImageHeader::kClearedJniWeakSentinel, runtime->GetSentinel().Read());
-  set_entry(ImageHeader::kBootClassLoaderInstance, runtime->GetBootClassLoaderInstance());
 
   DCHECK_EQ(index, enum_cast<int32_t>(ImageHeader::kIntrinsicObjectsStart));
   if (integer_cache != nullptr) {
