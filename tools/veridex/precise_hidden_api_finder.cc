@@ -98,7 +98,7 @@ void PreciseHiddenApiFinder::Dump(std::ostream& os, HiddenApiStats* stats) {
     for (const ReflectAccessInfo& info : it.second) {
       std::string cls(info.cls.ToString());
       std::string name(info.name.ToString());
-      std::string full_name = cls + "->" + name;
+      std::string full_name = ART_FORMAT("{}->{}", cls, name);
       named_uses[full_name].push_back(ref);
     }
   }
