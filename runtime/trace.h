@@ -320,12 +320,8 @@ class Trace final : public instrumentation::InstrumentationListener {
                    size_t required_size);
 
   std::pair<uint32_t, bool> GetMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
-  ArtMethod* DecodeTraceMethod(uint32_t tmid) REQUIRES(tracing_lock_);
   std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
