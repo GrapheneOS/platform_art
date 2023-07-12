@@ -17,6 +17,13 @@
 <configuration description="Runs {MODULE} as root.">
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
 
+    <!-- Wipe /data because this test requires a clean state where no APEX is installed.
+         Warning: This test should not be used in a Mainline context (i.e. when a train update
+         has been installed prior to running this test). -->
+    <target_preparer class="com.android.tradefed.targetprep.DeviceWiper">
+      <option name="mode" value="FACTORY_RESET" />
+    </target_preparer>
+
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
@@ -31,15 +38,6 @@
         <option name="ld-library-path-32" value="/apex/com.android.art/lib" />
         <option name="ld-library-path-64" value="/apex/com.android.art/lib64" />
     </test>
-
-    <!-- When this test is run in a Mainline context (e.g. with `mts-tradefed`), only enable it if
-         one of the Mainline modules below is present on the device used for testing. -->
-    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
-        <!-- ART Mainline Module (internal version). -->
-        <option name="mainline-module-package-name" value="com.google.android.art" />
-        <!-- ART Mainline Module (external (AOSP) version). -->
-        <option name="mainline-module-package-name" value="com.android.art" />
-    </object>
 
     <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
