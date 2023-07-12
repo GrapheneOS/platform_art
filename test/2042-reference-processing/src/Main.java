@@ -238,6 +238,10 @@ public class Main {
                 System.out.println("Unexpected live object count");
             }
             dropObjects(DROP_OBJS);
+            if (i % 100 == 0) {
+              // Make sure we don't fall too far behind, otherwise we may run out of memory.
+              System.runFinalization();
+            }
             emptyAndCheckQueues();
         }
         dropObjects(MIN_LIVE_OBJS);
