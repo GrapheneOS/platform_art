@@ -268,6 +268,13 @@ bool HeapLocationCollector::CanArrayElementsAlias(const HInstruction* idx1,
 }
 
 bool LoadStoreAnalysis::Run() {
+  // Currently load_store analysis can't handle predicated load/stores; specifically pairs of
+  // memory operations with different predicates.
+  // TODO: support predicated SIMD.
+  if (graph_->HasPredicatedSIMD()) {
+    return false;
+  }
+
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     heap_location_collector_.VisitBasicBlock(block);
   }
