@@ -403,7 +403,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         has_bounds_checks_(false),
         has_try_catch_(false),
         has_monitor_operations_(false),
-        has_simd_(false),
+        has_traditional_simd_(false),
+        has_predicated_simd_(false),
         has_loops_(false),
         has_irreducible_loops_(false),
         has_direct_critical_native_call_(false),
@@ -708,8 +709,13 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasMonitorOperations() const { return has_monitor_operations_; }
   void SetHasMonitorOperations(bool value) { has_monitor_operations_ = value; }
 
-  bool HasSIMD() const { return has_simd_; }
-  void SetHasSIMD(bool value) { has_simd_ = value; }
+  bool HasTraditionalSIMD() { return has_traditional_simd_; }
+  void SetHasTraditionalSIMD(bool value) { has_traditional_simd_ = value; }
+
+  bool HasPredicatedSIMD() { return has_predicated_simd_; }
+  void SetHasPredicatedSIMD(bool value) { has_predicated_simd_ = value; }
+
+  bool HasSIMD() const { return has_traditional_simd_ || has_predicated_simd_; }
 
   bool HasLoops() const { return has_loops_; }
   void SetHasLoops(bool value) { has_loops_ = value; }
@@ -822,10 +828,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // DexRegisterMap to be present to allow deadlock analysis for non-debuggable code.
   bool has_monitor_operations_;
 
-  // Flag whether SIMD instructions appear in the graph. If true, the
-  // code generators may have to be more careful spilling the wider
+  // Flags whether SIMD (traditional or predicated) instructions appear in the graph.
+  // If either is true, the code generators may have to be more careful spilling the wider
   // contents of SIMD registers.
-  bool has_simd_;
+  bool has_traditional_simd_;
+  bool has_predicated_simd_;
 
   // Flag whether there are any loops in the graph. We can skip loop
   // optimization if it's false.
@@ -1636,7 +1643,9 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(VecStore, VecMemoryOperation)                                       \
   M(VecPredSetAll, VecPredSetOperation)                                 \
   M(VecPredWhile, VecPredSetOperation)                                  \
-  M(VecPredCondition, VecOperation)                                     \
+  M(VecPredToBoolean, VecOperation)                                     \
+  M(VecCondition, VecPredSetOperation)                                  \
+  M(VecPredNot, VecPredSetOperation)                                    \
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_COMMON(M)                         \
   FOR_EACH_CONCRETE_INSTRUCTION_SCALAR_COMMON(M)                        \
@@ -8634,7 +8643,7 @@ class CloneAndReplaceInstructionVisitor final : public HGraphDelegateVisitor {
   DISALLOW_COPY_AND_ASSIGN(CloneAndReplaceInstructionVisitor);
 };
 
-// Iterator over the blocks that art part of the loop. Includes blocks part
+// Iterator over the blocks that are part of the loop; includes blocks which are part
 // of an inner loop. The order in which the blocks are iterated is on their
 // block id.
 class HBlocksInLoopIterator : public ValueObject {
@@ -8667,7 +8676,7 @@ class HBlocksInLoopIterator : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopIterator);
 };
 
-// Iterator over the blocks that art part of the loop. Includes blocks part
+// Iterator over the blocks that are part of the loop; includes blocks which are part
 // of an inner loop. The order in which the blocks are iterated is reverse
 // post order.
 class HBlocksInLoopReversePostOrderIterator : public ValueObject {
@@ -8698,6 +8707,39 @@ class HBlocksInLoopReversePostOrderIterator : public ValueObject {
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopReversePostOrderIterator);
+};
+
+// Iterator over the blocks that are part of the loop; includes blocks which are part
+// of an inner loop. The order in which the blocks are iterated is post order.
+class HBlocksInLoopPostOrderIterator : public ValueObject {
+ public:
+  explicit HBlocksInLoopPostOrderIterator(const HLoopInformation& info)
+      : blocks_in_loop_(info.GetBlocks()),
+        blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
+        index_(blocks_.size() - 1) {
+    if (!blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
+      Advance();
+    }
+  }
+
+  bool Done() const { return index_ < 0; }
+  HBasicBlock* Current() const { return blocks_[index_]; }
+  void Advance() {
+    --index_;
+    for (; index_ >= 0; --index_) {
+      if (blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
+        break;
+      }
+    }
+  }
+
+ private:
+  const BitVector& blocks_in_loop_;
+  const ArenaVector<HBasicBlock*>& blocks_;
+
+  int32_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopPostOrderIterator);
 };
 
 // Returns int64_t value of a properly typed constant.
