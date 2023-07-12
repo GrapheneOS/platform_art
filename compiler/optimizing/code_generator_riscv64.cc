@@ -1454,11 +1454,22 @@ void InstructionCodeGeneratorRISCV64::VisitParallelMove(HParallelMove* instructi
 }
 
 void LocationsBuilderRISCV64::VisitParameterValue(HParameterValue* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  Location location = parameter_visitor_.GetNextLocation(instruction->GetType());
+  if (location.IsStackSlot()) {
+    location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
+  } else if (location.IsDoubleStackSlot()) {
+    location = Location::DoubleStackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
+  }
+  locations->SetOut(location);
 }
 
-void InstructionCodeGeneratorRISCV64::VisitParameterValue(HParameterValue* instruction) {
+void InstructionCodeGeneratorRISCV64::VisitParameterValue(
+    [[maybe_unused]] HParameterValue* instruction) {
+  // Nothing to do, the parameter is already at its location.
+}
+
+void LocationsBuilderRISCV64::VisitPhi(HPhi* instruction) {
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
     locations->SetInAt(i, Location::Any());
@@ -1466,13 +1477,8 @@ void InstructionCodeGeneratorRISCV64::VisitParameterValue(HParameterValue* instr
   locations->SetOut(Location::Any());
 }
 
-void LocationsBuilderRISCV64::VisitPhi([[maybe_unused]] HPhi* instruction) {
+void InstructionCodeGeneratorRISCV64::VisitPhi([[maybe_unused]] HPhi* instruction) {
   LOG(FATAL) << "Unreachable";
-}
-
-void InstructionCodeGeneratorRISCV64::VisitPhi(HPhi* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
 }
 
 void LocationsBuilderRISCV64::VisitRem(HRem* instruction) {
