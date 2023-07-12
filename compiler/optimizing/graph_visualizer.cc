@@ -610,6 +610,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitVecMemoryOperation(HVecMemoryOperation* vec_mem_operation) override {
+    VisitVecOperation(vec_mem_operation);
     StartAttributeStream("alignment") << vec_mem_operation->GetAlignment().ToString();
   }
 

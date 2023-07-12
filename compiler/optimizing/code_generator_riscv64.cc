@@ -2017,12 +2017,32 @@ void InstructionCodeGeneratorRISCV64::VisitVecPredWhile(HVecPredWhile* instructi
   LOG(FATAL) << "Unimplemented";
 }
 
-void LocationsBuilderRISCV64::VisitVecPredCondition(HVecPredCondition* instruction) {
+void LocationsBuilderRISCV64::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
   UNUSED(instruction);
   LOG(FATAL) << "Unimplemented";
 }
 
-void InstructionCodeGeneratorRISCV64::VisitVecPredCondition(HVecPredCondition* instruction) {
+void InstructionCodeGeneratorRISCV64::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
+  UNUSED(instruction);
+  LOG(FATAL) << "Unimplemented";
+}
+
+void LocationsBuilderRISCV64::VisitVecCondition(HVecCondition* instruction) {
+  UNUSED(instruction);
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorRISCV64::VisitVecCondition(HVecCondition* instruction) {
+  UNUSED(instruction);
+  LOG(FATAL) << "Unimplemented";
+}
+
+void LocationsBuilderRISCV64::VisitVecPredNot(HVecPredNot* instruction) {
+  UNUSED(instruction);
+  LOG(FATAL) << "Unimplemented";
+}
+
+void InstructionCodeGeneratorRISCV64::VisitVecPredNot(HVecPredNot* instruction) {
   UNUSED(instruction);
   LOG(FATAL) << "Unimplemented";
 }

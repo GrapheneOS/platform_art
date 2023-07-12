@@ -1401,12 +1401,32 @@ void InstructionCodeGeneratorX86::VisitVecPredWhile(HVecPredWhile* instruction) 
   UNREACHABLE();
 }
 
-void LocationsBuilderX86::VisitVecPredCondition(HVecPredCondition* instruction) {
+void LocationsBuilderX86::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
   UNREACHABLE();
 }
 
-void InstructionCodeGeneratorX86::VisitVecPredCondition(HVecPredCondition* instruction) {
+void InstructionCodeGeneratorX86::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void LocationsBuilderX86::VisitVecCondition(HVecCondition* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void InstructionCodeGeneratorX86::VisitVecCondition(HVecCondition* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void LocationsBuilderX86::VisitVecPredNot(HVecPredNot* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void InstructionCodeGeneratorX86::VisitVecPredNot(HVecPredNot* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
   UNREACHABLE();
 }

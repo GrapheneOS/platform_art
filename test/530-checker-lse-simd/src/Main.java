@@ -38,10 +38,17 @@ public class Main {
   /// CHECK-NEXT: Sub
   /// CHECK-NEXT: Mul
   /// CHECK-NEXT: ArraySet
+  /// CHECK-IF:     hasIsaFeature("sve")
+  //
+  ///     CHECK-NEXT: ArrayGet
+  //
+  /// CHECK-FI:
   /// CHECK-NEXT: LessThanOrEqual
   /// CHECK-NEXT: Select
   /// CHECK-NEXT: Add
   /// CHECK-NEXT: Goto loop:{{B\d+}}
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double $noinline$vecgen(double a[], double b[], int n) {
     double norma = 0.0;
     int init = 1325;
@@ -87,10 +94,17 @@ public class Main {
   /// CHECK-NEXT: ArrayGet
   /// CHECK-NEXT: Mul
   /// CHECK-NEXT: ArraySet
+  /// CHECK-IF:     hasIsaFeature("sve")
+  //
+  ///     CHECK-NEXT: ArrayGet
+  //
+  /// CHECK-FI:
   /// CHECK-NEXT: ArrayLength
   /// CHECK-NEXT: BelowOrEqual
   //
   /// CHECK:      Return
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double $noinline$test02(double a[], int n) {
     double b[] = new double[n];
     a[0] = a[0] / 2;
@@ -120,7 +134,13 @@ public class Main {
   /// CHECK-NEXT: Return
 
   /// CHECK-START: double Main.$noinline$test03(int) load_store_elimination (after)
-  /// CHECK-NOT:  ArrayGet loop:none
+  /// CHECK-IF:     not hasIsaFeature("sve")
+  //
+  ///     CHECK-NOT:  ArrayGet loop:none
+  //
+  /// CHECK-FI:
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double $noinline$test03(int n) {
     double a[] = new double[n];
     double b[] = new double[n];
@@ -164,7 +184,14 @@ public class Main {
   /// CHECK:        Add
   /// CHECK:        Goto loop:{{B\d+}}
   //
-  /// CHECK-NOT:    VecStore
+
+  /// CHECK-IF:     not hasIsaFeature("sve")
+  //
+  ///     CHECK-NOT:    VecStore
+  //
+  /// CHECK-FI:
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double[] $noinline$test04(int n) {
     double a[] = new double[n];
     double b[] = new double[n];
@@ -194,18 +221,14 @@ public class Main {
   /// CHECK:        Goto loop:{{B\d+}}
 
   /// CHECK-START-ARM64: double[] Main.$noinline$test05(int) load_store_elimination (after)
-  /// CHECK-IF:     not hasIsaFeature("sve")
-  //
-  //      In NEON case there is a post-loop which prevents the store to be removed.
-  ///     CHECK:        VecStore
-  //
-  /// CHECK-FI:
-  //
+  /// CHECK:        VecStore
   /// CHECK:        VecStore
   /// CHECK:        Add
   /// CHECK:        Goto loop:{{B\d+}}
   //
   /// CHECK-NOT:    VecStore
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double[] $noinline$test05(int n) {
     double a[] = new double[n];
     double b[] = new double[n];
@@ -249,7 +272,13 @@ public class Main {
   /// CHECK:        VecAdd
   /// CHECK:        VecStore
   //
-  /// CHECK-NOT:    VecStore
+  /// CHECK-IF:     not hasIsaFeature("sve")
+  //
+  ///     CHECK-NOT:    VecStore
+  //
+  /// CHECK-FI:
+  //
+  // TODO: reenable LSE for graphs with Predicated SIMD.
   static double[] $noinline$test06(int n) {
     double a[] = new double[n];
     double b[] = new double[n];
