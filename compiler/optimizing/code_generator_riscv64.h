@@ -279,10 +279,6 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void GenerateFrameEntry() override;
   void GenerateFrameExit() override;
 
-  Riscv64Label* GetLabelOf(HBasicBlock* block) const {
-    return CommonGetLabelOf<Riscv64Label>(block_labels_, block);
-  }
-
   void Bind(HBasicBlock* block) override;
 
   size_t GetWordSize() const override { return kRiscv64WordSize; }
@@ -313,6 +309,10 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   uintptr_t GetAddressOf(HBasicBlock* block) override {
     return assembler_.GetLabelLocation(GetLabelOf(block));
   };
+
+  Riscv64Label* GetLabelOf(HBasicBlock* block) const {
+    return CommonGetLabelOf<Riscv64Label>(block_labels_, block);
+  }
 
   void Initialize() override { block_labels_ = CommonInitializeLabels<Riscv64Label>(); }
 
@@ -404,6 +404,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void GenerateMemoryBarrier(MemBarrierKind kind);
 
   void MaybeIncrementHotness(bool is_frame_entry);
+
+  bool CanUseImplicitSuspendCheck() const;
 
  private:
   Riscv64Assembler assembler_;
