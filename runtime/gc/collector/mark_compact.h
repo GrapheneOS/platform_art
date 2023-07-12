@@ -290,10 +290,10 @@ class MarkCompact final : public GarbageCollector {
   // GC cycle.
   ALWAYS_INLINE mirror::Object* PostCompactBlackObjAddr(mirror::Object* old_ref) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  // Identify immune spaces and reset card-table, mod-union-table, and mark
-  // bitmaps.
-  void BindAndResetBitmaps() REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_);
+  // Clears (for alloc spaces in the beginning of marking phase) or ages the
+  // card table. Also, identifies immune spaces and mark bitmap.
+  void PrepareCardTableForMarking(bool clear_alloc_space_cards)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
   // Perform one last round of marking, identifying roots from dirty cards
   // during a stop-the-world (STW) pause.
@@ -767,8 +767,8 @@ class MarkCompact final : public GarbageCollector {
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
   class CheckpointMarkThreadRoots;
-  template<size_t kBufferSize> class ThreadRootsVisitor;
-  class CardModifiedVisitor;
+  template <size_t kBufferSize>
+  class ThreadRootsVisitor;
   class RefFieldsVisitor;
   template <bool kCheckBegin, bool kCheckEnd> class RefsUpdateVisitor;
   class ArenaPoolPageUpdater;
