@@ -24,6 +24,7 @@
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
 #include "optimizing/nodes.h"
+#include "optimizing/nodes_vector.h"
 #include "ssa_phi_elimination.h"
 
 namespace art HIDDEN {
@@ -842,7 +843,8 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
 
 void HDeadCodeElimination::UpdateGraphFlags() {
   bool has_monitor_operations = false;
-  bool has_simd = false;
+  bool has_traditional_simd = false;
+  bool has_predicated_simd = false;
   bool has_bounds_checks = false;
   bool has_always_throwing_invokes = false;
 
@@ -852,7 +854,12 @@ void HDeadCodeElimination::UpdateGraphFlags() {
       if (instruction->IsMonitorOperation()) {
         has_monitor_operations = true;
       } else if (instruction->IsVecOperation()) {
-        has_simd = true;
+        HVecOperation* vec_instruction = instruction->AsVecOperation();
+        if (vec_instruction->IsPredicated()) {
+          has_predicated_simd = true;
+        } else {
+          has_traditional_simd = true;
+        }
       } else if (instruction->IsBoundsCheck()) {
         has_bounds_checks = true;
       } else if (instruction->IsInvoke() && instruction->AsInvoke()->AlwaysThrows()) {
@@ -862,7 +869,8 @@ void HDeadCodeElimination::UpdateGraphFlags() {
   }
 
   graph_->SetHasMonitorOperations(has_monitor_operations);
-  graph_->SetHasSIMD(has_simd);
+  graph_->SetHasTraditionalSIMD(has_traditional_simd);
+  graph_->SetHasPredicatedSIMD(has_predicated_simd);
   graph_->SetHasBoundsChecks(has_bounds_checks);
   graph_->SetHasAlwaysThrowingInvokes(has_always_throwing_invokes);
 }
