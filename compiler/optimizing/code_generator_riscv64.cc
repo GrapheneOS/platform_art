@@ -1459,13 +1459,15 @@ void LocationsBuilderRISCV64::VisitParameterValue(HParameterValue* instruction) 
 }
 
 void InstructionCodeGeneratorRISCV64::VisitParameterValue(HParameterValue* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
+    locations->SetInAt(i, Location::Any());
+  }
+  locations->SetOut(Location::Any());
 }
 
-void LocationsBuilderRISCV64::VisitPhi(HPhi* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void LocationsBuilderRISCV64::VisitPhi([[maybe_unused]] HPhi* instruction) {
+  LOG(FATAL) << "Unreachable";
 }
 
 void InstructionCodeGeneratorRISCV64::VisitPhi(HPhi* instruction) {
