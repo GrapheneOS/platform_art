@@ -1384,8 +1384,8 @@ class HVecPredWhile final : public HVecPredSetOperation {
   static constexpr size_t kCondKind = HVecOperation::kNumberOfVectorOpPackedBits;
   static constexpr size_t kCondKindSize =
       MinimumBitsToStore(static_cast<size_t>(CondKind::kLast));
-  static constexpr size_t kNumberOfVecPredConditionPackedBits = kCondKind + kCondKindSize;
-  static_assert(kNumberOfVecPredConditionPackedBits <= kMaxNumberOfPackedBits,
+  static constexpr size_t kNumberOfVecPredWhilePackedBits = kCondKind + kCondKindSize;
+  static_assert(kNumberOfVecPredWhilePackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
   using CondKindField = BitField<CondKind, kCondKind, kCondKindSize>;
 
@@ -1395,13 +1395,13 @@ class HVecPredWhile final : public HVecPredSetOperation {
 // Evaluates the predicate condition (PCondKind) for a vector predicate; outputs
 // a scalar boolean value result.
 //
-// Note: as VecPredCondition can be also predicated, only active elements (determined by the
+// Note: as VecPredToBoolean can be also predicated, only active elements (determined by the
 // instruction's governing predicate) of the input vector predicate are used for condition
 // evaluation.
 //
 // Note: this instruction is currently used as a workaround for the fact that IR instructions
 // can't have more than one output.
-class HVecPredCondition final : public HVecOperation {
+class HVecPredToBoolean final : public HVecOperation {
  public:
   // To get more info on the condition kinds please see "2.2 Process state, PSTATE" section of
   // "ARM Architecture Reference Manual Supplement. The Scalable Vector Extension (SVE),
@@ -1418,13 +1418,13 @@ class HVecPredCondition final : public HVecOperation {
     kEnumLast = kPLast
   };
 
-  HVecPredCondition(ArenaAllocator* allocator,
+  HVecPredToBoolean(ArenaAllocator* allocator,
                     HInstruction* input,
                     PCondKind pred_cond,
                     DataType::Type packed_type,
                     size_t vector_length,
                     uint32_t dex_pc)
-      : HVecOperation(kVecPredCondition,
+      : HVecOperation(kVecPredToBoolean,
                       allocator,
                       packed_type,
                       SideEffects::None(),
@@ -1447,19 +1447,86 @@ class HVecPredCondition final : public HVecOperation {
     return GetPackedField<CondKindField>();
   }
 
-  DECLARE_INSTRUCTION(VecPredCondition);
+  DECLARE_INSTRUCTION(VecPredToBoolean);
 
  protected:
   // Additional packed bits.
   static constexpr size_t kCondKind = HVecOperation::kNumberOfVectorOpPackedBits;
   static constexpr size_t kCondKindSize =
       MinimumBitsToStore(static_cast<size_t>(PCondKind::kEnumLast));
-  static constexpr size_t kNumberOfVecPredConditionPackedBits = kCondKind + kCondKindSize;
-  static_assert(kNumberOfVecPredConditionPackedBits <= kMaxNumberOfPackedBits,
+  static constexpr size_t kNumberOfVecPredToBooleanPackedBits = kCondKind + kCondKindSize;
+  static_assert(kNumberOfVecPredToBooleanPackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
   using CondKindField = BitField<PCondKind, kCondKind, kCondKindSize>;
 
-  DEFAULT_COPY_CONSTRUCTOR(VecPredCondition);
+  DEFAULT_COPY_CONSTRUCTOR(VecPredToBoolean);
+};
+
+// Evaluates condition for pairwise elements in two input vectors and sets the result
+// as an output predicate vector.
+//
+// viz. [ p1, .. , pn ]  = [ x1 OP y1 , x2 OP y2, .. , xn OP yn] where OP is CondKind
+// condition.
+//
+// Currently only kEqual is supported by this vector instruction - we don't even define
+// the kCondType here.
+// TODO: support other condition ops.
+class HVecCondition final : public HVecPredSetOperation {
+ public:
+  HVecCondition(ArenaAllocator* allocator,
+                HInstruction* left,
+                HInstruction* right,
+                DataType::Type packed_type,
+                size_t vector_length,
+                uint32_t dex_pc) :
+      HVecPredSetOperation(kVecCondition,
+                           allocator,
+                           packed_type,
+                           SideEffects::None(),
+                           /* number_of_inputs= */ 2,
+                           vector_length,
+                           dex_pc) {
+    DCHECK(left->IsVecOperation());
+    DCHECK(!left->IsVecPredSetOperation());
+    DCHECK(right->IsVecOperation());
+    DCHECK(!right->IsVecPredSetOperation());
+    SetRawInputAt(0, left);
+    SetRawInputAt(1, right);
+  }
+
+  DECLARE_INSTRUCTION(VecCondition);
+
+ protected:
+  DEFAULT_COPY_CONSTRUCTOR(VecCondition);
+};
+
+// Inverts every component in the predicate vector.
+//
+// viz. [ p1, .. , pn ]  = [ !px1 , !px2 , .. , !pxn ].
+class HVecPredNot final : public HVecPredSetOperation {
+ public:
+  HVecPredNot(ArenaAllocator* allocator,
+                HInstruction* input,
+                DataType::Type packed_type,
+                size_t vector_length,
+                uint32_t dex_pc) :
+      HVecPredSetOperation(kVecPredNot,
+                           allocator,
+                           packed_type,
+                           SideEffects::None(),
+                           /* number_of_inputs= */ 1,
+                           vector_length,
+                           dex_pc) {
+    DCHECK(input->IsVecOperation());
+    DCHECK(input->IsVecPredSetOperation());
+
+    SetRawInputAt(0, input);
+  }
+
+  DECLARE_INSTRUCTION(VecPredNot);
+
+ protected:
+  DEFAULT_COPY_CONSTRUCTOR(VecPredNot);
 };
 
 }  // namespace art
