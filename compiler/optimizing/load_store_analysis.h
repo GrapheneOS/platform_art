@@ -610,6 +610,7 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitVecLoad(HVecLoad* instruction) override {
+    DCHECK(!instruction->IsPredicated());
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetPackedType();
@@ -618,6 +619,7 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitVecStore(HVecStore* instruction) override {
+    DCHECK(!instruction->IsPredicated());
     HInstruction* array = instruction->InputAt(0);
     HInstruction* index = instruction->InputAt(1);
     DataType::Type type = instruction->GetPackedType();

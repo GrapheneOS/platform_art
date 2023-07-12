@@ -1531,12 +1531,32 @@ void InstructionCodeGeneratorARM64Neon::VisitVecPredWhile(HVecPredWhile* instruc
   UNREACHABLE();
 }
 
-void LocationsBuilderARM64Neon::VisitVecPredCondition(HVecPredCondition* instruction) {
+void LocationsBuilderARM64Neon::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
   UNREACHABLE();
 }
 
-void InstructionCodeGeneratorARM64Neon::VisitVecPredCondition(HVecPredCondition* instruction) {
+void InstructionCodeGeneratorARM64Neon::VisitVecPredToBoolean(HVecPredToBoolean* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void LocationsBuilderARM64Neon::VisitVecCondition(HVecCondition* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void InstructionCodeGeneratorARM64Neon::VisitVecCondition(HVecCondition* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void LocationsBuilderARM64Neon::VisitVecPredNot(HVecPredNot* instruction) {
+  LOG(FATAL) << "No SIMD for " << instruction->GetId();
+  UNREACHABLE();
+}
+
+void InstructionCodeGeneratorARM64Neon::VisitVecPredNot(HVecPredNot* instruction) {
   LOG(FATAL) << "No SIMD for " << instruction->GetId();
   UNREACHABLE();
 }
