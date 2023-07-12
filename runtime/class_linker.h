@@ -1374,6 +1374,9 @@ class ClassLinker {
   IntrusiveForwardList<VisiblyInitializedCallback> running_visibly_initialized_callbacks_
       GUARDED_BY(visibly_initialized_callback_lock_);
 
+  // Whether to use `membarrier()` to make classes visibly initialized.
+  bool visibly_initialize_classes_with_membarier_;
+
   // Registered native code for @CriticalNative methods of classes that are not visibly
   // initialized. These code pointers cannot be stored in ArtMethod as that would risk
   // skipping the class initialization check for direct calls from compiled code.
