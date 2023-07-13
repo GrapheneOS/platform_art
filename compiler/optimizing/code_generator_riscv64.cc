@@ -2889,7 +2889,9 @@ void CodeGeneratorRISCV64::DecreaseFrame(size_t adjustment) {
   GetAssembler()->cfi().AdjustCFAOffset(-adjustment32);
 }
 
-void CodeGeneratorRISCV64::GenerateNop() { LOG(FATAL) << "Unimplemented"; }
+void CodeGeneratorRISCV64::GenerateNop() {
+  __ Nop();
+}
 
 void CodeGeneratorRISCV64::GenerateImplicitNullCheck(HNullCheck* instruction) {
   UNUSED(instruction);
