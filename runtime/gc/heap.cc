@@ -1947,12 +1947,11 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
     }
   }
 
-  uint64_t bytes_freed_before;
+  int64_t bytes_freed_before = GetBytesFreedEver();
   auto have_reclaimed_enough = [&]() {
     size_t curr_bytes_allocated = GetBytesAllocated();
     size_t free_heap = UnsignedDifference(growth_limit_, curr_bytes_allocated);
-    uint64_t newly_freed = GetBytesFreedEver() - bytes_freed_before;
-    DCHECK(newly_freed < (static_cast<uint64_t>(1) << 60));  // Didn't wrap.
+    int64_t newly_freed = GetBytesFreedEver() - bytes_freed_before;
     double free_heap_ratio = static_cast<double>(free_heap) / growth_limit_;
     double newly_freed_ratio = static_cast<double>(newly_freed) / growth_limit_;
     return free_heap_ratio >= kMinFreeHeapAfterGcForAlloc ||
@@ -1996,8 +1995,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
 
   DCHECK(!gc_plan_.empty());
 
-  uint64_t min_freed_to_continue =
-      static_cast<uint64_t>(kMinFreedHeapAfterGcForAlloc * growth_limit_ + alloc_size);
+  int64_t min_freed_to_continue =
+      static_cast<int64_t>(kMinFreedHeapAfterGcForAlloc * growth_limit_ + alloc_size);
   // Repeatedly collect the entire heap until either
   // (a) this was insufficiently productive at reclaiming memory and we should give upt to avoid
   // "GC thrashing", or
@@ -2099,8 +2098,8 @@ uint64_t Heap::GetBytesAllocatedEver() const {
   // and total_bytes_freed_ever_ is incremented later.
   static std::atomic<uint64_t> max_bytes_so_far(0);
   uint64_t so_far = max_bytes_so_far.load(std::memory_order_relaxed);
-  uint64_t current_bytes = GetBytesFreedEver(std::memory_order_acquire);
-  current_bytes += GetBytesAllocated();
+  uint64_t current_bytes = GetBytesFreedEver(std::memory_order_acquire) + GetBytesAllocated();
+  DCHECK(current_bytes < (static_cast<uint64_t>(1) << 63));  // result is "positive".
   do {
     if (current_bytes <= so_far) {
       return so_far;
