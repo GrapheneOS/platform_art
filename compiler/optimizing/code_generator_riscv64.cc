@@ -24,6 +24,7 @@
 #include "intrinsics_list.h"
 #include "jit/profiling_info.h"
 #include "optimizing/nodes.h"
+#include "stack_map_stream.h"
 #include "utils/label.h"
 #include "utils/riscv64/assembler_riscv64.h"
 #include "utils/stack_checks.h"
@@ -2571,8 +2572,34 @@ void CodeGeneratorRISCV64::DumpFloatingPointRegister(std::ostream& stream, int r
 }
 
 void CodeGeneratorRISCV64::Finalize() {
-  LOG(FATAL) << "Unimplemented";
-  UNREACHABLE();
+  // Ensure that we fix up branches and literal loads and emit the literal pool.
+  __ FinalizeCode();
+
+  // Adjust native pc offsets in stack maps.
+  StackMapStream* stack_map_stream = GetStackMapStream();
+  for (size_t i = 0, num = stack_map_stream->GetNumberOfStackMaps(); i != num; ++i) {
+    uint32_t old_position = stack_map_stream->GetStackMapNativePcOffset(i);
+    uint32_t new_position = __ GetAdjustedPosition(old_position);
+    DCHECK_GE(new_position, old_position);
+    stack_map_stream->SetStackMapNativePcOffset(i, new_position);
+  }
+
+  // Adjust pc offsets for the disassembly information.
+  if (disasm_info_ != nullptr) {
+    GeneratedCodeInterval* frame_entry_interval = disasm_info_->GetFrameEntryInterval();
+    frame_entry_interval->start = __ GetAdjustedPosition(frame_entry_interval->start);
+    frame_entry_interval->end = __ GetAdjustedPosition(frame_entry_interval->end);
+    for (auto& entry : *disasm_info_->GetInstructionIntervals()) {
+      entry.second.start = __ GetAdjustedPosition(entry.second.start);
+      entry.second.end = __ GetAdjustedPosition(entry.second.end);
+    }
+    for (auto& entry : *disasm_info_->GetSlowPathIntervals()) {
+      entry.code_interval.start = __ GetAdjustedPosition(entry.code_interval.start);
+      entry.code_interval.end = __ GetAdjustedPosition(entry.code_interval.end);
+    }
+  }
+
+  CodeGenerator::Finalize();
 }
 
 // Generate code to invoke a runtime entry point.
