@@ -2855,11 +2855,17 @@ void CodeGeneratorRISCV64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                          HInstruction* instruction,
                                          uint32_t dex_pc,
                                          SlowPathCode* slow_path) {
-  UNUSED(entrypoint);
-  UNUSED(instruction);
-  UNUSED(dex_pc);
-  UNUSED(slow_path);
-  LOG(FATAL) << "Unimplemented";
+  ValidateInvokeRuntime(entrypoint, instruction, slow_path);
+
+  ThreadOffset64 entrypoint_offset = GetThreadOffset<kRiscv64PointerSize>(entrypoint);
+
+  // TODO(riscv64): Reduce code size for AOT by using shared trampolines for slow path
+  // runtime calls across the entire oat file.
+  __ Loadd(RA, TR, entrypoint_offset.Int32Value());
+  __ Jalr(RA);
+  if (EntrypointRequiresStackMap(entrypoint)) {
+    RecordPcInfo(instruction, dex_pc, slow_path);
+  }
 }
 
 // Generate code to invoke a runtime entry point, but do not record
@@ -2867,10 +2873,9 @@ void CodeGeneratorRISCV64::InvokeRuntime(QuickEntrypointEnum entrypoint,
 void CodeGeneratorRISCV64::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
                                                                HInstruction* instruction,
                                                                SlowPathCode* slow_path) {
-  UNUSED(entry_point_offset);
-  UNUSED(instruction);
-  UNUSED(slow_path);
-  LOG(FATAL) << "Unimplemented";
+  ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction, slow_path);
+  __ Loadd(RA, TR, entry_point_offset);
+  __ Jalr(RA);
 }
 
 void CodeGeneratorRISCV64::IncreaseFrame(size_t adjustment) {
