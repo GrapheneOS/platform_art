@@ -218,7 +218,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void DivRemByPowerOfTwo(HBinaryOperation* instruction);
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
-  void GenerateIntLongCompare(IfCondition cond, bool is64bit, LocationSummary* locations);
+  void GenerateIntLongCondition(IfCondition cond, LocationSummary* locations);
   // When the function returns `false` it means that the condition holds if `dst` is non-zero
   // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
   // `dst` are exchanged.
@@ -230,10 +230,10 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                                        bool is64bit,
                                        LocationSummary* locations,
                                        Riscv64Label* label);
-  void GenerateFpCompare(IfCondition cond,
-                         bool gt_bias,
-                         DataType::Type type,
-                         LocationSummary* locations);
+  void GenerateFpCondition(IfCondition cond,
+                           bool gt_bias,
+                           DataType::Type type,
+                           LocationSummary* locations);
   // When the function returns `false` it means that the condition holds if `dst` is non-zero
   // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
   // `dst` are exchanged.
