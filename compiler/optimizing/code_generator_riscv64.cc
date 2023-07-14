@@ -225,6 +225,45 @@ class NullCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
 #undef __
 #define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
+template <typename Reg,
+          void (Riscv64Assembler::*opS)(Reg, FRegister, FRegister),
+          void (Riscv64Assembler::*opD)(Reg, FRegister, FRegister)>
+inline void InstructionCodeGeneratorRISCV64::FpBinOp(
+    Reg rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  Riscv64Assembler* assembler = down_cast<CodeGeneratorRISCV64*>(codegen_)->GetAssembler();
+  if (type == DataType::Type::kFloat32) {
+    (assembler->*opS)(rd, rs1, rs2);
+  } else {
+    DCHECK_EQ(type, DataType::Type::kFloat64);
+    (assembler->*opD)(rd, rs1, rs2);
+  }
+}
+
+inline void InstructionCodeGeneratorRISCV64::FAdd(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FAddS, &Riscv64Assembler::FAddD>(rd, rs1, rs2, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FSub(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FSubS, &Riscv64Assembler::FSubD>(rd, rs1, rs2, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FEq(
+    XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<XRegister, &Riscv64Assembler::FEqS, &Riscv64Assembler::FEqD>(rd, rs1, rs2, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FLt(
+    XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<XRegister, &Riscv64Assembler::FLtS, &Riscv64Assembler::FLtD>(rd, rs1, rs2, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FLe(
+    XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<XRegister, &Riscv64Assembler::FLeS, &Riscv64Assembler::FLeD>(rd, rs1, rs2, type);
+}
+
 InstructionCodeGeneratorRISCV64::InstructionCodeGeneratorRISCV64(HGraph* graph,
                                                                  CodeGeneratorRISCV64* codegen)
     : InstructionCodeGenerator(graph, codegen),
@@ -507,92 +546,82 @@ void InstructionCodeGeneratorRISCV64::GenerateFpCondition(IfCondition cond,
                                                           bool gt_bias,
                                                           DataType::Type type,
                                                           LocationSummary* locations) {
+  // RISCV-V FP compare instructions yield the following values:
+  //                      l<r  l=r  l>r Unordered
+  //             FEQ l,r   0    1    0    0
+  //             FLT l,r   1    0    0    0
+  //             FLT r,l   0    0    1    0
+  //             FLE l,r   1    1    0    0
+  //             FLE r,l   0    1    1    0
+  //
+  // We can calculate the `Compare` results using the following formulas:
+  //                      l<r  l=r  l>r Unordered
+  //     Compare/gt_bias  -1    0    1    1       = ((FLE l,r) ^ 1) - (FLT l,r)
+  //     Compare/lt_bias  -1    0    1   -1       = ((FLE r,l) - 1) + (FLT r,l)
+  // These are emitted in `VisitCompare()`.
+  //
+  // This function emits a fused `Condition(Compare(., .), 0)`. If we compare the
+  // `Compare` results above with 0, we get the following values and formulas:
+  //                      l<r  l=r  l>r Unordered
+  //     CondEQ/-          0    1    0    0       = (FEQ l, r)
+  //     CondNE/-          1    0    1    1       = (FEQ l, r) ^ 1
+  //     CondLT/gt_bias    1    0    0    0       = (FLT l,r)
+  //     CondLT/lt_bias    1    0    0    1       = (FLE r,l) ^ 1
+  //     CondLE/gt_bias    1    1    0    0       = (FLE l,r)
+  //     CondLE/lt_bias    1    1    0    1       = (FLT r,l) ^ 1
+  //     CondGT/gt_bias    0    0    1    1       = (FLE l,r) ^ 1
+  //     CondGT/lt_bias    0    0    1    0       = (FLT r,l)
+  //     CondGE/gt_bias    0    1    1    1       = (FLT l,r) ^ 1
+  //     CondGE/lt_bias    0    1    1    0       = (FLE r,l)
+  // (CondEQ/CondNE comparison with zero yields the same result with gt_bias and lt_bias.)
+
   XRegister rd = locations->Out().AsRegister<XRegister>();
   FRegister rs1 = locations->InAt(0).AsFpuRegister<FRegister>();
   FRegister rs2 = locations->InAt(1).AsFpuRegister<FRegister>();
 
-  // All FP compare operations yield 0 for NaN on either side but we need the result to be 1
-  // for certain combinations of `gt_bias` and `cond`.
-  // There is no dex instruction or HIR that would need the "equal or unordered" or "not equal"
-  // and the conditions "equal" and "not equal or unordered" do not need the NaN check here.
-  Riscv64Label done;
-  if (gt_bias ? (cond == kCondGT || cond == kCondGE) : (cond == kCondLT || cond == kCondLE)) {
-    // FCLASS.S/D examines the value in the floating-point register and writes to integer
-    // register a 10-bit mask that indicates the class of the floating-point number.
-    // rd[8]: Singaling NaN
-    // rd[9]: Quiet NaN
-    ScratchRegisterScope srs(GetAssembler());
-    XRegister tmp = srs.AllocateXRegister();
-    XRegister tmp2 = srs.AllocateXRegister();
-    if (type == DataType::Type::kFloat32) {
-      __ FClassS(tmp, rs1);
-      __ FClassS(tmp2, rs2);
-    } else {
-      DCHECK_EQ(type, DataType::Type::kFloat64);
-      __ FClassD(tmp, rs1);
-      __ FClassS(tmp2, rs2);
-    }
-    __ Li(rd, 1);  // Pre-load the result for NaN to avoid branching over it later.
-    __ Or(tmp, tmp, tmp2);
-    __ Srli(tmp, tmp, 8);
-    __ Bnez(tmp, &done);  // goto done if either input was NaN.
-  }
-
-  if (type == DataType::Type::kFloat32) {
-    switch (cond) {
-      case kCondEQ:
-        __ FEqS(rd, rs1, rs2);
-        break;
-      case kCondNE:
-        __ FEqS(rd, rs1, rs2);
+  switch (cond) {
+    case kCondEQ:
+      FEq(rd, rs1, rs2, type);
+      break;
+    case kCondNE:
+      FEq(rd, rs1, rs2, type);
+      __ Xori(rd, rd, 1);
+      break;
+    case kCondLT:
+      if (gt_bias) {
+        FLt(rd, rs1, rs2, type);
+      } else {
+        FLe(rd, rs2, rs1, type);
         __ Xori(rd, rd, 1);
-        break;
-      case kCondLT:
-        __ FLtS(rd, rs1, rs2);
-        break;
-      case kCondLE:
-        __ FLeS(rd, rs1, rs2);
-        break;
-      case kCondGT:
-        __ FLtS(rd, rs2, rs1);
-        break;
-      case kCondGE:
-        __ FLeS(rd, rs2, rs1);
-        break;
-      default:
-        LOG(FATAL) << "Unexpected floating-point condition " << cond;
-        UNREACHABLE();
-    }
-  } else {
-    DCHECK_EQ(type, DataType::Type::kFloat64);
-    switch (cond) {
-      case kCondEQ:
-        __ FEqD(rd, rs1, rs2);
-        break;
-      case kCondNE:
-        __ FEqD(rd, rs1, rs2);
+      }
+      break;
+    case kCondLE:
+      if (gt_bias) {
+        FLe(rd, rs1, rs2, type);
+      } else {
+        FLt(rd, rs2, rs1, type);
         __ Xori(rd, rd, 1);
-        break;
-      case kCondLT:
-        __ FLtD(rd, rs1, rs2);
-        break;
-      case kCondLE:
-        __ FLeD(rd, rs1, rs2);
-        break;
-      case kCondGT:
-        __ FLtD(rd, rs2, rs1);
-        break;
-      case kCondGE:
-        __ FLeD(rd, rs2, rs1);
-        break;
-      default:
-        LOG(FATAL) << "Unexpected floating-point condition " << cond;
-        UNREACHABLE();
-    }
-  }
-
-  if (done.IsLinked()) {
-    __ Bind(&done);
+      }
+      break;
+    case kCondGT:
+      if (gt_bias) {
+        FLe(rd, rs1, rs2, type);
+        __ Xori(rd, rd, 1);
+      } else {
+        FLt(rd, rs2, rs1, type);
+      }
+      break;
+    case kCondGE:
+      if (gt_bias) {
+        FLt(rd, rs1, rs2, type);
+        __ Xori(rd, rd, 1);
+      } else {
+        FLe(rd, rs2, rs1, type);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Unexpected floating-point condition " << cond;
+      UNREACHABLE();
   }
 }
 
@@ -787,18 +816,10 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
       FRegister rs1 = locations->InAt(0).AsFpuRegister<FRegister>();
       FRegister rs2 = locations->InAt(1).AsFpuRegister<FRegister>();
       if (instruction->IsAdd()) {
-        if (type == DataType::Type::kFloat32) {
-          __ FAddS(rd, rs1, rs2);
-        } else {
-          __ FAddD(rd, rs1, rs2);
-        }
+        FAdd(rd, rs1, rs2, type);
       } else {
         DCHECK(instruction->IsSub());
-        if (type == DataType::Type::kFloat32) {
-          __ FSubS(rd, rs1, rs2);
-        } else {
-          __ FSubD(rd, rs1, rs2);
-        }
+        FSub(rd, rs1, rs2, type);
       }
       break;
     }
@@ -1288,38 +1309,22 @@ void InstructionCodeGeneratorRISCV64::VisitCompare(HCompare* instruction) {
       break;
     }
 
-    case DataType::Type::kFloat32: {
-      FRegister left = locations->InAt(0).AsFpuRegister<FRegister>();
-      FRegister right = locations->InAt(1).AsFpuRegister<FRegister>();
-      ScratchRegisterScope srs(GetAssembler());
-      XRegister tmp = srs.AllocateXRegister();
-      if (instruction->IsGtBias()) {
-        __ FLeS(tmp, left, right);
-        __ FLtS(result, left, right);
-        __ Xori(tmp, tmp, 1);
-        __ Sub(result, tmp, result);
-      } else {
-        __ FLeS(tmp, right, left);
-        __ FLtS(result, right, left);
-        __ Addi(tmp, tmp, -1);
-        __ Add(result, result, tmp);
-      }
-      break;
-    }
-
+    case DataType::Type::kFloat32:
     case DataType::Type::kFloat64: {
       FRegister left = locations->InAt(0).AsFpuRegister<FRegister>();
       FRegister right = locations->InAt(1).AsFpuRegister<FRegister>();
       ScratchRegisterScope srs(GetAssembler());
       XRegister tmp = srs.AllocateXRegister();
       if (instruction->IsGtBias()) {
-        __ FLeD(tmp, left, right);
-        __ FLtD(result, left, right);
+        // ((FLE l,r) ^ 1) - (FLT l,r); see `GenerateFpCondition()`.
+        FLe(tmp, left, right, in_type);
+        FLt(result, left, right, in_type);
         __ Xori(tmp, tmp, 1);
         __ Sub(result, tmp, result);
       } else {
-        __ FLeD(tmp, right, left);
-        __ FLtD(result, right, left);
+        // ((FLE r,l) - 1) + (FLT r,l); see `GenerateFpCondition()`.
+        FLe(tmp, right, left, in_type);
+        FLt(result, right, left, in_type);
         __ Addi(tmp, tmp, -1);
         __ Add(result, result, tmp);
       }
