@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "code_generator.h"
 #include "driver/compiler_options.h"
+#include "intrinsics_list.h"
 #include "optimizing/locations.h"
 #include "utils/riscv64/assembler_riscv64.h"
 
@@ -47,7 +48,7 @@ static constexpr FRegister kRuntimeParameterFpuRegisters[] = {
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
-#define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) INTRINSICS_LIST(V)
+#define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) ART_INTRINSICS_LIST(V)
 
 // Method register on invoke.
 static const XRegister kArtMethodRegister = A0;

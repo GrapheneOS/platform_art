@@ -27,6 +27,7 @@
 #include "heap_poisoning.h"
 #include "interpreter/mterp/nterp.h"
 #include "intrinsics.h"
+#include "intrinsics_list.h"
 #include "intrinsics_utils.h"
 #include "intrinsics_x86.h"
 #include "jit/profiling_info.h"
@@ -1124,15 +1125,13 @@ struct IsUnimplemented {
 UNIMPLEMENTED_INTRINSIC_LIST_X86(TRUE_OVERRIDE)
 #undef TRUE_OVERRIDE
 
-#include "intrinsics_list.h"
 static constexpr bool kIsIntrinsicUnimplemented[] = {
     false,  // kNone
 #define IS_UNIMPLEMENTED(Intrinsic, ...) \
     IsUnimplemented<Intrinsics::k##Intrinsic>().is_unimplemented,
-    INTRINSICS_LIST(IS_UNIMPLEMENTED)
+    ART_INTRINSICS_LIST(IS_UNIMPLEMENTED)
 #undef IS_UNIMPLEMENTED
 };
-#undef INTRINSICS_LIST
 
 }  // namespace detail
 

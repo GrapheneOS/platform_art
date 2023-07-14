@@ -27,6 +27,7 @@
 #include "gc/space/image_space.h"
 #include "image-inl.h"
 #include "intrinsic_objects.h"
+#include "intrinsics_list.h"
 #include "nodes.h"
 #include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -43,10 +44,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic) {
     case Intrinsics::k ## Name: \
       os << # Name; \
       break;
-#include "intrinsics_list.h"
-      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef STATIC_INTRINSICS_LIST
-#undef VIRTUAL_INTRINSICS_LIST
+      ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
   }
   return os;
