@@ -96,7 +96,7 @@ Location InvokeDexCallingConventionVisitorRISCV64::GetNextLocation(DataType::Typ
     LOG(FATAL) << "Unexpected parameter type " << type;
   }
 
-  // Note: Unlike the RISCV-V C/C++ calling convention, managed ABI does not use
+  // Note: Unlike the RISC-V C/C++ calling convention, managed ABI does not use
   // GPRs to pass FP args when we run out of FPRs.
   if (DataType::IsFloatingPointType(type) &&
       float_index_ < calling_convention.GetNumberOfFpuRegisters()) {
@@ -2406,8 +2406,6 @@ void InstructionCodeGeneratorRISCV64::VisitVecPredNot(HVecPredNot* instruction) 
   LOG(FATAL) << "Unimplemented";
 }
 
-#undef __
-
 namespace detail {
 
 // Mark which intrinsics we don't have handcrafted code for.
@@ -2428,13 +2426,11 @@ static constexpr bool kIsIntrinsicUnimplemented[] = {
     false,  // kNone
 #define IS_UNIMPLEMENTED(Intrinsic, ...) \
     IsUnimplemented<Intrinsics::k##Intrinsic>().is_unimplemented,
-    INTRINSICS_LIST(IS_UNIMPLEMENTED)
+    ART_INTRINSICS_LIST(IS_UNIMPLEMENTED)
 #undef IS_UNIMPLEMENTED
 };
 
 }  // namespace detail
-
-#define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
 CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
                                            const CompilerOptions& compiler_options,
@@ -2480,7 +2476,6 @@ void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
     DCHECK(info != nullptr);
     DCHECK(!HasEmptyFrame());
     uint64_t address = reinterpret_cast64<uint64_t>(info);
-    Riscv64Label done;
     ScratchRegisterScope srs(GetAssembler());
     XRegister tmp = srs.AllocateXRegister();
     __ LoadConst64(tmp, address);

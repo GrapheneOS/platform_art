@@ -99,7 +99,7 @@ bool AreAllIntrinsicsInitialized() REQUIRES_SHARED(Locks::mutator_lock_) {
                          ClassName,                                                              \
                          MethodName,                                                             \
                          Signature) &&
-  bool result = INTRINSICS_LIST(IS_INTRINSIC_INITIALIZED) true;
+  bool result = ART_INTRINSICS_LIST(IS_INTRINSIC_INITIALIZED) true;
 #undef IS_INTRINSIC_INITIALIZED
   return result;
 }
@@ -117,7 +117,7 @@ void InitializeIntrinsics() {
                       ClassName,                                                             \
                       MethodName,                                                            \
                       Signature) ||
-  INTRINSICS_LIST(INITIALIZE_INTRINSIC) true;
+  ART_INTRINSICS_LIST(INITIALIZE_INTRINSIC) true;
 #undef INITIALIZE_INTRINSIC
   DCHECK(AreAllIntrinsicsInitialized());
 }

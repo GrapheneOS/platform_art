@@ -19,6 +19,7 @@
 
 #include "base/macros.h"
 #include "intrinsics.h"
+#include "intrinsics_list.h"
 #include "utils/arm/assembler_arm_vixl.h"
 
 namespace art HIDDEN {
@@ -36,9 +37,7 @@ class IntrinsicLocationsBuilderARMVIXL final : public IntrinsicVisitor {
 
 #define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions, ...) \
   void Visit ## Name(HInvoke* invoke) override;
-#include "intrinsics_list.h"
-  INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+  ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
   // Check whether an invoke is an intrinsic, and if so, create a location summary. Returns whether
@@ -63,9 +62,7 @@ class IntrinsicCodeGeneratorARMVIXL final : public IntrinsicVisitor {
 
 #define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions, ...) \
   void Visit ## Name(HInvoke* invoke) override;
-#include "intrinsics_list.h"
-  INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+  ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
  private:

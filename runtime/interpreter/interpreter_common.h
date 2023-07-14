@@ -47,6 +47,7 @@
 #include "handle_scope-inl.h"
 #include "interpreter_cache-inl.h"
 #include "interpreter_switch_impl.h"
+#include "intrinsics_list.h"
 #include "jit/jit-inl.h"
 #include "mirror/call_site.h"
 #include "mirror/class-inl.h"
@@ -235,9 +236,7 @@ bool Do ## Name(Thread* self,                                         \
                 const Instruction* inst,                              \
                 uint16_t inst_data,                                   \
                 JValue* result) REQUIRES_SHARED(Locks::mutator_lock_);
-#include "intrinsics_list.h"
-INTRINSICS_LIST(DECLARE_SIGNATURE_POLYMORPHIC_HANDLER)
-#undef INTRINSICS_LIST
+ART_INTRINSICS_LIST(DECLARE_SIGNATURE_POLYMORPHIC_HANDLER)
 #undef DECLARE_SIGNATURE_POLYMORPHIC_HANDLER
 
 // Performs a invoke-polymorphic or invoke-polymorphic-range.
