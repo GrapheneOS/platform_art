@@ -49,7 +49,7 @@ size_t RosAlloc::numOfPages[kNumOfSizeBrackets];
 size_t RosAlloc::numOfSlots[kNumOfSizeBrackets];
 size_t RosAlloc::headerSizes[kNumOfSizeBrackets];
 bool RosAlloc::initialized_ = false;
-size_t RosAlloc::dedicated_full_run_storage_[kPageSize / sizeof(size_t)] = { 0 };
+size_t RosAlloc::dedicated_full_run_storage_[kMaxPageSize / sizeof(size_t)] = { 0 };
 RosAlloc::Run* RosAlloc::dedicated_full_run_ =
     reinterpret_cast<RosAlloc::Run*>(dedicated_full_run_storage_);
 
