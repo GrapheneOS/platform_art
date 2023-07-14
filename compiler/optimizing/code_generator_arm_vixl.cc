@@ -33,6 +33,7 @@
 #include "interpreter/mterp/nterp.h"
 #include "intrinsics.h"
 #include "intrinsics_arm_vixl.h"
+#include "intrinsics_list.h"
 #include "intrinsics_utils.h"
 #include "linker/linker_patch.h"
 #include "mirror/array-inl.h"
@@ -1924,15 +1925,13 @@ struct IsUnimplemented {
 UNIMPLEMENTED_INTRINSIC_LIST_ARM(TRUE_OVERRIDE)
 #undef TRUE_OVERRIDE
 
-#include "intrinsics_list.h"
 static constexpr bool kIsIntrinsicUnimplemented[] = {
     false,  // kNone
 #define IS_UNIMPLEMENTED(Intrinsic, ...) \
     IsUnimplemented<Intrinsics::k##Intrinsic>().is_unimplemented,
-    INTRINSICS_LIST(IS_UNIMPLEMENTED)
+    ART_INTRINSICS_LIST(IS_UNIMPLEMENTED)
 #undef IS_UNIMPLEMENTED
 };
-#undef INTRINSICS_LIST
 
 }  // namespace detail
 

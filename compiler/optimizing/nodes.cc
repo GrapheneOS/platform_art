@@ -36,6 +36,7 @@
 #include "code_generator.h"
 #include "common_dominator.h"
 #include "intrinsics.h"
+#include "intrinsics_list.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ssa_builder.h"
@@ -3523,9 +3524,7 @@ std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs) {
   static_assert( \
     static_cast<uint32_t>(Intrinsics::k ## Name) <= (kAccIntrinsicBits >> CTZ(kAccIntrinsicBits)), \
     "Instrinsics enumeration space overflow.");
-#include "intrinsics_list.h"
-  INTRINSICS_LIST(CHECK_INTRINSICS_ENUM_VALUES)
-#undef INTRINSICS_LIST
+  ART_INTRINSICS_LIST(CHECK_INTRINSICS_ENUM_VALUES)
 #undef CHECK_INTRINSICS_ENUM_VALUES
 
 // Function that returns whether an intrinsic needs an environment or not.
@@ -3536,9 +3535,7 @@ static inline IntrinsicNeedsEnvironment NeedsEnvironmentIntrinsic(Intrinsics i) 
 #define OPTIMIZING_INTRINSICS(Name, InvokeType, NeedsEnv, SideEffects, Exceptions, ...) \
     case Intrinsics::k ## Name: \
       return NeedsEnv;
-#include "intrinsics_list.h"
-      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+      ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
   }
   return kNeedsEnvironment;
@@ -3552,9 +3549,7 @@ static inline IntrinsicSideEffects GetSideEffectsIntrinsic(Intrinsics i) {
 #define OPTIMIZING_INTRINSICS(Name, InvokeType, NeedsEnv, SideEffects, Exceptions, ...) \
     case Intrinsics::k ## Name: \
       return SideEffects;
-#include "intrinsics_list.h"
-      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+      ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
   }
   return kAllSideEffects;
@@ -3568,9 +3563,7 @@ static inline IntrinsicExceptions GetExceptionsIntrinsic(Intrinsics i) {
 #define OPTIMIZING_INTRINSICS(Name, InvokeType, NeedsEnv, SideEffects, Exceptions, ...) \
     case Intrinsics::k ## Name: \
       return Exceptions;
-#include "intrinsics_list.h"
-      INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+      ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
   }
   return kCanThrow;
