@@ -21,8 +21,10 @@
 #include "arch/riscv64/registers_riscv64.h"
 #include "base/macros.h"
 #include "dwarf/register.h"
+#include "heap_poisoning.h"
 #include "intrinsics_list.h"
 #include "jit/profiling_info.h"
+#include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
 #include "stack_map_stream.h"
 #include "utils/label.h"
@@ -3069,13 +3071,68 @@ void CodeGeneratorRISCV64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* inv
   LOG(FATAL) << "Unimplemented";
 }
 
+void CodeGeneratorRISCV64::MaybeGenerateInlineCacheCheck(HInstruction* instruction,
+                                                         XRegister klass) {
+  // We know the destination of an intrinsic, so no need to record inline caches.
+  if (!instruction->GetLocations()->Intrinsified() &&
+      GetGraph()->IsCompilingBaseline() &&
+      !Runtime::Current()->IsAotCompiler()) {
+    DCHECK(!instruction->GetEnvironment()->IsFromInlinedInvoke());
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    InlineCache* cache = info->GetInlineCache(instruction->GetDexPc());
+    uint64_t address = reinterpret_cast64<uint64_t>(cache);
+    Riscv64Label done;
+    {
+      ScratchRegisterScope srs(GetAssembler());
+      XRegister tmp = srs.AllocateXRegister();
+      __ LoadConst64(tmp, address);
+      __ Loadd(tmp, tmp, InlineCache::ClassesOffset().Int32Value());
+      // Fast path for a monomorphic cache.
+      __ Beq(klass, tmp, &done);
+    }
+    InvokeRuntime(kQuickUpdateInlineCache, instruction, instruction->GetDexPc());
+    __ Bind(&done);
+  }
+}
+
 void CodeGeneratorRISCV64::GenerateVirtualCall(HInvokeVirtual* invoke,
-                                               Location temp,
+                                               Location temp_location,
                                                SlowPathCode* slow_path) {
-  UNUSED(temp);
-  UNUSED(invoke);
-  UNUSED(slow_path);
-  LOG(FATAL) << "Unimplemented";
+  // Use the calling convention instead of the location of the receiver, as
+  // intrinsics may have put the receiver in a different register. In the intrinsics
+  // slow path, the arguments have been moved to the right place, so here we are
+  // guaranteed that the receiver is the first register of the calling convention.
+  InvokeDexCallingConvention calling_convention;
+  XRegister receiver = calling_convention.GetRegisterAt(0);
+  XRegister temp = temp_location.AsRegister<XRegister>();
+  MemberOffset method_offset =
+      mirror::Class::EmbeddedVTableEntryOffset(invoke->GetVTableIndex(), kRiscv64PointerSize);
+  MemberOffset class_offset = mirror::Object::ClassOffset();
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kRiscv64PointerSize);
+
+  // temp = object->GetClass();
+  __ Loadwu(temp, receiver, class_offset.Int32Value());
+  MaybeRecordImplicitNullCheck(invoke);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
+  MaybeUnpoisonHeapReference(temp);
+
+  // If we're compiling baseline, update the inline cache.
+  MaybeGenerateInlineCacheCheck(invoke, temp);
+
+  // temp = temp->GetMethodAt(method_offset);
+  __ Loadd(temp, temp, method_offset.Int32Value());
+  // RA = temp->GetEntryPoint();
+  __ Loadd(RA, temp, entry_point.Int32Value());
+  // RA();
+  __ Jalr(RA);
+  RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
 }
 
 void CodeGeneratorRISCV64::MoveFromReturnRegister(Location trg, DataType::Type type) {
@@ -3098,6 +3155,28 @@ void CodeGeneratorRISCV64::MoveFromReturnRegister(Location trg, DataType::Type t
     if (trg_reg != res_reg) {
       __ FMvD(trg_reg, res_reg);  // 64-bit move is OK also for `float`.
     }
+  }
+}
+
+void CodeGeneratorRISCV64::PoisonHeapReference(XRegister reg) {
+  __ Sub(reg, Zero, reg);  // Negate the ref.
+  __ ZextW(reg, reg);      // Zero-extend the 32-bit ref.
+}
+
+void CodeGeneratorRISCV64::UnpoisonHeapReference(XRegister reg) {
+  __ Sub(reg, Zero, reg);  // Negate the ref.
+  __ ZextW(reg, reg);      // Zero-extend the 32-bit ref.
+}
+
+inline void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
+  if (kPoisonHeapReferences) {
+    PoisonHeapReference(reg);
+  }
+}
+
+inline void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
+  if (kPoisonHeapReferences) {
+    UnpoisonHeapReference(reg);
   }
 }
 
