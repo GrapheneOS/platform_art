@@ -103,6 +103,10 @@ cc_defaults {
     shared_libs: [
         "libbase",
     ],
+    lto: {
+        // TODO(yikong): Workaround LTO breakage.
+        never: true,
+    },
 }
 
 art_cc_library {
