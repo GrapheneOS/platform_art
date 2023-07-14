@@ -1182,14 +1182,17 @@ void InstructionCodeGeneratorRISCV64::VisitClassTableGet(HClassTableGet* instruc
   LOG(FATAL) << "Unimplemented";
 }
 
-void LocationsBuilderRISCV64::VisitClearException(HClearException* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+static int32_t GetExceptionTlsOffset() {
+  return Thread::ExceptionOffset<kRiscv64PointerSize>().Int32Value();
 }
 
-void InstructionCodeGeneratorRISCV64::VisitClearException(HClearException* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void LocationsBuilderRISCV64::VisitClearException(HClearException* instruction) {
+  new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+}
+
+void InstructionCodeGeneratorRISCV64::VisitClearException(
+    [[maybe_unused]] HClearException* instruction) {
+  __ Stored(Zero, TR, GetExceptionTlsOffset());
 }
 
 void LocationsBuilderRISCV64::VisitClinitCheck(HClinitCheck* instruction) {
