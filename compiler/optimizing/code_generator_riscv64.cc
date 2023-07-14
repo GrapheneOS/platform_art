@@ -43,6 +43,21 @@ static constexpr FRegister kFpuCalleeSaves[] = {
 
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kRiscv64PointerSize, x).Int32Value()
 
+Location RegisterOrZeroBitPatternLocation(HInstruction* instruction) {
+  return IsZeroBitPattern(instruction)
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RequiresRegister();
+}
+
+XRegister InputXRegisterOrZero(Location location) {
+  if (location.IsConstant()) {
+    DCHECK(location.GetConstant()->IsZeroBitPattern());
+    return Zero;
+  } else {
+    return location.AsRegister<XRegister>();
+  }
+}
+
 Location Riscv64ReturnLocation(DataType::Type return_type) {
   switch (return_type) {
     case DataType::Type::kBool:
@@ -1188,13 +1203,103 @@ void InstructionCodeGeneratorRISCV64::VisitClinitCheck(HClinitCheck* instruction
 }
 
 void LocationsBuilderRISCV64::VisitCompare(HCompare* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type in_type = instruction->InputAt(0)->GetType();
+
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+
+  switch (in_type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+    case DataType::Type::kInt8:
+    case DataType::Type::kUint16:
+    case DataType::Type::kInt16:
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, RegisterOrZeroBitPatternLocation(instruction->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected type for compare operation " << in_type;
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitCompare(HCompare* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  XRegister result = locations->Out().AsRegister<XRegister>();
+  DataType::Type in_type = instruction->InputAt(0)->GetType();
+
+  //  0 if: left == right
+  //  1 if: left  > right
+  // -1 if: left  < right
+  switch (in_type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+    case DataType::Type::kInt8:
+    case DataType::Type::kUint16:
+    case DataType::Type::kInt16:
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64: {
+      XRegister left = locations->InAt(0).AsRegister<XRegister>();
+      XRegister right = InputXRegisterOrZero(locations->InAt(1));
+      ScratchRegisterScope srs(GetAssembler());
+      XRegister tmp = srs.AllocateXRegister();
+      __ Slt(tmp, left, right);
+      __ Slt(result, right, left);
+      __ Sub(result, result, tmp);
+      break;
+    }
+
+    case DataType::Type::kFloat32: {
+      FRegister left = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister right = locations->InAt(1).AsFpuRegister<FRegister>();
+      ScratchRegisterScope srs(GetAssembler());
+      XRegister tmp = srs.AllocateXRegister();
+      if (instruction->IsGtBias()) {
+        __ FLeS(tmp, left, right);
+        __ FLtS(result, left, right);
+        __ Xori(tmp, tmp, 1);
+        __ Sub(result, tmp, result);
+      } else {
+        __ FLeS(tmp, right, left);
+        __ FLtS(result, right, left);
+        __ Addi(tmp, tmp, -1);
+        __ Add(result, result, tmp);
+      }
+      break;
+    }
+
+    case DataType::Type::kFloat64: {
+      FRegister left = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister right = locations->InAt(1).AsFpuRegister<FRegister>();
+      ScratchRegisterScope srs(GetAssembler());
+      XRegister tmp = srs.AllocateXRegister();
+      if (instruction->IsGtBias()) {
+        __ FLeD(tmp, left, right);
+        __ FLtD(result, left, right);
+        __ Xori(tmp, tmp, 1);
+        __ Sub(result, tmp, result);
+      } else {
+        __ FLeD(tmp, right, left);
+        __ FLtD(result, right, left);
+        __ Addi(tmp, tmp, -1);
+        __ Add(result, result, tmp);
+      }
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unimplemented compare type " << in_type;
+  }
 }
 
 void LocationsBuilderRISCV64::VisitConstructorFence(HConstructorFence* instruction) {
