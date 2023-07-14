@@ -131,17 +131,24 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyEnableUffdGcChangeTriggersCompilation() throws Exception {
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc", "false");
+        // Simulate that the flag value is initially empty.
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
 
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        // Artifacts should be re-compiled.
-        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
-        mTestUtils.assertModifiedAfter(mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
-        mTestUtils.assertModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", "false");
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc", "true");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefresh();
+
+        // Artifacts should not be re-compiled.
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getExpectedPrimaryBootImage(), timeMs);
+        mTestUtils.assertNotModifiedAfter(
+                mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
+        mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
+
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", "true");
 
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
@@ -161,7 +168,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                 mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc", null);
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
 
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();

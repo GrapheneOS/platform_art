@@ -177,9 +177,15 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
 
     @Test
     public void verifyEnableUffdGcChangeTriggersCompilation() throws Exception {
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc", "true");
+        // Simulate that the flag value is initially empty.
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
 
         long timeMs = mTestUtils.getCurrentTimeMs();
+        mTestUtils.runOdrefresh();
+
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", "true");
+
+        timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
         // It should recompile everything.
@@ -199,7 +205,7 @@ abstract public class OdrefreshFactoryHostTestBase extends BaseHostJUnit4Test {
                 mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc", null);
+        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
 
         mTestUtils.runOdrefresh();
 

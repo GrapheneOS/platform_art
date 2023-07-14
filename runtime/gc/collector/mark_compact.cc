@@ -247,8 +247,9 @@ static bool GetCachedBoolProperty(const std::string& key, bool default_value) {
 static bool SysPropSaysUffdGc() {
   // The phenotype flag can change at time time after boot, but it shouldn't take effect until a
   // reboot. Therefore, we read the phenotype flag from the cache info, which is generated on boot.
-  return GetCachedBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc",
-                               GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
+  return GetCachedBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc_2",
+                               false) ||
+         GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false);
 }
 #else
 // Never called.
