@@ -51,7 +51,7 @@ public class DeviceState {
     private Set<String> mTempFiles = new HashSet<>();
     private Set<String> mMountPoints = new HashSet<>();
     private Map<String, String> mMutatedProperties = new HashMap<>();
-    private Set<String> mMutatedPhenotypeFlags = new HashSet<>();
+    private Map<String, String> mMutatedPhenotypeFlags = new HashMap<>();
     private Map<String, String> mDeletedFiles = new HashMap<>();
     private boolean mHasArtifactsBackup = false;
 
@@ -75,9 +75,16 @@ public class DeviceState {
                     entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
         }
 
-        for (String flag : mMutatedPhenotypeFlags) {
-            mTestInfo.getDevice().executeShellV2Command(String.format(
-                    "device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, flag));
+        for (var entry : mMutatedPhenotypeFlags.entrySet()) {
+            if (entry.getValue() != null) {
+                mTestInfo.getDevice().executeShellV2Command(
+                        String.format("device_config put '%s' '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE,
+                                entry.getKey(), entry.getValue()));
+            } else {
+                mTestInfo.getDevice().executeShellV2Command(
+                        String.format("device_config delete '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE,
+                                entry.getKey()));
+            }
         }
 
         for (var entry : mDeletedFiles.entrySet()) {
@@ -176,13 +183,10 @@ public class DeviceState {
 
     /** Sets a phenotype flag. */
     public void setPhenotypeFlag(String key, String value) throws Exception {
-        if (!mMutatedPhenotypeFlags.contains(key)) {
-            // Tests assume that phenotype flags are initially not set. Check if the assumption is
-            // true.
-            assertThat(mTestUtils.assertCommandSucceeds(String.format(
-                               "device_config get '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key)))
-                    .isEqualTo("null");
-            mMutatedPhenotypeFlags.add(key);
+        if (!mMutatedPhenotypeFlags.containsKey(key)) {
+            String output = mTestUtils.assertCommandSucceeds(
+                    String.format("device_config get '%s' '%s'", PHENOTYPE_FLAG_NAMESPACE, key));
+            mMutatedPhenotypeFlags.put(key, output.equals("null") ? null : output);
         }
 
         if (value != null) {
