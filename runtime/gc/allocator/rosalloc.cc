@@ -63,11 +63,11 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
       page_release_mode_(page_release_mode),
       page_release_size_threshold_(page_release_size_threshold),
       is_running_on_memory_tool_(running_on_memory_tool) {
-  DCHECK_ALIGNED(base, kPageSize);
+  DCHECK_ALIGNED_PARAM(base, kPageSize);
   DCHECK_EQ(RoundUp(capacity, kPageSize), capacity);
   DCHECK_EQ(RoundUp(max_capacity, kPageSize), max_capacity);
   CHECK_LE(capacity, max_capacity);
-  CHECK_ALIGNED(page_release_size_threshold_, kPageSize);
+  CHECK_ALIGNED_PARAM(page_release_size_threshold_, kPageSize);
   // Zero the memory explicitly (don't rely on that the mem map is zero-initialized).
   if (!kMadviseZeroes) {
     memset(base_, 0, max_capacity);
@@ -361,7 +361,7 @@ size_t RosAlloc::FreePages(Thread* self, void* ptr, bool already_zero) {
     fpr->magic_num_ = kMagicNumFree;
   }
   fpr->SetByteSize(this, byte_size);
-  DCHECK_ALIGNED(fpr->ByteSize(this), kPageSize);
+  DCHECK_ALIGNED_PARAM(fpr->ByteSize(this), kPageSize);
 
   DCHECK(free_page_runs_.find(fpr) == free_page_runs_.end());
   if (!free_page_runs_.empty()) {
@@ -1368,7 +1368,7 @@ bool RosAlloc::Trim() {
     DCHECK_LE(madvise_begin, page_map_mem_map_.End());
     size_t madvise_size = page_map_mem_map_.End() - madvise_begin;
     if (madvise_size > 0) {
-      DCHECK_ALIGNED(madvise_begin, kPageSize);
+      DCHECK_ALIGNED_PARAM(madvise_begin, kPageSize);
       DCHECK_EQ(RoundUp(madvise_size, kPageSize), madvise_size);
       if (!kMadviseZeroes) {
         memset(madvise_begin, 0, madvise_size);
@@ -1413,7 +1413,7 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
         FreePageRun* fpr = reinterpret_cast<FreePageRun*>(base_ + i * kPageSize);
         DCHECK(free_page_runs_.find(fpr) != free_page_runs_.end());
         size_t fpr_size = fpr->ByteSize(this);
-        DCHECK_ALIGNED(fpr_size, kPageSize);
+        DCHECK_ALIGNED_PARAM(fpr_size, kPageSize);
         void* start = fpr;
         if (kIsDebugBuild) {
           // In the debug build, the first page of a free page run
@@ -1768,7 +1768,7 @@ void RosAlloc::Verify() {
           CHECK(free_page_runs_.find(fpr) != free_page_runs_.end())
               << "An empty page must belong to the free page run set";
           size_t fpr_size = fpr->ByteSize(this);
-          CHECK_ALIGNED(fpr_size, kPageSize)
+          CHECK_ALIGNED_PARAM(fpr_size, kPageSize)
               << "A free page run size isn't page-aligned : " << fpr_size;
           size_t num_pages = fpr_size / kPageSize;
           CHECK_GT(num_pages, static_cast<uintptr_t>(0))
@@ -2013,7 +2013,7 @@ size_t RosAlloc::ReleasePages() {
           // to the next page.
           if (free_page_runs_.find(fpr) != free_page_runs_.end()) {
             size_t fpr_size = fpr->ByteSize(this);
-            DCHECK_ALIGNED(fpr_size, kPageSize);
+            DCHECK_ALIGNED_PARAM(fpr_size, kPageSize);
             uint8_t* start = reinterpret_cast<uint8_t*>(fpr);
             reclaimed_bytes += ReleasePageRange(start, start + fpr_size);
             size_t pages = fpr_size / kPageSize;
@@ -2040,8 +2040,8 @@ size_t RosAlloc::ReleasePages() {
 }
 
 size_t RosAlloc::ReleasePageRange(uint8_t* start, uint8_t* end) {
-  DCHECK_ALIGNED(start, kPageSize);
-  DCHECK_ALIGNED(end, kPageSize);
+  DCHECK_ALIGNED_PARAM(start, kPageSize);
+  DCHECK_ALIGNED_PARAM(end, kPageSize);
   DCHECK_LT(start, end);
   if (kIsDebugBuild) {
     // In the debug build, the first page of a free page run

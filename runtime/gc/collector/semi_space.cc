@@ -398,7 +398,7 @@ static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size
   memcpy(dest, src, page_remain);
   byte_src += page_remain;
   byte_dest += page_remain;
-  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), kPageSize);
+  DCHECK_ALIGNED_PARAM(reinterpret_cast<uintptr_t>(byte_dest), kPageSize);
   DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), sizeof(uintptr_t));
   DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_src), sizeof(uintptr_t));
   while (byte_src + kPageSize < limit) {
