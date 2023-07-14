@@ -19,6 +19,7 @@
 
 #include "base/macros.h"
 #include "code_generator.h"
+#include "intrinsics_list.h"
 #include "nodes.h"
 #include "optimization.h"
 #include "parallel_move_resolver.h"
@@ -48,9 +49,7 @@ class IntrinsicVisitor : public ValueObject {
       case Intrinsics::k ## Name: \
         Visit ## Name(invoke);    \
         return;
-#include "intrinsics_list.h"
-        INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+        ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
       // Do not put a default case. That way the compiler will complain if we missed a case.
@@ -61,9 +60,7 @@ class IntrinsicVisitor : public ValueObject {
 
 #define OPTIMIZING_INTRINSICS(Name, ...) \
   virtual void Visit##Name([[maybe_unused]] HInvoke* invoke) {}
-#include "intrinsics_list.h"
-  INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
+  ART_INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
   static void MoveArguments(HInvoke* invoke,

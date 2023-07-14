@@ -26,6 +26,7 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle.h"
 #include "intrinsics_enum.h"
+#include "intrinsics_list.h"
 #include "jit/jit.h"
 #include "jvalue-inl.h"
 #include "method_handles-inl.h"
@@ -555,10 +556,7 @@ bool DoInvokePolymorphic(Thread* self,
 #define CASE_SIGNATURE_POLYMORPHIC_INTRINSIC(Name, ...) \
     case Intrinsics::k##Name:                           \
       return Do ## Name(self, shadow_frame, inst, inst_data, result);
-#include "intrinsics_list.h"
-    SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(CASE_SIGNATURE_POLYMORPHIC_INTRINSIC)
-#undef INTRINSICS_LIST
-#undef SIGNATURE_POLYMORPHIC_INTRINSICS_LIST
+    ART_SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(CASE_SIGNATURE_POLYMORPHIC_INTRINSIC)
 #undef CASE_SIGNATURE_POLYMORPHIC_INTRINSIC
     default:
       LOG(FATAL) << "Unreachable: " << invoke_method->GetIntrinsic();

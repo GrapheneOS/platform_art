@@ -48,7 +48,7 @@
 // of finer grain side effects representation.
 
 // Intrinsics for methods with signature polymorphic behaviours.
-#define SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(V) \
+#define ART_SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(V) \
   V(MethodHandleInvokeExact, kPolymorphic, kNeedsEnvironment, kAllSideEffects, kCanThrow, "Ljava/lang/invoke/MethodHandle;", "invokeExact", "([Ljava/lang/Object;)Ljava/lang/Object;") \
   V(MethodHandleInvoke, kPolymorphic, kNeedsEnvironment, kAllSideEffects, kCanThrow, "Ljava/lang/invoke/MethodHandle;", "invoke", "([Ljava/lang/Object;)Ljava/lang/Object;") \
   V(VarHandleCompareAndExchange, kPolymorphic, kNeedsEnvironment, kAllSideEffects, kCanThrow, "Ljava/lang/invoke/VarHandle;", "compareAndExchange", "([Ljava/lang/Object;)Ljava/lang/Object;") \
@@ -84,7 +84,7 @@
   V(VarHandleWeakCompareAndSetRelease, kPolymorphic, kNeedsEnvironment, kAllSideEffects, kCanThrow, "Ljava/lang/invoke/VarHandle;", "weakCompareAndSetRelease", "([Ljava/lang/Object;)Z")
 
 // The complete list of intrinsics.
-#define INTRINSICS_LIST(V) \
+#define ART_INTRINSICS_LIST(V) \
   V(DoubleDoubleToRawLongBits, kStatic, kNeedsEnvironment, kNoSideEffects, kNoThrow, "Ljava/lang/Double;", "doubleToRawLongBits", "(D)J") \
   V(DoubleDoubleToLongBits, kStatic, kNeedsEnvironment, kNoSideEffects, kNoThrow, "Ljava/lang/Double;", "doubleToLongBits", "(D)J") \
   V(DoubleIsInfinite, kStatic, kNeedsEnvironment, kNoSideEffects, kNoThrow, "Ljava/lang/Double;", "isInfinite", "(D)Z") \
@@ -286,7 +286,6 @@
   V(CRC32Update, kStatic, kNeedsEnvironment, kNoSideEffects, kNoThrow, "Ljava/util/zip/CRC32;", "update", "(II)I") \
   V(CRC32UpdateBytes, kStatic, kNeedsEnvironment, kReadSideEffects, kCanThrow, "Ljava/util/zip/CRC32;", "updateBytes", "(I[BII)I") \
   V(CRC32UpdateByteBuffer, kStatic, kNeedsEnvironment, kReadSideEffects, kNoThrow, "Ljava/util/zip/CRC32;", "updateByteBuffer", "(IJII)I") \
-  SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(V)
+  ART_SIGNATURE_POLYMORPHIC_INTRINSICS_LIST(V)
 
 #endif  // ART_RUNTIME_INTRINSICS_LIST_H_
-#undef ART_RUNTIME_INTRINSICS_LIST_H_   // #define is only for lint.

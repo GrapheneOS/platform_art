@@ -95,4 +95,3 @@ inline size_t GetCriticalNativeDirectCallFrameSize(const char* shorty, uint32_t 
 }  // namespace art
 
 #endif  // ART_RUNTIME_ARCH_RISCV64_JNI_FRAME_RISCV64_H_
-
