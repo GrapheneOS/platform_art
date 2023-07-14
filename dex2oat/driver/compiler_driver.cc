@@ -1016,7 +1016,7 @@ static void VerifyClassesContainingIntrinsicsAreImageClasses(HashSet<std::string
 #define CHECK_INTRINSIC_OWNER_CLASS(_, __, ___, ____, _____, ClassName, ______, _______) \
   CHECK(image_classes->find(std::string_view(ClassName)) != image_classes->end());
 
-  INTRINSICS_LIST(CHECK_INTRINSIC_OWNER_CLASS)
+  ART_INTRINSICS_LIST(CHECK_INTRINSIC_OWNER_CLASS)
 #undef CHECK_INTRINSIC_OWNER_CLASS
 }
 
