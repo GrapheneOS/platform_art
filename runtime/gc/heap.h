@@ -562,8 +562,10 @@ class Heap {
   uint64_t GetBytesAllocatedEver() const;
 
   // Returns the total number of bytes freed since the heap was created.
+  // Can decrease over time, and may even be negative, since moving an object to
+  // a space in which it occupies more memory results in negative "freed bytes".
   // With default memory order, this should be viewed only as a hint.
-  uint64_t GetBytesFreedEver(std::memory_order mo = std::memory_order_relaxed) const {
+  int64_t GetBytesFreedEver(std::memory_order mo = std::memory_order_relaxed) const {
     return total_bytes_freed_ever_.load(mo);
   }
 
@@ -1453,7 +1455,7 @@ class Heap {
   size_t concurrent_start_bytes_;
 
   // Since the heap was created, how many bytes have been freed.
-  std::atomic<uint64_t> total_bytes_freed_ever_;
+  std::atomic<int64_t> total_bytes_freed_ever_;
 
   // Since the heap was created, how many objects have been freed.
   std::atomic<uint64_t> total_objects_freed_ever_;
