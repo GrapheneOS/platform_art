@@ -603,10 +603,21 @@ ENTRY art_quick_test_suspend
 END
 
 
+ENTRY art_quick_compile_optimized
+    SETUP_SAVE_EVERYTHING_FRAME
+    ld   a0, FRAME_SIZE_SAVE_EVERYTHING(sp)   // pass ArtMethod
+    mv   a1, xSELF                            // pass Thread::Current
+    call artCompileOptimized                  // (ArtMethod*, Thread*)
+    RESTORE_SAVE_EVERYTHING_FRAME
+    // Note: If we implement implicit suspend checks or a marking register for GC, we don't need
+    // to restore such registers here, as artCompileOptimized doesn't allow thread suspension.
+    ret
+END art_quick_compile_optimized
+
+
 UNDEFINED art_quick_imt_conflict_trampoline
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
-UNDEFINED art_quick_compile_optimized
 UNDEFINED art_quick_method_entry_hook
 UNDEFINED art_quick_check_instance_of
 UNDEFINED art_quick_osr_stub
