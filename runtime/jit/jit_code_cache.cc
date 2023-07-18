@@ -1425,7 +1425,14 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
   ArtMethod* found_method = nullptr;  // Only for DCHECK(), not for JNI stubs.
   if (method != nullptr && UNLIKELY(method->IsNative())) {
     auto it = jni_stubs_map_.find(JniStubKey(method));
-    if (it == jni_stubs_map_.end() || !ContainsElement(it->second.GetMethods(), method)) {
+    if (it == jni_stubs_map_.end()) {
+      return nullptr;
+    }
+    if (!ContainsElement(it->second.GetMethods(), method)) {
+      DCHECK(!OatQuickMethodHeader::FromCodePointer(it->second.GetCode())->Contains(pc))
+          << "Method missing from stub map, but pc executing the method points to the stub."
+          << " method= " << method->PrettyMethod()
+          << " pc= " << std::hex << pc;
       return nullptr;
     }
     const void* code_ptr = it->second.GetCode();
