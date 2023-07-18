@@ -303,8 +303,9 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   };
 
   size_t GetSIMDRegisterWidth() const override {
-    LOG(FATAL) << "Vector is not unimplemented";
-    UNREACHABLE();
+    // TODO(riscv64): Implement SIMD with the Vector extension.
+    // Note: HLoopOptimization calls this function even for an ISA without SIMD support.
+    return kRiscv64FloatRegSizeInBytes;
   };
 
   uintptr_t GetAddressOf(HBasicBlock* block) override {
@@ -321,15 +322,11 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void MoveLocation(Location destination, Location source, DataType::Type dst_type) override;
   void AddLocationAsTemp(Location location, LocationSummary* locations) override;
 
-  HGraphVisitor* GetInstructionVisitor() override {
-    LOG(FATAL) << "unimplemented";
-    UNREACHABLE();
-  }
-
   Riscv64Assembler* GetAssembler() override { return &assembler_; }
   const Riscv64Assembler& GetAssembler() const override { return assembler_; }
 
   HGraphVisitor* GetLocationBuilder() override { return &location_builder_; }
+  HGraphVisitor* GetInstructionVisitor() override { return &instruction_visitor_; }
 
   void MaybeGenerateInlineCacheCheck(HInstruction* instruction, XRegister klass);
 
@@ -346,8 +343,7 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   InstructionSet GetInstructionSet() const override { return InstructionSet::kRiscv64; }
 
   uint32_t GetPreferredSlotsAlignment() const override {
-    LOG(FATAL) << "Unimplemented";
-    UNREACHABLE();
+    return static_cast<uint32_t>(kRiscv64PointerSize);
   }
 
   void Finalize() override;
@@ -429,6 +425,7 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
  private:
   Riscv64Assembler assembler_;
   LocationsBuilderRISCV64 location_builder_;
+  InstructionCodeGeneratorRISCV64 instruction_visitor_;
   Riscv64Label frame_entry_label_;
 
   // Labels for each block that will be compiled.
