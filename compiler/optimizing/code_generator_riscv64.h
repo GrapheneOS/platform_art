@@ -264,6 +264,16 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                      /*out*/ XRegister* adjusted_base);
   void GenConditionalMove(HSelect* select);
 
+  template <typename Reg,
+            void (Riscv64Assembler::*opS)(Reg, FRegister, FRegister),
+            void (Riscv64Assembler::*opD)(Reg, FRegister, FRegister)>
+  void FpBinOp(Reg rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FSub(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FEq(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FLt(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FLe(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;
 
