@@ -220,34 +220,14 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void GenerateIntLongCondition(IfCondition cond, LocationSummary* locations);
-  // When the function returns `false` it means that the condition holds if `dst` is non-zero
-  // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
-  // `dst` are exchanged.
-  bool MaterializeIntLongCompare(IfCondition cond,
-                                 bool is64bit,
-                                 LocationSummary* input_locations,
-                                 XRegister dst);
   void GenerateIntLongCompareAndBranch(IfCondition cond,
-                                       bool is64bit,
                                        LocationSummary* locations,
                                        Riscv64Label* label);
   void GenerateFpCondition(IfCondition cond,
                            bool gt_bias,
                            DataType::Type type,
-                           LocationSummary* locations);
-  // When the function returns `false` it means that the condition holds if `dst` is non-zero
-  // and doesn't hold if `dst` is zero. If it returns `true`, the roles of zero and non-zero
-  // `dst` are exchanged.
-  bool MaterializeFpCompare(IfCondition cond,
-                            bool gt_bias,
-                            DataType::Type type,
-                            LocationSummary* input_locations,
-                            XRegister dst);
-  void GenerateFpCompareAndBranch(IfCondition cond,
-                                  bool gt_bias,
-                                  DataType::Type type,
-                                  LocationSummary* locations,
-                                  Riscv64Label* label);
+                           LocationSummary* locations,
+                           Riscv64Label* label = nullptr);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
   void GenPackedSwitchWithCompares(XRegister value_reg,
                                    int32_t lower_bound,
