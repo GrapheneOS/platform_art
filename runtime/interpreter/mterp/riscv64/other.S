@@ -1,46 +1,123 @@
 %def unused():
     ebreak
-%def op_const():
-    unimp
-%def op_const_16():
-    unimp
-%def op_const_4():
 
 // const/4 vA, #+B
-// Format id: 11n, B|A|op
+// Format 11n: B|A|12
 // Clobbers: t0, t1, t2, t3
 %def op_const_4():
     slliw t1, xINST, 16   // B as MSB of word
-    sraiw t1, t1, 28      // lower down into LSB, apply sext
+    sraiw t1, t1, 28      // t1 := sssssssB
     slliw t2, xINST, 20   // A as MSB of word
-    srliw t2, t2, 28      // lower down into LSB, apply zext
+    srliw t2, t2, 28      // t2 := A
     FETCH_ADVANCE_INST 1  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 holds next opcode
-    SET_VREG t2, t1       // fp[A] := +B
+    SET_VREG t1, t2       // fp[A] := sssssssB
     GOTO_OPCODE t3        // continue to next
 
+// const/16 vAA, #+BBBB
+// Format 21s: AA|13 BBBB
+// Clobbers: t0, t1, t2, t3
+%def op_const_16():
+    FETCH t1, count=1, signed=1  // t1 := ssssBBBB
+    srliw t2, xINST, 8    // t2 := AA
+    FETCH_ADVANCE_INST 2  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG t1, t2       // fp[AA] := ssssBBBB
+    GOTO_OPCODE t3        // continue to next
+
+// const vAA, #+BBBBBBBB
+// Format 31i: AA|14 BBBB(lo) BBBB(hi)
+// Clobbers: t0, t1, t2, t3
+%def op_const():
+    FETCH t1, count=1, width=32  // t1 := BBBBBBBB
+    srliw t2, xINST, 8    // t2 := AA
+    FETCH_ADVANCE_INST 3  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG t1, t2       // fp[AA] := BBBBBBBB
+    GOTO_OPCODE t3        // continue to next
+
+// const/high16 vAA, #+BBBB0000
+// Format 21h: AA|15 BBBB
+// Clobbers: t0, t1, t2, t3
 %def op_const_high16():
-    unimp
+    FETCH t1, count=1  // t1 := BBBB
+    srliw t2, xINST, 8    // t2 := AA
+    slliw t1, t1, 16      // t1 := BBBB0000
+    FETCH_ADVANCE_INST 2  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG t1, t2       // fp[AA] := BBBB0000
+    GOTO_OPCODE t3        // continue to next
+
+// const-wide/16 vAA, #+BBBB
+// Format 21s: AA|16 BBBB
+%def op_const_wide_16():
+    FETCH t1, count=1, signed=1  // t1 := ssssssssssssBBBB
+    srliw t2, xINST, 8    // t2 := AA
+    FETCH_ADVANCE_INST 2  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG_WIDE t1, t2  // fp[AA] := ssssssssssssBBBB
+    GOTO_OPCODE t3        // continue to next
+
+// const-wide/32 vAA, #+BBBBBBBB
+// Format 31i: AA|17 BBBB(lo) BBBB(hi)
+%def op_const_wide_32():
+    FETCH t1, count=1, signed=1, width=32  // t1 := ssssssssBBBBBBBB
+    srliw t2, xINST, 8    // t2 := AA
+    FETCH_ADVANCE_INST 3  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG_WIDE t1, t2  // fp[AA] := ssssssssBBBBBBBB
+    GOTO_OPCODE t3        // continue to next
+
+// const-wide vAA, #+BBBBBBBBBBBBBBBB
+// Format 51l: AA|18 BBBB(lo) BBBB BBBB BBBB(hi)
+%def op_const_wide():
+    FETCH t1, count=1, width=64  // t1 := BBBBBBBBBBBBBBBB
+    srliw t2, xINST, 8    // t2 := AA
+    FETCH_ADVANCE_INST 5  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG_WIDE t1, t2  // fp[AA] := BBBBBBBBBBBBBBBB
+    GOTO_OPCODE t3        // continue to next
+
+// const-wide/high16 vAA, #+BBBB000000000000
+// Format 21h: AA|19 BBBB
+%def op_const_wide_high16():
+    FETCH t1, count=1  // t1 := BBBB
+    srliw t2, xINST, 8    // t2 := AA
+    slli t1, t1, 48       // t1 := BBBB000000000000
+    FETCH_ADVANCE_INST 2  // advance xPC, load xINST
+    GET_INST_OPCODE t3    // t3 := next opcode
+    SET_VREG_WIDE t1, t2  // fp[AA] := BBBB000000000000
+    GOTO_OPCODE t3        // continue to next
+
+// Common helper.
 %def op_const_object(jumbo="0", helper="nterp_load_object"):
     unimp
-%def op_const_class():
-    unimp
-%def op_const_method_handle():
-    unimp
-%def op_const_method_type():
-    unimp
+
+// const-string vAA, string@BBBB
+// Format 21c: AA|1a BBBB
 %def op_const_string():
     unimp
+
+// const-string/jumbo vAA, string@BBBBBBBB
+// Format 31c: AA|1b BBBB(lo) BBBB(hi)
 %def op_const_string_jumbo():
     unimp
-%def op_const_wide():
+
+// const-class vAA, type@BBBB
+// Format 21c: AA|1c BBBB
+%def op_const_class():
     unimp
-%def op_const_wide_16():
+
+// const-method-handle vAA, method_handle@BBBB
+// Format 21c: AA|fe BBBB
+%def op_const_method_handle():
     unimp
-%def op_const_wide_32():
+
+// const-method-type vAA, proto@BBBB
+// Format 21c: AA|ff BBBB
+%def op_const_method_type():
     unimp
-%def op_const_wide_high16():
-    unimp
+
 %def op_monitor_enter():
     unimp
 %def op_monitor_exit():
