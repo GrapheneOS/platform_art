@@ -265,6 +265,74 @@ inline void InstructionCodeGeneratorRISCV64::FLe(
   FpBinOp<XRegister, &Riscv64Assembler::FLeS, &Riscv64Assembler::FLeD>(rd, rs1, rs2, type);
 }
 
+Riscv64Assembler* ParallelMoveResolverRISCV64::GetAssembler() const {
+  return codegen_->GetAssembler();
+}
+
+void ParallelMoveResolverRISCV64::EmitMove(size_t index) {
+  MoveOperands* move = moves_[index];
+  codegen_->MoveLocation(move->GetDestination(), move->GetSource(), move->GetType());
+}
+
+void ParallelMoveResolverRISCV64::EmitSwap(size_t index) {
+  MoveOperands* move = moves_[index];
+  codegen_->SwapLocations(move->GetDestination(), move->GetSource(), move->GetType());
+}
+
+void ParallelMoveResolverRISCV64::SpillScratch([[maybe_unused]] int reg) {
+  LOG(FATAL) << "Unimplemented";
+  UNREACHABLE();
+}
+
+void ParallelMoveResolverRISCV64::RestoreScratch([[maybe_unused]] int reg) {
+  LOG(FATAL) << "Unimplemented";
+  UNREACHABLE();
+}
+
+void ParallelMoveResolverRISCV64::Exchange(int index1, int index2, bool double_slot) {
+  // We have 2 scratch X registers and 1 scratch F register that we can use. We prefer
+  // to use X registers for the swap but if both offsets are too big, we need to reserve
+  // one of the X registers for address adjustment and use an F register.
+  bool use_fp_tmp2 = false;
+  if (!IsInt<12>(index2)) {
+    if (!IsInt<12>(index1)) {
+      use_fp_tmp2 = true;
+    } else {
+      std::swap(index1, index2);
+    }
+  }
+  DCHECK_IMPLIES(!IsInt<12>(index2), use_fp_tmp2);
+
+  Location loc1(double_slot ? Location::DoubleStackSlot(index1) : Location::StackSlot(index1));
+  Location loc2(double_slot ? Location::DoubleStackSlot(index2) : Location::StackSlot(index2));
+  riscv64::ScratchRegisterScope srs(GetAssembler());
+  Location tmp = Location::RegisterLocation(srs.AllocateXRegister());
+  DataType::Type tmp_type = double_slot ? DataType::Type::kInt64 : DataType::Type::kInt32;
+  Location tmp2 = use_fp_tmp2
+      ? Location::FpuRegisterLocation(srs.AllocateFRegister())
+      : Location::RegisterLocation(srs.AllocateXRegister());
+  DataType::Type tmp2_type = use_fp_tmp2
+      ? (double_slot ? DataType::Type::kFloat64 : DataType::Type::kFloat32)
+      : tmp_type;
+
+  codegen_->MoveLocation(tmp, loc1, tmp_type);
+  codegen_->MoveLocation(tmp2, loc2, tmp2_type);
+  if (use_fp_tmp2) {
+    codegen_->MoveLocation(loc2, tmp, tmp_type);
+  } else {
+    // We cannot use `Stored()` or `Storew()` via `MoveLocation()` because we have
+    // no more scratch registers available. Use `Sd()` or `Sw()` explicitly.
+    DCHECK(IsInt<12>(index2));
+    if (double_slot) {
+      __ Sd(tmp.AsRegister<XRegister>(), SP, index2);
+    } else {
+      __ Sw(tmp.AsRegister<XRegister>(), SP, index2);
+    }
+    srs.FreeXRegister(tmp.AsRegister<XRegister>());  // Free a temporary for `MoveLocation()`.
+  }
+  codegen_->MoveLocation(loc1, tmp2, tmp2_type);
+}
+
 InstructionCodeGeneratorRISCV64::InstructionCodeGeneratorRISCV64(HGraph* graph,
                                                                  CodeGeneratorRISCV64* codegen)
     : InstructionCodeGenerator(graph, codegen),
@@ -1954,14 +2022,19 @@ void InstructionCodeGeneratorRISCV64::VisitPackedSwitch(HPackedSwitch* instructi
   LOG(FATAL) << "Unimplemented";
 }
 
-void LocationsBuilderRISCV64::VisitParallelMove(HParallelMove* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void LocationsBuilderRISCV64::VisitParallelMove([[maybe_unused]] HParallelMove* instruction) {
+  LOG(FATAL) << "Unreachable";
 }
 
 void InstructionCodeGeneratorRISCV64::VisitParallelMove(HParallelMove* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  if (instruction->GetNext()->IsSuspendCheck() &&
+      instruction->GetBlock()->GetLoopInformation() != nullptr) {
+    HSuspendCheck* suspend_check = instruction->GetNext()->AsSuspendCheck();
+    // The back edge will generate the suspend check.
+    codegen_->ClearSpillSlotsFromLoopPhisInStackMap(suspend_check, instruction);
+  }
+
+  codegen_->GetMoveResolver()->EmitNativeCode(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitParameterValue(HParameterValue* instruction) {
@@ -2608,7 +2681,8 @@ CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
                  compiler_options.GetInstructionSetFeatures()->AsRiscv64InstructionSetFeatures()),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
-      block_labels_(nullptr) {
+      block_labels_(nullptr),
+      move_resolver_(graph->GetAllocator(), this) {
   // Always mark the RA register to be saved.
   AddAllocatedRegister(Location::RegisterLocation(RA));
 }
@@ -3340,6 +3414,48 @@ inline void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
 inline void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
   if (kPoisonHeapReferences) {
     UnpoisonHeapReference(reg);
+  }
+}
+
+void CodeGeneratorRISCV64::SwapLocations(Location loc1, Location loc2, DataType::Type type) {
+  DCHECK(!loc1.IsConstant());
+  DCHECK(!loc2.IsConstant());
+
+  if (loc1.Equals(loc2)) {
+    return;
+  }
+
+  bool is_slot1 = loc1.IsStackSlot() || loc1.IsDoubleStackSlot();
+  bool is_slot2 = loc2.IsStackSlot() || loc2.IsDoubleStackSlot();
+  bool is_simd1 = loc1.IsSIMDStackSlot();
+  bool is_simd2 = loc2.IsSIMDStackSlot();
+  bool is_fp_reg1 = loc1.IsFpuRegister();
+  bool is_fp_reg2 = loc2.IsFpuRegister();
+
+  if ((is_slot1 != is_slot2) ||
+      (loc2.IsRegister() && loc1.IsRegister()) ||
+      (is_fp_reg2 && is_fp_reg1)) {
+    if ((is_fp_reg2 && is_fp_reg1) && GetGraph()->HasSIMD()) {
+      LOG(FATAL) << "Unsupported";
+      UNREACHABLE();
+    }
+    ScratchRegisterScope srs(GetAssembler());
+    Location tmp = (is_fp_reg2 || is_fp_reg1)
+        ? Location::FpuRegisterLocation(srs.AllocateFRegister())
+        : Location::RegisterLocation(srs.AllocateXRegister());
+    MoveLocation(tmp, loc1, type);
+    MoveLocation(loc1, loc2, type);
+    MoveLocation(loc2, tmp, type);
+  } else if (is_slot1 && is_slot2) {
+    move_resolver_.Exchange(loc1.GetStackIndex(), loc2.GetStackIndex(), loc1.IsDoubleStackSlot());
+  } else if (is_simd1 && is_simd2) {
+    // TODO(riscv64): Add VECTOR/SIMD later.
+    UNIMPLEMENTED(FATAL) << "Vector extension is unsupported";
+  } else if ((is_fp_reg1 && is_simd2) || (is_fp_reg2 && is_simd1)) {
+    // TODO(riscv64): Add VECTOR/SIMD later.
+    UNIMPLEMENTED(FATAL) << "Vector extension is unsupported";
+  } else {
+    LOG(FATAL) << "Unimplemented swap between locations " << loc1 << " and " << loc2;
   }
 }
 
