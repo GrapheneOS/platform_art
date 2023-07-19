@@ -33,6 +33,7 @@
 #include "log/log.h"
 #include "odr_common.h"
 #include "odrefresh/odrefresh.h"
+#include "tools/system_properties.h"
 
 namespace art {
 namespace odrefresh {
@@ -91,6 +92,26 @@ enum class ZygoteKind : uint8_t {
   kZygote64 = 3
 };
 
+class OdrSystemProperties : public tools::SystemProperties {
+ public:
+  explicit OdrSystemProperties(
+      const std::unordered_map<std::string, std::string>* system_properties)
+      : system_properties_(system_properties) {}
+
+  // For supporting foreach loops.
+  auto begin() const { return system_properties_->begin(); }
+  auto end() const { return system_properties_->end(); }
+
+ protected:
+  std::string GetProperty(const std::string& key) const override {
+    auto it = system_properties_->find(key);
+    return it != system_properties_->end() ? it->second : "";
+  }
+
+ private:
+  const std::unordered_map<std::string, std::string>* system_properties_;
+};
+
 // Configuration class for odrefresh. Exists to enable abstracting environment variables and
 // system properties into a configuration class for development and testing purposes.
 class OdrConfig final {
@@ -117,17 +138,20 @@ class OdrConfig final {
   // The current values of system properties listed in `kSystemProperties`.
   std::unordered_map<std::string, std::string> system_properties_;
 
+  // A helper for reading from `system_properties_`.
+  OdrSystemProperties odr_system_properties_;
+
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
   std::string staging_dir_;
 
  public:
   explicit OdrConfig(const char* program_name)
-    : dry_run_(false),
-      isa_(InstructionSet::kNone),
-      program_name_(android::base::Basename(program_name)),
-      artifact_dir_(GetApexDataDalvikCacheDirectory(InstructionSet::kNone)) {
-  }
+      : dry_run_(false),
+        isa_(InstructionSet::kNone),
+        program_name_(android::base::Basename(program_name)),
+        artifact_dir_(GetApexDataDalvikCacheDirectory(InstructionSet::kNone)),
+        odr_system_properties_(&system_properties_) {}
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
 
@@ -211,9 +235,7 @@ class OdrConfig final {
   }
   bool GetCompilationOsMode() const { return compilation_os_mode_; }
   bool GetMinimal() const { return minimal_; }
-  const std::unordered_map<std::string, std::string>& GetSystemProperties() const {
-    return system_properties_;
-  }
+  const OdrSystemProperties& GetSystemProperties() const { return odr_system_properties_; }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }

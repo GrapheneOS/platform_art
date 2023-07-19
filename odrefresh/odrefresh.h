@@ -35,6 +35,7 @@
 #include "odr_config.h"
 #include "odr_metrics.h"
 #include "odrefresh/odrefresh.h"
+#include "tools/cmdline_builder.h"
 
 namespace art {
 namespace odrefresh {
@@ -331,7 +332,7 @@ class OnDeviceRefresh final {
              const std::vector<std::string>& boot_classpath,
              const std::vector<std::string>& input_boot_images,
              const OdrArtifacts& artifacts,
-             const std::vector<std::string>& extra_args,
+             tools::CmdlineBuilder&& extra_args,
              /*inout*/ std::vector<std::unique_ptr<File>>& readonly_files_raii) const;
 
   WARN_UNUSED CompilationResult
