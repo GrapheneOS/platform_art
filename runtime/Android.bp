@@ -706,6 +706,24 @@ art_cc_library {
     },
 }
 
+art_cc_library {
+    name: "libart-unstripped",
+    defaults: ["libart_common_defaults"],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+        // libart doesn't go into test_broken_com.android.art, but the libart-broken
+        // needs to have the same apex_available list as its dependencies in order
+        // to compile against their sources. Then that change comes back up to affect
+        // libart as well, because it also needs to have the same apex_available as its
+        // dependencies.
+        "test_broken_com.android.art",
+    ],
+    strip: {
+        none: true,
+    },
+}
+
 // "Broken" version of the ART runtime library, used only for testing.
 art_cc_test_library {
     name: "libart-broken",

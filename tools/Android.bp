@@ -108,3 +108,24 @@ sh_binary {
         },
     },
 }
+
+cc_genrule {
+    name: "check_cfi",
+    tool_files: [
+        "check_cfi.py",
+    ],
+    tools: [
+        "llvm-dwarfdump",
+        "llvm-objdump",
+    ],
+    srcs: [
+        ":libart-unstripped",
+    ],
+    out: [
+        "check_cfi.txt",
+    ],
+    cmd: "$(location check_cfi.py) " +
+        "--dwarfdump $(location llvm-dwarfdump) " +
+        "--objdump $(location llvm-objdump) " +
+        "--out $(out) $(in)",
+}
