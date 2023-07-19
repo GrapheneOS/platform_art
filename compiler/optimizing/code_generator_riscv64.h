@@ -24,6 +24,7 @@
 #include "driver/compiler_options.h"
 #include "intrinsics_list.h"
 #include "optimizing/locations.h"
+#include "parallel_move_resolver.h"
 #include "utils/riscv64/assembler_riscv64.h"
 
 namespace art {
@@ -96,6 +97,26 @@ class SlowPathCodeRISCV64 : public SlowPathCode {
   Riscv64Label exit_label_;
 
   DISALLOW_COPY_AND_ASSIGN(SlowPathCodeRISCV64);
+};
+
+class ParallelMoveResolverRISCV64 : public ParallelMoveResolverWithSwap {
+ public:
+  ParallelMoveResolverRISCV64(ArenaAllocator* allocator, CodeGeneratorRISCV64* codegen)
+      : ParallelMoveResolverWithSwap(allocator), codegen_(codegen) {}
+
+  void EmitMove(size_t index) override;
+  void EmitSwap(size_t index) override;
+  void SpillScratch(int reg) override;
+  void RestoreScratch(int reg) override;
+
+  void Exchange(int index1, int index2, bool double_slot);
+
+  Riscv64Assembler* GetAssembler() const;
+
+ private:
+  CodeGeneratorRISCV64* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverRISCV64);
 };
 
 class LocationsBuilderRISCV64 : public HGraphVisitor {
@@ -350,11 +371,7 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
                                            HInstruction* instruction,
                                            SlowPathCode* slow_path);
 
-  // TODO(riscv64): Add ParallelMoveResolverRISCV64 Later
-  ParallelMoveResolver* GetMoveResolver() override {
-    LOG(FATAL) << "Unimplemented";
-    UNREACHABLE();
-  }
+  ParallelMoveResolver* GetMoveResolver() override { return &move_resolver_; }
 
   bool NeedsTwoRegisters([[maybe_unused]] DataType::Type type) const override { return false; }
 
@@ -412,6 +429,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(XRegister reg);
 
+  void SwapLocations(Location loc1, Location loc2, DataType::Type type);
+
  private:
   Riscv64Assembler assembler_;
   LocationsBuilderRISCV64 location_builder_;
@@ -420,6 +439,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   // Labels for each block that will be compiled.
   Riscv64Label* block_labels_;  // Indexed by block id.
+
+  ParallelMoveResolverRISCV64 move_resolver_;
 };
 
 }  // namespace riscv64
