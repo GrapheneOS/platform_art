@@ -18,7 +18,5 @@
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="com.android.tests.odsign"
                      android:label="test app for on-device signing">
-        <meta-data android:name="listener"
-                   android:value="com.android.cts.runner.CtsTestRunListener" />
     </instrumentation>/>
 </manifest>
