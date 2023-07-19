@@ -1,3 +1,49 @@
+// return-void
+// Format 10x: 00|0e
+%def op_return_void():
+%  op_return(is_object="0", is_void="1", is_wide="0")
+
+// return vAA
+// Format 11x: AA|0f
+// Clobbers: t0
+%def op_return(is_object="0", is_void="0", is_wide="0"):
+    .if $is_void
+      // Thread fence for constructor
+      fence w, w
+    .else
+      srliw t0, xINST, 8  // t0 := AA
+      .if $is_wide
+        GET_VREG_WIDE a0, t0  // a0 := fp[AA:AA+1]
+        // The method may return to compiled code, so also place result in fa0.
+        fmv.d.x fa0, a0
+      .elseif $is_object
+        GET_VREG_OBJECT a0, t0  // a0 := refs[AA]
+      .else
+        GET_VREG a0, t0  // a0 := fp[AA]
+        // The method may return to compiled code, so also place result in fa0.
+        fmv.w.x fa0, a0
+      .endif
+    .endif  // is_void
+
+    CFI_REMEMBER_STATE
+    ld sp, -8(xREFS)  // caller's interpreted frame pointer
+    .cfi_def_cfa sp, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    RESTORE_ALL_CALLEE_SAVES
+    DECREASE_FRAME FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    ret
+    .cfi_restore_state
+    CFI_DEF_CFA_BREG_PLUS_UCONST CFI_REFS, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+
+// return-wide vAA
+// Format 11x: AA|10
+%def op_return_wide():
+%  op_return(is_object="0", is_void="0", is_wide="1")
+
+// return-object vAA
+// Format 11x: AA|11
+%def op_return_object():
+%  op_return(is_object="1", is_void="0", is_wide="0")
+
 %def bincmp(condition=""):
     unimp
 
@@ -54,37 +100,6 @@
 
 %def op_sparse_switch():
 %  op_packed_switch(func="NterpDoSparseSwitch")
-
-// Return a 32-bit value.
-// Clobbers: t0
-%def op_return(is_object="0", is_void="0", is_wide="0"):
-    .if $is_void
-    // Thread fence for constructor
-    fence w, w
-    .else
-    unimp
-    .endif  // is_void
-
-    CFI_REMEMBER_STATE
-    ld t0, -8(xREFS)  // caller's interpreted frame pointer
-    mv sp, t0
-    .cfi_def_cfa sp, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
-    RESTORE_ALL_CALLEE_SAVES
-    DECREASE_FRAME FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
-    ret
-    .cfi_restore_state
-    CFI_DEF_CFA_BREG_PLUS_UCONST CFI_REFS, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
-
-%def op_return_object():
-%  op_return(is_object="1", is_void="0", is_wide="0")
-
-// return-void
-// Format 10x: 00|0e
-%def op_return_void():
-%  op_return(is_object="0", is_void="1", is_wide="0")
-
-%def op_return_wide():
-%  op_return(is_object="0", is_void="0", is_wide="1")
 
 %def op_throw():
     unimp
