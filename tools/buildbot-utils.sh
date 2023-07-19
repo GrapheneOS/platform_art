@@ -78,8 +78,9 @@ if [[ -n "$ART_TEST_ON_VM" ]]; then
     msgfatal "ART_TEST_SSH_PORT not set"
   fi
 
-  export ART_TEST_CHROOT="/home/$ART_TEST_SSH_USER/art-test-chroot"
-  export ART_CHROOT_CMD="unshare --user --map-root-user chroot art-test-chroot"
+  export ART_TEST_CHROOT_BASENAME="art-test-chroot"
+  export ART_TEST_CHROOT="/home/$ART_TEST_SSH_USER/$ART_TEST_CHROOT_BASENAME"
+  export ART_CHROOT_CMD="unshare --user --map-root-user chroot $ART_TEST_CHROOT_BASENAME"
   export ART_SSH_CMD="ssh -q -p $ART_TEST_SSH_PORT $ART_TEST_SSH_USER@$ART_TEST_SSH_HOST -o IdentityAgent=none"
   export ART_SCP_CMD="scp -P $ART_TEST_SSH_PORT -p -r -o IdentityAgent=none"
   export ART_RSYNC_CMD="rsync -az"
