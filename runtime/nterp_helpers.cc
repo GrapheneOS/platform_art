@@ -250,9 +250,21 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
     for (DexInstructionPcPair pair : method->DexInstructions()) {
       // TODO(riscv64): Add support for more instructions.
       // Remove the check when all instructions are supported.
+      // Cases are listed in opcode order (DEX_INSTRUCTION_LIST).
       switch (pair->Opcode()) {
         case Instruction::RETURN_VOID:
-          break;
+        case Instruction::RETURN:
+        case Instruction::RETURN_WIDE:
+        case Instruction::RETURN_OBJECT:
+        case Instruction::CONST_4:
+        case Instruction::CONST_16:
+        case Instruction::CONST:
+        case Instruction::CONST_HIGH16:
+        case Instruction::CONST_WIDE_16:
+        case Instruction::CONST_WIDE_32:
+        case Instruction::CONST_WIDE:
+        case Instruction::CONST_WIDE_HIGH16:
+          continue;
         default:
           return false;
       }
