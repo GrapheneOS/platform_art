@@ -16,6 +16,8 @@
 
 #include "cmdline_builder.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -113,6 +115,19 @@ TEST_F(CmdlineBuilderTest, AddRuntimeIfTrue) {
 TEST_F(CmdlineBuilderTest, AddRuntimeIfFalse) {
   args_.AddRuntimeIf(false, "--flag");
   EXPECT_THAT(args_.Get(), IsEmpty());
+}
+
+TEST_F(CmdlineBuilderTest, Concat) {
+  args_.Add("--flag1");
+  args_.Add("--flag2");
+
+  CmdlineBuilder other;
+  other.Add("--flag3");
+  other.Add("--flag4");
+
+  args_.Concat(std::move(other));
+  EXPECT_THAT(args_.Get(), ElementsAre("--flag1", "--flag2", "--flag3", "--flag4"));
+  EXPECT_THAT(other.Get(), IsEmpty());
 }
 
 }  // namespace
