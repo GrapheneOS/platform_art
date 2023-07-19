@@ -225,6 +225,27 @@ uint16_t TraceWriter::GetThreadEncoding(pid_t thread_id) {
   return idx;
 }
 
+class TraceWriterTask final : public Task {
+ public:
+  TraceWriterTask(TraceWriter* trace_writer, uintptr_t* buffer, size_t cur_offset, size_t thread_id)
+      : trace_writer_(trace_writer),
+        buffer_(buffer),
+        cur_offset_(cur_offset),
+        thread_id_(thread_id) {}
+
+  void Run(Thread* self) override {
+    ScopedObjectAccess soa(self);
+    trace_writer_->FlushBuffer(buffer_, cur_offset_, thread_id_);
+    delete[] buffer_;
+  }
+
+ private:
+  TraceWriter* trace_writer_;
+  uintptr_t* buffer_;
+  size_t cur_offset_;
+  size_t thread_id_;
+};
+
 std::vector<ArtMethod*>* Trace::AllocStackTrace() {
   return (temp_stack_trace_.get() != nullptr)  ? temp_stack_trace_.release() :
       new std::vector<ArtMethod*>();
@@ -573,6 +594,7 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
 void Trace::StopTracing(bool flush_entries) {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
+
   pthread_t sampling_pthread = 0U;
   {
     MutexLock mu(self, *Locks::trace_lock_);
@@ -632,7 +654,7 @@ void Trace::StopTracing(bool flush_entries) {
       MutexLock tl_lock(Thread::Current(), *Locks::thread_list_lock_);
       for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
         if (thread->GetMethodTraceBuffer() != nullptr) {
-          the_trace->trace_writer_->FlushBuffer(thread);
+          the_trace->trace_writer_->FlushBuffer(thread, /* is_sync= */ true);
           thread->ResetMethodTraceBuffer();
         }
       }
@@ -658,7 +680,7 @@ void Trace::StopTracing(bool flush_entries) {
 
 void Trace::FlushThreadBuffer(Thread* self) {
   MutexLock mu(self, *Locks::trace_lock_);
-  the_trace_->trace_writer_->FlushBuffer(self);
+  the_trace_->trace_writer_->FlushBuffer(self, /* is_sync= */ false);
 }
 
 void Trace::Abort() {
@@ -760,6 +782,14 @@ TraceWriter::TraceWriter(File* trace_file,
   // Thread index of 0 is a special identifier used to distinguish between trace
   // event entries and thread / method info entries.
   current_thread_index_ = 1;
+
+  // Don't create threadpool for a zygote. This would cause slowdown when forking because we need
+  // to stop and start this thread pool. Method tracing on zygote isn't a frequent use case and
+  // it is okay to flush on the main thread in such cases.
+  if (!Runtime::Current()->IsZygote()) {
+    thread_pool_.reset(new ThreadPool("Trace writer pool", 1));
+    thread_pool_->StartWorkers(Thread::Current());
+  }
 }
 
 Trace::Trace(File* trace_file,
@@ -779,7 +809,18 @@ Trace::Trace(File* trace_file,
 }
 
 void TraceWriter::FinishTracing(int flags, bool flush_entries) {
+  Thread* self = Thread::Current();
   if (flush_entries) {
+    if (thread_pool_ != nullptr) {
+      // Wait for any workers to be created. If we are stopping tracing as a part of runtime
+      // shutdown, any unstarted workers can create problems if they try attaching while shutting
+      // down.
+      thread_pool_->WaitForWorkersToBeCreated();
+      // Wait for any outstanding writer tasks to finish.
+      thread_pool_->StopWorkers(self);
+      thread_pool_->Wait(self, /* do_work= */ true, /* may_hold_locks= */ true);
+    }
+
     size_t final_offset = 0;
     if (trace_output_mode_ != TraceOutputMode::kStreaming) {
       MutexLock mu(Thread::Current(), tracing_lock_);
@@ -821,7 +862,6 @@ void TraceWriter::FinishTracing(int flags, bool flush_entries) {
       // TODO(b/280558212): Moving the Mutexlock out of DumpThreadList to try and
       // narrow down where seg fault is happening. Change this after the bug is
       // fixed.
-      Thread* self = Thread::Current();
       CHECK_NE(self, nullptr);
       MutexLock mu(self, tracing_lock_);
       DumpThreadList(os);
@@ -864,6 +904,10 @@ void TraceWriter::FinishTracing(int flags, bool flush_entries) {
         }
       }
     }
+  } else {
+    // This is only called from the child process post fork to abort the trace.
+    // We shouldn't have any workers in the thread pool here.
+    DCHECK_EQ(thread_pool_, nullptr);
   }
 
   if (trace_file_.get() != nullptr) {
@@ -1060,7 +1104,7 @@ void TraceWriter::FlushAllThreadBuffers() {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
     if (thread->GetMethodTraceBuffer() != nullptr) {
-      FlushBuffer(thread);
+      FlushBuffer(thread, /* is_sync= */ true);
       // We cannot flush anynore data, so just return.
       if (overflow_) {
         return;
@@ -1070,32 +1114,49 @@ void TraceWriter::FlushAllThreadBuffers() {
   return;
 }
 
-bool TraceWriter::PrepareBufferForNewEntries(Thread* thread) {
+uintptr_t* TraceWriter::PrepareBufferForNewEntries(Thread* thread) {
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
     // In streaming mode, just flush the per-thread buffer and reuse the
     // existing buffer for new entries.
-    FlushBuffer(thread);
+    FlushBuffer(thread, /* is_sync= */ false);
     DCHECK_EQ(overflow_, false);
   } else {
     // For non-streaming mode, flush all the threads to check if we have space in the common
     // buffer to record any future events.
     FlushAllThreadBuffers();
   }
-  return !overflow_;
+  if (overflow_) {
+    return nullptr;
+  }
+  return thread->GetMethodTraceBuffer();
 }
 
-void TraceWriter::FlushBuffer(Thread* thread) {
+void TraceWriter::FlushBuffer(Thread* thread, bool is_sync) {
   uintptr_t* method_trace_entries = thread->GetMethodTraceBuffer();
   size_t* current_offset = thread->GetMethodTraceIndexPtr();
   size_t tid = thread->GetTid();
-  CHECK(method_trace_entries != nullptr);
+  DCHECK(method_trace_entries != nullptr);
 
-  FlushBuffer(method_trace_entries, *current_offset, tid);
+  if (is_sync || thread_pool_ == nullptr) {
+    FlushBuffer(method_trace_entries, *current_offset, tid);
 
-  // Reset the buffer pointer to its initial value since we have flushed all the contents.
-  // We set the initial buffer pointer to the end of buffer for more efficient checks in
-  // the JITed code.
-  *current_offset = kPerThreadBufSize - 1;
+    // This is a synchronous flush, so no need to allocate a new buffer. This is used either
+    // when the tracing has finished or in non-streaming mode.
+    // Just reset the buffer pointer to the initial value, so we can reuse the same buffer.
+    *current_offset = kPerThreadBufSize - 1;
+  } else {
+    // The TraceWriterTask takes the ownership of the buffer and delets the buffer once the
+    // entries are flushed.
+    thread_pool_->AddTask(Thread::Current(),
+                          new TraceWriterTask(this, method_trace_entries, *current_offset, tid));
+
+    // Create a new buffer and update the per-thread buffer so we don't have to wait for the
+    // flushing to finish.
+    uintptr_t* method_trace_buffer = new uintptr_t[std::max(kMinBufSize, kPerThreadBufSize)]();
+    thread->SetMethodTraceBuffer(method_trace_buffer);
+    *current_offset = kPerThreadBufSize - 1;
+  }
+
   return;
 }
 
@@ -1198,9 +1259,10 @@ void Trace::LogMethodTraceEvent(Thread* thread,
   size_t required_entries = (clock_source_ == TraceClockSource::kDual) ? kNumEntriesForDualClock :
                                                                          kNumEntriesForWallClock;
   if (*current_offset < required_entries) {
-    // This can fail in non-streaming mode if there's an overflow and wwe cannot record any more
-    // entries.
-    if (!trace_writer_->PrepareBufferForNewEntries(thread)) {
+    // This returns nullptr in non-streaming mode if there's an overflow and we cannot record any
+    // more entries. In streaming mode, it returns nullptr if it fails to allocate a new buffer.
+    method_trace_buffer = trace_writer_->PrepareBufferForNewEntries(thread);
+    if (method_trace_buffer == nullptr) {
       return;
     }
   }
