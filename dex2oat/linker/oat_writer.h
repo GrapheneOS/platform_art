@@ -526,6 +526,7 @@ class OatWriter {
   uint32_t size_oat_dex_file_location_size_;
   uint32_t size_oat_dex_file_location_data_;
   uint32_t size_oat_dex_file_location_checksum_;
+  uint32_t size_oat_dex_file_sha1_ = 0;
   uint32_t size_oat_dex_file_offset_;
   uint32_t size_oat_dex_file_class_offsets_offset_;
   uint32_t size_oat_dex_file_lookup_table_offset_;

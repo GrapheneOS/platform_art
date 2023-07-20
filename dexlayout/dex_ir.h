@@ -359,7 +359,7 @@ class Header : public Item {
  public:
   Header(const uint8_t* magic,
          uint32_t checksum,
-         const uint8_t* signature,
+         DexFile::Sha1 signature,
          uint32_t endian_tag,
          uint32_t file_size,
          uint32_t header_size,
@@ -383,7 +383,7 @@ class Header : public Item {
 
   Header(const uint8_t* magic,
          uint32_t checksum,
-         const uint8_t* signature,
+         DexFile::Sha1 signature,
          uint32_t endian_tag,
          uint32_t file_size,
          uint32_t header_size,
@@ -423,7 +423,7 @@ class Header : public Item {
 
   const uint8_t* Magic() const { return magic_; }
   uint32_t Checksum() const { return checksum_; }
-  const uint8_t* Signature() const { return signature_; }
+  DexFile::Sha1 Signature() const { return signature_; }
   uint32_t EndianTag() const { return endian_tag_; }
   uint32_t FileSize() const { return file_size_; }
   uint32_t HeaderSize() const { return header_size_; }
@@ -433,9 +433,7 @@ class Header : public Item {
   uint32_t DataOffset() const { return data_offset_; }
 
   void SetChecksum(uint32_t new_checksum) { checksum_ = new_checksum; }
-  void SetSignature(const uint8_t* new_signature) {
-    memcpy(signature_, new_signature, sizeof(signature_));
-  }
+  void SetSignature(DexFile::Sha1 new_signature) { signature_ = new_signature; }
   void SetFileSize(uint32_t new_file_size) { file_size_ = new_file_size; }
   void SetHeaderSize(uint32_t new_header_size) { header_size_ = new_header_size; }
   void SetLinkSize(uint32_t new_link_size) { link_size_ = new_link_size; }
@@ -522,7 +520,7 @@ class Header : public Item {
  private:
   uint8_t magic_[8];
   uint32_t checksum_;
-  uint8_t signature_[DexFile::kSha1DigestSize];
+  DexFile::Sha1 signature_;
   uint32_t endian_tag_;
   uint32_t file_size_;
   uint32_t header_size_;
@@ -534,7 +532,7 @@ class Header : public Item {
 
   void ConstructorHelper(const uint8_t* magic,
                          uint32_t checksum,
-                         const uint8_t* signature,
+                         DexFile::Sha1 signature,
                          uint32_t endian_tag,
                          uint32_t file_size,
                          uint32_t header_size,
@@ -551,7 +549,7 @@ class Header : public Item {
     data_size_ = data_size;
     data_offset_ = data_offset;
     memcpy(magic_, magic, sizeof(magic_));
-    memcpy(signature_, signature, sizeof(signature_));
+    signature_ = signature;
   }
 
   // Collection vectors own the IR data.

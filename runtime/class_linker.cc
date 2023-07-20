@@ -1824,7 +1824,7 @@ static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(error_msg != nullptr);
   std::unique_ptr<const DexFile> dex_file;
-  const OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, nullptr, error_msg);
+  const OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, error_msg);
   if (oat_dex_file == nullptr) {
     return std::unique_ptr<const DexFile>();
   }
@@ -1839,12 +1839,14 @@ static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
   }
 
   if (dex_file->GetLocationChecksum() != oat_dex_file->GetDexFileLocationChecksum()) {
+    CHECK(dex_file->GetSha1() != oat_dex_file->GetSha1());
     *error_msg = StringPrintf("Checksums do not match for %s: %x vs %x",
                               location,
                               dex_file->GetLocationChecksum(),
                               oat_dex_file->GetDexFileLocationChecksum());
     return std::unique_ptr<const DexFile>();
   }
+  CHECK(dex_file->GetSha1() == oat_dex_file->GetSha1());
   return dex_file;
 }
 
