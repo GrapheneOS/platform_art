@@ -19,7 +19,6 @@
 
 #include <android-base/logging.h>
 
-#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -125,17 +124,11 @@ class DexFile {
   static constexpr uint16_t kDexNoIndex16 = 0xFFFF;
   static constexpr uint32_t kDexNoIndex32 = 0xFFFFFFFF;
 
-  struct Sha1 : public std::array<uint8_t, kSha1DigestSize> {
-    std::string ToString() const;
-  };
-
-  static_assert(std::is_standard_layout_v<Sha1>);
-
   // Raw header_item.
   struct Header {
     uint8_t magic_[8] = {};
     uint32_t checksum_ = 0;  // See also location_checksum_
-    Sha1 signature_ = {};
+    uint8_t signature_[kSha1DigestSize] = {};
     uint32_t file_size_ = 0;  // size of entire file
     uint32_t header_size_ = 0;  // offset to start of next section
     uint32_t endian_tag_ = 0;
@@ -251,8 +244,6 @@ class DexFile {
   uint32_t GetLocationChecksum() const {
     return location_checksum_;
   }
-
-  Sha1 GetSha1() const { return header_->signature_; }
 
   const Header& GetHeader() const {
     DCHECK(header_ != nullptr) << GetLocation();
