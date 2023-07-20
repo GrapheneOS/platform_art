@@ -500,9 +500,10 @@ Heap::Heap(size_t initial_size,
                                        image_file_names,
                                        image_instruction_set,
                                        runtime->ShouldRelocate(),
-                                       /*executable=*/ !runtime->IsAotCompiler(),
+                                       /*executable=*/!runtime->IsAotCompiler(),
                                        heap_reservation_size,
                                        runtime->AllowInMemoryCompilation(),
+                                       runtime->GetApexVersions(),
                                        &boot_image_spaces,
                                        &heap_reservation)) {
     DCHECK_EQ(heap_reservation_size, heap_reservation.IsValid() ? heap_reservation.Size() : 0u);
