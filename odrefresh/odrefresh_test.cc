@@ -645,19 +645,67 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithDefaultValue) {
 }
 
 TEST_F(OdRefreshTest, OutputFilesAndIsa) {
+  config_.MutableSystemProperties()->emplace("dalvik.vm.isa.x86_64.features", "foo");
+  config_.MutableSystemProperties()->emplace("dalvik.vm.isa.x86_64.variant", "bar");
+
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86_64"),
+                                        Contains(Flag("--instruction-set-features=", "foo")),
+                                        Contains(Flag("--instruction-set-variant=", "bar")),
                                         Contains(Flag("--image-fd=", FdOf(_))),
                                         Contains(Flag("--output-vdex-fd=", FdOf(_))),
                                         Contains(Flag("--oat-fd=", FdOf(_))))))
       .Times(2)
-      .WillOnce(Return(0));
+      .WillRepeatedly(Return(0));
 
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86_64"),
+                                        Contains(Flag("--instruction-set-features=", "foo")),
+                                        Contains(Flag("--instruction-set-variant=", "bar")),
                                         Contains(Flag("--app-image-fd=", FdOf(_))),
                                         Contains(Flag("--output-vdex-fd=", FdOf(_))),
                                         Contains(Flag("--oat-fd=", FdOf(_))))))
+      .Times(odrefresh_->AllSystemServerJars().size())
+      .WillRepeatedly(Return(0));
+
+  // No instruction set features or variant set for x86.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains("--instruction-set=x86"),
+                                        Not(Contains(Flag("--instruction-set-features=", _))),
+                                        Not(Contains(Flag("--instruction-set-variant=", _))))))
+      .Times(2)
+      .WillRepeatedly(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(
+                *metrics_,
+                CompilationOptions{
+                    .boot_images_to_generate_for_isas{
+                        {InstructionSet::kX86_64,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}},
+                        {InstructionSet::kX86,
+                         {.primary_boot_image = true, .boot_image_mainline_extension = true}}},
+                    .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+                }),
+            ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, RuntimeOptions) {
+  config_.MutableSystemProperties()->emplace("dalvik.vm.image-dex2oat-Xms", "10");
+  config_.MutableSystemProperties()->emplace("dalvik.vm.image-dex2oat-Xmx", "20");
+  config_.MutableSystemProperties()->emplace("dalvik.vm.dex2oat-Xms", "30");
+  config_.MutableSystemProperties()->emplace("dalvik.vm.dex2oat-Xmx", "40");
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Flag("--image-fd=", FdOf(_))),
+                                        Contains(Flag("-Xms", "10")),
+                                        Contains(Flag("-Xmx", "20")))))
+      .Times(2)
+      .WillRepeatedly(Return(0));
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Flag("--app-image-fd=", FdOf(_))),
+                                        Contains(Flag("-Xms", "30")),
+                                        Contains(Flag("-Xmx", "40")))))
       .Times(odrefresh_->AllSystemServerJars().size())
       .WillRepeatedly(Return(0));
 
