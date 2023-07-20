@@ -358,16 +358,15 @@ static void ValidateDexFileHeader(std::unique_ptr<const DexFile> dex_file) {
     /* d */ 0x64, /* e */ 0x64, /* x */ 0x78, /* \n */ 0x0d,
     /* 0 */ 0x30, /* 3 */ 0x33, /* 5 */ 0x35, /* \0 */ 0x00
   };
-  static const uint8_t kExpectedSha1[DexFile::kSha1DigestSize] = {
-    0x7b, 0xb8, 0x0c, 0xd4, 0x1f, 0xd6, 0x1e, 0xc5,
-    0x89, 0xe8, 0xbe, 0xe5, 0x18, 0x02, 0x12, 0x18,
-    0x2e, 0xf2, 0x8c, 0x3d,
+  static const DexFile::Sha1 kExpectedSha1 = {
+      0x7b, 0xb8, 0x0c, 0xd4, 0x1f, 0xd6, 0x1e, 0xc5, 0x89, 0xe8,
+      0xbe, 0xe5, 0x18, 0x02, 0x12, 0x18, 0x2e, 0xf2, 0x8c, 0x3d,
   };
 
   const DexFile::Header& header = dex_file->GetHeader();
   EXPECT_EQ(*kExpectedDexFileMagic, *header.magic_);
   EXPECT_EQ(0x00d87910U, header.checksum_);
-  EXPECT_EQ(*kExpectedSha1, *header.signature_);
+  EXPECT_EQ(kExpectedSha1, header.signature_);
   EXPECT_EQ(904U, header.file_size_);
   EXPECT_EQ(112U, header.header_size_);
   EXPECT_EQ(0U, header.link_size_);
