@@ -203,7 +203,7 @@ def ci_builder(name, category, short_name, dimensions, is_fyi=False):
 # Dimensions specify which bots we can run on.
 host_dims = {"os": "Linux"}
 target_dims = {"os": "Android"}
-arm_target_dims = target_dims | {"device_type": "bonito|oriole|walleye"}
+arm_target_dims = target_dims | {"device_abi":"arm64-v8a"}
 
 # userfault-GC configurations must be run on Pixel 6.
 userfault_gc_target_dims = target_dims | {"device_type": "oriole"}
