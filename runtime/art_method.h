@@ -865,6 +865,7 @@ class ArtMethod final {
     uint32_t access_flags = GetAccessFlags();
     return !IsNative(access_flags) &&
            !IsAbstract(access_flags) &&
+           !IsDefaultConflicting(access_flags) &&
            !IsRuntimeMethod() &&
            !IsProxyMethod();
   }
@@ -1104,6 +1105,7 @@ class ArtMethod final {
     //   - conflict method: ImtConflictTable,
     //   - abstract/interface method: the single-implementation if any,
     //   - proxy method: the original interface method or constructor,
+    //   - default conflict method: null
     //   - other methods: during AOT the code item offset, at runtime a pointer
     //                    to the code item.
     void* data_;
