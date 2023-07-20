@@ -804,7 +804,7 @@ void DexWriter::WriteHeader(Stream* stream) {
     std::copy_n(header_->Magic(), kMagicAndVersionLen, header.magic_);
   }
   header.checksum_ = header_->Checksum();
-  std::copy_n(header_->Signature(), DexFile::kSha1DigestSize, header.signature_);
+  header.signature_ = header_->Signature();
   header.file_size_ = header_->FileSize();
   header.header_size_ = GetHeaderSize();
   header.endian_tag_ = header_->EndianTag();

@@ -418,8 +418,7 @@ bool OatFileAssistant::LoadDexFiles(const OatFile& oat_file,
                                     std::vector<std::unique_ptr<const DexFile>>* out_dex_files) {
   // Load the main dex file.
   std::string error_msg;
-  const OatDexFile* oat_dex_file =
-      oat_file.GetOatDexFile(dex_location.c_str(), nullptr, &error_msg);
+  const OatDexFile* oat_dex_file = oat_file.GetOatDexFile(dex_location.c_str(), &error_msg);
   if (oat_dex_file == nullptr) {
     LOG(WARNING) << error_msg;
     return false;
@@ -435,7 +434,7 @@ bool OatFileAssistant::LoadDexFiles(const OatFile& oat_file,
   // Load the rest of the multidex entries
   for (size_t i = 1;; i++) {
     std::string multidex_dex_location = DexFileLoader::GetMultiDexLocation(i, dex_location.c_str());
-    oat_dex_file = oat_file.GetOatDexFile(multidex_dex_location.c_str(), nullptr);
+    oat_dex_file = oat_file.GetOatDexFile(multidex_dex_location.c_str());
     if (oat_dex_file == nullptr) {
       // There are no more multidex entries to load.
       break;
@@ -484,7 +483,7 @@ bool OatFileAssistant::DexChecksumUpToDate(const OatFile& file, std::string* err
   uint32_t number_of_dex_files = file.GetOatHeader().GetDexFileCount();
   for (uint32_t i = 0; i < number_of_dex_files; i++) {
     std::string dex = DexFileLoader::GetMultiDexLocation(i, dex_location_.c_str());
-    const OatDexFile* oat_dex_file = file.GetOatDexFile(dex.c_str(), nullptr);
+    const OatDexFile* oat_dex_file = file.GetOatDexFile(dex.c_str());
     if (oat_dex_file == nullptr) {
       *error_msg = StringPrintf("failed to find %s in %s", dex.c_str(), file.GetLocation().c_str());
       return false;
