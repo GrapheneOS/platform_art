@@ -120,8 +120,9 @@ TEST_F(HeapTest, GCMetrics) {
       Handle<mirror::String> string [[maybe_unused]] (
           hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
     }
-    // Do one GC while the temporary objects cannot be collected. This GC will age the objects,and
-    // ensure that the GC at line 127 does scan the objects.
+    // Do one GC while the temporary objects are reachable, forcing the GC to scan something.
+    // The subsequent GC at line 127 may not scan anything but will certainly free some bytes.
+    // Together the two GCs ensure success of the test.
     heap->CollectGarbage(/* clear_soft_references= */ false);
   }
   heap->CollectGarbage(/* clear_soft_references= */ false);
