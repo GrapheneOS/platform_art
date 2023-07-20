@@ -111,6 +111,7 @@ bool AnyIsFalse(bool x, bool y) { return !x || !y; }
 TEST_F(HeapTest, GCMetrics) {
   // Allocate a few string objects (to be collected), then trigger garbage
   // collection, and check that GC metrics are updated (where applicable).
+  Heap* heap = Runtime::Current()->GetHeap();
   {
     constexpr const size_t kNumObj = 128;
     ScopedObjectAccess soa(Thread::Current());
@@ -119,8 +120,10 @@ TEST_F(HeapTest, GCMetrics) {
       Handle<mirror::String> string [[maybe_unused]] (
           hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
     }
+    // Do one GC while the temporary objects cannot be collected. This GC will age the objects,and
+    // ensure that the GC at line 127 does scan the objects.
+    heap->CollectGarbage(/* clear_soft_references= */ false);
   }
-  Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(/* clear_soft_references= */ false);
 
   // ART Metrics.
