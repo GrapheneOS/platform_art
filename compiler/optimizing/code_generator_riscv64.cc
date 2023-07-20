@@ -1326,13 +1326,22 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitArrayLength(HArrayLength* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitArrayLength(HArrayLength* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
+  XRegister obj = locations->InAt(0).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  __ Loadwu(out, obj, offset);  // Unsigned for string length; does not matter for other arrays.
+  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  // Mask out compression flag from String's array length.
+  if (mirror::kUseStringCompression && instruction->IsStringLength()) {
+    __ Srli(out, out, 1u);
+  }
 }
 
 void LocationsBuilderRISCV64::VisitArraySet(HArraySet* instruction) {
