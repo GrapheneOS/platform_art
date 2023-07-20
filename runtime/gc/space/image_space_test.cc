@@ -136,20 +136,22 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
   auto load_boot_image = [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
     boot_image_spaces.clear();
     extra_reservation = MemMap::Invalid();
-    return ImageSpace::LoadBootImage(bcp,
-                                     bcp_locations,
-                                     /*boot_class_path_fds=*/std::vector<int>(),
-                                     /*boot_class_path_image_fds=*/std::vector<int>(),
-                                     /*boot_class_path_vdex_fds=*/std::vector<int>(),
-                                     /*boot_class_path_oat_fds=*/std::vector<int>(),
-                                     full_image_locations,
-                                     kRuntimeISA,
-                                     /*relocate=*/false,
-                                     /*executable=*/true,
-                                     /*extra_reservation_size=*/0u,
-                                     /*allow_in_memory_compilation=*/false,
-                                     &boot_image_spaces,
-                                     &extra_reservation);
+    return ImageSpace::LoadBootImage(
+        bcp,
+        bcp_locations,
+        /*boot_class_path_fds=*/std::vector<int>(),
+        /*boot_class_path_image_fds=*/std::vector<int>(),
+        /*boot_class_path_vdex_fds=*/std::vector<int>(),
+        /*boot_class_path_oat_fds=*/std::vector<int>(),
+        full_image_locations,
+        kRuntimeISA,
+        /*relocate=*/false,
+        /*executable=*/true,
+        /*extra_reservation_size=*/0u,
+        /*allow_in_memory_compilation=*/false,
+        Runtime::GetApexVersions(ArrayRef<const std::string>(bcp_locations)),
+        &boot_image_spaces,
+        &extra_reservation);
   };
 
   const char test_string[] = "SharedBootImageExtensionTestString";

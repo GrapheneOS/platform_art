@@ -421,20 +421,22 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     boot_image_spaces.clear();
     extra_reservation = MemMap::Invalid();
     ScopedObjectAccess soa(Thread::Current());
-    return gc::space::ImageSpace::LoadBootImage(/*boot_class_path=*/ boot_class_path,
-                                                /*boot_class_path_locations=*/ libcore_dex_files,
-                                                /*boot_class_path_fds=*/ std::vector<int>(),
-                                                /*boot_class_path_image_fds=*/ std::vector<int>(),
-                                                /*boot_class_path_vdex_fds=*/ std::vector<int>(),
-                                                /*boot_class_path_oat_fds=*/ std::vector<int>(),
-                                                android::base::Split(image_location, ":"),
-                                                kRuntimeISA,
-                                                relocate,
-                                                /*executable=*/ true,
-                                                /*extra_reservation_size=*/ 0u,
-                                                /*allow_in_memory_compilation=*/ true,
-                                                &boot_image_spaces,
-                                                &extra_reservation);
+    return gc::space::ImageSpace::LoadBootImage(
+        /*boot_class_path=*/boot_class_path,
+        /*boot_class_path_locations=*/libcore_dex_files,
+        /*boot_class_path_fds=*/std::vector<int>(),
+        /*boot_class_path_image_fds=*/std::vector<int>(),
+        /*boot_class_path_vdex_fds=*/std::vector<int>(),
+        /*boot_class_path_oat_fds=*/std::vector<int>(),
+        android::base::Split(image_location, ":"),
+        kRuntimeISA,
+        relocate,
+        /*executable=*/true,
+        /*extra_reservation_size=*/0u,
+        /*allow_in_memory_compilation=*/true,
+        Runtime::GetApexVersions(ArrayRef<const std::string>(libcore_dex_files)),
+        &boot_image_spaces,
+        &extra_reservation);
   };
   auto silent_load = [&](const std::string& image_location) {
     ScopedLogSeverity quiet(LogSeverity::FATAL);
