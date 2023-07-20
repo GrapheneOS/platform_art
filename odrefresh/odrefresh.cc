@@ -426,9 +426,15 @@ void AddDex2OatDebugInfo(/*inout*/ CmdlineBuilder& args) {
   args.Add("--strip");
 }
 
-void AddDex2OatInstructionSet(/*inout*/ CmdlineBuilder& args, InstructionSet isa) {
+void AddDex2OatInstructionSet(/*inout*/ CmdlineBuilder& args,
+                              InstructionSet isa,
+                              const OdrSystemProperties& system_properties) {
   const char* isa_str = GetInstructionSetString(isa);
   args.Add("--instruction-set=%s", isa_str);
+  std::string features_prop = ART_FORMAT("dalvik.vm.isa.{}.features", isa_str);
+  args.AddIfNonEmpty("--instruction-set-features=%s", system_properties.GetOrEmpty(features_prop));
+  std::string variant_prop = ART_FORMAT("dalvik.vm.isa.{}.variant", isa_str);
+  args.AddIfNonEmpty("--instruction-set-variant=%s", system_properties.GetOrEmpty(variant_prop));
 }
 
 // Returns true if any profile has been added.
@@ -1630,7 +1636,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
 
   AddDex2OatCommonOptions(args);
   AddDex2OatDebugInfo(args);
-  AddDex2OatInstructionSet(args, isa);
+  AddDex2OatInstructionSet(args, isa, config_.GetSystemProperties());
   Result<void> result = AddDex2OatConcurrencyArguments(
       args, config_.GetCompilationOsMode(), config_.GetSystemProperties());
   if (!result.ok()) {
@@ -1776,6 +1782,10 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
     // Mainline extension.
     args.Add("--compiler-filter=%s", kMainlineCompilerFilter);
   }
+
+  const OdrSystemProperties& system_properties = config_.GetSystemProperties();
+  args.AddRuntimeIfNonEmpty("-Xms%s", system_properties.GetOrEmpty("dalvik.vm.image-dex2oat-Xms"))
+      .AddRuntimeIfNonEmpty("-Xmx%s", system_properties.GetOrEmpty("dalvik.vm.image-dex2oat-Xmx"));
 
   return RunDex2oat(
       staging_dir,
@@ -1930,6 +1940,10 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
     }
     args.Add("--class-loader-context-fds=%s", Join(fds, ':'));
   }
+
+  const OdrSystemProperties& system_properties = config_.GetSystemProperties();
+  args.AddRuntimeIfNonEmpty("-Xms%s", system_properties.GetOrEmpty("dalvik.vm.dex2oat-Xms"))
+      .AddRuntimeIfNonEmpty("-Xmx%s", system_properties.GetOrEmpty("dalvik.vm.dex2oat-Xmx"));
 
   return RunDex2oat(staging_dir,
                     ART_FORMAT("Compiling {}", Basename(dex_file)),
