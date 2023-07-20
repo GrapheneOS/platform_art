@@ -29,7 +29,6 @@
 #include "base/safe_map.h"
 #include "base/tracking_safe_map.h"
 #include "class_status.h"
-#include "dex/dex_file.h"
 #include "dex/dex_file_layout.h"
 #include "dex/type_lookup_table.h"
 #include "dex/utf.h"
@@ -39,6 +38,7 @@
 namespace art {
 
 class BitVector;
+class DexFile;
 class ClassLoaderContext;
 class ElfFile;
 class DexLayoutSections;
@@ -302,7 +302,8 @@ class OatFile {
   // If error_msg is non-null and no OatDexFile is returned, error_msg will
   // be updated with a description of why no OatDexFile was returned.
   const OatDexFile* GetOatDexFile(const char* dex_location,
-                                  /*out*/ std::string* error_msg = nullptr) const
+                                  const uint32_t* const dex_location_checksum,
+                                  /*out*/std::string* error_msg = nullptr) const
       REQUIRES(!secondary_lookup_lock_);
 
   const std::vector<const OatDexFile*>& GetOatDexFiles() const {
@@ -529,8 +530,6 @@ class OatDexFile final {
   // Returns checksum of original DexFile that was the source of this OatDexFile;
   uint32_t GetLocationChecksum() const { return dex_file_location_checksum_; }
 
-  DexFile::Sha1 GetSha1() const { return dex_file_sha1_; }
-
   // Returns the OatClass for the class specified by the given DexFile class_def_index.
   OatFile::OatClass GetOatClass(uint16_t class_def_index) const;
 
@@ -590,7 +589,6 @@ class OatDexFile final {
              const std::string& dex_file_location,
              const std::string& canonical_dex_file_location,
              uint32_t dex_file_checksum,
-             DexFile::Sha1 dex_file_sha1,
              const uint8_t* dex_file_pointer,
              const uint8_t* lookup_table_data,
              const IndexBssMapping* method_bss_mapping,
@@ -606,7 +604,6 @@ class OatDexFile final {
   OatDexFile(const OatFile* oat_file,
              const uint8_t* dex_file_pointer,
              uint32_t dex_file_checksum,
-             DexFile::Sha1 dex_file_sha1,
              const std::string& dex_file_location,
              const std::string& canonical_dex_file_location,
              const uint8_t* lookup_table_data);
@@ -620,7 +617,6 @@ class OatDexFile final {
   const std::string dex_file_location_;
   const std::string canonical_dex_file_location_;
   const uint32_t dex_file_location_checksum_ = 0u;
-  const DexFile::Sha1 dex_file_sha1_ = {};
   const uint8_t* const dex_file_pointer_ = nullptr;
   const uint8_t* const lookup_table_data_ = nullptr;
   const IndexBssMapping* const method_bss_mapping_ = nullptr;
