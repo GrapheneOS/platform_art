@@ -36,6 +36,22 @@ else
   out_dir=${OUT_DIR}
 fi
 
+# On master-art, we need to copy ART-local riscv64 prebuilts for conscrypt and
+# statsd into their own repositories, as mainline doesn't support riscv64 yet.
+# Android.bp files are stored with as ArtThinBuild.bp to prevent Soong from
+# adding them to the build graph, so they must be renamed after copying.
+#
+# TODO(b/286551985): Remove this after riscv64 support is added to mainline.
+if [[ $TARGET_ARCH = "riscv64" && ! ( -d frameworks/base ) ]]; then
+  cp -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/conscrypt \
+    prebuilts/module_sdk
+  cp -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/StatsD \
+    prebuilts/module_sdk
+  for f in $(find prebuilts/module_sdk -name ArtThinBuild.bp) ; do
+    mv "$f" "$(dirname $f)/Android.bp"
+  done
+fi
+
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
 common_targets="vogar core-tests core-ojtests apache-harmony-jdwp-tests-hostdex jsr166-tests libartpalette-system mockito-target"
 # These build targets have different names on device and host.
