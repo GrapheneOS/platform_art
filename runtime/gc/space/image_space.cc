@@ -2198,6 +2198,8 @@ bool ImageSpace::BootImageLayout::LoadFromSystem(InstructionSet image_isa,
 
 class ImageSpace::BootImageLoader {
  public:
+  // Creates an instance.
+  // `apex_versions` is created from `Runtime::GetApexVersions` and must outlive this instance.
   BootImageLoader(const std::vector<std::string>& boot_class_path,
                   const std::vector<std::string>& boot_class_path_locations,
                   const std::vector<int>& boot_class_path_fds,
@@ -2207,7 +2209,8 @@ class ImageSpace::BootImageLoader {
                   const std::vector<std::string>& image_locations,
                   InstructionSet image_isa,
                   bool relocate,
-                  bool executable)
+                  bool executable,
+                  const std::string* apex_versions)
       : boot_class_path_(boot_class_path),
         boot_class_path_locations_(boot_class_path_locations),
         boot_class_path_fds_(boot_class_path_fds),
@@ -2218,8 +2221,8 @@ class ImageSpace::BootImageLoader {
         image_isa_(image_isa),
         relocate_(relocate),
         executable_(executable),
-        has_system_(false) {
-  }
+        has_system_(false),
+        apex_versions_(apex_versions) {}
 
   void FindImageFiles() {
     BootImageLayout layout(image_locations_,
@@ -2228,7 +2231,8 @@ class ImageSpace::BootImageLoader {
                            boot_class_path_fds_,
                            boot_class_path_image_fds_,
                            boot_class_path_vdex_fds_,
-                           boot_class_path_oat_fds_);
+                           boot_class_path_oat_fds_,
+                           apex_versions_);
     std::string image_location = layout.GetPrimaryImageLocation();
     std::string system_filename;
     bool found_image = FindImageFilenameImpl(image_location.c_str(),
@@ -3205,6 +3209,7 @@ class ImageSpace::BootImageLoader {
   const bool relocate_;
   const bool executable_;
   bool has_system_;
+  const std::string* apex_versions_;
 };
 
 bool ImageSpace::BootImageLoader::LoadFromSystem(
@@ -3221,7 +3226,8 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
                          boot_class_path_fds_,
                          boot_class_path_image_fds_,
                          boot_class_path_vdex_fds_,
-                         boot_class_path_oat_fds_);
+                         boot_class_path_oat_fds_,
+                         apex_versions_);
   if (!layout.LoadFromSystem(image_isa_, allow_in_memory_compilation, error_msg)) {
     return false;
   }
@@ -3254,7 +3260,8 @@ bool ImageSpace::IsBootClassPathOnDisk(InstructionSet image_isa) {
                          ArrayRef<const int>(runtime->GetBootClassPathFds()),
                          ArrayRef<const int>(runtime->GetBootClassPathImageFds()),
                          ArrayRef<const int>(runtime->GetBootClassPathVdexFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathOatFds()));
+                         ArrayRef<const int>(runtime->GetBootClassPathOatFds()),
+                         &runtime->GetApexVersions());
   const std::string image_location = layout.GetPrimaryImageLocation();
   std::unique_ptr<ImageHeader> image_header;
   std::string error_msg;
@@ -3273,21 +3280,21 @@ bool ImageSpace::IsBootClassPathOnDisk(InstructionSet image_isa) {
   return image_header != nullptr;
 }
 
-bool ImageSpace::LoadBootImage(
-    const std::vector<std::string>& boot_class_path,
-    const std::vector<std::string>& boot_class_path_locations,
-    const std::vector<int>& boot_class_path_fds,
-    const std::vector<int>& boot_class_path_image_fds,
-    const std::vector<int>& boot_class_path_vdex_fds,
-    const std::vector<int>& boot_class_path_odex_fds,
-    const std::vector<std::string>& image_locations,
-    const InstructionSet image_isa,
-    bool relocate,
-    bool executable,
-    size_t extra_reservation_size,
-    bool allow_in_memory_compilation,
-    /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
-    /*out*/MemMap* extra_reservation) {
+bool ImageSpace::LoadBootImage(const std::vector<std::string>& boot_class_path,
+                               const std::vector<std::string>& boot_class_path_locations,
+                               const std::vector<int>& boot_class_path_fds,
+                               const std::vector<int>& boot_class_path_image_fds,
+                               const std::vector<int>& boot_class_path_vdex_fds,
+                               const std::vector<int>& boot_class_path_odex_fds,
+                               const std::vector<std::string>& image_locations,
+                               const InstructionSet image_isa,
+                               bool relocate,
+                               bool executable,
+                               size_t extra_reservation_size,
+                               bool allow_in_memory_compilation,
+                               const std::string& apex_versions,
+                               /*out*/ std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
+                               /*out*/ MemMap* extra_reservation) {
   ScopedTrace trace(__FUNCTION__);
 
   DCHECK(boot_image_spaces != nullptr);
@@ -3309,7 +3316,8 @@ bool ImageSpace::LoadBootImage(
                          image_locations,
                          image_isa,
                          relocate,
-                         executable);
+                         executable,
+                         &apex_versions);
   loader.FindImageFiles();
 
   // Collect all the errors.
