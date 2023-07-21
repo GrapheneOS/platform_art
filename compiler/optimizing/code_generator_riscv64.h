@@ -289,16 +289,14 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                            LocationSummary* locations,
                            Riscv64Label* label = nullptr);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
-  void GenPackedSwitchWithCompares(XRegister value_reg,
-                                   int32_t lower_bound,
+  void GenPackedSwitchWithCompares(XRegister adjusted,
+                                   XRegister temp,
                                    uint32_t num_entries,
-                                   HBasicBlock* switch_block,
-                                   HBasicBlock* default_block);
-  void GenTableBasedPackedSwitch(XRegister value_reg,
-                                 int32_t lower_bound,
+                                   HBasicBlock* switch_block);
+  void GenTableBasedPackedSwitch(XRegister adjusted,
+                                 XRegister temp,
                                  uint32_t num_entries,
-                                 HBasicBlock* switch_block,
-                                 HBasicBlock* default_block);
+                                 HBasicBlock* switch_block);
   int32_t VecAddress(LocationSummary* locations,
                      size_t size,
                      /*out*/ XRegister* adjusted_base);
