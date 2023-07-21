@@ -190,25 +190,23 @@ TEST_F(SigchainTest, sighold) {
   });
 }
 
-#if defined(__BIONIC__)
+#if !defined(__riscv)
 // Not exposed via headers, but the symbols are available if you declare them yourself.
 extern "C" int sigblock(int);
-extern "C" int sigsetmask(int);
-#endif
-
 TEST_F(SigchainTest, sigblock) {
   TestSignalBlocking([]() {
     int mask = ~0U;
     ASSERT_EQ(0, sigblock(mask));
   });
 }
-
+extern "C" int sigsetmask(int);
 TEST_F(SigchainTest, sigsetmask) {
   TestSignalBlocking([]() {
     int mask = ~0U;
     ASSERT_EQ(0, sigsetmask(mask));
   });
 }
+#endif
 
 #endif
 
