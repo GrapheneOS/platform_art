@@ -220,12 +220,12 @@ if [[ $build_target == "yes" ]]; then
       arch64=x86_64
     fi
     for so in ${implementation_libs[@]}; do
-      if [ -d "$ANDROID_PRODUCT_OUT/system/lib" ]; then
+      if [ -d "$ANDROID_PRODUCT_OUT/system/lib" -a $arch32 != none ]; then
         cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch32/${so}.so $ANDROID_PRODUCT_OUT/system/lib/${so}.so"
         msginfo "Executing" "$cmd"
         eval "$cmd"
       fi
-      if [ -d "$ANDROID_PRODUCT_OUT/system/lib64" ]; then
+      if [ -d "$ANDROID_PRODUCT_OUT/system/lib64" -a $arch64 != none ]; then
         cmd="cp -p prebuilts/runtime/mainline/platform/impl/$arch64/${so}.so $ANDROID_PRODUCT_OUT/system/lib64/${so}.so"
         msginfo "Executing" "$cmd"
         eval "$cmd"
