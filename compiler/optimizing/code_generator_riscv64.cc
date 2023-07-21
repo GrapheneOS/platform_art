@@ -3098,7 +3098,7 @@ void CodeGeneratorRISCV64::GenerateFrameEntry() {
 
     // We don't emit a read barrier here to save on code size. We rely on the
     // resolution trampoline to do a clinit check before re-entering this code.
-    __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
+    __ Loadwu(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
 
     // We shall load the full 32-bit status word with sign-extension and compare as unsigned
     // to sign-extended shifted status values. This yields the same comparison as loading and
@@ -3118,7 +3118,7 @@ void CodeGeneratorRISCV64::GenerateFrameEntry() {
     __ Li(tmp2, ShiftedSignExtendedClassStatusValue<ClassStatus::kInitializing>());
     __ Bltu(tmp, tmp2, &resolution);  // Can clobber `TMP` if taken.
 
-    __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
+    __ Loadwu(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
     __ Loadw(tmp, tmp2, mirror::Class::ClinitThreadIdOffset().Int32Value());
     __ Loadw(tmp2, TR, Thread::TidOffset<kRiscv64PointerSize>().Int32Value());
     __ Beq(tmp, tmp2, &frame_entry_label_);
