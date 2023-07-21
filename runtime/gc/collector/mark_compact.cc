@@ -120,11 +120,9 @@ static constexpr uint64_t kUffdFeaturesForSigbus = UFFD_FEATURE_SIGBUS;
 // threading-based implementation for janks. However, since we have the latter
 // already implemented, for testing purposes, we allow choosing either of the
 // two at boot time in the constructor below.
-// Note that having minor-fault feature implies having SIGBUS feature as the
-// latter was introduced earlier than the former. In other words, having
-// minor-fault feature implies having SIGBUS. We still want minor-fault to be
-// available for making jit-code-cache updation concurrent, which uses shmem.
-static constexpr uint64_t kUffdFeaturesRequired =
+// We may want minor-fault in future to be available for making jit-code-cache
+// updation concurrent, which uses shmem.
+static constexpr uint64_t kUffdFeaturesRequested =
     kUffdFeaturesForMinorFault | kUffdFeaturesForSigbus;
 
 bool KernelSupportsUffd() {
@@ -144,8 +142,8 @@ bool KernelSupportsUffd() {
       CHECK_EQ(ioctl(fd, UFFDIO_API, &api), 0) << "ioctl_userfaultfd : API:" << strerror(errno);
       gUffdFeatures = api.features;
       close(fd);
-      // Allow this GC to be used only if minor-fault and sigbus feature is available.
-      return (api.features & kUffdFeaturesRequired) == kUffdFeaturesRequired;
+      // Minimum we need is sigbus feature for using userfaultfd.
+      return (api.features & kUffdFeaturesForSigbus) == kUffdFeaturesForSigbus;
     }
   }
 #endif
@@ -344,8 +342,24 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
       } else {
         DCHECK(IsValidFd(uffd_));
         // Initialize uffd with the features which are required and available.
-        struct uffdio_api api = {.api = UFFD_API, .features = gUffdFeatures, .ioctls = 0};
-        api.features &= use_uffd_sigbus_ ? kUffdFeaturesRequired : kUffdFeaturesForMinorFault;
+        struct uffdio_api api = {.api = UFFD_API, .ioctls = 0};
+        // We should add SIGBUS feature only if we plan on using it as
+        // requesting it here will mean threading mode will not work.
+        if (use_uffd_sigbus_) {
+          static_assert((kUffdFeaturesRequested & kUffdFeaturesForSigbus) ==
+                        kUffdFeaturesForSigbus);
+          DCHECK_EQ(gUffdFeatures & kUffdFeaturesForSigbus, kUffdFeaturesForSigbus);
+          // Request all the required features, which may include minor-fault
+          // feature as well.
+          api.features = kUffdFeaturesRequested;
+        } else if (uffd_minor_fault_supported_) {
+          DCHECK_EQ(gUffdFeatures & kUffdFeaturesForMinorFault, kUffdFeaturesForMinorFault);
+          api.features = kUffdFeaturesForMinorFault;
+        } else {
+          // If we plan to use private anonymous mapping in threading mode,
+          // then we don't need to ask for any features.
+          api.features = 0;
+        }
         CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
             << "ioctl_userfaultfd: API: " << strerror(errno);
       }
