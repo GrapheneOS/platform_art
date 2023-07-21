@@ -746,7 +746,9 @@ Result<void> OnDeviceRefresh::WriteCacheInfo() const {
 
   std::vector<art_apex::KeyValuePair> system_properties;
   for (const auto& [key, value] : config_.GetSystemProperties()) {
-    system_properties.emplace_back(key, value);
+    if (!art::ContainsElement(kIgnoredSystemProperties, key)) {
+      system_properties.emplace_back(key, value);
+    }
   }
 
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
@@ -1062,7 +1064,9 @@ WARN_UNUSED bool OnDeviceRefresh::CheckSystemPropertiesHaveNotChanged(
   const OdrSystemProperties& system_properties = config_.GetSystemProperties();
 
   for (const auto& [key, value] : system_properties) {
-    checked_properties.insert(key);
+    if (!art::ContainsElement(kIgnoredSystemProperties, key)) {
+      checked_properties.insert(key);
+    }
   }
 
   for (const std::string& name : checked_properties) {
