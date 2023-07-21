@@ -51,10 +51,9 @@ class CodeGeneratorARM64;
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArm64WordSize = static_cast<size_t>(kArm64PointerSize);
 
-// These constants are used as an approximate margin when emission of veneer and literal pools
+// This constant is used as an approximate margin when emission of veneer and literal pools
 // must be blocked.
 static constexpr int kMaxMacroInstructionSizeInBytes = 15 * vixl::aarch64::kInstructionSize;
-static constexpr int kInvokeCodeMarginSizeInBytes = 6 * kMaxMacroInstructionSizeInBytes;
 
 static const vixl::aarch64::Register kParameterCoreRegisters[] = {
     vixl::aarch64::x1,
@@ -221,8 +220,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
 class InvokeRuntimeCallingConvention : public CallingConvention<vixl::aarch64::Register,
                                                                 vixl::aarch64::VRegister> {
  public:
-  static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-
   InvokeRuntimeCallingConvention()
       : CallingConvention(kRuntimeParameterCoreRegisters,
                           kRuntimeParameterCoreRegistersLength,
