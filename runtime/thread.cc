@@ -145,6 +145,9 @@ thread_local Thread* Thread::self_tls_ = nullptr;
 #endif
 
 static constexpr bool kVerifyImageObjectsMarked = kIsDebugBuild;
+// Amount of time (in microseconds) that we sleep if another thread is running
+// flip function of the thread that we are interested in.
+static constexpr size_t kSuspendTimeDuringFlip = 5'000;
 
 // For implicit overflow checks we reserve an extra piece of memory at the bottom
 // of the stack (lowest memory).  The higher portion of the memory
@@ -1606,25 +1609,8 @@ void Thread::ClearSuspendBarrier(AtomicInteger* target) {
 }
 
 void Thread::RunCheckpointFunction() {
-  // If this thread is suspended and another thread is running the checkpoint on its behalf,
-  // we may have a pending flip function that we need to run for the sake of those checkpoints
-  // that need to walk the stack. We should not see the flip function flags when the thread
-  // is running the checkpoint on its own.
-  StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
-  if (UNLIKELY(state_and_flags.IsAnyOfFlagsSet(FlipFunctionFlags()))) {
-    DCHECK(IsSuspended());
-    Thread* self = Thread::Current();
-    DCHECK(self != this);
-    if (state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction)) {
-      EnsureFlipFunctionStarted(self);
-      state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
-      DCHECK(!state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction));
-    }
-    if (state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction)) {
-      WaitForFlipFunction(self);
-    }
-  }
-
+  DCHECK_EQ(Thread::Current(), this);
+  CHECK(!GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
   // Grab the suspend_count lock, get the next checkpoint and update all the checkpoint fields. If
   // there are no more checkpoints we will also clear the kCheckpointRequest flag.
   Closure* checkpoint;
@@ -1812,7 +1798,7 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function, ThreadState suspend
           !self->GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
       EnsureFlipFunctionStarted(self);
       while (GetStateAndFlags(std::memory_order_acquire).IsAnyOfFlagsSet(FlipFunctionFlags())) {
-        sched_yield();
+        usleep(kSuspendTimeDuringFlip);
       }
 
       function->Run(this);
@@ -1824,12 +1810,8 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function, ThreadState suspend
       DCHECK_NE(GetState(), ThreadState::kRunnable);
       bool updated = ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
       DCHECK(updated);
-    }
-
-    {
       // Imitate ResumeAll, the thread may be waiting on Thread::resume_cond_ since we raised its
       // suspend count. Now the suspend_count_ is lowered so we must do the broadcast.
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
       Thread::resume_cond_->Broadcast(self);
     }
 
@@ -1850,23 +1832,43 @@ void Thread::SetFlipFunction(Closure* function) {
   AtomicSetFlag(ThreadFlag::kPendingFlipFunction, std::memory_order_release);
 }
 
-void Thread::EnsureFlipFunctionStarted(Thread* self) {
-  while (true) {
-    StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
-    if (!old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction)) {
-      return;
-    }
+bool Thread::EnsureFlipFunctionStarted(Thread* self, StateAndFlags old_state_and_flags) {
+  bool become_runnable;
+  if (old_state_and_flags.GetValue() == 0) {
+    become_runnable = false;
+    old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+  } else {
+    become_runnable = true;
+    DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest));
+  }
+
+  while (old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction)) {
     DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction));
     StateAndFlags new_state_and_flags =
         old_state_and_flags.WithFlag(ThreadFlag::kRunningFlipFunction)
                            .WithoutFlag(ThreadFlag::kPendingFlipFunction);
+    if (become_runnable) {
+      DCHECK_EQ(self, this);
+      DCHECK_NE(self->GetState(), ThreadState::kRunnable);
+      new_state_and_flags = new_state_and_flags.WithState(ThreadState::kRunnable);
+    }
     if (tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
                                                         new_state_and_flags.GetValue())) {
+      if (become_runnable) {
+        GetMutatorLock()->TransitionFromSuspendedToRunnable(this);
+      }
+      art::Locks::mutator_lock_->AssertSharedHeld(self);
       RunFlipFunction(self, /*notify=*/ true);
       DCHECK(!GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
-      return;
+      return true;
+    } else {
+      old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+      if (become_runnable && old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
+        break;
+      }
     }
   }
+  return false;
 }
 
 void Thread::RunFlipFunction(Thread* self, bool notify) {
@@ -4733,16 +4735,14 @@ bool Thread::IsAotCompiler() {
   return Runtime::Current()->IsAotCompiler();
 }
 
-mirror::Object* Thread::GetPeerFromOtherThread() const {
+mirror::Object* Thread::GetPeerFromOtherThread() {
   DCHECK(tlsPtr_.jpeer == nullptr);
-  mirror::Object* peer = tlsPtr_.opeer;
-  if (gUseReadBarrier && Current()->GetIsGcMarking()) {
-    // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
-    // may have not been flipped yet and peer may be a from-space (stale) ref. So explicitly
-    // mark/forward it here.
-    peer = art::ReadBarrier::Mark(peer);
+  // Ensure that opeer is not obsolete.
+  EnsureFlipFunctionStarted(Thread::Current());
+  while (GetStateAndFlags(std::memory_order_acquire).IsAnyOfFlagsSet(FlipFunctionFlags())) {
+    usleep(kSuspendTimeDuringFlip);
   }
-  return peer;
+  return tlsPtr_.opeer;
 }
 
 void Thread::SetReadBarrierEntrypoints() {

@@ -388,17 +388,39 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback
   // Run the checkpoint on ourself while we wait for threads to suspend.
   checkpoint_function->Run(self);
 
+  bool repeat = true;
   // Run the checkpoint on the suspended threads.
-  for (const auto& thread : suspended_count_modified_threads) {
-    // We know for sure that the thread is suspended at this point.
-    DCHECK(thread->IsSuspended());
-    checkpoint_function->Run(thread);
-    {
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
-      DCHECK(updated);
+  while (repeat) {
+    repeat = false;
+    for (auto& thread : suspended_count_modified_threads) {
+      if (thread != nullptr) {
+        // We know for sure that the thread is suspended at this point.
+        DCHECK(thread->IsSuspended());
+        // Make sure there is no pending flip function before running checkpoint
+        // on behalf of thread.
+        thread->EnsureFlipFunctionStarted(self);
+        if (thread->GetStateAndFlags(std::memory_order_acquire)
+                .IsAnyOfFlagsSet(Thread::FlipFunctionFlags())) {
+          // There is another thread running the flip function for 'thread'.
+          // Instead of waiting for it to complete, move to the next thread.
+          repeat = true;
+          continue;
+        }
+        checkpoint_function->Run(thread);
+        {
+          MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+          bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+          DCHECK(updated);
+        }
+        // We are done with 'thread' so set it to nullptr so that next outer
+        // loop iteration, if any, skips 'thread'.
+        thread = nullptr;
+      }
     }
   }
+  DCHECK(std::all_of(suspended_count_modified_threads.cbegin(),
+                     suspended_count_modified_threads.cend(),
+                     [](Thread* thread) { return thread == nullptr; }));
 
   {
     // Imitate ResumeAll, threads may be waiting on Thread::resume_cond_ since we raised their

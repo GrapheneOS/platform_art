@@ -383,15 +383,8 @@ class Thread {
   // Set the flip function. This is done with all threads suspended, except for the calling thread.
   void SetFlipFunction(Closure* function);
 
-  // Ensure that thread flip function started running. If no other thread is executing
-  // it, the calling thread shall run the flip function and then notify other threads
-  // that have tried to do that concurrently. After this function returns, the
-  // `ThreadFlag::kPendingFlipFunction` is cleared but another thread may still
-  // run the flip function as indicated by the `ThreadFlag::kRunningFlipFunction`.
-  void EnsureFlipFunctionStarted(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Wait for the flip function to complete if still running on another thread.
-  void WaitForFlipFunction(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+  void WaitForFlipFunction(Thread* self);
 
   gc::accounting::AtomicStack<mirror::Object>* GetThreadLocalMarkStack() {
     CHECK(gUseReadBarrier);
@@ -524,10 +517,12 @@ class Thread {
     CHECK(tlsPtr_.jpeer == nullptr);
     return tlsPtr_.opeer;
   }
-  // GetPeer is not safe if called on another thread in the middle of the CC thread flip and
+  // GetPeer is not safe if called on another thread in the middle of the thread flip and
   // the thread's stack may have not been flipped yet and peer may be a from-space (stale) ref.
-  // This function will explicitly mark/forward it.
-  mirror::Object* GetPeerFromOtherThread() const REQUIRES_SHARED(Locks::mutator_lock_);
+  // This function will force a flip for the other thread if necessary.
+  // Since we hold a shared mutator lock, a new flip function cannot be concurrently
+  // installed
+  mirror::Object* GetPeerFromOtherThread() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasPeer() const {
     return tlsPtr_.jpeer != nullptr || tlsPtr_.opeer != nullptr;
@@ -1740,6 +1735,19 @@ class Thread {
   // to do that concurrently.
   void RunFlipFunction(Thread* self, bool notify) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Ensure that thread flip function started running. If no other thread is executing
+  // it, the calling thread shall run the flip function and then notify other threads
+  // that have tried to do that concurrently. After this function returns, the
+  // `ThreadFlag::kPendingFlipFunction` is cleared but another thread may still
+  // run the flip function as indicated by the `ThreadFlag::kRunningFlipFunction`.
+  // A non-zero 'old_state_and_flags' indicates that the thread should logically
+  // acquire mutator lock if we win the race to run the flip function, if a
+  // suspend request is not already set. A zero 'old_state_and_flags' indicates
+  // we already hold the mutator lock.
+  // Returns true if this call ran the flip function.
+  bool EnsureFlipFunctionStarted(Thread* self, StateAndFlags old_state_and_flags = StateAndFlags(0))
+      TRY_ACQUIRE_SHARED(true, Locks::mutator_lock_);
+
   static void ThreadExitCallback(void* arg);
 
   // Maximum number of suspend barriers.
@@ -2170,8 +2178,7 @@ class Thread {
   friend class QuickExceptionHandler;  // For dumping the stack.
   friend class ScopedThreadStateChange;
   friend class StubTest;  // For accessing entrypoints.
-  friend class ThreadList;  // For ~Thread and Destroy.
-
+  friend class ThreadList;  // For ~Thread, Destroy and EnsureFlipFunctionStarted.
   friend class EntrypointsOrderTest;  // To test the order of tls entries.
   friend class JniCompilerTest;  // For intercepting JNI entrypoint calls.
 
