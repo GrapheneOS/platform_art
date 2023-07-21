@@ -29,7 +29,6 @@ import com.android.tradefed.util.CommandResult;
 import java.util.concurrent.TimeUnit;
 
 public class CompOsTestUtils {
-    public static final String APEXDATA_DIR = "/data/misc/apexdata/com.android.compos";
 
     public static final String PENDING_ARTIFACTS_DIR =
             "/data/misc/apexdata/com.android.art/compos-pending";
@@ -63,7 +62,7 @@ public class CompOsTestUtils {
     public void runCompilationJobEarlyAndWait() throws Exception {
         waitForJobToBeScheduled();
 
-        assertCommandSucceeds("cmd jobscheduler run android " + JOB_ID);
+        assertCommandSucceeds("cmd jobscheduler run -f android " + JOB_ID);
         // It takes time. Just don't spam.
         TimeUnit.SECONDS.sleep(SECONDS_BEFORE_PROGRESS_CHECK);
         // The job runs asynchronously. To wait until it completes.
@@ -84,12 +83,12 @@ public class CompOsTestUtils {
         for (int i = 0; i < JOB_CREATION_MAX_SECONDS; i++) {
             CommandResult result = mDevice.executeShellV2Command(
                     "cmd jobscheduler get-job-state android " + JOB_ID);
-            String state = result.getStdout().toString();
+            String state = result.getStdout();
             if (state.startsWith("unknown")) {
                 // The job hasn't been scheduled yet. So try again.
                 TimeUnit.SECONDS.sleep(1);
             } else if (result.getExitCode() != 0) {
-                fail("Failing due to unexpected job state: " + result);
+                fail("Failing due to unexpected cmd jobscheduler exit code: " + result);
             } else {
                 // The job exists, which is all we care about here
                 return;
@@ -102,14 +101,16 @@ public class CompOsTestUtils {
         for (int i = 0; i < timeout; i++) {
             CommandResult result = mDevice.executeShellV2Command(
                     "cmd jobscheduler get-job-state android " + JOB_ID);
-            String state = result.getStdout().toString();
+            String state = result.getStdout();
             if (state.contains("ready") || state.contains("active")) {
                 TimeUnit.SECONDS.sleep(1);
             } else if (state.startsWith("unknown")) {
                 // Job has completed
                 return;
             } else {
-                fail("Failing due to unexpected job state: " + result);
+                String context = (result.getExitCode() == 0) ? result.getStdout()
+                        : result.toString();
+                fail("Failing due to unexpected job state: " + context);
             }
         }
         fail("Timed out waiting for the job to complete");
