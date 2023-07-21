@@ -23,7 +23,8 @@
           "org.apache.harmony.tests.java.lang.ref.ReferenceQueueTest#test_removeJ",
           "org.apache.harmony.tests.java.text.MessageFormatTest#test_parseLjava_lang_String",
           "org.apache.harmony.tests.java.util.ControlTest#test_toBundleName_LStringLLocale",
-          "org.apache.harmony.tests.java.util.TimerTest#testThrowingTaskKillsTimerThread"
+          "org.apache.harmony.tests.java.util.TimerTest#testThrowingTaskKillsTimerThread",
+          "test.java.math.BigDecimal.DivideMcTests#mcDivideTests"
         ]
 },
 {
