@@ -45,7 +45,6 @@ using ::android::base::StartsWith;
 using ::art::odrefresh::CompilationOptions;
 using ::art::odrefresh::ExitCode;
 using ::art::odrefresh::kCheckedSystemPropertyPrefixes;
-using ::art::odrefresh::kIgnoredSystemProperties;
 using ::art::odrefresh::kSystemProperties;
 using ::art::odrefresh::kSystemPropertySystemServerCompilerFilterOverride;
 using ::art::odrefresh::OdrCompilationLog;
@@ -205,7 +204,7 @@ void GetSystemProperties(std::unordered_map<std::string, std::string>* system_pr
       return;
     }
     for (const char* prefix : kCheckedSystemPropertyPrefixes) {
-      if (StartsWith(name, prefix) && !art::ContainsElement(kIgnoredSystemProperties, name)) {
+      if (StartsWith(name, prefix)) {
         (*system_properties)[name] = value;
       }
     }
