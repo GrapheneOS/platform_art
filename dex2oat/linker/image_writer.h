@@ -396,8 +396,7 @@ class ImageWriter final {
   size_t GetImageOffset(mirror::Object* object, size_t oat_index) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  Bin AssignImageBinSlot(mirror::Object* object, size_t oat_index)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  Bin GetImageBin(mirror::Object* object) REQUIRES_SHARED(Locks::mutator_lock_);
   void AssignImageBinSlot(mirror::Object* object, size_t oat_index, Bin bin)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void RecordNativeRelocations(ObjPtr<mirror::Class> klass, size_t oat_index)
