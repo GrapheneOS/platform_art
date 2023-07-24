@@ -628,7 +628,7 @@ bool ShouldDenyAccessToMemberImpl(T* member, ApiList api_list, AccessMethod acce
       static_assert(RAND_MAX >= 0xffff, "RAND_MAX too small");
       if (eventLogSampleRate != 0) {
         const uint32_t sampled_value = static_cast<uint32_t>(std::rand()) & 0xffff;
-        if (sampled_value < eventLogSampleRate) {
+        if (sampled_value <= eventLogSampleRate) {
           member_signature.LogAccessToEventLog(sampled_value, access_method, deny_access);
         }
       }
