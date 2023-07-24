@@ -223,6 +223,44 @@ class NullCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathRISCV64);
 };
 
+class BoundsCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  explicit BoundsCheckSlowPathRISCV64(HBoundsCheck* instruction)
+      : SlowPathCodeRISCV64(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    LocationSummary* locations = instruction_->GetLocations();
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    __ Bind(GetEntryLabel());
+    if (instruction_->CanThrowIntoCatchBlock()) {
+      // Live registers will be restored in the catch block if caught.
+      SaveLiveRegisters(codegen, instruction_->GetLocations());
+    }
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConvention calling_convention;
+    codegen->EmitParallelMoves(locations->InAt(0),
+                               Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+                               DataType::Type::kInt32,
+                               locations->InAt(1),
+                               Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+                               DataType::Type::kInt32);
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt() ?
+                                         kQuickThrowStringBounds :
+                                         kQuickThrowArrayBounds;
+    riscv64_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
+    CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
+  }
+
+  bool IsFatal() const override { return true; }
+
+  const char* GetDescription() const override { return "BoundsCheckSlowPathRISCV64"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathRISCV64);
+};
+
 #undef __
 #define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
@@ -1382,13 +1420,91 @@ void InstructionCodeGeneratorRISCV64::VisitBooleanNot(HBooleanNot* instruction) 
 }
 
 void LocationsBuilderRISCV64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  RegisterSet caller_saves = RegisterSet::Empty();
+  InvokeRuntimeCallingConvention calling_convention;
+  caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction, caller_saves);
+
+  HInstruction* index = instruction->InputAt(0);
+  HInstruction* length = instruction->InputAt(1);
+
+  bool const_index = false;
+  bool const_length = false;
+
+  if (length->IsConstant()) {
+    if (index->IsConstant()) {
+      const_index = true;
+      const_length = true;
+    } else {
+      int32_t length_value = length->AsIntConstant()->GetValue();
+      if (length_value == 0 || length_value == 1) {
+        const_length = true;
+      }
+    }
+  } else if (index->IsConstant()) {
+    int32_t index_value = index->AsIntConstant()->GetValue();
+    if (index_value <= 0) {
+      const_index = true;
+    }
+  }
+
+  locations->SetInAt(
+      0,
+      const_index ? Location::ConstantLocation(index->AsConstant()) : Location::RequiresRegister());
+  locations->SetInAt(1,
+                     const_length ? Location::ConstantLocation(length->AsConstant()) :
+                                    Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  Location index_loc = locations->InAt(0);
+  Location length_loc = locations->InAt(1);
+
+  if (length_loc.IsConstant()) {
+    int32_t length = length_loc.GetConstant()->AsIntConstant()->GetValue();
+    if (index_loc.IsConstant()) {
+      int32_t index = index_loc.GetConstant()->AsIntConstant()->GetValue();
+      if (index < 0 || index >= length) {
+        BoundsCheckSlowPathRISCV64* slow_path =
+            new (codegen_->GetScopedAllocator()) BoundsCheckSlowPathRISCV64(instruction);
+        codegen_->AddSlowPath(slow_path);
+        __ J(slow_path->GetEntryLabel());
+      } else {
+        // Nothing to be done.
+      }
+      return;
+    }
+
+    BoundsCheckSlowPathRISCV64* slow_path =
+        new (codegen_->GetScopedAllocator()) BoundsCheckSlowPathRISCV64(instruction);
+    codegen_->AddSlowPath(slow_path);
+    XRegister index = index_loc.AsRegister<XRegister>();
+    if (length == 0) {
+      __ J(slow_path->GetEntryLabel());
+    } else {
+      DCHECK_EQ(length, 1);
+      __ Bnez(index, slow_path->GetEntryLabel());
+    }
+  } else {
+    XRegister length = length_loc.AsRegister<XRegister>();
+    BoundsCheckSlowPathRISCV64* slow_path =
+        new (codegen_->GetScopedAllocator()) BoundsCheckSlowPathRISCV64(instruction);
+    codegen_->AddSlowPath(slow_path);
+    if (index_loc.IsConstant()) {
+      int32_t index = index_loc.GetConstant()->AsIntConstant()->GetValue();
+      if (index < 0) {
+        __ J(slow_path->GetEntryLabel());
+      } else {
+        DCHECK_EQ(index, 0);
+        __ Blez(length, slow_path->GetEntryLabel());
+      }
+    } else {
+      XRegister index = index_loc.AsRegister<XRegister>();
+      __ Bgeu(index, length, slow_path->GetEntryLabel());
+    }
+  }
 }
 
 void LocationsBuilderRISCV64::VisitBoundType([[maybe_unused]] HBoundType* instruction) {
