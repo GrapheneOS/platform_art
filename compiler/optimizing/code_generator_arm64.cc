@@ -6356,6 +6356,9 @@ void LocationsBuilderARM64::VisitSuspendCheck(HSuspendCheck* instruction) {
   // In suspend check slow path, usually there are no caller-save registers at all.
   // If SIMD instructions are present, however, we force spilling all live SIMD
   // registers in full width (since the runtime only saves/restores lower part).
+  // Note that only a suspend check can see live SIMD registers. In the
+  // loop optimization, we make sure this does not happen for any other slow
+  // path.
   locations->SetCustomSlowPathCallerSaves(
       GetGraph()->HasSIMD() ? RegisterSet::AllFpu() : RegisterSet::Empty());
 }
