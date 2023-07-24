@@ -2808,7 +2808,21 @@ CodeGeneratorRISCV64::CodeGeneratorRISCV64(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       block_labels_(nullptr),
-      move_resolver_(graph->GetAllocator(), this) {
+      move_resolver_(graph->GetAllocator(), this),
+      uint32_literals_(std::less<uint32_t>(),
+                       graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      uint64_literals_(std::less<uint64_t>(),
+                       graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_method_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      method_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_type_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      type_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      public_type_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      package_type_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_string_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      string_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_jni_entrypoint_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
+      boot_image_other_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)) {
   // Always mark the RA register to be saved.
   AddAllocatedRegister(Location::RegisterLocation(RA));
 }
@@ -3418,11 +3432,175 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorRISCV64::GetSupportedInvokeStat
   return desired_dispatch_info;
 }
 
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageIntrinsicPatch(
+    uint32_t intrinsic_data, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(
+      /* dex_file= */ nullptr, intrinsic_data, info_high, &boot_image_other_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageRelRoPatch(
+    uint32_t boot_image_offset, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(
+      /* dex_file= */ nullptr, boot_image_offset, info_high, &boot_image_other_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageMethodPatch(
+    MethodReference target_method, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(
+      target_method.dex_file, target_method.index, info_high, &boot_image_method_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewMethodBssEntryPatch(
+    MethodReference target_method, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(
+      target_method.dex_file, target_method.index, info_high, &method_bss_entry_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageTypePatch(
+    const DexFile& dex_file, dex::TypeIndex type_index, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(&dex_file, type_index.index_, info_high, &boot_image_type_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageJniEntrypointPatch(
+    MethodReference target_method, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(
+      target_method.dex_file, target_method.index, info_high, &boot_image_jni_entrypoint_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewTypeBssEntryPatch(
+    HLoadClass* load_class,
+    const PcRelativePatchInfo* info_high) {
+  const DexFile& dex_file = load_class->GetDexFile();
+  dex::TypeIndex type_index = load_class->GetTypeIndex();
+  ArenaDeque<PcRelativePatchInfo>* patches = nullptr;
+  switch (load_class->GetLoadKind()) {
+    case HLoadClass::LoadKind::kBssEntry:
+      patches = &type_bss_entry_patches_;
+      break;
+    case HLoadClass::LoadKind::kBssEntryPublic:
+      patches = &public_type_bss_entry_patches_;
+      break;
+    case HLoadClass::LoadKind::kBssEntryPackage:
+      patches = &package_type_bss_entry_patches_;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected load kind: " << load_class->GetLoadKind();
+      UNREACHABLE();
+  }
+  return NewPcRelativePatch(&dex_file, type_index.index_, info_high, patches);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewBootImageStringPatch(
+    const DexFile& dex_file, dex::StringIndex string_index, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(&dex_file, string_index.index_, info_high, &boot_image_string_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewStringBssEntryPatch(
+    const DexFile& dex_file, dex::StringIndex string_index, const PcRelativePatchInfo* info_high) {
+  return NewPcRelativePatch(&dex_file, string_index.index_, info_high, &string_bss_entry_patches_);
+}
+
+CodeGeneratorRISCV64::PcRelativePatchInfo* CodeGeneratorRISCV64::NewPcRelativePatch(
+    const DexFile* dex_file,
+    uint32_t offset_or_index,
+    const PcRelativePatchInfo* info_high,
+    ArenaDeque<PcRelativePatchInfo>* patches) {
+  patches->emplace_back(dex_file, offset_or_index, info_high);
+  return &patches->back();
+}
+
+Literal* CodeGeneratorRISCV64::DeduplicateUint32Literal(uint32_t value) {
+  return uint32_literals_.GetOrCreate(value,
+                                      [this, value]() { return __ NewLiteral<uint32_t>(value); });
+}
+
+Literal* CodeGeneratorRISCV64::DeduplicateUint64Literal(uint64_t value) {
+  return uint64_literals_.GetOrCreate(value,
+                                      [this, value]() { return __ NewLiteral<uint64_t>(value); });
+}
+
+Literal* CodeGeneratorRISCV64::DeduplicateBootImageAddressLiteral(uint64_t address) {
+  return DeduplicateUint32Literal(dchecked_integral_cast<uint32_t>(address));
+}
+
+void CodeGeneratorRISCV64::EmitPcRelativeAuipcPlaceholder(PcRelativePatchInfo* info_high,
+                                                          XRegister out) {
+  DCHECK(info_high->patch_info_high == nullptr);
+  __ Bind(&info_high->label);
+  __ Auipc(out, /*imm20=*/ 0x12345);  // Placeholder `imm20` patched at link time.
+}
+
+void CodeGeneratorRISCV64::EmitPcRelativeAddiPlaceholder(PcRelativePatchInfo* info_low,
+                                                         XRegister rd,
+                                                         XRegister rs1) {
+  DCHECK(info_low->patch_info_high != nullptr);
+  __ Bind(&info_low->label);
+  __ Addi(rd, rs1, /*imm12=*/ 0x678);  // Placeholder `imm12` patched at link time.
+}
+
+void CodeGeneratorRISCV64::EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* info_low,
+                                                        XRegister rd,
+                                                        XRegister rs1) {
+  DCHECK(info_low->patch_info_high != nullptr);
+  __ Bind(&info_low->label);
+  __ Lwu(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
+}
+
+void CodeGeneratorRISCV64::EmitPcRelativeLdPlaceholder(PcRelativePatchInfo* info_low,
+                                                       XRegister rd,
+                                                       XRegister rs1) {
+  DCHECK(info_low->patch_info_high != nullptr);
+  __ Bind(&info_low->label);
+  __ Ld(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
+}
+
 void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke) {
-  UNUSED(load_kind);
-  UNUSED(temp);
-  UNUSED(invoke);
-  LOG(FATAL) << "Unimplemented";
+  switch (load_kind) {
+    case MethodLoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
+          NewBootImageMethodPatch(invoke->GetResolvedMethodReference());
+      EmitPcRelativeAuipcPlaceholder(info_high, temp.AsRegister<XRegister>());
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
+          NewBootImageMethodPatch(invoke->GetResolvedMethodReference(), info_high);
+      EmitPcRelativeAddiPlaceholder(
+          info_low, temp.AsRegister<XRegister>(), temp.AsRegister<XRegister>());
+      break;
+    }
+    case MethodLoadKind::kBootImageRelRo: {
+      uint32_t boot_image_offset = GetBootImageOffset(invoke);
+      PcRelativePatchInfo* info_high = NewBootImageRelRoPatch(boot_image_offset);
+      EmitPcRelativeAuipcPlaceholder(info_high, temp.AsRegister<XRegister>());
+      PcRelativePatchInfo* info_low = NewBootImageRelRoPatch(boot_image_offset, info_high);
+      // Note: Boot image is in the low 4GiB and the entry is 32-bit, so emit a 32-bit load.
+      EmitPcRelativeLwuPlaceholder(
+          info_low, temp.AsRegister<XRegister>(), temp.AsRegister<XRegister>());
+      break;
+    }
+    case MethodLoadKind::kBssEntry: {
+      PcRelativePatchInfo* info_high = NewMethodBssEntryPatch(invoke->GetMethodReference());
+      EmitPcRelativeAuipcPlaceholder(info_high, temp.AsRegister<XRegister>());
+      PcRelativePatchInfo* info_low =
+          NewMethodBssEntryPatch(invoke->GetMethodReference(), info_high);
+      EmitPcRelativeLdPlaceholder(
+          info_low, temp.AsRegister<XRegister>(), temp.AsRegister<XRegister>());
+      break;
+    }
+    case MethodLoadKind::kJitDirectAddress: {
+      __ Li(temp.AsFpuRegister<XRegister>(),
+            reinterpret_cast<uint64_t>(invoke->GetResolvedMethod()));
+      __ Ld(temp.AsRegister<XRegister>(), temp.AsFpuRegister<XRegister>(), 0);
+      break;
+    }
+    case MethodLoadKind::kRuntimeCall: {
+      // Test situation, don't do anything.
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Load kind should have already been handled " << load_kind;
+      UNREACHABLE();
+    }
+  }
 }
 
 void CodeGeneratorRISCV64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
