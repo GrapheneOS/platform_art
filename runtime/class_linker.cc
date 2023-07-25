@@ -7999,6 +7999,7 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods(ObjPtr<mirror:
         constexpr uint32_t kSetFlags = kAccDefault | kAccAbstract | kAccCopied;
         constexpr uint32_t kMaskFlags = ~(kAccSkipAccessChecks | kAccSingleImplementation);
         new_method.SetAccessFlags((access_flags | kSetFlags) & kMaskFlags);
+        new_method.SetDataPtrSize(nullptr, kPointerSize);
         DCHECK(new_method.IsDefaultConflicting());
         DCHECK(!new_method.IsAbstract());
         // The actual method might or might not be marked abstract since we just copied it from
