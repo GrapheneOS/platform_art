@@ -347,25 +347,12 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       DCHECK_EQ(GetSuspendCount(), 0);
     } else if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction)) ||
                UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kWaitingForFlipFunction))) {
-      // The thread should be suspended while another thread is running the flip function.
-      static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-      LOG(FATAL) << "Transitioning to Runnable while another thread is running the flip function,"
-                 // Note: Keeping unused flags. If they are set, it points to memory corruption.
-                 << " flags=" << old_state_and_flags.WithState(ThreadState::kRunnable).GetValue()
-                 << " state=" << old_state_and_flags.GetState();
+      // It's possible that some thread runs this thread's flip-function in
+      // Thread::GetPeerFromOtherThread() even though it was runnable.
+      WaitForFlipFunction(this);
     } else {
       DCHECK(old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction));
-      // CAS the value with a memory barrier.
-      // Do not set `ThreadFlag::kRunningFlipFunction` as no other thread can run
-      // the flip function for a thread that is not suspended.
-      StateAndFlags new_state_and_flags = old_state_and_flags.WithState(ThreadState::kRunnable)
-          .WithoutFlag(ThreadFlag::kPendingFlipFunction);
-      if (LIKELY(tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
-                                                                 new_state_and_flags.GetValue()))) {
-        // Mark the acquisition of a share of the mutator lock.
-        GetMutatorLock()->TransitionFromSuspendedToRunnable(this);
-        // Run the flip function.
-        RunFlipFunction(this, /*notify=*/ false);
+      if (EnsureFlipFunctionStarted(this, old_state_and_flags)) {
         break;
       }
     }
@@ -438,7 +425,7 @@ inline void Thread::RevokeThreadLocalAllocationStack() {
   if (kIsDebugBuild) {
     // Note: self is not necessarily equal to this thread since thread may be suspended.
     Thread* self = Thread::Current();
-    DCHECK(this == self || IsSuspended() || GetState() == ThreadState::kWaitingPerformingGc)
+    DCHECK(this == self || GetState() != ThreadState::kRunnable)
         << GetState() << " thread " << this << " self " << self;
   }
   tlsPtr_.thread_local_alloc_stack_end = nullptr;
