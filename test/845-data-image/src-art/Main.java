@@ -108,6 +108,9 @@ interface Itf2 {
 class Itf2Impl implements Itf2 {
 }
 
+class ClassWithDefaultConflict implements IfaceWithSayHi, IfaceWithSayHiAtRuntime {
+}
+
 public class Main implements Itf {
   static String myString = "MyString";
 
@@ -220,6 +223,7 @@ public class Main implements Itf {
   public static Itf2 itf2 = new Itf2Impl();
   public static ClassWithStatics statics = new ClassWithStatics();
   public static ClassWithStaticType staticType = new ClassWithStaticType();
+  public static ClassWithDefaultConflict defaultConflict = new ClassWithDefaultConflict();
 
   public static void runClassTests() {
     // Test Class.getName, app images expect all strings to have hash codes.
