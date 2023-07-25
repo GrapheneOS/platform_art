@@ -313,23 +313,31 @@ END \name
     j 2b
 .endm
 
-// 32 bit read
+// Typed read, defaults to 32-bit read.
 // Clobbers: \reg
 // Safe if \reg == \vreg.
-.macro GET_VREG reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add \vreg, xFP, \vreg  // vreg addr in register array
-    lw \reg, (\vreg)       // reg := fp[vreg]
+.macro GET_VREG reg, vreg, is_wide=0
+    .if \is_wide
+      GET_VREG_WIDE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add \vreg, xFP, \vreg  // vreg addr in register array
+      lw \reg, (\vreg)       // reg := fp[vreg]
+    .endif
 .endm
 
-// 32 bit write
-// Clobbers: t0, \vreg
-.macro SET_VREG reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add t0, xFP, \vreg     // vreg addr in register array
-    sw \reg, (t0)          // fp[vreg] := reg
-    add t0, xREFS, \vreg   // vreg addr in reference array
-    sw zero, (t0)          // refs[vreg] := null
+// Typed write, defaults to 32-bit write.
+// Clobbers: t0, \reg, \vreg
+.macro SET_VREG reg, vreg, is_wide=0
+    .if \is_wide
+      SET_VREG_WIDE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add t0, xFP, \vreg     // vreg addr in register array
+      sw \reg, (t0)          // fp[vreg] := reg
+      add t0, xREFS, \vreg   // vreg addr in reference array
+      sw zero, (t0)          // refs[vreg] := null
+    .endif
 .endm
 
 // 64 bit read
