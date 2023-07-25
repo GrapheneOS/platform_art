@@ -3516,9 +3516,15 @@ void CodeGeneratorRISCV64::GenerateNop() {
 }
 
 void CodeGeneratorRISCV64::GenerateImplicitNullCheck(HNullCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  if (CanMoveNullCheckToUser(instruction)) {
+    return;
+  }
+  Location obj = instruction->GetLocations()->InAt(0);
+
+  __ Lw(Zero, obj.AsRegister<XRegister>(), 0);
+  RecordPcInfo(instruction, instruction->GetDexPc());
 }
+
 void CodeGeneratorRISCV64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeRISCV64* slow_path = new (GetScopedAllocator()) NullCheckSlowPathRISCV64(instruction);
   AddSlowPath(slow_path);
