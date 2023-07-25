@@ -953,10 +953,11 @@ class RuntimeImageHelper {
             ? StubType::kJNIDlsymLookupCriticalTrampoline
             : StubType::kJNIDlsymLookupTrampoline;
         copy->SetEntryPointFromJni(header.GetOatAddress(stub_type));
-      } else if (method->IsInvokable()) {
-        DCHECK(method->HasCodeItem()) << method->PrettyMethod();
-        ptrdiff_t code_item_offset = reinterpret_cast<const uint8_t*>(method->GetCodeItem()) -
-                method->GetDexFile()->DataBegin();
+      } else if (method->HasCodeItem()) {
+        const uint8_t* code_item = reinterpret_cast<const uint8_t*>(method->GetCodeItem());
+        DCHECK_GE(code_item, method->GetDexFile()->DataBegin());
+        uint32_t code_item_offset = dchecked_integral_cast<uint32_t>(
+            code_item - method->GetDexFile()->DataBegin());;
         copy->SetDataPtrSize(
             reinterpret_cast<const void*>(code_item_offset), kRuntimePointerSize);
       }
