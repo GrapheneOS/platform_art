@@ -86,6 +86,29 @@ Location Riscv64ReturnLocation(DataType::Type return_type) {
   UNREACHABLE();
 }
 
+static RegisterSet OneRegInReferenceOutSaveEverythingCallerSaves() {
+  InvokeRuntimeCallingConvention calling_convention;
+  RegisterSet caller_saves = RegisterSet::Empty();
+  caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  DCHECK_EQ(
+      calling_convention.GetRegisterAt(0),
+      calling_convention.GetReturnLocation(DataType::Type::kReference).AsRegister<XRegister>());
+  return caller_saves;
+}
+
+template <ClassStatus kStatus>
+static constexpr int64_t ShiftedSignExtendedClassStatusValue() {
+  // This is used only for status values that have the highest bit set.
+  static_assert(CLZ(enum_cast<uint32_t>(kStatus)) == status_lsb_position);
+  constexpr uint32_t kShiftedStatusValue = enum_cast<uint32_t>(kStatus) << status_lsb_position;
+  static_assert(kShiftedStatusValue >= 0x80000000u);
+  return static_cast<int64_t>(kShiftedStatusValue) - (INT64_C(1) << 32);
+}
+
+Location InvokeRuntimeCallingConvention::GetReturnLocation(DataType::Type return_type) {
+  return Riscv64ReturnLocation(return_type);
+}
+
 Location InvokeDexCallingConventionVisitorRISCV64::GetReturnLocation(DataType::Type type) const {
   return Riscv64ReturnLocation(type);
 }
@@ -310,6 +333,73 @@ class BoundsCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathRISCV64);
 };
 
+class LoadClassSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  LoadClassSlowPathRISCV64(HLoadClass* cls, HInstruction* at) : SlowPathCodeRISCV64(at), cls_(cls) {
+    DCHECK(at->IsLoadClass() || at->IsClinitCheck());
+    DCHECK_EQ(instruction_->IsLoadClass(), cls_ == instruction_);
+  }
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    LocationSummary* locations = instruction_->GetLocations();
+    Location out = locations->Out();
+    const uint32_t dex_pc = instruction_->GetDexPc();
+    bool must_resolve_type = instruction_->IsLoadClass() && cls_->MustResolveTypeOnSlowPath();
+    bool must_do_clinit = instruction_->IsClinitCheck() || cls_->MustGenerateClinitCheck();
+
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    if (must_resolve_type) {
+      DCHECK(IsSameDexFile(cls_->GetDexFile(), riscv64_codegen->GetGraph()->GetDexFile()) ||
+             riscv64_codegen->GetCompilerOptions().WithinOatFile(&cls_->GetDexFile()) ||
+             ContainsElement(Runtime::Current()->GetClassLinker()->GetBootClassPath(),
+                             &cls_->GetDexFile()));
+      dex::TypeIndex type_index = cls_->GetTypeIndex();
+      __ LoadConst32(calling_convention.GetRegisterAt(0), type_index.index_);
+      if (cls_->NeedsAccessCheck()) {
+        CheckEntrypointTypes<kQuickResolveTypeAndVerifyAccess, void*, uint32_t>();
+        riscv64_codegen->InvokeRuntime(
+            kQuickResolveTypeAndVerifyAccess, instruction_, dex_pc, this);
+      } else {
+        CheckEntrypointTypes<kQuickResolveType, void*, uint32_t>();
+        riscv64_codegen->InvokeRuntime(kQuickResolveType, instruction_, dex_pc, this);
+      }
+      // If we also must_do_clinit, the resolved type is now in the correct register.
+    } else {
+      DCHECK(must_do_clinit);
+      Location source = instruction_->IsLoadClass() ? out : locations->InAt(0);
+      riscv64_codegen->MoveLocation(
+          Location::RegisterLocation(calling_convention.GetRegisterAt(0)), source, cls_->GetType());
+    }
+    if (must_do_clinit) {
+      riscv64_codegen->InvokeRuntime(kQuickInitializeStaticStorage, instruction_, dex_pc, this);
+      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, mirror::Class*>();
+    }
+
+    // Move the class to the desired location.
+    if (out.IsValid()) {
+      DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
+      DataType::Type type = instruction_->GetType();
+      riscv64_codegen->MoveLocation(
+          out, Location::RegisterLocation(calling_convention.GetRegisterAt(0)), type);
+    }
+    RestoreLiveRegisters(codegen, locations);
+
+    __ J(GetExitLabel());
+  }
+
+  const char* GetDescription() const override { return "LoadClassSlowPathRISCV64"; }
+
+ private:
+  // The class this slow path will load.
+  HLoadClass* const cls_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathRISCV64);
+};
+
 #undef __
 #define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
@@ -428,9 +518,17 @@ InstructionCodeGeneratorRISCV64::InstructionCodeGeneratorRISCV64(HGraph* graph,
 
 void InstructionCodeGeneratorRISCV64::GenerateClassInitializationCheck(
     SlowPathCodeRISCV64* slow_path, XRegister class_reg) {
-  UNUSED(slow_path);
-  UNUSED(class_reg);
-  LOG(FATAL) << "Unimplemented";
+  ScratchRegisterScope srs(GetAssembler());
+  XRegister tmp = srs.AllocateXRegister();
+  XRegister tmp2 = srs.AllocateXRegister();
+
+  // We shall load the full 32-bit status word with sign-extension and compare as unsigned
+  // to a sign-extended shifted status value. This yields the same comparison as loading and
+  // materializing unsigned but the constant is materialized with a single LUI instruction.
+  __ Loadw(tmp, class_reg, mirror::Class::StatusOffset().SizeValue());  // Sign-extended.
+  __ Li(tmp2, ShiftedSignExtendedClassStatusValue<ClassStatus::kVisiblyInitialized>());
+  __ Bltu(tmp, tmp2, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateBitstringTypeCheckCompare(
@@ -1599,13 +1697,23 @@ void InstructionCodeGeneratorRISCV64::VisitClearException(
 }
 
 void LocationsBuilderRISCV64::VisitClinitCheck(HClinitCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
+      instruction, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
+  // Rely on the type initialization to save everything we need.
+  locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitClinitCheck(HClinitCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  // We assume the class is not null.
+  SlowPathCodeRISCV64* slow_path = new (codegen_->GetScopedAllocator()) LoadClassSlowPathRISCV64(
+      instruction->GetLoadClass(), instruction);
+  codegen_->AddSlowPath(slow_path);
+  GenerateClassInitializationCheck(slow_path,
+                                   instruction->GetLocations()->InAt(0).AsRegister<XRegister>());
 }
 
 void LocationsBuilderRISCV64::VisitCompare(HCompare* instruction) {
@@ -2950,21 +3058,6 @@ void CodeGeneratorRISCV64::GenerateFrameEntry() {
     Riscv64Label resolution;
     Riscv64Label memory_barrier;
 
-    static constexpr uint32_t kShiftedVisiblyInitializedValue =
-        enum_cast<uint32_t>(ClassStatus::kVisiblyInitialized) << status_lsb_position;
-    static constexpr uint32_t kShiftedInitializedValue =
-        enum_cast<uint32_t>(ClassStatus::kInitialized) << status_lsb_position;
-    static constexpr uint32_t kShiftedInitializingValue =
-        enum_cast<uint32_t>(ClassStatus::kInitializing) << status_lsb_position;
-
-    // We shall load the full 32-bit status word with sign-extension and compare as unsigned
-    // to the sign-extended status values above. This yields the same comparison as loading and
-    // materializing unsigned but the constant is materialized with a single LUI instruction.
-    auto extend64 = [](uint32_t shifted_status_value) {
-      DCHECK_GE(shifted_status_value, 0x80000000u);
-      return static_cast<int64_t>(shifted_status_value) - (INT64_C(1) << 32);
-    };
-
     ScratchRegisterScope srs(GetAssembler());
     XRegister tmp = srs.AllocateXRegister();
     XRegister tmp2 = srs.AllocateXRegister();
@@ -2972,19 +3065,23 @@ void CodeGeneratorRISCV64::GenerateFrameEntry() {
     // We don't emit a read barrier here to save on code size. We rely on the
     // resolution trampoline to do a clinit check before re-entering this code.
     __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
+
+    // We shall load the full 32-bit status word with sign-extension and compare as unsigned
+    // to sign-extended shifted status values. This yields the same comparison as loading and
+    // materializing unsigned but the constant is materialized with a single LUI instruction.
     __ Loadw(tmp, tmp2, mirror::Class::StatusOffset().SizeValue());  // Sign-extended.
 
     // Check if we're visibly initialized.
-    __ Li(tmp2, extend64(kShiftedVisiblyInitializedValue));
+    __ Li(tmp2, ShiftedSignExtendedClassStatusValue<ClassStatus::kVisiblyInitialized>());
     __ Bgeu(tmp, tmp2, &frame_entry_label_);  // Can clobber `TMP` if taken.
 
     // Check if we're initialized and jump to code that does a memory barrier if so.
-    __ Li(tmp2, extend64(kShiftedInitializedValue));
+    __ Li(tmp2, ShiftedSignExtendedClassStatusValue<ClassStatus::kInitialized>());
     __ Bgeu(tmp, tmp2, &memory_barrier);  // Can clobber `TMP` if taken.
 
     // Check if we're initializing and the thread initializing is the one
     // executing the code.
-    __ Li(tmp2, extend64(kShiftedInitializingValue));
+    __ Li(tmp2, ShiftedSignExtendedClassStatusValue<ClassStatus::kInitializing>());
     __ Bltu(tmp, tmp2, &resolution);  // Can clobber `TMP` if taken.
 
     __ Loadd(tmp2, kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value());
