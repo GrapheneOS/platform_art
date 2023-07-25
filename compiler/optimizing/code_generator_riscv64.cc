@@ -18,6 +18,7 @@
 
 #include "android-base/logging.h"
 #include "android-base/macros.h"
+#include "arch/riscv64/jni_frame_riscv64.h"
 #include "arch/riscv64/registers_riscv64.h"
 #include "base/macros.h"
 #include "code_generator_utils.h"
@@ -118,6 +119,54 @@ Location InvokeDexCallingConventionVisitorRISCV64::GetNextLocation(DataType::Typ
   stack_index_ += DataType::Is64BitType(type) ? 2 : 1;
 
   return next_location;
+}
+
+Location CriticalNativeCallingConventionVisitorRiscv64::GetNextLocation(DataType::Type type) {
+  DCHECK_NE(type, DataType::Type::kReference);
+
+  Location location = Location::NoLocation();
+  if (DataType::IsFloatingPointType(type)) {
+    if (fpr_index_ < kParameterFpuRegistersLength) {
+      location = Location::FpuRegisterLocation(kParameterFpuRegisters[fpr_index_]);
+      ++fpr_index_;
+    }
+    // Native ABI allows passing excessive FP args in GPRs. This is facilitated by
+    // inserting fake conversion intrinsic calls (`Double.doubleToRawLongBits()`
+    // or `Float.floatToRawIntBits()`) by `CriticalNativeAbiFixupRiscv64`.
+    // TODO(riscv64): Implement these  intrinsics and `CriticalNativeAbiFixupRiscv64`.
+  } else {
+    // Native ABI uses the same core registers as a runtime call.
+    if (gpr_index_ < kRuntimeParameterCoreRegistersLength) {
+      location = Location::RegisterLocation(kRuntimeParameterCoreRegisters[gpr_index_]);
+      ++gpr_index_;
+    }
+  }
+  if (location.IsInvalid()) {
+    if (DataType::Is64BitType(type)) {
+      location = Location::DoubleStackSlot(stack_offset_);
+    } else {
+      location = Location::StackSlot(stack_offset_);
+    }
+    stack_offset_ += kFramePointerSize;
+
+    if (for_register_allocation_) {
+      location = Location::Any();
+    }
+  }
+  return location;
+}
+
+Location CriticalNativeCallingConventionVisitorRiscv64::GetReturnLocation(
+    DataType::Type type) const {
+  // The result is returned the same way in native ABI and managed ABI. No result conversion is
+  // needed, see comments in `Riscv64JniCallingConvention::RequiresSmallResultTypeExtension()`.
+  InvokeDexCallingConventionVisitorRISCV64 dex_calling_convention;
+  return dex_calling_convention.GetReturnLocation(type);
+}
+
+Location CriticalNativeCallingConventionVisitorRiscv64::GetMethodLocation() const {
+  // Pass the method in the hidden argument T0.
+  return Location::RegisterLocation(T0);
 }
 
 #define __ down_cast<CodeGeneratorRISCV64*>(codegen)->GetAssembler()->  // NOLINT
@@ -3606,10 +3655,80 @@ void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, H
 void CodeGeneratorRISCV64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
                                                       Location temp,
                                                       SlowPathCode* slow_path) {
-  UNUSED(temp);
-  UNUSED(invoke);
-  UNUSED(slow_path);
-  LOG(FATAL) << "Unimplemented";
+  // All registers are assumed to be correctly set up per the calling convention.
+  Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
+
+  switch (invoke->GetMethodLoadKind()) {
+    case MethodLoadKind::kStringInit: {
+      // temp = thread->string_init_entrypoint
+      uint32_t offset =
+          GetThreadOffset<kRiscv64PointerSize>(invoke->GetStringInitEntryPoint()).Int32Value();
+      __ Loadd(temp.AsRegister<XRegister>(), TR, offset);
+      break;
+    }
+    case MethodLoadKind::kRecursive:
+      callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodIndex());
+      break;
+    case MethodLoadKind::kRuntimeCall:
+      GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
+      return;  // No code pointer retrieval; the runtime performs the call directly.
+    case MethodLoadKind::kBootImageLinkTimePcRelative:
+      DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
+      if (invoke->GetCodePtrLocation() == CodePtrLocation::kCallCriticalNative) {
+        // Do not materialize the method pointer, load directly the entrypoint.
+        CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
+            NewBootImageJniEntrypointPatch(invoke->GetResolvedMethodReference());
+        EmitPcRelativeAuipcPlaceholder(info_high, RA);
+        CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
+            NewBootImageJniEntrypointPatch(invoke->GetResolvedMethodReference(), info_high);
+        EmitPcRelativeLdPlaceholder(info_low, RA, RA);
+        break;
+      }
+      FALLTHROUGH_INTENDED;
+    default:
+      LoadMethod(invoke->GetMethodLoadKind(), temp, invoke);
+      break;
+  }
+
+  switch (invoke->GetCodePtrLocation()) {
+    case CodePtrLocation::kCallSelf:
+      DCHECK(!GetGraph()->HasShouldDeoptimizeFlag());
+      __ Jal(&frame_entry_label_);
+      RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
+      break;
+    case CodePtrLocation::kCallArtMethod:
+      // RA = callee_method->entry_point_from_quick_compiled_code_;
+      __ Loadd(RA,
+               callee_method.AsRegister<XRegister>(),
+               ArtMethod::EntryPointFromQuickCompiledCodeOffset(kRiscv64PointerSize).Int32Value());
+      // RA()
+      __ Jalr(RA);
+      RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
+      break;
+    case CodePtrLocation::kCallCriticalNative: {
+      size_t out_frame_size =
+          PrepareCriticalNativeCall<CriticalNativeCallingConventionVisitorRiscv64,
+                                    kNativeStackAlignment,
+                                    GetCriticalNativeDirectCallFrameSize>(invoke);
+      if (invoke->GetMethodLoadKind() == MethodLoadKind::kBootImageLinkTimePcRelative) {
+        __ Jalr(TMP);
+      } else {
+        // TMP2 = callee_method->ptr_sized_fields_.data_;  // EntryPointFromJni
+        MemberOffset offset = ArtMethod::EntryPointFromJniOffset(kRiscv64PointerSize);
+        __ Loadd(TMP2, callee_method.AsRegister<XRegister>(), offset.Int32Value());
+        __ Jalr(TMP2);
+      }
+      RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
+      // The result is returned the same way in native ABI and managed ABI. No result conversion is
+      // needed, see comments in `Riscv64JniCallingConvention::RequiresSmallResultTypeExtension()`.
+      if (out_frame_size != 0u) {
+        DecreaseFrame(out_frame_size);
+      }
+      break;
+    }
+  }
+
+  DCHECK(!IsLeafMethod());
 }
 
 void CodeGeneratorRISCV64::MaybeGenerateInlineCacheCheck(HInstruction* instruction,
