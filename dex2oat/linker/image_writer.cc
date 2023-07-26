@@ -482,7 +482,7 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
   DCHECK(IsImageBinSlotAssigned(object));
 }
 
-ImageWriter::Bin ImageWriter::AssignImageBinSlot(mirror::Object* object, size_t oat_index) {
+ImageWriter::Bin ImageWriter::GetImageBin(mirror::Object* object) {
   DCHECK(object != nullptr);
 
   // The magic happens here. We segregate objects into different bins based
@@ -579,7 +579,6 @@ ImageWriter::Bin ImageWriter::AssignImageBinSlot(mirror::Object* object, size_t 
     // else bin = kBinRegular
   }
 
-  AssignImageBinSlot(object, oat_index, bin);
   return bin;
 }
 
@@ -1375,6 +1374,8 @@ class ImageWriter::LayoutHelper {
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool TryAssignBinSlot(ObjPtr<mirror::Object> obj, size_t oat_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  ImageWriter::Bin AssignImageBinSlot(ObjPtr<mirror::Object> object, size_t oat_index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void AssignImageBinSlot(ObjPtr<mirror::Object> object, size_t oat_index, Bin bin)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1730,17 +1731,13 @@ void ImageWriter::LayoutHelper::ProcessDexFileObjects(Thread* self) {
     DCHECK(entry.first != nullptr);
     ObjPtr<mirror::Class> klass = entry.first->AsClass();
     size_t oat_index = entry.second;
-    DCHECK(!image_writer_->IsInBootImage(klass.Ptr()));
-    DCHECK(!image_writer_->IsImageBinSlotAssigned(klass.Ptr()));
     image_writer_->RecordNativeRelocations(klass, oat_index);
-    Bin klass_bin = image_writer_->AssignImageBinSlot(klass.Ptr(), oat_index);
-    bin_objects_[oat_index][enum_cast<size_t>(klass_bin)].push_back(klass.Ptr());
+    AssignImageBinSlot(klass.Ptr(), oat_index);
 
     auto method_pointer_array_visitor =
         [&](ObjPtr<mirror::PointerArray> pointer_array) REQUIRES_SHARED(Locks::mutator_lock_) {
           constexpr Bin bin = kBinObjects ? Bin::kInternalClean : Bin::kRegular;
-          image_writer_->AssignImageBinSlot(pointer_array.Ptr(), oat_index, bin);
-          bin_objects_[oat_index][enum_cast<size_t>(bin)].push_back(pointer_array.Ptr());
+          AssignImageBinSlot(pointer_array.Ptr(), oat_index, bin);
           // No need to add to the work queue. The class reference, if not in the boot image
           // (that is, when compiling the primary boot image), is already in the work queue.
         };
@@ -1837,7 +1834,6 @@ void ImageWriter::LayoutHelper::ProcessInterns(Thread* self) {
     DCHECK(it != image_writer->dex_file_oat_index_map_.end()) << dex_file->GetLocation();
     const size_t oat_index = it->second;
     // Assign bin slots for strings defined in this dex file in StringId (lexicographical) order.
-    auto& string_bin_objects = bin_objects_[oat_index][enum_cast<size_t>(Bin::kString)];
     for (size_t i = 0, count = dex_file->NumStringIds(); i != count; ++i) {
       uint32_t utf16_length;
       const char* utf8_data = dex_file->StringDataAndUtf16LengthByIdx(dex::StringIndex(i),
@@ -1850,9 +1846,8 @@ void ImageWriter::LayoutHelper::ProcessInterns(Thread* self) {
         DCHECK(string != nullptr);
         DCHECK(!image_writer->IsInBootImage(string));
         if (!image_writer->IsImageBinSlotAssigned(string)) {
-          Bin bin = image_writer->AssignImageBinSlot(string, oat_index);
+          Bin bin = AssignImageBinSlot(string, oat_index);
           DCHECK_EQ(bin, kBinObjects ? Bin::kString : Bin::kRegular);
-          string_bin_objects.push_back(string);
         } else {
           // We have already seen this string in a previous dex file.
           DCHECK(dex_file != image_writer->compiler_options_.GetDexFilesForOatFile().front());
@@ -2257,11 +2252,18 @@ bool ImageWriter::LayoutHelper::TryAssignBinSlot(ObjPtr<mirror::Object> obj, siz
   }
   bool assigned = false;
   if (!image_writer_->IsImageBinSlotAssigned(obj.Ptr())) {
-    Bin bin = image_writer_->AssignImageBinSlot(obj.Ptr(), oat_index);
-    bin_objects_[oat_index][enum_cast<size_t>(bin)].push_back(obj.Ptr());
+    AssignImageBinSlot(obj.Ptr(), oat_index);
     assigned = true;
   }
   return assigned;
+}
+
+ImageWriter::Bin ImageWriter::LayoutHelper::AssignImageBinSlot(ObjPtr<mirror::Object> object,
+                                                               size_t oat_index) {
+  DCHECK(object != nullptr);
+  Bin bin = image_writer_->GetImageBin(object.Ptr());
+  AssignImageBinSlot(object.Ptr(), oat_index, bin);
+  return bin;
 }
 
 void ImageWriter::LayoutHelper::AssignImageBinSlot(
