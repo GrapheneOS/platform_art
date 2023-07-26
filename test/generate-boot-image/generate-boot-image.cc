@@ -78,7 +78,7 @@ Supported options:
   --instruction-set=ISA: The instruction set option to pass to dex2oat. Required when running on
       host. The default on target is based on the ISA of this binary.
   --core-only=true|false: If true, only compile ART jars. Otherwise, also compile core-icu4j and
-      conscrypt. Default: true
+      conscrypt. Default: false
 )";
 
 struct Options {
@@ -91,7 +91,7 @@ struct Options {
   std::string android_root = "";
   std::string profile_file = "";
   std::string instruction_set = "";
-  bool core_only = true;
+  bool core_only = false;
 };
 
 [[noreturn]] void Usage(const std::string& message) {
