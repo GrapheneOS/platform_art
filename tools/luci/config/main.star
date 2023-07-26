@@ -208,9 +208,9 @@ arm_target_dims = target_dims | {"device_type": "bonito|oriole|walleye"}
 # userfault-GC configurations must be run on Pixel 6.
 userfault_gc_target_dims = target_dims | {"device_type": "oriole"}
 
-ci_builder("angler-armv7-debug", "angler|armv7", "dbg", arm_target_dims)
+ci_builder("angler-armv7-debug", "angler|armv7", "dbg", target_dims)
 ci_builder("angler-armv7-non-gen-cc", "angler|armv7", "ngen", userfault_gc_target_dims)
-ci_builder("angler-armv7-ndebug", "angler|armv7", "ndbg", arm_target_dims)
+ci_builder("angler-armv7-ndebug", "angler|armv7", "ndbg", target_dims)
 ci_builder("angler-armv8-debug", "angler|armv8", "dbg", arm_target_dims)
 ci_builder("angler-armv8-non-gen-cc", "angler|armv8", "ngen", userfault_gc_target_dims)
 ci_builder("angler-armv8-ndebug", "angler|armv8", "ndbg", arm_target_dims)
