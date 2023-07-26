@@ -3367,9 +3367,15 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
         nullptr, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   }
 
-  if (!orig->IsRuntimeMethod() &&
-      (compiler_options_.IsBootImage() || compiler_options_.IsBootImageExtension())) {
-    orig->SetMemorySharedMethod();
+  if (!orig->IsRuntimeMethod()) {
+    // If we're compiling a boot image and we have a profile, set methods as
+    // being shared memory (to avoid dirtying them with hotness counter). We
+    // expect important methods to be AOT, and non-important methods to be run
+    // in the interpreter.
+    if (CompilerFilter::DependsOnProfile(compiler_options_.GetCompilerFilter()) &&
+        (compiler_options_.IsBootImage() || compiler_options_.IsBootImageExtension())) {
+      orig->SetMemorySharedMethod();
+    }
   }
 
   memcpy(copy, orig, ArtMethod::Size(target_ptr_size_));
