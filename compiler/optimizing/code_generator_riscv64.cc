@@ -1681,6 +1681,7 @@ void LocationsBuilderRISCV64::VisitBoundType([[maybe_unused]] HBoundType* instru
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
 }
+
 void InstructionCodeGeneratorRISCV64::VisitBoundType([[maybe_unused]] HBoundType* instruction) {
   // Nothing to do, this should be removed during prepare for register allocator.
   LOG(FATAL) << "Unreachable";
@@ -1697,13 +1698,26 @@ void InstructionCodeGeneratorRISCV64::VisitCheckCast(HCheckCast* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitClassTableGet(HClassTableGet* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitClassTableGet(HClassTableGet* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  XRegister in = locations->InAt(0).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  if (instruction->GetTableKind() == HClassTableGet::TableKind::kVTable) {
+    MemberOffset method_offset =
+        mirror::Class::EmbeddedVTableEntryOffset(instruction->GetIndex(), kRiscv64PointerSize);
+    __ Loadd(out, in, method_offset.SizeValue());
+  } else {
+    uint32_t method_offset = dchecked_integral_cast<uint32_t>(
+        ImTable::OffsetOfElement(instruction->GetIndex(), kRiscv64PointerSize));
+    __ Loadd(out, in, mirror::Class::ImtPtrOffset(kRiscv64PointerSize).Uint32Value());
+    __ Loadd(out, out, method_offset);
+  }
 }
 
 static int32_t GetExceptionTlsOffset() {
@@ -1826,6 +1840,7 @@ void InstructionCodeGeneratorRISCV64::VisitCompare(HCompare* instruction) {
 void LocationsBuilderRISCV64::VisitConstructorFence(HConstructorFence* instruction) {
   instruction->SetLocations(nullptr);
 }
+
 void InstructionCodeGeneratorRISCV64::VisitConstructorFence(
     [[maybe_unused]] HConstructorFence* instruction) {
   codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
