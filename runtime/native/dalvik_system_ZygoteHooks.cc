@@ -366,7 +366,7 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
 
   // Update tracing.
   if (Trace::GetMethodTracingMode() != TracingMode::kTracingInactive) {
-    Trace::TraceOutputMode output_mode = Trace::GetOutputMode();
+    TraceOutputMode output_mode = Trace::GetOutputMode();
     Trace::TraceMode trace_mode = Trace::GetMode();
     size_t buffer_size = Trace::GetBufferSize();
     int flags = Trace::GetFlags();
@@ -377,7 +377,7 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
 
     // Only restart if it was streaming mode.
     // TODO: Expose buffer size, so we can also do file mode.
-    if (output_mode == Trace::TraceOutputMode::kStreaming) {
+    if (output_mode == TraceOutputMode::kStreaming) {
       static constexpr size_t kMaxProcessNameLength = 100;
       char name_buf[kMaxProcessNameLength] = {};
       int rc = pthread_getname_np(pthread_self(), name_buf, kMaxProcessNameLength);

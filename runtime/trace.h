@@ -98,6 +98,12 @@ enum TraceAction {
     kTraceMethodActionMask = 0x03,  // two bits
 };
 
+enum class TraceOutputMode {
+    kFile,
+    kDDMS,
+    kStreaming
+};
+
 // We need 3 entries to store 64-bit timestamp counter as two 32-bit values on 32-bit architectures.
 static constexpr uint32_t kNumEntriesForWallClock =
     (kRuntimePointerSize == PointerSize::k64) ? 2 : 3;
@@ -113,6 +119,142 @@ static constexpr int32_t kLowTimestampOffsetInBytes =
 
 static constexpr uintptr_t kMaskTraceAction = ~0b11;
 
+class TraceWriter {
+ public:
+  TraceWriter(File* trace_file,
+              TraceOutputMode output_mode,
+              TraceClockSource clock_source,
+              size_t buffer_size,
+              uint32_t clock_overhead_ns);
+
+  // This encodes all the events in the per-thread trace buffer and writes it to the trace file /
+  // buffer. This acquires streaming lock to prevent any other threads writing concurrently. It is
+  // required to serialize these since each method is encoded with a unique id which is assigned
+  // when the method is seen for the first time in the recoreded events. So we need to serialize
+  // these flushes across threads.
+  void FlushBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+
+  // This is called when the per-thread buffer is full and a new entry needs to be recorded.
+  // In streaming mode, we just flush the per-thread buffer and reuse the buffer to record new
+  // entries.
+  // In non-streaming mode, buffers from all threads are flushed to see if we there's enough room
+  // in the centralized buffer before recording new entries.
+  bool PrepareBufferForNewEntries(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!tracing_lock_);
+
+  // Flushes all per-thread buffer and also write a summary entry.
+  void FinishTracing(int flags, bool finish_tracing, bool flush_file) REQUIRES(!tracing_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // This is called when we see the first entry from the thread to record the information about the
+  // thread.
+  void RecordThreadInfo(Thread* thread) REQUIRES(!tracing_lock_);
+
+  bool HasOverflow() { return overflow_; }
+  TraceOutputMode GetOutputMode() { return trace_output_mode_; }
+  size_t GetBufferSize() { return buffer_size_; }
+
+ private:
+  // Get a 32-bit id for the method and specify if the method hasn't been seen before. If this is
+  // the first time we see this method record information (like method name, declaring class etc.,)
+  // about the method.
+  std::pair<uint32_t, bool> GetMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
+
+  // Get a 16-bit id for the thread. We don't want to use thread ids directly since they can be
+  // more than 16-bit.
+  uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
+
+  // Get the information about the method.
+  std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Helper function to record method information when processing the events. These are used by
+  // streaming output mode. Non-streaming modes dump the methods and threads list at the end of
+  // tracing.
+  void RecordMethodInfo(ArtMethod* method,
+                        uint32_t method_id,
+                        size_t* index,
+                        uint8_t* buf,
+                        size_t size) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(tracing_lock_);
+
+  // Encodes the trace event. This assumes that there is enough space reserved to encode the entry.
+  void EncodeEventEntry(uint8_t* ptr,
+                        uint16_t thread_id,
+                        uint32_t method_index,
+                        TraceAction action,
+                        uint32_t thread_clock_diff,
+                        uint32_t wall_clock_diff) REQUIRES(tracing_lock_);
+
+  // Ensures there is sufficient space in the buffer to record the requested_size. If there is not
+  // enough sufficient space the current contents of the buffer are written to the file and
+  // current_index is reset to 0. This doesn't check if buffer_size is big enough to hold the
+  // requested size.
+  void EnsureSpace(uint8_t* buffer,
+                   size_t* current_index,
+                   size_t buffer_size,
+                   size_t required_size);
+
+  // Flush tracing buffers from all the threads.
+  void FlushAllThreadBuffers() REQUIRES(!Locks::thread_list_lock_) REQUIRES(!tracing_lock_);
+
+  // Flush buffer to the file (for streaming) or to the common buffer (for non-streaming). In
+  // non-streaming case it returns false if all the contents couldn't be flushed.
+  void FlushBuffer(uintptr_t* buffer, size_t num_entries, size_t tid)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+
+  // Methods to output traced methods and threads.
+  void DumpMethodList(std::ostream& os) REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!tracing_lock_);
+  void DumpThreadList(std::ostream& os) REQUIRES(!Locks::thread_list_lock_) REQUIRES(tracing_lock_);
+
+  // File to write trace data out to, null if direct to ddms.
+  std::unique_ptr<File> trace_file_;
+
+  // The kind of output for this tracing.
+  const TraceOutputMode trace_output_mode_;
+
+  // The clock source for this tracing.
+  const TraceClockSource clock_source_;
+
+  // Map of thread ids and names. This is used only in non-streaming mode, since we have to dump
+  // information about all threads in one block. In streaming mode, thread info is recorded directly
+  // in the file when we see the first even from this thread.
+  SafeMap<uint16_t, std::string> threads_list_;
+
+  // Map from ArtMethod* to index.
+  std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(tracing_lock_);
+  uint32_t current_method_index_ = 0;
+
+  // Map from thread_id to a 16-bit identifier.
+  std::unordered_map<pid_t, uint16_t> thread_id_map_ GUARDED_BY(tracing_lock_);
+  uint16_t current_thread_index_;
+
+  // Buffer to store trace data in non-streaming mode. This is only accessed in
+  // SuspendAll scope to flush the data from all threads into this buffer. This
+  // is only used in non-streaming mode
+  std::unique_ptr<uint8_t[]> buf_;
+
+  // The cur_offset_ into the buf_. Accessed only in SuspendAll scope when flushing data from the
+  // thread local buffers to buf_.
+  size_t cur_offset_ GUARDED_BY(tracing_lock_);
+
+  // Size of buf_.
+  const size_t buffer_size_;
+
+  // Time trace was created.
+  const uint64_t start_time_;
+
+  // Did we overflow the buffer recording traces?
+  bool overflow_;
+
+  // Clock overhead.
+  const uint32_t clock_overhead_ns_;
+
+  // Lock to protect common data structures accessed from multiple threads like
+  // art_method_id_map_, thread_id_map_.
+  Mutex tracing_lock_;
+};
+
 // Class for recording event traces. Trace data is either collected
 // synchronously during execution (TracingMode::kMethodTracingActive),
 // or by a separate sampling thread (TracingMode::kSampleProfilingActive).
@@ -122,12 +264,6 @@ class Trace final : public instrumentation::InstrumentationListener {
     kTraceCountAllocs = 0x001,
     kTraceClockSourceWallClock = 0x010,
     kTraceClockSourceThreadCpu = 0x100,
-  };
-
-  enum class TraceOutputMode {
-    kFile,
-    kDDMS,
-    kStreaming
   };
 
   enum class TraceMode {
@@ -182,59 +318,47 @@ class Trace final : public instrumentation::InstrumentationListener {
   static void FlushThreadBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::trace_lock_) NO_THREAD_SAFETY_ANALYSIS;
 
-  bool UseWallClock();
-  bool UseThreadCpuClock();
   void MeasureClockOverhead();
   uint32_t GetClockOverheadNanoSeconds();
 
   void CompareAndUpdateStackTrace(Thread* thread, std::vector<ArtMethod*>* stack_trace)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // InstrumentationListener implementation.
-  void MethodEntered(Thread* thread, ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!tracing_lock_) override;
+  void MethodEntered(Thread* thread, ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_) override;
   void MethodExited(Thread* thread,
                     ArtMethod* method,
                     instrumentation::OptionalFrame frame,
-                    JValue& return_value)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_)
-      override;
-  void MethodUnwind(Thread* thread,
-                    ArtMethod* method,
-                    uint32_t dex_pc)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_)
-      override;
+                    JValue& return_value) REQUIRES_SHARED(Locks::mutator_lock_) override;
+  void MethodUnwind(Thread* thread, ArtMethod* method, uint32_t dex_pc)
+      REQUIRES_SHARED(Locks::mutator_lock_) override;
   void DexPcMoved(Thread* thread,
                   Handle<mirror::Object> this_object,
                   ArtMethod* method,
-                  uint32_t new_dex_pc)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_)
-      override;
+                  uint32_t new_dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) override;
   void FieldRead(Thread* thread,
                  Handle<mirror::Object> this_object,
                  ArtMethod* method,
                  uint32_t dex_pc,
-                 ArtField* field)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_) override;
+                 ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_) override;
   void FieldWritten(Thread* thread,
                     Handle<mirror::Object> this_object,
                     ArtMethod* method,
                     uint32_t dex_pc,
                     ArtField* field,
-                    const JValue& field_value)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_) override;
-  void ExceptionThrown(Thread* thread,
-                       Handle<mirror::Throwable> exception_object)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_) override;
+                    const JValue& field_value) REQUIRES_SHARED(Locks::mutator_lock_) override;
+  void ExceptionThrown(Thread* thread, Handle<mirror::Throwable> exception_object)
+      REQUIRES_SHARED(Locks::mutator_lock_) override;
   void ExceptionHandled(Thread* thread, Handle<mirror::Throwable> exception_object)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_) override;
-  void Branch(Thread* thread,
-              ArtMethod* method,
-              uint32_t dex_pc,
-              int32_t dex_pc_offset)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_) override;
+      REQUIRES_SHARED(Locks::mutator_lock_) override;
+  void Branch(Thread* thread, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
+      REQUIRES_SHARED(Locks::mutator_lock_) override;
   void WatchedFramePop(Thread* thread, const ShadowFrame& frame)
       REQUIRES_SHARED(Locks::mutator_lock_) override;
+
+  TraceClockSource GetClockSource() { return clock_source_; }
+
   // Reuse an old stack trace if it exists, otherwise allocate a new one.
   static std::vector<ArtMethod*>* AllocStackTrace();
   // Clear and store an old stack trace for later use.
@@ -266,8 +390,6 @@ class Trace final : public instrumentation::InstrumentationListener {
       // This causes the negative annotations to incorrectly have a false positive. TODO: Figure out
       // how to annotate this.
       NO_THREAD_SAFETY_ANALYSIS;
-  void FinishTracing()
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* timestamp_counter);
 
@@ -275,55 +397,7 @@ class Trace final : public instrumentation::InstrumentationListener {
                            ArtMethod* method,
                            TraceAction action,
                            uint32_t thread_clock_diff,
-                           uint64_t timestamp_counter) REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!tracing_lock_);
-
-  // Methods to output traced methods and threads.
-  void DumpMethodList(std::ostream& os)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
-  void DumpThreadList(std::ostream& os)
-      REQUIRES(!Locks::thread_list_lock_) REQUIRES(tracing_lock_);
-
-  // Encodes the trace event. This assumes that there is enough space reserved to encode the entry.
-  void EncodeEventEntry(uint8_t* ptr,
-                        uint16_t thread_id,
-                        uint32_t method_index,
-                        TraceAction action,
-                        uint32_t thread_clock_diff,
-                        uint32_t wall_clock_diff) REQUIRES(tracing_lock_);
-
-  // Helper functions to record Thread / Method information when processing the
-  // events. These are used by streaming output mode. Non-streaming modes dump
-  // the methods and threads list at the end of tracing.
-  void RecordThreadInfo(Thread* thread);
-  void RecordMethodInfo(ArtMethod* method,
-                        uint32_t method_id,
-                        size_t* index,
-                        uint8_t* buf,
-                        size_t size) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(tracing_lock_);
-
-  // Flush tracing buffers from all the threads.
-  void FlushAllThreadBuffers() REQUIRES(!tracing_lock_, !Locks::thread_list_lock_);
-  // This encodes all the events in the per-thread trace buffer and writes it to the trace file /
-  // buffer. This acquires streaming lock to prevent any other threads writing concurrently. It is
-  // required to serialize these since each method is encoded with a unique id which is assigned
-  // when the method is seen for the first time in the recoreded events. So we need to serialize
-  // these flushes across threads.
-  void FlushBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
-  // Ensures there is sufficient space in the buffer to record the requested_size. If there is not
-  // enough sufficient space the current contents of the buffer are written to the file and
-  // current_index is reset to 0. This doesn't check if buffer_size is big enough to hold the
-  // requested size.
-  void EnsureSpace(uint8_t* buffer,
-                   size_t* current_index,
-                   size_t buffer_size,
-                   size_t required_size);
-
-  std::pair<uint32_t, bool> GetMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
-  std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
+                           uint64_t timestamp_counter) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Singleton instance of the Trace or null when no method tracing is active.
   static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
@@ -337,42 +411,13 @@ class Trace final : public instrumentation::InstrumentationListener {
   // Used to remember an unused stack trace to avoid re-allocation during sampling.
   static std::unique_ptr<std::vector<ArtMethod*>> temp_stack_trace_;
 
-  // File to write trace data out to, null if direct to ddms.
-  std::unique_ptr<File> trace_file_;
-
-  // Buffer to store trace data in non-streaming mode. This is only accessed in
-  // SuspendAll scope to flush the data from all threads into this buffer.
-  std::unique_ptr<uint8_t[]> buf_;
-
   // Flags enabling extra tracing of things such as alloc counts.
   const int flags_;
-
-  // The kind of output for this tracing.
-  const TraceOutputMode trace_output_mode_;
 
   // The tracing method.
   const TraceMode trace_mode_;
 
   const TraceClockSource clock_source_;
-
-  // Size of buf_.
-  const size_t buffer_size_;
-
-  // Time trace was created.
-  const uint64_t start_time_;
-
-  // Clock overhead.
-  const uint32_t clock_overhead_ns_;
-
-  size_t cur_offset_ GUARDED_BY(tracing_lock_);
-
-  // Did we overflow the buffer recording traces?
-  bool overflow_;
-
-  // Map of thread ids and names. This is used only in non-streaming mode, since we have to dump
-  // information about all threads in one block. In streaming mode, thread info is recorded directly
-  // in the file when we see the first even from this thread.
-  SafeMap<uint16_t, std::string> threads_list_;
 
   // Sampling profiler sampling interval.
   int interval_us_;
@@ -380,16 +425,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // A flag to indicate to the sampling thread whether to stop tracing
   bool stop_tracing_;
 
-  // Streaming mode data.
-  Mutex tracing_lock_;
-
-  // Map from ArtMethod* to index.
-  std::unordered_map<ArtMethod*, uint32_t> art_method_id_map_ GUARDED_BY(tracing_lock_);
-  uint32_t current_method_index_ = 0;
-
-  // Map from thread_id to a 16-bit identifier.
-  std::unordered_map<pid_t, uint16_t> thread_id_map_ GUARDED_BY(tracing_lock_);
-  uint16_t current_thread_index_;
+  std::unique_ptr<TraceWriter> trace_writer_;
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };

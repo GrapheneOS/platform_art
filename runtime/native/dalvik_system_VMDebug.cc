@@ -117,9 +117,8 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env,
   }
 
   // Ignore the traceFilename.
-  Trace::TraceOutputMode outputMode = streamingOutput
-                                          ? Trace::TraceOutputMode::kStreaming
-                                          : Trace::TraceOutputMode::kFile;
+  TraceOutputMode outputMode =
+      streamingOutput ? TraceOutputMode::kStreaming : TraceOutputMode::kFile;
   Trace::Start(fd,
                bufferSize,
                flags,
@@ -138,7 +137,7 @@ static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring java
   Trace::Start(traceFilename.c_str(),
                bufferSize,
                flags,
-               Trace::TraceOutputMode::kFile,
+               TraceOutputMode::kFile,
                samplingEnabled ? Trace::TraceMode::kSampling : Trace::TraceMode::kMethodTracing,
                intervalUs);
 }
