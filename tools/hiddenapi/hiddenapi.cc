@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <openssl/sha.h>
+
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -731,8 +733,9 @@ class DexFileEditor final {
         header->data_size_ = output.size() - header->data_off_;
         header->file_size_ = output.size() - header_offset[i];
       }
+      size_t sha1_start = offsetof(DexFile::Header, file_size_);
+      SHA1(begin + sha1_start, header->file_size_ - sha1_start, header->signature_);
       header->checksum_ = DexFile::CalculateChecksum(begin, header->file_size_);
-      // TODO: We should also update the SHA1 signature.
     }
 
     // Write the output file.
