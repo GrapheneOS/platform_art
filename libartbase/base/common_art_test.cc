@@ -448,28 +448,25 @@ std::vector<std::string> CommonArtTestImpl::GetLibCoreModuleNames() const {
 
 std::vector<std::string> CommonArtTestImpl::GetLibCoreDexFileNames(
     const std::vector<std::string>& modules) const {
-  return art::testing::GetLibCoreDexFileNames(modules);
+  return art::testing::GetLibCoreDexFileNames(kIsTargetBuild ? "" : GetAndroidRoot(), modules);
 }
 
 std::vector<std::string> CommonArtTestImpl::GetLibCoreDexFileNames() const {
   std::vector<std::string> modules = GetLibCoreModuleNames();
-  return art::testing::GetLibCoreDexFileNames(modules);
+  return art::testing::GetLibCoreDexFileNames(kIsTargetBuild ? "" : GetAndroidRoot(), modules);
 }
 
 std::vector<std::string> CommonArtTestImpl::GetLibCoreDexLocations(
     const std::vector<std::string>& modules) const {
-  std::vector<std::string> result = GetLibCoreDexFileNames(modules);
+  std::string prefix = "";
   if (IsHost()) {
-    // Strip the ANDROID_BUILD_TOP directory including the directory separator '/'.
-    std::string prefix = GetAndroidBuildTop();
-    for (std::string& location : result) {
-      CHECK_GT(location.size(), prefix.size());
-      CHECK_EQ(location.compare(0u, prefix.size(), prefix), 0)
-          << " prefix=" << prefix << " location=" << location;
-      location.erase(0u, prefix.size());
-    }
+    std::string android_root = GetAndroidRoot();
+    std::string build_top = GetAndroidBuildTop();
+    CHECK(android::base::StartsWith(android_root, build_top))
+        << " android_root=" << android_root << " build_top=" << build_top;
+    prefix = android_root.substr(build_top.size());
   }
-  return result;
+  return art::testing::GetLibCoreDexFileNames(prefix, modules);
 }
 
 std::vector<std::string> CommonArtTestImpl::GetLibCoreDexLocations() const {
