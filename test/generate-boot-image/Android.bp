@@ -28,7 +28,7 @@ art_cc_binary {
     defaults: [
         "art_defaults",
     ],
-    host_supported: false,
+    host_supported: true,
     compile_multilib: "both",
     multilib: {
         lib32: {

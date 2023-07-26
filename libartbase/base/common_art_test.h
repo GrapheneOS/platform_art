@@ -157,10 +157,10 @@ class CommonArtTestImpl {
   // Gets the paths of the libcore dex files.
   std::vector<std::string> GetLibCoreDexFileNames() const;
 
-  // Gets the locations of the libcore dex files for given modules.
+  // Gets the on-host or on-device locations of the libcore dex files for given modules.
   std::vector<std::string> GetLibCoreDexLocations(const std::vector<std::string>& modules) const;
 
-  // Gets the locations of the libcore dex files.
+  // Gets the on-host or on-device locations of the libcore dex files.
   std::vector<std::string> GetLibCoreDexLocations() const;
 
   static std::string GetClassPathOption(const char* option,
