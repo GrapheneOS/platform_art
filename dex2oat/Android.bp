@@ -104,7 +104,6 @@ art_cc_library_static {
     name: "libart-dex2oat",
     defaults: ["libart-dex2oat-defaults"],
     shared_libs: [
-        "libart-compiler",
         "libart-dexlayout",
         "libart",
         "libartpalette",
@@ -127,7 +126,6 @@ cc_defaults {
         "libprofile_static_defaults",
     ],
     whole_static_libs: [
-        "libart-compiler",
         "libart-dexlayout",
         "libart-dex2oat",
     ],
@@ -141,7 +139,6 @@ art_cc_library_static {
     host_supported: true,
     defaults: [
         "art_defaults",
-        "libart-compiler_static_defaults",
         "libart-dex2oat_static_defaults",
         "libart-dexlayout_static_defaults",
         "libart_static_defaults",
@@ -158,7 +155,6 @@ art_cc_library_static {
         "libart-dex2oat-defaults",
     ],
     shared_libs: [
-        "libartd-compiler",
         "libartd-dexlayout",
         "libartd",
         "libartpalette",
@@ -180,7 +176,6 @@ cc_defaults {
         "libprofiled_static_defaults",
     ],
     whole_static_libs: [
-        "libartd-compiler",
         "libartd-dexlayout",
         "libartd-dex2oat",
     ],
@@ -193,7 +188,6 @@ art_cc_library_static {
     defaults: [
         "art_debug_defaults",
         "libartbased_static_defaults",
-        "libartd-compiler_static_defaults",
         "libartd-dex2oat_static_defaults",
         "libartd-dexlayout_static_defaults",
         "libartd_static_defaults",
@@ -304,7 +298,6 @@ art_cc_binary {
         android: {
             shared_libs: [
                 "libart",
-                "libart-compiler",
                 "libart-dexlayout",
                 "libartbase",
                 "libdexfile",
@@ -366,7 +359,6 @@ art_cc_binary {
             shared_libs: [
                 "libartbased",
                 "libartd",
-                "libartd-compiler",
                 "libartd-dexlayout",
                 "libdexfiled",
                 "libprofiled",
