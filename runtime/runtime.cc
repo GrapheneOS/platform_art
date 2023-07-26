@@ -210,7 +210,7 @@ Runtime* Runtime::instance_ = nullptr;
 
 struct TraceConfig {
   Trace::TraceMode trace_mode;
-  Trace::TraceOutputMode trace_output_mode;
+  TraceOutputMode trace_output_mode;
   std::string trace_file;
   size_t trace_file_size;
   TraceClockSource clock_source;
@@ -1919,8 +1919,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     trace_config_->trace_file_size = runtime_options.ReleaseOrDefault(Opt::MethodTraceFileSize);
     trace_config_->trace_mode = Trace::TraceMode::kMethodTracing;
     trace_config_->trace_output_mode = runtime_options.Exists(Opt::MethodTraceStreaming) ?
-        Trace::TraceOutputMode::kStreaming :
-        Trace::TraceOutputMode::kFile;
+                                           TraceOutputMode::kStreaming :
+                                           TraceOutputMode::kFile;
     trace_config_->clock_source = runtime_options.GetOrDefault(Opt::MethodTraceClock);
   }
 
