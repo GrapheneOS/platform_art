@@ -26,8 +26,7 @@ namespace testing {
 
 namespace {
 
-std::string GetDexFileName(const std::string& jar_prefix, bool host) {
-  std::string prefix(host ? GetAndroidRoot() : "");
+std::string GetDexFileName(const std::string& jar_prefix, const std::string& prefix) {
   const char* apexPath =
       (jar_prefix == "conscrypt") ?
           kAndroidConscryptApexDefaultPath :
@@ -60,18 +59,28 @@ std::vector<std::string> GetLibCoreModuleNames(bool core_only) {
   return modules;
 }
 
-std::vector<std::string> GetLibCoreDexFileNames(const std::vector<std::string>& modules) {
+std::vector<std::string> GetLibCoreDexFileNames(const std::string& prefix,
+                                                const std::vector<std::string>& modules) {
   std::vector<std::string> result;
   result.reserve(modules.size());
   for (const std::string& module : modules) {
-    result.push_back(GetDexFileName(module, !kIsTargetBuild));
+    result.push_back(GetDexFileName(module, prefix));
   }
   return result;
 }
 
-std::vector<std::string> GetLibCoreDexFileNames(bool core_only) {
+std::vector<std::string> GetLibCoreDexFileNames(const std::string& prefix, bool core_only) {
   std::vector<std::string> modules = GetLibCoreModuleNames(core_only);
-  return GetLibCoreDexFileNames(modules);
+  return GetLibCoreDexFileNames(prefix, modules);
+}
+
+std::vector<std::string> GetLibCoreDexLocations(const std::vector<std::string>& modules) {
+  return GetLibCoreDexFileNames(/*prefix=*/"", modules);
+}
+
+std::vector<std::string> GetLibCoreDexLocations(bool core_only) {
+  std::vector<std::string> modules = GetLibCoreModuleNames(core_only);
+  return GetLibCoreDexLocations(modules);
 }
 
 }  // namespace testing
