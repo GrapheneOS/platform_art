@@ -589,7 +589,9 @@ standalone-apex-files: deapexer \
                        $(CONSCRYPT_APEX) \
                        $(I18N_APEX) \
                        $(STATSD_APEX) \
-                       $(TZDATA_APEX)
+                       $(TZDATA_APEX) \
+                       $(HOST_OUT)/bin/generate-boot-image64 \
+                       $(HOST_OUT)/bin/dex2oat64
 	$(call extract-from-apex,$(RELEASE_ART_APEX),\
 	  $(PRIVATE_ART_APEX_DEPENDENCY_LIBS) $(PRIVATE_ART_APEX_DEPENDENCY_FILES))
 	# The Runtime APEX has the Bionic libs in ${LIB}/bionic subdirectories,
@@ -609,6 +611,15 @@ standalone-apex-files: deapexer \
 	$(call extract-from-apex,$(STATSD_APEX),\
 	  $(PRIVATE_STATSD_APEX_DEPENDENCY_LIBS))
 	$(call extract-from-apex,$(TZDATA_APEX),)
+	rm -rf $(PRODUCT_OUT)/apex/art_boot_images && \
+	  mkdir -p $(PRODUCT_OUT)/apex/art_boot_images/javalib && \
+	  $(HOST_OUT)/bin/generate-boot-image64 \
+	    --output-dir=$(PRODUCT_OUT)/apex/art_boot_images/javalib \
+	    --compiler-filter=speed \
+	    --use-profile=false \
+	    --dex2oat-bin=$(HOST_OUT)/bin/dex2oat64 \
+	    --android-root=$(TARGET_OUT) \
+	    --instruction-set=$(TARGET_ARCH)
 
 ########################################################################
 # Phony target for only building what go/lem requires for pushing ART on /data.
@@ -634,8 +645,7 @@ build-art-target-golem: $(RELEASE_ART_APEX) com.android.runtime $(CONSCRYPT_APEX
                         $(TARGET_OUT_EXECUTABLES)/dex2oat_wrapper \
                         $(ART_TARGET_PLATFORM_DEPENDENCIES) \
                         $(ART_TARGET_SHARED_LIBRARY_BENCHMARK) \
-			$(TARGET_OUT_SHARED_LIBRARIES)/libgolemtiagent.so \
-                        $(PRODUCT_OUT)/apex/art_boot_images/javalib/$(TARGET_ARCH)/boot.art \
+                        $(TARGET_OUT_SHARED_LIBRARIES)/libgolemtiagent.so \
                         standalone-apex-files
 	# remove debug libraries from public.libraries.txt because golem builds
 	# won't have it.
