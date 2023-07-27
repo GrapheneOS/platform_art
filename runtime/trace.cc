@@ -570,7 +570,7 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   }
 }
 
-void Trace::StopTracing(bool finish_tracing, bool flush_file) {
+void Trace::StopTracing(bool flush_entries) {
   Runtime* const runtime = Runtime::Current();
   Thread* const self = Thread::Current();
   pthread_t sampling_pthread = 0U;
@@ -647,7 +647,7 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
   // At this point, code may read buf_ as its writers are shutdown
   // and the ScopedSuspendAll above has ensured all stores to buf_
   // are now visible.
-  the_trace->trace_writer_->FinishTracing(the_trace->flags_, finish_tracing, flush_file);
+  the_trace->trace_writer_->FinishTracing(the_trace->flags_, flush_entries);
   delete the_trace;
 
   if (stop_alloc_counting) {
@@ -663,12 +663,12 @@ void Trace::FlushThreadBuffer(Thread* self) {
 
 void Trace::Abort() {
   // Do not write anything anymore.
-  StopTracing(false, false);
+  StopTracing(/* flush_entries= */ false);
 }
 
 void Trace::Stop() {
   // Finish writing.
-  StopTracing(true, true);
+  StopTracing(/* flush_entries= */ true);
 }
 
 void Trace::Shutdown() {
@@ -778,8 +778,8 @@ Trace::Trace(File* trace_file,
       trace_file, output_mode, clock_source_, buffer_size, GetClockOverheadNanoSeconds()));
 }
 
-void TraceWriter::FinishTracing(int flags, bool finish_tracing, bool flush_file) {
-  if (finish_tracing) {
+void TraceWriter::FinishTracing(int flags, bool flush_entries) {
+  if (flush_entries) {
     size_t final_offset = 0;
     if (trace_output_mode_ != TraceOutputMode::kStreaming) {
       MutexLock mu(Thread::Current(), tracing_lock_);
@@ -868,7 +868,7 @@ void TraceWriter::FinishTracing(int flags, bool finish_tracing, bool flush_file)
 
   if (trace_file_.get() != nullptr) {
     // Do not try to erase, so flush and close explicitly.
-    if (flush_file) {
+    if (flush_entries) {
       if (trace_file_->Flush() != 0) {
         PLOG(WARNING) << "Could not flush trace file.";
       }

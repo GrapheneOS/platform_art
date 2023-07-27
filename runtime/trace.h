@@ -143,7 +143,7 @@ class TraceWriter {
       REQUIRES(!tracing_lock_);
 
   // Flushes all per-thread buffer and also write a summary entry.
-  void FinishTracing(int flags, bool finish_tracing, bool flush_file) REQUIRES(!tracing_lock_)
+  void FinishTracing(int flags, bool flush_entries) REQUIRES(!tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // This is called when we see the first entry from the thread to record the information about the
@@ -383,7 +383,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // The sampling interval in microseconds is passed as an argument.
   static void* RunSamplingThread(void* arg) REQUIRES(!Locks::trace_lock_);
 
-  static void StopTracing(bool finish_tracing, bool flush_file)
+  static void StopTracing(bool flush_entries)
       REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::trace_lock_)
       // There is an annoying issue with static functions that create a new object and call into
       // that object that causes them to not be able to tell that we don't currently hold the lock.
