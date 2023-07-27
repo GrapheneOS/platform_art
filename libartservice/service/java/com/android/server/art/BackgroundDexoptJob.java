@@ -228,41 +228,11 @@ public class BackgroundDexoptJob {
         synchronized (this) {
             stopReason = mLastStopReason;
         }
-        if (result instanceof CompletedResult) {
-            var completedResult = (CompletedResult) result;
-            ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
-                    getStatusForStats(completedResult, stopReason),
-                    stopReason.orElse(JobParameters.STOP_REASON_UNDEFINED),
-                    completedResult.durationMs(), 0 /* deprecated */);
+        if (result instanceof CompletedResult completedResult) {
+            BackgroundDexoptJobStatsReporter.reportSuccess(completedResult, stopReason);
         } else if (result instanceof FatalErrorResult) {
-            ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
-                    ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_FATAL_ERROR,
-                    JobParameters.STOP_REASON_UNDEFINED, 0 /* durationMs */, 0 /* deprecated */);
+            BackgroundDexoptJobStatsReporter.reportFailure();
         }
-    }
-
-    private int getStatusForStats(@NonNull CompletedResult result, Optional<Integer> stopReason) {
-        if (result.dexoptResult().getFinalStatus() == DexoptResult.DEXOPT_CANCELLED) {
-            if (stopReason.isPresent()) {
-                return ArtStatsLog
-                        .BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_CANCELLATION;
-            } else {
-                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_API;
-            }
-        }
-
-        boolean isSkippedDueToStorageLow =
-                result.dexoptResult()
-                        .getPackageDexoptResults()
-                        .stream()
-                        .flatMap(packageResult
-                                -> packageResult.getDexContainerFileDexoptResults().stream())
-                        .anyMatch(fileResult -> fileResult.isSkippedDueToStorageLow());
-        if (isSkippedDueToStorageLow) {
-            return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_NO_SPACE_LEFT;
-        }
-
-        return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_JOB_FINISHED;
     }
 
     static abstract class Result {}
