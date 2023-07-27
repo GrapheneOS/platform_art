@@ -2739,7 +2739,7 @@ bool HLoopOptimization::VectorizeIfCondition(LoopNode* node,
   HInstruction* opa_promoted = opa;
   HInstruction* opb_promoted = opb;
   bool is_int_case = DataType::Type::kInt32 == opa->GetType() &&
-                     DataType::Type::kInt32 == opa->GetType();
+                     DataType::Type::kInt32 == opb->GetType();
 
   // Condition arguments should be either both int32 or consistently extended signed/unsigned
   // narrower operands.
