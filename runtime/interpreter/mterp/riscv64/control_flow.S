@@ -59,6 +59,9 @@
 %def op_goto_32():
     unimp
 
+%def op_cmp_long():
+    unimp
+
 %def op_if_eq():
 %  bincmp(condition="eq")
 
