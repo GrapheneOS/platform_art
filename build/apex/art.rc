@@ -27,3 +27,4 @@ service art_boot /apex/com.android.art/bin/art_boot
     disabled  # Started explicitly from system/core/rootdir/init.rc
     oneshot
     class core
+    user root
