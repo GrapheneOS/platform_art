@@ -2114,13 +2114,21 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeStaticOrDirect(
 }
 
 void LocationsBuilderRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  if (intrinsic.TryDispatch(instruction)) {
+    return;
+  }
+
+  HandleInvoke(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  if (TryGenerateIntrinsicCode(instruction, codegen_)) {
+    return;
+  }
+
+  codegen_->GenerateVirtualCall(instruction, instruction->GetLocations()->GetTemp(0));
+  DCHECK(!codegen_->IsLeafMethod());
 }
 
 void LocationsBuilderRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
