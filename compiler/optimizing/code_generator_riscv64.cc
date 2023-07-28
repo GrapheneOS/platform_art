@@ -25,6 +25,7 @@
 #include "dwarf/register.h"
 #include "heap_poisoning.h"
 #include "intrinsics_list.h"
+#include "intrinsics_riscv64.h"
 #include "jit/profiling_info.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
@@ -33,7 +34,7 @@
 #include "utils/riscv64/assembler_riscv64.h"
 #include "utils/stack_checks.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace riscv64 {
 
 static constexpr XRegister kCoreCalleeSaves[] = {
