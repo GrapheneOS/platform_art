@@ -1,3 +1,6 @@
+// Note: Floating point operations must follow IEEE 754 rules, using round-to-nearest and gradual
+// underflow, except where stated otherwise.
+
 %def fbinop(instr=""):
     unimp
 
