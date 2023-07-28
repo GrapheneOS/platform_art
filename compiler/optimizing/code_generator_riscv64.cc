@@ -2073,14 +2073,44 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeInterface(HInvokeInterface* ins
 }
 
 void LocationsBuilderRISCV64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!instruction->IsStaticWithExplicitClinitCheck());
+
+  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  if (intrinsic.TryDispatch(instruction)) {
+    return;
+  }
+
+  if (instruction->GetCodePtrLocation() == CodePtrLocation::kCallCriticalNative) {
+    CriticalNativeCallingConventionVisitorRiscv64 calling_convention_visitor(
+        /*for_register_allocation=*/ true);
+    CodeGenerator::CreateCommonInvokeLocationSummary(instruction, &calling_convention_visitor);
+  } else {
+    HandleInvoke(instruction);
+  }
+}
+
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
+  // TODO(riscv64): Implement intrinsics later
+  UNUSED(invoke);
+  UNUSED(codegen);
+  return false;
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInvokeStaticOrDirect(
     HInvokeStaticOrDirect* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  // Explicit clinit checks triggered by static invokes must have been pruned by
+  // art::PrepareForRegisterAllocation.
+  DCHECK(!instruction->IsStaticWithExplicitClinitCheck());
+
+  if (TryGenerateIntrinsicCode(instruction, codegen_)) {
+    return;
+  }
+
+  LocationSummary* locations = instruction->GetLocations();
+  codegen_->GenerateStaticOrDirectCall(
+      instruction, locations->HasTemps() ? locations->GetTemp(0) : Location::NoLocation());
 }
 
 void LocationsBuilderRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruction) {
