@@ -49,8 +49,12 @@ namespace art {
 
 int membarrier(MembarrierCommand command) {
   // Check kernel version supports membarrier(2).
+  // MEMBARRIER_CMD_QUERY is supported since Linux 4.3.
+  // MEMBARRIER_CMD_PRIVATE_EXPEDITED is supported since Linux 4.14.
+  // MEMBARRIER_CMD_PRIVATE_EXPEDITED_SYNC_CORE is supported since Linux 4.16.
+  // Lowest Linux version useful for ART is 4.14.
   static constexpr int kRequiredMajor = 4;
-  static constexpr int kRequiredMinor = 16;
+  static constexpr int kRequiredMinor = 14;
   struct utsname uts;
   int major, minor;
   if (uname(&uts) != 0 ||
