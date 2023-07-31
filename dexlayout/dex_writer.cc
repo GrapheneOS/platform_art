@@ -791,17 +791,15 @@ void DexWriter::GenerateAndWriteMapItems(Stream* stream) {
 void DexWriter::WriteHeader(Stream* stream) {
   StandardDexFile::Header header;
   if (CompactDexFile::IsMagicValid(header_->Magic())) {
-    StandardDexFile::WriteMagic(header.magic_);
+    StandardDexFile::WriteMagic(header.magic_.data());
     if (header_->SupportDefaultMethods()) {
-      StandardDexFile::WriteCurrentVersion(header.magic_);
+      StandardDexFile::WriteCurrentVersion(header.magic_.data());
     } else {
-      StandardDexFile::WriteVersionBeforeDefaultMethods(header.magic_);
+      StandardDexFile::WriteVersionBeforeDefaultMethods(header.magic_.data());
     }
   } else {
     // Standard dex -> standard dex, just reuse the same header.
-    static constexpr size_t kMagicAndVersionLen =
-        StandardDexFile::kDexMagicSize + StandardDexFile::kDexVersionLen;
-    std::copy_n(header_->Magic(), kMagicAndVersionLen, header.magic_);
+    header.magic_ = header_->Magic();
   }
   header.checksum_ = header_->Checksum();
   header.signature_ = header_->Signature();

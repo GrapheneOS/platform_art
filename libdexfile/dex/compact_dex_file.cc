@@ -45,9 +45,7 @@ bool CompactDexFile::IsMagicValid() const {
   return IsMagicValid(header_->magic_);
 }
 
-bool CompactDexFile::IsVersionValid() const {
-  return IsVersionValid(header_->magic_);
-}
+bool CompactDexFile::IsVersionValid() const { return IsVersionValid(header_->magic_.data()); }
 
 bool CompactDexFile::SupportsDefaultMethods() const {
   return (GetHeader().GetFeatureFlags() &
