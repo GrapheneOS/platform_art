@@ -68,6 +68,9 @@ java_sdk_library {
     name: "service-art",
     defaults: ["framework-system-server-module-defaults"],
     permitted_packages: ["com.android.server.art"],
+    dex_preopt: {
+        profile: "art-profile",
+    },
     visibility: [
         "//art:__subpackages__",
         "//frameworks/base/services/core",
