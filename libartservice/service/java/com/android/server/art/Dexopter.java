@@ -165,7 +165,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     long cpuTimeMs = 0;
                     long sizeBytes = 0;
                     long sizeBeforeBytes = 0;
-                    boolean isSkippedDueToStorageLow = false;
+                    @DexoptResult.DexoptResultExtraStatus int extraStatus = 0;
                     try {
                         var target = DexoptTarget.<DexInfoType>builder()
                                              .setDexInfo(dexInfo)
@@ -196,7 +196,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                     && mInjector.getStorageManager().getAllocatableBytes(
                                                mPkg.getStorageUuid())
                                             <= 0) {
-                                isSkippedDueToStorageLow = true;
+                                extraStatus |= DexoptResult.EXTRA_SKIPPED_STORAGE_LOW;
                                 continue;
                             }
                         } catch (IOException e) {
@@ -239,7 +239,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     } finally {
                         var result = DexContainerFileDexoptResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow);
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus);
                         Log.i(TAG,
                                 String.format("Dexopt result: [packageName = %s] %s",
                                         mPkgState.getPackageName(), result));
