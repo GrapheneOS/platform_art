@@ -354,9 +354,8 @@ static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base
 }
 
 static void ValidateDexFileHeader(std::unique_ptr<const DexFile> dex_file) {
-  static const uint8_t kExpectedDexFileMagic[8] = {
-    /* d */ 0x64, /* e */ 0x64, /* x */ 0x78, /* \n */ 0x0d,
-    /* 0 */ 0x30, /* 3 */ 0x33, /* 5 */ 0x35, /* \0 */ 0x00
+  static const DexFile::Magic kExpectedDexFileMagic = {
+      0x64, 0x65, 0x78, 0x0a, 0x30, 0x33, 0x35, 0x00,  // "dex\n035\0".
   };
   static const DexFile::Sha1 kExpectedSha1 = {
       0x7b, 0xb8, 0x0c, 0xd4, 0x1f, 0xd6, 0x1e, 0xc5, 0x89, 0xe8,
@@ -364,7 +363,7 @@ static void ValidateDexFileHeader(std::unique_ptr<const DexFile> dex_file) {
   };
 
   const DexFile::Header& header = dex_file->GetHeader();
-  EXPECT_EQ(*kExpectedDexFileMagic, *header.magic_);
+  EXPECT_EQ(kExpectedDexFileMagic, header.magic_);
   EXPECT_EQ(0x00d87910U, header.checksum_);
   EXPECT_EQ(kExpectedSha1, header.signature_);
   EXPECT_EQ(904U, header.file_size_);

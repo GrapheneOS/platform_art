@@ -654,7 +654,7 @@ static void dumpFileHeader(const DexFile* pDexFile) {
   const DexFile::Header& pHeader = pDexFile->GetHeader();
   char sanitized[sizeof(pHeader.magic_) * 2 + 1];
   fprintf(gOutFile, "DEX file header:\n");
-  asciify(sanitized, pHeader.magic_, sizeof(pHeader.magic_));
+  asciify(sanitized, pHeader.magic_.data(), pHeader.magic_.size());
   fprintf(gOutFile, "magic               : '%s'\n", sanitized);
   fprintf(gOutFile, "checksum            : %08x\n", pHeader.checksum_);
   fprintf(gOutFile, "signature           : %02x%02x...%02x%02x\n",
@@ -1943,7 +1943,7 @@ static void processDexFile(const char* fileName,
     if (n > 1) {
       fprintf(gOutFile, ":%s", DexFileLoader::GetMultiDexClassesDexName(i).c_str());
     }
-    fprintf(gOutFile, "', DEX version '%.3s'\n", pDexFile->GetHeader().magic_ + 4);
+    fprintf(gOutFile, "', DEX version '%.3s'\n", pDexFile->GetHeader().magic_.data() + 4);
   }
 
   // Headers.
