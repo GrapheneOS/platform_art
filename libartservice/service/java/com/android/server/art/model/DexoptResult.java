@@ -28,6 +28,7 @@ import com.google.auto.value.AutoValue;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
 import java.util.List;
 
 /** @hide */
@@ -58,6 +59,19 @@ public abstract class DexoptResult {
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
     public @interface DexoptResultStatus {}
+
+    // Possible values of {@link #DexoptResultExtraStatus}.
+    /** @hide */
+    public static final int EXTRA_SKIPPED_STORAGE_LOW = 1 << 0;
+
+    /** @hide */
+    // clang-format off
+    @IntDef(flag = true, prefix = {"EXTRA_"}, value = {
+        EXTRA_SKIPPED_STORAGE_LOW,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface DexoptResultExtraStatus {}
 
     /** @hide */
     protected DexoptResult() {}
@@ -123,6 +137,16 @@ public abstract class DexoptResult {
                 return "CANCELLED";
         }
         throw new IllegalArgumentException("Unknown dexopt status " + status);
+    }
+
+    /** @hide */
+    @NonNull
+    public static String dexoptResultExtraStatusToString(@DexoptResultExtraStatus int extraStatus) {
+        var strs = new ArrayList<String>();
+        if ((extraStatus & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW) != 0) {
+            strs.add("EXTRA_SKIPPED_STORAGE_LOW");
+        }
+        return String.join(", ", strs);
     }
 
     /**
@@ -192,10 +216,10 @@ public abstract class DexoptResult {
                 boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
                 @DexoptResultStatus int status, long dex2oatWallTimeMillis,
                 long dex2oatCpuTimeMillis, long sizeBytes, long sizeBeforeBytes,
-                boolean isSkippedDueToStorageLow) {
+                @DexoptResultExtraStatus int extraStatus) {
             return new AutoValue_DexoptResult_DexContainerFileDexoptResult(dexContainerFile,
                     isPrimaryAbi, abi, compilerFilter, status, dex2oatWallTimeMillis,
-                    dex2oatCpuTimeMillis, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow);
+                    dex2oatCpuTimeMillis, sizeBytes, sizeBeforeBytes, extraStatus);
         }
 
         /** The absolute path to the dex container file. */
@@ -250,7 +274,7 @@ public abstract class DexoptResult {
         public abstract long getSizeBeforeBytes();
 
         /** @hide */
-        public abstract boolean isSkippedDueToStorageLow();
+        public abstract @DexoptResultExtraStatus int getExtraStatus();
 
         @Override
         @NonNull
@@ -264,11 +288,13 @@ public abstract class DexoptResult {
                             + "dex2oatWallTimeMillis=%d, "
                             + "dex2oatCpuTimeMillis=%d, "
                             + "sizeBytes=%d, "
-                            + "sizeBeforeBytes=%d}",
+                            + "sizeBeforeBytes=%d, "
+                            + "extraStatus=[%s]}",
                     getDexContainerFile(), isPrimaryAbi(), getAbi(), getActualCompilerFilter(),
                     DexoptResult.dexoptResultStatusToString(getStatus()),
                     getDex2oatWallTimeMillis(), getDex2oatCpuTimeMillis(), getSizeBytes(),
-                    getSizeBeforeBytes());
+                    getSizeBeforeBytes(),
+                    DexoptResult.dexoptResultExtraStatusToString(getExtraStatus()));
         }
     }
 }
