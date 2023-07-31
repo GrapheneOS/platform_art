@@ -822,11 +822,11 @@ public class DexoptHelperTest {
         return List.of(DexContainerFileDexoptResult.create(dexPath, true /* isPrimaryAbi */,
                                "arm64-v8a", "verify", status1, 100 /* dex2oatWallTimeMillis */,
                                400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */,
-                               0 /* sizeBeforeBytes */, false /* isSkippedDueToStorageLow */),
+                               0 /* sizeBeforeBytes */, 0 /* extraStatus */),
                 DexContainerFileDexoptResult.create(dexPath, false /* isPrimaryAbi */,
                         "armeabi-v7a", "verify", status2, 100 /* dex2oatWallTimeMillis */,
                         400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
-                        false /* isSkippedDueToStorageLow */));
+                        0 /* extraStatus */));
     }
 
     private void checkPackageResult(DexoptResult result, int index, String packageName,
