@@ -20,12 +20,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/common_art_test.h"
 #include "base/file_utils.h"
 #include "base/os.h"
 #include "common_runtime_test.h"
@@ -49,9 +51,13 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
     if (GetParam() == Flavor::kStatic) {
       TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
     }
+
+    // Prevent boot image inference to ensure consistent test behavior.
+    unset_bootclasspath_ = std::make_unique<ScopedUnsetEnvironmentVariable>("BOOTCLASSPATH");
   }
 
   virtual void TearDown() {
+    unset_bootclasspath_.reset();
     ClearDirectory(tmp_dir_.c_str(), /*recursive*/ false);
     ASSERT_EQ(rmdir(tmp_dir_.c_str()), 0);
     CommonRuntimeTest::TearDown();
@@ -97,6 +103,7 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
     kArgDexBcp = 1 << 3,     // --dex-file=<bcp-dex-file>
     kArgOatApp = 1 << 4,     // --oat-file=<app-oat-file>
     kArgSymbolize = 1 << 5,  // --symbolize=<bcp-oat-file>
+    kArgDexApp = 1 << 6,     // --dex-file=<app-dex-file>
 
     // Runtime args.
     kArgBcp = 1 << 16,        // --runtime-arg -Xbootclasspath:<bcp>
@@ -108,6 +115,8 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
     kExpectImage = 1 << 0,
     kExpectOat = 1 << 1,
     kExpectCode = 1 << 2,
+    kExpectBssMappingsForBcp = 1 << 3,
+    kExpectBssOffsetsForBcp = 1 << 4,
   };
 
   static std::string GetAppBaseName() {
@@ -189,6 +198,12 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
       expected_prefixes.push_back("CODE:");
       expected_prefixes.push_back("StackMap");
     }
+    if ((expects & kExpectBssMappingsForBcp) != 0) {
+      expected_prefixes.push_back("Entries for BCP DexFile");
+    }
+    if ((expects & kExpectBssOffsetsForBcp) != 0) {
+      expected_prefixes.push_back("Offsets for BCP DexFile");
+    }
 
     std::vector<std::string> exec_argv = {file_path};
     if ((args & kArgSymbolize) != 0) {
@@ -222,6 +237,9 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
     }
     if ((args & kArgOatApp) != 0) {
       exec_argv.push_back("--oat-file=" + GetAppOdexName());
+    }
+    if ((args & kArgDexApp) != 0) {
+      exec_argv.push_back("--dex-file=" + GetTestDexFileName(GetAppBaseName().c_str()));
     }
     exec_argv.insert(exec_argv.end(), extra_args.begin(), extra_args.end());
 
@@ -369,6 +387,7 @@ class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface
  private:
   std::string core_art_location_;
   std::string core_oat_location_;
+  std::unique_ptr<ScopedUnsetEnvironmentVariable> unset_bootclasspath_;
 };
 
 }  // namespace art
