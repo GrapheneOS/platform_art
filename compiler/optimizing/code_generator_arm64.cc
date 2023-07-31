@@ -3779,7 +3779,7 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
     // The condition instruction has been materialized, compare the output to 0.
     Location cond_val = instruction->GetLocations()->InAt(condition_input_index);
     DCHECK(cond_val.IsRegister());
-      if (true_target == nullptr) {
+    if (true_target == nullptr) {
       __ Cbz(InputRegisterAt(instruction, condition_input_index), false_target);
     } else {
       __ Cbnz(InputRegisterAt(instruction, condition_input_index), true_target);
@@ -4808,14 +4808,12 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(
       __ Ldr(XRegisterFrom(temp), MemOperand(tr, offset));
       break;
     }
-    case MethodLoadKind::kRecursive: {
+    case MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetCurrentMethodIndex());
       break;
-    }
-    case MethodLoadKind::kRuntimeCall: {
+    case MethodLoadKind::kRuntimeCall:
       GenerateInvokeStaticOrDirectRuntimeCall(invoke, temp, slow_path);
       return;  // No code pointer retrieval; the runtime performs the call directly.
-    }
     case MethodLoadKind::kBootImageLinkTimePcRelative:
       DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
       if (invoke->GetCodePtrLocation() == CodePtrLocation::kCallCriticalNative) {
@@ -4831,10 +4829,9 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(
         break;
       }
       FALLTHROUGH_INTENDED;
-    default: {
+    default:
       LoadMethod(invoke->GetMethodLoadKind(), temp, invoke);
       break;
-    }
   }
 
   auto call_lr = [&]() {
@@ -4939,6 +4936,7 @@ void CodeGeneratorARM64::GenerateVirtualCall(
   }
   // Instead of simply (possibly) unpoisoning `temp` here, we should
   // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
   // intermediate/temporary reference and because the current
   // concurrent copying collector keeps the from-space memory
   // intact/accessible until the end of the marking phase (the
@@ -5374,13 +5372,8 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     return;
   }
 
-  {
-    // Ensure that between the BLR (emitted by GenerateVirtualCall) and RecordPcInfo there
-    // are no pools emitted.
-    EmissionCheckScope guard(GetVIXLAssembler(), kInvokeCodeMarginSizeInBytes);
-    codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
-    DCHECK(!codegen_->IsLeafMethod());
-  }
+  codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
+  DCHECK(!codegen_->IsLeafMethod());
 
   codegen_->MaybeGenerateMarkingRegisterCheck(/* code= */ __LINE__);
 }
