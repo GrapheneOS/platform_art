@@ -125,6 +125,8 @@ class DexFile {
   static constexpr uint16_t kDexNoIndex16 = 0xFFFF;
   static constexpr uint32_t kDexNoIndex32 = 0xFFFFFFFF;
 
+  using Magic = std::array<uint8_t, 8>;
+
   struct Sha1 : public std::array<uint8_t, kSha1DigestSize> {
     std::string ToString() const;
   };
@@ -133,7 +135,7 @@ class DexFile {
 
   // Raw header_item.
   struct Header {
-    uint8_t magic_[8] = {};
+    Magic magic_ = {};
     uint32_t checksum_ = 0;  // See also location_checksum_
     Sha1 signature_ = {};
     uint32_t file_size_ = 0;  // size of entire file

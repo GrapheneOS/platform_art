@@ -273,6 +273,7 @@ class CompactDexFile : public DexFile {
 
   // Returns true if the byte string points to the magic value.
   static bool IsMagicValid(const uint8_t* magic);
+  static bool IsMagicValid(DexFile::Magic magic) { return IsMagicValid(magic.data()); }
   bool IsMagicValid() const override;
 
   // Returns true if the byte string after the magic is the correct value.

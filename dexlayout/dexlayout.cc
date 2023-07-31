@@ -654,7 +654,7 @@ void DexLayout::DumpEncodedValue(const dex_ir::EncodedValue* data) {
 void DexLayout::DumpFileHeader() {
   char sanitized[8 * 2 + 1];
   fprintf(out_file_, "DEX file header:\n");
-  Asciify(sanitized, header_->Magic(), 8);
+  Asciify(sanitized, header_->Magic().data(), header_->Magic().size());
   fprintf(out_file_, "magic               : '%s'\n", sanitized);
   fprintf(out_file_, "checksum            : %08x\n", header_->Checksum());
   fprintf(out_file_, "signature           : %02x%02x...%02x%02x\n",
@@ -2198,8 +2198,10 @@ bool DexLayout::ProcessDexFile(const char* file_name,
   SetHeader(header.get());
 
   if (options_.verbose_) {
-    fprintf(out_file_, "Opened '%s', DEX version '%.3s'\n",
-            file_name, dex_file->GetHeader().magic_ + 4);
+    fprintf(out_file_,
+            "Opened '%s', DEX version '%.3s'\n",
+            file_name,
+            dex_file->GetHeader().magic_.data() + 4);
   }
 
   if (options_.visualize_pattern_) {
