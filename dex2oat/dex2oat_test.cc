@@ -1857,8 +1857,8 @@ TEST_F(Dex2oatTest, CompactDexInvalidSource) {
     ZipWriter writer(file);
     writer.StartEntry("classes.dex", ZipWriter::kAlign32);
     DexFile::Header header = {};
-    StandardDexFile::WriteMagic(header.magic_);
-    StandardDexFile::WriteCurrentVersion(header.magic_);
+    StandardDexFile::WriteMagic(header.magic_.data());
+    StandardDexFile::WriteCurrentVersion(header.magic_.data());
     header.file_size_ = 4 * KB;
     header.data_size_ = 4 * KB;
     header.data_off_ = 10 * MB;
@@ -1884,8 +1884,8 @@ TEST_F(Dex2oatTest, CompactDexInvalidSource) {
 // Test that dex2oat with a CompactDex file in the APK fails.
 TEST_F(Dex2oatTest, CompactDexInZip) {
   CompactDexFile::Header header = {};
-  CompactDexFile::WriteMagic(header.magic_);
-  CompactDexFile::WriteCurrentVersion(header.magic_);
+  CompactDexFile::WriteMagic(header.magic_.data());
+  CompactDexFile::WriteCurrentVersion(header.magic_.data());
   header.file_size_ = sizeof(CompactDexFile::Header);
   header.data_off_ = 10 * MB;
   header.map_off_ = 10 * MB;

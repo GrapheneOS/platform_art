@@ -32,8 +32,8 @@ std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8
   if (compact_dex) {
     CompactDexFile::Header* header =
         const_cast<CompactDexFile::Header*>(CompactDexFile::Header::At(data->data()));
-    CompactDexFile::WriteMagic(header->magic_);
-    CompactDexFile::WriteCurrentVersion(header->magic_);
+    CompactDexFile::WriteMagic(header->magic_.data());
+    CompactDexFile::WriteCurrentVersion(header->magic_.data());
     header->data_off_ = 0;
     header->data_size_ = data->size();
     header->file_size_ = data->size();
