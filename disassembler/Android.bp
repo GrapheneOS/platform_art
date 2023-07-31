@@ -37,6 +37,9 @@ art_cc_defaults {
         arm64: {
             srcs: ["disassembler_arm64.cc"],
         },
+        riscv64: {
+            srcs: ["disassembler_riscv64.cc"],
+        },
         x86: {
             srcs: ["disassembler_x86.cc"],
         },

@@ -29,6 +29,10 @@
 # include "disassembler_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_riscv64
+# include "disassembler_riscv64.h"
+#endif
+
 #if defined(ART_ENABLE_CODEGEN_x86) || defined(ART_ENABLE_CODEGEN_x86_64)
 # include "disassembler_x86.h"
 #endif
@@ -52,6 +56,10 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerO
 #ifdef ART_ENABLE_CODEGEN_arm64
     case InstructionSet::kArm64:
       return new arm64::DisassemblerArm64(options);
+#endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return new riscv64::DisassemblerRiscv64(options);
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case InstructionSet::kX86:
