@@ -71,9 +71,7 @@ bool StandardDexFile::IsMagicValid() const {
   return IsMagicValid(header_->magic_);
 }
 
-bool StandardDexFile::IsVersionValid() const {
-  return IsVersionValid(header_->magic_);
-}
+bool StandardDexFile::IsVersionValid() const { return IsVersionValid(header_->magic_.data()); }
 
 bool StandardDexFile::SupportsDefaultMethods() const {
   return GetDexVersion() >= DexFile::kDefaultMethodsVersion;

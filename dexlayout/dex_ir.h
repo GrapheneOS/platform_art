@@ -357,7 +357,7 @@ class IndexedItem : public Item {
 
 class Header : public Item {
  public:
-  Header(const uint8_t* magic,
+  Header(DexFile::Magic magic,
          uint32_t checksum,
          DexFile::Sha1 signature,
          uint32_t endian_tag,
@@ -381,7 +381,7 @@ class Header : public Item {
                       data_offset);
   }
 
-  Header(const uint8_t* magic,
+  Header(DexFile::Magic magic,
          uint32_t checksum,
          DexFile::Sha1 signature,
          uint32_t endian_tag,
@@ -421,7 +421,7 @@ class Header : public Item {
 
   static size_t ItemSize() { return kHeaderItemSize; }
 
-  const uint8_t* Magic() const { return magic_; }
+  DexFile::Magic Magic() const { return magic_; }
   uint32_t Checksum() const { return checksum_; }
   DexFile::Sha1 Signature() const { return signature_; }
   uint32_t EndianTag() const { return endian_tag_; }
@@ -518,7 +518,7 @@ class Header : public Item {
   }
 
  private:
-  uint8_t magic_[8];
+  DexFile::Magic magic_;
   uint32_t checksum_;
   DexFile::Sha1 signature_;
   uint32_t endian_tag_;
@@ -530,7 +530,7 @@ class Header : public Item {
   uint32_t data_offset_;
   const bool support_default_methods_;
 
-  void ConstructorHelper(const uint8_t* magic,
+  void ConstructorHelper(DexFile::Magic magic,
                          uint32_t checksum,
                          DexFile::Sha1 signature,
                          uint32_t endian_tag,
@@ -548,7 +548,7 @@ class Header : public Item {
     link_offset_ = link_offset;
     data_size_ = data_size;
     data_offset_ = data_offset;
-    memcpy(magic_, magic, sizeof(magic_));
+    magic_ = magic;
     signature_ = signature;
   }
 
