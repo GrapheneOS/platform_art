@@ -609,13 +609,17 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(0).isSkippedDueToStorageLow()).isFalse();
+        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                .isEqualTo(0);
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(1).isSkippedDueToStorageLow()).isTrue();
+        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                .isNotEqualTo(0);
         assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(2).isSkippedDueToStorageLow()).isTrue();
+        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                .isNotEqualTo(0);
         assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(3).isSkippedDueToStorageLow()).isFalse();
+        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                .isEqualTo(0);
 
         verify(mArtd, times(2))
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
