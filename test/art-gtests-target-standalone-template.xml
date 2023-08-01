@@ -16,6 +16,7 @@
 <!-- Note: This test config file for {MODULE} is generated from a template. -->
 <configuration description="Runs {MODULE}.">
     <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.art.apex" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.android.art.apex" />
 
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
