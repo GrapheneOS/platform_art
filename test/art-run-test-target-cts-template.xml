@@ -17,6 +17,7 @@
 <configuration description="Test module config for {MODULE}">
     <option name="test-suite-tag" value="art-target-run-test" />
     <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.art.apex" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.android.art.apex" />
 
     <option name="test-suite-tag" value="cts" />
     <option name="config-descriptor:metadata" key="component" value="art" />
