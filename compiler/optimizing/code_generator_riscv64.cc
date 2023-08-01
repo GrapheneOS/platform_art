@@ -2284,13 +2284,53 @@ void InstructionCodeGeneratorRISCV64::VisitMonitorOperation(HMonitorOperation* i
 }
 
 void LocationsBuilderRISCV64::VisitMul(HMul* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected mul type " << instruction->GetResultType();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMul(HMul* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      __ Mul(locations->Out().AsRegister<XRegister>(),
+             locations->InAt(0).AsRegister<XRegister>(),
+             locations->InAt(1).AsRegister<XRegister>());
+      break;
+
+    case DataType::Type::kFloat32:
+      __ FMulS(locations->Out().AsFpuRegister<FRegister>(),
+               locations->InAt(0).AsFpuRegister<FRegister>(),
+               locations->InAt(1).AsFpuRegister<FRegister>());
+      break;
+
+    case DataType::Type::kFloat64:
+      __ FMulD(locations->Out().AsFpuRegister<FRegister>(),
+               locations->InAt(0).AsFpuRegister<FRegister>(),
+               locations->InAt(1).AsFpuRegister<FRegister>());
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected mul type " << instruction->GetResultType();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitNeg(HNeg* instruction) {
