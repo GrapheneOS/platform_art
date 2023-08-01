@@ -14,6 +14,9 @@
      limitations under the License.
 -->
 <configuration description="Runs art_standalone_profman_tests (as root).">
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.art.apex" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.android.art.apex" />
+
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
