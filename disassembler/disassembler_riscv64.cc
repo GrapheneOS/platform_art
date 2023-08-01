@@ -82,6 +82,7 @@ class DisassemblerRiscv64::Printer {
   void Print32FStore(uint32_t insn32);
   void Print32BinOpImm(uint32_t insn32);
   void Print32BinOp(uint32_t insn32);
+  void Print32Atomic(uint32_t insn32);
 
   DisassemblerRiscv64* const disassembler_;
   std::ostream& os_;
@@ -425,6 +426,12 @@ void DisassemblerRiscv64::Printer::Print32BinOp(uint32_t insn32) {
     bool bad_high_bits = false;
     if (high_bits == 0x40000000u && (funct3 == /*SUB*/ 0u || funct3 == /*SRA*/ 5u)) {
       os_ << ((funct3 == /*SUB*/ 0u) ? "sub" : "sra");
+    } else if (high_bits == 0x02000000 &&
+               (!narrow || (funct3 == /*MUL*/ 0u || funct3 >= /*DIV/DIVU/REM/REMU*/ 4u))) {
+      static const char* const kOpcodes[] = {
+          "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu"
+      };
+      os_ << kOpcodes[funct3];
     } else if (!narrow || (funct3 == /*ADD*/ 0u || funct3 == /*SLL*/ 1u || funct3 == /*SRL*/ 5u)) {
       static const char* const kOpcodes[] = {
           "add", "sll", "slt", "sltu", "xor", "srl", "or", "and"
@@ -439,6 +446,39 @@ void DisassemblerRiscv64::Printer::Print32BinOp(uint32_t insn32) {
     if (bad_high_bits) {
       os_ << " (invalid high bits)";
     }
+  }
+}
+
+void DisassemblerRiscv64::Printer::Print32Atomic(uint32_t insn32) {
+  DCHECK_EQ(insn32 & 0x7fu, 0x2fu);
+  uint32_t funct3 = (insn32 >> 12) & 7u;
+  uint32_t funct5 = (insn32 >> 27);
+  if ((funct3 != 2u && funct3 != 3u) ||  // There are only 32-bit and 64-bit LR/SC/AMO*.
+      (((funct5 & 3u) != 0u) && funct5 >= 4u)) {  // Only multiples of 4, or 1-3.
+    os_ << "<unknown32>";
+    return;
+  }
+  static const char* const kMul4Opcodes[] = {
+      "amoadd", "amoxor", "amoor", "amoand", "amomin", "amomax", "amominu", "amomaxu"
+  };
+  static const char* const kOtherOpcodes[] = {
+      nullptr, "amoswap", "lr", "sc"
+  };
+  const char* opcode = ((funct5 & 3u) == 0u) ? kMul4Opcodes[funct5 >> 2] : kOtherOpcodes[funct5];
+  DCHECK(opcode != nullptr);
+  uint32_t rd = GetRd(insn32);
+  uint32_t rs1 = GetRs1(insn32);
+  uint32_t rs2 = GetRs2(insn32);
+  const char* type = (funct3 == 2u) ? ".w" : ".d";
+  const char* aq = (((insn32 >> 26) & 1u) != 0u) ? ".aq" : "";
+  const char* rl = (((insn32 >> 25) & 1u) != 0u) ? ".rl" : "";
+  os_ << opcode << type << aq << rl << " " << XRegName(rd) << ", " << XRegName(rs1);
+  if (funct5 == /*LR*/ 2u) {
+    if (rs2 != 0u) {
+      os_ << " (bad rs2)";
+    }
+  } else {
+    os_ << ", " << XRegName(rs2);
   }
 }
 
@@ -491,6 +531,9 @@ void DisassemblerRiscv64::Printer::Dump32(const uint8_t* insn) {
     case 0x33u:
     case 0x3bu:
       Print32BinOp(insn32);
+      break;
+    case 0x2fu:
+      Print32Atomic(insn32);
       break;
     default:
       // TODO(riscv64): Disassemble more instructions.
