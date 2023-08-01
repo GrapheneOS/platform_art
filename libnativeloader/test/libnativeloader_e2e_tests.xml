@@ -17,6 +17,7 @@
     <option name="test-suite-tag" value="libnativeloader_e2e_tests" />
     <option name="test-suite-tag" value="apct" />
     <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.art.apex" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.android.art.apex" />
 
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
 
