@@ -226,11 +226,11 @@ InvokeType ArtMethod::GetInvokeType() {
   }
 }
 
-size_t ArtMethod::NumArgRegisters(const char* shorty) {
-  CHECK_NE(shorty[0], '\0');
+size_t ArtMethod::NumArgRegisters(std::string_view shorty) {
+  CHECK(!shorty.empty());
   uint32_t num_registers = 0;
-  for (const char* s = shorty + 1; *s != '\0'; ++s) {
-    if (*s == 'D' || *s == 'J') {
+  for (char c : shorty.substr(1u)) {
+    if (c == 'D' || c == 'J') {
       num_registers += 2;
     } else {
       num_registers += 1;

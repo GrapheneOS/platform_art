@@ -309,15 +309,20 @@ class QuickArgumentVisitor {
     return *reinterpret_cast<uintptr_t*>(GetCallingPcAddr(sp));
   }
 
-  QuickArgumentVisitor(ArtMethod** sp, bool is_static, const char* shorty,
-                       uint32_t shorty_len) REQUIRES_SHARED(Locks::mutator_lock_) :
-          is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
-          gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
-          fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
-          stack_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
-              + sizeof(ArtMethod*)),  // Skip ArtMethod*.
-          gpr_index_(0), fpr_index_(0), fpr_double_index_(0), stack_index_(0),
-          cur_type_(Primitive::kPrimVoid), is_split_long_or_double_(false) {
+  QuickArgumentVisitor(ArtMethod** sp, bool is_static, std::string_view shorty)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      : is_static_(is_static),
+        shorty_(shorty),
+        gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
+        fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
+        stack_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize +
+            sizeof(ArtMethod*)),  // Skip ArtMethod*.
+        gpr_index_(0),
+        fpr_index_(0),
+        fpr_double_index_(0),
+        stack_index_(0),
+        cur_type_(Primitive::kPrimVoid),
+        is_split_long_or_double_(false) {
     static_assert(kQuickSoftFloatAbi == (kNumQuickFprArgs == 0),
                   "Number of Quick FPR arguments unexpected");
     static_assert(!(kQuickSoftFloatAbi && kQuickDoubleRegAlignedFloatBackFilled),
@@ -414,8 +419,8 @@ class QuickArgumentVisitor {
         IncGprIndex();
       }
     }
-    for (uint32_t shorty_index = 1; shorty_index < shorty_len_; ++shorty_index) {
-      cur_type_ = Primitive::GetType(shorty_[shorty_index]);
+    for (char c : shorty_.substr(1u)) {
+      cur_type_ = Primitive::GetType(c);
       switch (cur_type_) {
         case Primitive::kPrimNot:
         case Primitive::kPrimBoolean:
@@ -523,8 +528,7 @@ class QuickArgumentVisitor {
 
  protected:
   const bool is_static_;
-  const char* const shorty_;
-  const uint32_t shorty_len_;
+  const std::string_view shorty_;
 
  private:
   uint8_t* const gpr_args_;  // Address of GPR arguments in callee save frame.
@@ -557,9 +561,12 @@ extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildQuickShadowFrameVisitor final : public QuickArgumentVisitor {
  public:
-  BuildQuickShadowFrameVisitor(ArtMethod** sp, bool is_static, const char* shorty,
-                               uint32_t shorty_len, ShadowFrame* sf, size_t first_arg_reg) :
-      QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
+  BuildQuickShadowFrameVisitor(ArtMethod** sp,
+                               bool is_static,
+                               std::string_view shorty,
+                               ShadowFrame* sf,
+                               size_t first_arg_reg)
+      : QuickArgumentVisitor(sp, is_static, shorty), sf_(sf), cur_reg_(first_arg_reg) {}
 
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override;
 
@@ -690,8 +697,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
   ArtMethod* non_proxy_method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   DCHECK(non_proxy_method->GetCodeItem() != nullptr) << method->PrettyMethod();
-  uint32_t shorty_len = 0;
-  const char* shorty = non_proxy_method->GetShorty(&shorty_len);
+  std::string_view shorty = non_proxy_method->GetShortyView();
 
   ManagedStack fragment;
   ShadowFrame* deopt_frame = self->MaybePopDeoptimizedStackedShadowFrame();
@@ -707,8 +713,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
         CREATE_SHADOW_FRAME(num_regs, method, /* dex_pc= */ 0);
     ShadowFrame* shadow_frame = shadow_frame_unique_ptr.get();
     size_t first_arg_reg = accessor.RegistersSize() - accessor.InsSize();
-    BuildQuickShadowFrameVisitor shadow_frame_builder(sp, method->IsStatic(), shorty, shorty_len,
-                                                      shadow_frame, first_arg_reg);
+    BuildQuickShadowFrameVisitor shadow_frame_builder(
+        sp, method->IsStatic(), shorty, shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();
     self->EndAssertNoThreadSuspension(old_cause);
 
@@ -739,7 +745,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     // Push the context of the deoptimization stack so we can restore the return value and the
     // exception before executing the deoptimized frames.
     self->PushDeoptimizationContext(result,
-                                    shorty[0] == 'L' || shorty[0] == '[', /* class or array */
+                                    shorty[0] == 'L' || shorty[0] == '[',  // class or array
                                     self->GetException(),
                                     /* from_code= */ false,
                                     DeoptimizationMethodType::kDefault);
@@ -756,9 +762,12 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 // to jobjects.
 class BuildQuickArgumentVisitor final : public QuickArgumentVisitor {
  public:
-  BuildQuickArgumentVisitor(ArtMethod** sp, bool is_static, const char* shorty, uint32_t shorty_len,
-                            ScopedObjectAccessUnchecked* soa, std::vector<jvalue>* args) :
-      QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa), args_(args) {}
+  BuildQuickArgumentVisitor(ArtMethod** sp,
+                            bool is_static,
+                            std::string_view shorty,
+                            ScopedObjectAccessUnchecked* soa,
+                            std::vector<jvalue>* args)
+      : QuickArgumentVisitor(sp, is_static, shorty), soa_(soa), args_(args) {}
 
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override;
 
@@ -830,9 +839,9 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
                                        << non_proxy_method->PrettyMethod();
   std::vector<jvalue> args;
   uint32_t shorty_len = 0;
-  const char* shorty = non_proxy_method->GetShorty(&shorty_len);
-  BuildQuickArgumentVisitor local_ref_visitor(
-      sp, /* is_static= */ false, shorty, shorty_len, &soa, &args);
+  const char* raw_shorty = non_proxy_method->GetShorty(&shorty_len);
+  std::string_view shorty(raw_shorty, shorty_len);
+  BuildQuickArgumentVisitor local_ref_visitor(sp, /* is_static= */ false, shorty, &soa, &args);
 
   local_ref_visitor.VisitArguments();
   DCHECK_GT(args.size(), 0U) << proxy_method->PrettyMethod();
@@ -865,7 +874,8 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
       return 0;
     }
   }
-  JValue result = InvokeProxyInvocationHandler(soa, shorty, rcvr_jobj, interface_method_jobj, args);
+  JValue result =
+      InvokeProxyInvocationHandler(soa, raw_shorty, rcvr_jobj, interface_method_jobj, args);
   if (soa.Self()->IsExceptionPending()) {
     if (instr->HasMethodUnwindListeners()) {
       instr->MethodUnwindEvent(self,
@@ -885,16 +895,13 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
 // NOTE: Only used for testing purposes.
 class GetQuickReferenceArgumentAtVisitor final : public QuickArgumentVisitor {
  public:
-  GetQuickReferenceArgumentAtVisitor(ArtMethod** sp,
-                                     const char* shorty,
-                                     uint32_t shorty_len,
-                                     size_t arg_pos)
-      : QuickArgumentVisitor(sp, /* is_static= */ false, shorty, shorty_len),
+  GetQuickReferenceArgumentAtVisitor(ArtMethod** sp, std::string_view shorty, size_t arg_pos)
+      : QuickArgumentVisitor(sp, /* is_static= */ false, shorty),
         cur_pos_(0u),
         arg_pos_(arg_pos),
         ref_arg_(nullptr) {
-          CHECK_LT(arg_pos, shorty_len) << "Argument position greater than the number arguments";
-        }
+    CHECK_LT(arg_pos, shorty.length()) << "Argument position greater than the number arguments";
+  }
 
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override {
     if (cur_pos_ == arg_pos_) {
@@ -929,9 +936,8 @@ extern "C" StackReference<mirror::Object>* artQuickGetProxyReferenceArgumentAt(s
   ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   CHECK(!non_proxy_method->IsStatic())
       << proxy_method->PrettyMethod() << " " << non_proxy_method->PrettyMethod();
-  uint32_t shorty_len = 0;
-  const char* shorty = non_proxy_method->GetShorty(&shorty_len);
-  GetQuickReferenceArgumentAtVisitor ref_arg_visitor(sp, shorty, shorty_len, arg_pos);
+  std::string_view shorty = non_proxy_method->GetShortyView();
+  GetQuickReferenceArgumentAtVisitor ref_arg_visitor(sp, shorty, arg_pos);
   ref_arg_visitor.VisitArguments();
   StackReference<mirror::Object>* ref_arg = ref_arg_visitor.GetReferenceArgument();
   return ref_arg;
@@ -940,11 +946,8 @@ extern "C" StackReference<mirror::Object>* artQuickGetProxyReferenceArgumentAt(s
 // Visitor returning all the reference arguments in a Quick stack frame.
 class GetQuickReferenceArgumentsVisitor final : public QuickArgumentVisitor {
  public:
-  GetQuickReferenceArgumentsVisitor(ArtMethod** sp,
-                                    bool is_static,
-                                    const char* shorty,
-                                    uint32_t shorty_len)
-      : QuickArgumentVisitor(sp, is_static, shorty, shorty_len) {}
+  GetQuickReferenceArgumentsVisitor(ArtMethod** sp, bool is_static, std::string_view shorty)
+      : QuickArgumentVisitor(sp, is_static, shorty) {}
 
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override {
     Primitive::Type type = GetParamPrimitiveType();
@@ -973,9 +976,8 @@ std::vector<StackReference<mirror::Object>*> GetProxyReferenceArguments(ArtMetho
   ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   CHECK(!non_proxy_method->IsStatic())
       << proxy_method->PrettyMethod() << " " << non_proxy_method->PrettyMethod();
-  uint32_t shorty_len = 0;
-  const char* shorty = non_proxy_method->GetShorty(&shorty_len);
-  GetQuickReferenceArgumentsVisitor ref_args_visitor(sp, /*is_static=*/ false, shorty, shorty_len);
+  std::string_view shorty = non_proxy_method->GetShortyView();
+  GetQuickReferenceArgumentsVisitor ref_args_visitor(sp, /*is_static=*/ false, shorty);
   ref_args_visitor.VisitArguments();
   std::vector<StackReference<mirror::Object>*> ref_args = ref_args_visitor.GetReferenceArguments();
   return ref_args;
@@ -985,9 +987,11 @@ std::vector<StackReference<mirror::Object>*> GetProxyReferenceArguments(ArtMetho
 // so they don't get garbage collected.
 class RememberForGcArgumentVisitor final : public QuickArgumentVisitor {
  public:
-  RememberForGcArgumentVisitor(ArtMethod** sp, bool is_static, const char* shorty,
-                               uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
-      QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
+  RememberForGcArgumentVisitor(ArtMethod** sp,
+                               bool is_static,
+                               std::string_view shorty,
+                               ScopedObjectAccessUnchecked* soa)
+      : QuickArgumentVisitor(sp, is_static, shorty), soa_(soa) {}
 
   void Visit() REQUIRES_SHARED(Locks::mutator_lock_) override;
 
@@ -1200,10 +1204,9 @@ extern "C" const void* artQuickResolutionTrampoline(
     called_method.dex_file = called->GetDexFile();
     called_method.index = called->GetDexMethodIndex();
   }
-  uint32_t shorty_len;
-  const char* shorty =
-      called_method.dex_file->GetMethodShorty(called_method.GetMethodId(), &shorty_len);
-  RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
+  std::string_view shorty =
+      called_method.dex_file->GetMethodShortyView(called_method.GetMethodId());
+  RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, &soa);
   visitor.VisitArguments();
   self->EndAssertNoThreadSuspension(old_cause);
   const bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
@@ -1644,13 +1647,13 @@ class ComputeNativeCallFrameSize {
       [[maybe_unused]] BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm)
       REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-  void Walk(const char* shorty, uint32_t shorty_len) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void Walk(std::string_view shorty) REQUIRES_SHARED(Locks::mutator_lock_) {
     BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize> sm(this);
 
     WalkHeader(&sm);
 
-    for (uint32_t i = 1; i < shorty_len; ++i) {
-      Primitive::Type cur_type_ = Primitive::GetType(shorty[i]);
+    for (char c : shorty.substr(1u)) {
+      Primitive::Type cur_type_ = Primitive::GetType(c);
       switch (cur_type_) {
         case Primitive::kPrimNot:
           sm.AdvancePointer(nullptr);
@@ -1705,11 +1708,11 @@ class ComputeGenericJniFrameSize final : public ComputeNativeCallFrameSize {
   explicit ComputeGenericJniFrameSize(bool critical_native)
     : critical_native_(critical_native) {}
 
-  uintptr_t* ComputeLayout(ArtMethod** managed_sp, const char* shorty, uint32_t shorty_len)
+  uintptr_t* ComputeLayout(ArtMethod** managed_sp, std::string_view shorty)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
 
-    Walk(shorty, shorty_len);
+    Walk(shorty);
 
     // Add space for cookie.
     DCHECK_ALIGNED(managed_sp, sizeof(uintptr_t));
@@ -1817,11 +1820,10 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
   BuildGenericJniFrameVisitor(Thread* self,
                               bool is_static,
                               bool critical_native,
-                              const char* shorty,
-                              uint32_t shorty_len,
+                              std::string_view shorty,
                               ArtMethod** managed_sp,
                               uintptr_t* reserved_area)
-      : QuickArgumentVisitor(managed_sp, is_static, shorty, shorty_len),
+      : QuickArgumentVisitor(managed_sp, is_static, shorty),
         jni_call_(nullptr, nullptr, nullptr),
         sm_(&jni_call_),
         current_vreg_(nullptr) {
@@ -1829,7 +1831,7 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
     DCHECK_ALIGNED(reserved_area, sizeof(uintptr_t));
 
     ComputeGenericJniFrameSize fsc(critical_native);
-    uintptr_t* out_args_sp = fsc.ComputeLayout(managed_sp, shorty, shorty_len);
+    uintptr_t* out_args_sp = fsc.ComputeLayout(managed_sp, shorty);
 
     // Store hidden argument for @CriticalNative.
     uintptr_t* hidden_arg_slot = fsc.GetHiddenArgSlot(reserved_area);
@@ -1964,8 +1966,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
   ArtMethod* called = *managed_sp;
   DCHECK(called->IsNative()) << called->PrettyMethod(true);
   Runtime* runtime = Runtime::Current();
-  uint32_t shorty_len = 0;
-  const char* shorty = called->GetShorty(&shorty_len);
+  std::string_view shorty = called->GetShortyView();
   bool critical_native = called->IsCriticalNative();
   bool fast_native = called->IsFastNative();
   bool normal_native = !critical_native && !fast_native;
@@ -1975,7 +1976,6 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
                                       called->IsStatic(),
                                       critical_native,
                                       shorty,
-                                      shorty_len,
                                       managed_sp,
                                       reserved_area);
   {
@@ -2118,12 +2118,12 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
       return GetTwoWordFailureValue();  // Failure.
     }
     const DexFile* dex_file = caller_method->GetDexFile();
-    uint32_t shorty_len;
-    const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
+    std::string_view shorty =
+        dex_file->GetMethodShortyView(dex_file->GetMethodId(method_idx));
     {
       // Remember the args in case a GC happens in FindMethodToCall.
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
-      RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
+      RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, &soa);
       visitor.VisitArguments();
 
       method = FindMethodToCall<type>(self,
@@ -2231,13 +2231,12 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(ArtMethod* interface_metho
     }
 
     const DexFile& dex_file = *caller_method->GetDexFile();
-    uint32_t shorty_len;
-    const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(dex_method_idx),
-                                                  &shorty_len);
+    std::string_view shorty =
+        dex_file.GetMethodShortyView(dex_file.GetMethodId(dex_method_idx));
     {
       // Remember the args in case a GC happens in ClassLinker::ResolveMethod().
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
-      RememberForGcArgumentVisitor visitor(sp, false, shorty, shorty_len, &soa);
+      RememberForGcArgumentVisitor visitor(sp, false, shorty, &soa);
       visitor.VisitArguments();
       ClassLinker* class_linker = runtime->GetClassLinker();
       interface_method = class_linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
@@ -2342,10 +2341,9 @@ extern "C" uint64_t artInvokePolymorphic(mirror::Object* raw_receiver, Thread* s
   DCHECK(inst.Opcode() == Instruction::INVOKE_POLYMORPHIC ||
          inst.Opcode() == Instruction::INVOKE_POLYMORPHIC_RANGE);
   const dex::ProtoIndex proto_idx(inst.VRegH());
-  const char* shorty = caller_method->GetDexFile()->GetShorty(proto_idx);
-  const size_t shorty_length = strlen(shorty);
+  std::string_view shorty = caller_method->GetDexFile()->GetShortyView(proto_idx);
   static const bool kMethodIsStatic = false;  // invoke() and invokeExact() are not static.
-  RememberForGcArgumentVisitor gc_visitor(sp, kMethodIsStatic, shorty, shorty_length, &soa);
+  RememberForGcArgumentVisitor gc_visitor(sp, kMethodIsStatic, shorty, &soa);
   gc_visitor.VisitArguments();
 
   // Wrap raw_receiver in a Handle for safety.
@@ -2384,7 +2382,6 @@ extern "C" uint64_t artInvokePolymorphic(mirror::Object* raw_receiver, Thread* s
   BuildQuickShadowFrameVisitor shadow_frame_builder(sp,
                                                     kMethodIsStatic,
                                                     shorty,
-                                                    strlen(shorty),
                                                     shadow_frame,
                                                     first_arg);
   shadow_frame_builder.VisitArguments();
@@ -2467,8 +2464,7 @@ extern "C" uint64_t artInvokeCustom(uint32_t call_site_idx, Thread* self, ArtMet
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethodAndDexPc(sp, &dex_pc);
   const DexFile* dex_file = caller_method->GetDexFile();
   const dex::ProtoIndex proto_idx(dex_file->GetProtoIndexForCallSite(call_site_idx));
-  const char* shorty = caller_method->GetDexFile()->GetShorty(proto_idx);
-  const uint32_t shorty_len = strlen(shorty);
+  std::string_view shorty = caller_method->GetDexFile()->GetShortyView(proto_idx);
 
   // Construct the shadow frame placing arguments consecutively from |first_arg|.
   const size_t first_arg = 0;
@@ -2480,7 +2476,6 @@ extern "C" uint64_t artInvokeCustom(uint32_t call_site_idx, Thread* self, ArtMet
   BuildQuickShadowFrameVisitor shadow_frame_builder(sp,
                                                     kMethodIsStatic,
                                                     shorty,
-                                                    shorty_len,
                                                     shadow_frame,
                                                     first_arg);
   shadow_frame_builder.VisitArguments();
