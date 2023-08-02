@@ -398,7 +398,7 @@ bool OatWriter::AddDexFileSource(const char* filename, const char* location) {
 bool OatWriter::AddDexFileSource(File&& dex_file_fd, const char* location) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   std::string error_msg;
-  ArtDexFileLoader loader(dex_file_fd.Release(), location);
+  ArtDexFileLoader loader(&dex_file_fd, location);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   if (!loader.Open(/*verify=*/false,
                    /*verify_checksum=*/false,

@@ -114,7 +114,7 @@ class HiddenApiTest : public CommonRuntimeTest {
       UNREACHABLE();
     }
 
-    ArtDexFileLoader dex_loader(fd.Release(), file.GetFilename());
+    ArtDexFileLoader dex_loader(&fd, file.GetFilename());
     std::unique_ptr<const DexFile> dex_file(dex_loader.Open(
         /*location_checksum=*/0,
         /*verify=*/true,
