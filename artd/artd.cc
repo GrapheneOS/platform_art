@@ -775,6 +775,12 @@ ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
   _aidl_return->isVdexUsable = status.IsVdexUsable();
   _aidl_return->artifactsLocation = ArtifactsLocationToAidl(status.GetLocation());
 
+  std::optional<bool> has_dex_files = oat_file_assistant->HasDexFiles(&error_msg);
+  if (!has_dex_files.has_value()) {
+    return NonFatal("Failed to open dex file: " + error_msg);
+  }
+  _aidl_return->hasDexCode = *has_dex_files;
+
   return ScopedAStatus::ok();
 }
 
