@@ -203,7 +203,6 @@ def ci_builder(name, category, short_name, dimensions, is_fyi=False):
 # Dimensions specify which bots we can run on.
 host_dims = {"os": "Linux"}
 target_dims = {"os": "Android"}
-arm_target_dims = target_dims | {"device_type": "bonito|oriole|walleye"}
 
 # userfault-GC configurations must be run on Pixel 6.
 userfault_gc_target_dims = target_dims | {"device_type": "oriole"}
@@ -211,12 +210,12 @@ userfault_gc_target_dims = target_dims | {"device_type": "oriole"}
 ci_builder("angler-armv7-debug", "angler|armv7", "dbg", target_dims)
 ci_builder("angler-armv7-non-gen-cc", "angler|armv7", "ngen", userfault_gc_target_dims)
 ci_builder("angler-armv7-ndebug", "angler|armv7", "ndbg", target_dims)
-ci_builder("angler-armv8-debug", "angler|armv8", "dbg", arm_target_dims)
+ci_builder("angler-armv8-debug", "angler|armv8", "dbg", target_dims)
 ci_builder("angler-armv8-non-gen-cc", "angler|armv8", "ngen", userfault_gc_target_dims)
-ci_builder("angler-armv8-ndebug", "angler|armv8", "ndbg", arm_target_dims)
-ci_builder("bullhead-armv7-gcstress-ndebug", "bullhead|armv7|gcstress", "dbg", arm_target_dims)
-ci_builder("bullhead-armv8-gcstress-debug", "bullhead|armv8|gcstress", "dbg", arm_target_dims)
-ci_builder("bullhead-armv8-gcstress-ndebug", "bullhead|armv8|gcstress", "ndbg", arm_target_dims)
+ci_builder("angler-armv8-ndebug", "angler|armv8", "ndbg", target_dims)
+ci_builder("bullhead-armv7-gcstress-ndebug", "bullhead|armv7|gcstress", "dbg", target_dims)
+ci_builder("bullhead-armv8-gcstress-debug", "bullhead|armv8|gcstress", "dbg", target_dims)
+ci_builder("bullhead-armv8-gcstress-ndebug", "bullhead|armv8|gcstress", "ndbg", target_dims)
 ci_builder("host-x86-cms", "host|x86", "cms", host_dims)
 ci_builder("host-x86-debug", "host|x86", "dbg", host_dims)
 ci_builder("host-x86-ndebug", "host|x86", "ndbg", host_dims)
@@ -230,6 +229,6 @@ ci_builder("host-x86_64-ndebug", "host|x64", "ndbg", host_dims)
 ci_builder("host-x86_64-poison-debug", "host|x64", "psn", host_dims)
 ci_builder("qemu-riscv64-ndebug", "qemu|riscv64", "ndbg", host_dims, is_fyi=True)
 ci_builder("qemu-riscv64-ndebug-build_only", "qemu|riscv64", "bo", host_dims)
-ci_builder("walleye-armv7-poison-debug", "walleye|armv7|poison", "dbg", arm_target_dims)
-ci_builder("walleye-armv8-poison-debug", "walleye|armv8|poison", "dbg", arm_target_dims)
-ci_builder("walleye-armv8-poison-ndebug", "walleye|armv8|poison", "ndbg", arm_target_dims)
+ci_builder("walleye-armv7-poison-debug", "walleye|armv7|poison", "dbg", target_dims)
+ci_builder("walleye-armv8-poison-debug", "walleye|armv8|poison", "dbg", target_dims)
+ci_builder("walleye-armv8-poison-ndebug", "walleye|armv8|poison", "ndbg", target_dims)
