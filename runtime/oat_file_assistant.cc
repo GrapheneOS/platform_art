@@ -32,6 +32,7 @@
 #include "base/array_ref.h"
 #include "base/compiler_filter.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/logging.h"  // For VLOG.
 #include "base/macros.h"
 #include "base/os.h"
@@ -200,7 +201,9 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
       vdex_for_oat_.Reset(vdex_file_name, UseFdToReadFiles(), zip_fd, vdex_fd, oat_fd);
       std::string dm_file_name = GetDmFilename(dex_location);
       dm_for_oat_.Reset(dm_file_name, UseFdToReadFiles(), zip_fd, vdex_fd, oat_fd);
-    } else {
+    } else if (kIsTargetAndroid) {
+      // No need to warn on host. We are probably in oatdump, where we only need OatFileAssistant to
+      // validate BCP checksums.
       LOG(WARNING) << "Failed to determine oat file name for dex location " << dex_location_ << ": "
                    << error_msg;
     }

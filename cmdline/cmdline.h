@@ -22,16 +22,20 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "android-base/stringprintf.h"
-
+#include "android-base/strings.h"
 #include "base/file_utils.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/string_view_cpp20.h"
+#include "base/utils.h"
 #include "noop_compiler_callbacks.h"
+#include "oat_file_assistant_context.h"
 #include "runtime.h"
 
 #if !defined(NDEBUG)
@@ -42,55 +46,9 @@
 
 namespace art {
 
-// TODO: Move to <runtime/utils.h> and remove all copies of this function.
-static bool LocationToFilename(const std::string& location, InstructionSet isa,
-                               std::string* filename) {
-  bool has_system = false;
-  bool has_cache = false;
-  // image_location = /system/framework/boot.art
-  // system_image_filename = /system/framework/<image_isa>/boot.art
-  std::string system_filename(GetSystemImageFilename(location.c_str(), isa));
-  if (OS::FileExists(system_filename.c_str())) {
-    has_system = true;
-  }
-
-  bool have_android_data = false;
-  bool dalvik_cache_exists = false;
-  bool is_global_cache = false;
-  std::string dalvik_cache;
-  GetDalvikCache(GetInstructionSetString(isa), false, &dalvik_cache,
-                 &have_android_data, &dalvik_cache_exists, &is_global_cache);
-
-  std::string cache_filename;
-  if (have_android_data && dalvik_cache_exists) {
-    // Always set output location even if it does not exist,
-    // so that the caller knows where to create the image.
-    //
-    // image_location = /system/framework/boot.art
-    // *image_filename = /data/dalvik-cache/<image_isa>/boot.art
-    std::string error_msg;
-    if (GetDalvikCacheFilename(location.c_str(), dalvik_cache.c_str(),
-                               &cache_filename, &error_msg)) {
-      has_cache = true;
-    }
-  }
-  if (has_system) {
-    *filename = system_filename;
-    return true;
-  } else if (has_cache) {
-    *filename = cache_filename;
-    return true;
-  } else {
-    *filename = system_filename;
-    return false;
-  }
-}
-
-static Runtime* StartRuntime(const char* boot_image_location,
+static Runtime* StartRuntime(const std::vector<std::string>& boot_image_locations,
                              InstructionSet instruction_set,
                              const std::vector<const char*>& runtime_args) {
-  CHECK(boot_image_location != nullptr);
-
   RuntimeOptions options;
 
   // We are more like a compiler than a run-time. We don't want to execute code.
@@ -101,9 +59,12 @@ static Runtime* StartRuntime(const char* boot_image_location,
 
   // Boot image location.
   {
-    std::string boot_image_option;
-    boot_image_option += "-Ximage:";
-    boot_image_option += boot_image_location;
+    std::string boot_image_option = "-Ximage:";
+    if (!boot_image_locations.empty()) {
+      boot_image_option += android::base::Join(boot_image_locations, ':');
+    } else {
+      boot_image_option += GetJitZygoteBootImageLocation();
+    }
     options.push_back(std::make_pair(boot_image_option, nullptr));
   }
 
@@ -155,7 +116,7 @@ struct CmdlineArgs {
       const char* const raw_option = argv[i];
       const std::string_view option(raw_option);
       if (StartsWith(option, "--boot-image=")) {
-        boot_image_location_ = raw_option + strlen("--boot-image=");
+        Split(raw_option + strlen("--boot-image="), ':', &boot_image_locations_);
       } else if (StartsWith(option, "--instruction-set=")) {
         const char* const instruction_set_str = raw_option + strlen("--instruction-set=");
         instruction_set_ = GetInstructionSetFromString(instruction_set_str);
@@ -195,6 +156,11 @@ struct CmdlineArgs {
           return false;
         }
       }
+    }
+
+    if (instruction_set_ == InstructionSet::kNone) {
+      LOG(WARNING) << "No instruction set given, assuming " << GetInstructionSetString(kRuntimeISA);
+      instruction_set_ = kRuntimeISA;
     }
 
     DBG_LOG << "will call parse checks";
@@ -241,8 +207,14 @@ struct CmdlineArgs {
     return usage;
   }
 
-  // Specified by --boot-image.
-  const char* boot_image_location_ = nullptr;
+  // Specified by --runtime-arg -Xbootclasspath or default.
+  std::vector<std::string> boot_class_path_;
+  // Specified by --runtime-arg -Xbootclasspath-locations or default.
+  std::vector<std::string> boot_class_path_locations_;
+  // True if `boot_class_path_` is the default one.
+  bool is_default_boot_class_path_ = false;
+  // Specified by --boot-image or inferred.
+  std::vector<std::string> boot_image_locations_;
   // Specified by --instruction-set.
   InstructionSet instruction_set_ = InstructionSet::kNone;
   // Runtime arguments specified by --runtime-arg.
@@ -254,70 +226,62 @@ struct CmdlineArgs {
 
   virtual ~CmdlineArgs() {}
 
+  // Checks for --boot-image location.
   bool ParseCheckBootImage(std::string* error_msg) {
-    if (boot_image_location_ == nullptr) {
-      *error_msg = "--boot-image must be specified";
+    if (boot_image_locations_.empty()) {
+      LOG(WARNING) << "--boot-image not specified. Starting runtime in imageless mode";
+      return true;
+    }
+
+    const std::string& boot_image_location = boot_image_locations_[0];
+    size_t file_name_idx = boot_image_location.rfind('/');
+    if (file_name_idx == std::string::npos) {  // Prevent a InsertIsaDirectory check failure.
+      *error_msg = "Boot image location must have a / in it";
       return false;
     }
-    if (instruction_set_ == InstructionSet::kNone) {
-      LOG(WARNING) << "No instruction set given, assuming " << GetInstructionSetString(kRuntimeISA);
-      instruction_set_ = kRuntimeISA;
-    }
 
-    DBG_LOG << "boot image location: " << boot_image_location_;
+    // Don't let image locations with the 'arch' in it through, since it's not a location.
+    // This prevents a common error "Could not create an image space..." when initing the Runtime.
+    if (file_name_idx > 0) {
+      size_t ancestor_dirs_idx = boot_image_location.rfind('/', file_name_idx - 1);
 
-    // Checks for --boot-image location.
-    {
-      std::string boot_image_location = boot_image_location_;
-      size_t separator_pos = boot_image_location.find(':');
-      if (separator_pos != std::string::npos) {
-        boot_image_location = boot_image_location.substr(/*pos*/ 0u, /*size*/ separator_pos);
-      }
-      size_t file_name_idx = boot_image_location.rfind('/');
-      if (file_name_idx == std::string::npos) {  // Prevent a InsertIsaDirectory check failure.
-        *error_msg = "Boot image location must have a / in it";
-        return false;
+      std::string parent_dir_name;
+      if (ancestor_dirs_idx != std::string::npos) {
+          parent_dir_name = boot_image_location.substr(/*pos=*/ancestor_dirs_idx + 1,
+                                                       /*n=*/file_name_idx - ancestor_dirs_idx - 1);
+      } else {
+          parent_dir_name = boot_image_location.substr(/*pos=*/0,
+                                                       /*n=*/file_name_idx);
       }
 
-      // Don't let image locations with the 'arch' in it through, since it's not a location.
-      // This prevents a common error "Could not create an image space..." when initing the Runtime.
-      if (file_name_idx != std::string::npos) {
-        std::string no_file_name = boot_image_location.substr(0, file_name_idx);
-        size_t ancestor_dirs_idx = no_file_name.rfind('/');
+      DBG_LOG << "boot_image_location parent_dir_name was " << parent_dir_name;
 
-        std::string parent_dir_name;
-        if (ancestor_dirs_idx != std::string::npos) {
-          parent_dir_name = no_file_name.substr(ancestor_dirs_idx + 1);
-        } else {
-          parent_dir_name = no_file_name;
-        }
-
-        DBG_LOG << "boot_image_location parent_dir_name was " << parent_dir_name;
-
-        if (GetInstructionSetFromString(parent_dir_name.c_str()) != InstructionSet::kNone) {
+      if (GetInstructionSetFromString(parent_dir_name.c_str()) != InstructionSet::kNone) {
           *error_msg = "Do not specify the architecture as part of the boot image location";
           return false;
-        }
       }
-
-      // Check that the boot image location points to a valid file name.
-      std::string file_name;
-      if (!LocationToFilename(boot_image_location, instruction_set_, &file_name)) {
-        *error_msg = android::base::StringPrintf(
-            "No corresponding file for location '%s' (filename '%s') exists",
-            boot_image_location.c_str(),
-            file_name.c_str());
-        return false;
-      }
-
-      DBG_LOG << "boot_image_filename does exist: " << file_name;
     }
 
     return true;
   }
 
-  void PrintUsage() {
-    fprintf(stderr, "%s", GetUsage().c_str());
+  void PrintUsage() { fprintf(stderr, "%s", GetUsage().c_str()); }
+
+  std::unique_ptr<OatFileAssistantContext> GetOatFileAssistantContext(std::string* error_msg) {
+    if (boot_class_path_.empty()) {
+      *error_msg = "Boot classpath is empty";
+      return nullptr;
+    }
+
+    CHECK(!boot_class_path_locations_.empty());
+
+    return std::make_unique<OatFileAssistantContext>(
+        std::make_unique<OatFileAssistantContext::RuntimeOptions>(
+            OatFileAssistantContext::RuntimeOptions{
+                .image_locations = boot_image_locations_,
+                .boot_class_path = boot_class_path_,
+                .boot_class_path_locations = boot_class_path_locations_,
+            }));
   }
 
  protected:
@@ -327,7 +291,76 @@ struct CmdlineArgs {
     return kParseUnknownArgument;
   }
 
-  virtual ParseStatus ParseChecks([[maybe_unused]] std::string* error_msg) { return kParseOk; }
+  virtual ParseStatus ParseChecks([[maybe_unused]] std::string* error_msg) {
+    ParseBootclasspath();
+    if (boot_image_locations_.empty()) {
+      InferBootImage();
+    }
+    return kParseOk;
+  }
+
+ private:
+  void ParseBootclasspath() {
+    std::optional<std::string_view> bcp_str = std::nullopt;
+    std::optional<std::string_view> bcp_location_str = std::nullopt;
+    for (const char* arg : runtime_args_) {
+      if (StartsWith(arg, "-Xbootclasspath:")) {
+          bcp_str = arg + strlen("-Xbootclasspath:");
+      }
+      if (StartsWith(arg, "-Xbootclasspath-locations:")) {
+          bcp_location_str = arg + strlen("-Xbootclasspath-locations:");
+      }
+    }
+
+    if (bcp_str.has_value() && bcp_location_str.has_value()) {
+      Split(*bcp_str, ':', &boot_class_path_);
+      Split(*bcp_location_str, ':', &boot_class_path_locations_);
+    } else if (bcp_str.has_value()) {
+      Split(*bcp_str, ':', &boot_class_path_);
+      boot_class_path_locations_ = boot_class_path_;
+    } else {
+      // Try the default.
+      const char* env_value = getenv("BOOTCLASSPATH");
+      if (env_value != nullptr && strlen(env_value) > 0) {
+          Split(env_value, ':', &boot_class_path_);
+          boot_class_path_locations_ = boot_class_path_;
+          is_default_boot_class_path_ = true;
+      }
+    }
+  }
+
+  // Infers the boot image on a best-effort basis.
+  // The inference logic aligns with installd/artd + dex2oat.
+  void InferBootImage() {
+    // The boot image inference only makes sense on device.
+    if (!kIsTargetAndroid) {
+      return;
+    }
+
+    // The inferred boot image can only be used with the default bootclasspath.
+    if (boot_class_path_.empty() || !is_default_boot_class_path_) {
+      return;
+    }
+
+    std::string error_msg;
+    std::string boot_image = GetBootImageLocationForDefaultBcpRespectingSysProps(&error_msg);
+    if (boot_image.empty()) {
+      LOG(WARNING) << "Failed to infer boot image: " << error_msg;
+      return;
+    }
+
+    LOG(INFO) << "Inferred boot image: " << boot_image;
+    Split(boot_image, ':', &boot_image_locations_);
+
+    // Verify the inferred boot image.
+    std::unique_ptr<OatFileAssistantContext> ofa_context = GetOatFileAssistantContext(&error_msg);
+    CHECK_NE(ofa_context, nullptr);
+    size_t verified_boot_image_count = ofa_context->GetBootImageInfoList(instruction_set_).size();
+    if (verified_boot_image_count != boot_image_locations_.size()) {
+      LOG(WARNING) << "Failed to verify inferred boot image";
+      boot_image_locations_.resize(verified_boot_image_count);
+    }
+  }
 };
 
 template <typename Args = CmdlineArgs>
@@ -412,7 +445,7 @@ struct CmdlineMain {
   Runtime* CreateRuntime(CmdlineArgs* args) {
     CHECK(args != nullptr);
 
-    return StartRuntime(args->boot_image_location_, args->instruction_set_, args_->runtime_args_);
+    return StartRuntime(args->boot_image_locations_, args->instruction_set_, args_->runtime_args_);
   }
 };
 }  // namespace art
