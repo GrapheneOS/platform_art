@@ -720,7 +720,8 @@ bool OatFileAssistant::GetRequiredDexChecksum(std::optional<uint32_t>* checksum,
   if (!required_dex_checksums_attempted_) {
     required_dex_checksums_attempted_ = true;
 
-    ArtDexFileLoader dex_loader(DupCloexec(zip_fd_), dex_location_);
+    File file(zip_fd_, /*check_usage=*/false);
+    ArtDexFileLoader dex_loader(&file, dex_location_);
     std::optional<uint32_t> checksum2;
     std::string error2;
     if (dex_loader.GetMultiDexChecksum(
@@ -731,6 +732,7 @@ bool OatFileAssistant::GetRequiredDexChecksum(std::optional<uint32_t>* checksum,
       cached_required_dex_checksums_ = std::nullopt;
       cached_required_dex_checksums_error_ = error2;
     }
+    file.Release();  // Don't close the file yet (we have only read the checksum).
   }
 
   if (cached_required_dex_checksums_error_.has_value()) {

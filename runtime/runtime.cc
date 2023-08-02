@@ -1283,17 +1283,17 @@ static size_t OpenBootDexFiles(ArrayRef<const std::string> dex_filenames,
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i].c_str();
     const char* dex_location = dex_locations[i].c_str();
-    const int dex_fd = i < dex_fds.size() ? dex_fds[i] : -1;
+    File file = File(i < dex_fds.size() ? dex_fds[i] : -1, /*check_usage=*/false);
     static constexpr bool kVerifyChecksum = true;
     std::string error_msg;
-    if (!OS::FileExists(dex_filename) && dex_fd < 0) {
+    if (!OS::FileExists(dex_filename) && file.IsValid()) {
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
     bool verify = Runtime::Current()->IsVerificationEnabled();
-    ArtDexFileLoader dex_file_loader(dex_filename, dex_fd, dex_location);
+    ArtDexFileLoader dex_file_loader(dex_filename, &file, dex_location);
     if (!dex_file_loader.Open(verify, kVerifyChecksum, &error_msg, dex_files)) {
-      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "' / fd " << dex_fd
+      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "' / fd " << file.Fd()
                    << ": " << error_msg;
       ++failure_count;
     }

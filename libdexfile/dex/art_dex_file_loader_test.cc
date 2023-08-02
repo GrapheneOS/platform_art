@@ -65,7 +65,7 @@ TEST_F(ArtDexFileLoaderTest, OpenZipMultiDex) {
   ASSERT_GE(file.Fd(), 0);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
-  ArtDexFileLoader dex_file_loader(file.Release(), zip_file);
+  ArtDexFileLoader dex_file_loader(&file, zip_file);
   ASSERT_TRUE(dex_file_loader.Open(/*verify=*/false,
                                    /*verify_checksum=*/true,
                                    /*allow_no_dex_files=*/true,
@@ -81,7 +81,7 @@ TEST_F(ArtDexFileLoaderTest, OpenZipEmpty) {
   ASSERT_GE(file.Fd(), 0);
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
-  ArtDexFileLoader dex_file_loader(file.Release(), zip_file);
+  ArtDexFileLoader dex_file_loader(&file, zip_file);
   ASSERT_TRUE(dex_file_loader.Open(/*verify=*/false,
                                    /*verify_checksum=*/true,
                                    /*allow_no_dex_files=*/true,

@@ -811,18 +811,21 @@ bool OatFileBase::Setup(int zip_fd,
         bool loaded = false;
         CHECK(zip_fd == -1 || dex_fds.empty());  // Allow only the supported combinations.
         if (zip_fd != -1) {
-          ArtDexFileLoader dex_file_loader(zip_fd, dex_file_location);
+          File file(zip_fd, /*check_usage=*/false);
+          ArtDexFileLoader dex_file_loader(&file, dex_file_location);
           loaded = dex_file_loader.Open(/*verify=*/false,
                                         /*verify_checksum=*/false,
                                         error_msg,
                                         &new_dex_files);
         } else if (dex_fd != -1) {
           // Note that we assume dex_fds are backing by jars.
-          ArtDexFileLoader dex_file_loader(DupCloexec(dex_fd), dex_file_location);
+          File file(dex_fd, /*check_usage=*/false);
+          ArtDexFileLoader dex_file_loader(&file, dex_file_location);
           loaded = dex_file_loader.Open(/*verify=*/false,
                                         /*verify_checksum=*/false,
                                         error_msg,
                                         &new_dex_files);
+          file.Release();  // Don't close the file.
         } else {
           ArtDexFileLoader dex_file_loader(dex_file_name.c_str(), dex_file_location);
           loaded = dex_file_loader.Open(/*verify=*/false,
@@ -837,9 +840,8 @@ bool OatFileBase::Setup(int zip_fd,
             LOG(WARNING) << "Could not find associated dex files of oat file. "
                          << "Oatdump will only dump the header.";
             return true;
-          } else {
-            return false;
           }
+          return false;
         }
         // The oat file may be out of date wrt/ the dex-file location. We need to be defensive
         // here and ensure that at least the number of dex files still matches.
@@ -1828,7 +1830,8 @@ class OatFileBackedByVdex final : public OatFileBase {
       // a vdex file.
       bool loaded = false;
       if (zip_fd != -1) {
-        ArtDexFileLoader dex_file_loader(zip_fd, dex_location);
+        File file(zip_fd, /*check_usage=*/false);
+        ArtDexFileLoader dex_file_loader(&file, dex_location);
         loaded = dex_file_loader.Open(/*verify=*/false,
                                       /*verify_checksum=*/false,
                                       error_msg,

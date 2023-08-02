@@ -120,6 +120,8 @@ class MemMapContainer : public DexFileContainer {
 
 }  // namespace
 
+const File DexFileLoader::kInvalidFile;
+
 bool DexFileLoader::IsMagicValid(uint32_t magic) {
   return IsMagicValid(reinterpret_cast<uint8_t*>(&magic));
 }
@@ -168,7 +170,7 @@ bool DexFileLoader::GetMultiDexChecksum(std::optional<uint32_t>* checksum,
 
   if (IsZipMagic(magic)) {
     std::unique_ptr<ZipArchive> zip_archive(
-        file_.has_value() ?
+        file_->IsValid() ?
             ZipArchive::OpenFromOwnedFd(file_->Fd(), location_.c_str(), error_msg) :
             ZipArchive::OpenFromMemory(
                 root_container_->Begin(), root_container_->Size(), location_.c_str(), error_msg));
@@ -285,13 +287,14 @@ bool DexFileLoader::InitAndReadMagic(uint32_t* magic, std::string* error_msg) {
     *magic = *reinterpret_cast<const uint32_t*>(root_container_->Begin());
   } else {
     // Open the file if we have not been given the file-descriptor directly before.
-    if (!file_.has_value()) {
+    if (!file_->IsValid()) {
       CHECK(!filename_.empty());
-      file_.emplace(filename_, O_RDONLY, /* check_usage= */ false);
-      if (file_->Fd() == -1) {
+      owned_file_ = File(filename_, O_RDONLY, /* check_usage= */ false);
+      if (!owned_file_->IsValid()) {
         *error_msg = StringPrintf("Unable to open '%s' : %s", filename_.c_str(), strerror(errno));
         return false;
       }
+      file_ = &owned_file_.value();
     }
     if (!ReadMagicAndReset(file_->Fd(), magic, error_msg)) {
       return false;
@@ -306,7 +309,7 @@ bool DexFileLoader::MapRootContainer(std::string* error_msg) {
   }
 
   CHECK(MemMap::IsInitialized());
-  CHECK(file_.has_value());
+  CHECK(file_->IsValid());
   struct stat sbuf;
   memset(&sbuf, 0, sizeof(sbuf));
   if (fstat(file_->Fd(), &sbuf) == -1) {
@@ -350,7 +353,7 @@ bool DexFileLoader::Open(bool verify,
 
   if (IsZipMagic(magic)) {
     std::unique_ptr<ZipArchive> zip_archive(
-        file_.has_value() ?
+        file_->IsValid() ?
             ZipArchive::OpenFromOwnedFd(file_->Fd(), location_.c_str(), error_msg) :
             ZipArchive::OpenFromMemory(
                 root_container_->Begin(), root_container_->Size(), location_.c_str(), error_msg));
@@ -487,7 +490,7 @@ bool DexFileLoader::OpenFromZipEntry(const ZipArchive& zip_archive,
   CHECK(MemMap::IsInitialized());
   MemMap map;
   bool is_file_map = false;
-  if (file_.has_value() && zip_entry->IsUncompressed()) {
+  if (file_->IsValid() && zip_entry->IsUncompressed()) {
     if (!zip_entry->IsAlignedTo(alignof(DexFile::Header))) {
       // Do not mmap unaligned ZIP entries because
       // doing so would fail dex verification which requires 4 byte alignment.

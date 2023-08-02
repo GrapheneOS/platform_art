@@ -159,10 +159,12 @@ const std::vector<std::string>* OatFileAssistantContext::GetBcpChecksums(size_t 
   }
 
   const std::vector<int>* fds = runtime_options_->boot_class_path_fds;
-  ArtDexFileLoader dex_loader(fds != nullptr ? DupCloexec((*fds)[bcp_index]) : -1,
-                              runtime_options_->boot_class_path[bcp_index]);
+  File file(fds != nullptr ? (*fds)[bcp_index] : -1, /*check_usage=*/false);
+  ArtDexFileLoader dex_loader(&file, runtime_options_->boot_class_path[bcp_index]);
   std::optional<uint32_t> checksum;
-  if (!dex_loader.GetMultiDexChecksum(&checksum, error_msg)) {
+  bool ok = dex_loader.GetMultiDexChecksum(&checksum, error_msg);
+  file.Release();  // Don't close the file yet (we have only read the checksum).
+  if (!ok) {
     return nullptr;
   }
 
