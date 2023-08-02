@@ -563,6 +563,7 @@ class ReleaseTargetChecker:
 
     # Check internal Java libraries
     self._checker.check_java_library("service-art")
+    self._checker.check_file('javalib/service-art.jar.prof')
 
     # Check exported native libraries for Managed Core Library.
     self._checker.check_native_library('libandroidio')
