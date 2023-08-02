@@ -312,6 +312,11 @@ std::vector<pid_t> GetPidByName(const std::string& process_name);
     GTEST_SKIP() << "WARNING: TEST DISABLED FOR NON-STATIC HOST BUILDS"; \
   }
 
+#define TEST_DISABLED_FOR_DEBUG_BUILD()                       \
+  if (kIsDebugBuild) {                                        \
+    GTEST_SKIP() << "WARNING: TEST DISABLED FOR DEBUG BUILD"; \
+  }
+
 #define TEST_DISABLED_FOR_MEMORY_TOOL()                       \
   if (kRunningOnMemoryTool) {                                 \
     GTEST_SKIP() << "WARNING: TEST DISABLED FOR MEMORY TOOL"; \

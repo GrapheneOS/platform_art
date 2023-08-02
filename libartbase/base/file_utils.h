@@ -101,6 +101,19 @@ std::string GetDefaultBootImageLocation(const std::string& android_root,
 // Returns the boot image location that forces the runtime to run in JIT Zygote mode.
 std::string GetJitZygoteBootImageLocation();
 
+// A helper function to pick the most appropriate boot image based on the given options.
+// The boot image location can only be used with the default bootclasspath (the value of the
+// BOOTCLASSPATH environment variable).
+std::string GetBootImageLocationForDefaultBcp(bool no_boot_image,
+                                              std::string user_defined_boot_image,
+                                              bool deny_art_apex_data_files,
+                                              std::string* error_msg);
+
+// A helper function to pick the most appropriate boot image based on system properties.
+// The boot image location can only be used with the default bootclasspath (the value of the
+// BOOTCLASSPATH environment variable).
+std::string GetBootImageLocationForDefaultBcpRespectingSysProps(std::string* error_msg);
+
 // Allows the name to be used for the dalvik cache directory (normally "dalvik-cache") to be
 // overridden with a new value.
 void OverrideDalvikCacheSubDirectory(std::string sub_dir);
