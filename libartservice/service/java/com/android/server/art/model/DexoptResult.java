@@ -63,11 +63,14 @@ public abstract class DexoptResult {
     // Possible values of {@link #DexoptResultExtraStatus}.
     /** @hide */
     public static final int EXTRA_SKIPPED_STORAGE_LOW = 1 << 0;
+    /** @hide */
+    public static final int EXTRA_SKIPPED_NO_DEX_CODE = 1 << 1;
 
     /** @hide */
     // clang-format off
     @IntDef(flag = true, prefix = {"EXTRA_"}, value = {
         EXTRA_SKIPPED_STORAGE_LOW,
+        EXTRA_SKIPPED_NO_DEX_CODE,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
@@ -145,6 +148,9 @@ public abstract class DexoptResult {
         var strs = new ArrayList<String>();
         if ((extraStatus & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW) != 0) {
             strs.add("EXTRA_SKIPPED_STORAGE_LOW");
+        }
+        if ((extraStatus & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE) != 0) {
+            strs.add("EXTRA_SKIPPED_NO_DEX_CODE");
         }
         return String.join(", ", strs);
     }

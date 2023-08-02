@@ -182,6 +182,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                         GetDexoptNeededResult getDexoptNeededResult =
                                 getDexoptNeeded(target, options);
 
+                        if (!getDexoptNeededResult.hasDexCode) {
+                            extraStatus |= DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE;
+                        }
+
                         if (!getDexoptNeededResult.isDexoptNeeded) {
                             continue;
                         }
