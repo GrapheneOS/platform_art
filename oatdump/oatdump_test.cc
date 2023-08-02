@@ -33,28 +33,36 @@ TEST_P(OatDumpTest, TestNoDumpVmap) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
-  ASSERT_TRUE(Exec(GetParam(), kModeArt, {"--no-dump:vmap"}, kListAndCode));
+  ASSERT_TRUE(Exec(GetParam(),
+                   kArgImage | kArgBcp | kArgIsa,
+                   {"--no-dump:vmap"},
+                   kExpectImage | kExpectOat | kExpectCode));
 }
 
 TEST_P(OatDumpTest, TestNoDisassemble) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
-  ASSERT_TRUE(Exec(GetParam(), kModeArt, {"--no-disassemble"}, kListAndCode));
+  ASSERT_TRUE(Exec(GetParam(),
+                   kArgImage | kArgBcp | kArgIsa,
+                   {"--no-disassemble"},
+                   kExpectImage | kExpectOat | kExpectCode));
 }
 
 TEST_P(OatDumpTest, TestListClasses) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
-  ASSERT_TRUE(Exec(GetParam(), kModeArt, {"--list-classes"}, kListOnly));
+  ASSERT_TRUE(Exec(
+      GetParam(), kArgImage | kArgBcp | kArgIsa, {"--list-classes"}, kExpectImage | kExpectOat));
 }
 
 TEST_P(OatDumpTest, TestListMethods) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_FOR_ARM_AND_ARM64();
   std::string error_msg;
-  ASSERT_TRUE(Exec(GetParam(), kModeArt, {"--list-methods"}, kListOnly));
+  ASSERT_TRUE(Exec(
+      GetParam(), kArgImage | kArgBcp | kArgIsa, {"--list-methods"}, kExpectImage | kExpectOat));
 }
 
 TEST_P(OatDumpTest, TestSymbolize) {
@@ -65,7 +73,7 @@ TEST_P(OatDumpTest, TestSymbolize) {
     TEST_DISABLED_FOR_ARM_AND_ARM64();
   }
   std::string error_msg;
-  ASSERT_TRUE(Exec(GetParam(), kModeSymbolize, {}, kListOnly));
+  ASSERT_TRUE(Exec(GetParam(), kArgSymbolize, {}, /*expects=*/0));
 }
 
 TEST_P(OatDumpTest, TestExportDex) {
@@ -74,8 +82,8 @@ TEST_P(OatDumpTest, TestExportDex) {
     TEST_DISABLED_FOR_ARM_AND_ARM64();
   }
   std::string error_msg;
-  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M"}));
-  ASSERT_TRUE(Exec(GetParam(), kModeOat, {"--export-dex-to=" + tmp_dir_}, kListOnly));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam()));
+  ASSERT_TRUE(Exec(GetParam(), kArgOatApp, {"--export-dex-to=" + tmp_dir_}, kExpectOat));
   if (GetParam() == Flavor::kDynamic) {
     const std::string dex_location =
         tmp_dir_ + "/" + android::base::Basename(GetTestDexFileName(GetAppBaseName().c_str())) +
