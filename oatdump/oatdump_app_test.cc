@@ -18,42 +18,27 @@
 
 namespace art {
 
-TEST_F(OatDumpTest, TestAppWithBootImage) {
+TEST_P(OatDumpTest, TestAppWithBootImage) {
   TEST_DISABLED_FOR_RISCV64();
-  ASSERT_TRUE(GenerateAppOdexFile(Flavor::kDynamic, {"--runtime-arg", "-Xmx64M"}));
-  ASSERT_TRUE(Exec(Flavor::kDynamic, kModeOatWithBootImage, {}, kListAndCode));
-}
-TEST_F(OatDumpTest, TestAppWithBootImageStatic) {
-  TEST_DISABLED_FOR_RISCV64();
-  TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
-  ASSERT_TRUE(GenerateAppOdexFile(Flavor::kStatic, {"--runtime-arg", "-Xmx64M"}));
-  ASSERT_TRUE(Exec(Flavor::kStatic, kModeOatWithBootImage, {}, kListAndCode));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M"}));
+  ASSERT_TRUE(Exec(GetParam(), kModeOatWithBootImage, {}, kListAndCode));
 }
 
-TEST_F(OatDumpTest, TestAppImageWithBootImage) {
+TEST_P(OatDumpTest, TestAppImageWithBootImage) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
-  ASSERT_TRUE(GenerateAppOdexFile(Flavor::kDynamic, {"--runtime-arg", "-Xmx64M", app_image_arg}));
-  ASSERT_TRUE(Exec(Flavor::kDynamic, kModeAppImage, {}, kListAndCode));
-}
-TEST_F(OatDumpTest, TestAppImageWithBootImageStatic) {
-  TEST_DISABLED_FOR_RISCV64();
-  TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
-  TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
-  const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
-  ASSERT_TRUE(GenerateAppOdexFile(Flavor::kStatic, {"--runtime-arg", "-Xmx64M", app_image_arg}));
-  ASSERT_TRUE(Exec(Flavor::kStatic, kModeAppImage, {}, kListAndCode));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M", app_image_arg}));
+  ASSERT_TRUE(Exec(GetParam(), kModeAppImage, {}, kListAndCode));
 }
 
-TEST_F(OatDumpTest, TestAppImageInvalidPath) {
+TEST_P(OatDumpTest, TestAppImageInvalidPath) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
-  TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
-  ASSERT_TRUE(GenerateAppOdexFile(Flavor::kStatic, {"--runtime-arg", "-Xmx64M", app_image_arg}));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M", app_image_arg}));
   SetAppImageName("missing_app_image.art");
-  ASSERT_TRUE(Exec(Flavor::kStatic, kModeAppImage, {}, kListAndCode, /*expect_failure=*/true));
+  ASSERT_TRUE(Exec(GetParam(), kModeAppImage, {}, kListAndCode, /*expect_failure=*/true));
 }
 
 }  // namespace art
