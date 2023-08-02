@@ -462,7 +462,7 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
       // If file descriptors were provided for the class loader context dex paths,
       // get the descriptor which corresponds to this dex path. We assume the `fds`
       // vector follows the same order as a flattened class loader context.
-      int fd = -1;
+      File file;
       if (!fds.empty()) {
         if (dex_file_index >= fds.size()) {
           LOG(WARNING) << "Number of FDs is smaller than number of dex files in the context";
@@ -470,32 +470,35 @@ bool ClassLoaderContext::OpenDexFiles(const std::string& classpath_dir,
           return false;
         }
 
-        fd = fds[dex_file_index++];
-        DCHECK_GE(fd, 0);
+        file = File(fds[dex_file_index++], /*check_usage=*/false);
+        DCHECK(file.IsValid());
       }
 
       std::string error_msg;
       std::optional<uint32_t> dex_checksum;
       if (only_read_checksums) {
         bool zip_file_only_contains_uncompress_dex;
-        ArtDexFileLoader dex_file_loader(DupCloexec(fd), location);
+        ArtDexFileLoader dex_file_loader(&file, location);
         if (!dex_file_loader.GetMultiDexChecksum(
                 &dex_checksum, &error_msg, &zip_file_only_contains_uncompress_dex)) {
-          LOG(WARNING) << "Could not get dex checksums for location " << location << ", fd=" << fd;
+          LOG(WARNING) << "Could not get dex checksums for location " << location
+                       << ", fd=" << file.Fd();
           dex_files_state_ = kDexFilesOpenFailed;
         }
+        file.Release();  // Don't close the file yet (we have only read the checksum).
       } else {
         // When opening the dex files from the context we expect their checksum to match their
         // contents. So pass true to verify_checksum.
         // We don't need to do structural dex file verification, we only need to
         // check the checksum, so pass false to verify.
         size_t i = info->opened_dex_files.size();
-        ArtDexFileLoader dex_file_loader(fd, location);
+        ArtDexFileLoader dex_file_loader(&file, location);
         if (!dex_file_loader.Open(/*verify=*/false,
                                   /*verify_checksum=*/true,
                                   &error_msg,
                                   &info->opened_dex_files)) {
-          LOG(WARNING) << "Could not open dex files for location " << location << ", fd=" << fd;
+          LOG(WARNING) << "Could not open dex files for location " << location
+                       << ", fd=" << file.Fd();
           dex_files_state_ = kDexFilesOpenFailed;
         } else {
           dex_checksum = DexFileLoader::GetMultiDexChecksum(info->opened_dex_files, &i);
