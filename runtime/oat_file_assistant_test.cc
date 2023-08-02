@@ -2106,6 +2106,152 @@ TEST_P(OatFileAssistantTest, VdexNoDex) {
       &oat_file_assistant, "unknown", "unknown", "io-error-no-apk");
 }
 
+// Case: We have a VDEX file, generated without a boot image, and we now have a boot image.
+// Expect: Dexopt only if the target compiler filter >= "speed-profile".
+TEST_P(OatFileAssistantTest, ShouldRecompileForImageFromVdex) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  std::string vdex_location = GetOdexDir() + "/TestDex.vdex";
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  // Compile without a boot image.
+  GenerateOdexForTest(dex_location,
+                      odex_location,
+                      CompilerFilter::kVerify,
+                      "install",
+                      {"--boot-image=/nonx/boot.art"});
+
+  // Delete the odex file and only keep the vdex.
+  ASSERT_EQ(0, unlink(odex_location.c_str()));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeed,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
+// Case: We have an ODEX file, generated without a boot image (filter: "verify"), and we now have a
+// boot image.
+// Expect: Dexopt only if the target compiler filter >= "speed-profile".
+TEST_P(OatFileAssistantTest, ShouldRecompileForImageFromVerify) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  std::string vdex_location = GetOdexDir() + "/TestDex.vdex";
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  // Compile without a boot image.
+  GenerateOdexForTest(dex_location,
+                      odex_location,
+                      CompilerFilter::kVerify,
+                      "install",
+                      {"--boot-image=/nonx/boot.art"});
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeed,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
+// Case: We have an ODEX file, generated without a boot image (filter: "speed-profile"), and we now
+// have a boot image.
+// Expect: Dexopt only if the target compiler filter >= "speed-profile".
+TEST_P(OatFileAssistantTest, ShouldRecompileForImageFromSpeedProfile) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  std::string vdex_location = GetOdexDir() + "/TestDex.vdex";
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  // Compile without a boot image.
+  GenerateOdexForTest(dex_location,
+                      odex_location,
+                      CompilerFilter::kSpeedProfile,
+                      "install",
+                      {"--boot-image=/nonx/boot.art"});
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeed,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
 // Test that GetLocation of a dex file is the same whether the dex
 // filed is backed by an oat file or not.
 TEST_F(OatFileAssistantBaseTest, GetDexLocation) {
