@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
@@ -44,6 +45,7 @@
 
 #include "android-base/file.h"
 #include "android-base/logging.h"
+#include "android-base/properties.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "base/bit_utils.h"
@@ -70,6 +72,8 @@
 
 namespace art {
 
+using android::base::GetBoolProperty;
+using android::base::GetProperty;
 using android::base::StringPrintf;
 
 static constexpr const char* kClassesDex = "classes.dex";
@@ -516,6 +520,34 @@ std::string GetJitZygoteBootImageLocation() {
   // Intentionally use a non-existing location so that the runtime will fail to find the boot image
   // and JIT bootclasspath with the given profiles.
   return "/nonx/boot.art!/apex/com.android.art/etc/boot-image.prof!/system/etc/boot-image.prof";
+}
+
+std::string GetBootImageLocationForDefaultBcp(bool no_boot_image,
+                                              std::string user_defined_boot_image,
+                                              bool deny_art_apex_data_files,
+                                              std::string* error_msg) {
+  if (no_boot_image) {
+    return GetJitZygoteBootImageLocation();
+  }
+  if (!user_defined_boot_image.empty()) {
+    return user_defined_boot_image;
+  }
+  std::string android_root = GetAndroidRootSafe(error_msg);
+  if (!error_msg->empty()) {
+    return "";
+  }
+  return GetDefaultBootImageLocationSafe(android_root, deny_art_apex_data_files, error_msg);
+}
+
+std::string GetBootImageLocationForDefaultBcpRespectingSysProps(std::string* error_msg) {
+  bool no_boot_image =
+      GetBoolProperty("persist.device_config.runtime_native_boot.profilebootclasspath",
+                      GetBoolProperty("dalvik.vm.profilebootclasspath", /*default_value=*/false));
+  std::string user_defined_boot_image = GetProperty("dalvik.vm.boot-image", /*default_value=*/"");
+  bool deny_art_apex_data_files =
+      !GetBoolProperty("odsign.verification.success", /*default_value=*/false);
+  return GetBootImageLocationForDefaultBcp(
+      no_boot_image, user_defined_boot_image, deny_art_apex_data_files, error_msg);
 }
 
 static /*constinit*/ std::string_view dalvik_cache_sub_dir = "dalvik-cache";
