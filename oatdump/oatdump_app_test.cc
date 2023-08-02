@@ -18,27 +18,34 @@
 
 namespace art {
 
-TEST_P(OatDumpTest, TestAppWithBootImage) {
+TEST_P(OatDumpTest, TestDumpOatWithBootImage) {
   TEST_DISABLED_FOR_RISCV64();
-  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M"}));
-  ASSERT_TRUE(Exec(GetParam(), kModeOatWithBootImage, {}, kListAndCode));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam()));
+  ASSERT_TRUE(Exec(
+      GetParam(), kArgOatApp | kArgBootImage | kArgBcp | kArgIsa, {}, kExpectOat | kExpectCode));
 }
 
-TEST_P(OatDumpTest, TestAppImageWithBootImage) {
+TEST_P(OatDumpTest, TestDumpAppImageWithBootImage) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
-  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M", app_image_arg}));
-  ASSERT_TRUE(Exec(GetParam(), kModeAppImage, {}, kListAndCode));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {app_image_arg}));
+  ASSERT_TRUE(Exec(GetParam(),
+                   kArgAppImage | kArgImage | kArgBcp | kArgIsa,
+                   {"--app-oat=" + GetAppOdexName()},
+                   kExpectImage | kExpectOat | kExpectCode));
 }
 
-TEST_P(OatDumpTest, TestAppImageInvalidPath) {
+TEST_P(OatDumpTest, TestDumpAppImageInvalidPath) {
   TEST_DISABLED_FOR_RISCV64();
   TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS();  // GC bug, b/126305867
   const std::string app_image_arg = "--app-image-file=" + GetAppImageName();
-  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {"--runtime-arg", "-Xmx64M", app_image_arg}));
-  SetAppImageName("missing_app_image.art");
-  ASSERT_TRUE(Exec(GetParam(), kModeAppImage, {}, kListAndCode, /*expect_failure=*/true));
+  ASSERT_TRUE(GenerateAppOdexFile(GetParam(), {app_image_arg}));
+  ASSERT_TRUE(Exec(GetParam(),
+                   kArgImage | kArgBcp | kArgIsa,
+                   {"--app-image=missing_app_image.art", "--app-oat=" + GetAppOdexName()},
+                   /*expects=*/0,
+                   /*expect_failure=*/true));
 }
 
 }  // namespace art
