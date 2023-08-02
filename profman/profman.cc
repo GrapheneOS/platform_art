@@ -610,7 +610,8 @@ class ProfMan final {
       std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
       // We do not need to verify the apk for processing profiles.
       if (use_apk_fd_list) {
-          ArtDexFileLoader dex_file_loader(apks_fd_[i], dex_locations_[i]);
+          File file(apks_fd_[i], /*check_usage=*/false);
+          ArtDexFileLoader dex_file_loader(&file, dex_locations_[i]);
           if (dex_file_loader.Open(/*verify=*/false,
                                    kVerifyChecksum,
                                    /*allow_no_dex_files=*/true,
@@ -626,7 +627,7 @@ class ProfMan final {
           PLOG(ERROR) << "Unable to open '" << apk_files_[i] << "'";
           return false;
         }
-        ArtDexFileLoader dex_file_loader(file.Release(), dex_locations_[i]);
+        ArtDexFileLoader dex_file_loader(&file, dex_locations_[i]);
         if (dex_file_loader.Open(/*verify=*/false,
                                  kVerifyChecksum,
                                  /*allow_no_dex_files=*/true,
