@@ -3474,8 +3474,11 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
 
     // Original checksum.
     std::optional<uint32_t> dex_checksum;
-    ArtDexFileLoader dex_loader(DupCloexec(dex_fd), dex_file_location);
-    if (!dex_loader.GetMultiDexChecksum(&dex_checksum, error_msg)) {
+    File file(dex_fd, /*check_usage=*/false);
+    ArtDexFileLoader dex_loader(&file, dex_file_location);
+    bool ok = dex_loader.GetMultiDexChecksum(&dex_checksum, error_msg);
+    file.Release();  // Don't close the file yet (we have only read the checksum).
+    if (!ok) {
       *error_msg = StringPrintf(
           "ValidateOatFile failed to get checksum of dex file '%s' "
           "referenced by oat file %s: %s",
