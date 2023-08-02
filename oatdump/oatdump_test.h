@@ -17,12 +17,14 @@
 #ifndef ART_OATDUMP_OATDUMP_TEST_H_
 #define ART_OATDUMP_OATDUMP_TEST_H_
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "android-base/strings.h"
-
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/os.h"
@@ -32,19 +34,26 @@
 #include "exec_utils.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
-
-#include <sys/types.h>
-#include <unistd.h>
+#include "gtest/gtest.h"
 
 namespace art {
 
-class OatDumpTest : public CommonRuntimeTest {
+// Linking flavor.
+enum class Flavor {
+  kDynamic,  // oatdump(d), dex2oat(d)
+  kStatic,   // oatdump(d)s, dex2oat(d)s
+};
+
+class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface<Flavor> {
  protected:
   virtual void SetUp() {
     CommonRuntimeTest::SetUp();
     core_art_location_ = GetCoreArtLocation();
     core_oat_location_ = GetSystemImageFilename(GetCoreOatLocation().c_str(), kRuntimeISA);
     tmp_dir_ = GetScratchDir();
+    if (GetParam() == Flavor::kStatic) {
+      TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS();
+    }
   }
 
   virtual void TearDown() {
@@ -63,12 +72,6 @@ class OatDumpTest : public CommonRuntimeTest {
     }
     return dir;
   }
-
-  // Linking flavor.
-  enum class Flavor {
-    kDynamic,  // oatdump(d), dex2oat(d)
-    kStatic,   // oatdump(d)s, dex2oat(d)s
-  };
 
   // Returns path to the oatdump/dex2oat/dexdump binary.
   std::string GetExecutableFilePath(const char* name, bool is_debug, bool is_static, bool bitness) {
