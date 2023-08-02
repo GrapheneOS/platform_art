@@ -116,6 +116,9 @@ java_sdk_library {
         "framework-system-server-module-optimize-defaults",
     ],
     permitted_packages: ["com.android.server.art"],
+    dex_preopt: {
+        profile: "art-profile",
+    },
     visibility: [
         "//art:__subpackages__",
         "//frameworks/base/services/core",
