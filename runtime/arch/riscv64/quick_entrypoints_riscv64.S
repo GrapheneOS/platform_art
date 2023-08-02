@@ -760,7 +760,119 @@ ENTRY art_quick_osr_stub
 END art_quick_osr_stub
 
 
-UNDEFINED art_quick_imt_conflict_trampoline
+    /*
+     * All generated callsites for interface invokes and invocation slow paths will load arguments
+     * as usual - except instead of loading arg0/A0 with the target Method*, arg0/A0 will contain
+     * the method_idx. This wrapper will call the appropriate C++ helper while preserving arguments
+     * and allowing a moving GC to update references in callee-save registers.
+     * NOTE: "this" is the first visible argument of the target, and so can be found in arg1/A1.
+     *
+     * The helper will attempt to locate the target and return a 128-bit result consisting of the
+     * target `ArtMethod*` in A0 and its `entry_point_from_quick_compiled_code_` in A1.
+     *
+     * If unsuccessful, the helper will return null/null. There will be a pending exception
+     * to deliver in the thread.
+     *
+     * On success this wrapper will restore arguments and *jump* to the target, leaving the RA
+     * pointing back to the original caller.
+     */
+.macro INVOKE_TRAMPOLINE_BODY cxx_name
+    .extern \cxx_name
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
+    mv    a2, xSELF                           // Pass Thread::Current().
+    mv    a3, sp                              // Pass pointer to the saved frame context.
+    call   \cxx_name                          // (method_idx, this, Thread*, $sp)
+    mv    t0, a1                              // Save method's code pointer in T0.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    beq   a0, zero, 1f
+    jr    t0
+1:
+    DELIVER_PENDING_EXCEPTION
+.endm
+
+.macro INVOKE_TRAMPOLINE c_name, cxx_name
+ENTRY \c_name
+    INVOKE_TRAMPOLINE_BODY \cxx_name
+END \c_name
+.endm
+
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, \
+                  artInvokeInterfaceTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, \
+                  artInvokeStaticTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, \
+                  artInvokeDirectTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, \
+                  artInvokeSuperTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, \
+                  artInvokeVirtualTrampolineWithAccessCheck
+
+    /*
+     * Polymorphic method invocation.
+     * On entry:
+     *   A0 = unused
+     *   A1 = receiver
+     */
+.extern artInvokePolymorphic
+ENTRY art_quick_invoke_polymorphic
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
+    mv      a0, a1                            // Pass the receiver.
+    mv      a1, xSELF                         // Pass Thread::Current().
+    mv      a2, sp                            // Pass pointer to the saved frame context.
+    call    artInvokePolymorphic              // artInvokePolymorphic(receiver, Thread*, context)
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    fmv.d.x fa0, a0                           // Copy the result also to the FP return register.
+    RETURN_OR_DELIVER_PENDING_EXCEPTION_REG  t0
+END art_quick_invoke_polymorphic
+
+/*
+     * InvokeCustom invocation.
+     * On entry:
+     *   A0 = call_site_idx
+     */
+.extern artInvokeCustom
+ENTRY art_quick_invoke_custom
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
+    mv      a1, xSELF                         // Pass Thread::Current().
+    mv      a2, sp                            // Pass pointer to the saved frame context.
+    call    artInvokeCustom                   // artInvokeCustom(call_site_idx, Thread*, context)
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
+    fmv.d.x fa0, a0                           // Copy the result also to the FP return register.
+    RETURN_OR_DELIVER_PENDING_EXCEPTION_REG t0
+END art_quick_invoke_custom
+
+    /*
+     * Called to resolve an imt conflict.
+     * On entry:
+     *   A0 is the conflict ArtMethod.
+     *   T0 is a hidden argument that holds the target interface method's dex method index.
+     */
+ENTRY art_quick_imt_conflict_trampoline
+    ld      t1, ART_METHOD_JNI_OFFSET_64(a0)  // Load ImtConflictTable
+    ld      a0, 0(t1)                         // Load first entry in ImtConflictTable.
+.Limt_table_iterate:
+    // Branch if found.
+    beq     a0, t0, .Limt_table_found
+
+    // If the entry is null, the interface method is not in the ImtConflictTable.
+    beqz    a0, .Lconflict_trampoline
+    // Iterate over the entries of the ImtConflictTable.
+    addi    t1, t1, (2 * __SIZEOF_POINTER__)
+    ld      a0, 0(t1)
+    j       .Limt_table_iterate
+.Limt_table_found:
+    // We successfully hit an entry in the table. Load the target method and jump to it.
+    ld      a0, __SIZEOF_POINTER__(t1)
+    ld      t1, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
+    jr      t1
+.Lconflict_trampoline:
+    // Call the runtime stub to populate the ImtConflictTable and jump to the
+    // resolved method.
+    move a0, t0  // Load interface method
+    INVOKE_TRAMPOLINE_BODY artInvokeInterfaceTrampoline
+END art_quick_imt_conflict_trampoline
+
+
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
 UNDEFINED art_quick_method_entry_hook
@@ -945,13 +1057,6 @@ UNDEFINED art_quick_lock_object_no_inline
 UNDEFINED art_quick_lock_object
 UNDEFINED art_quick_unlock_object_no_inline
 UNDEFINED art_quick_unlock_object
-UNDEFINED art_quick_invoke_direct_trampoline_with_access_check
-UNDEFINED art_quick_invoke_interface_trampoline_with_access_check
-UNDEFINED art_quick_invoke_static_trampoline_with_access_check
-UNDEFINED art_quick_invoke_super_trampoline_with_access_check
-UNDEFINED art_quick_invoke_virtual_trampoline_with_access_check
-UNDEFINED art_quick_invoke_polymorphic
-UNDEFINED art_quick_invoke_custom
 UNDEFINED art_quick_throw_array_bounds
 UNDEFINED art_quick_throw_null_pointer_exception
 UNDEFINED art_quick_throw_stack_overflow
