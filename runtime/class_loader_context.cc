@@ -699,22 +699,22 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
   for (size_t k = 0; k < info.opened_dex_files.size();) {
     const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
     uint32_t checksum = DexFileLoader::GetMultiDexChecksum(info.opened_dex_files, &k);
+    CHECK(!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()));
 
     if (for_dex2oat) {
-      // dex2oat only needs the base location. It cannot accept multidex locations.
-      // So ensure we only add each file once.
-      bool new_insert =
-          seen_locations.insert(DexFileLoader::GetBaseLocation(dex_file->GetLocation())).second;
-      CHECK(new_insert);
+      // De-duplicate locations.
+      bool new_insert = seen_locations.insert(dex_file->GetLocation()).second;
+      if (!new_insert) {
+        continue;
+      }
     }
 
     std::string location = dex_file->GetLocation();
     // If there is a stored class loader remap, fix up the multidex strings.
     if (!remap.empty()) {
-      std::string base_dex_location = DexFileLoader::GetBaseLocation(location);
-      auto it = remap.find(base_dex_location);
-      CHECK(it != remap.end()) << base_dex_location;
-      location = it->second + DexFileLoader::GetMultiDexSuffix(location);
+      auto it = remap.find(location);
+      CHECK(it != remap.end()) << location;
+      location = it->second;
     }
     locations.emplace_back(std::move(location));
 
