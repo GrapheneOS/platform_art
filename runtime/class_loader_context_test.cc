@@ -1258,6 +1258,17 @@ TEST_F(ClassLoaderContextTest, EncodeForDex2oatIMC) {
   ASSERT_EQ(expected_encoding, context->EncodeContextForDex2oat(""));
 }
 
+TEST_F(ClassLoaderContextTest, EncodeForDex2oatDuplicates) {
+  std::string dex_name = GetTestDexFileName("Main");
+  std::unique_ptr<ClassLoaderContext> context =
+      ClassLoaderContext::Create("PCL[" + dex_name + ":" + dex_name + "]");
+  ASSERT_TRUE(context->OpenDexFiles());
+
+  std::string encoding = context->EncodeContextForDex2oat("");
+  std::string expected_encoding = "PCL[" + dex_name + "]";
+  ASSERT_EQ(expected_encoding, context->EncodeContextForDex2oat(""));
+}
+
 TEST_F(ClassLoaderContextTest, EncodeContextsSinglePath) {
   jobject class_loader = LoadDexInPathClassLoader("Main", nullptr);
   std::unique_ptr<ClassLoaderContext> context =
