@@ -493,7 +493,8 @@ public final class ArtManagerLocal {
                         new HashSet<>(params.getPackages()) /* excludedPackages */,
                         cancellationSignal, dexoptExecutor);
             }
-            Log.i(TAG, "Dexopting packages");
+            Log.i(TAG,
+                    "Dexopting " + params.getPackages().size() + " packages with reason=" + reason);
             return mInjector.getDexoptHelper().dexopt(snapshot, params.getPackages(),
                     params.getDexoptParams(), cancellationSignal, dexoptExecutor,
                     progressCallbackExecutor, progressCallback);
@@ -1011,7 +1012,7 @@ public final class ArtManagerLocal {
                                             .filter(pkg -> !excludedPackages.contains(pkg))
                                             .collect(Collectors.toList());
             if (!packages.isEmpty()) {
-                Log.i(TAG, "Storage is low. Downgrading inactive packages");
+                Log.i(TAG, "Storage is low. Downgrading " + packages.size() + " inactive packages");
                 DexoptParams params =
                         new DexoptParams.Builder(ReasonMapping.REASON_INACTIVE).build();
                 mInjector.getDexoptHelper().dexopt(snapshot, packages, params, cancellationSignal,
