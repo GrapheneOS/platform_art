@@ -548,9 +548,8 @@ public final class ArtManagerLocal {
      *
      * When the job is running, it may be cancelled by the job scheduler immediately whenever one of
      * the constraints above is no longer met or cancelled by the {@link
-     * #cancelBackgroundDexoptJob()} API. The job scheduler retries it in the next <i>maintenance
-     * window</i>. For information about <i>maintenance window</i>, see
-     * https://developer.android.com/training/monitoring-device-state/doze-standby.
+     * #cancelBackgroundDexoptJob()} API. The job scheduler retries it with the default retry policy
+     * (30 seconds, exponential, capped at 5hrs).
      *
      * See {@link #dexoptPackages} for how to customize the behavior of the job.
      *
@@ -1157,9 +1156,8 @@ public final class ArtManagerLocal {
          *
          * Additionally, {@code cancellationSignal.cancel()} can be called to cancel this operation.
          * If this operation is initiated by the job scheduler and the {@code reason} is {@link
-         * ReasonMapping#REASON_BG_DEXOPT}, the job will be retried in the next <i>maintenance
-         * window</i>. For information about <i>maintenance window</i>, see
-         * https://developer.android.com/training/monitoring-device-state/doze-standby.
+         * ReasonMapping#REASON_BG_DEXOPT}, the job will be retried with the default retry policy
+         * (30 seconds, exponential, capped at 5hrs).
          *
          * Changing the reason is not allowed. Doing so will result in {@link IllegalStateException}
          * when {@link #dexoptPackages} is called.
@@ -1180,6 +1178,12 @@ public final class ArtManagerLocal {
          * The default configuration described in {@link
          * ArtManagerLocal#scheduleBackgroundDexoptJob()} is passed to the callback as the {@code
          * builder} argument.
+         *
+         * Setting {@link JobInfo.Builder#setBackoffCriteria} is not allowed. Doing so will result
+         * in {@link IllegalArgumentException} when {@link #scheduleBackgroundDexoptJob()} is
+         * called. The job is retried with the default retry policy (30 seconds, exponential, capped
+         * at 5hrs). Unfortunately, due to the limitation of the job scheduler API, this retry
+         * policy cannot be changed.
          *
          * Setting {@link JobInfo.Builder#setRequiresStorageNotLow(boolean)} is not allowed. Doing
          * so will result in {@link IllegalStateException} when {@link
