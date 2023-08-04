@@ -87,9 +87,9 @@ public class BackgroundDexoptJob {
         start().thenAcceptAsync(result -> {
             writeStats(result);
             // This is a periodic job, where the interval is specified in the `JobInfo`. "true"
-            // means to execute again during a future idle maintenance window in the same
-            // interval, while "false" means not to execute again during a future idle maintenance
-            // window in the same interval but to execute again in the next interval.
+            // means to execute again in the same interval with the default retry policy, while
+            // "false" means not to execute again in the same interval but to execute again in the
+            // next interval.
             // This call will be ignored if `onStopJob` is called.
             boolean wantsReschedule = result instanceof CompletedResult
                     && ((CompletedResult) result).dexoptResult().getFinalStatus()
@@ -106,8 +106,7 @@ public class BackgroundDexoptJob {
             mLastStopReason = Optional.of(params.getStopReason());
         }
         cancel();
-        // "true" means to execute again during a future idle maintenance window in the same
-        // interval.
+        // "true" means to execute again in the same interval with the default retry policy.
         return true;
     }
 
