@@ -1371,7 +1371,7 @@ WARN_UNUSED BootImages OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
     metrics.SetTrigger(data_result.GetTrigger());
   }
 
-  if (boot_images_on_data.primary_boot_image) {
+  if (boot_images_on_system.primary_boot_image || boot_images_on_data.primary_boot_image) {
     if (data_result.IsBootImageMainlineExtensionOk()) {
       std::string error_msg;
       if (BootImageMainlineExtensionExist(
