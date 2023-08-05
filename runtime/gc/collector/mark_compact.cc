@@ -3519,9 +3519,30 @@ void MarkCompact::CompactionPhase() {
     RecordFree(ObjectBytePair(freed_objects_, freed_bytes));
   }
 
+  size_t moving_space_size = bump_pointer_space_->Capacity();
+  size_t used_size = (moving_first_objs_count_ + black_page_count_) * kPageSize;
   if (CanCompactMovingSpaceWithMinorFault()) {
     CompactMovingSpace<kMinorFaultMode>(/*page=*/nullptr);
   } else {
+    if (used_size < moving_space_size) {
+      // mremap clears 'anon_vma' field of anonymous mappings. If we
+      // uffd-register only the used portion of the space, then the vma gets
+      // split (between used and unused portions) and as soon as pages are
+      // mapped to the vmas, they get different `anon_vma` assigned, which
+      // ensures that the two vmas cannot merged after we uffd-unregister the
+      // used portion. OTOH, registering the entire space avoids the split, but
+      // unnecessarily causes userfaults on allocations.
+      // By mapping a zero-page (below) we let the kernel assign an 'anon_vma'
+      // *before* the vma-split caused by uffd-unregister of the unused portion
+      // This ensures that when we unregister the used portion after compaction,
+      // the two split vmas merge. This is necessary for the mremap of the
+      // next GC cycle to not fail due to having more than one vmas in the source
+      // range.
+      uint8_t* unused_first_page = bump_pointer_space_->Begin() + used_size;
+      // It's ok if somebody else already mapped the page.
+      ZeropageIoctl(unused_first_page, /*tolerate_eexist*/ true, /*tolerate_enoent*/ false);
+      UnregisterUffd(unused_first_page, moving_space_size - used_size);
+    }
     CompactMovingSpace<kCopyMode>(compaction_buffers_map_.Begin());
   }
 
@@ -3535,13 +3556,9 @@ void MarkCompact::CompactionPhase() {
   for (uint32_t i = 0; compaction_in_progress_count_.load(std::memory_order_acquire) > 0; i++) {
     BackOff(i);
   }
-
-  size_t moving_space_size = bump_pointer_space_->Capacity();
-  UnregisterUffd(bump_pointer_space_->Begin(),
-                 minor_fault_initialized_ ?
-                     (moving_first_objs_count_ + black_page_count_) * kPageSize :
-                     moving_space_size);
-
+  if (used_size > 0) {
+    UnregisterUffd(bump_pointer_space_->Begin(), used_size);
+  }
   // Release all of the memory taken by moving-space's from-map
   if (minor_fault_initialized_) {
     if (IsValidFd(moving_from_space_fd_)) {
