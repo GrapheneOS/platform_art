@@ -1686,14 +1686,13 @@ void MarkCompact::CompactPage(mirror::Object* obj,
 // If we find a set bit in the bitmap, then we copy the remaining page and then
 // use the bitmap to visit each object for updating references.
 void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
-                                 const size_t page_idx,
+                                 mirror::Object* next_page_first_obj,
+                                 uint32_t first_chunk_size,
                                  uint8_t* const pre_compact_page,
                                  uint8_t* dest,
                                  bool needs_memset_zero) {
   DCHECK(IsAligned<kPageSize>(pre_compact_page));
   size_t bytes_copied;
-  const uint32_t first_chunk_size = black_alloc_pages_first_chunk_size_[page_idx];
-  mirror::Object* next_page_first_obj = first_objs_moving_space_[page_idx + 1].AsMirrorPtr();
   uint8_t* src_addr = reinterpret_cast<uint8_t*>(GetFromSpaceAddr(first_obj));
   uint8_t* pre_compact_addr = reinterpret_cast<uint8_t*>(first_obj);
   uint8_t* const pre_compact_page_end = pre_compact_page + kPageSize;
@@ -2212,6 +2211,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
   last_checked_reclaim_page_idx_ = idx;
   class_after_obj_iter_ = class_after_obj_ordered_map_.rbegin();
   // Allocated-black pages
+  mirror::Object* next_page_first_obj = nullptr;
   while (idx > moving_first_objs_count_) {
     idx--;
     pre_compact_page -= kPageSize;
@@ -2223,21 +2223,27 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
       page = to_space_end;
     }
     mirror::Object* first_obj = first_objs_moving_space_[idx].AsMirrorPtr();
+    uint32_t first_chunk_size = black_alloc_pages_first_chunk_size_[idx];
     if (first_obj != nullptr) {
-      DoPageCompactionWithStateChange<kMode>(
-          idx,
-          page_status_arr_len,
-          to_space_end,
-          page,
-          [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
-            SlideBlackPage(first_obj, idx, pre_compact_page, page, kMode == kCopyMode);
-          });
+      DoPageCompactionWithStateChange<kMode>(idx,
+                                             page_status_arr_len,
+                                             to_space_end,
+                                             page,
+                                             [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
+                                               SlideBlackPage(first_obj,
+                                                              next_page_first_obj,
+                                                              first_chunk_size,
+                                                              pre_compact_page,
+                                                              page,
+                                                              kMode == kCopyMode);
+                                             });
       // We are sliding here, so no point attempting to madvise for every
       // page. Wait for enough pages to be done.
       if (idx % (kMinFromSpaceMadviseSize / kPageSize) == 0) {
         FreeFromSpacePages(idx, kMode);
       }
     }
+    next_page_first_obj = first_obj;
   }
   DCHECK_EQ(pre_compact_page, black_allocations_begin_);
 
@@ -3148,6 +3154,7 @@ void MarkCompact::ConcurrentlyProcessMovingPage(uint8_t* fault_page,
     return;
   }
   size_t page_idx = (fault_page - bump_pointer_space_->Begin()) / kPageSize;
+  DCHECK_LT(page_idx, moving_first_objs_count_ + black_page_count_);
   mirror::Object* first_obj = first_objs_moving_space_[page_idx].AsMirrorPtr();
   if (first_obj == nullptr) {
     // We should never have a case where two workers are trying to install a
@@ -3201,8 +3208,18 @@ void MarkCompact::ConcurrentlyProcessMovingPage(uint8_t* fault_page,
             DCHECK_NE(first_obj, nullptr);
             DCHECK_GT(pre_compact_offset_moving_space_[page_idx], 0u);
             uint8_t* pre_compact_page = black_allocations_begin_ + (fault_page - post_compact_end_);
+            uint32_t first_chunk_size = black_alloc_pages_first_chunk_size_[page_idx];
+            mirror::Object* next_page_first_obj = nullptr;
+            if (page_idx + 1 < moving_first_objs_count_ + black_page_count_) {
+              next_page_first_obj = first_objs_moving_space_[page_idx + 1].AsMirrorPtr();
+            }
             DCHECK(IsAligned<kPageSize>(pre_compact_page));
-            SlideBlackPage(first_obj, page_idx, pre_compact_page, buf, kMode == kCopyMode);
+            SlideBlackPage(first_obj,
+                           next_page_first_obj,
+                           first_chunk_size,
+                           pre_compact_page,
+                           buf,
+                           kMode == kCopyMode);
           }
           // Nobody else would simultaneously modify this page's state so an
           // atomic store is sufficient. Use 'release' order to guarantee that
