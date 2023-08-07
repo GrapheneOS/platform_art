@@ -2050,9 +2050,6 @@ TEST_F(ProfileAssistantTest, CopyAndUpdateProfileKeyNoUpdate) {
                profile1,
                &info1);
 
-  std::string input_content;
-  ASSERT_TRUE(android::base::ReadFileToString(profile1.GetFilename(), &input_content));
-
   // Run profman and pass the real dex file with --apk-fd. It won't match any entry in the profile.
   android::base::unique_fd apk_fd(
       // NOLINTNEXTLINE - Profman needs file to be opened after fork() and exec()
@@ -2072,9 +2069,9 @@ TEST_F(ProfileAssistantTest, CopyAndUpdateProfileKeyNoUpdate) {
   ASSERT_EQ(ExecAndReturnCode(argv_str, &error), ProfmanResult::kCopyAndUpdateNoUpdate) << error;
 
   // Verify that the content is the same.
-  std::string output_content;
-  ASSERT_TRUE(android::base::ReadFileToString(reference_profile.GetFilename(), &output_content));
-  EXPECT_EQ(input_content, output_content);
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(result.Load(reference_profile.GetFd()));
+  EXPECT_TRUE(result.Equals(info1));
 }
 
 TEST_F(ProfileAssistantTest, BootImageMerge) {
