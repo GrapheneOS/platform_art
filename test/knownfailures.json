@@ -1412,12 +1412,14 @@
         "description": ["Reference.refersTo() not supported on old version of RI."]
     },
     {
-        "tests": ["2232-write-metrics-to-log"],
+        "tests": ["2232-write-metrics-to-log",
+                  "2233-metrics-background-thread"],
         "variant": "jvm",
         "description": ["RI does not support ART metrics."]
     },
     {
-        "tests": ["2232-write-metrics-to-log"],
+        "tests": ["2232-write-metrics-to-log",
+                  "2233-metrics-background-thread"],
         "variant": "target",
         "description": ["Checks LOG_STREAM output, which cannot be captured on target."]
     },
