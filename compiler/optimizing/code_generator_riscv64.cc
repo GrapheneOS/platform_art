@@ -2174,13 +2174,14 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitLoadException(HLoadException* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitLoadException(HLoadException* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  XRegister out = instruction->GetLocations()->Out().AsRegister<XRegister>();
+  __ Loadwu(out, TR, GetExceptionTlsOffset());
 }
 
 void LocationsBuilderRISCV64::VisitLoadMethodHandle(HLoadMethodHandle* instruction) {
