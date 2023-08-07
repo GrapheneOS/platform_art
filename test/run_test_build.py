@@ -24,6 +24,7 @@ import functools
 import glob
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -31,9 +32,9 @@ import sys
 import zipfile
 
 from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor
 from fcntl import lockf, LOCK_EX, LOCK_NB
 from importlib.machinery import SourceFileLoader
-from concurrent.futures import ThreadPoolExecutor
 from os import environ, getcwd, chdir, cpu_count, chmod
 from os.path import relpath
 from pathlib import Path
@@ -52,6 +53,9 @@ RBE_D8_DISABLED_FOR = {
   "952-invoke-custom",        # b/228312861: RBE uses wrong inputs.
   "979-const-method-handle",  # b/228312861: RBE uses wrong inputs.
 }
+
+# Debug option. Report commands that are taking a lot of user CPU time.
+REPORT_SLOW_COMMANDS = False
 
 class BuildTestContext:
   def __init__(self, args, android_build_top, test_dir):
@@ -114,6 +118,8 @@ class BuildTestContext:
   def run(self, executable: pathlib.Path, args: List[Union[pathlib.Path, str]]):
     assert isinstance(executable, pathlib.Path), executable
     cmd: List[Union[pathlib.Path, str]] = []
+    if REPORT_SLOW_COMMANDS:
+      cmd += ["/usr/bin/time"]
     if executable.suffix == ".sh":
       cmd += ["/bin/bash"]
     cmd += [executable]
@@ -136,6 +142,14 @@ class BuildTestContext:
                        env=self.bash_env,
                        stderr=subprocess.STDOUT,
                        stdout=subprocess.PIPE)
+    if REPORT_SLOW_COMMANDS:
+      m = re.search("([0-9\.]+)user", p.stdout)
+      assert m, p.stdout
+      t = float(m.group(1))
+      if t > 1.0:
+        cmd_text = " ".join(map(str, cmd[1:]))[:100]
+        print(f"[{self.test_name}] Command took {t:.2f}s: {cmd_text}")
+
     if p.returncode != 0:
       raise Exception("Command failed with exit code {}\n$ {}\n{}".format(
                       p.returncode, " ".join(map(str, cmd)), p.stdout))
