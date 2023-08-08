@@ -49,6 +49,7 @@ class DisassemblerRiscv64::Printer {
 
   static const char* XRegName(uint32_t regno);
   static const char* FRegName(uint32_t regno);
+  static const char* RoundingModeName(uint32_t rm);
 
   static int32_t Decode32Imm12(uint32_t insn32) {
     uint32_t sign = (insn32 >> 31);
@@ -67,6 +68,8 @@ class DisassemblerRiscv64::Printer {
   static uint32_t GetRd(uint32_t insn32) { return (insn32 >> 7) & 0x1fu; }
   static uint32_t GetRs1(uint32_t insn32) { return (insn32 >> 15) & 0x1fu; }
   static uint32_t GetRs2(uint32_t insn32) { return (insn32 >> 20) & 0x1fu; }
+  static uint32_t GetRs3(uint32_t insn32) { return insn32 >> 27; }
+  static uint32_t GetRoundingMode(uint32_t insn32) { return (insn32 >> 12) & 7u; }
 
   void PrintBranchOffset(int32_t offset);
   void PrintLoadStoreAddress(uint32_t rs1, int32_t offset);
@@ -83,6 +86,8 @@ class DisassemblerRiscv64::Printer {
   void Print32BinOpImm(uint32_t insn32);
   void Print32BinOp(uint32_t insn32);
   void Print32Atomic(uint32_t insn32);
+  void Print32FpOp(uint32_t insn32);
+  void Print32FpFma(uint32_t insn32);
 
   DisassemblerRiscv64* const disassembler_;
   std::ostream& os_;
@@ -166,6 +171,16 @@ const char* DisassemblerRiscv64::Printer::FRegName(uint32_t regno) {
   static_assert(std::size(kFRegisterNames) == 32);
   DCHECK_LT(regno, 32u);
   return kFRegisterNames[regno];
+}
+
+const char* DisassemblerRiscv64::Printer::RoundingModeName(uint32_t rm) {
+  // Note: We do not print the rounding mode for DYN.
+  static const char* const kRoundingModeNames[] = {
+      ".rne", ".rtz", ".rdn", ".rup", ".rmm", ".<reserved-rm>", ".<reserved-rm>", /*DYN*/ ""
+  };
+  static_assert(std::size(kRoundingModeNames) == 8);
+  DCHECK_LT(rm, 8u);
+  return kRoundingModeNames[rm];
 }
 
 void DisassemblerRiscv64::Printer::PrintBranchOffset(int32_t offset) {
@@ -439,7 +454,8 @@ void DisassemblerRiscv64::Printer::Print32BinOp(uint32_t insn32) {
       os_ << kOpcodes[funct3];
       bad_high_bits = (high_bits != 0u);
     } else {
-      os_ << "<unknown32>";  // There is no SLTW/SLTUW/XORW/ORW/ANDW.
+      DCHECK(narrow);
+      os_ << "<unknown32>";  // Some of the above instructions do not have a narrow version.
       return;
     }
     os_ << (narrow ? "w " : " ") << XRegName(rd) << ", " << XRegName(rs1) << ", " << XRegName(rs2);
@@ -480,6 +496,130 @@ void DisassemblerRiscv64::Printer::Print32Atomic(uint32_t insn32) {
   } else {
     os_ << ", " << XRegName(rs2);
   }
+}
+
+void DisassemblerRiscv64::Printer::Print32FpOp(uint32_t insn32) {
+  DCHECK_EQ(insn32 & 0x7fu, 0x4fu);
+  uint32_t rd = GetRd(insn32);
+  uint32_t rs1 = GetRs1(insn32);
+  uint32_t rs2 = GetRs2(insn32);  // Sometimes used to to differentiate opcodes.
+  uint32_t rm = GetRoundingMode(insn32);  // Sometimes used to to differentiate opcodes.
+  uint32_t funct7 = insn32 >> 25;
+  const char* type = ((funct7 & 1u) != 0u) ? ".d" : ".s";
+  if ((funct7 & 2u) != 0u) {
+    os_ << "<unknown32>";  // Note: This includes the "Q" extension (`(funct7 & 3) == 3`).
+    return;
+  }
+  switch (funct7 >> 2) {
+    case 0u:
+    case 1u:
+    case 2u:
+    case 3u: {
+      static const char* const kOpcodes[] = { "fadd", "fsub", "fmul", "fdiv" };
+      os_ << kOpcodes[funct7 >> 2] << type << RoundingModeName(rm) << " "
+          << FRegName(rd) << ", " << FRegName(rs1) << ", " << FRegName(rs2);
+      return;
+    }
+    case 4u: {  // FSGN*
+      // Print shorter macro instruction notation if available.
+      static const char* const kOpcodes[] = { "fsgnj", "fsgnjn", "fsgnjx" };
+      if (rm < std::size(kOpcodes)) {
+        if (rs1 == rs2) {
+          static const char* const kAltOpcodes[] = { "fmv", "fneg", "fabs" };
+          static_assert(std::size(kOpcodes) == std::size(kAltOpcodes));
+          os_ << kAltOpcodes[rm] << type << " " << FRegName(rd) << ", " << FRegName(rs1);
+        } else {
+          os_ << kOpcodes[rm] << type << " "
+              << FRegName(rd) << ", " << FRegName(rs1) << ", " << FRegName(rs2);
+        }
+        return;
+      }
+      break;
+    }
+    case 5u: {  // FMIN/FMAX
+      static const char* const kOpcodes[] = { "fmin", "fmax" };
+      if (rm < std::size(kOpcodes)) {
+        os_ << kOpcodes[rm] << type << " "
+            << FRegName(rd) << ", " << FRegName(rs1) << ", " << FRegName(rs2);
+        return;
+      }
+      break;
+    }
+    case 0x8u:  // FCVT between FP numbers.
+      if ((rs2 ^ 1u) == (funct7 & 1u)) {
+        os_ << ((rs2 != 0u) ? "fcvt.s.d" : "fcvt.d.s") << RoundingModeName(rm) << " "
+            << FRegName(rd) << ", " << FRegName(rs1);
+      }
+      break;
+    case 0xbu:
+      if (rs2 == 0u) {
+        os_ << "fsqrt" << type << RoundingModeName(rm) << " "
+            << FRegName(rd) << ", " << FRegName(rs1);
+        return;
+      }
+      break;
+    case 0x14u: {  // FLE/FLT/FEQ
+      static const char* const kOpcodes[] = { "fle", "flt", "feq" };
+      if (rm < std::size(kOpcodes)) {
+        os_ << kOpcodes[rm] << type << " "
+            << XRegName(rd) << ", " << FRegName(rs1) << ", " << FRegName(rs2);
+        return;
+      }
+      break;
+    }
+    case 0x18u: {  // FCVT from floating point numbers to integers
+      static const char* const kIntTypes[] = { "w", "wu", "l", "lu" };
+      if (rs2 < std::size(kIntTypes)) {
+        os_ << "fcvt." << kIntTypes[rs2] << type << RoundingModeName(rm) << " "
+            << XRegName(rd) << ", " << FRegName(rs1);
+        return;
+      }
+      break;
+    }
+    case 0x1au: {  // FCVT from integers to floating point numbers
+      static const char* const kIntTypes[] = { "w", "wu", "l", "lu" };
+      if (rs2 < std::size(kIntTypes)) {
+        os_ << "fcvt" << type << "." << kIntTypes[rs2] << RoundingModeName(rm) << " "
+            << FRegName(rd) << ", " << XRegName(rs1);
+        return;
+      }
+      break;
+    }
+    case 0x1cu:  // FMV from FPR to GPR, or FCLASS
+      if (rs2 == 0u && rm == 0u) {
+        os_ << (((funct7 & 1u) != 0u) ? "fmv.x.d " : "fmv.x.w ")
+            << XRegName(rd) << ", " << FRegName(rs1);
+        return;
+      } else if (rs2 == 0u && rm == 1u) {
+        os_ << "fclass" << type << " " << XRegName(rd) << ", " << FRegName(rs1);
+        return;
+      }
+      break;
+    case 0x1eu:  // FMV from GPR to FPR
+      if (rs2 == 0u && rm == 0u) {
+        os_ << (((funct7 & 1u) != 0u) ? "fmv.d.x " : "fmv.w.x ")
+            << FRegName(rd) << ", " << XRegName(rs1);
+        return;
+      }
+      break;
+    default:
+      break;
+  }
+  os_ << "<unknown32>";
+}
+
+void DisassemblerRiscv64::Printer::Print32FpFma(uint32_t insn32) {
+  DCHECK_EQ(insn32 & 0x73u, 0x43u);  // Note: Bits 0xc select the FMA opcode.
+  uint32_t funct2 = (insn32 >> 25) & 3u;
+  if (funct2 >= 2u) {
+    os_ << "<unknown32>";  // Note: This includes the "Q" extension (`funct2 == 3`).
+    return;
+  }
+  static const char* const kOpcodes[] = { "fmadd", "fmsub", "fnmsub", "fnmadd" };
+  os_ << kOpcodes[(insn32 >> 2) & 3u] << ((funct2 != 0u) ? ".d" : ".s")
+      << RoundingModeName(GetRoundingMode(insn32)) << " "
+      << FRegName(GetRd(insn32)) << ", " << FRegName(GetRs1(insn32)) << ", "
+      << FRegName(GetRs2(insn32)) << ", " << FRegName(GetRs3(insn32));
 }
 
 void DisassemblerRiscv64::Printer::Dump32(const uint8_t* insn) {
@@ -534,6 +674,15 @@ void DisassemblerRiscv64::Printer::Dump32(const uint8_t* insn) {
       break;
     case 0x2fu:
       Print32Atomic(insn32);
+      break;
+    case 0x53u:
+      Print32FpOp(insn32);
+      break;
+    case 0x43u:
+    case 0x47u:
+    case 0x4bu:
+    case 0x4fu:
+      Print32FpFma(insn32);
       break;
     default:
       // TODO(riscv64): Disassemble more instructions.
