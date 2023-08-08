@@ -464,6 +464,7 @@ class DexFile {
   // Returns the shorty of a method id.
   const char* GetMethodShorty(const dex::MethodId& method_id) const;
   const char* GetMethodShorty(const dex::MethodId& method_id, uint32_t* length) const;
+  std::string_view GetMethodShortyView(const dex::MethodId& method_id) const;
 
   // Returns the number of class definitions in the .dex file.
   uint32_t NumClassDefs() const {
@@ -558,6 +559,7 @@ class DexFile {
 
   // Returns the short form method descriptor for the given prototype.
   const char* GetShorty(dex::ProtoIndex proto_idx) const;
+  std::string_view GetShortyView(dex::ProtoIndex proto_idx) const;
   std::string_view GetShortyView(const dex::ProtoId& proto_id) const;
 
   const dex::TypeList* GetProtoParameters(const dex::ProtoId& proto_id) const {
