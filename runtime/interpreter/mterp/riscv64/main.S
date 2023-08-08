@@ -388,7 +388,9 @@ END \name
  */
 
 OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+    .cfi_startproc
     unimp
+    .cfi_endproc
 EndExecuteNterpWithClinitImpl:
 
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
@@ -432,9 +434,6 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 // Enclose all code below in a symbol (which gets printed in backtraces).
 NAME_START nterp_helper
-// This is the logical end of ExecuteNterpImpl, where the frame info applies.
-.cfi_endproc
-NAME_END nterp_helper
 
 common_errDivideByZero:
     EXPORT_PC
@@ -448,6 +447,10 @@ common_errDivideByZero:
     .hidden EndExecuteNterpImpl
     .global EndExecuteNterpImpl
 EndExecuteNterpImpl:
+
+// This is the logical end of ExecuteNterpImpl, where the frame info applies.
+.cfi_endproc
+NAME_END nterp_helper
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
