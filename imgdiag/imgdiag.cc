@@ -44,6 +44,7 @@
 #include "image-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object-refvisitor-inl.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "oat_file_manager.h"
@@ -351,18 +352,65 @@ template <typename T>
 class RegionSpecializedBase : public RegionCommon<T> {
 };
 
+// Calls VisitFunc for each non-null (reference)Object/ArtField pair.
+// Doesn't work with ObjectArray instances, because array elements don't have ArtField.
+class ReferenceFieldVisitor {
+ public:
+  using VisitFunc = std::function<void(mirror::Object&, ArtField&)>;
+
+  explicit ReferenceFieldVisitor(VisitFunc visit_func) : visit_func_(visit_func) {}
+
+  void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool is_static) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK(!obj->IsObjectArray());
+    mirror::Object* field_obj = obj->GetFieldObject<mirror::Object>(offset);
+    // Skip fields that contain null.
+    if (field_obj == nullptr) {
+      return;
+    }
+    // Skip self references.
+    if (field_obj == obj.Ptr()) {
+      return;
+    }
+
+    ArtField* field = nullptr;
+    // Don't use Object::FindFieldByOffset, because it can't find instance fields in classes.
+    // field = obj->FindFieldByOffset(offset);
+    if (is_static) {
+      CHECK(obj->IsClass());
+      field = ArtField::FindStaticFieldWithOffset(obj->AsClass(), offset.Uint32Value());
+    } else {
+      field = ArtField::FindInstanceFieldWithOffset(obj->GetClass(), offset.Uint32Value());
+    }
+    CHECK(field != nullptr);
+    visit_func_(*field_obj, *field);
+  }
+
+  void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    operator()(ref, mirror::Reference::ReferentOffset(), /* is_static */ false);
+  }
+
+  [[noreturn]] void VisitRootIfNonNull(
+      [[maybe_unused]] mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    UNREACHABLE();
+  }
+
+  [[noreturn]] void VisitRoot([[maybe_unused]] mirror::CompressedReference<mirror::Object>* root)
+      const REQUIRES_SHARED(Locks::mutator_lock_) {
+    UNREACHABLE();
+  }
+
+ private:
+  VisitFunc visit_func_;
+};
+
 // Region analysis for mirror::Objects
 class ImgObjectVisitor : public ObjectVisitor {
  public:
-  using ComputeDirtyFunc = std::function<void(mirror::Object* object,
-                                              const uint8_t* begin_image_ptr,
-                                              const std::set<size_t>& dirty_pages)>;
-  ImgObjectVisitor(ComputeDirtyFunc dirty_func,
-                   const uint8_t* begin_image_ptr,
-                   const std::set<size_t>& dirty_pages) :
-    dirty_func_(std::move(dirty_func)),
-    begin_image_ptr_(begin_image_ptr),
-    dirty_pages_(dirty_pages) { }
+  using ComputeDirtyFunc = std::function<void(mirror::Object* object)>;
+  explicit ImgObjectVisitor(ComputeDirtyFunc dirty_func) : dirty_func_(std::move(dirty_func)) {}
 
   ~ImgObjectVisitor() override { }
 
@@ -374,14 +422,137 @@ class ImgObjectVisitor : public ObjectVisitor {
     if (kUseBakerReadBarrier) {
       object->AssertReadBarrierState();
     }
-    dirty_func_(object, begin_image_ptr_, dirty_pages_);
+    dirty_func_(object);
   }
 
  private:
   const ComputeDirtyFunc dirty_func_;
-  const uint8_t* begin_image_ptr_;
-  const std::set<size_t>& dirty_pages_;
 };
+
+struct ParentInfo {
+  mirror::Object* parent = nullptr;
+  // Field name and type of the parent object in the format: <field_name>:<field_type_descriptor>
+  // Note: <field_name> can be an integer if parent is an Array object.
+  std::string path;
+};
+
+using ParentMap = std::unordered_map<mirror::Object*, ParentInfo>;
+
+// Returns the "path" from root class to an object in the format:
+// <class_descriptor>(.<field_name>:<field_type_descriptor>)*
+std::string GetPathFromClass(mirror::Object* obj, const ParentMap& parent_map)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  auto parent_info_it = parent_map.find(obj);
+  std::string path;
+  while (parent_info_it != parent_map.end() && parent_info_it->second.parent != nullptr) {
+    const ParentInfo& parent_info = parent_info_it->second;
+    path = ART_FORMAT(".{}{}", parent_info.path, path);
+    parent_info_it = parent_map.find(parent_info.parent);
+  }
+
+  if (parent_info_it == parent_map.end()) {
+    return "<no path from class>";
+  }
+
+  mirror::Object* class_obj = parent_info_it->first;
+  CHECK(class_obj->IsClass());
+
+  std::string temp;
+  path = class_obj->AsClass()->GetDescriptor(&temp) + path;
+  return path;
+}
+
+// Calculate a map of: object -> parent and parent field that refers to the object.
+// Class objects are considered roots, they have entries in the parent_map, but their parent==null.
+ParentMap CalculateParentMap(const std::vector<const ImageHeader*>& image_headers)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ParentMap parent_map;
+  std::vector<mirror::Object*> next;
+
+  // Collect all Class objects.
+  ImgObjectVisitor collect_classes_visitor(
+      [&](mirror::Object* entry) REQUIRES_SHARED(Locks::mutator_lock_) {
+        if (entry->IsClass() && parent_map.count(entry) == 0) {
+          parent_map[entry] = ParentInfo{};
+          next.push_back(entry);
+        }
+      });
+  for (const ImageHeader* image_header : image_headers) {
+    uint8_t* image_begin = image_header->GetImageBegin();
+    PointerSize pointer_size = image_header->GetPointerSize();
+    image_header->VisitObjects(&collect_classes_visitor, image_begin, pointer_size);
+  }
+
+  auto process_object_fields = [&parent_map, &next](mirror::Object* parent_obj)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK(!parent_obj->IsObjectArray());
+    ReferenceFieldVisitor::VisitFunc visit_func =
+        [&](mirror::Object& ref_obj, ArtField& ref_field) REQUIRES_SHARED(Locks::mutator_lock_) {
+          if (parent_map.count(&ref_obj) == 0) {
+            std::string path =
+                ART_FORMAT("{}:{}", ref_field.GetName(), ref_field.GetTypeDescriptor());
+            parent_map[&ref_obj] = ParentInfo{parent_obj, path};
+            next.push_back(&ref_obj);
+          }
+        };
+    ReferenceFieldVisitor visitor(visit_func);
+    parent_obj->VisitReferences</*kVisitNativeRoots=*/false, kVerifyNone, kWithoutReadBarrier>(
+        visitor, visitor);
+  };
+  auto process_array_elements = [&parent_map, &next](mirror::Object* parent_obj)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    CHECK(parent_obj->IsObjectArray());
+    ObjPtr<mirror::ObjectArray<mirror::Object>> array = parent_obj->AsObjectArray<mirror::Object>();
+
+    const int32_t length = array->GetLength();
+    for (int32_t i = 0; i < length; ++i) {
+      ObjPtr<mirror::Object> elem = array->Get(i);
+      if (elem != nullptr && parent_map.count(elem.Ptr()) == 0) {
+        std::string temp;
+        std::string path = ART_FORMAT("{}:{}", i, elem->GetClass()->GetDescriptor(&temp));
+        parent_map[elem.Ptr()] = ParentInfo{parent_obj, path};
+        next.push_back(elem.Ptr());
+      }
+    }
+  };
+
+  // Use DFS to traverse all objects that are reachable from classes.
+  while (!next.empty()) {
+    mirror::Object* parent_obj = next.back();
+    next.pop_back();
+
+    // Array elements don't have ArtField, handle them separately.
+    if (parent_obj->IsObjectArray()) {
+      process_array_elements(parent_obj);
+    } else {
+      process_object_fields(parent_obj);
+    }
+  }
+
+  return parent_map;
+}
+
+// Count non-string objects that are not reachable from classes.
+// Strings are skipped because they are considered clean in dex2oat and not used for dirty
+// object layout optimization.
+size_t CountUnreachableObjects(const std::unordered_map<mirror::Object*, ParentInfo>& parent_map,
+                               const std::vector<const ImageHeader*>& image_headers)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  size_t non_reachable = 0;
+  ImgObjectVisitor count_non_reachable_visitor(
+      [&](mirror::Object* entry) REQUIRES_SHARED(Locks::mutator_lock_) {
+        if (parent_map.count(entry) == 0 && !entry->IsString()) {
+          non_reachable += 1;
+        }
+      });
+  for (const ImageHeader* image_header : image_headers) {
+    uint8_t* image_begin = image_header->GetImageBegin();
+    PointerSize pointer_size = image_header->GetPointerSize();
+    image_header->VisitObjects(&count_non_reachable_visitor, image_begin, pointer_size);
+  }
+
+  return non_reachable;
+}
 
 template<>
 class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object> {
@@ -391,10 +562,12 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
                         ArrayRef<uint8_t> zygote_contents,
                         const android::procinfo::MapInfo& boot_map,
                         const ImageHeader& image_header,
+                        const ParentMap& parent_map,
                         bool dump_dirty_objects)
       : RegionCommon<mirror::Object>(os, remote_contents, zygote_contents, boot_map, image_header),
         os_(*os),
-        dump_dirty_objects_(dump_dirty_objects) { }
+        dump_dirty_objects_(dump_dirty_objects),
+        parent_map_(parent_map) {}
 
   // Define a common public type name for use by RegionData.
   using VisitorClass = ImgObjectVisitor;
@@ -403,7 +576,7 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
                     uint8_t* base,
                     PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    RegionCommon<mirror::Object>::image_header_.VisitObjects(visitor, base, pointer_size);
+    image_header_.VisitObjects(visitor, base, pointer_size);
   }
 
   void VisitEntry(mirror::Object* entry)
@@ -448,23 +621,19 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
   void DiffEntryContents(mirror::Object* entry,
                          uint8_t* remote_bytes,
                          const uint8_t* base_ptr,
-                         bool log_dirty_objects,
-                         size_t entry_offset) REQUIRES_SHARED(Locks::mutator_lock_) {
+                         bool log_dirty_objects) REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     // Attempt to find fields for all dirty bytes.
     mirror::Class* klass = entry->GetClass();
     std::string temp;
     if (entry->IsClass()) {
-      os_ << tabs
-          << "Class " << mirror::Class::PrettyClass(entry->AsClass()) << " " << entry << "\n";
-      os_ << tabs << "dirty_obj: " << entry_offset << " class "
-          << entry->AsClass()->DescriptorHash() << "\n";
-    } else {
-      os_ << tabs
-          << "Instance of " << mirror::Class::PrettyClass(klass) << " " << entry << "\n";
-      os_ << tabs << "dirty_obj: " << entry_offset << " instance " << klass->DescriptorHash()
+      os_ << tabs << "Class " << mirror::Class::PrettyClass(entry->AsClass()) << " " << entry
           << "\n";
+    } else {
+      os_ << tabs << "Instance of " << mirror::Class::PrettyClass(klass) << " " << entry << "\n";
     }
+    std::string path_from_root = GetPathFromClass(entry, parent_map_);
+    os_ << "dirty_obj: " << path_from_root << "\n";
     PrintEntryPages(reinterpret_cast<uintptr_t>(entry), EntrySize(entry), os_);
 
     std::unordered_set<ArtField*> dirty_instance_fields;
@@ -668,6 +837,7 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
   bool dump_dirty_objects_;
   std::unordered_set<mirror::Object*> dirty_objects_;
   std::map<mirror::Class*, ClassData> class_data_;
+  const ParentMap& parent_map_;
 
   DISALLOW_COPY_AND_ASSIGN(RegionSpecializedBase);
 };
@@ -675,23 +845,12 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
 // Region analysis for ArtMethods.
 class ImgArtMethodVisitor {
  public:
-  using ComputeDirtyFunc = std::function<void(ArtMethod*,
-                                              const uint8_t*,
-                                              const std::set<size_t>&)>;
-  ImgArtMethodVisitor(ComputeDirtyFunc dirty_func,
-                      const uint8_t* begin_image_ptr,
-                      const std::set<size_t>& dirty_pages) :
-    dirty_func_(std::move(dirty_func)),
-    begin_image_ptr_(begin_image_ptr),
-    dirty_pages_(dirty_pages) { }
-  void operator()(ArtMethod& method) const {
-    dirty_func_(&method, begin_image_ptr_, dirty_pages_);
-  }
+  using ComputeDirtyFunc = std::function<void(ArtMethod*)>;
+  explicit ImgArtMethodVisitor(ComputeDirtyFunc dirty_func) : dirty_func_(std::move(dirty_func)) {}
+  void operator()(ArtMethod& method) const { dirty_func_(&method); }
 
  private:
   const ComputeDirtyFunc dirty_func_;
-  const uint8_t* begin_image_ptr_;
-  const std::set<size_t>& dirty_pages_;
 };
 
 // Struct and functor for computing offsets of members of ArtMethods.
@@ -726,6 +885,7 @@ class RegionSpecializedBase<ArtMethod> : public RegionCommon<ArtMethod> {
                         ArrayRef<uint8_t> zygote_contents,
                         const android::procinfo::MapInfo& boot_map,
                         const ImageHeader& image_header,
+                        [[maybe_unused]] const ParentMap& parent_map,
                         [[maybe_unused]] bool dump_dirty_objects)
       : RegionCommon<ArtMethod>(os, remote_contents, zygote_contents, boot_map, image_header),
         os_(*os) {
@@ -776,8 +936,7 @@ class RegionSpecializedBase<ArtMethod> : public RegionCommon<ArtMethod> {
   void DiffEntryContents(ArtMethod* method,
                          uint8_t* remote_bytes,
                          const uint8_t* base_ptr,
-                         [[maybe_unused]] bool log_dirty_objects,
-                         [[maybe_unused]] size_t entry_offset)
+                         [[maybe_unused]] bool log_dirty_objects)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     os_ << tabs << "ArtMethod " << ArtMethod::PrettyMethod(method) << "\n";
@@ -965,12 +1124,14 @@ class RegionData : public RegionSpecializedBase<T> {
              ArrayRef<uint8_t> zygote_contents,
              const android::procinfo::MapInfo& boot_map,
              const ImageHeader& image_header,
+             const ParentMap& parent_map,
              bool dump_dirty_objects)
       : RegionSpecializedBase<T>(os,
                                  remote_contents,
                                  zygote_contents,
                                  boot_map,
                                  image_header,
+                                 parent_map,
                                  dump_dirty_objects),
         os_(*os) {
     CHECK(!remote_contents.empty());
@@ -983,13 +1144,9 @@ class RegionData : public RegionSpecializedBase<T> {
                      const uint8_t* begin_image_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     typename RegionSpecializedBase<T>::VisitorClass visitor(
-        [this](T* entry,
-               const uint8_t* begin_image_ptr,
-               const std::set<size_t>& dirty_page_set) REQUIRES_SHARED(Locks::mutator_lock_) {
-          this->ComputeEntryDirty(entry, begin_image_ptr, dirty_page_set);
-        },
-        begin_image_ptr,
-        mapping_data.dirty_page_set);
+        [this, begin_image_ptr, &mapping_data](T* entry) REQUIRES_SHARED(Locks::mutator_lock_) {
+          this->ComputeEntryDirty(entry, begin_image_ptr, mapping_data.dirty_page_set);
+        });
     PointerSize pointer_size = InstructionSetPointerSize(Runtime::Current()->GetInstructionSet());
     RegionSpecializedBase<T>::VisitEntries(&visitor,
                                            const_cast<uint8_t*>(begin_image_ptr),
@@ -1049,7 +1206,7 @@ class RegionData : public RegionSpecializedBase<T> {
       ptrdiff_t offset = entry_bytes - begin_image_ptr;
       uint8_t* remote_bytes = &contents[offset];
       RegionSpecializedBase<T>::DiffEntryContents(
-          entry, remote_bytes, &base_ptr[offset], log_dirty_objects, static_cast<size_t>(offset));
+          entry, remote_bytes, &base_ptr[offset], log_dirty_objects);
     }
   }
 
@@ -1218,8 +1375,9 @@ class ImgDiagDumper {
     return true;
   }
 
-  bool Dump(const ImageHeader& image_header, const std::string& image_location)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool Dump(const ImageHeader& image_header,
+            const std::string& image_location,
+            const ParentMap& parent_map) REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     os << "IMAGE LOCATION: " << image_location << "\n\n";
 
@@ -1232,7 +1390,7 @@ class ImgDiagDumper {
     PrintPidLine("ZYGOTE", zygote_diff_pid_);
     bool ret = true;
     if (image_diff_pid_ >= 0 || zygote_diff_pid_ >= 0) {
-      ret = DumpImageDiff(image_header, image_location);
+      ret = DumpImageDiff(image_header, image_location, parent_map);
       os << "\n\n";
     }
 
@@ -1242,9 +1400,10 @@ class ImgDiagDumper {
   }
 
  private:
-  bool DumpImageDiff(const ImageHeader& image_header, const std::string& image_location)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return DumpImageDiffMap(image_header, image_location);
+  bool DumpImageDiff(const ImageHeader& image_header,
+                     const std::string& image_location,
+                     const ParentMap& parent_map) REQUIRES_SHARED(Locks::mutator_lock_) {
+    return DumpImageDiffMap(image_header, image_location, parent_map);
   }
 
   bool ComputeDirtyBytes(const ImageHeader& image_header,
@@ -1355,8 +1514,9 @@ class ImgDiagDumper {
   }
 
   // Look at /proc/$pid/mem and only diff the things from there
-  bool DumpImageDiffMap(const ImageHeader& image_header, const std::string& image_location)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool DumpImageDiffMap(const ImageHeader& image_header,
+                        const std::string& image_location,
+                        const ParentMap& parent_map) REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     std::string error_msg;
 
@@ -1525,6 +1685,7 @@ class ImgDiagDumper {
                                                   zygote_contents,
                                                   boot_map,
                                                   image_header,
+                                                  parent_map,
                                                   dump_dirty_objects_);
     object_region_data.ProcessRegion(mapping_data,
                                      remotes,
@@ -1536,6 +1697,7 @@ class ImgDiagDumper {
                                                 zygote_contents,
                                                 boot_map,
                                                 image_header,
+                                                parent_map,
                                                 dump_dirty_objects_);
     artmethod_region_data.ProcessRegion(mapping_data,
                                         remotes,
@@ -1657,6 +1819,19 @@ static int DumpImage(Runtime* runtime,
   if (!img_diag_dumper.Init()) {
     return EXIT_FAILURE;
   }
+
+  std::vector<const ImageHeader*> image_headers;
+  for (gc::space::ImageSpace* image_space : image_spaces) {
+    const ImageHeader& image_header = image_space->GetImageHeader();
+    if (!image_header.IsValid()) {
+      continue;
+    }
+    image_headers.push_back(&image_header);
+  }
+  ParentMap parent_map = CalculateParentMap(image_headers);
+  size_t unreachable_objects = CountUnreachableObjects(parent_map, image_headers);
+  *os << "Number of non-string objects not reached from classes: " << unreachable_objects << "\n";
+
   for (gc::space::ImageSpace* image_space : image_spaces) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     if (!image_header.IsValid()) {
@@ -1664,7 +1839,7 @@ static int DumpImage(Runtime* runtime,
       return EXIT_FAILURE;
     }
 
-    if (!img_diag_dumper.Dump(image_header, image_space->GetImageLocation())) {
+    if (!img_diag_dumper.Dump(image_header, image_space->GetImageLocation(), parent_map)) {
       return EXIT_FAILURE;
     }
   }
