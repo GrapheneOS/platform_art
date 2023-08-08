@@ -39,7 +39,7 @@ IGNORE : Dict[str, List[str]] = {
     # Starts with non-zero offset at the start of the method.
     "art_quick_throw_null_pointer_exception_from_signal": ["arm", "aarch64", "i386", "x86_64"],
     # Pops stack without static control flow past the opcode.
-    "nterp_op_return": ["arm", "aarch64", "i386", "x86_64"],
+    "nterp_op_return": ["arm", "aarch64", "i386", "x86_64", "riscv64"],
 }
 
 SP = {"arm": "SP", "aarch64": "WSP", "i386": "ESP", "x86_64": "RSP", "riscv64": "X2"}
@@ -73,6 +73,10 @@ def get_inst_semantics(arch: str) -> List[Any]:
     add(r"v?pop(?:\.w)? \{([\w+, ]*)\}", lambda m: -4 * len(m[1].split(",")))
     add(r"cb\w* \w+, (0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
     add(r"(?:b|bl|b\w\w) (0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
+  if arch in ["riscv64"]:
+    add(r"addi sp, sp, (-?\w+)", lambda m: -int(m[1], 0))
+    add(r"b\w* (?:\w+, )+(0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
+    add(r"(?:j|jal) (?:\w+, )?(0x\w+).*", adjust_pc=lambda m: int(m[1], 0))
   return rexprs
 
 @dataclass(frozen=True)
@@ -244,6 +248,7 @@ def check_lib(lib: pathlib.Path) -> int:
   srcs = {src.pc: src.file + ":" + src.line for src in get_src(lib)}
   seen = set()  # Used to verify the we have covered all assembly source lines.
   fail = 0
+  assert srcs, "No sources found"
 
   for fde in fdes:
     if fde.pc not in srcs:
