@@ -29,6 +29,11 @@ namespace android {
 extern "C" {
 #endif  // __cplusplus
 
+enum JNICallType {
+  kJNICallTypeRegular = 1,
+  kJNICallTypeCriticalNative = 2,
+};
+
 // Loads a shared library from the system linker namespace, suitable for
 // platform libraries in /system/lib(64). If linker namespaces don't exist (i.e.
 // on host), this simply calls dlopen().
@@ -81,7 +86,14 @@ bool NativeBridgeInitialized();
 void* NativeBridgeLoadLibrary(const char* libpath, int flag);
 
 // Get a native bridge trampoline for specified native method.
+// This version is deprecated - please use NativeBridgeGetTrampoline2
 void* NativeBridgeGetTrampoline(void* handle, const char* name, const char* shorty, uint32_t len);
+
+void* NativeBridgeGetTrampoline2(void* handle,
+                                 const char* name,
+                                 const char* shorty,
+                                 uint32_t len,
+                                 enum JNICallType jni_call_type);
 
 // True if native library paths are valid and is for an ABI that is supported by native bridge.
 // The *libpath* must point to a library.
@@ -206,7 +218,7 @@ struct NativeBridgeCallbacks {
   void* (*loadLibrary)(const char* libpath, int flag);
 
   // Get a native bridge trampoline for specified native method. The trampoline has same
-  // sigature as the native method.
+  // signature as the native method.
   //
   // Parameters:
   //   handle [IN] the handle returned from loadLibrary
@@ -214,6 +226,9 @@ struct NativeBridgeCallbacks {
   //   len [IN] length of shorty
   // Returns:
   //   address of trampoline if successful, otherwise NULL
+  // Deprecated in v7
+  //   Starting with version 7 native bridge uses getTrampolineWithJNICallType
+  //   instead
   void* (*getTrampoline)(void* handle, const char* name, const char* shorty, uint32_t len);
 
   // Check whether native library is valid and is for an ABI that is supported by native bridge.
@@ -387,6 +402,25 @@ struct NativeBridgeCallbacks {
   // If native bridge is used in app-zygote (in doPreload()) this callback is
   // required to clean-up the environment before the fork (see b/146904103).
   void (*preZygoteFork)();
+
+  // This replaces previous getTrampoline call starting with version 7 of the
+  // interface.
+  //
+  // Get a native bridge trampoline for specified native method. The trampoline
+  // has same signature as the native method.
+  //
+  // Parameters:
+  //   handle [IN] the handle returned from loadLibrary
+  //   shorty [IN] short descriptor of native method
+  //   len [IN] length of shorty
+  //   jni_call_type [IN] the type of JNI call
+  // Returns:
+  //   address of trampoline if successful, otherwise NULL
+  void* (*getTrampolineWithJNICallType)(void* handle,
+                                        const char* name,
+                                        const char* shorty,
+                                        uint32_t len,
+                                        enum JNICallType jni_call_type);
 };
 
 // Runtime interfaces to native bridge.
