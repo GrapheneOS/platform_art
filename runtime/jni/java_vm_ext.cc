@@ -161,11 +161,11 @@ class SharedLibrary {
   }
 
   // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
-  void* FindSymbol(const std::string& symbol_name, const char* shorty = nullptr)
-      REQUIRES(!Locks::mutator_lock_) {
-    return NeedsNativeBridge()
-        ? FindSymbolWithNativeBridge(symbol_name, shorty)
-        : FindSymbolWithoutNativeBridge(symbol_name);
+  void* FindSymbol(const std::string& symbol_name,
+                   const char* shorty,
+                   android::JNICallType jni_call_type) REQUIRES(!Locks::mutator_lock_) {
+    return NeedsNativeBridge() ? FindSymbolWithNativeBridge(symbol_name, shorty, jni_call_type) :
+                                 FindSymbolWithoutNativeBridge(symbol_name);
   }
 
   // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
@@ -176,12 +176,15 @@ class SharedLibrary {
     return dlsym(handle_, symbol_name.c_str());
   }
 
-  void* FindSymbolWithNativeBridge(const std::string& symbol_name, const char* shorty)
+  void* FindSymbolWithNativeBridge(const std::string& symbol_name,
+                                   const char* shorty,
+                                   android::JNICallType jni_call_type)
       REQUIRES(!Locks::mutator_lock_) {
     CHECK(NeedsNativeBridge());
 
     uint32_t len = 0;
-    return android::NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+    return android::NativeBridgeGetTrampoline2(
+        handle_, symbol_name.c_str(), shorty, len, jni_call_type);
   }
 
  private:
@@ -283,6 +286,8 @@ class Libraries {
     // TODO: Avoid calling GetShorty here to prevent dirtying dex pages?
     const char* shorty = m->GetShorty();
     void* native_code = nullptr;
+    android::JNICallType jni_call_type =
+        m->IsCriticalNative() ? android::kJNICallTypeCriticalNative : android::kJNICallTypeRegular;
     if (can_suspend) {
       // Go to suspended since dlsym may block for a long time if other threads are using dlopen.
       ScopedThreadSuspension sts(self, ThreadState::kNative);
@@ -290,13 +295,15 @@ class Libraries {
                                              declaring_class_loader_allocator,
                                              shorty,
                                              jni_short_name,
-                                             jni_long_name);
+                                             jni_long_name,
+                                             jni_call_type);
     } else {
       native_code = FindNativeMethodInternal(self,
                                              declaring_class_loader_allocator,
                                              shorty,
                                              jni_short_name,
-                                             jni_long_name);
+                                             jni_long_name,
+                                             jni_call_type);
     }
     if (native_code != nullptr) {
       return native_code;
@@ -314,7 +321,8 @@ class Libraries {
                                  void* declaring_class_loader_allocator,
                                  const char* shorty,
                                  const std::string& jni_short_name,
-                                 const std::string& jni_long_name)
+                                 const std::string& jni_long_name,
+                                 android::JNICallType jni_call_type)
       REQUIRES(!Locks::jni_libraries_lock_) {
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     for (const auto& lib : libraries_) {
@@ -326,9 +334,9 @@ class Libraries {
       }
       // Try the short name then the long name...
       const char* arg_shorty = library->NeedsNativeBridge() ? shorty : nullptr;
-      void* fn = library->FindSymbol(jni_short_name, arg_shorty);
+      void* fn = library->FindSymbol(jni_short_name, arg_shorty, jni_call_type);
       if (fn == nullptr) {
-        fn = library->FindSymbol(jni_long_name, arg_shorty);
+        fn = library->FindSymbol(jni_long_name, arg_shorty, jni_call_type);
       }
       if (fn != nullptr) {
         VLOG(jni) << "[Found native code for " << jni_long_name
@@ -372,7 +380,7 @@ class Libraries {
   static void UnloadLibraries(JavaVM* vm, const std::vector<SharedLibrary*>& libraries) {
     using JNI_OnUnloadFn = void(*)(JavaVM*, void*);
     for (SharedLibrary* library : libraries) {
-      void* const sym = library->FindSymbol("JNI_OnUnload", nullptr);
+      void* const sym = library->FindSymbol("JNI_OnUnload", nullptr, android::kJNICallTypeRegular);
       if (sym == nullptr) {
         VLOG(jni) << "[No JNI_OnUnload found in \"" << library->GetPath() << "\"]";
       } else {
@@ -1092,7 +1100,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
   VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
 
   bool was_successful = false;
-  void* sym = library->FindSymbol("JNI_OnLoad", nullptr);
+  void* sym = library->FindSymbol("JNI_OnLoad", nullptr, android::kJNICallTypeRegular);
   if (sym == nullptr) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
     was_successful = true;
