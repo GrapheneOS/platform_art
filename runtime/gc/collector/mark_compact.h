@@ -356,11 +356,11 @@ class MarkCompact final : public GarbageCollector {
   // Slides (retain the empty holes, which are usually part of some in-use TLAB)
   // black page in the moving space. 'first_obj' is the object that overlaps with
   // the first byte of the page being slid. pre_compact_page is the pre-compact
-  // address of the page being slid. 'page_idx' is used to fetch the first
-  // allocated chunk's size and next page's first_obj. 'dest' is the kPageSize
-  // sized memory where the contents would be copied.
+  // address of the page being slid. 'dest' is the kPageSize sized memory where
+  // the contents would be copied.
   void SlideBlackPage(mirror::Object* first_obj,
-                      const size_t page_idx,
+                      mirror::Object* next_page_first_obj,
+                      uint32_t first_chunk_size,
                       uint8_t* const pre_compact_page,
                       uint8_t* dest,
                       bool needs_memset_zero) REQUIRES_SHARED(Locks::mutator_lock_);
