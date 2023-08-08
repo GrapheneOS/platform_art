@@ -75,10 +75,25 @@ cc_test_library {
     ],
 }
 
+cc_test_library {
+    name: "libnativebridge7-test-case",
+    srcs: ["NativeBridgeTestCase7.cpp"],
+    defaults: ["libnativebridge-test-case-defaults"],
+    shared_libs: [
+        "libnativebridge7criticalnative",
+    ],
+}
+
 // A helper library to produce test-case side effect of PreZygoteForkNativeBridge.
 cc_test_library {
     name: "libnativebridge6prezygotefork",
     srcs: ["NativeBridge6PreZygoteFork_lib.cpp"],
+    defaults: ["libnativebridge-test-case-defaults"],
+}
+
+cc_test_library {
+    name: "libnativebridge7criticalnative",
+    srcs: ["NativeBridge7CriticalNative_lib.cpp"],
     defaults: ["libnativebridge-test-case-defaults"],
 }
 
@@ -140,6 +155,7 @@ cc_test {
         "NativeBridge3CreateNamespace_test.cpp",
         "NativeBridge3LoadLibraryExt_test.cpp",
         "NativeBridge6PreZygoteFork_test.cpp",
+        "NativeBridge7CriticalNative_test.cpp",
     ],
 
     shared_libs: [
@@ -149,7 +165,9 @@ cc_test {
         "libnativebridge2-test-case",
         "libnativebridge3-test-case",
         "libnativebridge6-test-case",
+        "libnativebridge7-test-case",
         "libnativebridge6prezygotefork",
+        "libnativebridge7criticalnative",
     ],
     header_libs: ["libbase_headers"],
 }
