@@ -853,6 +853,119 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
     DriverStr(expected, test_name);
   }
 
+  std::string RepeatFFFFRoundingMode(
+      void (Riscv64Assembler::*f)(FRegister, FRegister, FRegister, FRegister, FPRoundingMode),
+      const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::string str;
+    for (FRegister* reg1 : GetFPRegisters()) {
+      for (FRegister* reg2 : GetFPRegisters()) {
+        for (FRegister* reg3 : GetFPRegisters()) {
+          for (FRegister* reg4 : GetFPRegisters()) {
+            for (FPRoundingMode rm : kRoundingModes) {
+              (GetAssembler()->*f)(*reg1, *reg2, *reg3, *reg4, rm);
+
+              std::string base = fmt;
+              ReplaceReg(REG1_TOKEN, GetFPRegName(*reg1), &base);
+              ReplaceReg(REG2_TOKEN, GetFPRegName(*reg2), &base);
+              ReplaceReg(REG3_TOKEN, GetFPRegName(*reg3), &base);
+              ReplaceReg(REG4_TOKEN, GetFPRegName(*reg4), &base);
+              ReplaceRoundingMode(rm, &base);
+              str += base;
+              str += "\n";
+            }
+          }
+        }
+      }
+    }
+    return str;
+  }
+
+  std::string RepeatFFFRoundingMode(
+      void (Riscv64Assembler::*f)(FRegister, FRegister, FRegister, FPRoundingMode),
+      const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::string str;
+    for (FRegister* reg1 : GetFPRegisters()) {
+      for (FRegister* reg2 : GetFPRegisters()) {
+        for (FRegister* reg3 : GetFPRegisters()) {
+          for (FPRoundingMode rm : kRoundingModes) {
+            (GetAssembler()->*f)(*reg1, *reg2, *reg3, rm);
+
+            std::string base = fmt;
+            ReplaceReg(REG1_TOKEN, GetFPRegName(*reg1), &base);
+            ReplaceReg(REG2_TOKEN, GetFPRegName(*reg2), &base);
+            ReplaceReg(REG3_TOKEN, GetFPRegName(*reg3), &base);
+            ReplaceRoundingMode(rm, &base);
+            str += base;
+            str += "\n";
+          }
+        }
+      }
+    }
+    return str;
+  }
+
+  template <typename Reg1, typename Reg2>
+  std::string RepeatTemplatedRegistersRoundingMode(
+      void (Riscv64Assembler::*f)(Reg1, Reg2, FPRoundingMode),
+      const std::vector<Reg1*>& reg1_registers,
+      const std::vector<Reg2*>& reg2_registers,
+      std::string (Base::*GetName1)(const Reg1&),
+      std::string (Base::*GetName2)(const Reg2&),
+      const std::string& fmt) {
+    CHECK(f != nullptr);
+    std::string str;
+    for (Reg1* reg1 : reg1_registers) {
+      for (Reg2* reg2 : reg2_registers) {
+        for (FPRoundingMode rm : kRoundingModes) {
+          (GetAssembler()->*f)(*reg1, *reg2, rm);
+
+          std::string base = fmt;
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceRoundingMode(rm, &base);
+          str += base;
+          str += "\n";
+        }
+      }
+    }
+    return str;
+  }
+
+  std::string RepeatFFRoundingMode(
+      void (Riscv64Assembler::*f)(FRegister, FRegister, FPRoundingMode),
+      const std::string& fmt) {
+    return RepeatTemplatedRegistersRoundingMode(f,
+                                                GetFPRegisters(),
+                                                GetFPRegisters(),
+                                                &AssemblerRISCV64Test::GetFPRegName,
+                                                &AssemblerRISCV64Test::GetFPRegName,
+                                                fmt);
+  }
+
+  std::string RepeatrFRoundingMode(
+      void (Riscv64Assembler::*f)(XRegister, FRegister, FPRoundingMode),
+      const std::string& fmt) {
+    return RepeatTemplatedRegistersRoundingMode(f,
+                                                GetRegisters(),
+                                                GetFPRegisters(),
+                                                &Base::GetSecondaryRegisterName,
+                                                &AssemblerRISCV64Test::GetFPRegName,
+                                                fmt);
+  }
+
+  std::string RepeatFrRoundingMode(
+      void (Riscv64Assembler::*f)(FRegister, XRegister, FPRoundingMode),
+      const std::string& fmt) {
+    return RepeatTemplatedRegistersRoundingMode(f,
+                                                GetFPRegisters(),
+                                                GetRegisters(),
+                                                &AssemblerRISCV64Test::GetFPRegName,
+                                                &Base::GetSecondaryRegisterName,
+                                                fmt);
+  }
+
   std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, uint32_t),
                            const std::string& fmt) {
     CHECK(f != nullptr);
@@ -988,9 +1101,51 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
   }
 
  private:
+  static constexpr const char* RM_TOKEN = "{rm}";
   static constexpr const char* AQRL_TOKEN = "{aqrl}";
   static constexpr const char* CSR_TOKEN = "{csr}";
   static constexpr const char* UIMM_TOKEN = "{uimm}";
+
+  static constexpr FPRoundingMode kRoundingModes[] = {
+      FPRoundingMode::kRNE,
+      FPRoundingMode::kRTZ,
+      FPRoundingMode::kRDN,
+      FPRoundingMode::kRUP,
+      FPRoundingMode::kRMM,
+      FPRoundingMode::kDYN
+  };
+
+  void ReplaceRoundingMode(FPRoundingMode rm, /*inout*/ std::string* str) {
+    const char* replacement;
+    switch (rm) {
+      case FPRoundingMode::kRNE:
+        replacement = "rne";
+        break;
+      case FPRoundingMode::kRTZ:
+        replacement = "rtz";
+        break;
+      case FPRoundingMode::kRDN:
+        replacement = "rdn";
+        break;
+      case FPRoundingMode::kRUP:
+        replacement = "rup";
+        break;
+      case FPRoundingMode::kRMM:
+        replacement = "rmm";
+        break;
+      case FPRoundingMode::kDYN:
+        replacement = "dyn";
+        break;
+      default:
+        LOG(FATAL) << "Unexpected value for rm: " << enum_cast<uint32_t>(rm);
+        UNREACHABLE();
+    }
+    size_t rm_index = str->find(RM_TOKEN);
+    EXPECT_NE(rm_index, std::string::npos);
+    if (rm_index != std::string::npos) {
+      str->replace(rm_index, ConstexprStrLen(RM_TOKEN), replacement);
+    }
+  }
 
   void ReplaceAqRl(int64_t aqrl, /*inout*/ std::string* str) {
     const char* replacement;
@@ -1012,6 +1167,7 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
         UNREACHABLE();
     }
     size_t aqrl_index = str->find(AQRL_TOKEN);
+    EXPECT_NE(aqrl_index, std::string::npos);
     if (aqrl_index != std::string::npos) {
       str->replace(aqrl_index, ConstexprStrLen(AQRL_TOKEN), replacement);
     }
@@ -1021,6 +1177,7 @@ class AssemblerRISCV64Test : public AssemblerTest<riscv64::Riscv64Assembler,
                              int64_t imm,
                              /*inout*/ std::string* str) {
     size_t imm_index = str->find(imm_token);
+    EXPECT_NE(imm_index, std::string::npos);
     if (imm_index != std::string::npos) {
       str->replace(imm_index, imm_token.length(), std::to_string(imm));
     }
@@ -1536,83 +1693,183 @@ TEST_F(AssemblerRISCV64Test, FSd) {
 }
 
 TEST_F(AssemblerRISCV64Test, FMAddS) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FMAddS,
+                                   "fmadd.s {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FMAddS");
+}
+
+TEST_F(AssemblerRISCV64Test, FMAddS_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FMAddS,
-                       "fmadd.s {reg1}, {reg2}, {reg3}, {reg4}"), "FMAddS");
+                       "fmadd.s {reg1}, {reg2}, {reg3}, {reg4}"), "FMAddS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMAddD) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FMAddD,
+                                   "fmadd.d {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FMAddD");
+}
+
+TEST_F(AssemblerRISCV64Test, FMAddD_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FMAddD,
-                       "fmadd.d {reg1}, {reg2}, {reg3}, {reg4}"), "FMAddD");
+                       "fmadd.d {reg1}, {reg2}, {reg3}, {reg4}"), "FMAddD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMSubS) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FMSubS,
+                                   "fmsub.s {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FMSubS");
+}
+
+TEST_F(AssemblerRISCV64Test, FMSubS_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FMSubS,
-                       "fmsub.s {reg1}, {reg2}, {reg3}, {reg4}"), "FMSubS");
+                       "fmsub.s {reg1}, {reg2}, {reg3}, {reg4}"), "FMSubS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMSubD) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FMSubD,
+                                  "fmsub.d {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FMSubD");
+}
+
+TEST_F(AssemblerRISCV64Test, FMSubD_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FMSubD,
-                       "fmsub.d {reg1}, {reg2}, {reg3}, {reg4}"), "FMSubD");
+                       "fmsub.d {reg1}, {reg2}, {reg3}, {reg4}"), "FMSubD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FNMSubS) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FNMSubS,
+                                   "fnmsub.s {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FNMSubS");
+}
+
+TEST_F(AssemblerRISCV64Test, FNMSubS_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FNMSubS,
-                       "fnmsub.s {reg1}, {reg2}, {reg3}, {reg4}"), "FNMSubS");
+                       "fnmsub.s {reg1}, {reg2}, {reg3}, {reg4}"), "FNMSubS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FNMSubD) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FNMSubD,
+                                   "fnmsub.d {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FNMSubD");
+}
+
+TEST_F(AssemblerRISCV64Test, FNMSubD_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FNMSubD,
-                       "fnmsub.d {reg1}, {reg2}, {reg3}, {reg4}"), "FNMSubD");
+                       "fnmsub.d {reg1}, {reg2}, {reg3}, {reg4}"), "FNMSubD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FNMAddS) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FNMAddS,
+                                   "fnmadd.s {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FNMAddS");
+}
+
+TEST_F(AssemblerRISCV64Test, FNMAddS_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FNMAddS,
-                       "fnmadd.s {reg1}, {reg2}, {reg3}, {reg4}"), "FNMAddS");
+                       "fnmadd.s {reg1}, {reg2}, {reg3}, {reg4}"), "FNMAddS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FNMAddD) {
+  DriverStr(RepeatFFFFRoundingMode(&riscv64::Riscv64Assembler::FNMAddD,
+                                   "fnmadd.d {reg1}, {reg2}, {reg3}, {reg4}, {rm}"), "FNMAddD");
+}
+
+TEST_F(AssemblerRISCV64Test, FNMAddD_Default) {
   DriverStr(RepeatFFFF(&riscv64::Riscv64Assembler::FNMAddD,
-                       "fnmadd.d {reg1}, {reg2}, {reg3}, {reg4}"), "FNMAddD");
+                       "fnmadd.d {reg1}, {reg2}, {reg3}, {reg4}"), "FNMAddD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FAddS) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FAddS, "fadd.s {reg1}, {reg2}, {reg3}"), "FAddS");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FAddS,
+                                  "fadd.s {reg1}, {reg2}, {reg3}, {rm}"), "FAddS");
+}
+
+TEST_F(AssemblerRISCV64Test, FAddS_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FAddS,
+                      "fadd.s {reg1}, {reg2}, {reg3}"), "FAddS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FAddD) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FAddD, "fadd.d {reg1}, {reg2}, {reg3}"), "FAddD");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FAddD,
+                                  "fadd.d {reg1}, {reg2}, {reg3}, {rm}"), "FAddD");
+}
+
+TEST_F(AssemblerRISCV64Test, FAddD_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FAddD,
+                      "fadd.d {reg1}, {reg2}, {reg3}"), "FAddD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FSubS) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FSubS, "fsub.s {reg1}, {reg2}, {reg3}"), "FSubS");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FSubS,
+                                  "fsub.s {reg1}, {reg2}, {reg3}, {rm}"), "FSubS");
+}
+
+TEST_F(AssemblerRISCV64Test, FSubS_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FSubS,
+                      "fsub.s {reg1}, {reg2}, {reg3}"), "FSubS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FSubD) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FSubD, "fsub.d {reg1}, {reg2}, {reg3}"), "FSubD");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FSubD,
+                                  "fsub.d {reg1}, {reg2}, {reg3}, {rm}"), "FSubD");
+}
+
+TEST_F(AssemblerRISCV64Test, FSubD_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FSubD,
+                      "fsub.d {reg1}, {reg2}, {reg3}"), "FSubD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMulS) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FMulS, "fmul.s {reg1}, {reg2}, {reg3}"), "FMulS");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FMulS,
+                                  "fmul.s {reg1}, {reg2}, {reg3}, {rm}"), "FMulS");
+}
+
+TEST_F(AssemblerRISCV64Test, FMulS_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FMulS,
+                      "fmul.s {reg1}, {reg2}, {reg3}"), "FMulS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMulD) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FMulD, "fmul.d {reg1}, {reg2}, {reg3}"), "FMulD");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FMulD,
+                                  "fmul.d {reg1}, {reg2}, {reg3}, {rm}"), "FMulD");
+}
+
+TEST_F(AssemblerRISCV64Test, FMulD_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FMulD,
+                      "fmul.d {reg1}, {reg2}, {reg3}"), "FMulD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FDivS) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FDivS, "fdiv.s {reg1}, {reg2}, {reg3}"), "FDivS");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FDivS,
+                                  "fdiv.s {reg1}, {reg2}, {reg3}, {rm}"), "FDivS");
+}
+
+TEST_F(AssemblerRISCV64Test, FDivS_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FDivS,
+                      "fdiv.s {reg1}, {reg2}, {reg3}"), "FDivS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FDivD) {
-  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FDivD, "fdiv.d {reg1}, {reg2}, {reg3}"), "FDivD");
+  DriverStr(RepeatFFFRoundingMode(&riscv64::Riscv64Assembler::FDivD,
+                                  "fdiv.d {reg1}, {reg2}, {reg3}, {rm}"), "FDivD");
+}
+
+TEST_F(AssemblerRISCV64Test, FDivD_Default) {
+  DriverStr(RepeatFFF(&riscv64::Riscv64Assembler::FDivD,
+                      "fdiv.d {reg1}, {reg2}, {reg3}"), "FDivD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FSqrtS) {
-  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FSqrtS, "fsqrt.s {reg1}, {reg2}"), "FSqrtS");
+  DriverStr(RepeatFFRoundingMode(&riscv64::Riscv64Assembler::FSqrtS,
+                                 "fsqrt.s {reg1}, {reg2}, {rm}"), "FSqrtS");
+}
+
+TEST_F(AssemblerRISCV64Test, FSqrtS_Default) {
+  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FSqrtS,
+                     "fsqrt.s {reg1}, {reg2}"), "FSqrtS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FSqrtD) {
-  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FSqrtD, "fsqrt.d {reg1}, {reg2}"), "FSqrtD");
+  DriverStr(RepeatFFRoundingMode(&riscv64::Riscv64Assembler::FSqrtD,
+                                 "fsqrt.d {reg1}, {reg2}, {rm}"), "FSqrtD");
+}
+
+TEST_F(AssemblerRISCV64Test, FSqrtD_Default) {
+  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FSqrtD,
+                     "fsqrt.d {reg1}, {reg2}"), "FSqrtD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FSgnjS) {
@@ -1662,11 +1919,25 @@ TEST_F(AssemblerRISCV64Test, FMaxD) {
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtSD) {
-  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FCvtSD, "fcvt.s.d {reg1}, {reg2}"), "FCvtSD");
+  DriverStr(RepeatFFRoundingMode(&riscv64::Riscv64Assembler::FCvtSD,
+                                 "fcvt.s.d {reg1}, {reg2}, {rm}"), "FCvtSD");
 }
 
-TEST_F(AssemblerRISCV64Test, FCvtDS) {
-  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FCvtDS, "fcvt.d.s {reg1}, {reg2}"), "FCvtDS");
+TEST_F(AssemblerRISCV64Test, FCvtSD_Default) {
+  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FCvtSD,
+                     "fcvt.s.d {reg1}, {reg2}"), "FCvtSD_Default");
+}
+
+// This conversion is lossless, so the rounding mode is meaningless and the assembler we're
+// testing against does not even accept the rounding mode argument, so this test is disabled.
+TEST_F(AssemblerRISCV64Test, DISABLED_FCvtDS) {
+  DriverStr(RepeatFFRoundingMode(&riscv64::Riscv64Assembler::FCvtDS,
+                                 "fcvt.d.s {reg1}, {reg2}, {rm}"), "FCvtDS");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtDS_Default) {
+  DriverStr(RepeatFF(&riscv64::Riscv64Assembler::FCvtDS,
+                     "fcvt.d.s {reg1}, {reg2}"), "FCvtDS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FEqS) {
@@ -1694,67 +1965,151 @@ TEST_F(AssemblerRISCV64Test, FLeD) {
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtWS) {
-  DriverStr(RepeatrF(&riscv64::Riscv64Assembler::FCvtWS, "fcvt.w.s {reg1}, {reg2}"), "FCvtWS");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtWS, "fcvt.w.s {reg1}, {reg2}, {rm}"),
+            "FCvtWS");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtWS_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtWS, "fcvt.w.s {reg1}, {reg2}"), "FCvtWS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtWD) {
-  DriverStr(RepeatrF(&riscv64::Riscv64Assembler::FCvtWD, "fcvt.w.d {reg1}, {reg2}"), "FCvtWD");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtWD, "fcvt.w.d {reg1}, {reg2}, {rm}"),
+            "FCvtWD");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtWD_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtWD, "fcvt.w.d {reg1}, {reg2}"), "FCvtWD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtWuS) {
-  DriverStr(RepeatrF(&riscv64::Riscv64Assembler::FCvtWuS, "fcvt.wu.s {reg1}, {reg2}"), "FCvtWuS");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtWuS, "fcvt.wu.s {reg1}, {reg2}, {rm}"),
+            "FCvtWuS");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtWuS_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtWuS, "fcvt.wu.s {reg1}, {reg2}"), "FCvtWuS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtWuD) {
-  DriverStr(RepeatrF(&riscv64::Riscv64Assembler::FCvtWuD, "fcvt.wu.d {reg1}, {reg2}"), "FCvtWuD");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtWuD, "fcvt.wu.d {reg1}, {reg2}, {rm}"),
+            "FCvtWuD");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtWuD_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtWuD, "fcvt.wu.d {reg1}, {reg2}"), "FCvtWuD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtLS) {
-  DriverStr(RepeatRF(&riscv64::Riscv64Assembler::FCvtLS, "fcvt.l.s {reg1}, {reg2}"), "FCvtLS");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtLS, "fcvt.l.s {reg1}, {reg2}, {rm}"),
+            "FCvtLS");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtLS_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtLS, "fcvt.l.s {reg1}, {reg2}"), "FCvtLS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtLD) {
-  DriverStr(RepeatRF(&riscv64::Riscv64Assembler::FCvtLD, "fcvt.l.d {reg1}, {reg2}"), "FCvtLD");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtLD, "fcvt.l.d {reg1}, {reg2}, {rm}"),
+            "FCvtLD");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtLD_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtLD, "fcvt.l.d {reg1}, {reg2}"), "FCvtLD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtLuS) {
-  DriverStr(RepeatRF(&riscv64::Riscv64Assembler::FCvtLuS, "fcvt.lu.s {reg1}, {reg2}"), "FCvtLuS");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtLuS, "fcvt.lu.s {reg1}, {reg2}, {rm}"),
+            "FCvtLuS");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtLuS_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtLuS, "fcvt.lu.s {reg1}, {reg2}"), "FCvtLuS_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtLuD) {
-  DriverStr(RepeatRF(&riscv64::Riscv64Assembler::FCvtLuD, "fcvt.lu.d {reg1}, {reg2}"), "FCvtLuD");
+  DriverStr(RepeatrFRoundingMode(&Riscv64Assembler::FCvtLuD, "fcvt.lu.d {reg1}, {reg2}, {rm}"),
+            "FCvtLuD");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtLuD_Default) {
+  DriverStr(RepeatrF(&Riscv64Assembler::FCvtLuD, "fcvt.lu.d {reg1}, {reg2}"), "FCvtLuD_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtSW) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtSW, "fcvt.s.w {reg1}, {reg2}"), "FCvtSW");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtSW, "fcvt.s.w {reg1}, {reg2}, {rm}"),
+            "FCvtSW");
 }
 
-TEST_F(AssemblerRISCV64Test, FCvtDW) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtDW, "fcvt.d.w {reg1}, {reg2}"), "FCvtDW");
+TEST_F(AssemblerRISCV64Test, FCvtSW_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtSW, "fcvt.s.w {reg1}, {reg2}"), "FCvtSW_Default");
+}
+
+// This conversion is lossless, so the rounding mode is meaningless and the assembler we're
+// testing against does not even accept the rounding mode argument, so this test is disabled.
+TEST_F(AssemblerRISCV64Test, DISABLED_FCvtDW) {
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtDW, "fcvt.d.w {reg1}, {reg2}, {rm}"),
+            "FCvtDW");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtDW_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtDW, "fcvt.d.w {reg1}, {reg2}"), "FCvtDW_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtSWu) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtSWu, "fcvt.s.wu {reg1}, {reg2}"), "FCvtSWu");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtSWu, "fcvt.s.wu {reg1}, {reg2}, {rm}"),
+            "FCvtSWu");
 }
 
-TEST_F(AssemblerRISCV64Test, FCvtDWu) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtDWu, "fcvt.d.wu {reg1}, {reg2}"), "FCvtDWu");
+TEST_F(AssemblerRISCV64Test, FCvtSWu_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtSWu, "fcvt.s.wu {reg1}, {reg2}"), "FCvtSWu_Default");
+}
+
+// This conversion is lossless, so the rounding mode is meaningless and the assembler we're
+// testing against does not even accept the rounding mode argument, so this test is disabled.
+TEST_F(AssemblerRISCV64Test, DISABLED_FCvtDWu) {
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtDWu, "fcvt.d.wu {reg1}, {reg2}, {rm}"),
+            "FCvtDWu");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtDWu_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtDWu, "fcvt.d.wu {reg1}, {reg2}"), "FCvtDWu_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtSL) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtSL, "fcvt.s.l {reg1}, {reg2}"), "FCvtSL");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtSL, "fcvt.s.l {reg1}, {reg2}, {rm}"),
+            "FCvtSL");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtSL_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtSL, "fcvt.s.l {reg1}, {reg2}"), "FCvtSL_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtDL) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtDL, "fcvt.d.l {reg1}, {reg2}"), "FCvtDL");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtDL, "fcvt.d.l {reg1}, {reg2}, {rm}"),
+            "FCvtDL");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtDL_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtDL, "fcvt.d.l {reg1}, {reg2}"), "FCvtDL_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtSLu) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtSLu, "fcvt.s.lu {reg1}, {reg2}"), "FCvtSLu");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtSLu, "fcvt.s.lu {reg1}, {reg2}, {rm}"),
+            "FCvtSLu");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtSLu_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtSLu, "fcvt.s.lu {reg1}, {reg2}"), "FCvtSLu_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FCvtDLu) {
-  DriverStr(RepeatFR(&riscv64::Riscv64Assembler::FCvtDLu, "fcvt.d.lu {reg1}, {reg2}"), "FCvtDLu");
+  DriverStr(RepeatFrRoundingMode(&Riscv64Assembler::FCvtDLu, "fcvt.d.lu {reg1}, {reg2}, {rm}"),
+            "FCvtDLu");
+}
+
+TEST_F(AssemblerRISCV64Test, FCvtDLu_Default) {
+  DriverStr(RepeatFr(&Riscv64Assembler::FCvtDLu, "fcvt.d.lu {reg1}, {reg2}"), "FCvtDLu_Default");
 }
 
 TEST_F(AssemblerRISCV64Test, FMvXW) {
