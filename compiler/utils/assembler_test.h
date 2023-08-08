@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iterator>
 
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "assembler_test_base.h"
@@ -200,8 +201,8 @@ class AssemblerTest : public AssemblerTestBase {
   template <typename Reg1, typename Reg2, typename ImmType>
   std::string RepeatTemplatedRegistersImmBits(void (Ass::*f)(Reg1, Reg2, ImmType),
                                               int imm_bits,
-                                              const std::vector<Reg1*> reg1_registers,
-                                              const std::vector<Reg2*> reg2_registers,
+                                              ArrayRef<const Reg1> reg1_registers,
+                                              ArrayRef<const Reg2> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               const std::string& fmt,
@@ -215,12 +216,12 @@ class AssemblerTest : public AssemblerTestBase {
         for (int64_t imm : imms) {
           ImmType new_imm = CreateImmediate(imm);
           if (f != nullptr) {
-            (assembler_.get()->*f)(*reg1, *reg2, new_imm * multiplier + bias);
+            (assembler_.get()->*f)(reg1, reg2, new_imm * multiplier + bias);
           }
           std::string base = fmt;
 
-          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
           ReplaceImm(imm, bias, multiplier, &base);
 
           str += base;
@@ -234,9 +235,9 @@ class AssemblerTest : public AssemblerTestBase {
   template <typename Reg1, typename Reg2, typename Reg3, typename ImmType>
   std::string RepeatTemplatedRegistersImmBits(void (Ass::*f)(Reg1, Reg2, Reg3, ImmType),
                                               int imm_bits,
-                                              const std::vector<Reg1*> reg1_registers,
-                                              const std::vector<Reg2*> reg2_registers,
-                                              const std::vector<Reg3*> reg3_registers,
+                                              ArrayRef<const Reg1> reg1_registers,
+                                              ArrayRef<const Reg2> reg2_registers,
+                                              ArrayRef<const Reg3> reg3_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               std::string (AssemblerTest::*GetName3)(const Reg3&),
@@ -251,13 +252,13 @@ class AssemblerTest : public AssemblerTestBase {
           for (int64_t imm : imms) {
             ImmType new_imm = CreateImmediate(imm);
             if (f != nullptr) {
-              (assembler_.get()->*f)(*reg1, *reg2, *reg3, new_imm + bias);
+              (assembler_.get()->*f)(reg1, reg2, reg3, new_imm + bias);
             }
             std::string base = fmt;
 
-            ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-            ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
-            ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
+            ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+            ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
+            ReplaceReg(REG3_TOKEN, (this->*GetName3)(reg3), &base);
             ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
             str += base;
@@ -271,8 +272,8 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename ImmType, typename Reg1, typename Reg2>
   std::string RepeatTemplatedImmBitsRegisters(void (Ass::*f)(ImmType, Reg1, Reg2),
-                                              const std::vector<Reg1*> reg1_registers,
-                                              const std::vector<Reg2*> reg2_registers,
+                                              ArrayRef<const Reg1> reg1_registers,
+                                              ArrayRef<const Reg2> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               int imm_bits,
@@ -287,12 +288,12 @@ class AssemblerTest : public AssemblerTestBase {
         for (int64_t imm : imms) {
           ImmType new_imm = CreateImmediate(imm);
           if (f != nullptr) {
-            (assembler_.get()->*f)(new_imm, *reg1, *reg2);
+            (assembler_.get()->*f)(new_imm, reg1, reg2);
           }
           std::string base = fmt;
 
-          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
           ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
           str += base;
@@ -306,7 +307,7 @@ class AssemblerTest : public AssemblerTestBase {
   template <typename RegType, typename ImmType>
   std::string RepeatTemplatedRegisterImmBits(void (Ass::*f)(RegType, ImmType),
                                              int imm_bits,
-                                             const std::vector<RegType*> registers,
+                                             ArrayRef<const RegType> registers,
                                              std::string (AssemblerTest::*GetName)(const RegType&),
                                              const std::string& fmt,
                                              int bias) {
@@ -317,11 +318,11 @@ class AssemblerTest : public AssemblerTestBase {
       for (int64_t imm : imms) {
         ImmType new_imm = CreateImmediate(imm);
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg, new_imm + bias);
+          (assembler_.get()->*f)(reg, new_imm + bias);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
+        ReplaceReg(REG_TOKEN, (this->*GetName)(reg), &base);
         ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
         str += base;
@@ -336,7 +337,7 @@ class AssemblerTest : public AssemblerTestBase {
       void (Ass::*f)(RegType, ImmType),
       int imm_bits,
       int shift,
-      const std::vector<RegType*> registers,
+      ArrayRef<const RegType> registers,
       std::string (AssemblerTest::*GetName)(const RegType&),
       const std::string& fmt,
       int bias) {
@@ -347,11 +348,11 @@ class AssemblerTest : public AssemblerTestBase {
       for (int64_t imm : imms) {
         ImmType new_imm = CreateImmediate(imm);
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg, new_imm + bias);
+          (assembler_.get()->*f)(reg, new_imm + bias);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
+        ReplaceReg(REG_TOKEN, (this->*GetName)(reg), &base);
         ReplaceImm(imm, bias, /*multiplier=*/ 1, &base);
 
         str += base;
@@ -390,8 +391,8 @@ class AssemblerTest : public AssemblerTestBase {
       void (Ass::*f)(Reg1, Reg2, ImmType),
       int imm_bits,
       int shift,
-      const std::vector<Reg1*> reg1_registers,
-      const std::vector<Reg2*> reg2_registers,
+      ArrayRef<const Reg1> reg1_registers,
+      ArrayRef<const Reg2> reg2_registers,
       std::string (AssemblerTest::*GetName1)(const Reg1&),
       std::string (AssemblerTest::*GetName2)(const Reg2&),
       const std::string& fmt,
@@ -405,12 +406,12 @@ class AssemblerTest : public AssemblerTestBase {
         for (int64_t imm : imms) {
           ImmType new_imm = CreateImmediate(imm);
           if (f != nullptr) {
-            (assembler_.get()->*f)(*reg1, *reg2, new_imm * multiplier + bias);
+            (assembler_.get()->*f)(reg1, reg2, new_imm * multiplier + bias);
           }
           std::string base = fmt;
 
-          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
           ReplaceImm(imm, bias, multiplier, &base);
 
           str += base;
@@ -786,18 +787,18 @@ class AssemblerTest : public AssemblerTestBase {
 
   // Returns a vector of registers used by any of the repeat methods
   // involving an "R" (e.g. RepeatR).
-  virtual std::vector<Reg*> GetRegisters() = 0;
+  virtual ArrayRef<const Reg> GetRegisters() = 0;
 
   // Returns a vector of fp-registers used by any of the repeat methods
   // involving an "F" (e.g. RepeatFF).
-  virtual std::vector<FPReg*> GetFPRegisters() {
+  virtual ArrayRef<const FPReg> GetFPRegisters() {
     UNIMPLEMENTED(FATAL) << "Architecture does not support floating-point registers";
     UNREACHABLE();
   }
 
   // Returns a vector of dedicated simd-registers used by any of the repeat
   // methods involving an "V" (e.g. RepeatVV).
-  virtual std::vector<VecReg*> GetVectorRegisters() {
+  virtual ArrayRef<const VecReg> GetVectorRegisters() {
     UNIMPLEMENTED(FATAL) << "Architecture does not support vector registers";
     UNREACHABLE();
   }
@@ -1226,7 +1227,7 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename RegType, typename AddrType>
   std::string RepeatTemplatedRegMem(void (Ass::*f)(RegType, const AddrType&),
-                                    const std::vector<RegType*> registers,
+                                    ArrayRef<const RegType> registers,
                                     const std::vector<AddrType> addresses,
                                     std::string (AssemblerTest::*GetRName)(const RegType&),
                                     std::string (AssemblerTest::*GetAName)(const AddrType&),
@@ -1236,11 +1237,11 @@ class AssemblerTest : public AssemblerTestBase {
     for (auto reg : registers) {
       for (auto addr : addresses) {
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg, addr);
+          (assembler_.get()->*f)(reg, addr);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG_TOKEN, (this->*GetRName)(*reg), &base);
+        ReplaceReg(REG_TOKEN, (this->*GetRName)(reg), &base);
         ReplaceAddr((this->*GetAName)(addr), &base);
 
         str += base;
@@ -1253,7 +1254,7 @@ class AssemblerTest : public AssemblerTestBase {
   template <typename AddrType, typename RegType>
   std::string RepeatTemplatedMemReg(void (Ass::*f)(const AddrType&, RegType),
                                     const std::vector<AddrType> addresses,
-                                    const std::vector<RegType*> registers,
+                                    ArrayRef<const RegType> registers,
                                     std::string (AssemblerTest::*GetAName)(const AddrType&),
                                     std::string (AssemblerTest::*GetRName)(const RegType&),
                                     const std::string& fmt) {
@@ -1262,12 +1263,12 @@ class AssemblerTest : public AssemblerTestBase {
     for (auto addr : addresses) {
       for (auto reg : registers) {
         if (f != nullptr) {
-          (assembler_.get()->*f)(addr, *reg);
+          (assembler_.get()->*f)(addr, reg);
         }
         std::string base = fmt;
 
         ReplaceAddr((this->*GetAName)(addr), &base);
-        ReplaceReg(REG_TOKEN, (this->*GetRName)(*reg), &base);
+        ReplaceReg(REG_TOKEN, (this->*GetRName)(reg), &base);
 
         str += base;
         str += "\n";
@@ -1282,17 +1283,17 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename RegType>
   std::string RepeatTemplatedRegister(void (Ass::*f)(RegType),
-                                      const std::vector<RegType*> registers,
+                                      ArrayRef<const RegType> registers,
                                       std::string (AssemblerTest::*GetName)(const RegType&),
                                       const std::string& fmt) {
     std::string str;
     for (auto reg : registers) {
       if (f != nullptr) {
-        (assembler_.get()->*f)(*reg);
+        (assembler_.get()->*f)(reg);
       }
       std::string base = fmt;
 
-      ReplaceReg(REG_TOKEN, (this->*GetName)(*reg), &base);
+      ReplaceReg(REG_TOKEN, (this->*GetName)(reg), &base);
 
       str += base;
       str += "\n";
@@ -1302,8 +1303,8 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename Reg1, typename Reg2>
   std::string RepeatTemplatedRegisters(void (Ass::*f)(Reg1, Reg2),
-                                       const std::vector<Reg1*> reg1_registers,
-                                       const std::vector<Reg2*> reg2_registers,
+                                       ArrayRef<const Reg1> reg1_registers,
+                                       ArrayRef<const Reg2> reg2_registers,
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
                                        const std::string& fmt,
@@ -1315,19 +1316,19 @@ class AssemblerTest : public AssemblerTestBase {
       for (auto reg2 : reg2_registers) {
         // Check if this register pair is on the exception list. If so, skip it.
         if (except != nullptr) {
-          const auto& pair = std::make_pair(*reg1, *reg2);
+          const auto& pair = std::make_pair(reg1, reg2);
           if (std::find(except->begin(), except->end(), pair) != except->end()) {
             continue;
           }
         }
 
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg1, *reg2);
+          (assembler_.get()->*f)(reg1, reg2);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-        ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+        ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+        ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
 
         str += base;
         str += "\n";
@@ -1338,8 +1339,8 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename Reg1, typename Reg2>
   std::string RepeatTemplatedRegistersNoDupes(void (Ass::*f)(Reg1, Reg2),
-                                              const std::vector<Reg1*> reg1_registers,
-                                              const std::vector<Reg2*> reg2_registers,
+                                              ArrayRef<const Reg1> reg1_registers,
+                                              ArrayRef<const Reg2> reg2_registers,
                                               std::string (AssemblerTest::*GetName1)(const Reg1&),
                                               std::string (AssemblerTest::*GetName2)(const Reg2&),
                                               const std::string& fmt) {
@@ -1350,12 +1351,12 @@ class AssemblerTest : public AssemblerTestBase {
       for (auto reg2 : reg2_registers) {
         if (reg1 == reg2) continue;
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg1, *reg2);
+          (assembler_.get()->*f)(reg1, reg2);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-        ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+        ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+        ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
 
         str += base;
         str += "\n";
@@ -1366,9 +1367,9 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename Reg1, typename Reg2, typename Reg3>
   std::string RepeatTemplatedRegisters(void (Ass::*f)(Reg1, Reg2, Reg3),
-                                       const std::vector<Reg1*> reg1_registers,
-                                       const std::vector<Reg2*> reg2_registers,
-                                       const std::vector<Reg3*> reg3_registers,
+                                       ArrayRef<const Reg1> reg1_registers,
+                                       ArrayRef<const Reg2> reg2_registers,
+                                       ArrayRef<const Reg3> reg3_registers,
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
                                        std::string (AssemblerTest::*GetName3)(const Reg3&),
@@ -1378,13 +1379,13 @@ class AssemblerTest : public AssemblerTestBase {
       for (auto reg2 : reg2_registers) {
         for (auto reg3 : reg3_registers) {
           if (f != nullptr) {
-            (assembler_.get()->*f)(*reg1, *reg2, *reg3);
+            (assembler_.get()->*f)(reg1, reg2, reg3);
           }
           std::string base = fmt;
 
-          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
-          ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
+          ReplaceReg(REG3_TOKEN, (this->*GetName3)(reg3), &base);
 
           str += base;
           str += "\n";
@@ -1396,10 +1397,10 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename Reg1, typename Reg2, typename Reg3, typename Reg4>
   std::string RepeatTemplatedRegisters(void (Ass::*f)(Reg1, Reg2, Reg3, Reg4),
-                                       const std::vector<Reg1*>& reg1_registers,
-                                       const std::vector<Reg2*>& reg2_registers,
-                                       const std::vector<Reg3*>& reg3_registers,
-                                       const std::vector<Reg4*>& reg4_registers,
+                                       ArrayRef<const Reg1> reg1_registers,
+                                       ArrayRef<const Reg2> reg2_registers,
+                                       ArrayRef<const Reg3> reg3_registers,
+                                       ArrayRef<const Reg4> reg4_registers,
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
                                        std::string (AssemblerTest::*GetName3)(const Reg3&),
@@ -1411,14 +1412,14 @@ class AssemblerTest : public AssemblerTestBase {
         for (auto reg3 : reg3_registers) {
           for (auto reg4 : reg4_registers) {
             if (f != nullptr) {
-              (assembler_.get()->*f)(*reg1, *reg2, *reg3, *reg4);
+              (assembler_.get()->*f)(reg1, reg2, reg3, reg4);
             }
             std::string base = fmt;
 
-            ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-            ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
-            ReplaceReg(REG3_TOKEN, (this->*GetName3)(*reg3), &base);
-            ReplaceReg(REG4_TOKEN, (this->*GetName4)(*reg4), &base);
+            ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+            ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
+            ReplaceReg(REG3_TOKEN, (this->*GetName3)(reg3), &base);
+            ReplaceReg(REG4_TOKEN, (this->*GetName4)(reg4), &base);
 
             str += base;
             str += "\n";
@@ -1431,8 +1432,8 @@ class AssemblerTest : public AssemblerTestBase {
 
   template <typename Reg1, typename Reg2>
   std::string RepeatTemplatedRegistersImm(void (Ass::*f)(Reg1, Reg2, const Imm&),
-                                          const std::vector<Reg1*> reg1_registers,
-                                          const std::vector<Reg2*> reg2_registers,
+                                          ArrayRef<const Reg1> reg1_registers,
+                                          ArrayRef<const Reg2> reg2_registers,
                                           std::string (AssemblerTest::*GetName1)(const Reg1&),
                                           std::string (AssemblerTest::*GetName2)(const Reg2&),
                                           size_t imm_bytes,
@@ -1446,12 +1447,12 @@ class AssemblerTest : public AssemblerTestBase {
         for (int64_t imm : imms) {
           Imm new_imm = CreateImmediate(imm);
           if (f != nullptr) {
-            (assembler_.get()->*f)(*reg1, *reg2, new_imm);
+            (assembler_.get()->*f)(reg1, reg2, new_imm);
           }
           std::string base = fmt;
 
-          ReplaceReg(REG1_TOKEN, (this->*GetName1)(*reg1), &base);
-          ReplaceReg(REG2_TOKEN, (this->*GetName2)(*reg2), &base);
+          ReplaceReg(REG1_TOKEN, (this->*GetName1)(reg1), &base);
+          ReplaceReg(REG2_TOKEN, (this->*GetName2)(reg2), &base);
           ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
           str += base;
@@ -1551,7 +1552,7 @@ class AssemblerTest : public AssemblerTestBase {
   std::string RepeatRegisterImm(void (Ass::*f)(Reg, const Imm&),
                                 size_t imm_bytes,
                                 const std::string& fmt) {
-    const std::vector<Reg*> registers = GetRegisters();
+    ArrayRef<const Reg> registers = GetRegisters();
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
 
@@ -1561,11 +1562,11 @@ class AssemblerTest : public AssemblerTestBase {
       for (int64_t imm : imms) {
         Imm new_imm = CreateImmediate(imm);
         if (f != nullptr) {
-          (assembler_.get()->*f)(*reg, new_imm);
+          (assembler_.get()->*f)(reg, new_imm);
         }
         std::string base = fmt;
 
-        ReplaceReg(REG_TOKEN, GetRegName<kRegView>(*reg), &base);
+        ReplaceReg(REG_TOKEN, GetRegName<kRegView>(reg), &base);
         ReplaceImm(imm, /*bias=*/ 0, /*multiplier=*/ 1, &base);
 
         str += base;
