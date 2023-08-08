@@ -41,7 +41,7 @@
       "name": "art-run-test-014-math3[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-015-switch[com.google.android.art.apex]"
+      "name": "art-run-test-015-checker-switch[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-016-intern[com.google.android.art.apex]"
@@ -1463,7 +1463,7 @@
       "name": "art-run-test-014-math3"
     },
     {
-      "name": "art-run-test-015-switch"
+      "name": "art-run-test-015-checker-switch"
     },
     {
       "name": "art-run-test-016-intern"
@@ -2872,7 +2872,7 @@
       "name": "art-run-test-014-math3"
     },
     {
-      "name": "art-run-test-015-switch"
+      "name": "art-run-test-015-checker-switch"
     },
     {
       "name": "art-run-test-016-intern"
