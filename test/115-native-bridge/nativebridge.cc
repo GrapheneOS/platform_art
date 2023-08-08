@@ -532,8 +532,8 @@ extern "C" const struct android::NativeBridgeRuntimeValues* native_bridge_getApp
 
 // v2 parts.
 
-extern "C" bool native_bridge_isCompatibleWith([[maybe_unused]] uint32_t bridge_version) {
-  return true;
+extern "C" bool native_bridge_isCompatibleWith(uint32_t bridge_version) {
+  return bridge_version <= 3;
 }
 
 #if defined(__i386__) || defined(__x86_64__)
