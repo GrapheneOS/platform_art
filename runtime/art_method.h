@@ -631,7 +631,7 @@ class ArtMethod final {
   }
 
   // Number of 32bit registers that would be required to hold all the arguments
-  static size_t NumArgRegisters(const char* shorty);
+  static size_t NumArgRegisters(std::string_view shorty);
 
   ALWAYS_INLINE uint32_t GetDexMethodIndex() const {
     return dex_method_index_;
@@ -902,6 +902,8 @@ class ArtMethod final {
   ALWAYS_INLINE const char* GetShorty() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetShorty(uint32_t* out_length) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  std::string_view GetShortyView() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const Signature GetSignature() REQUIRES_SHARED(Locks::mutator_lock_);
 

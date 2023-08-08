@@ -182,7 +182,7 @@ jvmtiError MethodUtil::GetArgumentsSize([[maybe_unused]] jvmtiEnv* env,
   if (art_method->IsProxyMethod() || art_method->IsAbstract()) {
     // Use the shorty.
     art::ArtMethod* base_method = art_method->GetInterfaceMethodIfProxy(art::kRuntimePointerSize);
-    size_t arg_count = art::ArtMethod::NumArgRegisters(base_method->GetShorty());
+    size_t arg_count = art::ArtMethod::NumArgRegisters(base_method->GetShortyView());
     if (!base_method->IsStatic()) {
       arg_count++;
     }
