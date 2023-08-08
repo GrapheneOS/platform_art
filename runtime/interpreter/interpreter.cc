@@ -377,7 +377,7 @@ void EnterInterpreterFromInvoke(Thread* self,
     return;
   } else {
     DCHECK(method->IsNative()) << method->PrettyMethod();
-    num_regs = num_ins = ArtMethod::NumArgRegisters(method->GetShorty());
+    num_regs = num_ins = ArtMethod::NumArgRegisters(method->GetShortyView());
     if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
