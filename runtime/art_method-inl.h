@@ -404,6 +404,12 @@ inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
   return dex_file->GetMethodShorty(dex_file->GetMethodId(GetDexMethodIndex()), out_length);
 }
 
+inline std::string_view ArtMethod::GetShortyView() {
+  DCHECK(!IsProxyMethod());
+  const DexFile* dex_file = GetDexFile();
+  return dex_file->GetMethodShortyView(dex_file->GetMethodId(GetDexMethodIndex()));
+}
+
 inline const Signature ArtMethod::GetSignature() {
   uint32_t dex_method_idx = GetDexMethodIndex();
   if (dex_method_idx != dex::kDexNoIndex) {
