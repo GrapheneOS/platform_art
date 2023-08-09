@@ -2063,13 +2063,67 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeUnresolved(HInvokeUnresolved* i
 }
 
 void LocationsBuilderRISCV64::VisitInvokeInterface(HInvokeInterface* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleInvoke(instruction);
+  // Use T0 as the hidden argument for `art_quick_imt_conflict_trampoline`.
+  if (instruction->GetHiddenArgumentLoadKind() == MethodLoadKind::kRecursive) {
+    instruction->GetLocations()->SetInAt(instruction->GetNumberOfArguments() - 1,
+                                         Location::RegisterLocation(T0));
+  } else {
+    instruction->GetLocations()->AddTemp(Location::RegisterLocation(T0));
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInvokeInterface(HInvokeInterface* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  XRegister temp = locations->GetTemp(0).AsRegister<XRegister>();
+  XRegister receiver = locations->InAt(0).AsRegister<XRegister>();
+  int32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kRiscv64PointerSize);
+
+  // /* HeapReference<Class> */ temp = receiver->klass_
+  __ Loadwu(temp, receiver, class_offset);
+  codegen_->MaybeRecordImplicitNullCheck(instruction);
+  // Instead of simply (possibly) unpoisoning `temp` here, we should
+  // emit a read barrier for the previous class reference load.
+  // However this is not required in practice, as this is an
+  // intermediate/temporary reference and because the current
+  // concurrent copying collector keeps the from-space memory
+  // intact/accessible until the end of the marking phase (the
+  // concurrent copying collector may not in the future).
+  codegen_->MaybeUnpoisonHeapReference(temp);
+
+  // If we're compiling baseline, update the inline cache.
+  codegen_->MaybeGenerateInlineCacheCheck(instruction, temp);
+
+  // The register T0 is required to be used for the hidden argument in
+  // `art_quick_imt_conflict_trampoline`.
+  if (instruction->GetHiddenArgumentLoadKind() != MethodLoadKind::kRecursive &&
+      instruction->GetHiddenArgumentLoadKind() != MethodLoadKind::kRuntimeCall) {
+    Location hidden_reg = instruction->GetLocations()->GetTemp(1);
+    // Load the resolved interface method in the hidden argument register T0.
+    DCHECK_EQ(T0, hidden_reg.AsRegister<XRegister>());
+    codegen_->LoadMethod(instruction->GetHiddenArgumentLoadKind(), hidden_reg, instruction);
+  }
+
+  __ Loadd(temp, temp, mirror::Class::ImtPtrOffset(kRiscv64PointerSize).Uint32Value());
+  uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
+      instruction->GetImtIndex(), kRiscv64PointerSize));
+  // temp = temp->GetImtEntryAt(method_offset);
+  __ Loadd(temp, temp, method_offset);
+  if (instruction->GetHiddenArgumentLoadKind() == MethodLoadKind::kRuntimeCall) {
+    // We pass the method from the IMT in case of a conflict. This will ensure
+    // we go into the runtime to resolve the actual method.
+    Location hidden_reg = instruction->GetLocations()->GetTemp(1);
+    DCHECK_EQ(T0, hidden_reg.AsRegister<XRegister>());
+    __ Mv(hidden_reg.AsRegister<XRegister>(), temp);
+  }
+  // RA = temp->GetEntryPoint();
+  __ Loadd(RA, temp, entry_point.Int32Value());
+
+  // RA();
+  __ Jalr(RA);
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
 void LocationsBuilderRISCV64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* instruction) {
