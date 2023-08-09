@@ -21,6 +21,7 @@ Fully inferring CFI from disassembly is not possible in general.
 """
 
 import os, re, subprocess, collections, pathlib, bisect, collections, sys
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -87,7 +88,7 @@ class Error(Exception):
 def get_arch(lib: pathlib.Path) -> str:
   """ Get architecture of the given library based on the ELF header. """
 
-  proc = subprocess.run(["llvm-objdump", "--file-headers", lib],
+  proc = subprocess.run([args.objdump, "--file-headers", lib],
                         encoding='utf-8',
                         capture_output=True,
                         check=True)
@@ -102,7 +103,7 @@ Source = collections.namedtuple("Source", ["pc", "file", "line", "flag"])
 def get_src(lib: pathlib.Path) -> List[Source]:
   """ Get source-file and line-number for all hand-written assembly code. """
 
-  proc = subprocess.run(["llvm-dwarfdump", "--debug-line", lib],
+  proc = subprocess.run([args.dwarfdump, "--debug-line", lib],
                         encoding='utf-8',
                         capture_output=True,
                         check=True)
@@ -126,7 +127,7 @@ Fde = collections.namedtuple("Fde", ["pc", "end", "data"])
 def get_fde(lib: pathlib.Path) -> List[Fde]:
   """ Get all FDE blocks (in dumped text-based format) """
 
-  proc = subprocess.run(["llvm-dwarfdump", "--debug-frame", lib],
+  proc = subprocess.run([args.dwarfdump, "--debug-frame", lib],
                         encoding='utf-8',
                         capture_output=True,
                         check=True)
@@ -148,7 +149,7 @@ Asm = collections.namedtuple("Asm", ["pc", "name", "data"])
 def get_asm(lib: pathlib.Path) -> List[Asm]:
   """ Get all ASM blocks (in dumped text-based format) """
 
-  proc = subprocess.run(["llvm-objdump", "--disassemble", "--no-show-raw-insn", lib],
+  proc = subprocess.run([args.objdump, "--disassemble", "--no-show-raw-insn", lib],
                         encoding='utf-8',
                         capture_output=True,
                         check=True)
@@ -286,7 +287,7 @@ def check_lib(lib: pathlib.Path) -> int:
 def main(argv):
   """ Check libraries provided on the command line, or use the default build output """
 
-  libs = argv[1:]
+  libs = args.srcs
   if not libs:
     apex = Path(os.environ["OUT"]) / "symbols/apex/"
     libs = list(apex.glob("**/libart.so"))
@@ -296,6 +297,15 @@ def main(argv):
     if fail > 0:
       print(fail, "ERROR(s) in", str(lib))
       sys.exit(1)
+  if args.out:
+    args.out.write_bytes(b"")
 
 if __name__ == "__main__":
+  parser = ArgumentParser(description=__doc__)
+  parser.add_argument("--out", type=Path, help="Output (will just generate empty file)")
+  parser.add_argument("--dwarfdump", type=Path, default="llvm-dwarfdump")
+  parser.add_argument("--objdump", type=Path, default="llvm-objdump")
+  parser.add_argument("srcs", nargs="*", type=Path)
+  args = parser.parse_args()
+
   main(sys.argv)
