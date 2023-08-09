@@ -23,6 +23,7 @@ import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.ReasonMapping.BatchDexoptReason;
 import static com.android.server.art.ReasonMapping.BootReason;
 import static com.android.server.art.Utils.Abi;
+import static com.android.server.art.Utils.InitProfileResult;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
 import static com.android.server.art.model.ArtFlags.ScheduleStatus;
 import static com.android.server.art.model.Config.Callback;
@@ -738,12 +739,18 @@ public final class ArtManagerLocal {
 
             List<ProfilePath> profiles = new ArrayList<>();
 
-            Pair<ProfilePath, Boolean> pair = Utils.getOrInitReferenceProfile(mInjector.getArtd(),
+            InitProfileResult result = Utils.getOrInitReferenceProfile(mInjector.getArtd(),
                     dexInfo.dexPath(), PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo),
                     PrimaryDexUtils.getExternalProfiles(dexInfo),
                     PrimaryDexUtils.buildOutputProfile(pkgState, dexInfo, Process.SYSTEM_UID,
                             Process.SYSTEM_UID, false /* isPublic */));
-            ProfilePath refProfile = pair != null ? pair.first : null;
+            if (!result.externalProfileErrors().isEmpty()) {
+                Log.e(TAG,
+                        "Error occurred when initializing from external profiles: "
+                                + result.externalProfileErrors());
+            }
+
+            ProfilePath refProfile = result.profile();
 
             if (refProfile != null) {
                 profiles.add(refProfile);

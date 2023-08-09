@@ -57,6 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -366,13 +367,9 @@ public final class Utils {
      * @param externalProfiles a list of external profiles to initialize the reference profile from,
      *         in the order of preference
      * @param initOutput the final location to initialize the reference profile to
-     *
-     * @return a pair where the first element is the found or initialized profile, and the second
-     *         element is true if the profile is readable by others. Returns null if there is no
-     *         reference profile or external profile to use
      */
-    @Nullable
-    public static Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull IArtd artd,
+    @NonNull
+    public static InitProfileResult getOrInitReferenceProfile(@NonNull IArtd artd,
             @NonNull String dexPath, @NonNull ProfilePath refProfile,
             @NonNull List<ProfilePath> externalProfiles, @NonNull OutputProfile initOutput)
             throws RemoteException {
@@ -380,7 +377,8 @@ public final class Utils {
             if (artd.isProfileUsable(refProfile, dexPath)) {
                 boolean isOtherReadable =
                         artd.getProfileVisibility(refProfile) == FileVisibility.OTHER_READABLE;
-                return Pair.create(refProfile, isOtherReadable);
+                return InitProfileResult.create(
+                        refProfile, isOtherReadable, List.of() /* externalProfileErrors */);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
@@ -389,22 +387,21 @@ public final class Utils {
                     e);
         }
 
-        ProfilePath initializedProfile =
-                initReferenceProfile(artd, dexPath, externalProfiles, initOutput);
-        return initializedProfile != null ? Pair.create(initializedProfile, true) : null;
+        return initReferenceProfile(artd, dexPath, externalProfiles, initOutput);
     }
 
     /**
      * Similar to above, but never uses an existing profile.
      *
-     * Unlike the one above, this method doesn't return a boolean flag to indicate if the profile is
-     * readable by others. The profile returned by this method is initialized form an external
-     * profile, meaning it has no user data, so it's always readable by others.
+     * The {@link InitProfileResult#isOtherReadable} field is always set to true. The profile
+     * returned by this method is initialized from an external profile, meaning it has no user data,
+     * so it's always readable by others.
      */
     @Nullable
-    public static ProfilePath initReferenceProfile(@NonNull IArtd artd, @NonNull String dexPath,
-            @NonNull List<ProfilePath> externalProfiles, @NonNull OutputProfile output)
-            throws RemoteException {
+    public static InitProfileResult initReferenceProfile(@NonNull IArtd artd,
+            @NonNull String dexPath, @NonNull List<ProfilePath> externalProfiles,
+            @NonNull OutputProfile output) throws RemoteException {
+        List<String> externalProfileErrors = new ArrayList<>();
         for (ProfilePath profile : externalProfiles) {
             try {
                 // If the profile path is a PrebuiltProfilePath, and the APK is really a prebuilt
@@ -412,18 +409,22 @@ public final class Utils {
                 // build time and is correctly set in the profile header. However, the APK can also
                 // be an installed one, in which case partners may place a profile file next to the
                 // APK at install time. Rewriting the profile in the latter case is necessary.
-                // TODO(b/278080573): Make use of the detailed result.
                 CopyAndRewriteProfileResult result =
                         artd.copyAndRewriteProfile(profile, output, dexPath);
                 if (result.status == CopyAndRewriteProfileResult.Status.SUCCESS) {
-                    return ProfilePath.tmpProfilePath(output.profilePath);
+                    return InitProfileResult.create(ProfilePath.tmpProfilePath(output.profilePath),
+                            true /* isOtherReadable */, externalProfileErrors);
+                }
+                if (result.status == CopyAndRewriteProfileResult.Status.BAD_PROFILE) {
+                    externalProfileErrors.add(result.errorMsg);
                 }
             } catch (ServiceSpecificException e) {
                 Log.e(TAG, "Failed to initialize profile from " + AidlUtils.toString(profile), e);
             }
         }
 
-        return null;
+        return InitProfileResult.create(
+                null /* profile */, true /* isOtherReadable */, externalProfileErrors);
     }
 
     public static void logArtdException(@NonNull RemoteException e) {
@@ -489,5 +490,32 @@ public final class Utils {
                             + (SystemClock.elapsedRealtime() - mStartTimeMs) + "ms");
             super.close();
         }
+    }
+
+    /** The result of {@link #getOrInitReferenceProfile} and {@link #initReferenceProfile}. */
+    @AutoValue
+    @SuppressWarnings("AutoValueImmutableFields") // Can't use ImmutableList because it's in Guava.
+    public abstract static class InitProfileResult {
+        static @NonNull InitProfileResult create(@Nullable ProfilePath profile,
+                boolean isOtherReadable, @NonNull List<String> externalProfileErrors) {
+            return new AutoValue_Utils_InitProfileResult(
+                    profile, isOtherReadable, Collections.unmodifiableList(externalProfileErrors));
+        }
+
+        /**
+         * The found or initialized profile, or null if there is no reference profile or external
+         * profile to use.
+         */
+        abstract @Nullable ProfilePath profile();
+
+        /**
+         * Whether the profile is readable by others.
+         *
+         * If {@link #profile} returns null, this field is always true.
+         */
+        abstract boolean isOtherReadable();
+
+        /** Errors encountered when initializing from external profiles. */
+        abstract @NonNull List<String> externalProfileErrors();
     }
 }
