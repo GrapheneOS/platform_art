@@ -1643,17 +1643,21 @@ TEST(OatFileAssistantUtilsTest, DexLocationToOdexFilename) {
   std::string odex_file;
 
   EXPECT_TRUE(OatFileAssistant::DexLocationToOdexFilename(
-        "/foo/bar/baz.jar", InstructionSet::kArm, &odex_file, &error_msg)) << error_msg;
+      "/foo/bar/baz.jar", InstructionSet::kArm, &odex_file, &error_msg))
+      << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
   EXPECT_TRUE(OatFileAssistant::DexLocationToOdexFilename(
-        "/foo/bar/baz.funnyext", InstructionSet::kArm, &odex_file, &error_msg)) << error_msg;
+      "/foo/bar/baz.funnyext", InstructionSet::kArm, &odex_file, &error_msg))
+      << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
   EXPECT_FALSE(OatFileAssistant::DexLocationToOdexFilename(
-        "nopath.jar", InstructionSet::kArm, &odex_file, &error_msg));
-  EXPECT_FALSE(OatFileAssistant::DexLocationToOdexFilename(
-        "/foo/bar/baz_noext", InstructionSet::kArm, &odex_file, &error_msg));
+      "nopath.jar", InstructionSet::kArm, &odex_file, &error_msg));
+
+  EXPECT_TRUE(OatFileAssistant::DexLocationToOdexFilename(
+      "/foo/bar/baz_noext", InstructionSet::kArm, &odex_file, &error_msg));
+  EXPECT_EQ("/foo/bar/oat/arm/baz_noext.odex", odex_file);
 }
 
 // Verify the dexopt status values from dalvik.system.DexFile

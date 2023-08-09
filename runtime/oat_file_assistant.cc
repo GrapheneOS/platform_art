@@ -654,11 +654,7 @@ bool OatFileAssistant::DexLocationToOdexFilename(const std::string& location,
   // Get the base part of the file without the extension.
   std::string file = location.substr(pos + 1);
   pos = file.rfind('.');
-  if (pos == std::string::npos) {
-    *error_msg = "Dex location " + location + " has no extension.";
-    return false;
-  }
-  std::string base = file.substr(0, pos);
+  std::string base = pos != std::string::npos ? file.substr(0, pos) : file;
 
   *odex_filename = dir + "/" + base + ".odex";
   return true;
