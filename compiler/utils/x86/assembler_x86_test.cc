@@ -151,10 +151,8 @@ class AssemblerX86Test : public AssemblerTest<x86::X86Assembler,
 
  private:
   std::vector<x86::Address> addresses_;
-  std::vector<x86::Register> registers_;
   std::map<x86::Register, std::string, X86RegisterCompare> secondary_register_names_;
   std::map<x86::Register, std::string, X86RegisterCompare> tertiary_register_names_;
-  std::vector<x86::XmmRegister> fp_registers_;
 };
 
 class AssemblerX86AVXTest : public AssemblerX86Test {
