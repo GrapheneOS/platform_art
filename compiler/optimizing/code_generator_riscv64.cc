@@ -3188,7 +3188,7 @@ struct IsUnimplemented {
   bool is_unimplemented = false;
 };
 
-#define TRUE_OVERRIDE(Name, ...)                \
+#define TRUE_OVERRIDE(Name)                     \
   template <>                                   \
   struct IsUnimplemented<Intrinsics::k##Name> { \
     bool is_unimplemented = true;               \
