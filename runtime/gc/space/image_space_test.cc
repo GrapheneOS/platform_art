@@ -132,10 +132,10 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
     return ImageSpace::LoadBootImage(
         bcp,
         bcp_locations,
-        /*boot_class_path_fds=*/std::vector<int>(),
-        /*boot_class_path_image_fds=*/std::vector<int>(),
-        /*boot_class_path_vdex_fds=*/std::vector<int>(),
-        /*boot_class_path_oat_fds=*/std::vector<int>(),
+        /*boot_class_path_files=*/{},
+        /*boot_class_path_image_files=*/{},
+        /*boot_class_path_vdex_files=*/{},
+        /*boot_class_path_oat_files=*/{},
         full_image_locations,
         kRuntimeISA,
         /*relocate=*/false,
@@ -255,7 +255,7 @@ TEST_F(DexoptTest, ValidateOatFile) {
                                                 /*executable=*/false,
                                                 /*low_4gb=*/false,
                                                 ArrayRef<const std::string>(dex_filenames),
-                                                /*dex_fds=*/ArrayRef<const int>(),
+                                                /*dex_fds=*/{},
                                                 /*reservation=*/nullptr,
                                                 &error_msg));
     ASSERT_TRUE(oat2 != nullptr) << error_msg;
