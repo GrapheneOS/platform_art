@@ -236,6 +236,47 @@ bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, void* context ATT
   return Runtime::Current()->GetHeap()->MarkCompactCollector()->SigbusHandler(info);
 }
 
+inline void FaultManager::CheckForUnrecognizedImplicitSuspendCheckInBootImage(
+    siginfo_t* siginfo, void* context) {
+  CHECK_EQ(kRuntimeISA, InstructionSet::kArm64);
+  uintptr_t fault_pc = GetFaultPc(siginfo, context);
+  if (fault_pc == 0u || !IsUint<32>(fault_pc) || !IsAligned<4u>(fault_pc)) {
+    return;
+  }
+  Runtime* runtime = Runtime::Current();
+  if (runtime == nullptr) {
+    return;
+  }
+  gc::Heap* heap = runtime->GetHeap();
+  if (heap == nullptr ||
+      fault_pc < heap->GetBootImagesStartAddress() ||
+      fault_pc - heap->GetBootImagesStartAddress() >= heap->GetBootImagesSize() ||
+      reinterpret_cast<uint32_t*>(fault_pc)[0] != /*LDR x21. [x21]*/ 0xf94002b5u) {
+    return;
+  }
+  std::ostringstream oss;
+  oss << "Failed to recognize implicit suspend check at 0x" << std::hex << fault_pc << "; ";
+  Thread* thread = Thread::Current();
+  if (thread == nullptr) {
+    oss << "null thread";
+  } else {
+    oss << "thread state = " << thread->GetState() << std::boolalpha
+        << "; mutator lock shared held = " << Locks::mutator_lock_->IsSharedHeld(thread);
+  }
+  oss << "; code ranges = {";
+  GeneratedCodeRange* range = generated_code_ranges_.load(std::memory_order_acquire);
+  const char* s = "";
+  while (range != nullptr) {
+    oss << s << "{" << range->start << ", " << range->size << "}";
+    s = ", ";
+    range = range->next.load(std::memory_order_relaxed);
+  }
+  oss << "}";
+  LOG(FATAL) << oss.str();
+  UNREACHABLE();
+}
+
+
 bool FaultManager::HandleSigsegvFault(int sig, siginfo_t* info, void* context) {
   if (VLOG_IS_ON(signals)) {
     PrintSignalInfo(VLOG_STREAM(signals) << "Handling SIGSEGV fault:\n", info);
@@ -256,6 +297,8 @@ bool FaultManager::HandleSigsegvFault(int sig, siginfo_t* info, void* context) {
         return true;
       }
     }
+  } else if (kRuntimeISA == InstructionSet::kArm64) {
+    CheckForUnrecognizedImplicitSuspendCheckInBootImage(info, context);
   }
 
   // We hit a signal we didn't handle.  This might be something for which
