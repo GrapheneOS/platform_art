@@ -55,6 +55,7 @@ constexpr const char* kExtendedPublicLibrariesFileSuffix = ".txt";
 constexpr const char* kApexLibrariesConfigFile = "/linkerconfig/apex.libraries.config.txt";
 constexpr const char* kVendorPublicLibrariesFile = "/vendor/etc/public.libraries.txt";
 constexpr const char* kLlndkLibrariesFile = "/apex/com.android.vndk.v{}/etc/llndk.libraries.{}.txt";
+constexpr const char* kLlndkLibrariesNoVndkFile = "/system/etc/llndk.libraries.txt";
 constexpr const char* kVndkLibrariesFile = "/apex/com.android.vndk.v{}/etc/vndksp.libraries.{}.txt";
 
 
@@ -225,9 +226,30 @@ static std::string InitExtendedPublicLibraries() {
   return libs;
 }
 
+bool IsVendorVndkEnabled() {
+#if defined(ART_TARGET_ANDROID)
+  return android::base::GetProperty("ro.vndk.version", "") != "";
+#else
+  return true;
+#endif
+}
+
+bool IsProductVndkEnabled() {
+#if defined(ART_TARGET_ANDROID)
+  return android::base::GetProperty("ro.product.vndk.version", "") != "";
+#else
+  return true;
+#endif
+}
+
 static std::string InitLlndkLibrariesVendor() {
-  std::string config_file = kLlndkLibrariesFile;
-  InsertVndkVersionStr(&config_file, false);
+  std::string config_file;
+  if (IsVendorVndkEnabled()) {
+    config_file = kLlndkLibrariesFile;
+    InsertVndkVersionStr(&config_file, false);
+  } else {
+    config_file = kLlndkLibrariesNoVndkFile;
+  }
   auto sonames = ReadConfig(config_file, always_true);
   if (!sonames.ok()) {
     LOG_ALWAYS_FATAL("%s: %s", config_file.c_str(), sonames.error().message().c_str());
@@ -243,8 +265,13 @@ static std::string InitLlndkLibrariesProduct() {
     ALOGD("InitLlndkLibrariesProduct: No product VNDK version defined");
     return "";
   }
-  std::string config_file = kLlndkLibrariesFile;
-  InsertVndkVersionStr(&config_file, true);
+  std::string config_file;
+  if (IsProductVndkEnabled()) {
+    config_file = kLlndkLibrariesFile;
+    InsertVndkVersionStr(&config_file, true);
+  } else {
+    config_file = kLlndkLibrariesNoVndkFile;
+  }
   auto sonames = ReadConfig(config_file, always_true);
   if (!sonames.ok()) {
     LOG_ALWAYS_FATAL("%s: %s", config_file.c_str(), sonames.error().message().c_str());
