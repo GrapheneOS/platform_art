@@ -970,20 +970,19 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
                                                 fmt);
   }
 
-  std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, uint32_t),
+  std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, AqRl),
                            const std::string& fmt) {
     CHECK(f != nullptr);
-    std::vector<int64_t> imms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
-        for (int64_t imm : imms) {
-          (GetAssembler()->*f)(reg1, reg2, dchecked_integral_cast<uint32_t>(imm));
+        for (AqRl aqrl : kAqRls) {
+          (GetAssembler()->*f)(reg1, reg2, aqrl);
 
           std::string base = fmt;
           ReplaceReg(REG1_TOKEN, GetRegisterName(reg1), &base);
           ReplaceReg(REG2_TOKEN, GetRegisterName(reg2), &base);
-          ReplaceAqRl(imm, &base);
+          ReplaceAqRl(aqrl, &base);
           str += base;
           str += "\n";
         }
@@ -992,22 +991,21 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
     return str;
   }
 
-  std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, uint32_t),
+  std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, AqRl),
                             const std::string& fmt) {
     CHECK(f != nullptr);
-    std::vector<int64_t> imms = CreateImmediateValuesBits(2, /*as_uint=*/ true);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
         for (XRegister reg3 : GetRegisters()) {
-          for (int64_t imm : imms) {
-            (GetAssembler()->*f)(reg1, reg2, reg3, dchecked_integral_cast<uint32_t>(imm));
+          for (AqRl aqrl : kAqRls) {
+            (GetAssembler()->*f)(reg1, reg2, reg3, aqrl);
 
             std::string base = fmt;
             ReplaceReg(REG1_TOKEN, GetRegisterName(reg1), &base);
             ReplaceReg(REG2_TOKEN, GetRegisterName(reg2), &base);
             ReplaceReg(REG3_TOKEN, GetRegisterName(reg3), &base);
-            ReplaceAqRl(imm, &base);
+            ReplaceAqRl(aqrl, &base);
             str += base;
             str += "\n";
           }
@@ -1110,6 +1108,8 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   static constexpr const char* CSR_TOKEN = "{csr}";
   static constexpr const char* UIMM_TOKEN = "{uimm}";
 
+  static constexpr AqRl kAqRls[] = { AqRl::kNone, AqRl::kRelease, AqRl::kAcquire, AqRl::kAqRl };
+
   static constexpr FPRoundingMode kRoundingModes[] = {
       FPRoundingMode::kRNE,
       FPRoundingMode::kRTZ,
@@ -1151,23 +1151,23 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
     }
   }
 
-  void ReplaceAqRl(int64_t aqrl, /*inout*/ std::string* str) {
+  void ReplaceAqRl(AqRl aqrl, /*inout*/ std::string* str) {
     const char* replacement;
     switch (aqrl) {
-      case 0:
+      case AqRl::kNone:
         replacement = "";
         break;
-      case 1:
+      case AqRl::kRelease:
         replacement = ".rl";
         break;
-      case 2:
+      case AqRl::kAcquire:
         replacement = ".aq";
         break;
-      case 3:
+      case AqRl::kAqRl:
         replacement = ".aqrl";
         break;
       default:
-        LOG(FATAL) << "Unexpected value for `aqrl`: " << aqrl;
+        LOG(FATAL) << "Unexpected value for `aqrl`: " << enum_cast<uint32_t>(aqrl);
         UNREACHABLE();
     }
     size_t aqrl_index = str->find(AQRL_TOKEN);
