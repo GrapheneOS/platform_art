@@ -1857,15 +1857,16 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     DCHECK_GT(reinterpret_cast<uint8_t*>(found_obj), pre_compact_addr);
     DCHECK_LT(reinterpret_cast<uintptr_t>(found_obj), page_end);
     ptrdiff_t diff = reinterpret_cast<uint8_t*>(found_obj) - pre_compact_addr;
-    mirror::Object* ref = reinterpret_cast<mirror::Object*>(dest + diff);
-    VerifyObject(ref, verify_obj_callback);
-    RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/true> visitor(this,
-                                                                       ref,
-                                                                       nullptr,
-                                                                       dest_page_end);
-    ref->VisitRefsForCompaction</*kFetchObjSize*/false>(
-            visitor, MemberOffset(0), MemberOffset(page_end -
-                                                   reinterpret_cast<uintptr_t>(found_obj)));
+    mirror::Object* dest_obj = reinterpret_cast<mirror::Object*>(dest + diff);
+    VerifyObject(dest_obj, verify_obj_callback);
+    RefsUpdateVisitor</*kCheckBegin*/ false, /*kCheckEnd*/ true> visitor(
+        this, dest_obj, nullptr, dest_page_end);
+    // Last object could overlap with next page. And if it happens to be a
+    // class, then we may access something (like static-fields' offsets) which
+    // is on the next page. Therefore, use from-space's reference.
+    mirror::Object* obj = GetFromSpaceAddr(found_obj);
+    obj->VisitRefsForCompaction</*kFetchObjSize*/ false>(
+        visitor, MemberOffset(0), MemberOffset(page_end - reinterpret_cast<uintptr_t>(found_obj)));
   }
 }
 
