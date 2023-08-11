@@ -1328,7 +1328,7 @@ void OatFileAssistant::GetOptimizationStatus(std::string* out_odex_location,
                                              std::string* out_compilation_reason,
                                              std::string* out_odex_status) {
   OatFileInfo& oat_file_info = GetBestInfo();
-  const OatFile* oat_file = GetBestInfo().GetFile();
+  const OatFile* oat_file = oat_file_info.GetFile();
 
   if (oat_file == nullptr) {
     std::string error_msg;
