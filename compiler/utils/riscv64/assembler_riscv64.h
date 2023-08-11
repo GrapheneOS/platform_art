@@ -36,6 +36,11 @@ namespace riscv64 {
 
 class ScratchRegisterScope;
 
+static constexpr size_t kRiscv64HalfwordSize = 2;
+static constexpr size_t kRiscv64WordSize = 4;
+static constexpr size_t kRiscv64DoublewordSize = 8;
+static constexpr size_t kRiscv64FloatRegSizeInBytes = 8;
+
 enum class FPRoundingMode : uint32_t {
   kRNE = 0x0,  // Round to Nearest, ties to Even
   kRTZ = 0x1,  // Round towards Zero
@@ -50,10 +55,12 @@ enum class FPRoundingMode : uint32_t {
   kIgnored = 0
 };
 
-static constexpr size_t kRiscv64HalfwordSize = 2;
-static constexpr size_t kRiscv64WordSize = 4;
-static constexpr size_t kRiscv64DoublewordSize = 8;
-static constexpr size_t kRiscv64FloatRegSizeInBytes = 8;
+enum class AqRl : uint32_t {
+  kNone    = 0x0,
+  kRelease = 0x1,
+  kAcquire = 0x2,
+  kAqRl    = kRelease | kAcquire
+};
 
 // the type for fence
 enum FenceType {
@@ -265,28 +272,28 @@ class Riscv64Assembler final : public Assembler {
   void Remuw(XRegister rd, XRegister rs1, XRegister rs2);
 
   // RV32A/RV64A Standard Extension
-  void LrW(XRegister rd, XRegister rs1, uint32_t aqrl);
-  void LrD(XRegister rd, XRegister rs1, uint32_t aqrl);
-  void ScW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void ScD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
-  void AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl);
+  void LrW(XRegister rd, XRegister rs1, AqRl aqrl);
+  void LrD(XRegister rd, XRegister rs1, AqRl aqrl);
+  void ScW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void ScD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
+  void AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl);
 
   // "Zicsr" Standard Extension, opcode = 0x73, funct3 from 0x1 ~ 0x3 and 0x5 ~ 0x7
   void Csrrw(XRegister rd, uint32_t csr, XRegister rs1);

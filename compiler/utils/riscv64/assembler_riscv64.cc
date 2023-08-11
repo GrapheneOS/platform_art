@@ -389,92 +389,92 @@ void Riscv64Assembler::Remuw(XRegister rd, XRegister rs1, XRegister rs2) {
 
 /////////////////////////////// RV64 "A" Instructions  START ///////////////////////////////
 
-void Riscv64Assembler::LrW(XRegister rd, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x2, aqrl, 0x0, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::LrW(XRegister rd, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::LrD(XRegister rd, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x2, aqrl, 0x0, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::LrD(XRegister rd, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::ScW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x3, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::ScW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::ScD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x3, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::ScD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x1, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoSwapW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x1, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x1, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoSwapD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x1, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x0, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoAddW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x0, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x0, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoAddD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x0, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x4, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoXorW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x4, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x4, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoXorD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x4, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0xc, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoAndW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0xc, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0xc, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoAndD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0xc, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x8, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoOrW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x8, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x8, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoOrD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x8, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x10, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoMinW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x10, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x10, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoMinD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x10, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x14, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoMaxW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x14, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x14, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoMaxD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x14, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x18, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoMinuW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x18, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x18, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoMinuD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x18, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x1c, aqrl, rs2, rs1, 0x2, rd, 0x2f);
+void Riscv64Assembler::AmoMaxuW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x1c, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
-void Riscv64Assembler::AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, uint32_t aqrl) {
-  EmitR4(0x1c, aqrl, rs2, rs1, 0x3, rd, 0x2f);
+void Riscv64Assembler::AmoMaxuD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  EmitR4(0x1c, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
 /////////////////////////////// RV64 "A" Instructions  END ///////////////////////////////
