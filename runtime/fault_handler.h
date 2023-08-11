@@ -89,6 +89,13 @@ class FaultManager {
   bool HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* context)
                                   NO_THREAD_SAFETY_ANALYSIS;
 
+  // Check if this is an implicit suspend check that was somehow not recognized as being
+  // in the compiled code. If that's the case, collect debugging data for the abort message
+  // and crash. Focus on suspend checks in the boot image. Bug: 294339122
+  // NO_THREAD_SAFETY_ANALYSIS: Same as `IsInGeneratedCode()`.
+  void CheckForUnrecognizedImplicitSuspendCheckInBootImage(siginfo_t* siginfo, void* context)
+      NO_THREAD_SAFETY_ANALYSIS;
+
   // Note: The lock guards modifications of the ranges but the function `IsInGeneratedCode()`
   // walks the list in the context of a signal handler without holding the lock.
   Mutex generated_code_ranges_lock_;
