@@ -16,6 +16,9 @@
 
 #include "code_sinking.h"
 
+#include <sstream>
+
+#include "android-base/logging.h"
 #include "base/arena_bit_vector.h"
 #include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
@@ -335,10 +338,6 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
   processed_instructions.ClearAllBits();
   ArenaBitVector post_dominated(&allocator, graph_->GetBlocks().size(), /* expandable= */ false);
   post_dominated.ClearAllBits();
-  ArenaBitVector instructions_that_can_move(
-      &allocator, number_of_instructions, /* expandable= */ false);
-  instructions_that_can_move.ClearAllBits();
-  ScopedArenaVector<HInstruction*> move_in_order(allocator.Adapter(kArenaAllocMisc));
 
   // Step (1): Visit post order to get a subset of blocks post dominated by `end_block`.
   // TODO(ngeoffray): Getting the full set of post-dominated should be done by
@@ -411,6 +410,13 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
   HBasicBlock* common_dominator = finder.Get();
 
   // Step (2): iterate over the worklist to find sinking candidates.
+  ArenaBitVector instructions_that_can_move(
+      &allocator, number_of_instructions, /* expandable= */ false);
+  instructions_that_can_move.ClearAllBits();
+  ScopedArenaVector<ScopedArenaVector<HInstruction*>> instructions_to_move(
+      graph_->GetBlocks().size(),
+      ScopedArenaVector<HInstruction*>(allocator.Adapter(kArenaAllocMisc)),
+      allocator.Adapter(kArenaAllocMisc));
   while (!worklist.empty()) {
     HInstruction* instruction = worklist.back();
     if (processed_instructions.IsBitSet(instruction->GetId())) {
@@ -467,7 +473,7 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
       // Instruction is a candidate for being sunk. Mark it as such, remove it from the
       // work list, and add its inputs to the work list.
       instructions_that_can_move.SetBit(instruction->GetId());
-      move_in_order.push_back(instruction);
+      instructions_to_move[instruction->GetBlock()->GetBlockId()].push_back(instruction);
       processed_instructions.SetBit(instruction->GetId());
       worklist.pop_back();
       AddInputs(instruction, processed_instructions, post_dominated, &worklist);
@@ -493,14 +499,50 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
     }
   }
 
-  // Make sure we process instructions in dominated order. This is required for heap
-  // stores.
-  std::sort(move_in_order.begin(), move_in_order.end(), [](HInstruction* a, HInstruction* b) {
-    return b->StrictlyDominates(a);
-  });
+  // We want to process the instructions in reverse dominated order. This is required for heap
+  // stores. To guarantee this (including the transitivity of incomparability) we have some extra
+  // bookkeeping.
+  ScopedArenaVector<HInstruction*> instructions_to_move_sorted(allocator.Adapter(kArenaAllocMisc));
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
+    const int block_id = block->GetBlockId();
+
+    // Order the block itself first.
+    std::sort(instructions_to_move[block_id].begin(),
+              instructions_to_move[block_id].end(),
+              [&block](HInstruction* a, HInstruction* b) {
+                return block->GetInstructions().FoundBefore(b, a);
+              });
+
+    for (HInstruction* instruction : instructions_to_move[block_id]) {
+      instructions_to_move_sorted.push_back(instruction);
+    }
+  }
+
+  if (kIsDebugBuild) {
+    // We should have ordered the instructions in reverse dominated order. This means that
+    // instructions shouldn't dominate instructions that come after it in the vector.
+    for (size_t i = 0; i < instructions_to_move_sorted.size(); ++i) {
+      for (size_t j = i + 1; j < instructions_to_move_sorted.size(); ++j) {
+        if (instructions_to_move_sorted[i]->StrictlyDominates(instructions_to_move_sorted[j])) {
+          std::stringstream ss;
+          graph_->Dump(ss, nullptr);
+          ss << "\n"
+             << "{";
+          for (HInstruction* instr : instructions_to_move_sorted) {
+            ss << *instr << " in block: " << instr->GetBlock() << ", ";
+          }
+          ss << "}\n";
+          ss << "i = " << i << " which is " << *instructions_to_move_sorted[i]
+             << "strictly dominates j = " << j << " which is " << *instructions_to_move_sorted[j]
+             << "\n";
+          LOG(FATAL) << "Unexpected ordering of code sinking instructions: " << ss.str();
+        }
+      }
+    }
+  }
 
   // Step (3): Try to move sinking candidates.
-  for (HInstruction* instruction : move_in_order) {
+  for (HInstruction* instruction : instructions_to_move_sorted) {
     HInstruction* position = nullptr;
     if (instruction->IsArraySet()
             || instruction->IsInstanceFieldSet()
