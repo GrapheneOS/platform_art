@@ -147,6 +147,9 @@ public class DexUseManagerTest {
         mTempFile = File.createTempFile("package-dex-usage", ".pb");
         mTempFile.deleteOnExit();
 
+        lenient().when(mArtd.validateDexPath(any())).thenReturn(null);
+        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn(null);
+
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
         lenient().when(mInjector.getFilename()).thenReturn(mTempFile.getPath());
@@ -699,9 +702,17 @@ public class DexUseManagerTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testNonAbsoluteKey() {
+    public void testInvalidDexPath() throws Exception {
+        lenient().when(mArtd.validateDexPath(any())).thenReturn("invalid");
         mDexUseManager.notifyDexContainersLoaded(
-                mSnapshot, OWNING_PKG_NAME, Map.of("a/b.jar", "CLC"));
+                mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidClassLoaderContext() throws Exception {
+        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn("invalid");
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
     }
 
     @Test(expected = IllegalArgumentException.class)
