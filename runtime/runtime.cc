@@ -424,6 +424,10 @@ Runtime::~Runtime() {
   // Make sure to let the GC complete if it is running.
   heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
 
+  // Shutdown any trace before SetShuttingDown. Trace uses thread pool workers to flush entries
+  // and we want to make sure they are fully created. Threads cannot attach while shutting down.
+  Trace::Shutdown();
+
   {
     ScopedTrace trace2("Wait for shutdown cond");
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
@@ -441,9 +445,6 @@ Runtime::~Runtime() {
     ScopedObjectAccess soa(self);
     WellKnownClasses::java_lang_Daemons_stop->InvokeStatic<'V'>(self);
   }
-
-  // Shutdown any trace running.
-  Trace::Shutdown();
 
   // Report death. Clients may require a working thread, still, so do it before GC completes and
   // all non-daemon threads are done.
