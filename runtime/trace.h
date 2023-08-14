@@ -34,6 +34,7 @@
 #include "base/safe_map.h"
 #include "instrumentation.h"
 #include "runtime_globals.h"
+#include "thread_pool.h"
 
 namespace unix_file {
 class FdFile;
@@ -132,19 +133,29 @@ class TraceWriter {
   // required to serialize these since each method is encoded with a unique id which is assigned
   // when the method is seen for the first time in the recoreded events. So we need to serialize
   // these flushes across threads.
-  void FlushBuffer(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+  void FlushBuffer(Thread* thread, bool is_sync) REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!tracing_lock_);
 
-  // This is called when the per-thread buffer is full and a new entry needs to be recorded.
-  // In streaming mode, we just flush the per-thread buffer and reuse the buffer to record new
-  // entries.
+  // This is called when the per-thread buffer is full and a new entry needs to be recorded. This
+  // returns a pointer to the new buffer where the entries should be recorded.
+  // In streaming mode, we just flush the per-thread buffer. The buffer is flushed asynchronously
+  // on a thread pool worker. This creates a new buffer and updates the per-thread buffer pointer
+  // and returns a pointer to the newly created buffer.
   // In non-streaming mode, buffers from all threads are flushed to see if we there's enough room
-  // in the centralized buffer before recording new entries.
-  bool PrepareBufferForNewEntries(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
+  // in the centralized buffer before recording new entries. We just flush these buffers
+  // synchronously and reuse the existing buffer. Since this mode is mostly deprecated we want to
+  // keep the implementation simple here.
+  uintptr_t* PrepareBufferForNewEntries(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!tracing_lock_);
 
   // Flushes all per-thread buffer and also write a summary entry.
   void FinishTracing(int flags, bool flush_entries) REQUIRES(!tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Flush buffer to the file (for streaming) or to the common buffer (for non-streaming). In
+  // non-streaming case it returns false if all the contents couldn't be flushed.
+  void FlushBuffer(uintptr_t* buffer, size_t num_entries, size_t tid)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   // This is called when we see the first entry from the thread to record the information about the
   // thread.
@@ -165,7 +176,7 @@ class TraceWriter {
   uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
   // Get the information about the method.
-  std::string GetMethodLine(ArtMethod* method, uint32_t method_id) REQUIRES(tracing_lock_)
+  std::string GetMethodLine(ArtMethod* method, uint32_t method_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Helper function to record method information when processing the events. These are used by
@@ -197,10 +208,6 @@ class TraceWriter {
   // Flush tracing buffers from all the threads.
   void FlushAllThreadBuffers() REQUIRES(!Locks::thread_list_lock_) REQUIRES(!tracing_lock_);
 
-  // Flush buffer to the file (for streaming) or to the common buffer (for non-streaming). In
-  // non-streaming case it returns false if all the contents couldn't be flushed.
-  void FlushBuffer(uintptr_t* buffer, size_t num_entries, size_t tid)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
 
   // Methods to output traced methods and threads.
   void DumpMethodList(std::ostream& os) REQUIRES_SHARED(Locks::mutator_lock_)
@@ -253,6 +260,9 @@ class TraceWriter {
   // Lock to protect common data structures accessed from multiple threads like
   // art_method_id_map_, thread_id_map_.
   Mutex tracing_lock_;
+
+  // Thread pool to flush the trace entries to file.
+  std::unique_ptr<ThreadPool> thread_pool_;
 };
 
 // Class for recording event traces. Trace data is either collected
@@ -312,6 +322,7 @@ class Trace final : public instrumentation::InstrumentationListener {
       REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::trace_lock_);
   static void Shutdown()
       REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::trace_lock_);
+
   static TracingMode GetMethodTracingMode() REQUIRES(!Locks::trace_lock_);
 
   // Flush the per-thread buffer. This is called when the thread is about to detach.
