@@ -177,4 +177,17 @@ interface IArtd {
      * Throws fatal and non-fatal errors.
      */
     boolean isInDalvikCache(@utf8InCpp String dexFile);
+
+    /**
+     * Returns an error message if the given dex path is invalid, or null if the validation
+     * passes.
+     */
+    @nullable @utf8InCpp String validateDexPath(@utf8InCpp String dexPath);
+
+    /**
+     * Returns an error message if the given class loader context is invalid, or null if the
+     * validation passes.
+     */
+    @nullable @utf8InCpp String validateClassLoaderContext(@utf8InCpp String dexPath,
+            @utf8InCpp String classLoaderContext);
 }

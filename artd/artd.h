@@ -166,6 +166,13 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   ndk::ScopedAStatus isInDalvikCache(const std::string& in_dexFile, bool* _aidl_return) override;
 
+  ndk::ScopedAStatus validateDexPath(const std::string& in_dexPath,
+                                     std::optional<std::string>* _aidl_return) override;
+
+  ndk::ScopedAStatus validateClassLoaderContext(const std::string& in_dexPath,
+                                                const std::string& in_classLoaderContext,
+                                                std::optional<std::string>* _aidl_return) override;
+
   android::base::Result<void> Start();
 
  private:

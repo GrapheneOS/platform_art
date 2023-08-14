@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -562,7 +563,7 @@ public class DexUseManagerLocal {
             }
             mDexUse = new DexUse();
             if (proto != null) {
-                mDexUse.fromProto(proto);
+                mDexUse.fromProto(proto, this::validateDexPath, this::validateClassLoaderContext);
             }
         }
     }
@@ -587,7 +588,7 @@ public class DexUseManagerLocal {
         return !loader.loadingPackageName().equals(owningPackageName) || loader.isolatedProcess();
     }
 
-    private static void validateInputs(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+    private void validateInputs(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String loadingPackageName,
             @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
         if (classLoaderContextByDexContainerFile.isEmpty()) {
@@ -596,11 +597,15 @@ public class DexUseManagerLocal {
 
         for (var entry : classLoaderContextByDexContainerFile.entrySet()) {
             Utils.assertNonEmpty(entry.getKey());
-            if (!Paths.get(entry.getKey()).isAbsolute()) {
-                throw new IllegalArgumentException(String.format(
-                        "Dex container file path must be absolute, got '%s'", entry.getKey()));
+            String errorMsg = validateDexPath(entry.getKey());
+            if (errorMsg != null) {
+                throw new IllegalArgumentException(errorMsg);
             }
             Utils.assertNonEmpty(entry.getValue());
+            errorMsg = validateClassLoaderContext(entry.getKey(), entry.getValue());
+            if (errorMsg != null) {
+                throw new IllegalArgumentException(errorMsg);
+            }
         }
 
         // TODO(b/253570365): Make the validation more strict.
@@ -612,6 +617,29 @@ public class DexUseManagerLocal {
         } catch (ServiceSpecificException | RemoteException e) {
             Log.e(TAG, "Failed to get visibility of " + dexPath, e);
             return FileVisibility.NOT_FOUND;
+        }
+    }
+
+    @Nullable
+    private String validateDexPath(@NonNull String dexPath) {
+        try {
+            return mInjector.getArtd().validateDexPath(dexPath);
+        } catch (RemoteException e) {
+            String errorMsg = "Failed to validate dex path " + dexPath;
+            Log.e(TAG, errorMsg, e);
+            return errorMsg;
+        }
+    }
+
+    @Nullable
+    private String validateClassLoaderContext(
+            @NonNull String dexPath, @NonNull String classLoaderContext) {
+        try {
+            return mInjector.getArtd().validateClassLoaderContext(dexPath, classLoaderContext);
+        } catch (RemoteException e) {
+            String errorMsg = "Failed to validate class loader context " + classLoaderContext;
+            Log.e(TAG, errorMsg, e);
+            return errorMsg;
         }
     }
 
@@ -878,10 +906,12 @@ public class DexUseManagerLocal {
             }
         }
 
-        void fromProto(@NonNull DexUseProto proto) {
+        void fromProto(@NonNull DexUseProto proto,
+                @NonNull Function<String, String> validateDexPath,
+                @NonNull BiFunction<String, String, String> validateClassLoaderContext) {
             for (PackageDexUseProto packageProto : proto.getPackageDexUseList()) {
                 var packageDexUse = new PackageDexUse();
-                packageDexUse.fromProto(packageProto);
+                packageDexUse.fromProto(packageProto, validateDexPath, validateClassLoaderContext);
                 mPackageDexUseByOwningPackageName.put(
                         Utils.assertNonEmpty(packageProto.getOwningPackageName()), packageDexUse);
             }
@@ -914,7 +944,9 @@ public class DexUseManagerLocal {
             }
         }
 
-        void fromProto(@NonNull PackageDexUseProto proto) {
+        void fromProto(@NonNull PackageDexUseProto proto,
+                @NonNull Function<String, String> validateDexPath,
+                @NonNull BiFunction<String, String, String> validateClassLoaderContext) {
             for (PrimaryDexUseProto primaryProto : proto.getPrimaryDexUseList()) {
                 var primaryDexUse = new PrimaryDexUse();
                 primaryDexUse.fromProto(primaryProto);
@@ -922,10 +954,20 @@ public class DexUseManagerLocal {
                         Utils.assertNonEmpty(primaryProto.getDexFile()), primaryDexUse);
             }
             for (SecondaryDexUseProto secondaryProto : proto.getSecondaryDexUseList()) {
+                String dexFile = Utils.assertNonEmpty(secondaryProto.getDexFile());
+
+                // Skip invalid dex paths persisted by previous versions.
+                String errorMsg = validateDexPath.apply(dexFile);
+                if (errorMsg != null) {
+                    Log.e(TAG, errorMsg);
+                    continue;
+                }
+
                 var secondaryDexUse = new SecondaryDexUse();
-                secondaryDexUse.fromProto(secondaryProto);
-                mSecondaryDexUseByDexFile.put(
-                        Utils.assertNonEmpty(secondaryProto.getDexFile()), secondaryDexUse);
+                secondaryDexUse.fromProto(secondaryProto,
+                        classLoaderContext
+                        -> validateClassLoaderContext.apply(dexFile, classLoaderContext));
+                mSecondaryDexUseByDexFile.put(dexFile, secondaryDexUse);
             }
         }
     }
@@ -972,10 +1014,19 @@ public class DexUseManagerLocal {
             }
         }
 
-        void fromProto(@NonNull SecondaryDexUseProto proto) {
+        void fromProto(@NonNull SecondaryDexUseProto proto,
+                @NonNull Function<String, String> validateClassLoaderContext) {
             Utils.check(proto.hasUserId());
             mUserHandle = UserHandle.of(proto.getUserId().getValue());
             for (SecondaryDexUseRecordProto recordProto : proto.getRecordList()) {
+                // Skip invalid class loader context persisted by previous versions.
+                String errorMsg = validateClassLoaderContext.apply(
+                        Utils.assertNonEmpty(recordProto.getClassLoaderContext()));
+                if (errorMsg != null) {
+                    Log.e(TAG, errorMsg);
+                    continue;
+                }
+
                 var record = new SecondaryDexUseRecord();
                 record.fromProto(recordProto);
                 mRecordByLoader.put(
