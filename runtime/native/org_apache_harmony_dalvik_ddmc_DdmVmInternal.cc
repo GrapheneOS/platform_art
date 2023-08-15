@@ -59,7 +59,6 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
   } else {
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
-    bool timed_out;
 
     // Check for valid thread
     if (thin_lock_id == ThreadList::kInvalidThreadId) {
@@ -67,9 +66,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     }
 
     // Suspend thread to build stack trace.
-    Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id,
-                                                          SuspendReason::kInternal,
-                                                          &timed_out);
+    Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, SuspendReason::kInternal);
     if (thread != nullptr) {
       {
         ScopedObjectAccess soa(env);
@@ -79,11 +76,6 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
       // Restart suspended thread.
       bool resumed = thread_list->Resume(thread, SuspendReason::kInternal);
       DCHECK(resumed);
-    } else {
-      if (timed_out) {
-        LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
-            "within a generous timeout.";
-      }
     }
   }
   return trace;
