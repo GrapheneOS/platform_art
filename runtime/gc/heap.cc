@@ -2723,113 +2723,122 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
   }
   ScopedThreadStateChange tsc(self, ThreadState::kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
-  if (self->IsHandlingStackOverflow()) {
-    // If we are throwing a stack overflow error we probably don't have enough remaining stack
-    // space to run the GC.
-    // Count this as a GC in case someone is waiting for it to complete.
-    gcs_completed_.fetch_add(1, std::memory_order_release);
-    return collector::kGcTypeNone;
-  }
-  bool compacting_gc;
+  SelfDeletingTask* clear;  // Unconditionally set below.
   {
-    gc_complete_lock_->AssertNotHeld(self);
-    ScopedThreadStateChange tsc2(self, ThreadState::kWaitingForGcToComplete);
-    MutexLock mu(self, *gc_complete_lock_);
-    // Ensure there is only one GC at a time.
-    WaitForGcToCompleteLocked(gc_cause, self);
-    if (requested_gc_num != GC_NUM_ANY && !GCNumberLt(GetCurrentGcNum(), requested_gc_num)) {
-      // The appropriate GC was already triggered elsewhere.
-      return collector::kGcTypeNone;
-    }
-    compacting_gc = IsMovingGc(collector_type_);
-    // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
-    if (compacting_gc && disable_moving_gc_count_ != 0) {
-      LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
-      // Again count this as a GC.
+    // We should not ever become runnable and re-suspend while executing a GC.
+    // This would likely cause a deadlock if we acted on a suspension request.
+    // TODO: We really want to assert that we don't transition to kRunnable.
+    ScopedAssertNoThreadSuspension("Performing GC");
+    if (self->IsHandlingStackOverflow()) {
+      // If we are throwing a stack overflow error we probably don't have enough remaining stack
+      // space to run the GC.
+      // Count this as a GC in case someone is waiting for it to complete.
       gcs_completed_.fetch_add(1, std::memory_order_release);
       return collector::kGcTypeNone;
     }
-    if (gc_disabled_for_shutdown_) {
-      gcs_completed_.fetch_add(1, std::memory_order_release);
-      return collector::kGcTypeNone;
-    }
-    collector_type_running_ = collector_type_;
-    last_gc_cause_ = gc_cause;
-  }
-  if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
-    ++runtime->GetStats()->gc_for_alloc_count;
-    ++self->GetStats()->gc_for_alloc_count;
-  }
-  const size_t bytes_allocated_before_gc = GetBytesAllocated();
-
-  DCHECK_LT(gc_type, collector::kGcTypeMax);
-  DCHECK_NE(gc_type, collector::kGcTypeNone);
-
-  collector::GarbageCollector* collector = nullptr;
-  // TODO: Clean this up.
-  if (compacting_gc) {
-    DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
-           current_allocator_ == kAllocatorTypeTLAB ||
-           current_allocator_ == kAllocatorTypeRegion ||
-           current_allocator_ == kAllocatorTypeRegionTLAB);
-    switch (collector_type_) {
-      case kCollectorTypeSS:
-        semi_space_collector_->SetFromSpace(bump_pointer_space_);
-        semi_space_collector_->SetToSpace(temp_space_);
-        semi_space_collector_->SetSwapSemiSpaces(true);
-        collector = semi_space_collector_;
-        break;
-      case kCollectorTypeCMC:
-        collector = mark_compact_;
-        break;
-      case kCollectorTypeCC:
-        collector::ConcurrentCopying* active_cc_collector;
-        if (use_generational_cc_) {
-          // TODO: Other threads must do the flip checkpoint before they start poking at
-          // active_concurrent_copying_collector_. So we should not concurrency here.
-          active_cc_collector = (gc_type == collector::kGcTypeSticky) ?
-                  young_concurrent_copying_collector_ : concurrent_copying_collector_;
-          active_concurrent_copying_collector_.store(active_cc_collector,
-                                                     std::memory_order_relaxed);
-          DCHECK(active_cc_collector->RegionSpace() == region_space_);
-          collector = active_cc_collector;
-        } else {
-          collector = active_concurrent_copying_collector_.load(std::memory_order_relaxed);
-        }
-        break;
-      default:
-        LOG(FATAL) << "Invalid collector type " << static_cast<size_t>(collector_type_);
-    }
-    // temp_space_ will be null for kCollectorTypeCMC.
-    if (temp_space_ != nullptr
-        && collector != active_concurrent_copying_collector_.load(std::memory_order_relaxed)) {
-      temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-      if (kIsDebugBuild) {
-        // Try to read each page of the memory map in case mprotect didn't work properly b/19894268.
-        temp_space_->GetMemMap()->TryReadable();
+    bool compacting_gc;
+    {
+      gc_complete_lock_->AssertNotHeld(self);
+      ScopedThreadStateChange tsc2(self, ThreadState::kWaitingForGcToComplete);
+      MutexLock mu(self, *gc_complete_lock_);
+      // Ensure there is only one GC at a time.
+      WaitForGcToCompleteLocked(gc_cause, self);
+      if (requested_gc_num != GC_NUM_ANY && !GCNumberLt(GetCurrentGcNum(), requested_gc_num)) {
+        // The appropriate GC was already triggered elsewhere.
+        return collector::kGcTypeNone;
       }
-      CHECK(temp_space_->IsEmpty());
+      compacting_gc = IsMovingGc(collector_type_);
+      // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
+      if (compacting_gc && disable_moving_gc_count_ != 0) {
+        LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
+        // Again count this as a GC.
+        gcs_completed_.fetch_add(1, std::memory_order_release);
+        return collector::kGcTypeNone;
+      }
+      if (gc_disabled_for_shutdown_) {
+        gcs_completed_.fetch_add(1, std::memory_order_release);
+        return collector::kGcTypeNone;
+      }
+      collector_type_running_ = collector_type_;
+      last_gc_cause_ = gc_cause;
     }
-  } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
-      current_allocator_ == kAllocatorTypeDlMalloc) {
-    collector = FindCollectorByGcType(gc_type);
-  } else {
-    LOG(FATAL) << "Invalid current allocator " << current_allocator_;
-  }
+    if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
+      ++runtime->GetStats()->gc_for_alloc_count;
+      ++self->GetStats()->gc_for_alloc_count;
+    }
+    const size_t bytes_allocated_before_gc = GetBytesAllocated();
 
-  CHECK(collector != nullptr)
-      << "Could not find garbage collector with collector_type="
-      << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
-  collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
-  IncrementFreedEver();
-  RequestTrim(self);
-  // Collect cleared references.
-  SelfDeletingTask* clear = reference_processor_->CollectClearedReferences(self);
-  // Grow the heap so that we know when to perform the next GC.
-  GrowForUtilization(collector, bytes_allocated_before_gc);
-  old_native_bytes_allocated_.store(GetNativeBytes());
-  LogGC(gc_cause, collector);
-  FinishGC(self, gc_type);
+    DCHECK_LT(gc_type, collector::kGcTypeMax);
+    DCHECK_NE(gc_type, collector::kGcTypeNone);
+
+    collector::GarbageCollector* collector = nullptr;
+    // TODO: Clean this up.
+    if (compacting_gc) {
+      DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
+             current_allocator_ == kAllocatorTypeTLAB ||
+             current_allocator_ == kAllocatorTypeRegion ||
+             current_allocator_ == kAllocatorTypeRegionTLAB);
+      switch (collector_type_) {
+        case kCollectorTypeSS:
+          semi_space_collector_->SetFromSpace(bump_pointer_space_);
+          semi_space_collector_->SetToSpace(temp_space_);
+          semi_space_collector_->SetSwapSemiSpaces(true);
+          collector = semi_space_collector_;
+          break;
+        case kCollectorTypeCMC:
+          collector = mark_compact_;
+          break;
+        case kCollectorTypeCC:
+          collector::ConcurrentCopying* active_cc_collector;
+          if (use_generational_cc_) {
+            // TODO: Other threads must do the flip checkpoint before they start poking at
+            // active_concurrent_copying_collector_. So we should not concurrency here.
+            active_cc_collector = (gc_type == collector::kGcTypeSticky) ?
+                                      young_concurrent_copying_collector_ :
+                                      concurrent_copying_collector_;
+            active_concurrent_copying_collector_.store(active_cc_collector,
+                                                       std::memory_order_relaxed);
+            DCHECK(active_cc_collector->RegionSpace() == region_space_);
+            collector = active_cc_collector;
+          } else {
+            collector = active_concurrent_copying_collector_.load(std::memory_order_relaxed);
+          }
+          break;
+        default:
+          LOG(FATAL) << "Invalid collector type " << static_cast<size_t>(collector_type_);
+      }
+      // temp_space_ will be null for kCollectorTypeCMC.
+      if (temp_space_ != nullptr &&
+          collector != active_concurrent_copying_collector_.load(std::memory_order_relaxed)) {
+        temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+        if (kIsDebugBuild) {
+          // Try to read each page of the memory map in case mprotect didn't work properly
+          // b/19894268.
+          temp_space_->GetMemMap()->TryReadable();
+        }
+        CHECK(temp_space_->IsEmpty());
+      }
+    } else if (current_allocator_ == kAllocatorTypeRosAlloc ||
+               current_allocator_ == kAllocatorTypeDlMalloc) {
+      collector = FindCollectorByGcType(gc_type);
+    } else {
+      LOG(FATAL) << "Invalid current allocator " << current_allocator_;
+    }
+
+    CHECK(collector != nullptr) << "Could not find garbage collector with collector_type="
+                                << static_cast<size_t>(collector_type_)
+                                << " and gc_type=" << gc_type;
+    collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
+    IncrementFreedEver();
+    RequestTrim(self);
+    // Collect cleared references.
+    clear = reference_processor_->CollectClearedReferences(self);
+    // Grow the heap so that we know when to perform the next GC.
+    GrowForUtilization(collector, bytes_allocated_before_gc);
+    old_native_bytes_allocated_.store(GetNativeBytes());
+    LogGC(gc_cause, collector);
+    FinishGC(self, gc_type);
+  }
   // Actually enqueue all cleared references. Do this after the GC has officially finished since
   // otherwise we can deadlock.
   clear->Run(self);
