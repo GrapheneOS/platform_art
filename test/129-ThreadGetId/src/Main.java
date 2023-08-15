@@ -20,42 +20,19 @@ import java.util.Map;
 public class Main implements Runnable {
     static final int NUMBER_OF_THREADS = 5;
     static final int TOTAL_OPERATIONS = 900;
-    static int[] progress = new int[NUMBER_OF_THREADS];
-    int index;
-
-    Main(int i) {
-        index = i;
-    }
 
     public static void main(String[] args) throws Exception {
         final Thread[] threads = new Thread[NUMBER_OF_THREADS];
-        Thread watchdog = new Thread() {
-            public void run() {
-                try {
-                    Thread.sleep(50_000);
-                    System.out.print("Watchdog timed out: ");
-                    for (int i = 0; i < NUMBER_OF_THREADS; ++i) {
-                        System.out.print(progress[i] + ", ");
-                    }
-                    System.out.println("");
-                    System.err.println("Watchdog thread timed out");
-                    System.exit(1);
-                } catch (InterruptedException e) {}
-            }
-        };
-        watchdog.start();
         for (int t = 0; t < threads.length; t++) {
-            threads[t] = new Thread(new Main(t));
+            threads[t] = new Thread(new Main());
             threads[t].start();
         }
         for (Thread t : threads) {
             t.join();
         }
-        System.out.println("All joined");
         // Do this test after the other part to leave some time for the heap task daemon to start
         // up.
         test_getStackTraces();
-        watchdog.interrupt();
         System.out.println("Finishing");
     }
 
@@ -110,10 +87,8 @@ public class Main implements Runnable {
     }
 
     public void run() {
-        for (int i = 1; i <= TOTAL_OPERATIONS; ++i) {
+        for (int i = 0; i < TOTAL_OPERATIONS; ++i) {
             test_getId();
-            progress[index] = i;
         }
-        System.out.println("Thread finished");
     }
 }
