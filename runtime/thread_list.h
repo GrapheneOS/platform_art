@@ -49,7 +49,11 @@ class ThreadList {
   static constexpr uint32_t kInvalidThreadId = 0;
   static constexpr uint32_t kMainThreadId = 1;
   static constexpr uint64_t kDefaultThreadSuspendTimeout =
-      kIsDebugBuild ? 50'000'000'000ull : 10'000'000'000ull;
+      kIsDebugBuild ? 2'000'000'000ull : 4'000'000'000ull;
+  // We fail more aggressively in debug builds to catch potential issues early.
+  // The number of times we may retry when we find ourselves in a suspend-unfriendly state.
+  static constexpr int kMaxSuspendRetries = kIsDebugBuild ? 500 : 5000;
+  static constexpr useconds_t kThreadSuspendSleepUs = 100;
 
   explicit ThreadList(uint64_t thread_suspend_timeout_ns);
   ~ThreadList();
@@ -70,7 +74,7 @@ class ThreadList {
   bool Resume(Thread* thread, SuspendReason reason = SuspendReason::kInternal)
       REQUIRES(!Locks::thread_suspend_count_lock_) WARN_UNUSED;
 
-  // Suspends all threads and gets exclusive access to the mutator lock.
+  // Suspends all other threads and gets exclusive access to the mutator lock.
   // If long_suspend is true, then other threads who try to suspend will never timeout.
   // long_suspend is currenly used for hprof since large heaps take a long time.
   void SuspendAll(const char* cause, bool long_suspend = false)
@@ -81,10 +85,7 @@ class ThreadList {
 
   // Suspend a thread using a peer, typically used by the debugger. Returns the thread on success,
   // else null. The peer is used to identify the thread to avoid races with the thread terminating.
-  // If the suspension times out then *timeout is set to true.
-  Thread* SuspendThreadByPeer(jobject peer,
-                              SuspendReason reason,
-                              bool* timed_out)
+  Thread* SuspendThreadByPeer(jobject peer, SuspendReason reason)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
@@ -92,8 +93,8 @@ class ThreadList {
   // Suspend a thread using its thread id, typically used by lock/monitor inflation. Returns the
   // thread on success else null. The thread id is used to identify the thread to avoid races with
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
-  // thread, that may be terminating. If the suspension times out then *timeout is set to true.
-  Thread* SuspendThreadByThreadId(uint32_t thread_id, SuspendReason reason, bool* timed_out)
+  // thread, that may be terminating.
+  Thread* SuspendThreadByThreadId(uint32_t thread_id, SuspendReason reason)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
@@ -113,10 +114,23 @@ class ThreadList {
   // Running threads are not suspended but run the checkpoint inside of the suspend check. The
   // return value includes already suspended threads for b/24191051. Runs or requests the
   // callback, if non-null, inside the thread_list_lock critical section after determining the
-  // runnable/suspended states of the threads. Does not wait for completion of the callbacks in
-  // running threads.
-  size_t RunCheckpoint(Closure* checkpoint_function, Closure* callback = nullptr)
+  // runnable/suspended states of the threads. Does not wait for completion of the checkpoint
+  // function in running threads. If the caller holds the mutator lock, then all instances of the
+  // checkpoint function are run with the mutator lock. If the caller does not hold the mutator
+  // lock (see mutator_gc_coord.md) then, since the checkpoint code may not acquire or release the
+  // mutator lock, the checkpoint will have no way to access Java data.
+  // TODO: Is it possible to just require the mutator lock here?
+  size_t RunCheckpoint(Closure* checkpoint_function,
+                       Closure* callback = nullptr,
+                       bool allow_lock_checking = true)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+
+  // Convenience version of the above to disable lock checking inside Run function. Hopefully this
+  // and the third parameter above will eventually disappear.
+  size_t RunCheckpointUnchecked(Closure* checkpoint_function, Closure* callback = nullptr)
+      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_) {
+    return RunCheckpoint(checkpoint_function, callback, false);
+  }
 
   // Run an empty checkpoint on threads. Wait until threads pass the next suspend point or are
   // suspended. This is used to ensure that the threads finish or aren't in the middle of an
@@ -126,12 +140,17 @@ class ThreadList {
   void RunEmptyCheckpoint()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
-  // Flip thread roots from from-space refs to to-space refs. Used by
-  // the concurrent moving collectors.
-  size_t FlipThreadRoots(Closure* thread_flip_visitor,
-                         Closure* flip_callback,
-                         gc::collector::GarbageCollector* collector,
-                         gc::GcPauseListener* pause_listener)
+  // Used to flip thread roots from from-space refs to to-space refs. Used only by the concurrent
+  // moving collectors during a GC, and hence cannot be called from multiple threads concurrently.
+  //
+  // Briefly suspends all threads to atomically install a checkpoint-like thread_flip_visitor
+  // function to be run on each thread. Run flip_callback while threads are suspended.
+  // Thread_flip_visitors are run by each thread before it becomes runnable, or by us. We do not
+  // return until all thread_flip_visitors have been run.
+  void FlipThreadRoots(Closure* thread_flip_visitor,
+                       Closure* flip_callback,
+                       gc::collector::GarbageCollector* collector,
+                       gc::GcPauseListener* pause_listener)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
@@ -186,12 +205,12 @@ class ThreadList {
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_,
                !Locks::mutator_lock_);
 
+  // Wait for suspend barrier to reach zero. Return false on timeout.
+  bool WaitForSuspendBarrier(AtomicInteger* barrier);
+
  private:
   uint32_t AllocThreadId(Thread* self);
   void ReleaseThreadId(Thread* self, uint32_t id) REQUIRES(!Locks::allocated_thread_ids_lock_);
-
-  size_t RunCheckpoint(Closure* checkpoint_function, bool includeSuspended)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   void DumpUnattachedThreads(std::ostream& os, bool dump_native_stack)
       REQUIRES(!Locks::thread_list_lock_);
@@ -199,13 +218,16 @@ class ThreadList {
   void SuspendAllDaemonThreadsForShutdown()
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
-  void SuspendAllInternal(Thread* self,
-                          Thread* ignore1,
-                          Thread* ignore2 = nullptr,
-                          SuspendReason reason = SuspendReason::kInternal)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+  void ResumeAllInternal(Thread* self)
+      REQUIRES(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_)
+          UNLOCK_FUNCTION(Locks::mutator_lock_);
 
-  void AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2 = nullptr)
+  void SuspendAllInternal(Thread* self, SuspendReason reason = SuspendReason::kInternal)
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_,
+               !Locks::mutator_lock_);
+
+  void AssertOtherThreadsAreSuspended(Thread* self)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   std::bitset<kMaxThreadId> allocated_ids_ GUARDED_BY(Locks::allocated_thread_ids_lock_);
@@ -213,7 +235,10 @@ class ThreadList {
   // The actual list of all threads.
   std::list<Thread*> list_ GUARDED_BY(Locks::thread_list_lock_);
 
-  // Ongoing suspend all requests, used to ensure threads added to list_ respect SuspendAll.
+  // Ongoing suspend all requests, used to ensure threads added to list_ respect SuspendAll, and
+  // to ensure that only one SuspendAll ot FlipThreadRoots call is active at a time.  The value is
+  // always either 0 or 1. Thread_suspend_count_lock must be held continuously while these two
+  // functions modify suspend counts of all other threads and modify suspend_all_count_ .
   int suspend_all_count_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   // Number of threads unregistering, ~ThreadList blocks until this hits 0.
@@ -221,7 +246,7 @@ class ThreadList {
 
   // Thread suspend time histogram. Only modified when all the threads are suspended, so guarding
   // by mutator lock ensures no thread can read when another thread is modifying it.
-  Histogram<uint64_t> suspend_all_historam_ GUARDED_BY(Locks::mutator_lock_);
+  Histogram<uint64_t> suspend_all_histogram_ GUARDED_BY(Locks::mutator_lock_);
 
   // Whether or not the current thread suspension is long.
   bool long_suspend_;
@@ -236,6 +261,9 @@ class ThreadList {
   std::unique_ptr<Barrier> empty_checkpoint_barrier_;
 
   friend class Thread;
+
+  friend class Mutex;
+  friend class BaseMutex;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
