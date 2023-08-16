@@ -88,6 +88,8 @@ class DisassemblerRiscv64::Printer {
   void Print32Atomic(uint32_t insn32);
   void Print32FpOp(uint32_t insn32);
   void Print32FpFma(uint32_t insn32);
+  void Print32Zicsr(uint32_t insn32);
+  void Print32Fence(uint32_t insn32);
 
   DisassemblerRiscv64* const disassembler_;
   std::ostream& os_;
@@ -507,7 +509,7 @@ void DisassemblerRiscv64::Printer::Print32FpOp(uint32_t insn32) {
   uint32_t funct7 = insn32 >> 25;
   const char* type = ((funct7 & 1u) != 0u) ? ".d" : ".s";
   if ((funct7 & 2u) != 0u) {
-    os_ << "<unknown32>";  // Note: This includes the "Q" extension (`(funct7 & 3) == 3`).
+    os_ << "<unknown32>";  // Note: This includes the "H" and "Q" extensions.
     return;
   }
   switch (funct7 >> 2) {
@@ -612,7 +614,7 @@ void DisassemblerRiscv64::Printer::Print32FpFma(uint32_t insn32) {
   DCHECK_EQ(insn32 & 0x73u, 0x43u);  // Note: Bits 0xc select the FMA opcode.
   uint32_t funct2 = (insn32 >> 25) & 3u;
   if (funct2 >= 2u) {
-    os_ << "<unknown32>";  // Note: This includes the "Q" extension (`funct2 == 3`).
+    os_ << "<unknown32>";  // Note: This includes the "H" and "Q" extensions.
     return;
   }
   static const char* const kOpcodes[] = { "fmadd", "fmsub", "fnmsub", "fnmadd" };
@@ -620,6 +622,82 @@ void DisassemblerRiscv64::Printer::Print32FpFma(uint32_t insn32) {
       << RoundingModeName(GetRoundingMode(insn32)) << " "
       << FRegName(GetRd(insn32)) << ", " << FRegName(GetRs1(insn32)) << ", "
       << FRegName(GetRs2(insn32)) << ", " << FRegName(GetRs3(insn32));
+}
+
+void DisassemblerRiscv64::Printer::Print32Zicsr(uint32_t insn32) {
+  DCHECK_EQ(insn32 & 0x7fu, 0x73u);
+  uint32_t funct3 = (insn32 >> 12) & 7u;
+  static const char* const kOpcodes[] = {
+      nullptr, "csrrw", "csrrs", "csrrc", nullptr, "csrrwi", "csrrsi", "csrrci"
+  };
+  const char* opcode = kOpcodes[funct3];
+  if (opcode == nullptr) {
+    os_ << "<unknown32>";
+    return;
+  }
+  uint32_t rd = GetRd(insn32);
+  uint32_t rs1_or_uimm = GetRs1(insn32);
+  uint32_t csr = insn32 >> 20;
+  // Print shorter macro instruction notation if available.
+  if (funct3 == /*CSRRW*/ 1u && rd == 0u && rs1_or_uimm == 0u && csr == 0xc00u) {
+    os_ << "unimp";
+    return;
+  } else if (funct3 == /*CSRRS*/ 2u && rs1_or_uimm == 0u) {
+    if (csr == 0xc00u) {
+      os_ << "rdcycle " << XRegName(rd);
+    } else if (csr == 0xc01u) {
+      os_ << "rdtime " << XRegName(rd);
+    } else if (csr == 0xc02u) {
+      os_ << "rdinstret " << XRegName(rd);
+    } else {
+      os_ << "csrr " << XRegName(rd) << ", " << csr;
+    }
+    return;
+  }
+
+  if (rd == 0u) {
+    static const char* const kAltOpcodes[] = {
+        nullptr, "csrw", "csrs", "csrc", nullptr, "csrwi", "csrsi", "csrci"
+    };
+    DCHECK(kAltOpcodes[funct3] != nullptr);
+    os_ << kAltOpcodes[funct3] << " " << csr << ", ";
+  } else {
+    os_ << opcode << " " << XRegName(rd) << ", " << csr << ", ";
+  }
+  if (funct3 >= /*CSRRWI/CSRRSI/CSRRCI*/ 4u) {
+    os_ << rs1_or_uimm;
+  } else {
+    os_ << XRegName(rs1_or_uimm);
+  }
+}
+
+void DisassemblerRiscv64::Printer::Print32Fence(uint32_t insn32) {
+  DCHECK_EQ(insn32 & 0x7fu, 0x0fu);
+  if ((insn32 & 0xf00fffffu) == 0x0000000fu) {
+    auto print_flags = [&](uint32_t flags) {
+      if (flags == 0u) {
+        os_ << "0";
+      } else {
+        DCHECK_LT(flags, 0x10u);
+        static const char kFlagNames[] = "wroi";
+        for (size_t bit : { 3u, 2u, 1u, 0u }) {  // Print in the "iorw" order.
+          if ((flags & (1u << bit)) != 0u) {
+            os_ << kFlagNames[bit];
+          }
+        }
+      }
+    };
+    os_ << "fence.";
+    print_flags((insn32 >> 24) & 0xfu);
+    os_ << ".";
+    print_flags((insn32 >> 20) & 0xfu);
+  } else if (insn32 == 0x8330000fu) {
+    os_ << "fence.tso";
+  } else if (insn32 == 0x0000100fu) {
+    os_ << "fence.i";
+  } else {
+    os_ << "<unknown32>";
+  }
 }
 
 void DisassemblerRiscv64::Printer::Dump32(const uint8_t* insn) {
@@ -683,6 +761,16 @@ void DisassemblerRiscv64::Printer::Dump32(const uint8_t* insn) {
     case 0x4bu:
     case 0x4fu:
       Print32FpFma(insn32);
+      break;
+    case 0x73u:
+      if ((insn32 & 0xffefffffu) == 0x00000073u) {
+        os_ << ((insn32 == 0x00000073u) ? "ecall" : "ebreak");
+      } else {
+        Print32Zicsr(insn32);
+      }
+      break;
+    case 0x0fu:
+      Print32Fence(insn32);
       break;
     default:
       // TODO(riscv64): Disassemble more instructions.
