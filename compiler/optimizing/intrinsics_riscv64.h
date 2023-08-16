@@ -48,14 +48,7 @@ class IntrinsicLocationsBuilderRISCV64 final : public IntrinsicVisitor {
   // Check whether an invoke is an intrinsic, and if so, create a location summary. Returns whether
   // a corresponding LocationSummary with the intrinsified_ flag set was generated and attached to
   // the invoke.
-  bool TryDispatch(HInvoke* invoke) {
-    // TODO(riscv64): Implement in `intrinsics_riscv64.cc`.
-    UNUSED(invoke);
-    // Avoid compiling failed with "not used"
-    UNUSED(codegen_);
-    UNUSED(allocator_);
-    return false;
-  }
+  bool TryDispatch(HInvoke* invoke);
 
  private:
   ArenaAllocator* const allocator_;
