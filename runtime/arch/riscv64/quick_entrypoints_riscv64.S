@@ -552,31 +552,68 @@ ENTRY art_quick_proxy_invoke_handler
 END art_quick_proxy_invoke_handler
 
 
+.macro N_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING n, c_name, cxx_name
+.extern \cxx_name
+ENTRY \c_name
+    SETUP_SAVE_EVERYTHING_FRAME       // save all registers as basis for long jump context.
+    mv    a\n, xSELF                  // pass Thread::Current.
+    call  \cxx_name                   // \cxx_name(args..., Thread*).
+    unimp
+END \c_name
+.endm
+
+
 .macro NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING c_name, cxx_name
+    N_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING 0, \c_name, \cxx_name
+.endm
+
+
+.macro TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING c_name, cxx_name
+    N_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING 2, \c_name, \cxx_name
+.endm
+
+
+.macro N_ARG_RUNTIME_EXCEPTION n, c_name, cxx_name
 .extern \cxx_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context.
-    mv  a0, xSELF                     // pass Thread::Current.
-    call \cxx_name                    // \cxx_name(arg, Thread*).
-    ebreak
+    mv    a\n, xSELF                  // pass Thread::Current.
+    call  \cxx_name                   // \cxx_name(args..., Thread*).
+    unimp
 END \c_name
+.endm
+
+.macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
+    N_ARG_RUNTIME_EXCEPTION 0, \c_name, \cxx_name
 .endm
 
 
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-.extern \cxx_name
-ENTRY \c_name
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context.
-    mv  a1, xSELF                     // pass Thread::Current.
-    call \cxx_name                    // \cxx_name(arg, Thread*).
-    ebreak
-END \c_name
+    N_ARG_RUNTIME_EXCEPTION 1, \c_name, \cxx_name
 .endm
+
+
+// Called by managed code to create and deliver a NullPointerException.
+NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING \
+        art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
 
 // Called by managed code to deliver an ArithmeticException.
 NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_div_zero, artThrowDivZeroFromCode
 
+
+// Called by managed code to create and deliver an ArrayIndexOutOfBoundsException.
+// Arg1 holds index, arg2 holds limit.
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
+
+
+// Called by managed code to create and deliver a StringIndexOutOfBoundsException
+// as if thrown from a call to String.charAt(). Arg1 holds index, arg2 holds limit.
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING \
+        art_quick_throw_string_bounds, artThrowStringBoundsFromCode
+
+// Called by managed code to create and deliver a StackOverflowError.
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
 
 // Called by managed code to deliver an exception.
 ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception, artDeliverExceptionFromCode
@@ -1057,9 +1094,5 @@ UNDEFINED art_quick_lock_object_no_inline
 UNDEFINED art_quick_lock_object
 UNDEFINED art_quick_unlock_object_no_inline
 UNDEFINED art_quick_unlock_object
-UNDEFINED art_quick_throw_array_bounds
-UNDEFINED art_quick_throw_null_pointer_exception
-UNDEFINED art_quick_throw_stack_overflow
-UNDEFINED art_quick_throw_string_bounds
 UNDEFINED art_quick_update_inline_cache
 UNDEFINED art_quick_indexof
