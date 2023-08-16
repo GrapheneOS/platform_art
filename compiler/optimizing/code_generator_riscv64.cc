@@ -2194,9 +2194,11 @@ void LocationsBuilderRISCV64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* i
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
-  // TODO(riscv64): Implement intrinsics later
-  UNUSED(invoke);
-  UNUSED(codegen);
+  if (invoke->GetLocations()->Intrinsified()) {
+    IntrinsicCodeGeneratorRISCV64 intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
+    return true;
+  }
   return false;
 }
 
