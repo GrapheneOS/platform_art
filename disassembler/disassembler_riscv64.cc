@@ -396,12 +396,12 @@ void DisassemblerRiscv64::Printer::Print32BinOpImm(uint32_t insn32) {
   } else {
     bool bad_high_bits = false;
     if (funct3 == /*SLLI*/ 1u || funct3 == /*SRLI/SRAI*/ 5u) {
+      imm &= (narrow ? 0x1fu : 0x3fu);
       uint32_t high_bits = insn32 & (narrow ? 0xfe000000u : 0xfc000000u);
       if (high_bits == 0x40000000u && funct3 == /*SRAI*/ 5u) {
         os_ << "srai";
       } else {
         os_ << ((funct3 == /*SRLI*/ 5u) ? "srli" : "slli");
-        imm &= (narrow ? 0x1fu : 0x3fu);
         bad_high_bits = (high_bits != 0u);
       }
     } else if (!narrow || funct3 == /*ADDI*/ 0u) {
