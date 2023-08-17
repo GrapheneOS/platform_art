@@ -18,7 +18,7 @@
 
 #include <limits>
 #include "android-base/thread_annotations.h"
-#if defined(__BIONIC__) || defined(__GLIBC__)
+#if defined(__BIONIC__) || defined(__GLIBC__) || defined(ANDROID_HOST_MUSL)
 #include <malloc.h>  // For mallinfo()
 #endif
 #include <memory>
@@ -2655,7 +2655,7 @@ void Heap::TraceHeapSize(size_t heap_size) {
 
 size_t Heap::GetNativeBytes() {
   size_t malloc_bytes;
-#if defined(__BIONIC__) || defined(__GLIBC__)
+#if defined(__BIONIC__) || defined(__GLIBC__) || defined(ANDROID_HOST_MUSL)
   IF_GLIBC(size_t mmapped_bytes;)
   struct mallinfo mi = mallinfo();
   // In spite of the documentation, the jemalloc version of this call seems to do what we want,
