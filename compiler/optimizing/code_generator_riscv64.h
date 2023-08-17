@@ -49,12 +49,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
 #define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) \
-  V(DoubleDoubleToRawLongBits)                  \
-  V(DoubleIsInfinite)                           \
-  V(DoubleLongBitsToDouble)                     \
-  V(FloatFloatToRawIntBits)                     \
-  V(FloatIsInfinite)                            \
-  V(FloatIntBitsToFloat)                        \
   V(IntegerReverse)                             \
   V(IntegerReverseBytes)                        \
   V(IntegerBitCount)                            \
