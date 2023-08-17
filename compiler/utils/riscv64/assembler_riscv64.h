@@ -72,6 +72,20 @@ enum FenceType {
   kFenceDefault = 0xf,
 };
 
+// Used to test the values returned by FClassS/FClassD.
+enum FPClassMaskType {
+  kNegativeInfinity  = 0x001,
+  kNegativeNormal    = 0x002,
+  kNegativeSubnormal = 0x004,
+  kNegativeZero      = 0x008,
+  kPositiveZero      = 0x010,
+  kPositiveSubnormal = 0x020,
+  kPositiveNormal    = 0x040,
+  kPositiveInfinity  = 0x080,
+  kSignalingNaN      = 0x100,
+  kQuietNaN          = 0x200,
+};
+
 class Riscv64Label : public Label {
  public:
   Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
