@@ -94,7 +94,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitDoubleIsInfinite(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
   XRegister out = locations->Out().AsRegister<XRegister>();
   __ FClassD(out, locations->InAt(0).AsFpuRegister<FRegister>());
-  __ Andi(out, out, /*+Infinity*/ 0x80 | /*-Inifinity*/ 0x01);
+  __ Andi(out, out, kPositiveInfinity | kNegativeInfinity);
   __ Snez(out, out);
 }
 
@@ -106,7 +106,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitFloatIsInfinite(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
   XRegister out = locations->Out().AsRegister<XRegister>();
   __ FClassS(out, locations->InAt(0).AsFpuRegister<FRegister>());
-  __ Andi(out, out, /*+Infinity*/ 0x80 | /*-Inifinity*/ 0x01);
+  __ Andi(out, out, kPositiveInfinity | kNegativeInfinity);
   __ Snez(out, out);
 }
 
