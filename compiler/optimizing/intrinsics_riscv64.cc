@@ -36,6 +36,80 @@ Riscv64Assembler* IntrinsicCodeGeneratorRISCV64::GetAssembler() {
 
 #define __ GetAssembler()->
 
+static void CreateFPToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void CreateIntToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresFpuRegister());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  __ FMvXD(locations->Out().AsRegister<XRegister>(), locations->InAt(0).AsFpuRegister<FRegister>());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
+  CreateIntToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitDoubleLongBitsToDouble(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  __ FMvDX(locations->Out().AsFpuRegister<FRegister>(), locations->InAt(0).AsRegister<XRegister>());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitFloatFloatToRawIntBits(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  __ FMvXW(locations->Out().AsRegister<XRegister>(), locations->InAt(0).AsFpuRegister<FRegister>());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitFloatIntBitsToFloat(HInvoke* invoke) {
+  CreateIntToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitFloatIntBitsToFloat(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  __ FMvWX(locations->Out().AsFpuRegister<FRegister>(), locations->InAt(0).AsRegister<XRegister>());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  __ FClassD(out, locations->InAt(0).AsFpuRegister<FRegister>());
+  __ Andi(out, out, /*+Infinity*/ 0x80 | /*-Inifinity*/ 0x01);
+  __ Snez(out, out);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitFloatIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitFloatIsInfinite(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  __ FClassS(out, locations->InAt(0).AsFpuRegister<FRegister>());
+  __ Andi(out, out, /*+Infinity*/ 0x80 | /*-Inifinity*/ 0x01);
+  __ Snez(out, out);
+}
+
 static void CreateIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
