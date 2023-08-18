@@ -1489,11 +1489,11 @@ bool HInstructionList::FoundBefore(const HInstruction* instruction1,
                                    const HInstruction* instruction2) const {
   DCHECK_EQ(instruction1->GetBlock(), instruction2->GetBlock());
   for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
-    if (it.Current() == instruction1) {
-      return true;
-    }
     if (it.Current() == instruction2) {
       return false;
+    }
+    if (it.Current() == instruction1) {
+      return true;
     }
   }
   LOG(FATAL) << "Did not find an order between two instructions of the same block.";
