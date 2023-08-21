@@ -147,7 +147,7 @@ class AssemblerTestBase : public testing::Test {
                 "--compile",
                 "-target",
                 "riscv64-linux-gnu",
-                "-march=rv64imafd",
+                "-march=rv64imafd_zba_zbb",
                 // Force the assembler to fully emit branch instructions instead of leaving
                 // offsets unresolved with relocation information for the linker.
                 "-mno-relax"};
@@ -174,7 +174,8 @@ class AssemblerTestBase : public testing::Test {
                 "--disassemble",
                 "--no-print-imm-hex",
                 "--no-show-raw-insn",
-                "--mattr=+F,+D,+A",  // Disassemble "F", "D" and "A" Standard Extensions.
+                // Disassemble Standard Extensions supported by the assembler.
+                "--mattr=+F,+D,+A,+Zba,+Zbb",
                 "-M",
                 "no-aliases"};
       default:
