@@ -856,9 +856,7 @@ class Dex2Oat final {
     // Set the compilation target's implicit checks options.
     switch (compiler_options_->GetInstructionSet()) {
       case InstructionSet::kArm64:
-        // Implicit suspend checks appear to expose some memory corruption issues.
-        // Disable implicit suspend checks while we investigate. b/291839153
-        compiler_options_->implicit_suspend_checks_ = false;
+        compiler_options_->implicit_suspend_checks_ = true;
         FALLTHROUGH_INTENDED;
       case InstructionSet::kArm:
       case InstructionSet::kThumb2:

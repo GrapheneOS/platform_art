@@ -1744,9 +1744,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Change the implicit checks flags based on runtime architecture.
   switch (kRuntimeISA) {
     case InstructionSet::kArm64:
-      // Implicit suspend checks appear to expose some memory corruption issues.
-      // Disable implicit suspend checks while we investigate. b/291839153
-      implicit_suspend_checks_ = false;
+      implicit_suspend_checks_ = true;
       FALLTHROUGH_INTENDED;
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:

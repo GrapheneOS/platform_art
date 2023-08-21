@@ -44,8 +44,8 @@ std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 class PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: Disable implicit suspend checks; b/291839153
-  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '3', '4', '\0'}};
+  // Last oat version changed reason: Re-enable implicit suspend checks; b/291839153
+  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '3', '6', '\0'}};
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
