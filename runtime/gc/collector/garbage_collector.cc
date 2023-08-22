@@ -87,24 +87,11 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
       pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true),
       is_transaction_active_(false),
       are_metrics_initialized_(false) {
-  ResetCumulativeStatistics();
+  ResetMeasurements();
 }
 
 void GarbageCollector::RegisterPause(uint64_t nano_length) {
   GetCurrentIteration()->pause_times_.push_back(nano_length);
-}
-
-void GarbageCollector::ResetCumulativeStatistics() {
-  cumulative_timings_.Reset();
-  total_thread_cpu_time_ns_ = 0u;
-  total_time_ns_ = 0u;
-  total_freed_objects_ = 0u;
-  total_freed_bytes_ = 0;
-  total_scanned_bytes_ = 0;
-  rss_histogram_.Reset();
-  freed_bytes_histogram_.Reset();
-  MutexLock mu(Thread::Current(), pause_histogram_lock_);
-  pause_histogram_.Reset();
 }
 
 uint64_t GarbageCollector::ExtractRssFromMincore(
