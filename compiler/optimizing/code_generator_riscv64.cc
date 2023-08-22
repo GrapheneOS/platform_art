@@ -459,6 +459,16 @@ inline void InstructionCodeGeneratorRISCV64::FSub(
   FpBinOp<FRegister, &Riscv64Assembler::FSubS, &Riscv64Assembler::FSubD>(rd, rs1, rs2, type);
 }
 
+inline void InstructionCodeGeneratorRISCV64::FMin(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FMinS, &Riscv64Assembler::FMinD>(rd, rs1, rs2, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FMax(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FMaxS, &Riscv64Assembler::FMaxD>(rd, rs1, rs2, type);
+}
+
 inline void InstructionCodeGeneratorRISCV64::FEq(
     XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
   FpBinOp<XRegister, &Riscv64Assembler::FEqS, &Riscv64Assembler::FEqD>(rd, rs1, rs2, type);
@@ -614,27 +624,6 @@ void InstructionCodeGeneratorRISCV64::GenerateSuspendCheck(HSuspendCheck* instru
     __ J(slow_path->GetEntryLabel());
     // slow_path will return to GetLabelOf(successor).
   }
-}
-
-void InstructionCodeGeneratorRISCV64::GenerateMinMaxInt(LocationSummary* locations, bool is_min) {
-  UNUSED(locations);
-  UNUSED(is_min);
-  LOG(FATAL) << "Unimplemented";
-}
-
-void InstructionCodeGeneratorRISCV64::GenerateMinMaxFP(LocationSummary* locations,
-                                                       bool is_min,
-                                                       DataType::Type type) {
-  UNUSED(locations);
-  UNUSED(is_min);
-  UNUSED(type);
-  LOG(FATAL) << "Unimplemented";
-}
-
-void InstructionCodeGeneratorRISCV64::GenerateMinMax(HBinaryOperation* instruction, bool is_min) {
-  UNUSED(instruction);
-  UNUSED(is_min);
-  LOG(FATAL) << "Unimplemented";
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateReferenceLoadOneRegister(
@@ -1158,7 +1147,9 @@ void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
       locations->SetInAt(0, Location::RequiresRegister());
       HInstruction* right = instruction->InputAt(1);
       bool can_use_imm = false;
-      if (right->IsConstant()) {
+      if (instruction->IsMin() || instruction->IsMax()) {
+        can_use_imm = IsZeroBitPattern(instruction);
+      } else if (right->IsConstant()) {
         int64_t imm = CodeGenerator::GetInt64ValueOf(right->AsConstant());
         can_use_imm = IsInt<12>(instruction->IsSub() ? -imm : imm);
       }
@@ -1217,8 +1208,7 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
         } else {
           __ Xor(rd, rs1, rs2);
         }
-      } else {
-        DCHECK(instruction->IsAdd() || instruction->IsSub());
+      } else if (instruction->IsAdd() || instruction->IsSub()) {
         if (type == DataType::Type::kInt32) {
           if (use_imm) {
             __ Addiw(rd, rs1, instruction->IsSub() ? -imm : imm);
@@ -1238,6 +1228,13 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
             __ Sub(rd, rs1, rs2);
           }
         }
+      } else if (instruction->IsMin()) {
+        DCHECK_IMPLIES(use_imm, imm == 0);
+        __ Min(rd, rs1, use_imm ? Zero : rs2);
+      } else {
+        DCHECK(instruction->IsMax());
+        DCHECK_IMPLIES(use_imm, imm == 0);
+        __ Max(rd, rs1, use_imm ? Zero : rs2);
       }
       break;
     }
@@ -1248,9 +1245,13 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
       FRegister rs2 = locations->InAt(1).AsFpuRegister<FRegister>();
       if (instruction->IsAdd()) {
         FAdd(rd, rs1, rs2, type);
-      } else {
-        DCHECK(instruction->IsSub());
+      } else if (instruction->IsSub()) {
         FSub(rd, rs1, rs2, type);
+      } else if (instruction->IsMin()) {
+        FMin(rd, rs1, rs2, type);
+      } else {
+        DCHECK(instruction->IsMax());
+        FMax(rd, rs1, rs2, type);
       }
       break;
     }
@@ -1388,11 +1389,8 @@ void InstructionCodeGeneratorRISCV64::HandleShift(HBinaryOperation* instruction)
           } else if (instruction->IsUShr()) {
             __ Srliw(rd, rs1, shamt);
           } else {
-            ScratchRegisterScope srs(GetAssembler());
-            XRegister tmp = srs.AllocateXRegister();
-            __ Srliw(tmp, rs1, shamt);
-            __ Slliw(rd, rs1, 32 - shamt);
-            __ Or(rd, rd, tmp);
+            DCHECK(instruction->IsRor());
+            __ Roriw(rd, rs1, shamt);
           }
         } else {
           if (instruction->IsShl()) {
@@ -1402,11 +1400,8 @@ void InstructionCodeGeneratorRISCV64::HandleShift(HBinaryOperation* instruction)
           } else if (instruction->IsUShr()) {
             __ Srli(rd, rs1, shamt);
           } else {
-            ScratchRegisterScope srs(GetAssembler());
-            XRegister tmp = srs.AllocateXRegister();
-            __ Srli(tmp, rs1, shamt);
-            __ Slli(rd, rs1, 64 - shamt);
-            __ Or(rd, rd, tmp);
+            DCHECK(instruction->IsRor());
+            __ Rori(rd, rs1, shamt);
           }
         }
       } else {
@@ -1419,13 +1414,8 @@ void InstructionCodeGeneratorRISCV64::HandleShift(HBinaryOperation* instruction)
           } else if (instruction->IsUShr()) {
             __ Srlw(rd, rs1, rs2);
           } else {
-            ScratchRegisterScope srs(GetAssembler());
-            XRegister tmp = srs.AllocateXRegister();
-            XRegister tmp2 = srs.AllocateXRegister();
-            __ Srlw(tmp, rs1, rs2);
-            __ Sub(tmp2, Zero, rs2);  // tmp2 = -rs; we can use this instead of `32 - rs`
-            __ Sllw(rd, rs1, tmp2);   // because only low 5 bits are used for SLLW.
-            __ Or(rd, rd, tmp);
+            DCHECK(instruction->IsRor());
+            __ Rorw(rd, rs1, rs2);
           }
         } else {
           if (instruction->IsShl()) {
@@ -1435,13 +1425,8 @@ void InstructionCodeGeneratorRISCV64::HandleShift(HBinaryOperation* instruction)
           } else if (instruction->IsUShr()) {
             __ Srl(rd, rs1, rs2);
           } else {
-            ScratchRegisterScope srs(GetAssembler());
-            XRegister tmp = srs.AllocateXRegister();
-            XRegister tmp2 = srs.AllocateXRegister();
-            __ Srl(tmp, rs1, rs2);
-            __ Sub(tmp2, Zero, rs2);  // tmp2 = -rs; we can use this instead of `64 - rs`
-            __ Sll(rd, rs1, tmp2);    // because only low 6 bits are used for SLL.
-            __ Or(rd, rd, tmp);
+            DCHECK(instruction->IsRor());
+            __ Ror(rd, rs1, rs2);
           }
         }
       }
@@ -2329,13 +2314,11 @@ void InstructionCodeGeneratorRISCV64::VisitLongConstant(
 }
 
 void LocationsBuilderRISCV64::VisitMax(HMax* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMax(HMax* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitMemoryBarrier(HMemoryBarrier* instruction) {
@@ -2369,13 +2352,11 @@ void InstructionCodeGeneratorRISCV64::VisitMethodExitHook(HMethodExitHook* instr
 }
 
 void LocationsBuilderRISCV64::VisitMin(HMin* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMin(HMin* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HandleBinaryOp(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitMonitorOperation(HMonitorOperation* instruction) {
