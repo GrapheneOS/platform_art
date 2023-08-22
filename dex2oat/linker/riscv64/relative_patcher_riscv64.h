@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef ART_DEX2OAT_LINKER_ARM_RELATIVE_PATCHER_THUMB2_H_
-#define ART_DEX2OAT_LINKER_ARM_RELATIVE_PATCHER_THUMB2_H_
+#ifndef ART_DEX2OAT_LINKER_RISCV64_RELATIVE_PATCHER_RISCV64_H_
+#define ART_DEX2OAT_LINKER_RISCV64_RELATIVE_PATCHER_RISCV64_H_
 
-#include "arch/arm/registers_arm.h"
 #include "base/array_ref.h"
-#include "linker/arm/relative_patcher_arm_base.h"
+#include "linker/relative_patcher.h"
 
 namespace art {
 
 namespace linker {
 
-class Thumb2RelativePatcher final : public ArmBaseRelativePatcher {
+class Riscv64RelativePatcher final : public RelativePatcher {
  public:
-  explicit Thumb2RelativePatcher(RelativePatcherThunkProvider* thunk_provider,
-                                 RelativePatcherTargetProvider* target_provider);
+  Riscv64RelativePatcher(RelativePatcherThunkProvider* thunk_provider,
+                         RelativePatcherTargetProvider* target_provider,
+                         const Riscv64InstructionSetFeatures* features);
 
+  uint32_t ReserveSpace(uint32_t offset,
+                        const CompiledMethod* compiled_method,
+                        MethodReference method_ref) override;
+  uint32_t ReserveSpaceEnd(uint32_t offset) override;
+  uint32_t WriteThunks(OutputStream* out, uint32_t offset) override;
   void PatchCall(std::vector<uint8_t>* code,
                  uint32_t literal_offset,
                  uint32_t patch_offset,
@@ -44,31 +49,21 @@ class Thumb2RelativePatcher final : public ArmBaseRelativePatcher {
   void PatchBakerReadBarrierBranch(std::vector<uint8_t>* code,
                                    const LinkerPatch& patch,
                                    uint32_t patch_offset) override;
-
- protected:
-  uint32_t MaxPositiveDisplacement(const ThunkKey& key) override;
-  uint32_t MaxNegativeDisplacement(const ThunkKey& key) override;
+  std::vector<debug::MethodDebugInfo> GenerateThunkDebugInfo(
+      uint32_t executable_offset) override;
 
  private:
-  static void PatchBl(std::vector<uint8_t>* code, uint32_t literal_offset, uint32_t displacement);
+  static uint32_t PatchAuipc(uint32_t auipc, int32_t offset);
 
-  static void SetInsn32(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
-  static uint32_t GetInsn32(ArrayRef<const uint8_t> code, uint32_t offset);
+  static void SetInsn(std::vector<uint8_t>* code, uint32_t offset, uint32_t value);
+  static uint32_t GetInsn(ArrayRef<const uint8_t> code, uint32_t offset);
+  template <typename Alloc>
+  uint32_t GetInsn(std::vector<uint8_t, Alloc>* code, uint32_t offset);
 
-  template <typename Vector>
-  static uint32_t GetInsn32(Vector* code, uint32_t offset);
-
-  static uint32_t GetInsn16(ArrayRef<const uint8_t> code, uint32_t offset);
-
-  template <typename Vector>
-  static uint32_t GetInsn16(Vector* code, uint32_t offset);
-
-  friend class Thumb2RelativePatcherTest;
-
-  DISALLOW_COPY_AND_ASSIGN(Thumb2RelativePatcher);
+  DISALLOW_COPY_AND_ASSIGN(Riscv64RelativePatcher);
 };
 
 }  // namespace linker
 }  // namespace art
 
-#endif  // ART_DEX2OAT_LINKER_ARM_RELATIVE_PATCHER_THUMB2_H_
+#endif  // ART_DEX2OAT_LINKER_RISCV64_RELATIVE_PATCHER_RISCV64_H_
