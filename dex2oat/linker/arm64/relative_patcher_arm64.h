@@ -22,10 +22,6 @@
 
 namespace art {
 
-namespace arm64 {
-class Arm64Assembler;
-}  // namespace arm64
-
 namespace linker {
 
 class Arm64RelativePatcher final : public ArmBaseRelativePatcher {

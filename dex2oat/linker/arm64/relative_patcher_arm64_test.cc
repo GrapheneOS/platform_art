@@ -82,7 +82,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   // CBNZ x17, +0. Bits 5-23 are a placeholder for target offset from PC in units of 4-bytes.
   static constexpr uint32_t kCbnzIP1Plus0Insn = 0xb5000011u;
 
-  void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
+  static void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
     CHECK_LE(pos, code->size());
     const uint8_t insn_code[] = {
         static_cast<uint8_t>(insn),
@@ -94,11 +94,11 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     code->insert(code->begin() + pos, insn_code, insn_code + sizeof(insn_code));
   }
 
-  void PushBackInsn(std::vector<uint8_t>* code, uint32_t insn) {
+  static void PushBackInsn(std::vector<uint8_t>* code, uint32_t insn) {
     InsertInsn(code, code->size(), insn);
   }
 
-  std::vector<uint8_t> RawCode(std::initializer_list<uint32_t> insns) {
+  static std::vector<uint8_t> RawCode(std::initializer_list<uint32_t> insns) {
     std::vector<uint8_t> raw_code;
     raw_code.reserve(insns.size() * 4u);
     for (uint32_t insn : insns) {
@@ -235,7 +235,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return false;
   }
 
-  std::vector<uint8_t> GenNops(size_t num_nops) {
+  static std::vector<uint8_t> GenNops(size_t num_nops) {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u);
     for (size_t i = 0; i != num_nops; ++i) {
@@ -244,7 +244,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return result;
   }
 
-  std::vector<uint8_t> GenNopsAndBl(size_t num_nops, uint32_t bl) {
+  static std::vector<uint8_t> GenNopsAndBl(size_t num_nops, uint32_t bl) {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u + 4u);
     for (size_t i = 0; i != num_nops; ++i) {
@@ -933,7 +933,7 @@ TEST_F(Arm64RelativePatcherTestDefault, StringReferenceAddX0X0) {
       [&](uint32_t adrp_offset, uint32_t string_offset) {
         Reset();
         /* ADD that uses the result register of "ADRP x0, addr" as both source and destination. */
-        uint32_t add = kSubXInsn | (100 << 10) | (0u << 5) | 0u;  /* ADD x0, x0, #100 */
+        uint32_t add = kAddXInsn | (100 << 10) | (0u << 5) | 0u;  /* ADD x0, x0, #100 */
         TestAdrpInsn2Add(add, adrp_offset, /*has_thunk=*/ false, string_offset);
       },
       { 0x12345678u, 0xffffc840 });
