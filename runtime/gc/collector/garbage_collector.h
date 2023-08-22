@@ -76,7 +76,6 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   const CumulativeLogger& GetCumulativeTimings() const {
     return cumulative_timings_;
   }
-  void ResetCumulativeStatistics() REQUIRES(!pause_histogram_lock_);
   // Swap the live and mark bitmaps of spaces that are active for the collector. For partial GC,
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
   void SwapBitmaps()
