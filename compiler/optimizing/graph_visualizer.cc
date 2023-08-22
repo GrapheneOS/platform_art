@@ -115,9 +115,7 @@ std::ostream& operator<<(std::ostream& os, const StringList& list) {
   }
 }
 
-// On target: load `libart-disassembler` only when required (to save on memory).
-// On host: `libart-disassembler` should be linked directly (either as a static or dynamic lib)
-#ifdef ART_TARGET
+#ifndef ART_STATIC_LIBART_COMPILER
 using create_disasm_prototype = Disassembler*(InstructionSet, DisassemblerOptions*);
 #endif
 
@@ -127,7 +125,7 @@ class HGraphVisualizerDisassembler {
                                const uint8_t* base_address,
                                const uint8_t* end_address)
       : instruction_set_(instruction_set), disassembler_(nullptr) {
-#ifdef ART_TARGET
+#ifndef ART_STATIC_LIBART_COMPILER
     constexpr const char* libart_disassembler_so_name =
         kIsDebugBuild ? "libartd-disassembler.so" : "libart-disassembler.so";
     libart_disassembler_handle_ = dlopen(libart_disassembler_so_name, RTLD_NOW);
@@ -161,7 +159,7 @@ class HGraphVisualizerDisassembler {
   ~HGraphVisualizerDisassembler() {
     // We need to call ~Disassembler() before we close the library.
     disassembler_.reset();
-#ifdef ART_TARGET
+#ifndef ART_STATIC_LIBART_COMPILER
     if (libart_disassembler_handle_ != nullptr) {
       dlclose(libart_disassembler_handle_);
     }
@@ -186,7 +184,7 @@ class HGraphVisualizerDisassembler {
   InstructionSet instruction_set_;
   std::unique_ptr<Disassembler> disassembler_;
 
-#ifdef ART_TARGET
+#ifndef ART_STATIC_LIBART_COMPILER
   void* libart_disassembler_handle_;
 #endif
 };
