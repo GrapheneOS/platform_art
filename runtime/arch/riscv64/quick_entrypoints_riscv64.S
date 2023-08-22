@@ -523,6 +523,72 @@ ENTRY art_quick_do_long_jump
 END art_quick_do_long_jump
 
 
+.macro DEOPT_OR_RETURN temp, is_ref = 0
+    lwu   \temp, THREAD_DEOPT_CHECK_REQUIRED_OFFSET(xSELF)
+    bnez  \temp, 2f
+    ret
+2:
+    SETUP_SAVE_EVERYTHING_FRAME
+    li    a2, \is_ref                 // pass if result is a reference
+    mv    a1, a0                      // pass the result
+    mv    a0, xSELF                   // pass Thread::Current
+    call  artDeoptimizeIfNeeded       // (Thread*, uintptr_t, bool)
+    RESTORE_SAVE_EVERYTHING_FRAME
+    ret
+.endm
+
+
+.macro RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+    bnez  a0, 1f
+    DEOPT_OR_RETURN a1
+1:
+    DELIVER_PENDING_EXCEPTION
+.endm
+
+
+// Entry from managed code that tries to lock the object in a fast path and
+// calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
+// A0 holds the possibly null object to lock.
+ENTRY art_quick_lock_object
+    LOCK_OBJECT_FAST_PATH a0, art_quick_lock_object_no_inline, /*can_be_null*/ 1
+END art_quick_lock_object
+
+
+// Entry from managed code that calls `artLockObjectFromCode()`, may block for GC.
+// A0 holds the possibly null object to lock.
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object_no_inline
+    // This is also the slow path for `art_quick_lock_object`.
+    SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case we block
+    mv    a1, xSELF                   // pass Thread::Current
+    call  artLockObjectFromCode       // (Object*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+END art_quick_lock_object_no_inline
+
+
+// Entry from managed code that tries to unlock the object in a fast path and calls
+// `artUnlockObjectFromCode()` for the difficult cases and delivers exception on failure.
+// A0 holds the possibly null object to unlock.
+ENTRY art_quick_unlock_object
+    UNLOCK_OBJECT_FAST_PATH a0, art_quick_unlock_object_no_inline, /*can_be_null*/ 1
+END art_quick_unlock_object
+
+
+// Entry from managed code that calls `artUnlockObjectFromCode()`
+// and delivers exception on failure.
+// A0 holds the possibly null object to unlock.
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object_no_inline
+    // This is also the slow path for `art_quick_unlock_object`.
+    SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case exception allocation triggers GC
+    mv    a1, xSELF                   // pass Thread::Current
+    call  artUnlockObjectFromCode     // (Object*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+END art_quick_unlock_object_no_inline
+
+
 // Called by managed code that is attempting to call a method on a proxy class. On entry a0 holds
 // the proxy method and a1 holds the receiver. The frame size of the invoked proxy method agrees
 // with kSaveRefsAndArgs frame.
@@ -1090,9 +1156,5 @@ UNDEFINED art_quick_get32_static
 UNDEFINED art_quick_get64_static
 UNDEFINED art_quick_get_obj_static
 UNDEFINED art_quick_aput_obj
-UNDEFINED art_quick_lock_object_no_inline
-UNDEFINED art_quick_lock_object
-UNDEFINED art_quick_unlock_object_no_inline
-UNDEFINED art_quick_unlock_object
 UNDEFINED art_quick_update_inline_cache
 UNDEFINED art_quick_indexof
