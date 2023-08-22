@@ -50,22 +50,9 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
 
 #define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) \
   V(IntegerReverse)                             \
-  V(IntegerReverseBytes)                        \
-  V(IntegerBitCount)                            \
   V(IntegerDivideUnsigned)                      \
-  V(IntegerHighestOneBit)                       \
-  V(IntegerLowestOneBit)                        \
-  V(IntegerNumberOfLeadingZeros)                \
-  V(IntegerNumberOfTrailingZeros)               \
   V(LongReverse)                                \
-  V(LongReverseBytes)                           \
-  V(LongBitCount)                               \
   V(LongDivideUnsigned)                         \
-  V(LongHighestOneBit)                          \
-  V(LongLowestOneBit)                           \
-  V(LongNumberOfLeadingZeros)                   \
-  V(LongNumberOfTrailingZeros)                  \
-  V(ShortReverseBytes)                          \
   V(MathFmaDouble)                              \
   V(MathFmaFloat)                               \
   V(MathCos)                                    \
