@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_EXPORT_JIT_CREATE_H_
-#define ART_COMPILER_EXPORT_JIT_CREATE_H_
+#include "common_runtime_test.h"
+#include "compiler_callbacks.h"
 
-#include "base/macros.h"
+namespace art {
 
-namespace art HIDDEN {
-namespace jit {
+class JitLoadTest : public CommonRuntimeTest {
+ protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) override {
+    callbacks_.reset();
+    CommonRuntimeTest::SetUpRuntimeOptions(options);
+    options->push_back(std::make_pair("-Xusejit:true", nullptr));
+  }
+};
 
-class JitCompilerInterface;
 
-// Used in `libart-runtime` to create `libart-compiler` JIT.
-JitCompilerInterface* jit_create();
+TEST_F(JitLoadTest, JitLoad) {
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  runtime_->Start();
+  ASSERT_NE(runtime_->GetJit(), nullptr);
+}
 
-}  // namespace jit
 }  // namespace art
-
-#endif  // ART_COMPILER_EXPORT_JIT_CREATE_H_
