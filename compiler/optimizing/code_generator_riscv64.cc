@@ -2420,13 +2420,51 @@ void InstructionCodeGeneratorRISCV64::VisitMul(HMul* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNeg(HNeg* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << instruction->GetResultType();
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitNeg(HNeg* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+      __ NegW(locations->Out().AsRegister<XRegister>(), locations->InAt(0).AsRegister<XRegister>());
+      break;
+
+    case DataType::Type::kInt64:
+      __ Neg(locations->Out().AsRegister<XRegister>(), locations->InAt(0).AsRegister<XRegister>());
+      break;
+
+    case DataType::Type::kFloat32:
+      __ FNegS(locations->Out().AsFpuRegister<FRegister>(),
+               locations->InAt(0).AsFpuRegister<FRegister>());
+      break;
+
+    case DataType::Type::kFloat64:
+      __ FNegD(locations->Out().AsFpuRegister<FRegister>(),
+               locations->InAt(0).AsFpuRegister<FRegister>());
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << instruction->GetResultType();
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitNewArray(HNewArray* instruction) {
