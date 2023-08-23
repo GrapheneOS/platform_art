@@ -2498,13 +2498,23 @@ void InstructionCodeGeneratorRISCV64::VisitNop(HNop* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNot(HNot* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitNot(HNot* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      __ Not(locations->Out().AsRegister<XRegister>(), locations->InAt(0).AsRegister<XRegister>());
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected type for not operation " << instruction->GetResultType();
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitNotEqual(HNotEqual* instruction) {
