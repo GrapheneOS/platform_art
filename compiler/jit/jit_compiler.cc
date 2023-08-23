@@ -17,6 +17,7 @@
 #include "jit_compiler.h"
 
 #include "android-base/stringprintf.h"
+
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
@@ -28,7 +29,6 @@
 #include "compiler.h"
 #include "debug/elf_debug_writer.h"
 #include "driver/compiler_options.h"
-#include "export/jit_create.h"
 #include "jit/debugger_interface.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
@@ -125,7 +125,7 @@ void JitCompiler::ParseCompilerOptions() {
   }
 }
 
-JitCompilerInterface* jit_create() {
+EXPORT extern "C" JitCompilerInterface* jit_load() {
   VLOG(jit) << "Create jit compiler";
   auto* const jit_compiler = JitCompiler::Create();
   CHECK(jit_compiler != nullptr);
