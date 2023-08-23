@@ -2488,13 +2488,11 @@ void InstructionCodeGeneratorRISCV64::VisitNewInstance(HNewInstance* instruction
 }
 
 void LocationsBuilderRISCV64::VisitNop(HNop* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  new (GetGraph()->GetAllocator()) LocationSummary(instruction);
 }
 
-void InstructionCodeGeneratorRISCV64::VisitNop(HNop* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void InstructionCodeGeneratorRISCV64::VisitNop([[maybe_unused]] HNop* instruction) {
+  // The environment recording already happened in CodeGenerator::Compile.
 }
 
 void LocationsBuilderRISCV64::VisitNot(HNot* instruction) {
