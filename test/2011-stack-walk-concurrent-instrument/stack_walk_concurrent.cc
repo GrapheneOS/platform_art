@@ -81,10 +81,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitAndInstrumentStack(JNIEnv*,
                                                                    jobject target) {
   while (!instrument_waiting) {
   }
-  bool timed_out = false;
   Thread* other = Runtime::Current()->GetThreadList()->SuspendThreadByPeer(
-      target, SuspendReason::kInternal, &timed_out);
-  CHECK(!timed_out);
+      target, SuspendReason::kInternal);
   CHECK(other != nullptr);
   ScopedSuspendAll ssa(__FUNCTION__);
   Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(other,
