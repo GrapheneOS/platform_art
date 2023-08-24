@@ -3817,10 +3817,18 @@ void Heap::ClampGrowthLimit() {
       malloc_space->ClampGrowthLimit();
     }
   }
+  if (large_object_space_ != nullptr) {
+    large_object_space_->ClampGrowthLimit(capacity_);
+  }
   if (collector_type_ == kCollectorTypeCC) {
     DCHECK(region_space_ != nullptr);
     // Twice the capacity as CC needs extra space for evacuating objects.
     region_space_->ClampGrowthLimit(2 * capacity_);
+  } else if (collector_type_ == kCollectorTypeCMC) {
+    DCHECK(gUseUserfaultfd);
+    DCHECK_NE(mark_compact_, nullptr);
+    DCHECK_NE(bump_pointer_space_, nullptr);
+    mark_compact_->ClampGrowthLimit(capacity_);
   }
   // This space isn't added for performance reasons.
   if (main_space_backup_.get() != nullptr) {
