@@ -23,6 +23,9 @@
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "linker/arm64/relative_patcher_arm64.h"
 #endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+#include "linker/riscv64/relative_patcher_riscv64.h"
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "linker/x86/relative_patcher_x86.h"
 #endif
@@ -117,6 +120,13 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
           new Arm64RelativePatcher(thunk_provider,
                                    target_provider,
                                    features->AsArm64InstructionSetFeatures()));
+#endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+    case InstructionSet::kRiscv64:
+      return std::unique_ptr<RelativePatcher>(
+          new Riscv64RelativePatcher(thunk_provider,
+                                     target_provider,
+                                     features->AsRiscv64InstructionSetFeatures()));
 #endif
     default:
       return std::unique_ptr<RelativePatcher>(new RelativePatcherNone);

@@ -55,6 +55,11 @@ art_cc_defaults {
                 "linker/arm64/relative_patcher_arm64.cc",
             ],
         },
+        riscv64: {
+            srcs: [
+                "linker/riscv64/relative_patcher_riscv64.cc",
+            ],
+        },
         x86: {
             srcs: [
                 "linker/x86/relative_patcher_x86.cc",
@@ -529,6 +534,11 @@ art_cc_defaults {
         arm64: {
             srcs: [
                 "linker/arm64/relative_patcher_arm64_test.cc",
+            ],
+        },
+        riscv64: {
+            srcs: [
+                "linker/riscv64/relative_patcher_riscv64_test.cc",
             ],
         },
         x86: {
