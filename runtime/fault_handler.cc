@@ -25,7 +25,6 @@
 #include "art_method-inl.h"
 #include "base/logging.h"  // For VLOG
 #include "base/membarrier.h"
-#include "base/safe_copy.h"
 #include "base/stl_util.h"
 #include "dex/dex_file_types.h"
 #include "gc/heap.h"
