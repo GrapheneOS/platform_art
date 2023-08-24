@@ -264,11 +264,10 @@ class JitCodeCache {
               ArrayRef<const uint8_t> code,           // Compiler output (source).
               ArrayRef<const uint8_t> reserved_data,  // Uninitialized destination.
               const std::vector<Handle<mirror::Object>>& roots,
-              ArrayRef<const uint8_t> stack_map,      // Compiler output (source).
+              ArrayRef<const uint8_t> stack_map,  // Compiler output (source).
               const std::vector<uint8_t>& debug_info,
               bool is_full_debug_info,
               CompilationKind compilation_kind,
-              bool has_should_deoptimize_flag,
               const ArenaSet<ArtMethod*>& cha_single_implementation_list)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jit_lock_);

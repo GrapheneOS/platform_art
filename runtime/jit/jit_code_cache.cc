@@ -663,7 +663,6 @@ bool JitCodeCache::Commit(Thread* self,
                           const std::vector<uint8_t>& debug_info,
                           bool is_full_debug_info,
                           CompilationKind compilation_kind,
-                          bool has_should_deoptimize_flag,
                           const ArenaSet<ArtMethod*>& cha_single_implementation_list) {
   DCHECK_IMPLIES(method->IsNative(), (compilation_kind != CompilationKind::kOsr));
 
@@ -681,8 +680,7 @@ bool JitCodeCache::Commit(Thread* self,
   // We need to make sure that there will be no jit-gcs going on and wait for any ongoing one to
   // finish.
   WaitForPotentialCollectionToCompleteRunnable(self);
-  const uint8_t* code_ptr = region->CommitCode(
-      reserved_code, code, stack_map_data, has_should_deoptimize_flag);
+  const uint8_t* code_ptr = region->CommitCode(reserved_code, code, stack_map_data);
   if (code_ptr == nullptr) {
     return false;
   }
