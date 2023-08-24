@@ -532,7 +532,7 @@ void DisassemblerRiscv64::Printer::Print32Atomic(uint32_t insn32) {
 }
 
 void DisassemblerRiscv64::Printer::Print32FpOp(uint32_t insn32) {
-  DCHECK_EQ(insn32 & 0x7fu, 0x4fu);
+  DCHECK_EQ(insn32 & 0x7fu, 0x53u);
   uint32_t rd = GetRd(insn32);
   uint32_t rs1 = GetRs1(insn32);
   uint32_t rs2 = GetRs2(insn32);  // Sometimes used to to differentiate opcodes.
