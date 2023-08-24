@@ -100,11 +100,7 @@ thread suspension mechanism, and then make them runnable again on release.
 
 Logically the mutator lock is held in shared/reader mode if ***either*** the
 underlying reader-writer lock is held in shared mode, ***or*** if a mutator is in
-runnable state. These two ways of holding the mutator mutex are ***not***
-equivalent: In particular, we rely on the garbage collector never actually
-entering a "runnable" state while active (see below). However, it often runs with
-the explicit mutator mutex in shared mode, thus blocking others from acquiring it
-in exclusive mode.
+runnable state.
 
 Suspension and checkpoint API
 -----------------------------
@@ -221,99 +217,13 @@ processing, after acquiring `reference_processor_lock_`.  This means that empty
 checkpoints do not preclude client threads from being in the middle of an
 operation that involves a weak reference access, while nonempty checkpoints do.
 
-**Suspending the GC**
-Under unusual conditions, the GC can run on any thread. This means that when
-thread *A* suspends thread *B* for some other reason, Thread *B* might be
-running the garbage collector and conceivably thus cause it to block.  This
-would be very deadlock prone. If Thread *A* allocates while Thread *B* is
-suspended in the GC, and the allocation requires the GC's help to complete, we
-deadlock.
 
-Thus we ensure that the GC, together with anything else that can block GCs,
-cannot be blocked for thread suspension requests. This is accomplished by
-ensuring that it always appears to be in a suspended thread state. Since we
-only check for suspend requests when entering the runnable state, suspend
-requests go unnoticed until the GC completes. It may physically acquire and
-release the actual `mutator_lock_` in either shared or exclusive mode.
-
-Thread Suspension Mechanics
----------------------------
-
-Thread suspension is initiated by a registered thread, except that, for testing
-purposes, `SuspendAll` may be invoked with `self == nullptr`.  We never suspend
-the initiating thread, explicitly exclusing it from `SuspendAll()`, and failing
-`SuspendThreadBy...()` requests to that effect.
-
-The suspend calls invoke `IncrementSuspendCount()` to increment the thread
-suspend count for each thread. That adds a "suspend barrier" (atomic counter) to
-the per-thread list of such counters to decrement. It normally sets the
-`kSuspendRequest` ("should enter safepoint handler") and `kActiveSuspendBarrier`
-("need to notify us when suspended") flags.
-
-After setting these two flags, we check whether the thread is suspended and
-`kSuspendRequest` is still set. Since the thread is already suspended, it cannot
-be expected to respond to "pass the suspend barrier" (decrement the atomic
-counter) in a timely fashion.  Hence we do so on its behalf. This decrements
-the "barrier" and removes it from the thread's list of barriers to decrement,
-and clears `kActiveSuspendBarrier`. `kSuspendRequest` remains to ensure the
-thread doesn't prematurely return to runnable state.
-
-If `SuspendAllInternal()` does not immediately see a suspended state, then it is up
-to the target thread to decrement the suspend barrier.
-`TransitionFromRunnableToSuspended()` calls
-`TransitionToSuspendedAndRunCheckpoints()`, which changes the thread state
-and returns. `TransitionFromRunnableToSuspended()` then calls
-`CheckActiveSuspendBarriers()` to check for the `kActiveSuspendBarrier` flag
-and decrement the suspend barrier if set.
-
-The `suspend_count_lock_` is not consistently held in the target thread
-during this process.  Thus correctness in resolving the race between a
-suspension-requesting thread and a target thread voluntarily suspending relies
-on first requesting suspension, and then checking whether the target is
-already suspended, The detailed correctness argument is given in a comment
-inside `SuspendAllInternal()`. This also ensures that the barrier cannot be
-decremented after the stack frame holding the barrier goes away.
-
-This relies on the fact that the two stores in the two threads to the state and
-kActiveSuspendBarrier flag are ordered with respect to the later loads. That's
-guaranteed, since they are all stored in a single `atomic<>`. Thus even relaxed
-accesses are OK.
-
-The actual suspend barrier representation still varies between `SuspendAll()`
-and `SuspendThreadBy...()`.  The former relies on the fact that only one such
-barrier can be in use at a time, while the latter maintains a linked list of
-active suspend barriers for each target thread, relying on the fact that each
-one can appear on the list of only one thread, and we can thus use list nodes
-allocated in the stack frames of requesting threads.
-
-**Avoiding suspension cycles**
-
-Any thread can issue a `SuspendThreadByPeer()`, `SuspendThreadByThreadId()` or
-`SuspendAll()` request. But if Thread A increments Thread B's suspend count
-while Thread B increments Thread A's suspend count, and they then both suspend
-during a subsequent thread transition, we're deadlocked.
-
-For single-thread suspension requests, we refuse to initiate
-a suspend request from a registered thread that is also being asked to suspend
-(i.e. the suspend count is nonzero).  Instead the requestor waits for that
-condition to change.  This means that we cannot create a cycle in which each
-thread has asked to suspend the next one, and thus no thread can progress.  The
-required atomicity of the requestor suspend count check with setting the suspend
-count of the target(s) target is ensured by holding `suspend_count_lock_`.
-
-For `SuspendAll()`, we enforce a requirement that at most one `SuspendAll()`
-request is running at one time. We also set the `kSuspensionImmune` thread flag
-to prevent a single thread suspension of a thread currently between
-`SuspendAll()` and `ResumeAll()` calls. Thus once a `SuspendAll()` call starts,
-it will complete before it can be affected by suspension requests from other
-threads.
-
-[^1]: In the most recent versions of ART, compiler-generated code loads through
-    the address at `tlsPtr_.suspend_trigger`. A thread suspension is requested
-    by setting this to null, triggering a `SIGSEGV`, causing that thread to
-    check for GC cooperation requests. The older mechanism instead sets an
-    appropriate `ThreadFlag` entry to request suspension or a checkpoint. Note
-    that the actual checkpoint function value is set, along with the flag, while
-    holding `suspend_count_lock_`. If the target thread notices that a
-    checkpoint is requested, it then acquires the `suspend_count_lock_` to read
-    the checkpoint function.
+[^1]: Some comments in the code refer to a not-yet-really-implemented scheme in
+which the compiler-generated code would load through the address at
+`tlsPtr_.suspend_trigger`. A thread suspension is requested by setting this to
+null, triggering a `SIGSEGV`, causing that thread to check for GC cooperation
+requests. The real mechanism instead sets an appropriate `ThreadFlag` entry to
+request suspension or a checkpoint. Note that the actual checkpoint function
+value is set, along with the flag, while holding `suspend_count_lock_`. If the
+target thread notices that a checkpoint is requested, it then acquires
+the `suspend_count_lock_` to read the checkpoint function.
