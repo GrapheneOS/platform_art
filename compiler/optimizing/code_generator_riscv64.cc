@@ -2360,13 +2360,21 @@ void InstructionCodeGeneratorRISCV64::VisitMin(HMin* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitMonitorOperation(HMonitorOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
+      instruction, LocationSummary::kCallOnMainOnly);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMonitorOperation(HMonitorOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->InvokeRuntime(instruction->IsEnter() ? kQuickLockObject : kQuickUnlockObject,
+                          instruction,
+                          instruction->GetDexPc());
+  if (instruction->IsEnter()) {
+    CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
+  } else {
+    CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitMul(HMul* instruction) {
