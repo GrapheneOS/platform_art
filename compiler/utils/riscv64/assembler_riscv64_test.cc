@@ -1001,13 +1001,18 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
                                                 fmt);
   }
 
+  template <typename InvalidAqRl>
   std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, AqRl),
-                           const std::string& fmt) {
+                           const std::string& fmt,
+                           InvalidAqRl&& invalid_aqrl) {
     CHECK(f != nullptr);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
         for (AqRl aqrl : kAqRls) {
+          if (invalid_aqrl(aqrl)) {
+            continue;
+          }
           (GetAssembler()->*f)(reg1, reg2, aqrl);
 
           std::string base = fmt;
@@ -1022,14 +1027,19 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
     return str;
   }
 
+  template <typename InvalidAqRl>
   std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, AqRl),
-                            const std::string& fmt) {
+                            const std::string& fmt,
+                            InvalidAqRl&& invalid_aqrl) {
     CHECK(f != nullptr);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
         for (XRegister reg3 : GetRegisters()) {
           for (AqRl aqrl : kAqRls) {
+            if (invalid_aqrl(aqrl)) {
+              continue;
+            }
             (GetAssembler()->*f)(reg1, reg2, reg3, aqrl);
 
             std::string base = fmt;
@@ -1044,6 +1054,11 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
       }
     }
     return str;
+  }
+
+  std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, AqRl),
+                            const std::string& fmt) {
+    return RepeatRRRAqRl(f, fmt, [](AqRl) { return false; });
   }
 
   std::string RepeatCsrrX(void (Riscv64Assembler::*f)(XRegister, uint32_t, XRegister),
@@ -1538,19 +1553,29 @@ TEST_F(AssemblerRISCV64Test, Remuw) {
 }
 
 TEST_F(AssemblerRISCV64Test, LrW) {
-  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrW, "lr.w{aqrl} {reg1}, ({reg2})"), "LrW");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kRelease; };
+  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrW, "lr.w{aqrl} {reg1}, ({reg2})", invalid_aqrl),
+            "LrW");
 }
 
 TEST_F(AssemblerRISCV64Test, LrD) {
-  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrD, "lr.d{aqrl} {reg1}, ({reg2})"), "LrD");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kRelease; };
+  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrD, "lr.d{aqrl} {reg1}, ({reg2})", invalid_aqrl),
+            "LrD");
 }
 
 TEST_F(AssemblerRISCV64Test, ScW) {
-  DriverStr(RepeatRRRAqRl(&Riscv64Assembler::ScW, "sc.w{aqrl} {reg1}, {reg2}, ({reg3})"), "ScW");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kAcquire; };
+  DriverStr(
+      RepeatRRRAqRl(&Riscv64Assembler::ScW, "sc.w{aqrl} {reg1}, {reg2}, ({reg3})", invalid_aqrl),
+      "ScW");
 }
 
 TEST_F(AssemblerRISCV64Test, ScD) {
-  DriverStr(RepeatRRRAqRl(&Riscv64Assembler::ScD, "sc.d{aqrl} {reg1}, {reg2}, ({reg3})"), "ScD");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kAcquire; };
+  DriverStr(
+      RepeatRRRAqRl(&Riscv64Assembler::ScD, "sc.d{aqrl} {reg1}, {reg2}, ({reg3})", invalid_aqrl),
+      "ScD");
 }
 
 TEST_F(AssemblerRISCV64Test, AmoSwapW) {
