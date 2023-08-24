@@ -33,12 +33,12 @@ Bitmap* Bitmap::CreateFromMemMap(MemMap&& mem_map, size_t num_bits) {
   return new Bitmap(std::move(mem_map), num_bits);
 }
 
-Bitmap::Bitmap(MemMap&& mem_map, size_t bitmap_size)
+Bitmap::Bitmap(MemMap&& mem_map, size_t num_bits)
     : mem_map_(std::move(mem_map)),
       bitmap_begin_(reinterpret_cast<uintptr_t*>(mem_map_.Begin())),
-      bitmap_size_(bitmap_size) {
+      bitmap_numbits_(num_bits) {
   CHECK(bitmap_begin_ != nullptr);
-  CHECK_NE(bitmap_size, 0U);
+  CHECK_NE(num_bits, 0U);
 }
 
 Bitmap::~Bitmap() {

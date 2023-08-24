@@ -19,10 +19,12 @@
 
 #include <limits.h>
 #include <stdint.h>
+
 #include <memory>
 #include <set>
 #include <vector>
 
+#include "base/bit_utils.h"
 #include "base/locks.h"
 #include "base/mem_map.h"
 #include "runtime_globals.h"
@@ -86,9 +88,7 @@ class Bitmap {
   }
 
   // Size of our bitmap in bits.
-  size_t BitmapSize() const {
-    return bitmap_size_;
-  }
+  size_t BitmapSize() const { return bitmap_numbits_; }
 
   // Check that a bit index is valid with a DCHECK.
   ALWAYS_INLINE void CheckValidBitIndex(size_t bit_index) const {
@@ -118,7 +118,7 @@ class Bitmap {
   uintptr_t* const bitmap_begin_;
 
   // Number of bits in the bitmap.
-  const size_t bitmap_size_;
+  size_t bitmap_numbits_;
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Bitmap);
@@ -132,6 +132,14 @@ class MemoryRangeBitmap : public Bitmap {
       const std::string& name, uintptr_t cover_begin, uintptr_t cover_end);
   static MemoryRangeBitmap* CreateFromMemMap(
       MemMap&& mem_map, uintptr_t cover_begin, size_t num_bits);
+
+  void SetBitmapSize(size_t bytes) {
+    CHECK_ALIGNED(bytes, kAlignment);
+    bitmap_numbits_ = bytes / kAlignment;
+    size_t rounded_size =
+        RoundUp(bitmap_numbits_, kBitsPerBitmapWord) / kBitsPerBitmapWord * sizeof(uintptr_t);
+    mem_map_.SetSize(rounded_size);
+  }
 
   // Beginning of the memory range that the bitmap covers.
   ALWAYS_INLINE uintptr_t CoverBegin() const {
