@@ -390,6 +390,27 @@ FreeListSpace::FreeListSpace(const std::string& name,
   allocation_info_ = reinterpret_cast<AllocationInfo*>(allocation_info_map_.Begin());
 }
 
+void FreeListSpace::ClampGrowthLimit(size_t new_capacity) {
+  MutexLock mu(Thread::Current(), lock_);
+  new_capacity = RoundUp(new_capacity, kAlignment);
+  CHECK_LE(new_capacity, Size());
+  size_t diff = Size() - new_capacity;
+  // If we don't have enough free-bytes at the end to clamp, then do the best
+  // that we can.
+  if (diff > free_end_) {
+    new_capacity = Size() - free_end_;
+    diff = free_end_;
+  }
+
+  size_t alloc_info_size = sizeof(AllocationInfo) * (new_capacity / kAlignment);
+  allocation_info_map_.SetSize(alloc_info_size);
+  mem_map_.SetSize(new_capacity);
+  // We don't need to change anything in 'free_blocks_' as the free block at
+  // the end of the space isn't in there.
+  free_end_ -= diff;
+  end_ -= diff;
+}
+
 FreeListSpace::~FreeListSpace() {}
 
 void FreeListSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {

@@ -49,7 +49,7 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
   };
 
   {
-    MutexLock mu(Thread::Current(), block_lock_);
+    MutexLock mu(Thread::Current(), lock_);
     // If we have 0 blocks then we need to update the main header since we have bump pointer style
     // allocation into an unbounded region (actually bounded by Capacity()).
     if (block_sizes_.empty()) {
