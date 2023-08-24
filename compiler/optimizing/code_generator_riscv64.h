@@ -497,7 +497,11 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   void Bind(HBasicBlock* block) override;
 
-  size_t GetWordSize() const override { return kRiscv64WordSize; }
+  size_t GetWordSize() const override {
+    // The "word" for the compiler is the core register size (64-bit for riscv64) while the
+    // riscv64 assembler uses "word" for 32-bit values and "double word" for 64-bit values.
+    return kRiscv64DoublewordSize;
+  }
 
   bool SupportsPredicatedSIMD() const override {
     // TODO(riscv64): Check the vector extension.
