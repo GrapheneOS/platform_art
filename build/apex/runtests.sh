@@ -166,11 +166,6 @@ if [ ${#apex_modules[@]} -eq 0 ]; then
     "com.android.art.debug"
     "com.android.art.testing"
   )
-  if [[ "$HOST_PREFER_32_BIT" = true ]]; then
-    say "Skipping com.android.art.host, as \`HOST_PREFER_32_BIT\` equals \`true\`"
-  else
-    apex_modules+=("com.android.art.host")
-  fi
 fi
 
 # Build the APEX packages (optional).
