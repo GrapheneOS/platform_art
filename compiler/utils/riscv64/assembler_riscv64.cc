@@ -390,18 +390,22 @@ void Riscv64Assembler::Remuw(XRegister rd, XRegister rs1, XRegister rs2) {
 /////////////////////////////// RV64 "A" Instructions  START ///////////////////////////////
 
 void Riscv64Assembler::LrW(XRegister rd, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kRelease);
   EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x2, rd, 0x2f);
 }
 
 void Riscv64Assembler::LrD(XRegister rd, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kRelease);
   EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x3, rd, 0x2f);
 }
 
 void Riscv64Assembler::ScW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kAcquire);
   EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
 void Riscv64Assembler::ScD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kAcquire);
   EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
