@@ -24,7 +24,6 @@
 #include "base/hex_dump.h"
 #include "base/logging.h"  // For VLOG.
 #include "base/macros.h"
-#include "base/safe_copy.h"
 #include "oat_quick_method_header.h"
 #include "runtime_globals.h"
 #include "thread-current-inl.h"
