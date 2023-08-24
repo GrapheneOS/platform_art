@@ -141,7 +141,7 @@ $verbose && adb logcat -p
 
 msginfo "Kill stalled dalvikvm processes"
 # 'ps' on M can sometimes hang.
-timeout 2s adb shell "ps" >/dev/null
+timeout 5s adb shell "ps" >/dev/null
 if [[ $? == 124 ]] && [[ "$ART_TEST_RUN_ON_ARM_FVP" != true ]]; then
   msginfo "Rebooting device to fix 'ps'"
   adb reboot
