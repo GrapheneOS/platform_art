@@ -409,7 +409,6 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib/libadbconnection.so \
   lib/libandroidio.so \
   lib/libartbase.so \
-  lib/libart-compiler.so \
   lib/libart-dexlayout.so \
   lib/libart-disassembler.so \
   lib/libartpalette.so \
@@ -437,7 +436,6 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib64/libadbconnection.so \
   lib64/libandroidio.so \
   lib64/libartbase.so \
-  lib64/libart-compiler.so \
   lib64/libart-dexlayout.so \
   lib64/libart-disassembler.so \
   lib64/libartpalette.so \
