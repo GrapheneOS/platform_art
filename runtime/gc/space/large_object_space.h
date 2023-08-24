@@ -115,6 +115,8 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   // GetRangeAtomic returns Begin() and End() atomically, that is, it never returns Begin() and
   // End() from different allocations.
   virtual std::pair<uint8_t*, uint8_t*> GetBeginEndAtomic() const = 0;
+  // Clamp the space size to the given capacity.
+  virtual void ClampGrowthLimit(size_t capacity) = 0;
 
  protected:
   explicit LargeObjectSpace(const std::string& name, uint8_t* begin, uint8_t* end,
@@ -164,6 +166,7 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   bool Contains(const mirror::Object* obj) const override NO_THREAD_SAFETY_ANALYSIS;
   void ForEachMemMap(std::function<void(const MemMap&)> func) const override REQUIRES(!lock_);
   std::pair<uint8_t*, uint8_t*> GetBeginEndAtomic() const override REQUIRES(!lock_);
+  void ClampGrowthLimit(size_t capacity ATTRIBUTE_UNUSED) override {}
 
  protected:
   struct LargeObject {
@@ -199,6 +202,7 @@ class FreeListSpace final : public LargeObjectSpace {
   void Dump(std::ostream& os) const override REQUIRES(!lock_);
   void ForEachMemMap(std::function<void(const MemMap&)> func) const override REQUIRES(!lock_);
   std::pair<uint8_t*, uint8_t*> GetBeginEndAtomic() const override REQUIRES(!lock_);
+  void ClampGrowthLimit(size_t capacity) override REQUIRES(!lock_);
 
  protected:
   FreeListSpace(const std::string& name, MemMap&& mem_map, uint8_t* begin, uint8_t* end);
