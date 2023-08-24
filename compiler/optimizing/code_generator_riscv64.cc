@@ -28,6 +28,7 @@
 #include "intrinsics_list.h"
 #include "intrinsics_riscv64.h"
 #include "jit/profiling_info.h"
+#include "linker/linker_patch.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
 #include "stack_map_stream.h"
@@ -3972,7 +3973,7 @@ Literal* CodeGeneratorRISCV64::DeduplicateBootImageAddressLiteral(uint64_t addre
 
 void CodeGeneratorRISCV64::EmitPcRelativeAuipcPlaceholder(PcRelativePatchInfo* info_high,
                                                           XRegister out) {
-  DCHECK(info_high->patch_info_high == nullptr);
+  DCHECK(info_high->pc_insn_label == &info_high->label);
   __ Bind(&info_high->label);
   __ Auipc(out, /*imm20=*/ 0x12345);  // Placeholder `imm20` patched at link time.
 }
@@ -3980,7 +3981,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeAuipcPlaceholder(PcRelativePatchInfo* i
 void CodeGeneratorRISCV64::EmitPcRelativeAddiPlaceholder(PcRelativePatchInfo* info_low,
                                                          XRegister rd,
                                                          XRegister rs1) {
-  DCHECK(info_low->patch_info_high != nullptr);
+  DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
   __ Addi(rd, rs1, /*imm12=*/ 0x678);  // Placeholder `imm12` patched at link time.
 }
@@ -3988,7 +3989,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeAddiPlaceholder(PcRelativePatchInfo* in
 void CodeGeneratorRISCV64::EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* info_low,
                                                         XRegister rd,
                                                         XRegister rs1) {
-  DCHECK(info_low->patch_info_high != nullptr);
+  DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
   __ Lwu(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
 }
@@ -3996,9 +3997,78 @@ void CodeGeneratorRISCV64::EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* inf
 void CodeGeneratorRISCV64::EmitPcRelativeLdPlaceholder(PcRelativePatchInfo* info_low,
                                                        XRegister rd,
                                                        XRegister rs1) {
-  DCHECK(info_low->patch_info_high != nullptr);
+  DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
   __ Ld(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
+}
+
+template <linker::LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
+inline void CodeGeneratorRISCV64::EmitPcRelativeLinkerPatches(
+    const ArenaDeque<PcRelativePatchInfo>& infos,
+    ArenaVector<linker::LinkerPatch>* linker_patches) {
+  for (const PcRelativePatchInfo& info : infos) {
+    linker_patches->push_back(Factory(__ GetLabelLocation(&info.label),
+                                      info.target_dex_file,
+                                      __ GetLabelLocation(info.pc_insn_label),
+                                      info.offset_or_index));
+  }
+}
+
+template <linker::LinkerPatch (*Factory)(size_t, uint32_t, uint32_t)>
+linker::LinkerPatch NoDexFileAdapter(size_t literal_offset,
+                                     const DexFile* target_dex_file,
+                                     uint32_t pc_insn_offset,
+                                     uint32_t boot_image_offset) {
+  DCHECK(target_dex_file == nullptr);  // Unused for these patches, should be null.
+  return Factory(literal_offset, pc_insn_offset, boot_image_offset);
+}
+
+void CodeGeneratorRISCV64::EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* linker_patches) {
+  DCHECK(linker_patches->empty());
+  size_t size =
+      boot_image_method_patches_.size() +
+      method_bss_entry_patches_.size() +
+      boot_image_type_patches_.size() +
+      type_bss_entry_patches_.size() +
+      public_type_bss_entry_patches_.size() +
+      package_type_bss_entry_patches_.size() +
+      boot_image_string_patches_.size() +
+      string_bss_entry_patches_.size() +
+      boot_image_jni_entrypoint_patches_.size() +
+      boot_image_other_patches_.size();
+  linker_patches->reserve(size);
+  if (GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension()) {
+    EmitPcRelativeLinkerPatches<linker::LinkerPatch::RelativeMethodPatch>(
+        boot_image_method_patches_, linker_patches);
+    EmitPcRelativeLinkerPatches<linker::LinkerPatch::RelativeTypePatch>(
+        boot_image_type_patches_, linker_patches);
+    EmitPcRelativeLinkerPatches<linker::LinkerPatch::RelativeStringPatch>(
+        boot_image_string_patches_, linker_patches);
+  } else {
+    DCHECK(boot_image_method_patches_.empty());
+    DCHECK(boot_image_type_patches_.empty());
+    DCHECK(boot_image_string_patches_.empty());
+  }
+  if (GetCompilerOptions().IsBootImage()) {
+    EmitPcRelativeLinkerPatches<NoDexFileAdapter<linker::LinkerPatch::IntrinsicReferencePatch>>(
+        boot_image_other_patches_, linker_patches);
+  } else {
+    EmitPcRelativeLinkerPatches<NoDexFileAdapter<linker::LinkerPatch::DataBimgRelRoPatch>>(
+        boot_image_other_patches_, linker_patches);
+  }
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::MethodBssEntryPatch>(
+      method_bss_entry_patches_, linker_patches);
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::TypeBssEntryPatch>(
+      type_bss_entry_patches_, linker_patches);
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::PublicTypeBssEntryPatch>(
+      public_type_bss_entry_patches_, linker_patches);
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::PackageTypeBssEntryPatch>(
+      package_type_bss_entry_patches_, linker_patches);
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::StringBssEntryPatch>(
+      string_bss_entry_patches_, linker_patches);
+  EmitPcRelativeLinkerPatches<linker::LinkerPatch::RelativeJniEntrypointPatch>(
+      boot_image_jni_entrypoint_patches_, linker_patches);
+  DCHECK_EQ(size, linker_patches->size());
 }
 
 void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke) {
