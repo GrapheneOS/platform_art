@@ -181,10 +181,12 @@ class SpaceBitmap {
   }
 
   void SetHeapSize(size_t bytes) {
-    // TODO: Un-map the end of the mem map.
     heap_limit_ = heap_begin_ + bytes;
-    bitmap_size_ = OffsetToIndex(bytes) * sizeof(intptr_t);
+    bitmap_size_ = ComputeBitmapSize(bytes);
     CHECK_EQ(HeapSize(), bytes);
+    if (mem_map_.IsValid()) {
+      mem_map_.SetSize(bitmap_size_);
+    }
   }
 
   uintptr_t HeapBegin() const {
