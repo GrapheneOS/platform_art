@@ -4871,8 +4871,7 @@ class HInvokePolymorphic final : public HInvoke {
                      // to pass intrinsic information to the HInvokePolymorphic node.
                      ArtMethod* resolved_method,
                      MethodReference resolved_method_reference,
-                     dex::ProtoIndex proto_idx,
-                     bool enable_intrinsic_opt)
+                     dex::ProtoIndex proto_idx)
       : HInvoke(kInvokePolymorphic,
                 allocator,
                 number_of_arguments,
@@ -4883,9 +4882,8 @@ class HInvokePolymorphic final : public HInvoke {
                 resolved_method,
                 resolved_method_reference,
                 kPolymorphic,
-                enable_intrinsic_opt),
-        proto_idx_(proto_idx) {
-  }
+                /* enable_intrinsic_opt= */ true),
+        proto_idx_(proto_idx) {}
 
   bool IsClonable() const override { return true; }
 
