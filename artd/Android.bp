@@ -27,11 +27,18 @@ cc_defaults {
     defaults: ["art_defaults"],
     srcs: [
         "artd.cc",
+        "file_utils.cc",
+        "path_utils.cc",
+    ],
+    header_libs: [
+        "art_cmdlineparser_headers",
+        "profman_headers",
     ],
     shared_libs: [
         "libarttools", // Contains "libc++fs".
         "libbase",
         "libbinder_ndk",
+        "libselinux",
     ],
     static_libs: [
         "artd-aidl-ndk",
@@ -45,6 +52,7 @@ art_cc_binary {
         "artd_main.cc",
     ],
     shared_libs: [
+        "libart",
         "libartbase",
     ],
     apex_available: [
@@ -56,8 +64,17 @@ art_cc_binary {
 art_cc_defaults {
     name: "art_artd_tests_defaults",
     defaults: ["artd_defaults"],
+    static_libs: [
+        "libgmock",
+    ],
     srcs: [
         "artd_test.cc",
+        "file_utils_test.cc",
+        "path_utils_test.cc",
+    ],
+    data: [
+        ":art-gtest-jars-Main",
+        ":art-gtest-jars-Nested",
     ],
 }
 
@@ -83,4 +100,5 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_artd_tests_defaults",
     ],
+    test_config_template: "art_standalone_artd_tests.xml",
 }

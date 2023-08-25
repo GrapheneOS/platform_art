@@ -58,6 +58,9 @@ art_cc_library {
         "libbase_headers",
         "jni_headers",
     ],
+    export_header_lib_headers: [
+        "jni_headers",
+    ],
     target: {
         // Targets supporting dlopen build the client library which loads
         // and binds the methods in the libartpalette-system library.

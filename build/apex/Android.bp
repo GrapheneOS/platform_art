@@ -250,6 +250,7 @@ apex_defaults {
     ],
     binaries: [
         "art_boot",
+        "art_exec",
         "artd",
     ],
     multilib: {

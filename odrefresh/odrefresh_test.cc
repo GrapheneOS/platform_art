@@ -33,6 +33,7 @@
 #include "arch/instruction_set.h"
 #include "base/common_art_test.h"
 #include "base/file_utils.h"
+#include "base/macros.h"
 #include "base/stl_util.h"
 #include "exec_utils.h"
 #include "gmock/gmock.h"
