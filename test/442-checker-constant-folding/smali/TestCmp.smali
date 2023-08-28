@@ -468,3 +468,45 @@
     sub-int v2, v0, v1
     goto :goto_6
 .end method
+
+## CHECK-START: int TestCmp.And0(int) constant_folding (before)
+## CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+## CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+## CHECK-DAG:     <<And:i\d+>>      And [<<Arg>>,<<Const0>>]
+## CHECK-DAG:                       Return [<<And>>]
+
+## CHECK-START: int TestCmp.And0(int) constant_folding (after)
+## CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
+## CHECK-DAG:                       Return [<<Const0>>]
+
+## CHECK-START: int TestCmp.And0(int) constant_folding (after)
+## CHECK-NOT:                       And
+.method public static And0(I)I
+    # return arg & 0;
+    .registers 2
+
+    and-int/lit8 v0, p0, 0x0
+
+    return v0
+.end method
+
+## CHECK-START: int TestCmp.OrAllOnes(int) constant_folding (before)
+## CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
+## CHECK-DAG:     <<ConstF:i\d+>>   IntConstant -1
+## CHECK-DAG:     <<Or:i\d+>>       Or [<<Arg>>,<<ConstF>>]
+## CHECK-DAG:                       Return [<<Or>>]
+
+## CHECK-START: int TestCmp.OrAllOnes(int) constant_folding (after)
+## CHECK-DAG:     <<ConstF:i\d+>>   IntConstant -1
+## CHECK-DAG:                       Return [<<ConstF>>]
+
+## CHECK-START: int TestCmp.OrAllOnes(int) constant_folding (after)
+## CHECK-NOT:                       Or
+.method public static OrAllOnes(I)I
+    # return arg | -1;
+    .registers 2
+
+    or-int/lit8 v0, p0, -0x1
+
+    return v0
+.end method
