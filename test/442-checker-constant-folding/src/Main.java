@@ -122,6 +122,15 @@ public class Main {
     return (Integer)m.invoke(null, cond);
   }
 
+  public static int smaliAnd0(int arg) throws Exception {
+    Method m = Class.forName("TestCmp").getMethod("And0", int.class);
+    return (Integer)m.invoke(null, arg);
+  }
+
+  public static int smaliOrAllOnes(int arg) throws Exception {
+    Method m = Class.forName("TestCmp").getMethod("OrAllOnes", int.class);
+    return (Integer)m.invoke(null, arg);
+  }
 
   /**
    * Exercise constant folding on negation.
@@ -1075,24 +1084,6 @@ public class Main {
    * Test optimizations of arithmetic identities yielding a constant result.
    */
 
-  /// CHECK-START: int Main.And0(int) constant_folding (before)
-  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<And:i\d+>>      And [<<Arg>>,<<Const0>>]
-  /// CHECK-DAG:                       Return [<<And>>]
-
-  /// CHECK-START: int Main.And0(int) constant_folding (after)
-  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
-  /// CHECK-DAG:                       Return [<<Const0>>]
-
-  /// CHECK-START: int Main.And0(int) constant_folding (after)
-  /// CHECK-NOT:                       And
-
-  public static int And0(int arg) {
-    return arg & 0;
-  }
-
   /// CHECK-START: long Main.Mul0(long) constant_folding (before)
   /// CHECK-DAG:     <<Arg:j\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:j\d+>>   LongConstant 0
@@ -1109,23 +1100,6 @@ public class Main {
 
   public static long Mul0(long arg) {
     return arg * 0;
-  }
-
-  /// CHECK-START: int Main.OrAllOnes(int) constant_folding (before)
-  /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
-  /// CHECK-DAG:     <<ConstF:i\d+>>   IntConstant -1
-  /// CHECK-DAG:     <<Or:i\d+>>       Or [<<Arg>>,<<ConstF>>]
-  /// CHECK-DAG:                       Return [<<Or>>]
-
-  /// CHECK-START: int Main.OrAllOnes(int) constant_folding (after)
-  /// CHECK-DAG:     <<ConstF:i\d+>>   IntConstant -1
-  /// CHECK-DAG:                       Return [<<ConstF>>]
-
-  /// CHECK-START: int Main.OrAllOnes(int) constant_folding (after)
-  /// CHECK-NOT:                       Or
-
-  public static int OrAllOnes(int arg) {
-    return arg | -1;
   }
 
   /// CHECK-START: long Main.Rem0(long) constant_folding (before)
@@ -1934,9 +1908,9 @@ public class Main {
 
     int arbitrary = 123456;  // Value chosen arbitrarily.
 
-    assertIntEquals(0, And0(arbitrary));
+    assertIntEquals(0, Main.smaliAnd0(arbitrary));
     assertLongEquals(0, Mul0(arbitrary));
-    assertIntEquals(-1, OrAllOnes(arbitrary));
+    assertIntEquals(-1, Main.smaliOrAllOnes(arbitrary));
     assertLongEquals(0, Rem0(arbitrary));
     assertIntEquals(0, Rem1(arbitrary));
     assertIntEquals(0, Rem1(0));
