@@ -71,6 +71,11 @@ std::string GetAndroidData();
 // Find $ANDROID_DATA, /data, or return an empty string.
 std::string GetAndroidDataSafe(/*out*/ std::string* error_msg);
 
+// Find $ANDROID_EXPAND, /mnt/expand, or abort.
+std::string GetAndroidExpand();
+// Find $ANDROID_EXPAND, /mnt/expand, or return an empty string.
+std::string GetAndroidExpandSafe(/*out*/ std::string* error_msg);
+
 // Find $ART_APEX_DATA, /data/misc/apexdata/com.android.art, or abort.
 std::string GetArtApexData();
 

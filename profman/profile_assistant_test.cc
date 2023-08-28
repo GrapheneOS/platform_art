@@ -2065,8 +2065,8 @@ TEST_F(ProfileAssistantTest, CopyAndUpdateProfileKeyNoUpdate) {
   argv_str.push_back("--copy-and-update-profile-key");
   std::string error;
 
-  // Must return kCopyAndUpdateNoUpdate.
-  ASSERT_EQ(ExecAndReturnCode(argv_str, &error), ProfmanResult::kCopyAndUpdateNoUpdate) << error;
+  // Must return kCopyAndUpdateNoMatch.
+  ASSERT_EQ(ExecAndReturnCode(argv_str, &error), ProfmanResult::kCopyAndUpdateNoMatch) << error;
 
   // Verify that the content is the same.
   ProfileCompilationInfo result;

@@ -20,7 +20,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.android.server.art.tests">
 
-    <application android:label="ArtServiceTests">
+    <!-- android:debuggable is required by ExtendedMockito. -->
+    <application android:label="ArtServiceTests" android:debuggable="true">
         <uses-library android:name="android.test.runner" />
     </application>
 
