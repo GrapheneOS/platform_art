@@ -20,18 +20,18 @@ soong_config_module_type_import {
     ],
 }
 
-// Modules listed in LOCAL_REQUIRED_MODULES for module art-runtime in art/Android.mk.
-// - Base requirements (binaries for which both 32- and 64-bit versions are built, if possible).
-art_runtime_base_binaries_both = [
+// Binaries for which both 32- and 64-bit versions are built, if possible.
+art_runtime_binaries_both = [
     "dalvikvm",
-]
-art_runtime_base_binaries_both_on_device_first_on_host = [
     "dex2oat",
 ]
-// - Base requirements (binaries for which the "first" version is preferred on device
-//  (likely 64-bit) and on host).
-art_runtime_base_binaries_first_on_device_first_on_host = [
+
+// Binaries for which the "first" version is preferred.
+art_runtime_binaries_first = [
+    "dexdump",
+    "dexlist",
     "dexoptanalyzer",
+    "oatdump",
     "profman",
 ]
 
@@ -65,6 +65,7 @@ art_runtime_base_native_shared_libs_minus_libart = [
     "libnpt",
     "libopenjdkjvm",
     "libopenjdkjvmti",
+    "libperfetto_hprof",
     // TODO(chriswailes): Make libarttools a dependency for another target
     // when such a target exists
     "libarttools",
@@ -76,20 +77,6 @@ art_runtime_base_native_shared_libs = ["libart"] +
 art_runtime_base_broken_native_shared_libs = ["libart-broken"] +
     art_runtime_base_native_shared_libs_minus_libart
 
-art_runtime_base_native_device_only_shared_libs = [
-    "libperfetto_hprof",
-]
-
-// - Debug variants (binaries for which the "first" version is preferred on device
-//  (likely 64-bit) and on host).
-art_runtime_debug_binaries_first_on_device_first_on_host = [
-    "dexoptanalyzerd",
-    "profmand",
-]
-art_runtime_debug_binaries_both_on_device_first_on_host = [
-    "dex2oatd",
-]
-
 // - Debug variants (libraries).
 art_runtime_debug_native_shared_libs = [
     "libadbconnectiond",
@@ -98,55 +85,35 @@ art_runtime_debug_native_shared_libs = [
     "libdexfiled",
     "libopenjdkjvmd",
     "libopenjdkjvmtid",
-]
-
-art_runtime_base_native_device_only_debug_shared_libs = [
     "libperfetto_hprofd",
-]
-
-// Libraries needed to execute ART run-tests.
-// TODO(b/124476339): When bug 124476339 is fixed, add these libraries as `runtime_libs`
-// dependencies of `libartd-compiler`, and remove `art_runtime_run_test_libs`.
-art_runtime_run_test_libs = [
+    // Libraries needed to execute ART run-tests.
+    // TODO(b/124476339): When bug 124476339 is fixed, add these libraries as `runtime_libs`
+    // dependencies of `libartd-compiler`, and remove them here.
     "libart-disassembler",
     "libartd-disassembler",
 ]
 
-// Tools common to both device APEX and host APEX. Derived from art-tools in art/Android.mk.
-art_tools_common_binaries = [
-    "dexdump",
-    "dexlist",
-]
-
-// Tools common to both device and host debug APEXes.
-art_tools_debug_binaries = [
-    "dexanalyze",
-    "dexdiag",
-    "dexlayout",
-    "dexlayoutd",
-]
-
-art_tools_debug_binaries_both = [
+// Debug binaries for which both 32- and 64-bit versions are built, if possible.
+art_debug_binaries_both = [
+    "dex2oatd",
     "imgdiag",
     "imgdiagd",
 ]
 
-// Tools exclusively for the device APEX derived from art-tools in art/Android.mk.
-art_tools_device_only_binaries = [
-    // oatdump cannot link with host linux_bionic due to not using clang lld;
-    // TODO: Make it work with clang lld.
-    "oatdump",
-]
-// Same, but for only for debug packages.
-art_tools_debug_device_only_binaries = [
-    // oatdumpd cannot link with host linux_bionic due to not using clang lld;
-    // TODO: Make it work with clang lld.
+// Debug binaries for which the "first" version is preferred.
+art_debug_binaries_first = [
+    "dexanalyze",
+    "dexdiag",
+    "dexlayout",
+    "dexlayoutd",
+    "dexoptanalyzerd",
     "oatdumpd",
+    "profmand",
 ]
 
 // Core Java libraries.
 // This list must be the same as art-bootclasspath-fragment because it's that which is pulled in
-// through bootclasspath_fragments below. (com.android.art-device-defaults-minus-odrefresh)
+// through bootclasspath_fragments below. (com.android.art-defaults-minus-odrefresh)
 libcore_java_libs = [
     "core-oj",
     "core-libart",
@@ -202,8 +169,9 @@ apex_key {
     private_key: "com.android.art.pem",
 }
 
+// Default shared by all ART APEXes.
 art_module_apex_defaults {
-    name: "com.android.art-defaults",
+    name: "com.android.art-base-defaults",
 
     // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
@@ -230,11 +198,11 @@ prebuilt_etc {
     installable: false,
 }
 
-// Default values shared by device ART APEXes.
+// Default values shared by APEXes except test_broken_com.android.art.
 apex_defaults {
-    name: "com.android.art-device-defaults-minus-odrefresh",
+    name: "com.android.art-defaults-minus-odrefresh",
     defaults: [
-        "com.android.art-defaults",
+        "com.android.art-base-defaults",
         "s-launched-apex-module",
     ],
     compile_multilib: "both",
@@ -243,7 +211,6 @@ apex_defaults {
     systemserverclasspath_fragments: ["art-systemserverclasspath-fragment"],
     compat_configs: ["libcore-platform-compat-config"],
     native_shared_libs: art_runtime_base_native_shared_libs +
-        art_runtime_base_native_device_only_shared_libs +
         libcore_native_shared_libs,
     jni_libs: [
         "libartservice",
@@ -255,13 +222,10 @@ apex_defaults {
     ],
     multilib: {
         both: {
-            binaries: art_runtime_base_binaries_both +
-                art_runtime_base_binaries_both_on_device_first_on_host,
+            binaries: art_runtime_binaries_both,
         },
         first: {
-            binaries: art_runtime_base_binaries_first_on_device_first_on_host +
-                art_tools_common_binaries +
-                art_tools_device_only_binaries,
+            binaries: art_runtime_binaries_first,
         },
     },
     key: "com.android.art.key",
@@ -275,9 +239,10 @@ apex_defaults {
     ],
 }
 
+// Default values shared by Release, Debug, and Testing APEXes.
 apex_defaults {
-    name: "com.android.art-device-defaults",
-    defaults: ["com.android.art-device-defaults-minus-odrefresh"],
+    name: "com.android.art-defaults",
+    defaults: ["com.android.art-defaults-minus-odrefresh"],
     multilib: {
         first: {
             binaries: ["odrefresh"],
@@ -285,26 +250,21 @@ apex_defaults {
     },
 }
 
-// Default values shared by (device) Debug and Testing ART APEXes.
+// Default values shared by Debug and Testing ART APEXes.
 apex_defaults {
     name: "com.android.art-devel-defaults",
-    defaults: ["com.android.art-device-defaults"],
-    native_shared_libs: art_runtime_base_native_device_only_debug_shared_libs +
-        art_runtime_run_test_libs +
-        art_runtime_debug_native_shared_libs +
+    defaults: ["com.android.art-defaults"],
+    native_shared_libs: art_runtime_debug_native_shared_libs +
         libcore_debug_native_shared_libs,
     jni_libs: [
         "libartserviced",
     ],
     multilib: {
         both: {
-            binaries: art_tools_debug_binaries_both +
-                art_runtime_debug_binaries_both_on_device_first_on_host,
+            binaries: art_debug_binaries_both,
         },
         first: {
-            binaries: art_runtime_debug_binaries_first_on_device_first_on_host +
-                art_tools_debug_binaries +
-                art_tools_debug_device_only_binaries,
+            binaries: art_debug_binaries_first,
         },
     },
 }
@@ -316,7 +276,7 @@ apex_test {
     // Use of "s-launched-apex-module" does not imply that this is a released
     // module.
     defaults: [
-        "com.android.art-defaults",
+        "com.android.art-base-defaults",
         "s-launched-apex-module",
     ],
 
@@ -338,7 +298,7 @@ apex_test {
 
 apex_test {
     name: "test_jitzygote_com.android.art",
-    defaults: ["com.android.art-device-defaults-minus-odrefresh"],
+    defaults: ["com.android.art-defaults-minus-odrefresh"],
     multilib: {
         first: {
             binaries: ["odrefresh_broken"],
@@ -356,7 +316,7 @@ apex_test {
 // storage-constrained devices in userdebug and eng builds.
 apex {
     name: "com.android.art",
-    defaults: ["com.android.art-device-defaults"],
+    defaults: ["com.android.art-defaults"],
     certificate: ":com.android.art.certificate",
 }
 
