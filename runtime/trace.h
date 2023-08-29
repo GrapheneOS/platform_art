@@ -141,7 +141,7 @@ class TraceWriter {
   // In streaming mode, we just flush the per-thread buffer. The buffer is flushed asynchronously
   // on a thread pool worker. This creates a new buffer and updates the per-thread buffer pointer
   // and returns a pointer to the newly created buffer.
-  // In non-streaming mode, buffers from all threads are flushed to see if we there's enough room
+  // In non-streaming mode, buffers from all threads are flushed to see if there's enough room
   // in the centralized buffer before recording new entries. We just flush these buffers
   // synchronously and reuse the existing buffer. Since this mode is mostly deprecated we want to
   // keep the implementation simple here.
@@ -152,10 +152,18 @@ class TraceWriter {
   void FinishTracing(int flags, bool flush_entries) REQUIRES(!tracing_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void PreProcessTraceForMethodInfos(uintptr_t* buffer,
+                                     size_t num_entries,
+                                     std::unordered_map<ArtMethod*, std::string>& method_infos)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+
   // Flush buffer to the file (for streaming) or to the common buffer (for non-streaming). In
   // non-streaming case it returns false if all the contents couldn't be flushed.
-  void FlushBuffer(uintptr_t* buffer, size_t num_entries, size_t tid)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!tracing_lock_);
+  void FlushBuffer(uintptr_t* buffer,
+                   size_t num_entries,
+                   size_t tid,
+                   const std::unordered_map<ArtMethod*, std::string>& method_infos)
+      REQUIRES(!tracing_lock_);
 
   // This is called when we see the first entry from the thread to record the information about the
   // thread.
@@ -170,23 +178,24 @@ class TraceWriter {
   // the first time we see this method record information (like method name, declaring class etc.,)
   // about the method.
   std::pair<uint32_t, bool> GetMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
+  bool HasMethodEncoding(ArtMethod* method) REQUIRES(tracing_lock_);
 
   // Get a 16-bit id for the thread. We don't want to use thread ids directly since they can be
   // more than 16-bit.
   uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
   // Get the information about the method.
-  std::string GetMethodLine(ArtMethod* method, uint32_t method_id)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string GetMethodLine(std::string method_line, uint32_t method_id);
+  std::string GetMethodInfoLine(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Helper function to record method information when processing the events. These are used by
   // streaming output mode. Non-streaming modes dump the methods and threads list at the end of
   // tracing.
-  void RecordMethodInfo(ArtMethod* method,
+  void RecordMethodInfo(std::string method_line,
                         uint32_t method_id,
                         size_t* index,
                         uint8_t* buf,
-                        size_t size) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(tracing_lock_);
+                        size_t size) REQUIRES(tracing_lock_);
 
   // Encodes the trace event. This assumes that there is enough space reserved to encode the entry.
   void EncodeEventEntry(uint8_t* ptr,
