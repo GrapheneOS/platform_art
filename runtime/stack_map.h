@@ -479,16 +479,38 @@ class CodeInfo {
   // Accumulate code info size statistics into the given Stats tree.
   static void CollectSizeStats(const uint8_t* code_info, /*out*/ Stats& parent);
 
+  template <uint32_t kFlag>
+  ALWAYS_INLINE static bool HasFlag(const uint8_t* code_info_data) {
+    // Fast path - read just the one specific bit from the header.
+    bool result;
+    uint8_t varint = (*code_info_data) & MaxInt<uint8_t>(kVarintBits);
+    if (LIKELY(varint <= kVarintMax)) {
+      result = (varint & kFlag) != 0;
+    } else {
+      DCHECK_EQ(varint, kVarintMax + 1);  // Only up to 8 flags are supported for now.
+      constexpr uint32_t bit_offset = kNumHeaders * kVarintBits + WhichPowerOf2(kFlag);
+      result = (code_info_data[bit_offset / kBitsPerByte] & (1 << bit_offset % kBitsPerByte)) != 0;
+    }
+    // Slow path - dcheck that we got the correct result against the naive implementation.
+    BitMemoryReader reader(code_info_data);
+    DCHECK_EQ(result, (reader.ReadInterleavedVarints<kNumHeaders>()[0] & kFlag) != 0);
+    return result;
+  }
+
   ALWAYS_INLINE static bool HasInlineInfo(const uint8_t* code_info_data) {
-    return (*code_info_data & kHasInlineInfo) != 0;
+    return HasFlag<kHasInlineInfo>(code_info_data);
+  }
+
+  ALWAYS_INLINE static bool HasShouldDeoptimizeFlag(const uint8_t* code_info_data) {
+    return HasFlag<kHasShouldDeoptimizeFlag>(code_info_data);
   }
 
   ALWAYS_INLINE static bool IsBaseline(const uint8_t* code_info_data) {
-    return (*code_info_data & kIsBaseline) != 0;
+    return HasFlag<kIsBaseline>(code_info_data);
   }
 
   ALWAYS_INLINE static bool IsDebuggable(const uint8_t* code_info_data) {
-    return (*code_info_data & kIsDebuggable) != 0;
+    return HasFlag<kIsDebuggable>(code_info_data);
   }
 
   uint32_t GetNumberOfDexRegisters() {
@@ -538,20 +560,18 @@ class CodeInfo {
   void SetBitTableDeduped(size_t i) { bit_table_flags_ |= 1 << (kNumBitTables + i); }
   bool HasDedupedBitTables() { return (bit_table_flags_ >> kNumBitTables) != 0u; }
 
+  // NB: The first three flags should be the most common ones.
+  //     Maximum of 8 flags is supported right now (see the HasFlag method).
   enum Flags {
     kHasInlineInfo = 1 << 0,
-    kIsBaseline = 1 << 1,
-    kIsDebuggable = 1 << 2,
+    kHasShouldDeoptimizeFlag = 1 << 1,
+    kIsBaseline = 1 << 2,
+    kIsDebuggable = 1 << 3,
   };
 
   // The CodeInfo starts with sequence of variable-length bit-encoded integers.
   // (Please see kVarintMax for more details about encoding).
   static constexpr size_t kNumHeaders = 7;
-  // Note that the space for flags is limited to three bits. We use a custom encoding where we
-  // encode the value inline if it is less than kVarintMax. We want to access flags without
-  // decoding the entire CodeInfo header so the value of flags cannot be more than kVarintMax.
-  // See IsDebuggable / IsBaseline / HasInlineInfo on how we access flags_ without decoding the
-  // header.
   uint32_t flags_ = 0;
   uint32_t code_size_ = 0;  // The size of native PC range in bytes.
   uint32_t packed_frame_size_ = 0;  // Frame size in kStackAlignment units.
