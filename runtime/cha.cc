@@ -168,6 +168,13 @@ void ClassHierarchyAnalysis::ResetSingleImplementationInHierarchy(ObjPtr<mirror:
          j < count;
          ++j) {
       ArtMethod* method = interface->GetVirtualMethod(j, pointer_size);
+      CHECK(method != nullptr) << "interface:" << interface << " iftable:" << iftable << " i:" << i
+                               << " ifcout:" << ifcount << " j:" << j
+                               << " iftable-method-array-count:" << count
+                               << " method-array:" << interface->GetMethodsPtr()
+                               << " method-array-size:" << interface->NumMethods()
+                               << " virtual-method-count:"
+                               << interface->GetVirtualMethodsStartOffset();
       if (method->HasSingleImplementation() &&
           alloc->ContainsUnsafe(method->GetSingleImplementation(pointer_size)) &&
           !method->IsDefault()) {
