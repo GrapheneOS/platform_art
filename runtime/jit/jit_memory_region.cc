@@ -355,8 +355,7 @@ void* JitMemoryRegion::MoreCore(const void* mspace, intptr_t increment) NO_THREA
 
 const uint8_t* JitMemoryRegion::CommitCode(ArrayRef<const uint8_t> reserved_code,
                                            ArrayRef<const uint8_t> code,
-                                           const uint8_t* stack_map,
-                                           bool has_should_deoptimize_flag) {
+                                           const uint8_t* stack_map) {
   DCHECK(IsInExecSpace(reserved_code.data()));
   ScopedCodeCacheWrite scc(*this);
 
@@ -382,9 +381,6 @@ const uint8_t* JitMemoryRegion::CommitCode(ArrayRef<const uint8_t> reserved_code
   OatQuickMethodHeader* method_header =
       OatQuickMethodHeader::FromCodePointer(w_memory + header_size);
   new (method_header) OatQuickMethodHeader((stack_map != nullptr) ? result - stack_map : 0u);
-  if (has_should_deoptimize_flag) {
-    method_header->SetHasShouldDeoptimizeFlag();
-  }
 
   // Both instruction and data caches need flushing to the point of unification where both share
   // a common view of memory. Flushing the data cache ensures the dirty cachelines from the

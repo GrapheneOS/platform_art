@@ -109,7 +109,7 @@ class PACKED(4) OatQuickMethodHeader {
 
   void SetCodeInfoOffset(uint32_t offset) {
     data_ = kIsCodeInfoMask | offset;
-    DCHECK_EQ(GetCodeInfoOffset(), offset);
+    CHECK_EQ(GetCodeInfoOffset(), offset);
   }
 
   bool Contains(uintptr_t pc) const {
@@ -182,20 +182,14 @@ class PACKED(4) OatQuickMethodHeader {
                    bool abort_on_failure = true) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetHasShouldDeoptimizeFlag() {
-    DCHECK(!HasShouldDeoptimizeFlag());
-    data_ |= kShouldDeoptimizeMask;
-  }
-
   bool HasShouldDeoptimizeFlag() const {
-    return (data_ & kShouldDeoptimizeMask) != 0;
+    return IsOptimized() && CodeInfo::HasShouldDeoptimizeFlag(GetOptimizedCodeInfoPtr());
   }
 
  private:
-  static constexpr uint32_t kShouldDeoptimizeMask = 0x80000000;
-  static constexpr uint32_t kIsCodeInfoMask       = 0x40000000;
-  static constexpr uint32_t kCodeInfoMask         = 0x3FFFFFFF;  // If kIsCodeInfoMask is set.
-  static constexpr uint32_t kCodeSizeMask         = 0x3FFFFFFF;  // If kIsCodeInfoMask is clear.
+  static constexpr uint32_t kIsCodeInfoMask = 0x80000000;
+  static constexpr uint32_t kCodeInfoMask = 0x7FFFFFFF;  // If kIsCodeInfoMask is set.
+  static constexpr uint32_t kCodeSizeMask = 0x7FFFFFFF;  // If kIsCodeInfoMask is clear.
 
   // In order to not confuse a stub with Java-generated code, we prefix each
   // stub with a 0xFFFFFFFF marker.
