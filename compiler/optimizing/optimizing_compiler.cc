@@ -1400,7 +1400,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                             debug_info,
                             /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                             compilation_kind,
-                            /* has_should_deoptimize_flag= */ false,
                             cha_single_implementation_list)) {
       code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
       return false;
@@ -1508,8 +1507,9 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                           debug_info,
                           /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                           compilation_kind,
-                          codegen->GetGraph()->HasShouldDeoptimizeFlag(),
                           codegen->GetGraph()->GetCHASingleImplementationList())) {
+    CHECK_EQ(CodeInfo::HasShouldDeoptimizeFlag(stack_map.data()),
+             codegen->GetGraph()->HasShouldDeoptimizeFlag());
     code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
     return false;
   }
