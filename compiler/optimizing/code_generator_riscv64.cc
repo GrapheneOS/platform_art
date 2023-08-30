@@ -4179,13 +4179,13 @@ void CodeGeneratorRISCV64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* inv
                                     kNativeStackAlignment,
                                     GetCriticalNativeDirectCallFrameSize>(invoke);
       if (invoke->GetMethodLoadKind() == MethodLoadKind::kBootImageLinkTimePcRelative) {
-        __ Jalr(TMP);
+        // Entrypoint is already loaded in RA.
       } else {
-        // TMP2 = callee_method->ptr_sized_fields_.data_;  // EntryPointFromJni
+        // RA = callee_method->ptr_sized_fields_.data_;  // EntryPointFromJni
         MemberOffset offset = ArtMethod::EntryPointFromJniOffset(kRiscv64PointerSize);
-        __ Loadd(TMP2, callee_method.AsRegister<XRegister>(), offset.Int32Value());
-        __ Jalr(TMP2);
+        __ Loadd(RA, callee_method.AsRegister<XRegister>(), offset.Int32Value());
       }
+      __ Jalr(RA);
       RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
       // The result is returned the same way in native ABI and managed ABI. No result conversion is
       // needed, see comments in `Riscv64JniCallingConvention::RequiresSmallResultTypeExtension()`.
