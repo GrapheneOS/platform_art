@@ -460,6 +460,11 @@ inline void InstructionCodeGeneratorRISCV64::FSub(
   FpBinOp<FRegister, &Riscv64Assembler::FSubS, &Riscv64Assembler::FSubD>(rd, rs1, rs2, type);
 }
 
+inline void InstructionCodeGeneratorRISCV64::FDiv(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FDivS, &Riscv64Assembler::FDivD>(rd, rs1, rs2, type);
+}
+
 inline void InstructionCodeGeneratorRISCV64::FMin(
     FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
   FpBinOp<FRegister, &Riscv64Assembler::FMinS, &Riscv64Assembler::FMinD>(rd, rs1, rs2, type);
@@ -747,23 +752,150 @@ void InstructionCodeGeneratorRISCV64::GenerateTestAndBranch(HInstruction* instru
 }
 
 void InstructionCodeGeneratorRISCV64::DivRemOneOrMinusOne(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DataType::Type type = instruction->GetResultType();
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  DCHECK(imm == 1 || imm == -1);
+
+  if (instruction->IsRem()) {
+    __ Mv(out, Zero);
+  } else {
+    if (imm == -1) {
+      if (type == DataType::Type::kInt32) {
+        __ Subw(out, Zero, dividend);
+      } else {
+        DCHECK_EQ(type, DataType::Type::kInt64);
+        __ Sub(out, Zero, dividend);
+      }
+    } else if (out != dividend) {
+      __ Mv(out, dividend);
+    }
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::DivRemByPowerOfTwo(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DataType::Type type = instruction->GetResultType();
+  DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64) << type;
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location second = locations->InAt(1);
+  DCHECK(second.IsConstant());
+
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  int64_t abs_imm = static_cast<uint64_t>(AbsOrMin(imm));
+  int ctz_imm = CTZ(abs_imm);
+  DCHECK_GE(ctz_imm, 1);  // Division by +/-1 is handled by `DivRemOneOrMinusOne()`.
+
+  ScratchRegisterScope srs(GetAssembler());
+  XRegister tmp = srs.AllocateXRegister();
+  // Calculate the negative dividend adjustment `tmp = dividend < 0 ? abs_imm - 1 : 0`.
+  // This adjustment is needed for rounding the division result towards zero.
+  if (type == DataType::Type::kInt32 || ctz_imm == 1) {
+    // A 32-bit dividend is sign-extended to 64-bit, so we can use the upper bits.
+    // And for a 64-bit division by +/-2, we need just the sign bit.
+    DCHECK_IMPLIES(type == DataType::Type::kInt32, ctz_imm < 32);
+    __ Srli(tmp, dividend, 64 - ctz_imm);
+  } else {
+    // For other 64-bit divisions, we need to replicate the sign bit.
+    __ Srai(tmp, dividend, 63);
+    __ Srli(tmp, tmp, 64 - ctz_imm);
+  }
+  // The rest of the calculation can use 64-bit operations even for 32-bit div/rem.
+  __ Add(tmp, tmp, dividend);
+  if (instruction->IsDiv()) {
+    __ Srai(out, tmp, ctz_imm);
+    if (imm < 0) {
+      __ Neg(out, out);
+    }
+  } else {
+    if (ctz_imm <= 11) {
+      __ Andi(tmp, tmp, -abs_imm);
+    } else {
+      ScratchRegisterScope srs2(GetAssembler());
+      XRegister tmp2 = srs2.AllocateXRegister();
+      __ Li(tmp2, -abs_imm);
+      __ And(tmp, tmp, tmp2);
+    }
+    __ Sub(out, dividend, tmp);
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateDivRemWithAnyConstant(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  LocationSummary* locations = instruction->GetLocations();
+  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  Location second = locations->InAt(1);
+  int64_t imm = Int64FromConstant(second.GetConstant());
+  DataType::Type type = instruction->GetResultType();
+  ScratchRegisterScope srs(GetAssembler());
+  XRegister tmp = srs.AllocateXRegister();
+
+  // TODO: optimize with constant.
+  __ LoadConst64(tmp, imm);
+  if (instruction->IsDiv()) {
+    if (type == DataType::Type::kInt32) {
+      __ Divw(out, dividend, tmp);
+    } else {
+      __ Div(out, dividend, tmp);
+    }
+  } else {
+    if (type == DataType::Type::kInt32)  {
+      __ Remw(out, dividend, tmp);
+    } else {
+      __ Rem(out, dividend, tmp);
+    }
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  DataType::Type type = instruction->GetResultType();
+  DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64) << type;
+
+  LocationSummary* locations = instruction->GetLocations();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  Location second = locations->InAt(1);
+
+  if (second.IsConstant()) {
+    int64_t imm = Int64FromConstant(second.GetConstant());
+    if (imm == 0) {
+      // Do not generate anything. DivZeroCheck would prevent any code to be executed.
+    } else if (imm == 1 || imm == -1) {
+      DivRemOneOrMinusOne(instruction);
+    } else if (IsPowerOfTwo(AbsOrMin(imm))) {
+      DivRemByPowerOfTwo(instruction);
+    } else {
+      DCHECK(imm <= -2 || imm >= 2);
+      GenerateDivRemWithAnyConstant(instruction);
+    }
+  } else {
+    XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+    XRegister divisor = second.AsRegister<XRegister>();
+    if (instruction->IsDiv()) {
+      if (type == DataType::Type::kInt32) {
+        __ Divw(out, dividend, divisor);
+      } else {
+        __ Div(out, dividend, divisor);
+      }
+    } else {
+      if (type == DataType::Type::kInt32) {
+        __ Remw(out, dividend, divisor);
+      } else {
+        __ Rem(out, dividend, divisor);
+      }
+    }
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::GenerateIntLongCondition(IfCondition cond,
@@ -1927,13 +2059,50 @@ void InstructionCodeGeneratorRISCV64::VisitDeoptimize(HDeoptimize* instruction) 
 }
 
 void LocationsBuilderRISCV64::VisitDiv(HDiv* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  switch (instruction->GetResultType()) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected div type " << instruction->GetResultType();
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitDiv(HDiv* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type type = instruction->GetType();
+  LocationSummary* locations = instruction->GetLocations();
+
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      GenerateDivRemIntegral(instruction);
+      break;
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64: {
+      FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+      FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
+      FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
+      FDiv(dst, lhs, rhs, type);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected div type " << type;
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
@@ -2650,13 +2819,61 @@ void InstructionCodeGeneratorRISCV64::VisitPhi([[maybe_unused]] HPhi* instructio
 }
 
 void LocationsBuilderRISCV64::VisitRem(HRem* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type type = instruction->GetResultType();
+  LocationSummary::CallKind call_kind =
+      DataType::IsFloatingPointType(type) ? LocationSummary::kCallOnMainOnly
+                                          : LocationSummary::kNoCall;
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64: {
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+      locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+      locations->SetOut(calling_convention.GetReturnLocation(type));
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << type;
+      UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitRem(HRem* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type type = instruction->GetType();
+
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      GenerateDivRemIntegral(instruction);
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64: {
+      QuickEntrypointEnum entrypoint =
+          (type == DataType::Type::kFloat32) ? kQuickFmodf : kQuickFmod;
+      codegen_->InvokeRuntime(entrypoint, instruction, instruction->GetDexPc());
+      if (type == DataType::Type::kFloat32) {
+        CheckEntrypointTypes<kQuickFmodf, float, float, float>();
+      } else {
+        CheckEntrypointTypes<kQuickFmod, double, double, double>();
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected rem type " << type;
+      UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitReturn(HReturn* instruction) {
