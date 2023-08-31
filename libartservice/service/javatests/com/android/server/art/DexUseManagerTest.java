@@ -81,8 +81,8 @@ public class DexUseManagerTest {
     private static final String SPLIT_APK = "/data/app/" + OWNING_PKG_NAME + "/split_0.apk";
 
     @Rule
-    public StaticMockitoRule mockitoRule =
-            new StaticMockitoRule(SystemProperties.class, Constants.class, Process.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
+            SystemProperties.class, Constants.class, Process.class, ArtJni.class);
 
     private final UserHandle mUserHandle = Binder.getCallingUserHandle();
 
@@ -155,8 +155,8 @@ public class DexUseManagerTest {
         mTempFile = File.createTempFile("package-dex-usage", ".pb");
         mTempFile.deleteOnExit();
 
-        lenient().when(mArtd.validateDexPath(any())).thenReturn(null);
-        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn(null);
+        lenient().when(ArtJni.validateDexPath(any())).thenReturn(null);
+        lenient().when(ArtJni.validateClassLoaderContext(any(), any())).thenReturn(null);
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
@@ -712,14 +712,14 @@ public class DexUseManagerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidDexPath() throws Exception {
-        lenient().when(mArtd.validateDexPath(any())).thenReturn("invalid");
+        lenient().when(ArtJni.validateDexPath(any())).thenReturn("invalid");
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidClassLoaderContext() throws Exception {
-        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn("invalid");
+        lenient().when(ArtJni.validateClassLoaderContext(any(), any())).thenReturn("invalid");
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
     }

@@ -46,8 +46,6 @@ std::vector<std::string> ListRuntimeArtifactsFiles(
 android::base::Result<void> ValidateRuntimeArtifactsPath(
     const aidl::com::android::server::art::RuntimeArtifactsPath& runtime_artifacts_path);
 
-android::base::Result<void> ValidateDexPath(const std::string& dex_path);
-
 android::base::Result<std::string> BuildArtBinPath(const std::string& binary_name);
 
 // Returns the absolute path to the OAT file built from the `ArtifactsPath`.

@@ -31,6 +31,7 @@
 #include "fstab/fstab.h"
 #include "oat_file_assistant.h"
 #include "runtime_image.h"
+#include "service.h"
 #include "tools/tools.h"
 
 namespace art {
@@ -49,6 +50,9 @@ using ::android::base::StartsWith;
 using ::android::fs_mgr::Fstab;
 using ::android::fs_mgr::FstabEntry;
 using ::android::fs_mgr::ReadFstabFromProcMounts;
+using ::art::service::ValidateDexPath;
+using ::art::service::ValidatePathElement;
+using ::art::service::ValidatePathElementSubstring;
 
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
@@ -60,45 +64,6 @@ using WritableProfilePath = ProfilePath::WritableProfilePath;
 
 // Only to be changed for testing.
 std::string_view gListRootDir = "/";
-
-Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
-  if (path_str.empty()) {
-    return Errorf("Path is empty");
-  }
-  if (path_str.find('\0') != std::string::npos) {
-    return Errorf("Path '{}' has invalid character '\\0'", path_str);
-  }
-  std::filesystem::path path(path_str);
-  if (!path.is_absolute()) {
-    return Errorf("Path '{}' is not an absolute path", path_str);
-  }
-  if (path.lexically_normal() != path_str) {
-    return Errorf("Path '{}' is not in normal form", path_str);
-  }
-  return {};
-}
-
-Result<void> ValidatePathElementSubstring(const std::string& path_element_substring,
-                                          const std::string& name) {
-  if (path_element_substring.empty()) {
-    return Errorf("{} is empty", name);
-  }
-  if (path_element_substring.find('/') != std::string::npos) {
-    return Errorf("{} '{}' has invalid character '/'", name, path_element_substring);
-  }
-  if (path_element_substring.find('\0') != std::string::npos) {
-    return Errorf("{} '{}' has invalid character '\\0'", name, path_element_substring);
-  }
-  return {};
-}
-
-Result<void> ValidatePathElement(const std::string& path_element, const std::string& name) {
-  OR_RETURN(ValidatePathElementSubstring(path_element, name));
-  if (path_element == "." || path_element == "..") {
-    return Errorf("Invalid {} '{}'", name, path_element);
-  }
-  return {};
-}
 
 }  // namespace
 
@@ -187,11 +152,6 @@ Result<void> ValidateRuntimeArtifactsPath(const RuntimeArtifactsPath& runtime_ar
   OR_RETURN(ValidatePathElement(runtime_artifacts_path.packageName, "packageName"));
   OR_RETURN(ValidatePathElement(runtime_artifacts_path.isa, "isa"));
   OR_RETURN(ValidateDexPath(runtime_artifacts_path.dexPath));
-  return {};
-}
-
-Result<void> ValidateDexPath(const std::string& dex_path) {
-  OR_RETURN(ValidateAbsoluteNormalPath(dex_path));
   return {};
 }
 
