@@ -1380,6 +1380,9 @@ class MANAGED Class final : public Object {
   // See b/259501764.
   bool CheckIsVisibleWithTargetSdk(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // The index in the methods_ array where the first declared virtual method is.
+  ALWAYS_INLINE uint32_t GetVirtualMethodsStartOffset() REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   template <typename T, VerifyObjectFlags kVerifyFlags, typename Visitor>
   void FixupNativePointer(
@@ -1412,9 +1415,6 @@ class MANAGED Class final : public Object {
   LengthPrefixedArray<ArtField>* GetIFieldsPtrUnchecked() REQUIRES_SHARED(Locks::mutator_lock_);
   IterationRange<StrideIterator<ArtField>> GetIFieldsUnchecked()
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // The index in the methods_ array where the first declared virtual method is.
-  ALWAYS_INLINE uint32_t GetVirtualMethodsStartOffset() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The index in the methods_ array where the first direct method is.
   ALWAYS_INLINE uint32_t GetDirectMethodsStartOffset() REQUIRES_SHARED(Locks::mutator_lock_);
