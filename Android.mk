@@ -534,9 +534,9 @@ PRIVATE_STATSD_APEX_DEPENDENCY_LIBS := \
   lib/libstatssocket.so \
   lib64/libstatssocket.so \
 
-# Extracts files from an APEX into a location. The APEX can be either a .apex
-# file in $(TARGET_OUT)/apex, or a directory in the same location. Files are
-# extracted to $(TARGET_OUT) with the same relative paths as under the APEX
+# Extracts files from an APEX into a location. The APEX can be either a .apex or
+# .capex file in $(TARGET_OUT)/apex, or a directory in the same location. Files
+# are extracted to $(TARGET_OUT) with the same relative paths as under the APEX
 # root.
 # $(1): APEX base name
 # $(2): List of files to extract, with paths relative to the APEX root
@@ -547,6 +547,9 @@ define extract-from-apex
   apex_root=$(TARGET_OUT)/apex && \
   apex_file=$$apex_root/$(1).apex && \
   apex_dir=$$apex_root/$(1) && \
+  if [ ! -f $$apex_file ]; then \
+    apex_file=$$apex_root/$(1).capex; \
+  fi && \
   if [ -f $$apex_file ]; then \
     rm -rf $$apex_dir && \
     mkdir -p $$apex_dir && \
