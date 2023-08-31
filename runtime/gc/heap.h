@@ -17,18 +17,19 @@
 #ifndef ART_RUNTIME_GC_HEAP_H_
 #define ART_RUNTIME_GC_HEAP_H_
 
+#include <android-base/logging.h>
+
 #include <iosfwd>
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include <android-base/logging.h>
 
 #include "allocator_type.h"
 #include "base/atomic.h"
 #include "base/histogram.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/os.h"
 #include "base/runtime_debug.h"
 #include "base/safe_map.h"
 #include "base/time_utils.h"
@@ -200,10 +201,10 @@ class Heap {
        size_t non_moving_space_capacity,
        const std::vector<std::string>& boot_class_path,
        const std::vector<std::string>& boot_class_path_locations,
-       const std::vector<int>& boot_class_path_fds,
-       const std::vector<int>& boot_class_path_image_fds,
-       const std::vector<int>& boot_class_path_vdex_fds,
-       const std::vector<int>& boot_class_path_oat_fds,
+       ArrayRef<File> boot_class_path_files,
+       ArrayRef<File> boot_class_path_image_files,
+       ArrayRef<File> boot_class_path_vdex_files,
+       ArrayRef<File> boot_class_path_oat_files,
        const std::vector<std::string>& image_file_names,
        InstructionSet image_instruction_set,
        CollectorType foreground_collector_type,
