@@ -33,7 +33,9 @@
 #include "base/macros.h"
 #include "base/mem_map.h"
 #include "base/metrics/metrics.h"
+#include "base/os.h"
 #include "base/string_view_cpp20.h"
+#include "base/unix_file/fd_file.h"
 #include "compat_framework.h"
 #include "deoptimization_kind.h"
 #include "dex/dex_file_types.h"
@@ -347,21 +349,15 @@ class Runtime {
                             const std::string& location,
                             std::vector<std::unique_ptr<const art::DexFile>>&& dex_files);
 
-  const std::vector<int>& GetBootClassPathFds() const {
-    return boot_class_path_fds_;
+  ArrayRef<File> GetBootClassPathFiles() { return ArrayRef<File>(boot_class_path_files_); }
+
+  ArrayRef<File> GetBootClassPathImageFiles() {
+    return ArrayRef<File>(boot_class_path_image_files_);
   }
 
-  const std::vector<int>& GetBootClassPathImageFds() const {
-    return boot_class_path_image_fds_;
-  }
+  ArrayRef<File> GetBootClassPathVdexFiles() { return ArrayRef<File>(boot_class_path_vdex_files_); }
 
-  const std::vector<int>& GetBootClassPathVdexFds() const {
-    return boot_class_path_vdex_fds_;
-  }
-
-  const std::vector<int>& GetBootClassPathOatFds() const {
-    return boot_class_path_oat_fds_;
-  }
+  ArrayRef<File> GetBootClassPathOatFiles() { return ArrayRef<File>(boot_class_path_oat_files_); }
 
   // Returns the checksums for the boot image, extensions and extra boot class path dex files,
   // based on the image spaces and boot class path dex files loaded in memory.
@@ -1275,10 +1271,10 @@ class Runtime {
   std::vector<std::string> boot_class_path_;
   std::vector<std::string> boot_class_path_locations_;
   std::string boot_class_path_checksums_;
-  std::vector<int> boot_class_path_fds_;
-  std::vector<int> boot_class_path_image_fds_;
-  std::vector<int> boot_class_path_vdex_fds_;
-  std::vector<int> boot_class_path_oat_fds_;
+  std::vector<File> boot_class_path_files_;
+  std::vector<File> boot_class_path_image_files_;
+  std::vector<File> boot_class_path_vdex_files_;
+  std::vector<File> boot_class_path_oat_files_;
   std::string class_path_string_;
   std::vector<std::string> properties_;
 

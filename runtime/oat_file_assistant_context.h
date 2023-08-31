@@ -44,7 +44,7 @@ class OatFileAssistantContext {
     // Required. See `-Xbootclasspath-locations`.
     const std::vector<std::string>& boot_class_path_locations;
     // Optional. See `-Xbootclasspathfds`.
-    const std::vector<int>* const boot_class_path_fds = nullptr;
+    std::optional<ArrayRef<File>> boot_class_path_files = {};
     // Optional. See `-Xdeny-art-apex-data-files`.
     const bool deny_art_apex_data_files = false;
   };
