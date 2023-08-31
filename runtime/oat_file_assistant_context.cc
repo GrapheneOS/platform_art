@@ -44,8 +44,8 @@ OatFileAssistantContext::OatFileAssistantContext(
   DCHECK_EQ(runtime_options_->boot_class_path.size(),
             runtime_options_->boot_class_path_locations.size());
   DCHECK_IMPLIES(
-      runtime_options_->boot_class_path_fds != nullptr,
-      runtime_options_->boot_class_path.size() == runtime_options_->boot_class_path_fds->size());
+      runtime_options_->boot_class_path_files.has_value(),
+      runtime_options_->boot_class_path.size() == runtime_options_->boot_class_path_files->size());
   // Opening dex files and boot images require MemMap.
   MemMap::Init();
 }
@@ -56,9 +56,9 @@ OatFileAssistantContext::OatFileAssistantContext(Runtime* runtime)
               .image_locations = runtime->GetImageLocations(),
               .boot_class_path = runtime->GetBootClassPath(),
               .boot_class_path_locations = runtime->GetBootClassPathLocations(),
-              .boot_class_path_fds = !runtime->GetBootClassPathFds().empty() ?
-                                         &runtime->GetBootClassPathFds() :
-                                         nullptr,
+              .boot_class_path_files = !runtime->GetBootClassPathFiles().empty() ?
+                                           runtime->GetBootClassPathFiles() :
+                                           std::optional<ArrayRef<File>>(),
               .deny_art_apex_data_files = runtime->DenyArtApexDataFiles(),
           })) {
   // Fetch boot image info from the runtime.
@@ -123,12 +123,10 @@ OatFileAssistantContext::GetBootImageInfoList(InstructionSet isa) {
       ArrayRef<const std::string>(runtime_options_->image_locations),
       ArrayRef<const std::string>(runtime_options_->boot_class_path),
       ArrayRef<const std::string>(runtime_options_->boot_class_path_locations),
-      runtime_options_->boot_class_path_fds != nullptr ?
-          ArrayRef<const int>(*runtime_options_->boot_class_path_fds) :
-          ArrayRef<const int>(),
-      /*boot_class_path_image_fds=*/ArrayRef<const int>(),
-      /*boot_class_path_vdex_fds=*/ArrayRef<const int>(),
-      /*boot_class_path_oat_fds=*/ArrayRef<const int>(),
+      runtime_options_->boot_class_path_files.value_or(ArrayRef<File>()),
+      /*boot_class_path_image_files=*/{},
+      /*boot_class_path_vdex_files=*/{},
+      /*boot_class_path_oat_files=*/{},
       &GetApexVersions());
 
   std::string error_msg;
@@ -158,12 +156,12 @@ const std::vector<std::string>* OatFileAssistantContext::GetBcpChecksums(size_t 
     return &it->second;
   }
 
-  const std::vector<int>* fds = runtime_options_->boot_class_path_fds;
-  File file(fds != nullptr ? (*fds)[bcp_index] : -1, /*check_usage=*/false);
-  ArtDexFileLoader dex_loader(&file, runtime_options_->boot_class_path[bcp_index]);
+  std::optional<ArrayRef<File>> bcp_files = runtime_options_->boot_class_path_files;
+  File noFile;
+  File* file = bcp_files.has_value() ? &(*bcp_files)[bcp_index] : &noFile;
+  ArtDexFileLoader dex_loader(file, runtime_options_->boot_class_path[bcp_index]);
   std::optional<uint32_t> checksum;
   bool ok = dex_loader.GetMultiDexChecksum(&checksum, error_msg);
-  file.Release();  // Don't close the file yet (we have only read the checksum).
   if (!ok) {
     return nullptr;
   }
