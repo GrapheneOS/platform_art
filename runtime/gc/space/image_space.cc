@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <random>
@@ -1738,16 +1739,18 @@ bool ImageSpace::BootImageLayout::ValidateOatFile(
   std::string art_location = ExpandLocation(base_location, bcp_index);
   std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(art_filename);
   std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(art_location);
-  int oat_fd =
-      bcp_index < boot_class_path_oat_fds_.size() ? boot_class_path_oat_fds_[bcp_index] : -1;
-  int vdex_fd =
-      bcp_index < boot_class_path_vdex_fds_.size() ? boot_class_path_vdex_fds_[bcp_index] : -1;
+  int oat_fd = bcp_index < boot_class_path_oat_files_.size()
+      ? boot_class_path_oat_files_[bcp_index].Fd()
+      : -1;
+  int vdex_fd = bcp_index < boot_class_path_vdex_files_.size()
+      ? boot_class_path_vdex_files_[bcp_index].Fd()
+      : -1;
   auto dex_filenames =
       ArrayRef<const std::string>(boot_class_path_).SubArray(bcp_index, component_count);
-  auto dex_fds =
-      bcp_index + component_count < boot_class_path_fds_.size() ?
-          ArrayRef<const int>(boot_class_path_fds_).SubArray(bcp_index, component_count) :
-          ArrayRef<const int>();
+  ArrayRef<File> dex_files =
+      bcp_index + component_count < boot_class_path_files_.size() ?
+          ArrayRef<File>(boot_class_path_files_).SubArray(bcp_index, component_count) :
+          ArrayRef<File>();
   // We open the oat file here only for validating that it's up-to-date. We don't open it as
   // executable or mmap it to a reserved space. This `OatFile` object will be dropped after
   // validation, and will not go into the `ImageSpace`.
@@ -1762,7 +1765,7 @@ bool ImageSpace::BootImageLayout::ValidateOatFile(
         /*executable=*/ false,
         /*low_4gb=*/ false,
         dex_filenames,
-        dex_fds,
+        dex_files,
         /*reservation=*/ nullptr,
         error_msg));
   } else {
@@ -1773,7 +1776,7 @@ bool ImageSpace::BootImageLayout::ValidateOatFile(
         /*executable=*/ false,
         /*low_4gb=*/ false,
         dex_filenames,
-        dex_fds,
+        dex_files,
         /*reservation=*/ nullptr,
         error_msg));
   }
@@ -1784,7 +1787,8 @@ bool ImageSpace::BootImageLayout::ValidateOatFile(
                               error_msg->c_str());
     return false;
   }
-  if (!ImageSpace::ValidateOatFile(*oat_file, error_msg, dex_filenames, dex_fds, apex_versions_)) {
+  if (!ImageSpace::ValidateOatFile(
+          *oat_file, error_msg, dex_filenames, dex_files, apex_versions_)) {
     return false;
   }
   return true;
@@ -1798,9 +1802,9 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   DCHECK_LT(bcp_index, boot_class_path_.size());
 
   std::string actual_filename = ExpandLocation(base_filename, bcp_index);
-  int bcp_image_fd = bcp_index < boot_class_path_image_fds_.size()
-      ? boot_class_path_image_fds_[bcp_index]
-      : -1;
+  int bcp_image_fd = bcp_index < boot_class_path_image_files_.size() ?
+                         boot_class_path_image_files_[bcp_index].Fd() :
+                         -1;
   ImageHeader header;
   // When BCP image is provided as FD, it needs to be dup'ed (since it's stored in unique_fd) so
   // that it can later be used in LoadComponents.
@@ -2202,10 +2206,10 @@ class ImageSpace::BootImageLoader {
   // `apex_versions` is created from `Runtime::GetApexVersions` and must outlive this instance.
   BootImageLoader(const std::vector<std::string>& boot_class_path,
                   const std::vector<std::string>& boot_class_path_locations,
-                  const std::vector<int>& boot_class_path_fds,
-                  const std::vector<int>& boot_class_path_image_fds,
-                  const std::vector<int>& boot_class_path_vdex_fds,
-                  const std::vector<int>& boot_class_path_oat_fds,
+                  ArrayRef<File> boot_class_path_files,
+                  ArrayRef<File> boot_class_path_image_files,
+                  ArrayRef<File> boot_class_path_vdex_files,
+                  ArrayRef<File> boot_class_path_oat_files,
                   const std::vector<std::string>& image_locations,
                   InstructionSet image_isa,
                   bool relocate,
@@ -2213,10 +2217,10 @@ class ImageSpace::BootImageLoader {
                   const std::string* apex_versions)
       : boot_class_path_(boot_class_path),
         boot_class_path_locations_(boot_class_path_locations),
-        boot_class_path_fds_(boot_class_path_fds),
-        boot_class_path_image_fds_(boot_class_path_image_fds),
-        boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
-        boot_class_path_oat_fds_(boot_class_path_oat_fds),
+        boot_class_path_files_(boot_class_path_files),
+        boot_class_path_image_files_(boot_class_path_image_files),
+        boot_class_path_vdex_files_(boot_class_path_vdex_files),
+        boot_class_path_oat_files_(boot_class_path_oat_files),
         image_locations_(image_locations),
         image_isa_(image_isa),
         relocate_(relocate),
@@ -2228,10 +2232,10 @@ class ImageSpace::BootImageLoader {
     BootImageLayout layout(image_locations_,
                            boot_class_path_,
                            boot_class_path_locations_,
-                           boot_class_path_fds_,
-                           boot_class_path_image_fds_,
-                           boot_class_path_vdex_fds_,
-                           boot_class_path_oat_fds_,
+                           boot_class_path_files_,
+                           boot_class_path_image_files_,
+                           boot_class_path_vdex_files_,
+                           boot_class_path_oat_files_,
                            apex_versions_);
     std::string image_location = layout.GetPrimaryImageLocation();
     std::string system_filename;
@@ -2834,12 +2838,12 @@ class ImageSpace::BootImageLoader {
                    android::base::unique_fd vdex_fd,
                    android::base::unique_fd oat_fd,
                    ArrayRef<const std::string> dex_filenames,
-                   ArrayRef<const int> dex_fds,
+                   ArrayRef<File> dex_files,
                    bool validate_oat_file,
                    ArrayRef<const std::unique_ptr<ImageSpace>> dependencies,
                    TimingLogger* logger,
-                   /*inout*/MemMap* image_reservation,
-                   /*out*/std::string* error_msg) {
+                   /*inout*/ MemMap* image_reservation,
+                   /*out*/ std::string* error_msg) {
     // VerifyImageAllocations() will be called later in Runtime::Init()
     // as some class roots like ArtMethod::java_lang_reflect_ArtMethod_
     // and ArtField::java_lang_reflect_ArtField_, which are used from
@@ -2856,24 +2860,24 @@ class ImageSpace::BootImageLoader {
 
       DCHECK_EQ(vdex_fd.get() != -1, oat_fd.get() != -1);
       if (vdex_fd.get() == -1) {
-        oat_file.reset(OatFile::Open(/*zip_fd=*/ -1,
+        oat_file.reset(OatFile::Open(/*zip_fd=*/-1,
                                      oat_filename,
                                      oat_location,
                                      executable_,
-                                     /*low_4gb=*/ false,
+                                     /*low_4gb=*/false,
                                      dex_filenames,
-                                     dex_fds,
+                                     dex_files,
                                      image_reservation,
                                      error_msg));
       } else {
-        oat_file.reset(OatFile::Open(/*zip_fd=*/ -1,
+        oat_file.reset(OatFile::Open(/*zip_fd=*/-1,
                                      vdex_fd.get(),
                                      oat_fd.get(),
                                      oat_location,
                                      executable_,
-                                     /*low_4gb=*/ false,
+                                     /*low_4gb=*/false,
                                      dex_filenames,
-                                     dex_fds,
+                                     dex_files,
                                      image_reservation,
                                      error_msg));
         // We no longer need the file descriptors and they will be closed by
@@ -3038,8 +3042,8 @@ class ImageSpace::BootImageLoader {
         image_fd = std::move(chunk.art_fd);
       } else {
         size_t pos = chunk.start_index + i;
-        int arg_image_fd = pos < boot_class_path_image_fds_.size() ? boot_class_path_image_fds_[pos]
-            : -1;
+        int arg_image_fd =
+            pos < boot_class_path_image_files_.size() ? boot_class_path_image_files_[pos].Fd() : -1;
         if (arg_image_fd >= 0) {
           image_fd.reset(DupCloexec(arg_image_fd));
         }
@@ -3110,8 +3114,10 @@ class ImageSpace::BootImageLoader {
       size_t bcp_chunk_size = (chunk.image_space_count == 1u) ? chunk.component_count : 1u;
 
       size_t pos = chunk.start_index + i;
-      auto boot_class_path_fds = boot_class_path_fds_.empty() ? ArrayRef<const int>()
-          : boot_class_path_fds_.SubArray(/*pos=*/ pos, bcp_chunk_size);
+      ArrayRef<File> boot_class_path_files =
+          boot_class_path_files_.empty() ?
+              ArrayRef<File>() :
+              boot_class_path_files_.SubArray(/*pos=*/pos, bcp_chunk_size);
 
       // Select vdex and oat FD if any exists.
       android::base::unique_fd vdex_fd;
@@ -3120,8 +3126,8 @@ class ImageSpace::BootImageLoader {
         DCHECK_EQ(locations.size(), 1u);
         vdex_fd = std::move(chunk.vdex_fd);
       } else {
-        int arg_vdex_fd = pos < boot_class_path_vdex_fds_.size() ? boot_class_path_vdex_fds_[pos]
-            : -1;
+        int arg_vdex_fd =
+            pos < boot_class_path_vdex_files_.size() ? boot_class_path_vdex_files_[pos].Fd() : -1;
         if (arg_vdex_fd >= 0) {
           vdex_fd.reset(DupCloexec(arg_vdex_fd));
         }
@@ -3130,8 +3136,8 @@ class ImageSpace::BootImageLoader {
         DCHECK_EQ(locations.size(), 1u);
         oat_fd = std::move(chunk.oat_fd);
       } else {
-        int arg_oat_fd = pos < boot_class_path_oat_fds_.size() ? boot_class_path_oat_fds_[pos]
-            : -1;
+        int arg_oat_fd =
+            pos < boot_class_path_oat_files_.size() ? boot_class_path_oat_files_[pos].Fd() : -1;
         if (arg_oat_fd >= 0) {
           oat_fd.reset(DupCloexec(arg_oat_fd));
         }
@@ -3140,8 +3146,8 @@ class ImageSpace::BootImageLoader {
       if (!OpenOatFile(space,
                        std::move(vdex_fd),
                        std::move(oat_fd),
-                       boot_class_path_.SubArray(/*pos=*/ pos, bcp_chunk_size),
-                       boot_class_path_fds,
+                       boot_class_path_.SubArray(/*pos=*/pos, bcp_chunk_size),
+                       boot_class_path_files,
                        validate_oat_file,
                        dependencies,
                        logger,
@@ -3200,10 +3206,10 @@ class ImageSpace::BootImageLoader {
 
   const ArrayRef<const std::string> boot_class_path_;
   const ArrayRef<const std::string> boot_class_path_locations_;
-  const ArrayRef<const int> boot_class_path_fds_;
-  const ArrayRef<const int> boot_class_path_image_fds_;
-  const ArrayRef<const int> boot_class_path_vdex_fds_;
-  const ArrayRef<const int> boot_class_path_oat_fds_;
+  ArrayRef<File> boot_class_path_files_;
+  ArrayRef<File> boot_class_path_image_files_;
+  ArrayRef<File> boot_class_path_vdex_files_;
+  ArrayRef<File> boot_class_path_oat_files_;
   const ArrayRef<const std::string> image_locations_;
   const InstructionSet image_isa_;
   const bool relocate_;
@@ -3223,10 +3229,10 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
   BootImageLayout layout(image_locations_,
                          boot_class_path_,
                          boot_class_path_locations_,
-                         boot_class_path_fds_,
-                         boot_class_path_image_fds_,
-                         boot_class_path_vdex_fds_,
-                         boot_class_path_oat_fds_,
+                         boot_class_path_files_,
+                         boot_class_path_image_files_,
+                         boot_class_path_vdex_files_,
+                         boot_class_path_oat_files_,
                          apex_versions_);
   if (!layout.LoadFromSystem(image_isa_, allow_in_memory_compilation, error_msg)) {
     return false;
@@ -3257,10 +3263,10 @@ bool ImageSpace::IsBootClassPathOnDisk(InstructionSet image_isa) {
   BootImageLayout layout(ArrayRef<const std::string>(runtime->GetImageLocations()),
                          ArrayRef<const std::string>(runtime->GetBootClassPath()),
                          ArrayRef<const std::string>(runtime->GetBootClassPathLocations()),
-                         ArrayRef<const int>(runtime->GetBootClassPathFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathImageFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathVdexFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathOatFds()),
+                         runtime->GetBootClassPathFiles(),
+                         runtime->GetBootClassPathImageFiles(),
+                         runtime->GetBootClassPathVdexFiles(),
+                         runtime->GetBootClassPathOatFiles(),
                          &runtime->GetApexVersions());
   const std::string image_location = layout.GetPrimaryImageLocation();
   std::unique_ptr<ImageHeader> image_header;
@@ -3282,10 +3288,10 @@ bool ImageSpace::IsBootClassPathOnDisk(InstructionSet image_isa) {
 
 bool ImageSpace::LoadBootImage(const std::vector<std::string>& boot_class_path,
                                const std::vector<std::string>& boot_class_path_locations,
-                               const std::vector<int>& boot_class_path_fds,
-                               const std::vector<int>& boot_class_path_image_fds,
-                               const std::vector<int>& boot_class_path_vdex_fds,
-                               const std::vector<int>& boot_class_path_odex_fds,
+                               ArrayRef<File> boot_class_path_files,
+                               ArrayRef<File> boot_class_path_image_files,
+                               ArrayRef<File> boot_class_path_vdex_files,
+                               ArrayRef<File> boot_class_path_odex_files,
                                const std::vector<std::string>& image_locations,
                                const InstructionSet image_isa,
                                bool relocate,
@@ -3309,10 +3315,10 @@ bool ImageSpace::LoadBootImage(const std::vector<std::string>& boot_class_path,
 
   BootImageLoader loader(boot_class_path,
                          boot_class_path_locations,
-                         boot_class_path_fds,
-                         boot_class_path_image_fds,
-                         boot_class_path_vdex_fds,
-                         boot_class_path_odex_fds,
+                         boot_class_path_files,
+                         boot_class_path_image_files,
+                         boot_class_path_vdex_files,
+                         boot_class_path_odex_files,
                          image_locations,
                          image_isa,
                          relocate,
@@ -3428,17 +3434,13 @@ bool ImageSpace::ValidateApexVersions(const OatHeader& oat_header,
 
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
   DCHECK(Runtime::Current() != nullptr);
-  return ValidateOatFile(oat_file,
-                         error_msg,
-                         ArrayRef<const std::string>(),
-                         ArrayRef<const int>(),
-                         Runtime::Current()->GetApexVersions());
+  return ValidateOatFile(oat_file, error_msg, {}, {}, Runtime::Current()->GetApexVersions());
 }
 
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
                                  std::string* error_msg,
                                  ArrayRef<const std::string> dex_filenames,
-                                 ArrayRef<const int> dex_fds,
+                                 ArrayRef<File> dex_files,
                                  const std::string& apex_versions) {
   if (!ValidateApexVersions(oat_file.GetOatHeader(),
                             apex_versions,
@@ -3464,7 +3466,8 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
     const std::string& dex_file_location = dex_filenames.empty() ?
                                                oat_dex_files[i]->GetDexFileLocation() :
                                                dex_filenames[dex_file_index];
-    int dex_fd = dex_file_index < dex_fds.size() ? dex_fds[dex_file_index] : -1;
+    File no_file;  // Invalid object.
+    File& dex_file = dex_file_index < dex_files.size() ? dex_files[dex_file_index] : no_file;
     dex_file_index++;
 
     if (DexFileLoader::IsMultiDexLocation(oat_dex_files[i]->GetDexFileLocation().c_str())) {
@@ -3474,10 +3477,8 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
 
     // Original checksum.
     std::optional<uint32_t> dex_checksum;
-    File file(dex_fd, /*check_usage=*/false);
-    ArtDexFileLoader dex_loader(&file, dex_file_location);
+    ArtDexFileLoader dex_loader(&dex_file, dex_file_location);
     bool ok = dex_loader.GetMultiDexChecksum(&dex_checksum, error_msg);
-    file.Release();  // Don't close the file yet (we have only read the checksum).
     if (!ok) {
       *error_msg = StringPrintf(
           "ValidateOatFile failed to get checksum of dex file '%s' "

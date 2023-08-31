@@ -110,9 +110,9 @@ class OatFile {
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
-                       /*inout*/MemMap* reservation,  // Where to load if not null.
-                       /*out*/std::string* error_msg);
+                       ArrayRef<File> dex_files,
+                       /*inout*/ MemMap* reservation,  // Where to load if not null.
+                       /*out*/ std::string* error_msg);
   // Helper overload that takes a single dex filename and no reservation.
   static OatFile* Open(int zip_fd,
                        const std::string& filename,
@@ -126,9 +126,9 @@ class OatFile {
                 location,
                 executable,
                 low_4gb,
-                ArrayRef<const std::string>(&dex_filename, /*size=*/ 1u),
-                /*dex_fds=*/ ArrayRef<const int>(),  // not currently supported
-                /*reservation=*/ nullptr,
+                ArrayRef<const std::string>(&dex_filename, /*size=*/1u),
+                /*dex_files=*/{},  // not currently supported
+                /*reservation=*/nullptr,
                 error_msg);
   }
   // Helper overload that takes no dex filename and no reservation.
@@ -143,9 +143,9 @@ class OatFile {
                 location,
                 executable,
                 low_4gb,
-                /*dex_filenames=*/ ArrayRef<const std::string>(),
-                /*dex_fds=*/ ArrayRef<const int>(),  // not currently supported
-                /*reservation=*/ nullptr,
+                /*dex_filenames=*/{},
+                /*dex_files=*/{},  // not currently supported
+                /*reservation=*/nullptr,
                 error_msg);
   }
 
@@ -159,9 +159,9 @@ class OatFile {
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
-                       /*inout*/MemMap* reservation,  // Where to load if not null.
-                       /*out*/std::string* error_msg);
+                       ArrayRef<File> dex_files,
+                       /*inout*/ MemMap* reservation,  // Where to load if not null.
+                       /*out*/ std::string* error_msg);
 
   // Initialize OatFile instance from an already loaded VdexFile. This assumes
   // the vdex does not have a dex section and accepts a vector of DexFiles separately.

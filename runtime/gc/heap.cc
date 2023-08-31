@@ -272,10 +272,10 @@ Heap::Heap(size_t initial_size,
            size_t non_moving_space_capacity,
            const std::vector<std::string>& boot_class_path,
            const std::vector<std::string>& boot_class_path_locations,
-           const std::vector<int>& boot_class_path_fds,
-           const std::vector<int>& boot_class_path_image_fds,
-           const std::vector<int>& boot_class_path_vdex_fds,
-           const std::vector<int>& boot_class_path_oat_fds,
+           ArrayRef<File> boot_class_path_files,
+           ArrayRef<File> boot_class_path_image_files,
+           ArrayRef<File> boot_class_path_vdex_files,
+           ArrayRef<File> boot_class_path_oat_files,
            const std::vector<std::string>& image_file_names,
            const InstructionSet image_instruction_set,
            CollectorType foreground_collector_type,
@@ -367,9 +367,11 @@ Heap::Heap(size_t initial_size,
        * verification is enabled, we limit the size of allocation stacks to speed up their
        * searching.
        */
-      max_allocation_stack_size_(kGCALotMode ? kGcAlotAllocationStackSize
-          : (kVerifyObjectSupport > kVerifyObjectModeFast) ? kVerifyObjectAllocationStackSize :
-          kDefaultAllocationStackSize),
+      max_allocation_stack_size_(kGCALotMode
+          ? kGcAlotAllocationStackSize
+          : (kVerifyObjectSupport > kVerifyObjectModeFast)
+              ? kVerifyObjectAllocationStackSize
+              : kDefaultAllocationStackSize),
       current_allocator_(kAllocatorTypeDlMalloc),
       current_non_moving_allocator_(kAllocatorTypeNonMoving),
       bump_pointer_space_(nullptr),
@@ -407,8 +409,8 @@ Heap::Heap(size_t initial_size,
       gc_count_last_window_(0U),
       blocking_gc_count_last_window_(0U),
       gc_count_rate_histogram_("gc count rate histogram", 1U, kGcCountRateMaxBucketCount),
-      blocking_gc_count_rate_histogram_("blocking gc count rate histogram", 1U,
-                                        kGcCountRateMaxBucketCount),
+      blocking_gc_count_rate_histogram_(
+          "blocking gc count rate histogram", 1U, kGcCountRateMaxBucketCount),
       alloc_tracking_enabled_(false),
       alloc_record_depth_(AllocRecordObjectMap::kDefaultAllocStackDepth),
       backtrace_lock_(nullptr),
@@ -493,10 +495,10 @@ Heap::Heap(size_t initial_size,
   MemMap heap_reservation;
   if (space::ImageSpace::LoadBootImage(boot_class_path,
                                        boot_class_path_locations,
-                                       boot_class_path_fds,
-                                       boot_class_path_image_fds,
-                                       boot_class_path_vdex_fds,
-                                       boot_class_path_oat_fds,
+                                       boot_class_path_files,
+                                       boot_class_path_image_files,
+                                       boot_class_path_vdex_files,
+                                       boot_class_path_oat_files,
                                        image_file_names,
                                        image_instruction_set,
                                        runtime->ShouldRelocate(),

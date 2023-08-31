@@ -2474,7 +2474,7 @@ static std::unique_ptr<OatFile> OpenOat(const std::string& oat_filename,
                                                 /*executable=*/false,
                                                 /*low_4gb=*/false,
                                                 dex_filenames,
-                                                /*dex_fds=*/ArrayRef<const int>(),
+                                                /*dex_files=*/{},
                                                 /*reservation=*/nullptr,
                                                 error_msg));
 }
