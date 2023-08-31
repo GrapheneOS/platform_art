@@ -44,7 +44,7 @@ void Riscv64Context::Reset() {
 
 void Riscv64Context::FillCalleeSaves(uint8_t* frame, const QuickMethodFrameInfo& frame_info) {
   // RA is at top of the frame
-  DCHECK_NE(frame_info.CoreSpillMask() & ~(1u << RA), 0u);
+  DCHECK_NE(frame_info.CoreSpillMask() & (1u << RA), 0u);
   gprs_[RA] = CalleeSaveAddress(frame, 0, frame_info.FrameSizeInBytes());
 
   // Core registers come first, from the highest down to the lowest, with the exception of RA/X1.
