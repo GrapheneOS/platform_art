@@ -26,9 +26,8 @@ ART_CPPLINT := tools/repohooks/tools/cpplint.py
 # Everything that could be moved to CPPLINT.cfg has moved there.
 # Please add new settings to CPPLINT.cfg over adding new flags in this file.
 
-ART_CPPLINT_FLAGS :=
 # No output when there are no errors.
-ART_CPPLINT_QUIET := --quiet
+ART_CPPLINT_FLAGS := --quiet
 
 #  1) Get list of all .h & .cc files in the art directory.
 #  2) Prepends 'art/' to each of them to make the full name.
@@ -58,7 +57,7 @@ art_cpplint_file := $(1)
 art_cpplint_touch := $$(OUT_CPPLINT)/$$(subst /,__,$$(art_cpplint_file))
 
 $$(art_cpplint_touch): $$(art_cpplint_file) $(ART_CPPLINT) $(ART_CPPLINT_CFG) art/build/Android.cpplint.mk
-	$(hide) $(ART_CPPLINT) $(ART_CPPLINT_QUIET) $(ART_CPPLINT_FLAGS) $$<
+	$(hide) $(ART_CPPLINT) $(ART_CPPLINT_FLAGS) $$<
 	$(hide) mkdir -p $$(dir $$@)
 	$(hide) touch $$@
 
