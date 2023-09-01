@@ -1110,17 +1110,9 @@ class Dex2Oat final {
     AssignIfExists(args, M::PublicSdk, &public_sdk_);
     AssignIfExists(args, M::ApexVersions, &apex_versions_argument_);
 
-    // Check for phenotype flag to override compact_dex_level_, if it isn't "none" already.
-    // TODO(b/256664509): Clean this up.
     if (compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
-      std::string ph_disable_compact_dex =
-          android::base::GetProperty(kPhDisableCompactDex, "false");
-      if (ph_disable_compact_dex == "true") {
-        LOG(WARNING)
-            << "Overriding --compact-dex-level due to "
-               "persist.device_config.runtime_native_boot.disable_compact_dex set to `true`";
-        compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
-      }
+      LOG(WARNING) << "Obsolete flag --compact-dex-level ignored";
+      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
     }
 
     AssignIfExists(args, M::Backend, &compiler_kind_);
@@ -2975,7 +2967,9 @@ class Dex2Oat final {
   std::string android_root_;
   std::string no_inline_from_string_;
   bool force_allow_oj_inlines_ = false;
-  CompactDexLevel compact_dex_level_ = kDefaultCompactDexLevel;
+
+  // TODO(b/256664509): Clean this up.
+  CompactDexLevel compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
 
   std::vector<std::unique_ptr<linker::ElfWriter>> elf_writers_;
   std::vector<std::unique_ptr<linker::OatWriter>> oat_writers_;
