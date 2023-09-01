@@ -110,13 +110,14 @@ class AbstractDispatcher {
   DISALLOW_COPY_AND_ASSIGN(AbstractDispatcher);
 };
 
-template<class T> class Iterator : public std::iterator<std::random_access_iterator_tag, T> {
+template <class T>
+class Iterator {
  public:
-  using value_type = typename std::iterator<std::random_access_iterator_tag, T>::value_type;
-  using difference_type =
-      typename std::iterator<std::random_access_iterator_tag, value_type>::difference_type;
-  using pointer = typename std::iterator<std::random_access_iterator_tag, value_type>::pointer;
-  using reference = typename std::iterator<std::random_access_iterator_tag, value_type>::reference;
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = T;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
 
   Iterator(const Iterator&) = default;
   Iterator(Iterator&&) noexcept = default;
