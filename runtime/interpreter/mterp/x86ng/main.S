@@ -239,18 +239,12 @@
     movl LOCAL2(%esp), \reg
 .endm
 
-// An assembly entry that has a OatQuickMethodHeader prefix.
-.macro OAT_ENTRY name, end
+// An assembly entry for nterp.
+.macro OAT_ENTRY name
     FUNCTION_TYPE(\name)
     ASM_HIDDEN SYMBOL(\name)
     .global SYMBOL(\name)
     .balign 16
-    // Padding of 3 * 4 bytes to get 16 bytes alignment of code entry.
-    .long 0
-    .long 0
-    .long 0
-    // OatQuickMethodHeader. Note that the top two bits must be clear.
-    .long (SYMBOL(\end) - SYMBOL(\name))
 SYMBOL(\name):
 .endm
 
@@ -1767,7 +1761,7 @@ END_FUNCTION \name
  *  rest  method parameters
  */
 
-OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+OAT_ENTRY ExecuteNterpWithClinitImpl
     .cfi_startproc
     PUSH_ARG esi
     // For simplicity, we don't do a read barrier here, but instead rely
@@ -1790,9 +1784,10 @@ OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
     POP_ARG esi
     jmp ExecuteNterpImpl
     .cfi_endproc
-EndExecuteNterpWithClinitImpl:
+    .global SYMBOL(EndExecuteNterpWithClinitImpl)
+SYMBOL(EndExecuteNterpWithClinitImpl):
 
-OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
+OAT_ENTRY ExecuteNterpImpl
     .cfi_startproc
     .cfi_def_cfa esp, 4
     testl %eax, -STACK_OVERFLOW_RESERVED_BYTES(%esp)
