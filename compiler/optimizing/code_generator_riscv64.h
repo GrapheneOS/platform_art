@@ -519,6 +519,8 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
 
+  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
+
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;
 
