@@ -863,6 +863,8 @@ class Dex2Oat final {
       case InstructionSet::kX86:
       case InstructionSet::kX86_64:
         compiler_options_->implicit_null_checks_ = true;
+        FALLTHROUGH_INTENDED;
+      case InstructionSet::kRiscv64:
         compiler_options_->implicit_so_checks_ = true;
         break;
 

@@ -18,6 +18,7 @@
 
 #include <sys/ucontext.h>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"  // For VLOG.
 
 extern "C" void art_quick_throw_stack_overflow();
@@ -54,9 +55,40 @@ bool SuspensionHandler::Action(int, siginfo_t*, void*) {
   return false;
 }
 
-bool StackOverflowHandler::Action(int, siginfo_t*, void*) {
-  LOG(FATAL) << "StackOverflowHandler::Action is not implemented for RISC-V";
-  return false;
+bool StackOverflowHandler::Action([[maybe_unused]] int sig,
+                                  siginfo_t* info,
+                                  void* context) {
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
+  VLOG(signals) << "sigcontext: " << std::hex << mc;
+
+  uintptr_t sp = mc->__gregs[REG_SP];
+  VLOG(signals) << "sp: " << std::hex << sp;
+
+  uintptr_t fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);
+  VLOG(signals) << "fault_addr: " << std::hex << fault_addr;
+  VLOG(signals) << "checking for stack overflow, sp: " << std::hex << sp <<
+      ", fault_addr: " << fault_addr;
+
+  uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(InstructionSet::kRiscv64);
+
+  // Check that the fault address is the value expected for a stack overflow.
+  if (fault_addr != overflow_addr) {
+    VLOG(signals) << "Not a stack overflow";
+    return false;
+  }
+
+  VLOG(signals) << "Stack overflow found";
+
+  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow.
+  // The value of RA must be the same as it was when we entered the code that
+  // caused this fault.  This will be inserted into a callee save frame by
+  // the function to which this handler returns (art_quick_throw_stack_overflow).
+  mc->__gregs[REG_PC] = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
+
+  // The kernel will now return to the address in `mc->__gregs[REG_PC]`.
+  return true;
 }
 
 }  // namespace art
