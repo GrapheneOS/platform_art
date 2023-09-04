@@ -1773,6 +1773,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     case InstructionSet::kX86:
     case InstructionSet::kX86_64:
       implicit_null_checks_ = true;
+      FALLTHROUGH_INTENDED;
+    case InstructionSet::kRiscv64:
       // Historical note: Installing stack protection was not playing well with Valgrind.
       implicit_so_checks_ = true;
       break;
