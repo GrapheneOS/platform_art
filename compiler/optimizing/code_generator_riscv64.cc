@@ -3401,6 +3401,7 @@ void CodeGeneratorRISCV64::GenerateFrameEntry() {
       FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kRiscv64) || !IsLeafMethod();
 
   if (do_overflow_check) {
+    DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
     __ Loadw(
         Zero, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(InstructionSet::kRiscv64)));
     RecordPcInfo(nullptr, 0);
