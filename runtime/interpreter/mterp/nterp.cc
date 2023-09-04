@@ -68,16 +68,32 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
 
 // The entrypoint for nterp, which ArtMethods can directly point to.
 extern "C" void ExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
+extern "C" void EndExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
 const void* GetNterpEntryPoint() {
   return reinterpret_cast<const void*>(interpreter::ExecuteNterpImpl);
 }
 
+ArrayRef<const uint8_t> NterpImpl() {
+  const uint8_t* entry_point = reinterpret_cast<const uint8_t*>(ExecuteNterpImpl);
+  size_t size = reinterpret_cast<const uint8_t*>(EndExecuteNterpImpl) - entry_point;
+  const uint8_t* code = reinterpret_cast<const uint8_t*>(EntryPointToCodePointer(entry_point));
+  return ArrayRef<const uint8_t>(code, size);
+}
+
 // Another entrypoint, which does a clinit check at entry.
 extern "C" void ExecuteNterpWithClinitImpl() REQUIRES_SHARED(Locks::mutator_lock_);
+extern "C" void EndExecuteNterpWithClinitImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
 const void* GetNterpWithClinitEntryPoint() {
   return reinterpret_cast<const void*>(interpreter::ExecuteNterpWithClinitImpl);
+}
+
+ArrayRef<const uint8_t> NterpWithClinitImpl() {
+  const uint8_t* entry_point = reinterpret_cast<const uint8_t*>(ExecuteNterpWithClinitImpl);
+  size_t size = reinterpret_cast<const uint8_t*>(EndExecuteNterpWithClinitImpl) - entry_point;
+  const uint8_t* code = reinterpret_cast<const uint8_t*>(EntryPointToCodePointer(entry_point));
+  return ArrayRef<const uint8_t>(code, size);
 }
 
 /*
