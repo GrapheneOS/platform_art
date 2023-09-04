@@ -164,12 +164,7 @@ END_MACRO
 
     /* Cache alignment for function entry */
 MACRO0(ALIGN_FUNCTION_ENTRY)
-    // ART-compiled functions have OatQuickMethodHeader but assembly funtions do not.
-    // Prefix the assembly code with 0xFFs, which means there is no method header.
-    .byte 0xFF, 0xFF, 0xFF, 0xFF
-    // Cache alignment for function entry.
-    // Use 0xFF as the last 4 bytes of alignment stand for OatQuickMethodHeader.
-    .balign 16, 0xFF
+    .balign 16
 END_MACRO
 
 MACRO2(DEFINE_FUNCTION_CUSTOM_CFA, c_name, cfa_offset)
