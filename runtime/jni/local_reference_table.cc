@@ -483,6 +483,13 @@ bool LocalReferenceTable::Remove(LRTSegmentState previous_state, IndirectRef ire
   }
   DCHECK_LT(entry_index, top_index);
 
+  // Workaround for double `DeleteLocalRef` bug. b/298297411
+  if (entry->IsFree()) {
+    // In debug build or with CheckJNI enabled, we would have detected this above.
+    LOG(ERROR) << "App error: `DeleteLocalRef()` on already deleted local ref. b/298297411";
+    return false;
+  }
+
   // Prune the free entry list if a segment with holes was popped before the `Remove()` call.
   uint32_t first_free_index = GetFirstFreeIndex();
   if (first_free_index != kFreeListEnd && first_free_index >= top_index) {
