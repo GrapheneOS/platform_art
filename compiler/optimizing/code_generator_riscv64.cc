@@ -582,6 +582,26 @@ class TypeCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathRISCV64);
 };
 
+class DivZeroCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  explicit DivZeroCheckSlowPathRISCV64(HDivZeroCheck* instruction)
+      : SlowPathCodeRISCV64(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    __ Bind(GetEntryLabel());
+    riscv64_codegen->InvokeRuntime(kQuickThrowDivZero, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
+  }
+
+  bool IsFatal() const override { return true; }
+
+  const char* GetDescription() const override { return "DivZeroCheckSlowPathRISCV64"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathRISCV64);
+};
+
 #undef __
 #define __ down_cast<Riscv64Assembler*>(GetAssembler())->  // NOLINT
 
@@ -3185,13 +3205,34 @@ void InstructionCodeGeneratorRISCV64::VisitDiv(HDiv* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
+  locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  SlowPathCodeRISCV64* slow_path =
+      new (codegen_->GetScopedAllocator()) DivZeroCheckSlowPathRISCV64(instruction);
+  codegen_->AddSlowPath(slow_path);
+  Location value = instruction->GetLocations()->InAt(0);
+
+  DataType::Type type = instruction->GetType();
+
+  if (!DataType::IsIntegralType(type)) {
+    LOG(FATAL) << "Unexpected type " << type << " for DivZeroCheck.";
+    UNREACHABLE();
+  }
+
+  if (value.IsConstant()) {
+    int64_t divisor = codegen_->GetInt64ValueOf(value.GetConstant()->AsConstant());
+    if (divisor == 0) {
+      __ J(slow_path->GetEntryLabel());
+    } else {
+      // A division by a non-null constant is valid. We don't need to perform
+      // any check, so simply fall through.
+    }
+  } else {
+    __ Beqz(value.AsRegister<XRegister>(), slow_path->GetEntryLabel());
+  }
 }
 
 void LocationsBuilderRISCV64::VisitDoubleConstant(HDoubleConstant* instruction) {
