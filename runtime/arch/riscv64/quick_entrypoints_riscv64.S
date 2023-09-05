@@ -720,7 +720,7 @@ ENTRY art_quick_test_suspend
     call artTestSuspendFromCode
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
-END
+END art_quick_test_suspend
 
 
 ENTRY art_quick_compile_optimized
