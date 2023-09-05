@@ -976,6 +976,47 @@ ENTRY art_quick_imt_conflict_trampoline
 END art_quick_imt_conflict_trampoline
 
 
+.macro UPDATE_INLINE_CACHE_ENTRY class, entry, temp, loop_label, done_label, next_label
+\loop_label:
+    lwu     \temp, (\entry)
+    beq     \class, \temp, \done_label
+    bnez    \temp, \next_label
+    lr.w    \temp, (\entry)
+    bnez    \temp, \loop_label
+    sc.w    \temp, \class, (\entry)
+    beqz    \temp, \done_label
+    j       \loop_label
+.endm
+
+// A0 contains the class, T5 contains the inline cache. T6 can be used, T5 can be clobbered.
+ENTRY art_quick_update_inline_cache
+#if (INLINE_CACHE_SIZE != 5)
+#error "INLINE_CACHE_SIZE not as expected."
+#endif
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    // Don't update the cache if we are marking.
+    lwu     t6, THREAD_IS_GC_MARKING_OFFSET(xSELF)
+    bnez    t6, .Ldone
+#endif
+    addi    t5, t5, INLINE_CACHE_CLASSES_OFFSET
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry1_loop, .Ldone, .Lentry2
+.Lentry2:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry2_loop, .Ldone, .Lentry3
+.Lentry3:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry3_loop, .Ldone, .Lentry4
+.Lentry4:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry4_loop, .Ldone, .Lentry5
+.Lentry5:
+    // Unconditionally store, the inline cache is megamorphic.
+    sw      a0, 4(t5)
+.Ldone:
+    ret
+END art_quick_update_inline_cache
+
+
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
 UNDEFINED art_quick_method_entry_hook
@@ -1156,5 +1197,4 @@ UNDEFINED art_quick_get32_static
 UNDEFINED art_quick_get64_static
 UNDEFINED art_quick_get_obj_static
 UNDEFINED art_quick_aput_obj
-UNDEFINED art_quick_update_inline_cache
 UNDEFINED art_quick_indexof
