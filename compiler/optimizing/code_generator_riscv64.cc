@@ -2405,6 +2405,11 @@ void InstructionCodeGeneratorRISCV64::VisitMul(HMul* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   switch (instruction->GetResultType()) {
     case DataType::Type::kInt32:
+      __ Mulw(locations->Out().AsRegister<XRegister>(),
+              locations->InAt(0).AsRegister<XRegister>(),
+              locations->InAt(1).AsRegister<XRegister>());
+      break;
+
     case DataType::Type::kInt64:
       __ Mul(locations->Out().AsRegister<XRegister>(),
              locations->InAt(0).AsRegister<XRegister>(),
