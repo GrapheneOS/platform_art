@@ -2540,9 +2540,8 @@ class Dex2Oat final {
 
   bool PrepareDirtyObjects() {
     if (dirty_image_objects_fd_ != -1) {
-      dirty_image_objects_ = ReadCommentedInputFromFd<HashSet<std::string>>(
-          dirty_image_objects_fd_,
-          nullptr);
+      dirty_image_objects_ =
+          ReadCommentedInputFromFd<std::vector<std::string>>(dirty_image_objects_fd_, nullptr);
       // Close since we won't need it again.
       close(dirty_image_objects_fd_);
       dirty_image_objects_fd_ = -1;
@@ -2551,9 +2550,8 @@ class Dex2Oat final {
         return false;
       }
     } else if (dirty_image_objects_filename_ != nullptr) {
-      dirty_image_objects_ = ReadCommentedInputFromFile<HashSet<std::string>>(
-          dirty_image_objects_filename_,
-          nullptr);
+      dirty_image_objects_ = ReadCommentedInputFromFile<std::vector<std::string>>(
+          dirty_image_objects_filename_, nullptr);
       if (dirty_image_objects_ == nullptr) {
         LOG(ERROR) << "Failed to create list of dirty objects from '"
             << dirty_image_objects_filename_ << "'";
@@ -2963,7 +2961,7 @@ class Dex2Oat final {
   const char* passes_to_run_filename_;
   const char* dirty_image_objects_filename_;
   int dirty_image_objects_fd_;
-  std::unique_ptr<HashSet<std::string>> dirty_image_objects_;
+  std::unique_ptr<std::vector<std::string>> dirty_image_objects_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool is_host_;
   std::string android_root_;
