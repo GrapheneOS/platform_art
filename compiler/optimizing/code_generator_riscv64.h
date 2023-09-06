@@ -473,6 +473,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FpBinOp(Reg rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FSub(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FDiv(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FMin(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FMax(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FEq(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
