@@ -22,6 +22,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.util.Log;
 
+import com.android.server.art.CopyAndRewriteProfileResult;
+
 import com.google.common.truth.Correspondence;
 import com.google.common.truth.Truth;
 
@@ -157,6 +159,26 @@ public final class TestingUtils {
                     deepEquals(actual, expected, errorMsg);
                     return errorMsg.toString();
                 });
+    }
+
+    public static CopyAndRewriteProfileResult createCopyAndRewriteProfileSuccess() {
+        var result = new CopyAndRewriteProfileResult();
+        result.status = CopyAndRewriteProfileResult.Status.SUCCESS;
+        return result;
+    }
+
+    public static CopyAndRewriteProfileResult createCopyAndRewriteProfileNoProfile() {
+        var result = new CopyAndRewriteProfileResult();
+        result.status = CopyAndRewriteProfileResult.Status.NO_PROFILE;
+        return result;
+    }
+
+    public static CopyAndRewriteProfileResult createCopyAndRewriteProfileBadProfile(
+            String errorMsg) {
+        var result = new CopyAndRewriteProfileResult();
+        result.status = CopyAndRewriteProfileResult.Status.BAD_PROFILE;
+        result.errorMsg = errorMsg;
+        return result;
     }
 
     private static boolean listDeepEquals(

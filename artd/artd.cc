@@ -56,11 +56,13 @@
 #include "android/binder_manager.h"
 #include "android/binder_process.h"
 #include "base/compiler_filter.h"
+#include "base/file_magic.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/os.h"
+#include "base/zip_archive.h"
 #include "cmdline_types.h"
 #include "exec_utils.h"
 #include "file_utils.h"
@@ -80,6 +82,7 @@ namespace {
 
 using ::aidl::com::android::server::art::ArtdDexoptResult;
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::CopyAndRewriteProfileResult;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::DexoptTrigger;
@@ -345,6 +348,52 @@ Result<void> SetLogVerbosity() {
   return {};
 }
 
+CopyAndRewriteProfileResult AnalyzeCopyAndRewriteProfileFailure(
+    File* src, ProfmanResult::CopyAndUpdateResult result) {
+  DCHECK(result == ProfmanResult::kCopyAndUpdateNoMatch ||
+         result == ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile);
+
+  auto bad_profile = [&](std::string_view error_msg) {
+    return CopyAndRewriteProfileResult{
+        .status = CopyAndRewriteProfileResult::Status::BAD_PROFILE,
+        .errorMsg = ART_FORMAT("Failed to load profile '{}': {}", src->GetPath(), error_msg)};
+  };
+  CopyAndRewriteProfileResult no_profile{.status = CopyAndRewriteProfileResult::Status::NO_PROFILE,
+                                         .errorMsg = ""};
+
+  int64_t length = src->GetLength();
+  if (length < 0) {
+    return bad_profile(strerror(-length));
+  }
+  if (length == 0) {
+    return no_profile;
+  }
+
+  std::string error_msg;
+  uint32_t magic;
+  if (!ReadMagicAndReset(src->Fd(), &magic, &error_msg)) {
+    return bad_profile(error_msg);
+  }
+  if (IsZipMagic(magic)) {
+    std::unique_ptr<ZipArchive> zip_archive(
+        ZipArchive::OpenFromOwnedFd(src->Fd(), src->GetPath().c_str(), &error_msg));
+    if (zip_archive == nullptr) {
+      return bad_profile(error_msg);
+    }
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find("primary.prof", &error_msg));
+    if (zip_entry == nullptr || zip_entry->GetUncompressedLength() == 0) {
+      return no_profile;
+    }
+  }
+
+  if (result == ProfmanResult::kCopyAndUpdateNoMatch) {
+    return bad_profile(
+        "The profile does not match the APK (The checksums in the profile do not match the "
+        "checksums of the .dex files in the APK)");
+  }
+  return bad_profile("The profile is in the wrong format or an I/O error has occurred");
+}
+
 class FdLogger {
  public:
   void Add(const NewFile& file) { fd_mapping_.emplace_back(file.Fd(), file.TempPath()); }
@@ -495,7 +544,7 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
 ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
                                                OutputProfile* in_dst,
                                                const std::string& in_dexFile,
-                                               bool* _aidl_return) {
+                                               CopyAndRewriteProfileResult* _aidl_return) {
   std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
   std::string dst_path = OR_RETURN_FATAL(BuildFinalProfilePath(in_dst->profilePath));
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
@@ -511,7 +560,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   Result<std::unique_ptr<File>> src = OpenFileForReading(src_path);
   if (!src.ok()) {
     if (src.error().code() == ENOENT) {
-      *_aidl_return = false;
+      _aidl_return->status = CopyAndRewriteProfileResult::Status::NO_PROFILE;
       return ScopedAStatus::ok();
     }
     return NonFatal(
@@ -541,8 +590,10 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
 
   LOG(INFO) << ART_FORMAT("profman returned code {}", result.value());
 
-  if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch) {
-    *_aidl_return = false;
+  if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch ||
+      result.value() == ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile) {
+    *_aidl_return = AnalyzeCopyAndRewriteProfileFailure(
+        src->get(), static_cast<ProfmanResult::CopyAndUpdateResult>(result.value()));
     return ScopedAStatus::ok();
   }
 
@@ -551,7 +602,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   }
 
   OR_RETURN_NON_FATAL(dst->Keep());
-  *_aidl_return = true;
+  _aidl_return->status = CopyAndRewriteProfileResult::Status::SUCCESS;
   in_dst->profilePath.id = dst->TempId();
   in_dst->profilePath.tmpPath = dst->TempPath();
   return ScopedAStatus::ok();

@@ -412,7 +412,10 @@ public final class Utils {
                 // build time and is correctly set in the profile header. However, the APK can also
                 // be an installed one, in which case partners may place a profile file next to the
                 // APK at install time. Rewriting the profile in the latter case is necessary.
-                if (artd.copyAndRewriteProfile(profile, output, dexPath)) {
+                // TODO(b/278080573): Make use of the detailed result.
+                CopyAndRewriteProfileResult result =
+                        artd.copyAndRewriteProfile(profile, output, dexPath);
+                if (result.status == CopyAndRewriteProfileResult.Status.SUCCESS) {
                     return ProfilePath.tmpProfilePath(output.profilePath);
                 }
             } catch (ServiceSpecificException e) {
