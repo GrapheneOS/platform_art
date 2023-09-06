@@ -83,7 +83,7 @@ class ImageWriter final {
               const std::vector<std::string>& oat_filenames,
               const HashMap<const DexFile*, size_t>& dex_file_oat_index_map,
               jobject class_loader,
-              const HashSet<std::string>* dirty_image_objects);
+              const std::vector<std::string>* dirty_image_objects);
   ~ImageWriter();
 
   /*
@@ -446,29 +446,7 @@ class ImageWriter final {
       REQUIRES_SHARED(Locks::mutator_lock_);
   void CreateHeader(size_t oat_index, size_t component_count)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool CreateImageRoots()
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void CalculateObjectBinSlots(mirror::Object* obj)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  // Undo the changes of CalculateNewObjectOffsets.
-  void ResetObjectOffsets() REQUIRES_SHARED(Locks::mutator_lock_);
-  // Reset and calculate new offsets with dirty objects optimization.
-  // Does nothing if dirty object offsets don't match with current offsets.
-  void TryRecalculateOffsetsWithDirtyObjects() REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Dirty object data from dirty-image-objects.
-  struct DirtyEntry {
-    uint32_t descriptor_hash = 0;
-    bool is_class = false;
-    uint32_t sort_key = 0;
-  };
-  // Parse dirty-image-objects into (offset->entry) map. Returns nullopt on parse error.
-  static std::optional<HashMap<uint32_t, DirtyEntry>> ParseDirtyObjectOffsets(
-      const HashSet<std::string>& dirty_image_objects) REQUIRES_SHARED(Locks::mutator_lock_);
-  // Get all objects that match dirty_entries by offset. Returns nullopt if there is a mismatch.
-  // Map values are sort_keys from DirtyEntry.
-  std::optional<HashMap<mirror::Object*, uint32_t>> MatchDirtyObjectOffsets(
-      const HashMap<uint32_t, DirtyEntry>& dirty_entries) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool CreateImageRoots() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
   void CopyAndFixupNativeData(size_t oat_index) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -693,9 +671,9 @@ class ImageWriter final {
   const HashMap<const DexFile*, size_t>& dex_file_oat_index_map_;
 
   // Set of classes/objects known to be dirty in the image. Can be nullptr if there are none.
-  // For old dirty-image-objects format this set contains descriptors of dirty classes.
-  // For new format -- a set of dirty object offsets and descriptor hashes.
-  const HashSet<std::string>* dirty_image_objects_;
+  // Each entry contains a class descriptor with zero or more reference fields, which denote a path
+  // to the dirty object.
+  const std::vector<std::string>* dirty_image_objects_;
 
   // Dirty object instances and their sort keys parsed from dirty_image_object_
   HashMap<mirror::Object*, uint32_t> dirty_objects_;
