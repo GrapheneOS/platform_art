@@ -109,7 +109,9 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         // By default, none of the profiles are usable.
         lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
-        lenient().when(mArtd.copyAndRewriteProfile(any(), any(), any())).thenReturn(false);
+        lenient()
+                .when(mArtd.copyAndRewriteProfile(any(), any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
 
         // By default, no DM file exists.
         lenient().when(mArtd.getDmFileVisibility(any())).thenReturn(FileVisibility.NOT_FOUND);
@@ -691,7 +693,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .when(mArtd.copyAndRewriteProfile(deepEq(profile), any(), any()))
                 .thenAnswer(invocation -> {
                     mUsedProfiles.add(invocation.<ProfilePath>getArgument(0));
-                    return true;
+                    return TestingUtils.createCopyAndRewriteProfileSuccess();
                 });
     }
 
@@ -699,6 +701,6 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         lenient().when(mArtd.isProfileUsable(deepEq(profile), any())).thenReturn(false);
         lenient()
                 .when(mArtd.copyAndRewriteProfile(deepEq(profile), any(), any()))
-                .thenReturn(false);
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
     }
 }

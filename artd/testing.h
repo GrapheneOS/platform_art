@@ -21,7 +21,7 @@
 // mismatch. This is only to be used in a gMock matcher.
 #define OR_MISMATCH(expr)                          \
   ({                                               \
-    decltype(expr)&& tmp__ = (expr);               \
+    auto&& tmp__ = (expr);                         \
     if (!tmp__.ok()) {                             \
       *result_listener << tmp__.error().message(); \
       return false;                                \
@@ -32,7 +32,7 @@
 // Returns the value of the given `android::base::Result`, or fails the GoogleTest.
 #define OR_FAIL(expr)                                   \
   ({                                                    \
-    decltype(expr)&& tmp__ = (expr);                    \
+    auto&& tmp__ = (expr);                              \
     ASSERT_TRUE(tmp__.ok()) << tmp__.error().message(); \
     std::move(tmp__).value();                           \
   })
