@@ -989,7 +989,8 @@ def default_run(ctx, args, **kwargs):
     #     In particular, unhandled exception is printed using several unterminated printfs.
     ALL_LOG_TAGS = ["V", "D", "I", "W", "E", "F", "S"]
     skip_tag_set = "|".join(ALL_LOG_TAGS[:ALL_LOG_TAGS.index(args.diff_min_log_tag.upper())])
-    skip_reg_exp = fr'#-# #:#:# # # ({skip_tag_set}) [^\n]*\n'.replace('#', '[0-9.]+')
+    skip_reg_exp = fr'#-# #:#:# # # ({skip_tag_set}) [^\n]*\n'
+    skip_reg_exp = skip_reg_exp.replace('#', '[0-9.]+').replace(' ', ' +')
     ctx.run(fr"sed -i -z -E 's/{skip_reg_exp}//g' '{args.stderr_file}'")
     if not HAVE_IMAGE:
       message = "(Unable to open file|Could not create image space)"
