@@ -228,7 +228,9 @@ public class ArtManagerLocalTest {
 
         // By default, none of the profiles are usable.
         lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
-        lenient().when(mArtd.copyAndRewriteProfile(any(), any(), any())).thenReturn(false);
+        lenient()
+                .when(mArtd.copyAndRewriteProfile(any(), any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
 
         mArtManagerLocal = new ArtManagerLocal(mInjector);
     }
@@ -743,7 +745,7 @@ public class ArtManagerLocalTest {
                 .thenAnswer(invocation -> {
                     var output = invocation.<OutputProfile>getArgument(1);
                     output.profilePath.tmpPath = tempPathForRef;
-                    return true;
+                    return TestingUtils.createCopyAndRewriteProfileSuccess();
                 });
 
         // Verify that the reference file initialized from the DM file is used.
