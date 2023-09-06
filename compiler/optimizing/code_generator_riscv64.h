@@ -712,6 +712,17 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* linker_patches) override;
 
   Literal* DeduplicateBootImageAddressLiteral(uint64_t address);
+  void PatchJitRootUse(uint8_t* code,
+                       const uint8_t* roots_data,
+                       const Literal* literal,
+                       uint64_t index_in_table) const;
+  Literal* DeduplicateJitStringLiteral(const DexFile& dex_file,
+                                       dex::StringIndex string_index,
+                                       Handle<mirror::String> handle);
+  Literal* DeduplicateJitClassLiteral(const DexFile& dex_file,
+                                      dex::TypeIndex type_index,
+                                      Handle<mirror::Class> handle);
+  void EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) override;
 
   void LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke);
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
@@ -889,6 +900,11 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   // PC-relative patch info for IntrinsicObjects for the boot image,
   // and for method/type/string patches for kBootImageRelRo otherwise.
   ArenaDeque<PcRelativePatchInfo> boot_image_other_patches_;
+
+  // Patches for string root accesses in JIT compiled code.
+  StringToLiteralMap jit_string_patches_;
+  // Patches for class root accesses in JIT compiled code.
+  TypeToLiteralMap jit_class_patches_;
 };
 
 }  // namespace riscv64
