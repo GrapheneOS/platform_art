@@ -37,6 +37,9 @@ namespace tools {
 std::vector<std::string> Glob(const std::vector<std::string>& patterns,
                               std::string_view root_dir = "/");
 
+// Escapes a string so that it's not recognized as a wildcard pattern for `Glob`.
+std::string EscapeGlob(const std::string& str);
+
 }  // namespace tools
 }  // namespace art
 
