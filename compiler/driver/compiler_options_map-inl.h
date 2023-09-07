@@ -117,7 +117,7 @@ inline bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
 
 template <typename Map, typename Builder>
-inline void AddCompilerOptionsArgumentParserOptions(Builder& b) {
+NO_INLINE void AddCompilerOptionsArgumentParserOptions(Builder& b) {
   // clang-format off
   b.
       Define("--compiler-filter=_")
