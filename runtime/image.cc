@@ -420,7 +420,7 @@ bool ImageHeader::WriteData(const ImageFileGuard& image_file,
   }
 
   if (update_checksum) {
-      // Calculate the image checksum of the remaining data.
+    // Calculate the image checksum of the remaining data.
     image_checksum = adler32(image_checksum,
                              reinterpret_cast<const uint8_t*>(bitmap_data),
                              bitmap_section.Size());
