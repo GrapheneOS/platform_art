@@ -663,6 +663,23 @@ NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING \
         art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
 
+// Call installed by a signal handler to create and deliver a NullPointerException.
+.extern artThrowNullPointerExceptionFromSignal
+ENTRY art_quick_throw_null_pointer_exception_from_signal
+    // The fault handler pushes the gc map address, i.e. "return address", to stack
+    // and passes the fault address in RA. So we need to set up the CFI info accordingly.
+    .cfi_def_cfa_offset __SIZEOF_POINTER__
+    .cfi_rel_offset ra, 0
+    // Save all registers as basis for long jump context.
+    INCREASE_FRAME (FRAME_SIZE_SAVE_EVERYTHING - __SIZEOF_POINTER__)
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_RA
+    mv    a0, ra                      // pass the fault address stored in RA by the fault handler.
+    mv    a1, xSELF                   // pass Thread::Current.
+    call  artThrowNullPointerExceptionFromSignal  // (arg, Thread*).
+    unimp
+END art_quick_throw_null_pointer_exception_from_signal
+
+
 // Called by managed code to deliver an ArithmeticException.
 NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_div_zero, artThrowDivZeroFromCode
 
