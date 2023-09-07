@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <functional>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -136,6 +137,10 @@ std::vector<std::string> Glob(const std::vector<std::string>& patterns, std::str
   std::vector<std::string> results;
   MatchGlobRecursive(parsed_patterns, root_dir, &results);
   return results;
+}
+
+std::string EscapeGlob(const std::string& str) {
+  return std::regex_replace(str, std::regex(R"re(\*|\?|\[)re"), "[$&]");
 }
 
 }  // namespace tools
