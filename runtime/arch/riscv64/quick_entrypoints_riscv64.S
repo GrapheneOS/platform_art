@@ -419,8 +419,7 @@ END art_quick_to_interpreter_bridge
 
     .extern artMethodExitHook
 ENTRY art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME \
-        RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+    SETUP_SAVE_EVERYTHING_FRAME
 
     // frame_size is passed in A4 from JITed code and `art_quick_generic_jni_trampoline`.
     addi a3, sp, SAVE_EVERYTHING_FRAME_OFFSET_FA0  // FP result ptr in kSaveEverything frame

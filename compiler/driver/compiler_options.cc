@@ -57,7 +57,7 @@ CompilerOptions::CompilerOptions()
       generate_debug_info_(kDefaultGenerateDebugInfo),
       generate_mini_debug_info_(kDefaultGenerateMiniDebugInfo),
       generate_build_id_(false),
-      implicit_null_checks_(true),
+      implicit_null_checks_(false),
       implicit_so_checks_(true),
       implicit_suspend_checks_(false),
       compile_pic_(false),
