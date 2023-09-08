@@ -2775,13 +2775,12 @@ void InstructionCodeGeneratorRISCV64::VisitNullConstant(HNullConstant* instructi
 }
 
 void LocationsBuilderRISCV64::VisitNullCheck(HNullCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitNullCheck(HNullCheck* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->GenerateNullCheck(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitOr(HOr* instruction) {
