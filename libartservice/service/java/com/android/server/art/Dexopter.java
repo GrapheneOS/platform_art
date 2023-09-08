@@ -476,9 +476,25 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
             dexoptOptions.compilationReason = dexoptOptions.compilationReason + "-dm";
         }
 
-        return mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
-                target.dexInfo().classLoaderContext(), target.compilerFilter(), profile, inputVdex,
-                dmFile, priorityClass, dexoptOptions, artdCancellationSignal);
+        ArtdDexoptResult result = mInjector.getArtd().dexopt(outputArtifacts,
+                target.dexInfo().dexPath(), target.isa(), target.dexInfo().classLoaderContext(),
+                target.compilerFilter(), profile, inputVdex, dmFile, priorityClass, dexoptOptions,
+                artdCancellationSignal);
+
+        // Delete the existing runtime images after the dexopt is performed, even if they are still
+        // usable (e.g., the compiler filter is "verify"). This is to make sure the dexopt puts the
+        // dex file into a certain dexopt state, to make it easier for debugging and testing. It's
+        // also an optimization to release disk space as soon as possible. However, not doing the
+        // deletion here does not affect correctness or waste disk space: if the existing runtime
+        // images are still usable, technically, they can still be used to improve runtime
+        // performance; if they are no longer usable, they will be deleted by the file GC during the
+        // daily background dexopt job anyway.
+        if (!result.cancelled) {
+            mInjector.getArtd().deleteRuntimeArtifacts(AidlUtils.buildRuntimeArtifactsPath(
+                    mPkgState.getPackageName(), target.dexInfo().dexPath(), target.isa()));
+        }
+
+        return result;
     }
 
     @Nullable
