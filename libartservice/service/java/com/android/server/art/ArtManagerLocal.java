@@ -920,9 +920,14 @@ public final class ArtManagerLocal {
             // - The dexopt artifacts, if they are up-to-date and the app is not hibernating.
             // - Only the VDEX part of the dexopt artifacts, if the dexopt artifacts are outdated
             //   but the VDEX part is still usable and the app is not hibernating.
+            // - The runtime artifacts, if dexopt artifacts are fully or partially usable and the
+            //   usable parts don't contain AOT-compiled code. (This logic must be aligned with the
+            //   one that determines when runtime images can be loaded in
+            //   `OatFileManager::OpenDexFilesFromOat` in `art/runtime/oat_file_manager.cc`.)
             List<ProfilePath> profilesToKeep = new ArrayList<>();
             List<ArtifactsPath> artifactsToKeep = new ArrayList<>();
             List<VdexPath> vdexFilesToKeep = new ArrayList<>();
+            List<RuntimeArtifactsPath> runtimeArtifactsToKeep = new ArrayList<>();
 
             for (PackageState pkgState : snapshot.getPackageStates().values()) {
                 if (!Utils.canDexoptPackage(pkgState, null /* appHibernationManager */)) {
@@ -942,8 +947,9 @@ public final class ArtManagerLocal {
                             mInjector.getUserManager(), pkgState, dexInfo));
                     if (keepArtifacts) {
                         for (Abi abi : Utils.getAllAbis(pkgState)) {
-                            maybeKeepArtifacts(artifactsToKeep, vdexFilesToKeep, pkgState, dexInfo,
-                                    abi, isInDalvikCache);
+                            maybeKeepArtifacts(artifactsToKeep, vdexFilesToKeep,
+                                    runtimeArtifactsToKeep, pkgState, dexInfo, abi,
+                                    isInDalvikCache);
                         }
                     }
                 }
@@ -956,13 +962,15 @@ public final class ArtManagerLocal {
                             AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
                     if (keepArtifacts) {
                         for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
-                            maybeKeepArtifacts(artifactsToKeep, vdexFilesToKeep, pkgState, dexInfo,
-                                    abi, false /* isInDalvikCache */);
+                            maybeKeepArtifacts(artifactsToKeep, vdexFilesToKeep,
+                                    runtimeArtifactsToKeep, pkgState, dexInfo, abi,
+                                    false /* isInDalvikCache */);
                         }
                     }
                 }
             }
-            return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep);
+            return mInjector.getArtd().cleanup(
+                    profilesToKeep, artifactsToKeep, vdexFilesToKeep, runtimeArtifactsToKeep);
         } catch (RemoteException e) {
             Utils.logArtdException(e);
             return 0;
@@ -975,9 +983,10 @@ public final class ArtManagerLocal {
      */
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private void maybeKeepArtifacts(@NonNull List<ArtifactsPath> artifactsToKeep,
-            @NonNull List<VdexPath> vdexFilesToKeep, @NonNull PackageState pkgState,
-            @NonNull DetailedDexInfo dexInfo, @NonNull Abi abi, boolean isInDalvikCache)
-            throws RemoteException {
+            @NonNull List<VdexPath> vdexFilesToKeep,
+            @NonNull List<RuntimeArtifactsPath> runtimeArtifactsToKeep,
+            @NonNull PackageState pkgState, @NonNull DetailedDexInfo dexInfo, @NonNull Abi abi,
+            boolean isInDalvikCache) throws RemoteException {
         try {
             GetDexoptStatusResult result = mInjector.getArtd().getDexoptStatus(
                     dexInfo.dexPath(), abi.isa(), dexInfo.classLoaderContext());
@@ -993,6 +1002,12 @@ public final class ArtManagerLocal {
                     vdexFilesToKeep.add(VdexPath.artifactsPath(artifacts));
                 } else {
                     artifactsToKeep.add(artifacts);
+                }
+                // Runtime images are only generated for primary dex files.
+                if (dexInfo instanceof DetailedPrimaryDexInfo
+                        && !DexFile.isOptimizedCompilerFilter(result.compilerFilter)) {
+                    runtimeArtifactsToKeep.add(AidlUtils.buildRuntimeArtifactsPath(
+                            pkgState.getPackageName(), dexInfo.dexPath(), abi.isa()));
                 }
             }
         } catch (ServiceSpecificException e) {
