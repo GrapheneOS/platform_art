@@ -179,6 +179,16 @@ public final class AidlUtils {
     }
 
     @NonNull
+    public static RuntimeArtifactsPath buildRuntimeArtifactsPath(
+            @NonNull String packageName, @NonNull String dexPath, @NonNull String isa) {
+        var runtimeArtifactsPath = new RuntimeArtifactsPath();
+        runtimeArtifactsPath.packageName = packageName;
+        runtimeArtifactsPath.dexPath = dexPath;
+        runtimeArtifactsPath.isa = isa;
+        return runtimeArtifactsPath;
+    }
+
+    @NonNull
     public static String toString(@NonNull PrimaryRefProfilePath profile) {
         return String.format("PrimaryRefProfilePath[packageName = %s, profileName = %s]",
                 profile.packageName, profile.profileName);
