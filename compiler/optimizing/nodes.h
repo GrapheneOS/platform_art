@@ -2073,12 +2073,12 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
                              ArtMethod* method,
                              uint32_t dex_pc,
                              HInstruction* holder)
-     : vregs_(number_of_vregs, allocator->Adapter(kArenaAllocEnvironmentVRegs)),
-       locations_(allocator->Adapter(kArenaAllocEnvironmentLocations)),
-       parent_(nullptr),
-       method_(method),
-       dex_pc_(dex_pc),
-       holder_(holder) {
+      : vregs_(number_of_vregs, allocator->Adapter(kArenaAllocEnvironmentVRegs)),
+        locations_(allocator->Adapter(kArenaAllocEnvironmentLocations)),
+        parent_(nullptr),
+        method_(method),
+        dex_pc_(dex_pc),
+        holder_(holder) {
   }
 
   ALWAYS_INLINE HEnvironment(ArenaAllocator* allocator,
@@ -2740,7 +2740,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
  private:
   using InstructionKindField =
-     BitField<InstructionKind, kFieldInstructionKind, kFieldInstructionKindSize>;
+      BitField<InstructionKind, kFieldInstructionKind, kFieldInstructionKindSize>;
 
   void FixUpUserRecordsAfterUseInsertion(HUseList<HInstruction*>::iterator fixup_end) {
     auto before_use_node = uses_.before_begin();
@@ -6529,12 +6529,12 @@ class HArrayGet final : public HExpression<2> {
             HInstruction* index,
             DataType::Type type,
             uint32_t dex_pc)
-     : HArrayGet(array,
-                 index,
-                 type,
-                 SideEffects::ArrayReadOfType(type),
-                 dex_pc,
-                 /* is_string_char_at= */ false) {
+      : HArrayGet(array,
+                  index,
+                  type,
+                  SideEffects::ArrayReadOfType(type),
+                  dex_pc,
+                  /* is_string_char_at= */ false) {
   }
 
   HArrayGet(HInstruction* array,
