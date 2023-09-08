@@ -338,13 +338,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             for (const auto& dex_file : dex_files) {
               dex::tracking::RegisterDexFile(dex_file.get());
             }
-
-            if (!compilation_enabled) {
-              // Update the filter we are going to report to 'speed-profile'.
-              // Ideally, we would also update the compiler filter of the odex
-              // file, but at this point it's just too late.
-              compilation_filter = CompilerFilter::NameOfFilter(CompilerFilter::kSpeedProfile);
-            }
           } else {
             LOG(INFO) << "Failed to add image file: " << temp_error_msg;
             dex_files.clear();
