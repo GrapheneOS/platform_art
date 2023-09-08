@@ -184,6 +184,12 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
         InstructionSetFeatures::FromBitmap(instruction_set_, instruction_set_features_->AsBitmap());
     CHECK(compiler_options.instruction_set_features_->Equals(instruction_set_features_.get()));
 
+    // If a test requests that implicit null checks are enabled or disabled,
+    // apply that option, otherwise use the default from `CompilerOptions`.
+    if (implicit_null_checks_.has_value()) {
+      compiler_options.implicit_null_checks_ = implicit_null_checks_.value();
+    }
+
     arm64::CodeGeneratorARM64 codegen(graph, compiler_options);
     ArenaVector<uint8_t> code(helper.GetAllocator()->Adapter());
     codegen.EmitThunkCode(patch, &code, debug_name);
@@ -556,7 +562,15 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
            (static_cast<uint32_t>(output_[offset + 3]) << 24);
   }
 
-  void TestBakerField(uint32_t offset, uint32_t ref_reg);
+  void TestBakerField(uint32_t offset, uint32_t ref_reg, bool implicit_null_checks);
+
+  void Reset() final {
+    RelativePatcherTest::Reset();
+    implicit_null_checks_ = std::nullopt;
+  }
+
+ private:
+  std::optional<bool> implicit_null_checks_ = std::nullopt;
 };
 
 const uint8_t Arm64RelativePatcherTest::kCallRawCode[] = {
@@ -1038,7 +1052,10 @@ TEST_F(Arm64RelativePatcherTestDefault, EntrypointCall) {
   EXPECT_EQ(br_ip0, GetOutputInsn(thunk_offset + 4u));
 }
 
-void Arm64RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg) {
+void Arm64RelativePatcherTest::TestBakerField(uint32_t offset,
+                                              uint32_t ref_reg,
+                                              bool implicit_null_checks) {
+  implicit_null_checks_ = implicit_null_checks;
   uint32_t valid_regs[] = {
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
       10, 11, 12, 13, 14, 15,         18, 19,  // IP0 and IP1 are reserved.
@@ -1092,7 +1109,7 @@ void Arm64RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg)
       }
 
       size_t gray_check_offset = thunk_offset;
-      if (holder_reg == base_reg) {
+      if (implicit_null_checks && holder_reg == base_reg) {
         // Verify that the null-check CBZ uses the correct register, i.e. holder_reg.
         ASSERT_GE(output_.size() - gray_check_offset, 4u);
         ASSERT_EQ(0x34000000u | holder_reg, GetOutputInsn(thunk_offset) & 0xff00001fu);
@@ -1138,7 +1155,9 @@ TEST_F(Arm64RelativePatcherTestDefault, BakerOffset) {
   };
   for (const TestCase& test_case : test_cases) {
     Reset();
-    TestBakerField(test_case.offset, test_case.ref_reg);
+    TestBakerField(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ true);
+    Reset();
+    TestBakerField(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ false);
   }
 }
 
