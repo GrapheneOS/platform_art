@@ -211,6 +211,19 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     OptimizingUnitTestHelper helper;
     HGraph* graph = helper.CreateGraph();
     CompilerOptions compiler_options;
+
+    // Set isa to Thumb2.
+    compiler_options.instruction_set_ = instruction_set_;
+    compiler_options.instruction_set_features_ =
+        InstructionSetFeatures::FromBitmap(instruction_set_, instruction_set_features_->AsBitmap());
+    CHECK(compiler_options.instruction_set_features_->Equals(instruction_set_features_.get()));
+
+    // If a test requests that implicit null checks are enabled or disabled,
+    // apply that option, otherwise use the default from `CompilerOptions`.
+    if (implicit_null_checks_.has_value()) {
+      compiler_options.implicit_null_checks_ = implicit_null_checks_.value();
+    }
+
     arm::CodeGeneratorARMVIXL codegen(graph, compiler_options);
     ArenaVector<uint8_t> code(helper.GetAllocator()->Adapter());
     codegen.EmitThunkCode(patch, &code, debug_name);
@@ -326,8 +339,16 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
            (static_cast<uint32_t>(output_[offset + 1]) << 8);
   }
 
-  void TestBakerFieldWide(uint32_t offset, uint32_t ref_reg);
-  void TestBakerFieldNarrow(uint32_t offset, uint32_t ref_reg);
+  void TestBakerFieldWide(uint32_t offset, uint32_t ref_reg, bool implicit_null_checks);
+  void TestBakerFieldNarrow(uint32_t offset, uint32_t ref_reg, bool implicit_null_checks);
+
+  void Reset() final {
+    RelativePatcherTest::Reset();
+    implicit_null_checks_ = std::nullopt;
+  }
+
+ private:
+  std::optional<bool> implicit_null_checks_ = std::nullopt;
 };
 
 const uint8_t Thumb2RelativePatcherTest::kCallRawCode[] = {
@@ -702,7 +723,10 @@ const uint32_t kBakerValidRegsNarrow[] = {
     0,  1,  2,  3,  4,  5,  6,  7,
 };
 
-void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref_reg) {
+void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset,
+                                                   uint32_t ref_reg,
+                                                   bool implicit_null_checks) {
+  implicit_null_checks_ = implicit_null_checks;
   DCHECK_ALIGNED(offset, 4u);
   DCHECK_LT(offset, 4 * KB);
   constexpr size_t kMethodCodeSize = 8u;
@@ -750,7 +774,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref
       }
 
       size_t gray_check_offset = thunk_offset;
-      if (holder_reg == base_reg) {
+      if (implicit_null_checks && holder_reg == base_reg) {
         // Verify that the null-check uses the correct register, i.e. holder_reg.
         if (holder_reg < 8) {
           ASSERT_GE(output_.size() - gray_check_offset, 2u);
@@ -797,7 +821,10 @@ void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref
   }
 }
 
-void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset, uint32_t ref_reg) {
+void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset,
+                                                     uint32_t ref_reg,
+                                                     bool implicit_null_checks) {
+  implicit_null_checks_ = implicit_null_checks;
   DCHECK_ALIGNED(offset, 4u);
   DCHECK_LT(offset, 32u);
   constexpr size_t kMethodCodeSize = 6u;
@@ -851,7 +878,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset, uint32_t r
       }
 
       size_t gray_check_offset = thunk_offset;
-      if (holder_reg == base_reg) {
+      if (implicit_null_checks && holder_reg == base_reg) {
         // Verify that the null-check uses the correct register, i.e. holder_reg.
         if (holder_reg < 8) {
           ASSERT_GE(output_.size() - gray_check_offset, 2u);
@@ -911,7 +938,9 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetWide) {
   };
   for (const TestCase& test_case : test_cases) {
     Reset();
-    TestBakerFieldWide(test_case.offset, test_case.ref_reg);
+    TestBakerFieldWide(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ true);
+    Reset();
+    TestBakerFieldWide(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ false);
   }
 }
 
@@ -927,7 +956,9 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetNarrow) {
   };
   for (const TestCase& test_case : test_cases) {
     Reset();
-    TestBakerFieldNarrow(test_case.offset, test_case.ref_reg);
+    TestBakerFieldNarrow(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ true);
+    Reset();
+    TestBakerFieldNarrow(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ false);
   }
 }
 
