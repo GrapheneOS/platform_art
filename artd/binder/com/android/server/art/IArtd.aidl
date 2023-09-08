@@ -172,7 +172,8 @@ interface IArtd {
      */
     long cleanup(in List<com.android.server.art.ProfilePath> profilesToKeep,
             in List<com.android.server.art.ArtifactsPath> artifactsToKeep,
-            in List<com.android.server.art.VdexPath> vdexFilesToKeep);
+            in List<com.android.server.art.VdexPath> vdexFilesToKeep,
+            in List<com.android.server.art.RuntimeArtifactsPath> runtimeArtifactsToKeep);
 
     /**
      * Returns whether the artifacts of the primary dex files should be in the global dalvik-cache

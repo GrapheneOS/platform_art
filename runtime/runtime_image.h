@@ -36,6 +36,13 @@ class RuntimeImage {
 
   // Same as above, but takes data dir and ISA from the runtime.
   static std::string GetRuntimeImagePath(const std::string& dex_location);
+
+  // Gets the directory that stores runtime-generated app images. Note that the return value
+  // contains a trailing '/'.
+  //
+  // If the argument is a valid glob (a pattern that contains '**' or those documented in glob(7)),
+  // returns a valid glob.
+  static std::string GetRuntimeImageDir(const std::string& app_data_dir);
 };
 
 }  // namespace art

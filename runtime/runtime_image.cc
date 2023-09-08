@@ -1812,7 +1812,7 @@ class RuntimeImageHelper {
   friend class NativePointerVisitor;
 };
 
-static std::string GetRuntimeImageDir(const std::string& app_data_dir) {
+std::string RuntimeImage::GetRuntimeImageDir(const std::string& app_data_dir) {
   if (app_data_dir.empty()) {
     // The data directory is empty for tests.
     return "";
