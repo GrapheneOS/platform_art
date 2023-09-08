@@ -777,6 +777,8 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kMul:
         case HInstruction::kNeg:
         case HInstruction::kNot:
+        case HInstruction::kMin:
+        case HInstruction::kMax:
         case HInstruction::kInvokeVirtual:
         case HInstruction::kInvokeInterface:
         case HInstruction::kCurrentMethod:
@@ -789,14 +791,6 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
             // and this requires a `CriticalNativeAbiFixupRiscv64` pass similar to the one
             // we have for ARM. This is not yet implemented. For simplicity, we reject all
             // direct @CriticalNative calls with more than 8 args.
-            return false;
-          }
-          break;
-        case HInstruction::kMin:
-        case HInstruction::kMax:
-          if (DataType::IsFloatingPointType(it.Current()->GetType())) {
-            // FIXME(riscv64): If one of the operands is NaN and the other is not, riscv64
-            // FMIN/FMAX yield the non-NaN operand but we want the result to be the NaN operand.
             return false;
           }
           break;
