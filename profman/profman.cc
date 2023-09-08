@@ -794,10 +794,10 @@ class ProfMan final {
     return dump_only_;
   }
 
-  // Creates the inline-cache portion of a text-profile line. If there is no
-  // inline-caches this will be and empty string. Otherwise it will be '@'
-  // followed by an IC description matching the format described by ProcessLine
-  // below. Note that this will collapse all ICs with the same receiver type.
+  // Creates the inline-cache portion of a text-profile line. If the class def can't be found, or if
+  // there is no inline-caches this will be and empty string. Otherwise it will be '@' followed by
+  // an IC description matching the format described by ProcessLine below. Note that this will
+  // collapse all ICs with the same receiver type.
   std::string GetInlineCacheLine(const ProfileCompilationInfo& profile_info,
                                  const dex::MethodId& id,
                                  const DexFile* dex_file,
@@ -815,10 +815,14 @@ class ProfMan final {
       std::set<dex::TypeIndex> classes_;
     };
     std::unordered_map<dex::TypeIndex, IcLineInfo> ics;
+    const dex::ClassDef* class_def = dex_file->FindClassDef(id.class_idx_);
+    if (class_def == nullptr) {
+      // No class def found.
+      return "";
+    }
+
     CodeItemInstructionAccessor accessor(
-        *dex_file,
-        dex_file->GetCodeItem(dex_file->FindCodeItemOffset(*dex_file->FindClassDef(id.class_idx_),
-                                                            dex_method_idx)));
+        *dex_file, dex_file->GetCodeItem(dex_file->FindCodeItemOffset(*class_def, dex_method_idx)));
     for (const auto& [pc, ic_data] : *inline_caches) {
       const Instruction& inst = accessor.InstructionAt(pc);
       const dex::MethodId& target = dex_file->GetMethodId(inst.VRegB());
