@@ -912,7 +912,11 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void DeleteClassLoader(Thread* self, const ClassLoaderData& data, bool cleanup_cha)
+  // Prepare by removing dependencies on things allocated in data.allocator.
+  // Please note that the allocator and class_table are not deleted in this
+  // function. They are to be deleted after preparing all the class-loaders that
+  // are to be deleted (see b/298575095).
+  void PrepareToDeleteClassLoader(Thread* self, const ClassLoaderData& data, bool cleanup_cha)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitClassesInternal(ClassVisitor* visitor)
