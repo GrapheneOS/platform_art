@@ -78,7 +78,7 @@ class RelativePatcherTest : public testing::Test {
 
   // Reset the helper to start another test. Creating and tearing down the Runtime is expensive,
   // so we merge related tests together.
-  void Reset() {
+  virtual void Reset() {
     thunk_provider_.Reset();
     method_offset_map_.map.clear();
     patcher_ = RelativePatcher::Create(instruction_set_,

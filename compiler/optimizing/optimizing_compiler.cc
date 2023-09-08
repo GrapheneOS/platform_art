@@ -782,6 +782,7 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kInvokeVirtual:
         case HInstruction::kInvokeInterface:
         case HInstruction::kCurrentMethod:
+        case HInstruction::kNullCheck:
           break;
         case HInstruction::kInvokeStaticOrDirect:
           if (it.Current()->AsInvokeStaticOrDirect()->GetCodePtrLocation() ==

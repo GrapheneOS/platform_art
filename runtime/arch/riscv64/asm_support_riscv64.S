@@ -240,12 +240,12 @@
 .endm
 
 
-.macro SETUP_CALLEE_SAVE_FRAME_COMMON tmpreg, offset
+.macro SETUP_CALLEE_SAVE_FRAME_COMMON tmpreg, runtime_method_offset
     // art::Runtime* tmpreg = art::Runtime::instance_;
     LOAD_RUNTIME_INSTANCE \tmpreg
 
     // ArtMethod* tmpreg = Runtime::instance_->callee_save_methods_[<callee-save-frame-type>];
-    ld  \tmpreg, \offset(\tmpreg)
+    ld  \tmpreg, \runtime_method_offset(\tmpreg)
 
     SETUP_CALLEE_SAVE_FRAME_COMMON_INTERNAL \tmpreg
 .endm
@@ -356,7 +356,7 @@
 .endm
 
 
-.macro SETUP_SAVE_EVERYTHING_FRAME offset
+.macro SETUP_SAVE_EVERYTHING_FRAME runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
 #if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
 #error "FRAME_SIZE_SAVE_EVERYTHING(RISCV64) size not as expected."
 #endif
@@ -430,7 +430,7 @@
 
     SAVE_GPR ra,  8*59  // x1, return address
 
-    SETUP_CALLEE_SAVE_FRAME_COMMON t0, \offset
+    SETUP_CALLEE_SAVE_FRAME_COMMON t0, \runtime_method_offset
 .endm
 
 
