@@ -6783,7 +6783,6 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) NO_THREA
       break;
   }
 
-  // TODO: Re-add the compiler code to do string dex cache lookup again.
   // Custom calling convention: RAX serves as both input and output.
   __ movl(CpuRegister(RAX), Immediate(load->GetStringIndex().index_));
   codegen_->InvokeRuntime(kQuickResolveString,
@@ -8268,7 +8267,7 @@ void CodeGeneratorX86_64::PatchJitRootUse(uint8_t* code,
       reinterpret_cast<uintptr_t>(roots_data) + index_in_table * sizeof(GcRoot<mirror::Object>);
   using unaligned_uint32_t __attribute__((__aligned__(1))) = uint32_t;
   reinterpret_cast<unaligned_uint32_t*>(code + code_offset)[0] =
-     dchecked_integral_cast<uint32_t>(address);
+      dchecked_integral_cast<uint32_t>(address);
 }
 
 void CodeGeneratorX86_64::EmitJitRootPatches(uint8_t* code, const uint8_t* roots_data) {

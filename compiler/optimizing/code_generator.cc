@@ -627,8 +627,8 @@ void CodeGenerator::CreateUnresolvedFieldLocationSummary(
       locations->SetOut(calling_convention.GetReturnLocation(field_type));
     }
   } else {
-     size_t set_index = is_instance ? 1 : 0;
-     if (DataType::IsFloatingPointType(field_type)) {
+    size_t set_index = is_instance ? 1 : 0;
+    if (DataType::IsFloatingPointType(field_type)) {
       // The set value comes from a float location while the calling convention
       // expects it in a regular register location. Allocate a temp for it and
       // make the transfer at codegen.
