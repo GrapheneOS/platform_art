@@ -222,34 +222,34 @@ static void GenIsInfinite(LocationSummary* locations,
     double kPositiveInfinity = std::numeric_limits<double>::infinity();
     double kNegativeInfinity = -1 * kPositiveInfinity;
 
-     __ xorq(output, output);
-     __ comisd(input, codegen->LiteralDoubleAddress(kPositiveInfinity));
-     __ j(kNotEqual, &done1);
-     __ j(kParityEven, &done2);
-     __ movq(output, Immediate(1));
-     __ jmp(&done2);
-     __ Bind(&done1);
-     __ comisd(input, codegen->LiteralDoubleAddress(kNegativeInfinity));
-     __ j(kNotEqual, &done2);
-     __ j(kParityEven, &done2);
-     __ movq(output, Immediate(1));
-     __ Bind(&done2);
+    __ xorq(output, output);
+    __ comisd(input, codegen->LiteralDoubleAddress(kPositiveInfinity));
+    __ j(kNotEqual, &done1);
+    __ j(kParityEven, &done2);
+    __ movq(output, Immediate(1));
+    __ jmp(&done2);
+    __ Bind(&done1);
+    __ comisd(input, codegen->LiteralDoubleAddress(kNegativeInfinity));
+    __ j(kNotEqual, &done2);
+    __ j(kParityEven, &done2);
+    __ movq(output, Immediate(1));
+    __ Bind(&done2);
   } else {
     float kPositiveInfinity = std::numeric_limits<float>::infinity();
     float kNegativeInfinity = -1 * kPositiveInfinity;
 
-     __ xorl(output, output);
-     __ comiss(input, codegen->LiteralFloatAddress(kPositiveInfinity));
-     __ j(kNotEqual, &done1);
-     __ j(kParityEven, &done2);
-     __ movl(output, Immediate(1));
-     __ jmp(&done2);
-     __ Bind(&done1);
-     __ comiss(input, codegen->LiteralFloatAddress(kNegativeInfinity));
-     __ j(kNotEqual, &done2);
-     __ j(kParityEven, &done2);
-     __ movl(output, Immediate(1));
-     __ Bind(&done2);
+    __ xorl(output, output);
+    __ comiss(input, codegen->LiteralFloatAddress(kPositiveInfinity));
+    __ j(kNotEqual, &done1);
+    __ j(kParityEven, &done2);
+    __ movl(output, Immediate(1));
+    __ jmp(&done2);
+    __ Bind(&done1);
+    __ comiss(input, codegen->LiteralFloatAddress(kNegativeInfinity));
+    __ j(kNotEqual, &done2);
+    __ j(kParityEven, &done2);
+    __ movl(output, Immediate(1));
+    __ Bind(&done2);
   }
 }
 

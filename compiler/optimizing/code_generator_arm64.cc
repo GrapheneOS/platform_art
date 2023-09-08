@@ -5714,7 +5714,6 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD
       break;
   }
 
-  // TODO: Re-add the compiler code to do string dex cache lookup again.
   InvokeRuntimeCallingConvention calling_convention;
   DCHECK_EQ(calling_convention.GetRegisterAt(0).GetCode(), out.GetCode());
   __ Mov(calling_convention.GetRegisterAt(0).W(), load->GetStringIndex().index_);
