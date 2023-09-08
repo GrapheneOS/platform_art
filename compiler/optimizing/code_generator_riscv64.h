@@ -474,11 +474,21 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FSub(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FDiv(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FMul(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FMin(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FMax(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FEq(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FLt(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FLe(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+
+  template <typename Reg,
+            void (Riscv64Assembler::*opS)(Reg, FRegister),
+            void (Riscv64Assembler::*opD)(Reg, FRegister)>
+  void FpUnOp(Reg rd, FRegister rs1, DataType::Type type);
+  void FAbs(FRegister rd, FRegister rs1, DataType::Type type);
+  void FNeg(FRegister rd, FRegister rs1, DataType::Type type);
+  void FMv(FRegister rd, FRegister rs1, DataType::Type type);
+  void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;
