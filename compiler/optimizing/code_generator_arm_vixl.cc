@@ -7963,7 +7963,6 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
       break;
   }
 
-  // TODO: Re-add the compiler code to do string dex cache lookup again.
   DCHECK_EQ(load->GetLoadKind(), HLoadString::LoadKind::kRuntimeCall);
   InvokeRuntimeCallingConventionARMVIXL calling_convention;
   __ Mov(calling_convention.GetRegisterAt(0), load->GetStringIndex().index_);

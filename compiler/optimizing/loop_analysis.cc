@@ -259,7 +259,7 @@ class X86_64LoopHelper : public ArchDefaultLoopHelper {
       case HInstruction::InstructionKind::kVecReplicateScalar:
         return 2;
       case HInstruction::InstructionKind::kVecExtractScalar:
-       return 1;
+        return 1;
       case HInstruction::InstructionKind::kVecReduce:
         return 4;
       case HInstruction::InstructionKind::kVecNeg:
