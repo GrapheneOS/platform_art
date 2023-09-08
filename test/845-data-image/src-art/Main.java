@@ -162,7 +162,7 @@ public class Main implements Itf {
 
     if (args.length == 2 && "--second-run".equals(args[1])) {
       DexFile.OptimizationInfo info = VMRuntime.getBaseApkOptimizationInfo();
-      if (!info.isOptimized()) {
+      if (!info.isOptimized() && !isInImageSpace(Main.class)) {
         throw new Error("Expected image to be loaded");
       }
     }
@@ -336,6 +336,7 @@ public class Main implements Itf {
   private static native boolean hasOatFile();
   private static native boolean hasImage();
   private static native String getCompilerFilter(Class<?> cls);
+  private static native boolean isInImageSpace(Class<?> cls);
 
   private static final String TEMP_FILE_NAME_PREFIX = "temp";
   private static final String TEMP_FILE_NAME_SUFFIX = "-file";
