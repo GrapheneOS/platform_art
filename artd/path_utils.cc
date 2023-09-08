@@ -58,6 +58,9 @@ using SecondaryRefProfilePath = ProfilePath::SecondaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
 using WritableProfilePath = ProfilePath::WritableProfilePath;
 
+// Only to be changed for testing.
+std::string_view gListRootDir = "/";
+
 Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
   if (path_str.empty()) {
     return Errorf("Path is empty");
@@ -156,7 +159,7 @@ std::vector<std::string> ListManagedFiles(const std::string& android_data,
     }
   }
 
-  return tools::Glob(patterns);
+  return tools::Glob(patterns, gListRootDir);
 }
 
 std::vector<std::string> ListRuntimeArtifactsFiles(
@@ -177,7 +180,7 @@ std::vector<std::string> ListRuntimeArtifactsFiles(
     }
   }
 
-  return tools::Glob(patterns);
+  return tools::Glob(patterns, gListRootDir);
 }
 
 Result<void> ValidateRuntimeArtifactsPath(const RuntimeArtifactsPath& runtime_artifacts_path) {
@@ -335,6 +338,8 @@ Result<std::vector<FstabEntry>> GetProcMountsEntriesForPath(const std::string& p
   }
   return entries;
 }
+
+void TestOnlySetListRootDir(std::string_view root_dir) { gListRootDir = root_dir; }
 
 }  // namespace artd
 }  // namespace art

@@ -120,8 +120,6 @@ using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
 using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
 
-constexpr uid_t kRootUid = 0;
-
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
   return make_scope_guard([old_logger = std::move(old_logger)]() mutable {
@@ -327,6 +325,8 @@ class ArtdTest : public CommonArtTest {
     scratch_path_ = scratch_dir_->GetPath();
     // Remove the trailing '/';
     scratch_path_.resize(scratch_path_.length() - 1);
+
+    TestOnlySetListRootDir(scratch_path_);
 
     ON_CALL(mock_fstat_, Call).WillByDefault(fstat);
 
@@ -1972,11 +1972,6 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpClassesAndMethods) {
 }
 
 TEST_F(ArtdTest, cleanup) {
-  // TODO(b/289037540): Fix this.
-  if (getuid() != kRootUid) {
-    GTEST_SKIP() << "This test requires root access";
-  }
-
   std::vector<std::string> gc_removed_files;
   std::vector<std::string> gc_kept_files;
 
@@ -2137,11 +2132,6 @@ TEST_F(ArtdTest, isInDalvikCache) {
 }
 
 TEST_F(ArtdTest, deleteRuntimeArtifacts) {
-  // TODO(b/289037540): Fix this.
-  if (getuid() != kRootUid) {
-    GTEST_SKIP() << "This test requires root access";
-  }
-
   std::vector<std::string> removed_files;
   std::vector<std::string> kept_files;
 
@@ -2188,11 +2178,6 @@ TEST_F(ArtdTest, deleteRuntimeArtifacts) {
 }
 
 TEST_F(ArtdTest, deleteRuntimeArtifactsSpecialChars) {
-  // TODO(b/289037540): Fix this.
-  if (getuid() != kRootUid) {
-    GTEST_SKIP() << "This test requires root access";
-  }
-
   std::vector<std::string> removed_files;
   std::vector<std::string> kept_files;
 

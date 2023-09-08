@@ -107,6 +107,11 @@ bool PathStartsWith(std::string_view path, std::string_view prefix);
 android::base::Result<std::vector<android::fs_mgr::FstabEntry>> GetProcMountsEntriesForPath(
     const std::string& path);
 
+// Sets the root dir for `ListManagedFiles` and `ListRuntimeImageFiles`.
+// The passed string must be alive until the test ends.
+// For testing use only.
+void TestOnlySetListRootDir(std::string_view root_dir);
+
 }  // namespace artd
 }  // namespace art
 
