@@ -327,6 +327,33 @@ class ParallelMoveResolverRISCV64 : public ParallelMoveResolverWithSwap {
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverRISCV64);
 };
 
+class FieldAccessCallingConventionRISCV64 : public FieldAccessCallingConvention {
+ public:
+  FieldAccessCallingConventionRISCV64() {}
+
+  Location GetObjectLocation() const override {
+    return Location::RegisterLocation(A1);
+  }
+  Location GetFieldIndexLocation() const override {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetReturnLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetSetValueLocation(DataType::Type type ATTRIBUTE_UNUSED,
+                               bool is_instance) const override {
+    return is_instance
+        ? Location::RegisterLocation(A2)
+        : Location::RegisterLocation(A1);
+  }
+  Location GetFpuLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+    return Location::FpuRegisterLocation(FA0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionRISCV64);
+};
+
 class LocationsBuilderRISCV64 : public HGraphVisitor {
  public:
   LocationsBuilderRISCV64(HGraph* graph, CodeGeneratorRISCV64* codegen)
