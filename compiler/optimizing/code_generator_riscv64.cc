@@ -46,6 +46,13 @@ namespace riscv64 {
 // We switch to the table-based method starting with 6 entries.
 static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 6;
 
+// FCLASS returns a 10-bit classification mask with the two highest bits marking NaNs
+// (signaling and quiet). To detect a NaN, we can compare (either BGE or BGEU, the sign
+// bit is always clear) the result with the `kFClassNaNMinValue`.
+static_assert(kSignalingNaN == 0x100);
+static_assert(kQuietNaN == 0x200);
+static constexpr int32_t kFClassNaNMinValue = 0x100;
+
 static constexpr XRegister kCoreCalleeSaves[] = {
     // S1(TR) is excluded as the ART thread register.
     S0, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, RA
@@ -465,6 +472,11 @@ inline void InstructionCodeGeneratorRISCV64::FDiv(
   FpBinOp<FRegister, &Riscv64Assembler::FDivS, &Riscv64Assembler::FDivD>(rd, rs1, rs2, type);
 }
 
+inline void InstructionCodeGeneratorRISCV64::FMul(
+    FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
+  FpBinOp<FRegister, &Riscv64Assembler::FMulS, &Riscv64Assembler::FMulD>(rd, rs1, rs2, type);
+}
+
 inline void InstructionCodeGeneratorRISCV64::FMin(
     FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
   FpBinOp<FRegister, &Riscv64Assembler::FMinS, &Riscv64Assembler::FMinD>(rd, rs1, rs2, type);
@@ -488,6 +500,40 @@ inline void InstructionCodeGeneratorRISCV64::FLt(
 inline void InstructionCodeGeneratorRISCV64::FLe(
     XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
   FpBinOp<XRegister, &Riscv64Assembler::FLeS, &Riscv64Assembler::FLeD>(rd, rs1, rs2, type);
+}
+
+template <typename Reg,
+          void (Riscv64Assembler::*opS)(Reg, FRegister),
+          void (Riscv64Assembler::*opD)(Reg, FRegister)>
+inline void InstructionCodeGeneratorRISCV64::FpUnOp(
+    Reg rd, FRegister rs1, DataType::Type type) {
+  Riscv64Assembler* assembler = down_cast<CodeGeneratorRISCV64*>(codegen_)->GetAssembler();
+  if (type == DataType::Type::kFloat32) {
+    (assembler->*opS)(rd, rs1);
+  } else {
+    DCHECK_EQ(type, DataType::Type::kFloat64);
+    (assembler->*opD)(rd, rs1);
+  }
+}
+
+inline void InstructionCodeGeneratorRISCV64::FAbs(
+    FRegister rd, FRegister rs1, DataType::Type type) {
+  FpUnOp<FRegister, &Riscv64Assembler::FAbsS, &Riscv64Assembler::FAbsD>(rd, rs1, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FNeg(
+    FRegister rd, FRegister rs1, DataType::Type type) {
+  FpUnOp<FRegister, &Riscv64Assembler::FNegS, &Riscv64Assembler::FNegD>(rd, rs1, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FMv(
+    FRegister rd, FRegister rs1, DataType::Type type) {
+  FpUnOp<FRegister, &Riscv64Assembler::FMvS, &Riscv64Assembler::FMvD>(rd, rs1, type);
+}
+
+inline void InstructionCodeGeneratorRISCV64::FClass(
+    XRegister rd, FRegister rs1, DataType::Type type) {
+  FpUnOp<XRegister, &Riscv64Assembler::FClassS, &Riscv64Assembler::FClassD>(rd, rs1, type);
 }
 
 Riscv64Assembler* ParallelMoveResolverRISCV64::GetAssembler() const {
@@ -1299,7 +1345,11 @@ void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
     case DataType::Type::kFloat64:
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      if (instruction->IsMin() || instruction->IsMax()) {
+        locations->SetOut(Location::RequiresFpuRegister(), Location::kOutputOverlap);
+      } else {
+        locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      }
       break;
 
     default:
@@ -1380,11 +1430,32 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
         FAdd(rd, rs1, rs2, type);
       } else if (instruction->IsSub()) {
         FSub(rd, rs1, rs2, type);
-      } else if (instruction->IsMin()) {
-        FMin(rd, rs1, rs2, type);
       } else {
-        DCHECK(instruction->IsMax());
-        FMax(rd, rs1, rs2, type);
+        DCHECK(instruction->IsMin() || instruction->IsMax());
+        // If one of the operands is NaN and the other is not, riscv64 instructions FMIN/FMAX
+        // return the other operand while we want to return the NaN operand.
+        DCHECK_NE(rd, rs1);  // Requested `Location::kOutputOverlap`.
+        DCHECK_NE(rd, rs2);  // Requested `Location::kOutputOverlap`.
+        ScratchRegisterScope srs(GetAssembler());
+        XRegister tmp = srs.AllocateXRegister();
+        XRegister tmp2 = srs.AllocateXRegister();
+        Riscv64Label done;
+        // Return `rs1` if it's NaN.
+        FClass(tmp, rs1, type);
+        __ Li(tmp2, kFClassNaNMinValue);
+        FMv(rd, rs1, type);
+        __ Bgeu(tmp, tmp2, &done);
+        // Return `rs2` if it's NaN.
+        FClass(tmp, rs2, type);
+        FMv(rd, rs2, type);
+        __ Bgeu(tmp, tmp2, &done);
+        // Calculate Min/Max for non-NaN arguments.
+        if (instruction->IsMin()) {
+          FMin(rd, rs1, rs2, type);
+        } else {
+          FMax(rd, rs1, rs2, type);
+        }
+        __ Bind(&done);
       }
       break;
     }
@@ -1657,18 +1728,12 @@ void InstructionCodeGeneratorRISCV64::VisitAbs(HAbs* abs) {
       __ Sub(out, out, tmp);
       break;
     }
-    case DataType::Type::kFloat32: {
-      FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
-      FRegister out = locations->Out().AsFpuRegister<FRegister>();
-      __ FAbsS(out, in);
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      FAbs(locations->Out().AsFpuRegister<FRegister>(),
+           locations->InAt(0).AsFpuRegister<FRegister>(),
+           abs->GetResultType());
       break;
-    }
-    case DataType::Type::kFloat64: {
-      FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
-      FRegister out = locations->Out().AsFpuRegister<FRegister>();
-      __ FAbsD(out, in);
-      break;
-    }
     default:
       LOG(FATAL) << "Unexpected abs type " << abs->GetResultType();
   }
@@ -2586,15 +2651,11 @@ void InstructionCodeGeneratorRISCV64::VisitMul(HMul* instruction) {
       break;
 
     case DataType::Type::kFloat32:
-      __ FMulS(locations->Out().AsFpuRegister<FRegister>(),
-               locations->InAt(0).AsFpuRegister<FRegister>(),
-               locations->InAt(1).AsFpuRegister<FRegister>());
-      break;
-
     case DataType::Type::kFloat64:
-      __ FMulD(locations->Out().AsFpuRegister<FRegister>(),
-               locations->InAt(0).AsFpuRegister<FRegister>(),
-               locations->InAt(1).AsFpuRegister<FRegister>());
+      FMul(locations->Out().AsFpuRegister<FRegister>(),
+           locations->InAt(0).AsFpuRegister<FRegister>(),
+           locations->InAt(1).AsFpuRegister<FRegister>(),
+           instruction->GetResultType());
       break;
 
     default:
@@ -2635,13 +2696,10 @@ void InstructionCodeGeneratorRISCV64::VisitNeg(HNeg* instruction) {
       break;
 
     case DataType::Type::kFloat32:
-      __ FNegS(locations->Out().AsFpuRegister<FRegister>(),
-               locations->InAt(0).AsFpuRegister<FRegister>());
-      break;
-
     case DataType::Type::kFloat64:
-      __ FNegD(locations->Out().AsFpuRegister<FRegister>(),
-               locations->InAt(0).AsFpuRegister<FRegister>());
+      FNeg(locations->Out().AsFpuRegister<FRegister>(),
+           locations->InAt(0).AsFpuRegister<FRegister>(),
+           instruction->GetResultType());
       break;
 
     default:
