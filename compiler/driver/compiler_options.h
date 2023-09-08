@@ -42,6 +42,7 @@ class VerifierDepsTest;
 
 namespace linker {
 class Arm64RelativePatcherTest;
+class Thumb2RelativePatcherTest;
 }  // namespace linker
 
 class ArtMethod;
@@ -502,6 +503,7 @@ class CompilerOptions final {
   friend class jit::JitCompiler;
   friend class verifier::VerifierDepsTest;
   friend class linker::Arm64RelativePatcherTest;
+  friend class linker::Thumb2RelativePatcherTest;
 
   template <class Base>
   friend bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string* error_msg);
