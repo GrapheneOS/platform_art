@@ -324,7 +324,7 @@ art_debug_defaults {
         art_debug_opt_flag: {
             cflags: ["%s"],
             conditions_default: {
-                cflags: ["-O2"],
+                cflags: ["-Og"],
             },
         },
     },
