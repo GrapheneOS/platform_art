@@ -418,7 +418,7 @@ static void TryToEvaluateIfCondition(HIf* instruction, HGraph* graph) {
       ++it;
       if (true_succ->Dominates(user_block)) {
         user->ReplaceInput(graph->GetIntConstant(1), index);
-     } else if (false_succ->Dominates(user_block)) {
+      } else if (false_succ->Dominates(user_block)) {
         user->ReplaceInput(graph->GetIntConstant(0), index);
       }
     }
@@ -1609,12 +1609,12 @@ void HLoopOptimization::GenerateNewLoopPredicated(LoopNode* node,
                                             0u);
 
   HInstruction* cond =
-     new (global_allocator_) HVecPredToBoolean(global_allocator_,
-                                               pred_while,
-                                               HVecPredToBoolean::PCondKind::kNFirst,
-                                               DataType::Type::kInt32,
-                                               vector_length_,
-                                               0u);
+      new (global_allocator_) HVecPredToBoolean(global_allocator_,
+                                                pred_while,
+                                                HVecPredToBoolean::PCondKind::kNFirst,
+                                                DataType::Type::kInt32,
+                                                vector_length_,
+                                                0u);
 
   vector_header_->AddInstruction(pred_while);
   vector_header_->AddInstruction(cond);

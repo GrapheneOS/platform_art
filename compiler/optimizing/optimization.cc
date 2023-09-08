@@ -313,8 +313,8 @@ ArenaVector<HOptimization*> ConstructOptimizations(
         opt = new (allocator) x86::X86MemoryOperandGeneration(graph, codegen, stats);
         break;
       case OptimizationPass::kInstructionSimplifierX86:
-       opt = new (allocator) x86::InstructionSimplifierX86(graph, codegen, stats);
-       break;
+        opt = new (allocator) x86::InstructionSimplifierX86(graph, codegen, stats);
+        break;
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
       case OptimizationPass::kInstructionSimplifierX86_64:

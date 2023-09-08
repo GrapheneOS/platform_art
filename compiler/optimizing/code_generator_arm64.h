@@ -116,7 +116,7 @@ const vixl::aarch64::CPURegList callee_saved_core_registers(
     vixl::aarch64::CPURegister::kRegister,
     vixl::aarch64::kXRegSize,
     (kReserveMarkingRegister ? vixl::aarch64::x21.GetCode() : vixl::aarch64::x20.GetCode()),
-     vixl::aarch64::x30.GetCode());
+    vixl::aarch64::x30.GetCode());
 const vixl::aarch64::CPURegList callee_saved_fp_registers(vixl::aarch64::CPURegister::kVRegister,
                                                           vixl::aarch64::kDRegSize,
                                                           vixl::aarch64::d8.GetCode(),
