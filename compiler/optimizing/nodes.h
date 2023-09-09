@@ -2194,9 +2194,14 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
 std::ostream& operator<<(std::ostream& os, const HInstruction& rhs);
 
 // Iterates over the Environments
-class HEnvironmentIterator : public ValueObject,
-                             public std::iterator<std::forward_iterator_tag, HEnvironment*> {
+class HEnvironmentIterator : public ValueObject {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = HEnvironment*;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   explicit HEnvironmentIterator(HEnvironment* cur) : cur_(cur) {}
 
   HEnvironment* operator*() const {
@@ -2915,9 +2920,14 @@ class HBackwardInstructionIterator : public ValueObject {
 };
 
 template <typename InnerIter>
-struct HSTLInstructionIterator : public ValueObject,
-                                 public std::iterator<std::forward_iterator_tag, HInstruction*> {
+struct HSTLInstructionIterator : public ValueObject {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = HInstruction*;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   static_assert(std::is_same_v<InnerIter, HBackwardInstructionIterator> ||
                     std::is_same_v<InnerIter, HInstructionIterator> ||
                     std::is_same_v<InnerIter, HInstructionIteratorHandleChanges>,
