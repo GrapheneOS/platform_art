@@ -161,8 +161,8 @@ class ZipLeftIter {
   using iterator_category = std::forward_iterator_tag;
   using value_type = std::pair<typename IterLeft::value_type, typename IterRight::value_type>;
   using difference_type = ptrdiff_t;
-  using pointer = value_type*;
-  using reference = value_type&;
+  using pointer = void;
+  using reference = void;
 
   ZipLeftIter(IterLeft left, IterRight right) : left_iter_(left), right_iter_(right) {}
   ZipLeftIter<IterLeft, IterRight>& operator++() {
@@ -253,8 +253,8 @@ struct FilterIterator {
   using iterator_category = std::forward_iterator_tag;
   using value_type = typename RealIter::value_type;
   using difference_type = ptrdiff_t;
-  using pointer = value_type*;
-  using reference = value_type&;
+  using pointer = typename RealIter::pointer;
+  using reference = typename RealIter::reference;
 
   FilterIterator(RealIter rl,
                  Filter cond,
@@ -343,8 +343,8 @@ struct SplitStringIter {
   using iterator_category = std::forward_iterator_tag;
   using value_type = std::string_view;
   using difference_type = ptrdiff_t;
-  using pointer = value_type*;
-  using reference = value_type&;
+  using pointer = void;
+  using reference = void;
 
   // Direct iterator constructor. The iteration state is only the current index.
   // We use that with the split char and the full string to get the current and
