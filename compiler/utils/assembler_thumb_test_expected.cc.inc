@@ -76,7 +76,7 @@ const char* const VixlJniHelpersResults = {
   "      e4: f1bb 0f00     cmp.w r11, #0\n"
   "      e8: bf18          it ne\n"
   "      ea: 46e3          movne r11, r12\n"
-  "      ec: f8d9 c09c     ldr.w r12, [r9, #156]\n"
+  "      ec: f8d9 c094     ldr.w r12, [r9, #148]\n"
   "      f0: f1bc 0f00     cmp.w r12, #0\n"
   "      f4: d16f          bne 0x1d6     @ imm = #222\n"
   "      f6: f8cd c7ff     str.w r12, [sp, #2047]\n"
@@ -151,10 +151,10 @@ const char* const VixlJniHelpersResults = {
   "     206: b001          add sp, #4\n"
   "     208: ecbd 8a10     vpop {s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29, s30, s31}\n"
   "     20c: e8bd 4de0     pop.w {r5, r6, r7, r8, r10, r11, lr}\n"
-  "     210: f8d9 8024     ldr.w r8, [r9, #36]\n"
+  "     210: f8d9 8020     ldr.w r8, [r9, #32]\n"
   "     214: 4770          bx lr\n"
-  "     216: f8d9 009c     ldr.w r0, [r9, #156]\n"
-  "     21a: f8d9 e2d0     ldr.w lr, [r9, #720]\n"
+  "     216: f8d9 0094     ldr.w r0, [r9, #148]\n"
+  "     21a: f8d9 e2c4     ldr.w lr, [r9, #708]\n"
   "     21e: 47f0          blx lr\n"
 };
 

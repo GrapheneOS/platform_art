@@ -480,7 +480,8 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
   }
 
   void Run(Thread* thread) override REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Note: self is not necessarily equal to thread since thread may be suspended.
+    // We are either running this in the target thread, or the target thread will wait for us
+    // before switching back to runnable.
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->GetState() != ThreadState::kRunnable)
         << thread->GetState() << " thread " << thread << " self " << self;
@@ -495,7 +496,6 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
     // We can use the non-CAS VisitRoots functions below because we update thread-local GC roots
     // only.
     thread->VisitRoots(this, kVisitRootFlagAllRoots);
-    concurrent_copying_->GetBarrier().Pass(self);
   }
 
   void VisitRoots(mirror::Object*** roots,
@@ -764,17 +764,12 @@ void ConcurrentCopying::FlipThreadRoots() {
   }
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
-  gc_barrier_->Init(self, 0);
   ThreadFlipVisitor thread_flip_visitor(this, heap_->use_tlab_);
   FlipCallback flip_callback(this);
 
-  size_t barrier_count = Runtime::Current()->GetThreadList()->FlipThreadRoots(
+  Runtime::Current()->GetThreadList()->FlipThreadRoots(
       &thread_flip_visitor, &flip_callback, this, GetHeap()->GetGcPauseListener());
 
-  {
-    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
-    gc_barrier_->Increment(self, barrier_count);
-  }
   is_asserting_to_space_invariant_ = true;
   QuasiAtomic::ThreadFenceForConstructor();
   if (kVerboseMode) {
