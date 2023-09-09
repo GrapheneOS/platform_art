@@ -156,10 +156,14 @@ static inline std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::
 }
 
 template <typename IterLeft, typename IterRight>
-class ZipLeftIter : public std::iterator<
-                        std::forward_iterator_tag,
-                        std::pair<typename IterLeft::value_type, typename IterRight::value_type>> {
+class ZipLeftIter {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = std::pair<typename IterLeft::value_type, typename IterRight::value_type>;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   ZipLeftIter(IterLeft left, IterRight right) : left_iter_(left), right_iter_(right) {}
   ZipLeftIter<IterLeft, IterRight>& operator++() {
     ++left_iter_;
@@ -186,8 +190,14 @@ class ZipLeftIter : public std::iterator<
   IterRight right_iter_;
 };
 
-class CountIter : public std::iterator<std::forward_iterator_tag, size_t, size_t, size_t, size_t> {
+class CountIter {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = size_t;
+  using difference_type = size_t;
+  using pointer = size_t;
+  using reference = size_t;
+
   CountIter() : count_(0) {}
   explicit CountIter(size_t count) : count_(count) {}
   CountIter& operator++() {
@@ -238,9 +248,14 @@ static inline IterationRange<CountIter> Range(size_t end) {
 }
 
 template <typename RealIter, typename Filter>
-struct FilterIterator
-    : public std::iterator<std::forward_iterator_tag, typename RealIter::value_type> {
+struct FilterIterator {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = typename RealIter::value_type;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   FilterIterator(RealIter rl,
                  Filter cond,
                  std::optional<RealIter> end = std::nullopt)
@@ -323,8 +338,14 @@ SafePrinter<Val> SafePrint(const Val* v) {
 }
 
 // Helper struct for iterating a split-string without allocation.
-struct SplitStringIter : public std::iterator<std::forward_iterator_tag, std::string_view> {
+struct SplitStringIter {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = std::string_view;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   // Direct iterator constructor. The iteration state is only the current index.
   // We use that with the split char and the full string to get the current and
   // next segment.

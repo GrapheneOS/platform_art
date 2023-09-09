@@ -153,13 +153,13 @@ static const char* const* GetBitTableColumnNamesImpl(std::index_sequence<Columns
 template<typename Accessor>
 class BitTable : public BitTableBase<Accessor::kNumColumns> {
  public:
-  class const_iterator : public std::iterator<std::random_access_iterator_tag,
-                                              /* value_type */ Accessor,
-                                              /* difference_type */ int32_t,
-                                              /* pointer */ void,
-                                              /* reference */ void> {
+  class const_iterator {
    public:
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = Accessor;
     using difference_type = int32_t;
+    using pointer = void;
+    using reference = void;
     const_iterator() {}
     const_iterator(const BitTable* table, uint32_t row) : table_(table), row_(row) {}
     const_iterator operator+(difference_type n) { return const_iterator(table_, row_ + n); }
@@ -189,6 +189,7 @@ class BitTable : public BitTableBase<Accessor::kNumColumns> {
       DCHECK_LT(row_ + index, table_->NumRows());
       return Accessor(table_, row_ + index);
     }
+
    private:
     const BitTable* table_ = nullptr;
     uint32_t row_ = 0;

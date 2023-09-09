@@ -162,11 +162,17 @@ class MANAGED ObjectArray: public Array {
 // Everything is NO_THREAD_SAFETY_ANALYSIS to work-around STL incompat with thread-annotations.
 // Everything should have REQUIRES_SHARED(Locks::mutator_lock_).
 template <typename T, typename Container>
-class ArrayIter : public std::iterator<std::forward_iterator_tag, ObjPtr<T>> {
+class ArrayIter {
  private:
   using Iter = ArrayIter<T, Container>;
 
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = ObjPtr<T>;
+  using difference_type = ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
   ArrayIter(Container array, int32_t idx) NO_THREAD_SAFETY_ANALYSIS : array_(array), idx_(idx) {
     CheckIdx();
   }
