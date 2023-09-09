@@ -237,11 +237,10 @@ class CHACheckpoint final : public Closure {
       : barrier_(0),
         method_headers_(method_headers) {}
 
-  void Run(Thread* thread) override {
+  void Run(Thread* thread) override REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note thread and self may not be equal if thread was already suspended at
     // the point of the request.
     Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
     CHAStackVisitor visitor(thread, nullptr, method_headers_);
     visitor.WalkStack();
     barrier_.Pass(self);
