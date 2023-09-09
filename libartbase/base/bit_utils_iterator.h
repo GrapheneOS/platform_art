@@ -32,14 +32,19 @@ namespace art {
 // Using the Curiously Recurring Template Pattern to implement everything shared
 // by LowToHighBitIterator and HighToLowBitIterator, i.e. everything but operator*().
 template <typename T, typename Iter>
-class BitIteratorBase
-    : public std::iterator<std::forward_iterator_tag, uint32_t, ptrdiff_t, void, void> {
+class BitIteratorBase {
   static_assert(std::is_integral_v<T>, "T must be integral");
   static_assert(std::is_unsigned_v<T>, "T must be unsigned");
 
   static_assert(sizeof(T) == sizeof(uint32_t) || sizeof(T) == sizeof(uint64_t), "Unsupported size");
 
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = uint32_t;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
+
   BitIteratorBase() : bits_(0u) { }
   explicit BitIteratorBase(T bits) : bits_(bits) { }
 
