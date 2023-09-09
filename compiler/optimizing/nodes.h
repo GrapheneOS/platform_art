@@ -2199,8 +2199,8 @@ class HEnvironmentIterator : public ValueObject {
   using iterator_category = std::forward_iterator_tag;
   using value_type = HEnvironment*;
   using difference_type = ptrdiff_t;
-  using pointer = value_type*;
-  using reference = value_type&;
+  using pointer = void;
+  using reference = void;
 
   explicit HEnvironmentIterator(HEnvironment* cur) : cur_(cur) {}
 
@@ -2925,8 +2925,8 @@ struct HSTLInstructionIterator : public ValueObject {
   using iterator_category = std::forward_iterator_tag;
   using value_type = HInstruction*;
   using difference_type = ptrdiff_t;
-  using pointer = value_type*;
-  using reference = value_type&;
+  using pointer = void;
+  using reference = void;
 
   static_assert(std::is_same_v<InnerIter, HBackwardInstructionIterator> ||
                     std::is_same_v<InnerIter, HInstructionIterator> ||
