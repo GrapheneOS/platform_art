@@ -972,7 +972,6 @@ art_cc_defaults {
         "subtype_check_info_test.cc",
         "subtype_check_test.cc",
         "thread_pool_test.cc",
-        "thread_test.cc",
         "transaction_test.cc",
         "two_runtimes_test.cc",
         "vdex_file_test.cc",
