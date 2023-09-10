@@ -740,6 +740,7 @@ class MarkCompact::ThreadFlipVisitor : public Closure {
     CHECK(collector_->compacting_);
     thread->SweepInterpreterCache(collector_);
     thread->AdjustTlab(collector_->black_objs_slide_diff_);
+    collector_->GetBarrier().Pass(self);
   }
 
  private:
@@ -787,10 +788,15 @@ void MarkCompact::RunPhases() {
 
   {
     // Compaction pause
+    gc_barrier_.Init(self, 0);
     ThreadFlipVisitor visitor(this);
     FlipCallback callback(this);
-    runtime->GetThreadList()->FlipThreadRoots(
+    size_t barrier_count = runtime->GetThreadList()->FlipThreadRoots(
         &visitor, &callback, this, GetHeap()->GetGcPauseListener());
+    {
+      ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
+      gc_barrier_.Increment(self, barrier_count);
+    }
   }
 
   if (IsValidFd(uffd_)) {
