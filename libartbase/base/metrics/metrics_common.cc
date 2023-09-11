@@ -57,23 +57,29 @@ SessionData SessionData::CreateDefault() {
   };
 }
 
-ArtMetrics::ArtMetrics() : beginning_timestamp_ {MilliTime()}
+ArtMetrics::ArtMetrics()
+    : beginning_timestamp_{MilliTime()},
+      last_report_timestamp_{beginning_timestamp_}
 #define ART_METRIC(name, Kind, ...) \
   , name##_ {}
-ART_METRICS(ART_METRIC)
+      ART_METRICS(ART_METRIC)
 #undef ART_METRIC
 {
 }
 
 void ArtMetrics::ReportAllMetricsAndResetValueMetrics(
     const std::vector<MetricsBackend*>& backends) {
+  uint64_t current_timestamp_ = MilliTime();
   for (auto& backend : backends) {
-    backend->BeginReport(MilliTime() - beginning_timestamp_);
+    backend->BeginReport(current_timestamp_ - beginning_timestamp_);
   }
 
 #define REPORT_METRIC(name, Kind, ...) name()->Report(backends);
   ART_EVENT_METRICS(REPORT_METRIC)
 #undef REPORT_METRIC
+
+  // Update ART_DATUM_DELTA_TIME_ELAPSED_MS before ART Value Metrics are reported.
+  TimeElapsedDelta()->Add(current_timestamp_ - last_report_timestamp_);
 
 #define REPORT_METRIC(name, Kind, ...) name()->ReportAndReset(backends);
   ART_VALUE_METRICS(REPORT_METRIC)
@@ -82,6 +88,9 @@ void ArtMetrics::ReportAllMetricsAndResetValueMetrics(
   for (auto& backend : backends) {
     backend->EndReport();
   }
+
+  // Save the current timestamp to be able to calculate the elapsed time for the next report cycle.
+  last_report_timestamp_ = current_timestamp_;
 }
 
 void ArtMetrics::DumpForSigQuit(std::ostream& os) {
