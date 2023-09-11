@@ -401,11 +401,11 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
 
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
                 .isNotEqualTo(0);
         assertThat(results.get(0).getExternalProfileErrors()).containsExactly("error_msg");
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
                 .isNotEqualTo(0);
         assertThat(results.get(1).getExternalProfileErrors()).containsExactly("error_msg");
     }
@@ -648,16 +648,16 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isEqualTo(0);
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isNotEqualTo(0);
         assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(2).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isNotEqualTo(0);
         assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(3).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isEqualTo(0);
 
         verify(mArtd, times(2))
@@ -682,16 +682,16 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isNotEqualTo(0);
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isNotEqualTo(0);
         assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(2).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isEqualTo(0);
         assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(3).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isEqualTo(0);
     }
 
@@ -744,7 +744,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
     private void verifyStatusAllOk(List<DexContainerFileDexoptResult> results) {
         for (DexContainerFileDexoptResult result : results) {
             assertThat(result.getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-            assertThat(result.getExtraStatus()).isEqualTo(0);
+            assertThat(result.getExtraStatuses()).isEqualTo(0);
             assertThat(result.getExternalProfileErrors()).isEmpty();
         }
     }
