@@ -87,7 +87,8 @@
   METRIC(TotalBytesAllocatedDelta, MetricsDeltaCounter)        \
   METRIC(TotalGcCollectionTimeDelta, MetricsDeltaCounter)      \
   METRIC(YoungGcCountDelta, MetricsDeltaCounter)               \
-  METRIC(FullGcCountDelta, MetricsDeltaCounter)
+  METRIC(FullGcCountDelta, MetricsDeltaCounter)                \
+  METRIC(TimeElapsedDelta, MetricsDeltaCounter)
 
 #define ART_METRICS(METRIC) \
   ART_EVENT_METRICS(METRIC) \
@@ -759,6 +760,7 @@ class ArtMetrics {
 
  private:
   uint64_t beginning_timestamp_;
+  uint64_t last_report_timestamp_;
 
 #define METRIC(name, Kind, ...) Kind<DatumId::k##name, ##__VA_ARGS__> name##_;
   ART_METRICS(METRIC)

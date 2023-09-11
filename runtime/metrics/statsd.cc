@@ -192,6 +192,9 @@ constexpr std::optional<int32_t> EncodeDatumId(DatumId datum_id) {
       return std::make_optional(
           statsd::
               ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_FULL_HEAP_COLLECTION_DURATION_MS);
+    case DatumId::kTimeElapsedDelta:
+      return std::make_optional(
+          statsd::ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_TIME_ELAPSED_MS);
   }
 }
 
