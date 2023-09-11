@@ -63,11 +63,26 @@ public abstract class DexoptResult {
     public @interface DexoptResultStatus {}
 
     // Possible values of {@link #DexoptResultExtraStatus}.
-    /** @hide */
+    /** Dexopt is skipped because the remaining storage space is low. */
     public static final int EXTRA_SKIPPED_STORAGE_LOW = 1 << 0;
-    /** @hide */
+    /**
+     * Dexopt is skipped because the dex container file has no dex code while the manifest declares
+     * that it does.
+     *
+     * Note that this flag doesn't apply to dex container files that are not declared to have code.
+     * Instead, those files are not listed in {@link
+     * PackageDexoptResult#getDexContainerFileDexoptResults} in the first place.
+     */
     public static final int EXTRA_SKIPPED_NO_DEX_CODE = 1 << 1;
-    /** @hide */
+    /**
+     * Dexopt encountered errors when processing the profiles that are external to the device,
+     * including the profile in the DM file and the profile embedded in the dex container file.
+     * Details of the errors can be found in {@link
+     * DexContainerFileDexoptResult#getExternalProfileErrors}.
+     *
+     * This is not a critical error. Dexopt may still have succeeded after ignoring the bad external
+     * profiles.
+     */
     public static final int EXTRA_BAD_EXTERNAL_PROFILE = 1 << 2;
 
     /** @hide */
@@ -301,10 +316,26 @@ public abstract class DexoptResult {
          */
         public abstract long getSizeBeforeBytes();
 
-        /** @hide */
-        public abstract @DexoptResultExtraStatus int getExtraStatus();
+        /**
+         * A bitfield of the extended status flags.
+         *
+         * Flags that starts with `EXTRA_SKIPPED_` are a subset of the reasons why dexopt is
+         * skipped. Note that they don't cover all possible reasons. At most one `EXTRA_SKIPPED_`
+         * flag will be set, even if the situation meets multiple `EXTRA_SKIPPED_` flags. The order
+         * of precedence of those flags is undefined.
+         */
+        public abstract @DexoptResultExtraStatus int getExtraStatuses();
 
-        /** @hide */
+        /**
+         * Details of errors occurred when processing external profiles, one error per profile file
+         * that the dexopter tried to read.
+         *
+         * If the same dex container file is dexopted for multiple ABIs, the same profile errors
+         * will be repeated for each ABI in the {@link DexContainerFileDexoptResult}s of the same
+         * dex container file.
+         *
+         * @see #EXTRA_BAD_EXTERNAL_PROFILE.
+         */
         public abstract @NonNull List<String> getExternalProfileErrors();
 
         @Override
@@ -325,7 +356,7 @@ public abstract class DexoptResult {
                     DexoptResult.dexoptResultStatusToString(getStatus()),
                     getDex2oatWallTimeMillis(), getDex2oatCpuTimeMillis(), getSizeBytes(),
                     getSizeBeforeBytes(),
-                    DexoptResult.dexoptResultExtraStatusToString(getExtraStatus()));
+                    DexoptResult.dexoptResultExtraStatusToString(getExtraStatuses()));
         }
     }
 }
