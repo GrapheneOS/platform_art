@@ -3141,13 +3141,14 @@ void InstructionCodeGeneratorRISCV64::VisitThrow(HThrow* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitTryBoundary(HTryBoundary* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  instruction->SetLocations(nullptr);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitTryBoundary(HTryBoundary* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HBasicBlock* successor = instruction->GetNormalFlowSuccessor();
+  if (!successor->IsExitBlock()) {
+    HandleGoto(instruction, successor);
+  }
 }
 
 void LocationsBuilderRISCV64::VisitTypeConversion(HTypeConversion* instruction) {
