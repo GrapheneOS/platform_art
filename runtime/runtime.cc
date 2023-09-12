@@ -3277,10 +3277,12 @@ RuntimeCallbacks* Runtime::GetRuntimeCallbacks() {
   return callbacks_.get();
 }
 
-// Used to patch boot image method entry point to interpreter bridge.
-class UpdateEntryPointsClassVisitor : public ClassVisitor {
+// Used to update boot image to not use AOT code. This is used when transitioning the runtime to
+// java debuggable. This visitor re-initializes the entry points without using AOT code. This also
+// disables shared hotness counters so the necessary methods can be JITed more efficiently.
+class DeoptimizeBootImageClassVisitor : public ClassVisitor {
  public:
-  explicit UpdateEntryPointsClassVisitor(instrumentation::Instrumentation* instrumentation)
+  explicit DeoptimizeBootImageClassVisitor(instrumentation::Instrumentation* instrumentation)
       : instrumentation_(instrumentation) {}
 
   bool operator()(ObjPtr<mirror::Class> klass) override REQUIRES(Locks::mutator_lock_) {
@@ -3314,6 +3316,9 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
         m.ClearPreCompiled();
         instrumentation_->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
       }
+
+      // Clear MemorySharedAccessFlags so the boot class methods can be JITed better.
+      m.ClearMemorySharedMethod();
     }
     return true;
   }
@@ -3334,7 +3339,7 @@ void Runtime::DeoptimizeBootImage() {
   // If we've already started and we are setting this runtime to debuggable,
   // we patch entry points of methods in boot image to interpreter bridge, as
   // boot image code may be AOT compiled as not debuggable.
-  UpdateEntryPointsClassVisitor visitor(GetInstrumentation());
+  DeoptimizeBootImageClassVisitor visitor(GetInstrumentation());
   GetClassLinker()->VisitClasses(&visitor);
   jit::Jit* jit = GetJit();
   if (jit != nullptr) {
