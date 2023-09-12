@@ -68,7 +68,7 @@ class BuildTestContext:
     self.java_home = Path(os.environ.get("JAVA_HOME")).absolute()
     self.java_path = self.java_home / "bin/java"
     self.javac_path = self.java_home / "bin/javac"
-    self.javac_args = "-g -Xlint:-options -source 1.8 -target 1.8"
+    self.javac_args = "-g -Xlint:-options"
 
     # Helper functions to execute tools.
     self.d8 = functools.partial(self.run, args.d8.absolute())
@@ -201,6 +201,8 @@ class BuildTestContext:
       smali_args=[],
       use_smali=True,
       use_jasmin=True,
+      javac_source_arg="1.8",
+      javac_target_arg="1.8"
     ):
     javac_classpath = javac_classpath.copy()  # Do not modify default value.
 
@@ -266,7 +268,8 @@ class BuildTestContext:
       dst_dir.mkdir(exist_ok=True)
       args = self.javac_args.split(" ") + javac_args
       args += ["-implicit:none", "-encoding", "utf8", "-d", dst_dir]
-      if not self.jvm:
+      args += ["-source", javac_source_arg, "-target", javac_target_arg]
+      if not self.jvm and float(javac_target_arg) < 17.0:
         args += ["-bootclasspath", self.bootclasspath]
       if javac_classpath:
         args += ["-classpath", javac_classpath]
