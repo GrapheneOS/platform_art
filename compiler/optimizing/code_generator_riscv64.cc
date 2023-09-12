@@ -2557,13 +2557,11 @@ void InstructionCodeGeneratorRISCV64::VisitMax(HMax* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitMemoryBarrier(HMemoryBarrier* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  instruction->SetLocations(nullptr);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMemoryBarrier(HMemoryBarrier* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->GenerateMemoryBarrier(instruction->GetBarrierKind());
 }
 
 void LocationsBuilderRISCV64::VisitMethodEntryHook(HMethodEntryHook* instruction) {
