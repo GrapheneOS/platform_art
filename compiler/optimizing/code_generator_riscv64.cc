@@ -3109,13 +3109,15 @@ void InstructionCodeGeneratorRISCV64::VisitSuspendCheck(HSuspendCheck* instructi
 }
 
 void LocationsBuilderRISCV64::VisitThrow(HThrow* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitThrow(HThrow* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->InvokeRuntime(kQuickDeliverException, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
 void LocationsBuilderRISCV64::VisitTryBoundary(HTryBoundary* instruction) {
