@@ -34,7 +34,7 @@ struct CmdlineType<InstructionSet> : CmdlineTypeParser<InstructionSet> {
   }
 
   static const char* Name() { return "InstructionSet"; }
-  static const char* DescribeType() { return "arm|arm64|x86|x86_64|none"; }
+  static const char* DescribeType() { return "arm|arm64|riscv64|x86|x86_64|none"; }
 };
 
 #define COMPILER_OPTIONS_MAP_TYPE Dex2oatArgumentMap
