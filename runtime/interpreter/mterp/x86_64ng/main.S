@@ -1696,9 +1696,9 @@ OAT_ENTRY ExecuteNterpWithClinitImpl
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
     movl ART_METHOD_DECLARING_CLASS_OFFSET(%rdi), %r10d
-    cmpb  $$(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE), MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET(%r10d)
+    cmpl $$(MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED_SHIFTED), MIRROR_CLASS_STATUS_OFFSET(%r10d)
     jae ExecuteNterpImpl
-    cmpb  $$(MIRROR_CLASS_IS_INITIALIZING_VALUE), MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET(%r10d)
+    cmpl $$(MIRROR_CLASS_STATUS_INITIALIZING_SHIFTED), MIRROR_CLASS_STATUS_OFFSET(%r10d)
     jb art_quick_resolution_trampoline
     movl MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(%r10d), %r10d
     cmpl %r10d, rSELF:THREAD_TID_OFFSET
