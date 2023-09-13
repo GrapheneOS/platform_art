@@ -2763,13 +2763,13 @@ void InstructionCodeGeneratorRISCV64::VisitNotEqual(HNotEqual* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNullConstant(HNullConstant* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  locations->SetOut(Location::ConstantLocation(instruction));
 }
 
-void InstructionCodeGeneratorRISCV64::VisitNullConstant(HNullConstant* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+void InstructionCodeGeneratorRISCV64::VisitNullConstant(
+    [[maybe_unused]] HNullConstant* instruction) {
+  // Will be generated at use site.
 }
 
 void LocationsBuilderRISCV64::VisitNullCheck(HNullCheck* instruction) {
