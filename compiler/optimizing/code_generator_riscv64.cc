@@ -2519,13 +2519,13 @@ void InstructionCodeGeneratorRISCV64::VisitLoadMethodHandle(HLoadMethodHandle* i
 }
 
 void LocationsBuilderRISCV64::VisitLoadMethodType(HLoadMethodType* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  InvokeRuntimeCallingConvention calling_convention;
+  Location loc = Location::RegisterLocation(calling_convention.GetRegisterAt(0));
+  CodeGenerator::CreateLoadMethodTypeRuntimeCallLocationSummary(instruction, loc, loc);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitLoadMethodType(HLoadMethodType* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->GenerateLoadMethodTypeRuntimeCall(instruction);
 }
 
 void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
