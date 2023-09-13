@@ -1617,15 +1617,15 @@ OAT_ENTRY ExecuteNterpWithClinitImpl
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
     ldr r4, [r0, ART_METHOD_DECLARING_CLASS_OFFSET]
-    ldrb ip, [r4, MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET]
-    cmp ip, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE
+    ldr ip, [r4, MIRROR_CLASS_STATUS_OFFSET]
+    cmp ip, #MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED_SHIFTED
     bcs ExecuteNterpImpl
-    cmp ip, #MIRROR_CLASS_IS_INITIALIZED_VALUE
+    cmp ip, #MIRROR_CLASS_STATUS_INITIALIZED_SHIFTED
     blo .Linitializing_check
     dmb ish
     b ExecuteNterpImpl
 .Linitializing_check:
-    cmp ip, #MIRROR_CLASS_IS_INITIALIZING_VALUE
+    cmp ip, #MIRROR_CLASS_STATUS_INITIALIZING_SHIFTED
     blo art_quick_resolution_trampoline
     ldr r4, [r4, #MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET]
     ldr ip, [rSELF, #THREAD_TID_OFFSET]
