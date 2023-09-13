@@ -39,7 +39,8 @@
           "org.apache.harmony.tests.java.text.DateFormatTest#test_getAvailableLocales",
           "org.apache.harmony.tests.java.util.TimerTest#testOverdueTaskExecutesImmediately",
           "org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet_hasNext",
-          "test.java.math.BigDecimal.DivideMcTests#mcDivideTests"]
+          "test.java.math.BigDecimal.DivideMcTests#mcDivideTests",
+          "test.java.util.Collections.RacingCollections#main"]
 },
 {
   description: "Timeouts.",
