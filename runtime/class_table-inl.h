@@ -68,12 +68,14 @@ inline bool ClassTable::ClassDescriptorEquals::operator()(const TableSlot& a,
   return a.Read<kWithoutReadBarrier>()->DescriptorEquals(b.first);
 }
 
-template<class Visitor>
-void ClassTable::VisitRoots(Visitor& visitor) {
+template <class Visitor>
+void ClassTable::VisitRoots(Visitor& visitor, bool skip_classes) {
   ReaderMutexLock mu(Thread::Current(), lock_);
-  for (ClassSet& class_set : classes_) {
-    for (TableSlot& table_slot : class_set) {
-      table_slot.VisitRoot(visitor);
+  if (!skip_classes) {
+    for (ClassSet& class_set : classes_) {
+      for (TableSlot& table_slot : class_set) {
+        table_slot.VisitRoot(visitor);
+      }
     }
   }
   for (GcRoot<mirror::Object>& root : strong_roots_) {
@@ -86,12 +88,14 @@ void ClassTable::VisitRoots(Visitor& visitor) {
   }
 }
 
-template<class Visitor>
-void ClassTable::VisitRoots(const Visitor& visitor) {
+template <class Visitor>
+void ClassTable::VisitRoots(const Visitor& visitor, bool skip_classes) {
   ReaderMutexLock mu(Thread::Current(), lock_);
-  for (ClassSet& class_set : classes_) {
-    for (TableSlot& table_slot : class_set) {
-      table_slot.VisitRoot(visitor);
+  if (!skip_classes) {
+    for (ClassSet& class_set : classes_) {
+      for (TableSlot& table_slot : class_set) {
+        table_slot.VisitRoot(visitor);
+      }
     }
   }
   for (GcRoot<mirror::Object>& root : strong_roots_) {
@@ -100,6 +104,18 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
   for (const OatFile* oat_file : oat_files_) {
     for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
       visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+    }
+  }
+}
+
+template <class Condition, class Visitor>
+void ClassTable::VisitClassesIfConditionMet(Condition& cond, Visitor& visitor) {
+  ReaderMutexLock mu(Thread::Current(), lock_);
+  for (ClassSet& class_set : classes_) {
+    if (cond(class_set)) {
+      for (TableSlot& table_slot : class_set) {
+        table_slot.VisitRoot(visitor);
+      }
     }
   }
 }
