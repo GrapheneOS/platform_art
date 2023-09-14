@@ -39,12 +39,14 @@
 #include "gc/collector_type.h"
 #include "gc/gc_cause.h"
 #include "gc/space/large_object_space.h"
+#include "gc/space/space.h"
 #include "handle.h"
 #include "obj_ptr.h"
 #include "offsets.h"
 #include "process_state.h"
 #include "read_barrier_config.h"
 #include "runtime_globals.h"
+#include "scoped_thread_state_change.h"
 #include "verify_object.h"
 
 namespace art {
@@ -788,6 +790,16 @@ class Heap {
   bool IsCompilingBoot() const;
   bool HasBootImageSpace() const {
     return !boot_image_spaces_.empty();
+  }
+  bool HasAppImageSpace() const {
+    ScopedObjectAccess soa(Thread::Current());
+    for (const space::ContinuousSpace* space : continuous_spaces_) {
+      // An image space is either a boot image space or an app image space.
+      if (space->IsImageSpace() && !IsBootImageAddress(space->Begin())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   ReferenceProcessor* GetReferenceProcessor() {
