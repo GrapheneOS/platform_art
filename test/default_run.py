@@ -89,9 +89,7 @@ def parse_args(argv):
   argp.add_argument("--random-profile", action="store_true")
   argp.add_argument("--relocate", default=False, action=opt_bool)
   argp.add_argument("--runtime-dm", action="store_true")
-  argp.add_argument("--runtime-extracted-zipapex", default="")
   argp.add_argument("--runtime-option", default=[], action="append")
-  argp.add_argument("--runtime-zipapex", default="")
   argp.add_argument("--secondary", action="store_true")
   argp.add_argument("--secondary-app-image", default=True, action=opt_bool)
   argp.add_argument("--secondary-class-loader-context", default="")
@@ -238,7 +236,6 @@ def default_run(ctx, args, **kwargs):
   PATH = os.environ.get("PATH", "")
   SANITIZE_HOST = os.environ.get("SANITIZE_HOST", "")
   TEST_NAME = os.environ["TEST_NAME"]
-  USE_EXRACTED_ZIPAPEX = os.environ.get("USE_EXRACTED_ZIPAPEX", "")
 
   assert ANDROID_BUILD_TOP, "Did you forget to run `lunch`?"
 
@@ -273,10 +270,6 @@ def default_run(ctx, args, **kwargs):
   HOST = args.host
   BIONIC = args.bionic
   CREATE_ANDROID_ROOT = False
-  USE_ZIPAPEX = (args.runtime_zipapex != "")
-  ZIPAPEX_LOC = args.runtime_zipapex
-  USE_EXTRACTED_ZIPAPEX = (args.runtime_extracted_zipapex != "")
-  EXTRACTED_ZIPAPEX_LOC = args.runtime_extracted_zipapex
   INTERPRETER = args.interpreter
   SWITCH_INTERPRETER = args.switch_interpreter
   JIT = args.jit
@@ -404,12 +397,6 @@ def default_run(ctx, args, **kwargs):
     # the frameworks/libcore with linux_bionic so we need to use the normal
     # host ones which are in a different location.
     CREATE_ANDROID_ROOT = True
-  if USE_ZIPAPEX:
-    # TODO (b/119942078): Currently apex does not support
-    # symlink_preferred_arch so we will not have a dex2oatd to execute and
-    # need to manually provide
-    # dex2oatd64.
-    DEX2OAT_DEBUG_BINARY = "dex2oatd64"
   if WITH_AGENT:
     USE_JVMTI = True
   if DEBUGGER_AGENT:
@@ -738,9 +725,6 @@ def default_run(ctx, args, **kwargs):
   sync_cmdline = "true"
   linkroot_cmdline = "true"
   linkroot_overlay_cmdline = "true"
-  setupapex_cmdline = "true"
-  installapex_cmdline = "true"
-  installapex_test_cmdline = "true"
 
   def linkdirs(host_out: str, root: str):
     dirs = list(filter(os.path.isdir, glob.glob(os.path.join(host_out, "*"))))
@@ -757,20 +741,6 @@ def default_run(ctx, args, **kwargs):
           f"{OUT_DIR}/soong/host/linux_bionic-x86", ANDROID_ROOT)
     # Replace the boot image to a location expected by the runtime.
     DALVIKVM_BOOT_OPT = f"-Ximage:{ANDROID_ROOT}/art_boot_images/javalib/boot.art"
-
-  if USE_ZIPAPEX:
-    # TODO Currently this only works for linux_bionic zipapexes because those are
-    # stripped and so small enough that the ulimit doesn't kill us.
-    mkdir_locations += f" {DEX_LOCATION}/zipapex"
-    setupapex_cmdline = f"unzip -o -u {ZIPAPEX_LOC} apex_payload.zip -d {DEX_LOCATION}"
-    installapex_cmdline = f"unzip -o -u {DEX_LOCATION}/apex_payload.zip -d {DEX_LOCATION}/zipapex"
-    ANDROID_ART_BIN_DIR = f"{DEX_LOCATION}/zipapex/bin"
-  elif USE_EXTRACTED_ZIPAPEX:
-    # Just symlink the zipapex binaries
-    ANDROID_ART_BIN_DIR = f"{DEX_LOCATION}/zipapex/bin"
-    # Force since some tests manually run this file twice.
-    # If the {RUN} is executed multiple times we don't need to recreate the link
-    installapex_cmdline = f"ln -sfTv {EXTRACTED_ZIPAPEX_LOC} {DEX_LOCATION}/zipapex"
 
   # PROFILE takes precedence over RANDOM_PROFILE, since PROFILE tests require a
   # specific profile to run properly.
@@ -1094,11 +1064,7 @@ def default_run(ctx, args, **kwargs):
 
   else:
     # Host run.
-    if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
-      # Put the zipapex files in front of the ld-library-path
-      LD_LIBRARY_PATH = f"{ANDROID_DATA}/zipapex/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}"
-    else:
-      LD_LIBRARY_PATH = f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}"
+    LD_LIBRARY_PATH = f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}"
 
     ctx.export(
       ANDROID_PRINTF_LOG = "brief",
@@ -1152,9 +1118,6 @@ def default_run(ctx, args, **kwargs):
     ctx.run(f"rm -rf {DEX_LOCATION}/{{oat,dalvik-cache}}/")
 
     ctx.run(f"mkdir -p {mkdir_locations}")
-    ctx.run(setupapex_cmdline)
-    if USE_EXTRACTED_ZIPAPEX:
-      ctx.run(installapex_cmdline)
     ctx.run(linkroot_cmdline)
     ctx.run(linkroot_overlay_cmdline)
     ctx.run(profman_cmdline)
