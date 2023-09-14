@@ -74,12 +74,16 @@ Note that using this chroot-based approach requires root access to the device
                 ```bash
                 lunch silvermont-eng
                 ```
+            * For (64-bit) RISC-V:
+                ```bash
+                lunch aosp_riscv64-eng
+                ```
         3. Set up the environment to use a pre-built ADB:
             ```bash
             export PATH="$(pwd)/prebuilts/runtime:$PATH"
             export ADB="$ANDROID_BUILD_TOP/prebuilts/runtime/adb"
             ```
-    * With a full Android (AOSP) `aosp/master` tree:
+    * With a full Android (AOSP) `aosp/main` tree:
         1. Initialize the environment:
             ```bash
             . ./build/envsetup.sh
@@ -101,6 +105,10 @@ Note that using this chroot-based approach requires root access to the device
             * For (32- and 64-bit) Intel x86-64:
                 ```bash
                 lunch aosp_x86_64-eng
+                ```
+            * For (64-bit) RISC-V:
+                ```bash
+                lunch aosp_riscv64-eng
                 ```
         3. Build ADB:
             ```bash
