@@ -124,6 +124,13 @@
 .endm
 
 
+.macro RESTORE_GPR_NE skip, reg, offset
+    .ifnc \skip, \reg
+    RESTORE_GPR_BASE sp, \reg, \offset
+    .endif
+.endm
+
+
 .macro SAVE_FPR reg, offset
     fsd \reg, (\offset)(sp)
     .cfi_rel_offset \reg, (\offset)
@@ -525,7 +532,7 @@
     SAVE_GPR s6,  (8*7)   // x22
     SAVE_GPR s7,  (8*8)   // x23
     SAVE_GPR s8,  (8*9)   // x24
-    SAVE_GPR s9,  (8*10)   // x25
+    SAVE_GPR s9,  (8*10)  // x25
     SAVE_GPR s10, (8*11)  // x26
     SAVE_GPR s11, (8*12)  // x27
     SAVE_GPR ra,  (8*13)  // x1
@@ -545,7 +552,7 @@
     RESTORE_GPR s6,  (8*7)   // x22
     RESTORE_GPR s7,  (8*8)   // x23
     RESTORE_GPR s8,  (8*9)   // x24
-    RESTORE_GPR s9,  (8*10)   // x25
+    RESTORE_GPR s9,  (8*10)  // x25
     RESTORE_GPR s10, (8*11)  // x26
     RESTORE_GPR s11, (8*12)  // x27
     RESTORE_GPR ra,  (8*13)  // x1
