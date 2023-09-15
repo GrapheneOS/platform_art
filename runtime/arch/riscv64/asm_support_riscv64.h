@@ -20,15 +20,24 @@
 #include "asm_support.h"
 #include "entrypoints/entrypoint_asm_constants.h"
 
-// S0, S2 - S11, RA, ArtMethod*, and padding, total 8*(11 + 1 + 1 + 1) = 112
-#define FRAME_SIZE_SAVE_REFS_ONLY        96
-// FS0 - FS11, S0, S2 - S11, RA, ArtMethod* and padding, total 8*(12 + 11 + 1 + 1 + 1) = 208
+// clang-format off
+// S0, S2 - S11, RA, ArtMethod*, and padding,
+//            total 8*(11 + 1 + 1 + 1) = 112
+#define FRAME_SIZE_SAVE_REFS_ONLY        112
+
+// FS0 - FS11, S0, S2 - S11, RA, ArtMethod* and padding,
+//       total 8*(12 + 11 + 1 + 1 + 1) = 208
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 208
-// FA0 - FA7, A1 - A7, S0, S2 - S11, RA and ArtMethod*, total 8*(8 + 7 + 11 + 1 + 1) = 224
+
+// FA0 - FA7, A1 - A7, S0, S2 - S11, RA and ArtMethod*,
+//        total 8*(8 + 7 + 11 + 1 + 1) = 224
 // Excluded GPRs are: A0 (ArtMethod*), S1/TR (ART thread register).
 #define FRAME_SIZE_SAVE_REFS_AND_ARGS    224
-// All 32 FPRs, 27 GPRs and ArtMethod*, total 8*(32 + 27 + 1) = 480
+
+// All 32 FPRs, 27 GPRs and ArtMethod*,
+//               total 8*(32 + 27 + 1) = 480
 // Excluded GPRs are: SP, Zero, TP, GP, S1/TR (ART thread register).
 #define FRAME_SIZE_SAVE_EVERYTHING       480
+// clang-format on
 
 #endif  // ART_RUNTIME_ARCH_RISCV64_ASM_SUPPORT_RISCV64_H_
