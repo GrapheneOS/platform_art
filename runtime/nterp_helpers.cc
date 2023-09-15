@@ -278,6 +278,8 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::CONST_WIDE_32:
         case Instruction::CONST_WIDE:
         case Instruction::CONST_WIDE_HIGH16:
+        case Instruction::SPUT:
+        case Instruction::SPUT_OBJECT:
         case Instruction::NEG_INT:
         case Instruction::NOT_INT:
         case Instruction::NEG_LONG:
