@@ -149,10 +149,18 @@ Asm = collections.namedtuple("Asm", ["pc", "name", "data"])
 def get_asm(lib: pathlib.Path) -> List[Asm]:
   """ Get all ASM blocks (in dumped text-based format) """
 
-  proc = subprocess.run([args.objdump, "--disassemble", "--no-show-raw-insn", lib],
-                        encoding='utf-8',
-                        capture_output=True,
-                        check=True)
+  proc = subprocess.run(
+      [
+          args.objdump,
+          "--disassemble",
+          "--no-show-raw-insn",
+          "--disassemble-zeroes",
+          lib,
+      ],
+      encoding="utf-8",
+      capture_output=True,
+      check=True,
+  )
 
   section_re = re.compile("\n(?! |\n)", re.MULTILINE)  # New-line not followed by indent.
   sym_re = re.compile("([0-9a-f]+) <(.+)>:")
