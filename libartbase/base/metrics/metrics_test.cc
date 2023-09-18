@@ -297,7 +297,12 @@ TEST_F(MetricsTest, ResetMetrics) {
   class ZeroBackend : public TestBackendBase {
    public:
     void ReportCounter(DatumId counter_type, uint64_t value) override {
-      EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      if (counter_type == DatumId::kTimeElapsedDelta) {
+        // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+        EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      } else {
+        EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      }
     }
 
     void ReportHistogram([[maybe_unused]] DatumId histogram_type,
@@ -352,7 +357,12 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
 #define CHECK_METRIC(name, ...) case DatumId::k##name:
         ART_VALUE_METRICS(CHECK_METRIC)
 #undef CHECK_METRIC
-        EXPECT_EQ(value, 0u) << "Unexpected value for metric " << DatumName(datum_id);
+        if (datum_id == DatumId::kTimeElapsedDelta) {
+          // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+          EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(datum_id);
+        } else {
+          EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(datum_id);
+        }
         return;
 
         // Event metrics - expected to have retained their previous value
