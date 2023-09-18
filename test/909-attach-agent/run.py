@@ -19,8 +19,8 @@ def run(ctx, args):
   agent = "libtiagent.so" if args.O else "libtiagentd.so"
   plugin = "libopenjdkjvmti.so" if args.O else "libopenjdkjvmtid.so"
 
-  if args.interpreter:
-    # On interpreter we are fully capable of providing the full jvmti api so we
+  if args.switch_interpreter:
+    # On switch interpreter we are fully capable of providing the full jvmti api so we
     # have a slightly different expected output.
     ctx.expected_stdout = ctx.expected_stdout.with_suffix(".interpreter.txt")
 
@@ -49,7 +49,12 @@ def run(ctx, args):
       ],
       test_args=[f"agent:{agent}=909-attach-agent"])
 
-  ctx.default_run(args, test_args=[f"agent:{agent}=909-attach-agent"])
+  ctx.default_run(
+      args,
+      android_runtime_option=[
+          f"-Xcompiler-option", "--debuggable"
+      ],
+      test_args=[f"agent:{agent}=909-attach-agent"])
 
   ctx.default_run(
       args,
