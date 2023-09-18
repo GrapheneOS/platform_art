@@ -468,7 +468,7 @@ TEST_P(LoopReferenceTypePropagationTestGroup, RunVisitTest) {
   LoopOptions lo(GetParam());
   std::default_random_engine g(
       lo.initial_null_state_ != InitialNullState::kTrueRandom ? 42 : std::rand());
-  std::uniform_int_distribution<bool> uid(false, true);
+  std::uniform_int_distribution<int> uid(0, 1);
   RunVisitListTest([&](std::vector<HInstruction*>& lst, HInstruction* null_input) {
     auto pred_null = false;
     auto next_null = [&]() {
@@ -482,7 +482,7 @@ TEST_P(LoopReferenceTypePropagationTestGroup, RunVisitTest) {
           return pred_null;
         case InitialNullState::kRandomSetSeed:
         case InitialNullState::kTrueRandom:
-          return uid(g);
+          return uid(g) > 0;
       }
     };
     HPhi* nulled_phi = lo.null_insertion_ >= 0 ? lst[lo.null_insertion_]->AsPhi() : nullptr;
