@@ -1223,6 +1223,7 @@
                   "2009-structural-local-ref",
                   "2011-stack-walk-concurrent-instrument",
                   "2012-structural-redefinition-failures-jni-id",
+                  "2031-zygote-compiled-frame-deopt",
                   "2033-shutdown-mechanics",
                   "2035-structural-native-method",
                   "2036-structural-subclass-shadow",
@@ -1233,7 +1234,7 @@
                   "2246-trace-stream",
                   "2254-class-value-before-and-after-u",
                   "2261-badcleaner-in-systemcleaner",
-	          "2263-method-trace-jit"],
+                  "2263-method-trace-jit"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },
@@ -1346,13 +1347,6 @@
         "variant": "gcstress",
         "bug": "b/137887811",
         "description": ["Occasional timeouts."]
-    },
-    {
-        "tests": ["2031-zygote-compiled-frame-deopt"],
-        "zipapex": true,
-        "bug": "b/144947842",
-        "description": ["This test requires strong knowledge about where the libdir is",
-                        "which the zipapex runner breaks."]
     },
     {
         "tests": ["909-attach-agent", "126-miranda-multidex"],
