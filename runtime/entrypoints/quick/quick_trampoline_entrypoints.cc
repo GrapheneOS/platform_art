@@ -2548,8 +2548,16 @@ extern "C" void artMethodExitHook(Thread* self,
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   DCHECK(instr->RunExitHooks());
 
-  bool is_ref = false;
   ArtMethod* method = *sp;
+  if (instr->HasFastMethodExitListeners()) {
+    // Fast method listeners are only used for tracing which don't need any deoptimization checks
+    // or a return value.
+    JValue return_value;
+    instr->MethodExitEvent(self, method, /* frame= */ {}, return_value);
+    return;
+  }
+
+  bool is_ref = false;
   if (instr->HasMethodExitListeners()) {
     StackHandleScope<1> hs(self);
 
