@@ -22,4 +22,7 @@ def run(ctx, args):
 
   # The problem was first exposed in a no-verify setting, as that changes the resolution path
   # taken. Make sure we also test in that environment.
-  ctx.default_run(args, no_verify=True)
+  ctx.default_run(args, verify=False)
+
+  line = "OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release."
+  ctx.run(fr"sed -i -E '/{line}/d' '{args.stderr_file}'")
