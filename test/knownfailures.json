@@ -1349,11 +1349,10 @@
         "description": ["Occasional timeouts."]
     },
     {
-        "tests": ["909-attach-agent", "126-miranda-multidex"],
-        "zipapex": true,
-        "bug": "b/135507613",
-        "description": ["These tests run dalvikvm multiple times, this can mess up the",
-                        "zipapex runner."]
+        "tests": ["909-attach-agent"],
+        "variant": "target",
+        "bug": "b/300654679",
+        "description": ["Library path issues."]
     },
     {
         "tests": ["175-alloc-big-bignums"],
