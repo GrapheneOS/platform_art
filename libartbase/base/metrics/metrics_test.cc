@@ -203,6 +203,9 @@ TEST_F(MetricsTest, ArtMetricsReport) {
         EXPECT_EQ(value, verification_time)
             << "Unexpected value for counter " << DatumName(counter_type);
         found_counter_ = true;
+      } else if (counter_type == DatumId::kTimeElapsedDelta) {
+        // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+        EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
       } else {
         EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
       }
