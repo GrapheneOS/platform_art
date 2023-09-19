@@ -38,6 +38,10 @@
 //               total 8*(32 + 27 + 1) = 480
 // Excluded GPRs are: SP, Zero, TP, GP, S1/TR (ART thread register).
 #define FRAME_SIZE_SAVE_EVERYTHING       480
+
+// FS0 - FS11, S0, S2 - S11, RA,
+//           total 8*(12 + 1 + 10 + 1) = 192
+#define NTERP_SIZE_SAVE_CALLEE_SAVES     192
 // clang-format on
 
 #endif  // ART_RUNTIME_ARCH_RISCV64_ASM_SUPPORT_RISCV64_H_

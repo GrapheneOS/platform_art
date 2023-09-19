@@ -188,7 +188,7 @@ END \name
     .cfi_def_cfa_register \old_sp
     mv sp, t0
     sd \old_sp, -8(\refs)
-    CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, NTERP_SIZE_SAVE_CALLEE_SAVES
 
     // Put nulls in reference array.
     beqz \regs, 2f
@@ -434,10 +434,33 @@ END \name
  *  a0     ArtMethod* callee
  *  a1-a7  method parameters
  */
-
 OAT_ENTRY ExecuteNterpWithClinitImpl
+#if MIRROR_CLASS_STATUS_SHIFT < 12
+#error mirror class status bits cannot use LUI load technique
+#endif
     .cfi_startproc
-    unimp
+    // For simplicity, we don't do a read barrier here, but instead rely
+    // on art_quick_resolution_trampoline to always have a suspend point before
+    // calling back here.
+    ld t0, ART_METHOD_DECLARING_CLASS_OFFSET(a0)
+    lw t1, MIRROR_CLASS_STATUS_OFFSET(t0)  // t1 := status word, sext
+    lui t2, MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    // The unsigned comparison works in tandem with the 64-bit sign-extension of
+    // the status bits at the top of the 32-bit word. The order of the status
+    // constants (sign extended from LUI) is unchanged with unsigned comparison.
+    bgeu t1, t2, ExecuteNterpImpl
+    lui t2, MIRROR_CLASS_STATUS_INITIALIZED << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    bltu t1, t2, .Linitializing_check
+    fence w, w
+    j ExecuteNterpImpl
+.Linitializing_check:
+    lui t2, MIRROR_CLASS_STATUS_INITIALIZING << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    bltu t1, t2, .Lresolution_trampoline
+    ld t1, MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(t0)
+    ld t0, THREAD_TID_OFFSET(xSELF)
+    beq t0, t1, ExecuteNterpImpl
+.Lresolution_trampoline:
+    tail art_quick_resolution_trampoline
     .cfi_endproc
     .type EndExecuteNterpWithClinitImpl, @function
     .hidden EndExecuteNterpWithClinitImpl
@@ -452,8 +475,8 @@ OAT_ENTRY ExecuteNterpImpl
     add t0, t0, sp
     ld zero, (t0)
 
-    INCREASE_FRAME FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
-    SAVE_ALL_CALLEE_SAVES
+    INCREASE_FRAME NTERP_SIZE_SAVE_CALLEE_SAVES
+    SETUP_NTERP_SAVE_CALLEE_SAVES
 
     ld xPC, ART_METHOD_DATA_OFFSET_64(a0)
     SETUP_STACK_FRAME xPC, CFI_REFS, xREFS, xFP, /*reg count*/ s7, /*in count*/s8, /*old sp*/s9
