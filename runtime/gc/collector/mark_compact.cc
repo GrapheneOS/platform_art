@@ -58,6 +58,7 @@
 #include "thread_list.h"
 
 #ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
 #include "com_android_art.h"
 #endif
 
@@ -89,6 +90,7 @@ namespace {
 using ::android::base::GetBoolProperty;
 using ::android::base::ParseBool;
 using ::android::base::ParseBoolResult;
+using ::android::modules::sdklevel::IsAtLeastU;
 
 }  // namespace
 #endif
@@ -265,7 +267,7 @@ static bool SysPropSaysUffdGc() {
   bool phenotype_force_disable = GetCachedBoolProperty(
       cached_properties, "persist.device_config.runtime_native_boot.force_disable_uffd_gc", false);
   bool build_enable = GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false);
-  return (phenotype_enable || build_enable) && !phenotype_force_disable;
+  return (phenotype_enable || build_enable || IsAtLeastU()) && !phenotype_force_disable;
 }
 #else
 // Never called.
