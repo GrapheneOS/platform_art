@@ -486,7 +486,7 @@ OAT_ENTRY ExecuteNterpWithClinitImpl
     // For simplicity, we don't do a read barrier here, but instead rely
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
-    ld t0, ART_METHOD_DECLARING_CLASS_OFFSET(a0)
+    lwu t0, ART_METHOD_DECLARING_CLASS_OFFSET(a0)
     lw t1, MIRROR_CLASS_STATUS_OFFSET(t0)  // t1 := status word, sext
     lui t2, MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED << (MIRROR_CLASS_STATUS_SHIFT - 12)
     // The unsigned comparison works in tandem with the 64-bit sign-extension of
