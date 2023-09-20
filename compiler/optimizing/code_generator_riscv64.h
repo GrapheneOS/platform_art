@@ -378,8 +378,6 @@ class LocationsBuilderRISCV64 : public HGraphVisitor {
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction);
   void HandleFieldGet(HInstruction* instruction);
-  Location RegisterOrZeroConstant(HInstruction* instruction);
-  Location FpuRegisterOrConstantForStore(HInstruction* instruction);
 
   InvokeDexCallingConventionVisitorRISCV64 parameter_visitor_;
 
