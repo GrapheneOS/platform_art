@@ -426,6 +426,50 @@ END \name
     sw \reg, (t0)          // refs[vreg] := reg
 .endm
 
+// Floating-point read, defaults to 32-bit read.
+// Clobbers: \reg, \vreg
+.macro GET_VREG_FLOAT reg, vreg, is_double=0
+    .if \is_double
+      GET_VREG_DOUBLE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add \vreg, xFP, \vreg  // vreg addr in register array
+      flw \reg, (\vreg)      // reg := fp[vreg]
+    .endif
+.endm
+
+// Floating-point write, defaults to 32-bit write.
+// Clobbers: t0, \reg, \vreg
+.macro SET_VREG_FLOAT reg, vreg, is_double=0
+    .if \is_double
+      SET_VREG_DOUBLE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add t0, xFP, \vreg     // vreg addr in register array
+      fsw \reg, (t0)         // fp[vreg] := reg
+      add t0, xREFS, \vreg   // vreg addr in reference array
+      sw zero, (t0)          // refs[vreg] := null
+    .endif
+.endm
+
+// Floating-point 64 bit read
+// Clobbers: \reg
+.macro GET_VREG_DOUBLE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add \vreg, xFP, \vreg  // vreg addr in register array
+    fld \reg, (\vreg)       // reg := fp[vreg](lo) | fp[vreg+1](hi)
+.endm
+
+// Floating-point 64 bit write
+// Clobbers: t0, \vreg
+.macro SET_VREG_DOUBLE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add t0, xFP, \vreg     // vreg addr in register array
+    fsd \reg, (t0)         // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
+    add t0, xREFS, \vreg   // vreg addr in reference array
+    sd zero, (t0)          // refs[vreg] := null ; refs[vreg+1] := null
+.endm
+
 %def entry():
 /*
  * ArtMethod entry point.
