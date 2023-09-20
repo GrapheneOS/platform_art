@@ -280,7 +280,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                                 mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
                                 30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */,
-                                0 /* extraStatus */, List.of() /* externalProfileErrors */),
+                                0 /* extendedStatusFlags */, List.of() /* externalProfileErrors */),
                         DexContainerFileDexoptResult.create("/data/app/foo/base.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_FAILED),
@@ -291,7 +291,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                                 false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */,
-                                10000 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */,
+                                10000 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                                0 /* extendedStatusFlags */,
                                 List.of() /* externalProfileErrors */));
 
         // Verify that there are no more calls than the ones above.
