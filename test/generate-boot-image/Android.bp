@@ -43,13 +43,14 @@ art_cc_binary {
     ],
     srcs: ["generate-boot-image.cc"],
     shared_libs: [
-        "libbase",
         "liblog",
     ],
     static_libs: [
         "libartbase",
         "libartbase-testing",
+        "libbase",
     ],
+    stl: "c++_static",
     tidy: true,
     tidy_flags: [
         "-format-style=file",
