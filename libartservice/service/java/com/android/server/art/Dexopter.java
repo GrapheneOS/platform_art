@@ -169,7 +169,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     long cpuTimeMs = 0;
                     long sizeBytes = 0;
                     long sizeBeforeBytes = 0;
-                    @DexoptResult.DexoptResultExtraStatus int extraStatus = 0;
+                    @DexoptResult.DexoptResultExtendedStatusFlags int extendedStatusFlags = 0;
                     try {
                         var target = DexoptTarget.<DexInfoType>builder()
                                              .setDexInfo(dexInfo)
@@ -187,7 +187,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                 getDexoptNeeded(target, options);
 
                         if (!getDexoptNeededResult.hasDexCode) {
-                            extraStatus |= DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE;
+                            extendedStatusFlags |= DexoptResult.EXTENDED_SKIPPED_NO_DEX_CODE;
                         }
 
                         if (!getDexoptNeededResult.isDexoptNeeded) {
@@ -204,7 +204,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                     && mInjector.getStorageManager().getAllocatableBytes(
                                                mPkg.getStorageUuid())
                                             <= 0) {
-                                extraStatus |= DexoptResult.EXTRA_SKIPPED_STORAGE_LOW;
+                                extendedStatusFlags |= DexoptResult.EXTENDED_SKIPPED_STORAGE_LOW;
                                 continue;
                             }
                         } catch (IOException e) {
@@ -246,11 +246,11 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                         status = DexoptResult.DEXOPT_FAILED;
                     } finally {
                         if (!externalProfileErrors.isEmpty()) {
-                            extraStatus |= DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE;
+                            extendedStatusFlags |= DexoptResult.EXTENDED_BAD_EXTERNAL_PROFILE;
                         }
                         var result = DexContainerFileDexoptResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus,
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extendedStatusFlags,
                                 externalProfileErrors);
                         Log.i(TAG,
                                 String.format("Dexopt result: [packageName = %s] %s",
