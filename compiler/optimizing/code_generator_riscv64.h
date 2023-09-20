@@ -376,7 +376,7 @@ class LocationsBuilderRISCV64 : public HGraphVisitor {
   void HandleBinaryOp(HBinaryOperation* operation);
   void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldSet(HInstruction* instruction);
   void HandleFieldGet(HInstruction* instruction);
   Location RegisterOrZeroConstant(HInstruction* instruction);
   Location FpuRegisterOrConstantForStore(HInstruction* instruction);
@@ -417,7 +417,8 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction,
                       const FieldInfo& field_info,
-                      bool value_can_be_null);
+                      bool value_can_be_null,
+                      WriteBarrierKind write_barrier_kind);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   // Generate a heap reference load using one register `out`:
@@ -518,6 +519,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
+  void Store(Location value, XRegister rs1, int32_t offset, DataType::Type type);
 
   void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
 
@@ -812,6 +814,9 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   // The `out` location contains the value returned by
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
+
+  void MarkGCCard(XRegister object, XRegister value, bool value_can_be_null);
+
   //
   // Heap poisoning.
   //
