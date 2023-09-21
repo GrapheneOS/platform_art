@@ -44,6 +44,11 @@ bool ShouldDisableRefresh(const std::string& sdk_version_str);
 // Passes the name and the value for each system property to the provided callback.
 void SystemPropertyForeach(std::function<void(const char* name, const char* value)> action);
 
+// Returns true if the build-time UFFD GC matches the runtime's choice.
+bool CheckBuildUserfaultFdGc(bool build_enable_uffd_gc,
+                             bool is_at_least_u,
+                             bool kernel_supports_uffd);
+
 }  // namespace odrefresh
 }  // namespace art
 
