@@ -40,6 +40,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test2031_simulateZygoteFork(JNIEnv*, 
   if (has_jit) {
     runtime->GetJit()->PreZygoteFork();
   }
+  runtime->GetHeap()->PreZygoteFork();
   runtime->SetAsZygoteChild(/*is_system_server=*/false, /*is_zygote=*/false);
   runtime->AddCompilerOption("--debuggable");
   runtime->SetRuntimeDebugState(Runtime::RuntimeDebugState::kJavaDebuggableAtInit);
@@ -55,6 +56,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test2031_simulateZygoteFork(JNIEnv*, 
     // We have "zygote" code that isn't really part of the BCP. just don't collect it.
     runtime->GetJitCodeCache()->SetGarbageCollectCode(false);
   }
+  runtime->GetHeap()->PostForkChildAction(Thread::Current());
 }
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test2031_setupJvmti(JNIEnv* env,
