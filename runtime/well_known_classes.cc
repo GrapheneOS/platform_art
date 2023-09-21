@@ -97,6 +97,7 @@ ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodType_makeImpl;
 ArtMethod* WellKnownClasses::java_lang_ref_FinalizerReference_add;
 ArtMethod* WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 ArtMethod* WellKnownClasses::java_lang_reflect_InvocationTargetException_init;
@@ -361,7 +362,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Short_valueOf =
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
-  StackHandleScope<42u> hs(self);
+  StackHandleScope<43u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/BaseDexClassLoader;"));
   Handle<mirror::Class> d_s_dlcl =
@@ -412,6 +413,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles;"));
   Handle<mirror::Class> j_l_i_MethodHandles_Lookup =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles$Lookup;"));
+  Handle<mirror::Class> j_l_i_MethodType =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodType;"));
   Handle<mirror::Class> j_l_r_fr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ref/FinalizerReference;"));
   Handle<mirror::Class> j_l_r_rq =
@@ -581,6 +584,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       /*is_static=*/ false,
       "findConstructor",
       "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;",
+      pointer_size);
+  java_lang_invoke_MethodType_makeImpl = CacheMethod(
+      j_l_i_MethodType.Get(),
+      /* is_static=*/ true,
+      "makeImpl",
+      "(Ljava/lang/Class;[Ljava/lang/Class;Z)Ljava/lang/invoke/MethodType;",
       pointer_size);
 
   java_lang_ref_FinalizerReference_add = CacheMethod(
