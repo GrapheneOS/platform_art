@@ -520,27 +520,6 @@ if True:
       DEX_LOCATION = tmp_dir
       host_lib_root = f"{OUT_DIR}/soong/host/linux_bionic-x86"
       shift()
-    elif arg == "--runtime-extracted-zipapex":
-      shift()
-      # TODO Should we allow the java.library.path to search the zipapex too?
-      # Not needed at the moment and adding it will be complicated so for now
-      # we'll ignore this.
-      run_args += [f'--host --runtime-extracted-zipapex "{arg}"']
-      target_mode = "no"
-      DEX_LOCATION = tmp_dir
-      shift()
-    elif arg == "--runtime-zipapex":
-      shift()
-      # TODO Should we allow the java.library.path to search the zipapex too?
-      # Not needed at the moment and adding it will be complicated so for now
-      # we'll ignore this.
-      run_args += [f'--host --runtime-zipapex "{arg}"']
-      target_mode = "no"
-      DEX_LOCATION = tmp_dir
-      # apex_payload.zip is quite large we need a high enough ulimit to
-      # extract it. 512mb should be good enough.
-      file_ulimit = 512000
-      shift()
     elif arg == "--timeout":
       shift()
       if not arg:
@@ -846,11 +825,6 @@ if True:
         "                          (if applicable) to run the test with.\n"
         "    --64                  Run the test in 64-bit mode\n"
         "    --bionic              Use the (host, 64-bit only) linux_bionic libc runtime\n"
-        "    --runtime-zipapex [file]\n"
-        "                          Use the given zipapex file to provide runtime binaries\n"
-        "    --runtime-extracted-zipapex [dir]\n"
-        "                          Use the given extracted zipapex directory to provide\n"
-        "                          runtime binaries\n"
         "    --timeout n           Test timeout in seconds\n"
         "    --trace               Run with method tracing\n"
         "    --strace              Run with syscall tracing from strace.\n"

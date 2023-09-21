@@ -60,7 +60,6 @@ except Exception:
   sys.stdout.flush()
   raise
 
-import contextlib
 import csv
 import datetime
 import fnmatch
@@ -145,7 +144,6 @@ csv_result = None
 csv_writer = None
 runtime_option = ''
 with_agent: List[str] = []
-zipapex_loc = None
 run_test_option: List[str] = []
 dex2oat_jobs = -1   # -1 corresponds to default threads for dex2oat
 run_all_configs = False
@@ -595,53 +593,33 @@ def run_tests(tests):
       args_test = [python3_bin, run_test_sh] + args_test + extra_arguments[target] + [test]
       return executor.submit(run_test, args_test, test, variant_set, test_name)
 
-  #  Use a context-manager to handle cleaning up the extracted zipapex if needed.
-  with handle_zipapex(zipapex_loc) as zipapex_opt:
-    args_all += zipapex_opt
-    global n_thread
-    with concurrent.futures.ThreadPoolExecutor(max_workers=n_thread) as executor:
-      test_futures = []
-      for config_tuple in config:
-        target = config_tuple[1]
-        for address_size in _user_input_variants['address_sizes_target'][target]:
-          test_futures.append(start_combination(executor, config_tuple, args_all, address_size))
+  global n_thread
+  with concurrent.futures.ThreadPoolExecutor(max_workers=n_thread) as executor:
+    test_futures = []
+    for config_tuple in config:
+      target = config_tuple[1]
+      for address_size in _user_input_variants['address_sizes_target'][target]:
+        test_futures.append(start_combination(executor, config_tuple, args_all, address_size))
 
-      for config_tuple in uncombinated_config:
-        test_futures.append(
-            start_combination(executor, config_tuple, args_all, ""))  # no address size
+    for config_tuple in uncombinated_config:
+      test_futures.append(
+          start_combination(executor, config_tuple, args_all, ""))  # no address size
 
-      try:
-        tests_done = 0
-        for test_future in concurrent.futures.as_completed(f for f in test_futures if f):
-          (test, status, failure_info, test_time) = test_future.result()
-          tests_done += 1
-          print_test_info(tests_done, test, status, failure_info, test_time)
-          if failure_info and not env.ART_TEST_KEEP_GOING:
-            for f in test_futures:
-              f.cancel()
-            break
-      except KeyboardInterrupt:
-        for f in test_futures:
-          f.cancel()
-        child_process_tracker.kill_all()
-      executor.shutdown(True)
-
-@contextlib.contextmanager
-def handle_zipapex(ziploc):
-  """Extracts the zipapex (if present) and handles cleanup.
-
-  If we are running out of a zipapex we want to unzip it once and have all the tests use the same
-  extracted contents. This extracts the files and handles cleanup if needed. It returns the
-  required extra arguments to pass to the run-test.
-  """
-  if ziploc is not None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-      subprocess.check_call(["unzip", "-qq", ziploc, "apex_payload.zip", "-d", tmpdir])
-      subprocess.check_call(
-        ["unzip", "-qq", os.path.join(tmpdir, "apex_payload.zip"), "-d", tmpdir])
-      yield ['--runtime-extracted-zipapex', tmpdir]
-  else:
-    yield []
+    try:
+      tests_done = 0
+      for test_future in concurrent.futures.as_completed(f for f in test_futures if f):
+        (test, status, failure_info, test_time) = test_future.result()
+        tests_done += 1
+        print_test_info(tests_done, test, status, failure_info, test_time)
+        if failure_info and not env.ART_TEST_KEEP_GOING:
+          for f in test_futures:
+            f.cancel()
+          break
+    except KeyboardInterrupt:
+      for f in test_futures:
+        f.cancel()
+      child_process_tracker.kill_all()
+    executor.shutdown(True)
 
 def _popen(**kwargs):
   if sys.version_info.major == 3 and sys.version_info.minor >= 6:
@@ -832,7 +810,6 @@ def verify_knownfailure_entry(entry):
       'variant' : (str,),
       'devices': (list, str),
       'env_vars' : (dict,),
-      'zipapex' : (bool,),
   }
   for field in entry:
     field_type = type(entry[field])
@@ -888,16 +865,6 @@ def get_disabled_test_info(device_name):
         if test not in RUN_TEST_SET:
           raise ValueError('%s is not a valid run-test' % (
               test))
-        if test in disabled_test_info:
-          disabled_test_info[test] = disabled_test_info[test].union(variants)
-        else:
-          disabled_test_info[test] = variants
-
-    zipapex_disable = failure.get("zipapex", False)
-    if zipapex_disable and zipapex_loc is not None:
-      for test in tests:
-        if test not in RUN_TEST_SET:
-          raise ValueError('%s is not a valid run-test' % (test))
         if test in disabled_test_info:
           disabled_test_info[test] = disabled_test_info[test].union(variants)
         else:
@@ -1119,7 +1086,6 @@ def parse_option():
   global dex2oat_jobs
   global run_all_configs
   global with_agent
-  global zipapex_loc
   global csv_result
 
   parser = argparse.ArgumentParser(description="Runs all or a subset of the ART test suite.")
@@ -1173,8 +1139,6 @@ def parse_option():
                             example '--runtime-option=-Xjitthreshold:0'.""")
   global_group.add_argument('--dex2oat-jobs', type=int, dest='dex2oat_jobs',
                             help='Number of dex2oat jobs')
-  global_group.add_argument('--runtime-zipapex', dest='runtime_zipapex', default=None,
-                            help='Location for runtime zipapex.')
   global_group.add_argument('-a', '--all', action='store_true', dest='run_all',
                             help="Run all the possible configurations for the input test set")
   global_group.add_argument('--csv-results', action='store', dest='csv_result', default=None,
@@ -1238,7 +1202,6 @@ def parse_option():
   runtime_option = options['runtime_option'];
   with_agent = options['with_agent'];
   run_test_option = sum(map(shlex.split, options['run_test_option']), [])
-  zipapex_loc = options['runtime_zipapex']
 
   timeout = options['timeout']
   if options['dex2oat_jobs']:
