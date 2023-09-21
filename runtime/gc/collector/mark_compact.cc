@@ -309,7 +309,7 @@ static constexpr size_t kMaxNumUffdWorkers = 2;
 // of mutator threads trying to access the moving-space during one compaction
 // phase. Using a lower number in debug builds to hopefully catch the issue
 // before it becomes a problem on user builds.
-static constexpr size_t kMutatorCompactionBufferCount = kIsDebugBuild ? 256 : 512;
+static constexpr size_t kMutatorCompactionBufferCount = kIsDebugBuild ? 256 : 2048;
 // Minimum from-space chunk to be madvised (during concurrent compaction) in one go.
 static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
 // Concurrent compaction termination logic is different (and slightly more efficient) if the
