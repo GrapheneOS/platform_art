@@ -34,7 +34,7 @@ struct CmdlineType<InstructionSet> : CmdlineTypeParser<InstructionSet> {
   }
 
   static const char* Name() { return "InstructionSet"; }
-  static const char* DescribeType() { return "arm|arm64|x86|x86_64|none"; }
+  static const char* DescribeType() { return "arm|arm64|riscv64|x86|x86_64|none"; }
 };
 
 #define COMPILER_OPTIONS_MAP_TYPE Dex2oatArgumentMap
@@ -427,9 +427,7 @@ Parser CreateDex2oatArgumentParser() {
           .WithType<CompactDexLevel>()
           .WithValueMap({{"none", CompactDexLevel::kCompactDexLevelNone},
                          {"fast", CompactDexLevel::kCompactDexLevelFast}})
-          .WithHelp("None avoids generating compact dex, fast generates compact dex with low\n"
-                    "compile time. If speed-profile is specified as the compiler filter and the\n"
-                    "profile is not empty, the default compact dex level is always used.")
+          .WithHelp("This flag is obsolete and does nothing.")
           .IntoKey(M::CompactDexLevel)
       .Define("--runtime-arg _")
           .WithType<std::vector<std::string>>().AppendValues()

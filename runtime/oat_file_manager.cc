@@ -289,6 +289,9 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
           // is executable.
           image_space = oat_file_assistant->OpenImageSpace(oat_file.get());
         }
+        // Load the runtime image. This logic must be aligned with the one that determines when to
+        // keep runtime images in `ArtManagerLocal.cleanup` in
+        // `art/libartservice/service/java/com/android/server/art/ArtManagerLocal.java`.
         if (kEnableRuntimeAppImage && image_space == nullptr && !compilation_enabled) {
           std::string art_file = RuntimeImage::GetRuntimeImagePath(dex_location);
           std::string error_msg;
@@ -337,13 +340,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             // Register for tracking.
             for (const auto& dex_file : dex_files) {
               dex::tracking::RegisterDexFile(dex_file.get());
-            }
-
-            if (!compilation_enabled) {
-              // Update the filter we are going to report to 'speed-profile'.
-              // Ideally, we would also update the compiler filter of the odex
-              // file, but at this point it's just too late.
-              compilation_filter = CompilerFilter::NameOfFilter(CompilerFilter::kSpeedProfile);
             }
           } else {
             LOG(INFO) << "Failed to add image file: " << temp_error_msg;

@@ -54,6 +54,37 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
 
   InstructionSet GetIsa() override { return InstructionSet::kRiscv64; }
 
+  // Clang's assembler takes advantage of certain extensions for emitting constants with `li`
+  // but our assembler does not. For now, we use a simple `-march` to avoid the divergence.
+  // TODO(riscv64): Implement these more efficient patterns in assembler.
+  void SetUseSimpleMarch(bool value) {
+    use_simple_march_ = value;
+  }
+
+  std::vector<std::string> GetAssemblerCommand() override {
+    std::vector<std::string> result = Base::GetAssemblerCommand();
+    if (use_simple_march_) {
+      auto it = std::find_if(result.begin(),
+                             result.end(),
+                             [](const std::string& s) { return StartsWith(s, "-march="); });
+      CHECK(it != result.end());
+      *it = "-march=rv64imafd";
+    }
+    return result;
+  }
+
+  std::vector<std::string> GetDisassemblerCommand() override {
+    std::vector<std::string> result = Base::GetDisassemblerCommand();
+    if (use_simple_march_) {
+      auto it = std::find_if(result.begin(),
+                             result.end(),
+                             [](const std::string& s) { return StartsWith(s, "--mattr="); });
+      CHECK(it != result.end());
+      *it = "--mattr=+F,+D,+A";
+    }
+    return result;
+  }
+
   void SetUpHelpers() override {
     if (secondary_register_names_.empty()) {
       secondary_register_names_.emplace(Zero, "zero");
@@ -970,13 +1001,18 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
                                                 fmt);
   }
 
+  template <typename InvalidAqRl>
   std::string RepeatRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, AqRl),
-                           const std::string& fmt) {
+                           const std::string& fmt,
+                           InvalidAqRl&& invalid_aqrl) {
     CHECK(f != nullptr);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
         for (AqRl aqrl : kAqRls) {
+          if (invalid_aqrl(aqrl)) {
+            continue;
+          }
           (GetAssembler()->*f)(reg1, reg2, aqrl);
 
           std::string base = fmt;
@@ -991,14 +1027,19 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
     return str;
   }
 
+  template <typename InvalidAqRl>
   std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, AqRl),
-                            const std::string& fmt) {
+                            const std::string& fmt,
+                            InvalidAqRl&& invalid_aqrl) {
     CHECK(f != nullptr);
     std::string str;
     for (XRegister reg1 : GetRegisters()) {
       for (XRegister reg2 : GetRegisters()) {
         for (XRegister reg3 : GetRegisters()) {
           for (AqRl aqrl : kAqRls) {
+            if (invalid_aqrl(aqrl)) {
+              continue;
+            }
             (GetAssembler()->*f)(reg1, reg2, reg3, aqrl);
 
             std::string base = fmt;
@@ -1013,6 +1054,11 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
       }
     }
     return str;
+  }
+
+  std::string RepeatRRRAqRl(void (Riscv64Assembler::*f)(XRegister, XRegister, XRegister, AqRl),
+                            const std::string& fmt) {
+    return RepeatRRRAqRl(f, fmt, [](AqRl) { return false; });
   }
 
   std::string RepeatCsrrX(void (Riscv64Assembler::*f)(XRegister, uint32_t, XRegister),
@@ -1190,6 +1236,7 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   std::map<XRegister, std::string, RISCV64CpuRegisterCompare> secondary_register_names_;
 
   std::unique_ptr<const Riscv64InstructionSetFeatures> instruction_set_features_;
+  bool use_simple_march_ = false;
 };
 
 TEST_F(AssemblerRISCV64Test, Toolchain) { EXPECT_TRUE(CheckTools()); }
@@ -1506,19 +1553,29 @@ TEST_F(AssemblerRISCV64Test, Remuw) {
 }
 
 TEST_F(AssemblerRISCV64Test, LrW) {
-  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrW, "lr.w{aqrl} {reg1}, ({reg2})"), "LrW");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kRelease; };
+  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrW, "lr.w{aqrl} {reg1}, ({reg2})", invalid_aqrl),
+            "LrW");
 }
 
 TEST_F(AssemblerRISCV64Test, LrD) {
-  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrD, "lr.d{aqrl} {reg1}, ({reg2})"), "LrD");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kRelease; };
+  DriverStr(RepeatRRAqRl(&Riscv64Assembler::LrD, "lr.d{aqrl} {reg1}, ({reg2})", invalid_aqrl),
+            "LrD");
 }
 
 TEST_F(AssemblerRISCV64Test, ScW) {
-  DriverStr(RepeatRRRAqRl(&Riscv64Assembler::ScW, "sc.w{aqrl} {reg1}, {reg2}, ({reg3})"), "ScW");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kAcquire; };
+  DriverStr(
+      RepeatRRRAqRl(&Riscv64Assembler::ScW, "sc.w{aqrl} {reg1}, {reg2}, ({reg3})", invalid_aqrl),
+      "ScW");
 }
 
 TEST_F(AssemblerRISCV64Test, ScD) {
-  DriverStr(RepeatRRRAqRl(&Riscv64Assembler::ScD, "sc.d{aqrl} {reg1}, {reg2}, ({reg3})"), "ScD");
+  auto invalid_aqrl = [](AqRl aqrl) { return aqrl == AqRl::kAcquire; };
+  DriverStr(
+      RepeatRRRAqRl(&Riscv64Assembler::ScD, "sc.d{aqrl} {reg1}, {reg2}, ({reg3})", invalid_aqrl),
+      "ScD");
 }
 
 TEST_F(AssemblerRISCV64Test, AmoSwapW) {
@@ -2077,6 +2134,122 @@ TEST_F(AssemblerRISCV64Test, FClassD) {
   DriverStr(RepeatrF(&Riscv64Assembler::FClassD, "fclass.d {reg1}, {reg2}"), "FClassD");
 }
 
+TEST_F(AssemblerRISCV64Test, AddUw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::AddUw, "add.uw {reg1}, {reg2}, {reg3}"), "AddUw");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh1Add) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh1Add, "sh1add {reg1}, {reg2}, {reg3}"), "Sh1Add");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh1AddUw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh1AddUw, "sh1add.uw {reg1}, {reg2}, {reg3}"), "Sh1AddUw");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh2Add) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh2Add, "sh2add {reg1}, {reg2}, {reg3}"), "Sh2Add");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh2AddUw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh2AddUw, "sh2add.uw {reg1}, {reg2}, {reg3}"), "Sh2AddUw");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh3Add) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh3Add, "sh3add {reg1}, {reg2}, {reg3}"), "Sh3Add");
+}
+
+TEST_F(AssemblerRISCV64Test, Sh3AddUw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Sh3AddUw, "sh3add.uw {reg1}, {reg2}, {reg3}"), "Sh3AddUw");
+}
+
+TEST_F(AssemblerRISCV64Test, SlliUw) {
+  DriverStr(RepeatRRIb(&Riscv64Assembler::SlliUw, 6, "slli.uw {reg1}, {reg2}, {imm}"), "SlliUw");
+}
+
+TEST_F(AssemblerRISCV64Test, Andn) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Andn, "andn {reg1}, {reg2}, {reg3}"), "Andn");
+}
+
+TEST_F(AssemblerRISCV64Test, Orn) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Orn, "orn {reg1}, {reg2}, {reg3}"), "Orn");
+}
+
+TEST_F(AssemblerRISCV64Test, Xnor) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Xnor, "xnor {reg1}, {reg2}, {reg3}"), "Xnor");
+}
+
+TEST_F(AssemblerRISCV64Test, Clz) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Clz, "clz {reg1}, {reg2}"), "Clz");
+}
+
+TEST_F(AssemblerRISCV64Test, Clzw) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Clzw, "clzw {reg1}, {reg2}"), "Clzw");
+}
+
+TEST_F(AssemblerRISCV64Test, Ctz) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Ctz, "ctz {reg1}, {reg2}"), "Ctz");
+}
+
+TEST_F(AssemblerRISCV64Test, Ctzw) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Ctzw, "ctzw {reg1}, {reg2}"), "Ctzw");
+}
+
+TEST_F(AssemblerRISCV64Test, Cpop) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Cpop, "cpop {reg1}, {reg2}"), "Cpop");
+}
+
+TEST_F(AssemblerRISCV64Test, Cpopw) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Cpopw, "cpopw {reg1}, {reg2}"), "Cpopw");
+}
+
+TEST_F(AssemblerRISCV64Test, Min) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Min, "min {reg1}, {reg2}, {reg3}"), "Min");
+}
+
+TEST_F(AssemblerRISCV64Test, Minu) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Minu, "minu {reg1}, {reg2}, {reg3}"), "Minu");
+}
+
+TEST_F(AssemblerRISCV64Test, Max) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Max, "max {reg1}, {reg2}, {reg3}"), "Max");
+}
+
+TEST_F(AssemblerRISCV64Test, Maxu) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Maxu, "maxu {reg1}, {reg2}, {reg3}"), "Maxu");
+}
+
+TEST_F(AssemblerRISCV64Test, Rol) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Rol, "rol {reg1}, {reg2}, {reg3}"), "Rol");
+}
+
+TEST_F(AssemblerRISCV64Test, Rolw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Rolw, "rolw {reg1}, {reg2}, {reg3}"), "Rolw");
+}
+
+TEST_F(AssemblerRISCV64Test, Ror) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Ror, "ror {reg1}, {reg2}, {reg3}"), "Ror");
+}
+
+TEST_F(AssemblerRISCV64Test, Rorw) {
+  DriverStr(RepeatRRR(&Riscv64Assembler::Rorw, "rorw {reg1}, {reg2}, {reg3}"), "Rorw");
+}
+
+TEST_F(AssemblerRISCV64Test, Rori) {
+  DriverStr(RepeatRRIb(&Riscv64Assembler::Rori, 6, "rori {reg1}, {reg2}, {imm}"), "Rori");
+}
+
+TEST_F(AssemblerRISCV64Test, Roriw) {
+  DriverStr(RepeatRRIb(&Riscv64Assembler::Roriw, 5, "roriw {reg1}, {reg2}, {imm}"), "Roriw");
+}
+
+TEST_F(AssemblerRISCV64Test, OrcB) {
+  DriverStr(RepeatRR(&Riscv64Assembler::OrcB, "orc.b {reg1}, {reg2}"), "OrcB");
+}
+
+TEST_F(AssemblerRISCV64Test, Rev8) {
+  DriverStr(RepeatRR(&Riscv64Assembler::Rev8, "rev8 {reg1}, {reg2}"), "Rev8");
+}
+
 // Pseudo instructions.
 TEST_F(AssemblerRISCV64Test, Nop) {
   __ Nop();
@@ -2084,6 +2257,7 @@ TEST_F(AssemblerRISCV64Test, Nop) {
 }
 
 TEST_F(AssemblerRISCV64Test, Li) {
+  SetUseSimpleMarch(true);
   TestLoadConst64("Li",
                   /*can_use_tmp=*/ false,
                   [&](XRegister rd, int64_t value) { __ Li(rd, value); });
@@ -2106,6 +2280,7 @@ TEST_F(AssemblerRISCV64Test, NegW) {
 }
 
 TEST_F(AssemblerRISCV64Test, SextB) {
+  // Note: SEXT.B from the Zbb extension is not supported.
   DriverStr(RepeatRR(&Riscv64Assembler::SextB,
                      "slli {reg1}, {reg2}, 56\n"
                      "srai {reg1}, {reg1}, 56"),
@@ -2113,6 +2288,7 @@ TEST_F(AssemblerRISCV64Test, SextB) {
 }
 
 TEST_F(AssemblerRISCV64Test, SextH) {
+  // Note: SEXT.H from the Zbb extension is not supported.
   DriverStr(RepeatRR(&Riscv64Assembler::SextH,
                      "slli {reg1}, {reg2}, 48\n"
                      "srai {reg1}, {reg1}, 48"),
@@ -2128,6 +2304,7 @@ TEST_F(AssemblerRISCV64Test, ZextB) {
 }
 
 TEST_F(AssemblerRISCV64Test, ZextH) {
+  // Note: ZEXT.H from the Zbb extension is not supported.
   DriverStr(RepeatRR(&Riscv64Assembler::ZextH,
                      "slli {reg1}, {reg2}, 48\n"
                      "srli {reg1}, {reg1}, 48"),
@@ -2138,7 +2315,7 @@ TEST_F(AssemblerRISCV64Test, ZextW) {
   DriverStr(RepeatRR(&Riscv64Assembler::ZextW,
                      "slli {reg1}, {reg2}, 32\n"
                      "srli {reg1}, {reg1}, 32"),
-            "SextW");
+            "ZextW");
 }
 
 TEST_F(AssemblerRISCV64Test, Seqz) {
@@ -2314,6 +2491,7 @@ TEST_F(AssemblerRISCV64Test, LoadConst32) {
 }
 
 TEST_F(AssemblerRISCV64Test, LoadConst64) {
+  SetUseSimpleMarch(true);
   TestLoadConst64("LoadConst64",
                   /*can_use_tmp=*/ true,
                   [&](XRegister rd, int64_t value) { __ LoadConst64(rd, value); });
@@ -2327,6 +2505,7 @@ TEST_F(AssemblerRISCV64Test, AddConst32) {
 }
 
 TEST_F(AssemblerRISCV64Test, AddConst64) {
+  SetUseSimpleMarch(true);
   auto emit_op = [&](XRegister rd, XRegister rs1, int64_t value) {
     __ AddConst64(rd, rs1, value);
   };

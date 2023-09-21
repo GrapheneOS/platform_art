@@ -863,6 +863,8 @@ class Dex2Oat final {
       case InstructionSet::kX86:
       case InstructionSet::kX86_64:
         compiler_options_->implicit_null_checks_ = true;
+        FALLTHROUGH_INTENDED;
+      case InstructionSet::kRiscv64:
         compiler_options_->implicit_so_checks_ = true;
         break;
 
@@ -1110,17 +1112,9 @@ class Dex2Oat final {
     AssignIfExists(args, M::PublicSdk, &public_sdk_);
     AssignIfExists(args, M::ApexVersions, &apex_versions_argument_);
 
-    // Check for phenotype flag to override compact_dex_level_, if it isn't "none" already.
-    // TODO(b/256664509): Clean this up.
     if (compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
-      std::string ph_disable_compact_dex =
-          android::base::GetProperty(kPhDisableCompactDex, "false");
-      if (ph_disable_compact_dex == "true") {
-        LOG(WARNING)
-            << "Overriding --compact-dex-level due to "
-               "persist.device_config.runtime_native_boot.disable_compact_dex set to `true`";
-        compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
-      }
+      LOG(WARNING) << "Obsolete flag --compact-dex-level ignored";
+      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
     }
 
     AssignIfExists(args, M::Backend, &compiler_kind_);
@@ -2546,9 +2540,8 @@ class Dex2Oat final {
 
   bool PrepareDirtyObjects() {
     if (dirty_image_objects_fd_ != -1) {
-      dirty_image_objects_ = ReadCommentedInputFromFd<HashSet<std::string>>(
-          dirty_image_objects_fd_,
-          nullptr);
+      dirty_image_objects_ =
+          ReadCommentedInputFromFd<std::vector<std::string>>(dirty_image_objects_fd_, nullptr);
       // Close since we won't need it again.
       close(dirty_image_objects_fd_);
       dirty_image_objects_fd_ = -1;
@@ -2557,9 +2550,8 @@ class Dex2Oat final {
         return false;
       }
     } else if (dirty_image_objects_filename_ != nullptr) {
-      dirty_image_objects_ = ReadCommentedInputFromFile<HashSet<std::string>>(
-          dirty_image_objects_filename_,
-          nullptr);
+      dirty_image_objects_ = ReadCommentedInputFromFile<std::vector<std::string>>(
+          dirty_image_objects_filename_, nullptr);
       if (dirty_image_objects_ == nullptr) {
         LOG(ERROR) << "Failed to create list of dirty objects from '"
             << dirty_image_objects_filename_ << "'";
@@ -2969,13 +2961,15 @@ class Dex2Oat final {
   const char* passes_to_run_filename_;
   const char* dirty_image_objects_filename_;
   int dirty_image_objects_fd_;
-  std::unique_ptr<HashSet<std::string>> dirty_image_objects_;
+  std::unique_ptr<std::vector<std::string>> dirty_image_objects_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool is_host_;
   std::string android_root_;
   std::string no_inline_from_string_;
   bool force_allow_oj_inlines_ = false;
-  CompactDexLevel compact_dex_level_ = kDefaultCompactDexLevel;
+
+  // TODO(b/256664509): Clean this up.
+  CompactDexLevel compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
 
   std::vector<std::unique_ptr<linker::ElfWriter>> elf_writers_;
   std::vector<std::unique_ptr<linker::OatWriter>> oat_writers_;

@@ -61,20 +61,26 @@
 #define CFI_DEX  19  // DWARF register number for xPC  /s3/x19
 #define CFI_REFS 22  // DWARF register number for xREFS/s6/x22
 
-// An assembly entry that has a OatQuickMethodHeader prefix.
-.macro OAT_ENTRY name, end
+// Synchronization
+// This code follows the RISC-V atomics ABI specification [1].
+//
+// Object publication.
+// new-instance and new-array operations must first perform a `fence w,w` "constructor fence" to
+// ensure their new object references are correctly published with a subsequent SET_VREG_OBJECT.
+//
+// Volatile load/store.
+// A volatile load is implemented as: fence rw,rw ; load ; fence r,rw.
+// A 32-bit or 64-bit volatile store is implemented as: amoswap.{w,d}.rl
+// A volatile store for a narrower type is implemented as: fence rw,w ; store ; fence rw,rw
+//
+// [1] https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-atomic.adoc
+
+// An assembly entry for nterp.
+.macro OAT_ENTRY name
     .type \name, @function
     .hidden \name
     .global \name
     .balign 16
-    // Padding of 3 * 4 bytes to get 16 bytes alignment of code entry.
-    .4byte 0, 0, 0
-    // OatQuickMethodHeader `data_` field. Note that the top two bits must be clear.
-    // The calculation must be based on the current address to emit relocation data,
-    // otherwise the size calculated by the assembler could be wrong after linking.
-    // (Alternatively, we could use `.option norelax` to suppress linker optimizations.)
-1:
-    .4byte (\end - /* \name */ (1b + 4))
 \name:
 .endm
 
@@ -182,7 +188,7 @@ END \name
     .cfi_def_cfa_register \old_sp
     mv sp, t0
     sd \old_sp, -8(\refs)
-    CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+    CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, NTERP_SIZE_SAVE_CALLEE_SAVES
 
     // Put nulls in reference array.
     beqz \regs, 2f
@@ -201,12 +207,29 @@ END \name
     sd xPC, -16(xREFS)
 .endm
 
+.macro TEST_IF_MARKING reg, label
+    lb \reg, THREAD_IS_GC_MARKING_OFFSET(xSELF)
+    bnez \reg, \label
+.endm
+
 .macro DO_SUSPEND_CHECK continue
     lw t0, THREAD_FLAGS_OFFSET(xSELF)
     andi t0, t0, THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beqz t0, \continue
     EXPORT_PC
     call art_quick_test_suspend
+.endm
+
+// Clobbers: t0, t1
+.macro WRITE_BARRIER_IF_OBJECT is_object, value, holder, uniq
+    .if \is_object
+    beqz \value, .Lskip_write_barrier_\uniq // No object, skip out.
+    ld t0, THREAD_CARD_TABLE_OFFSET(xSELF)
+    srli t1, \holder, CARD_TABLE_CARD_SHIFT
+    add t1, t0, t1
+    sb t0, (t1)
+.Lskip_write_barrier_\uniq:
+    .endif
 .endm
 
 // Fetch one or more half-word units from an offset past the current PC.
@@ -266,6 +289,31 @@ END \name
     slliw \reg, \reg, ${handler_size_bits}
     add \reg, xIBASE, \reg
     jr \reg
+.endm
+
+// Clobbers: t0, t1
+.macro FETCH_FROM_THREAD_CACHE reg, miss_label
+    // See art::InterpreterCache::IndexOf() for computing index of key within cache array.
+    // Entry address:
+    //   xSELF + OFFSET + ((xPC>>2 & xFF) << 4)
+    // = xSELF + OFFSET + ((xPC & xFF<<2) << 2)
+    // = xSELF + ((OFFSET>>2 + (xPC & xFF<<2)) << 2)
+    // => ANDI, ADD, SH2ADD
+#if (THREAD_INTERPRETER_CACHE_SIZE_LOG2 != 8)
+#error Expected interpreter cache array size = 256 elements
+#endif
+#if (THREAD_INTERPRETER_CACHE_SIZE_SHIFT != 2)
+#error Expected interpreter cache entry size = 16 bytes
+#endif
+#if ((THREAD_INTERPRETER_CACHE_OFFSET & 0x3) != 0)
+#error Expected interpreter cache offset to be 4-byte aligned
+#endif
+    andi t0, xPC, 0xFF << 2
+    addi t0, t0, THREAD_INTERPRETER_CACHE_OFFSET >> 2
+    sh2add t0, t0, xSELF  // t0 := entry's address
+    ld t1, (t0)           // t1 := dex PC
+    bne xPC, t1, \miss_label
+    ld \reg, 8(t0)        // value: depends on context; see call site
 .endm
 
 // Inputs:
@@ -378,6 +426,50 @@ END \name
     sw \reg, (t0)          // refs[vreg] := reg
 .endm
 
+// Floating-point read, defaults to 32-bit read.
+// Clobbers: \reg, \vreg
+.macro GET_VREG_FLOAT reg, vreg, is_double=0
+    .if \is_double
+      GET_VREG_DOUBLE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add \vreg, xFP, \vreg  // vreg addr in register array
+      flw \reg, (\vreg)      // reg := fp[vreg]
+    .endif
+.endm
+
+// Floating-point write, defaults to 32-bit write.
+// Clobbers: t0, \reg, \vreg
+.macro SET_VREG_FLOAT reg, vreg, is_double=0
+    .if \is_double
+      SET_VREG_DOUBLE \reg, \vreg
+    .else
+      slliw \vreg, \vreg, 2  // vreg id to byte offset
+      add t0, xFP, \vreg     // vreg addr in register array
+      fsw \reg, (t0)         // fp[vreg] := reg
+      add t0, xREFS, \vreg   // vreg addr in reference array
+      sw zero, (t0)          // refs[vreg] := null
+    .endif
+.endm
+
+// Floating-point 64 bit read
+// Clobbers: \reg
+.macro GET_VREG_DOUBLE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add \vreg, xFP, \vreg  // vreg addr in register array
+    fld \reg, (\vreg)       // reg := fp[vreg](lo) | fp[vreg+1](hi)
+.endm
+
+// Floating-point 64 bit write
+// Clobbers: t0, \vreg
+.macro SET_VREG_DOUBLE reg, vreg
+    slliw \vreg, \vreg, 2  // vreg id to byte offset
+    add t0, xFP, \vreg     // vreg addr in register array
+    fsd \reg, (t0)         // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
+    add t0, xREFS, \vreg   // vreg addr in reference array
+    sd zero, (t0)          // refs[vreg] := null ; refs[vreg+1] := null
+.endm
+
 %def entry():
 /*
  * ArtMethod entry point.
@@ -386,14 +478,40 @@ END \name
  *  a0     ArtMethod* callee
  *  a1-a7  method parameters
  */
-
-OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+OAT_ENTRY ExecuteNterpWithClinitImpl
+#if MIRROR_CLASS_STATUS_SHIFT < 12
+#error mirror class status bits cannot use LUI load technique
+#endif
     .cfi_startproc
-    unimp
+    // For simplicity, we don't do a read barrier here, but instead rely
+    // on art_quick_resolution_trampoline to always have a suspend point before
+    // calling back here.
+    lwu t0, ART_METHOD_DECLARING_CLASS_OFFSET(a0)
+    lw t1, MIRROR_CLASS_STATUS_OFFSET(t0)  // t1 := status word, sext
+    lui t2, MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    // The unsigned comparison works in tandem with the 64-bit sign-extension of
+    // the status bits at the top of the 32-bit word. The order of the status
+    // constants (sign extended from LUI) is unchanged with unsigned comparison.
+    bgeu t1, t2, ExecuteNterpImpl
+    lui t2, MIRROR_CLASS_STATUS_INITIALIZED << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    bltu t1, t2, .Linitializing_check
+    fence w, w
+    j ExecuteNterpImpl
+.Linitializing_check:
+    lui t2, MIRROR_CLASS_STATUS_INITIALIZING << (MIRROR_CLASS_STATUS_SHIFT - 12)
+    bltu t1, t2, .Lresolution_trampoline
+    ld t1, MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(t0)
+    ld t0, THREAD_TID_OFFSET(xSELF)
+    beq t0, t1, ExecuteNterpImpl
+.Lresolution_trampoline:
+    tail art_quick_resolution_trampoline
     .cfi_endproc
+    .type EndExecuteNterpWithClinitImpl, @function
+    .hidden EndExecuteNterpWithClinitImpl
+    .global EndExecuteNterpWithClinitImpl
 EndExecuteNterpWithClinitImpl:
 
-OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
+OAT_ENTRY ExecuteNterpImpl
     .cfi_startproc
 
     // Check guard page for stack overflow.
@@ -401,8 +519,8 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     add t0, t0, sp
     ld zero, (t0)
 
-    INCREASE_FRAME FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
-    SAVE_ALL_CALLEE_SAVES
+    INCREASE_FRAME NTERP_SIZE_SAVE_CALLEE_SAVES
+    SETUP_NTERP_SAVE_CALLEE_SAVES
 
     ld xPC, ART_METHOD_DATA_OFFSET_64(a0)
     SETUP_STACK_FRAME xPC, CFI_REFS, xREFS, xFP, /*reg count*/ s7, /*in count*/s8, /*old sp*/s9
@@ -418,8 +536,6 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     // NOTE: no fallthrough
     // cfi info continues, and covers the whole nterp implementation.
     SIZE ExecuteNterpImpl
-
-%def fetch_from_thread_cache(dest_reg, miss_label):
 
 %def footer():
 /*
@@ -453,6 +569,8 @@ EndExecuteNterpImpl:
 NAME_END nterp_helper
 
 // Entrypoints into runtime.
+NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
+NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 
 ENTRY nterp_deliver_pending_exception
@@ -483,7 +601,6 @@ artNterpAsmInstructionEnd:
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
-    unimp
 %def opcode_slow_path_start(name):
     NAME_START ${name}
 %def opcode_slow_path_end(name):

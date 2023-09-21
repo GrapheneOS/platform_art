@@ -19,48 +19,46 @@
 #include "subtype_check.h"
 #endif
 
-ASM_DEFINE(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
-           art::mirror::Class::AccessFlagsOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_ACCESS_FLAGS_OFFSET, art::mirror::Class::AccessFlagsOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET,
+           art::mirror::Class::ClinitThreadIdOffset().Int32Value())
 ASM_DEFINE(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
            art::mirror::Class::ComponentTypeOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_DEX_CACHE_OFFSET,
-           art::mirror::Class::DexCacheOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_IF_TABLE_OFFSET,
-           art::mirror::Class::IfTableOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET,
-           art::mirror::Class::PrimitiveTypeOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET,
-           art::mirror::Class::ObjectSizeAllocFastPathOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_OBJECT_SIZE_OFFSET,
-           art::mirror::Class::ObjectSizeOffset().Int32Value())
-ASM_DEFINE(MIRROR_CLASS_STATUS_OFFSET,
-           art::mirror::Class::StatusOffset().Int32Value())
-ASM_DEFINE(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT,
-           art::mirror::Class::kPrimitiveTypeSizeShiftShift)
-ASM_DEFINE(MIRROR_CLASS_VTABLE_OFFSET_32,
-           art::mirror::Class::EmbeddedVTableOffset(art::PointerSize::k32).Int32Value())
-ASM_DEFINE(MIRROR_CLASS_VTABLE_OFFSET_64,
-           art::mirror::Class::EmbeddedVTableOffset(art::PointerSize::k64).Int32Value())
+ASM_DEFINE(MIRROR_CLASS_DEX_CACHE_OFFSET, art::mirror::Class::DexCacheOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_IF_TABLE_OFFSET, art::mirror::Class::IfTableOffset().Int32Value())
 ASM_DEFINE(MIRROR_CLASS_IMT_PTR_OFFSET_32,
            art::mirror::Class::ImtPtrOffset(art::PointerSize::k32).Int32Value())
 ASM_DEFINE(MIRROR_CLASS_IMT_PTR_OFFSET_64,
            art::mirror::Class::ImtPtrOffset(art::PointerSize::k64).Int32Value())
-ASM_DEFINE(MIRROR_CLASS_SUPER_CLASS_OFFSET,
-           art::mirror::Class::SuperClassOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET,
+           art::mirror::Class::PrimitiveTypeOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET,
+           art::mirror::Class::ObjectSizeAllocFastPathOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_OBJECT_SIZE_OFFSET, art::mirror::Class::ObjectSizeOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_STATUS_OFFSET, art::mirror::Class::StatusOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_SUPER_CLASS_OFFSET, art::mirror::Class::SuperClassOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_VTABLE_OFFSET_32,
+           art::mirror::Class::EmbeddedVTableOffset(art::PointerSize::k32).Int32Value())
+ASM_DEFINE(MIRROR_CLASS_VTABLE_OFFSET_64,
+           art::mirror::Class::EmbeddedVTableOffset(art::PointerSize::k64).Int32Value())
+
+ASM_DEFINE(MIRROR_CLASS_STATUS_SHIFT, art::SubtypeCheckBits::BitStructSizeOf())
+ASM_DEFINE(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT, art::mirror::Class::kPrimitiveTypeSizeShiftShift)
+
 ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG, art::kAccInterface)
-ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG_BIT,
-           art::WhichPowerOf2(art::kAccInterface))
-ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET,
-           art::mirror::Class::StatusOffset().SizeValue() +
-               (art::SubtypeCheckBits::BitStructSizeOf() / art::kBitsPerByte))
-ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE,
-           art::enum_cast<uint32_t>(art::ClassStatus::kVisiblyInitialized) <<
-               (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))
-ASM_DEFINE(MIRROR_CLASS_IS_INITIALIZING_VALUE,
-           art::enum_cast<uint32_t>(art::ClassStatus::kInitializing) <<
-               (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))
-ASM_DEFINE(MIRROR_CLASS_IS_INITIALIZED_VALUE,
-           art::enum_cast<uint32_t>(art::ClassStatus::kInitialized) <<
-               (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))
-ASM_DEFINE(MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET,
-           art::mirror::Class::ClinitThreadIdOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG_BIT, art::WhichPowerOf2(art::kAccInterface))
+ASM_DEFINE(MIRROR_CLASS_STATUS_INITIALIZED,
+           art::enum_cast<uint32_t>(art::ClassStatus::kInitialized))
+ASM_DEFINE(MIRROR_CLASS_STATUS_INITIALIZED_SHIFTED,
+           art::enum_cast<uint32_t>(art::ClassStatus::kInitialized)
+               << art::SubtypeCheckBits::BitStructSizeOf())
+ASM_DEFINE(MIRROR_CLASS_STATUS_INITIALIZING,
+           art::enum_cast<uint32_t>(art::ClassStatus::kInitializing))
+ASM_DEFINE(MIRROR_CLASS_STATUS_INITIALIZING_SHIFTED,
+           art::enum_cast<uint32_t>(art::ClassStatus::kInitializing)
+               << art::SubtypeCheckBits::BitStructSizeOf())
+ASM_DEFINE(MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED,
+           art::enum_cast<uint32_t>(art::ClassStatus::kVisiblyInitialized))
+ASM_DEFINE(MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED_SHIFTED,
+           art::enum_cast<uint32_t>(art::ClassStatus::kVisiblyInitialized)
+               << art::SubtypeCheckBits::BitStructSizeOf())

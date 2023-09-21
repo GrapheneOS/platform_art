@@ -66,6 +66,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,8 +81,8 @@ public class DexUseManagerTest {
     private static final String SPLIT_APK = "/data/app/" + OWNING_PKG_NAME + "/split_0.apk";
 
     @Rule
-    public StaticMockitoRule mockitoRule =
-            new StaticMockitoRule(SystemProperties.class, Constants.class, Process.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
+            SystemProperties.class, Constants.class, Process.class, ArtJni.class);
 
     private final UserHandle mUserHandle = Binder.getCallingUserHandle();
 
@@ -117,14 +118,21 @@ public class DexUseManagerTest {
 
         lenient().when(Process.isIsolatedUid(anyInt())).thenReturn(false);
 
-        mPackageStates = new HashMap<>();
+        // Use a LinkedHashMap so that we can control the iteration order.
+        mPackageStates = new LinkedHashMap<>();
 
-        PackageState loadingPkgState = createPackageState(LOADING_PKG_NAME, "armeabi-v7a");
+        // Put the null package in front of other packages to verify that it's properly skipped.
+        PackageState nullPkgState =
+                createPackageState("com.example.null", "arm64-v8a", false /* hasPackage */);
+        addPackage("com.example.null", nullPkgState);
+        PackageState loadingPkgState =
+                createPackageState(LOADING_PKG_NAME, "armeabi-v7a", true /* hasPackage */);
         addPackage(LOADING_PKG_NAME, loadingPkgState);
-        PackageState owningPkgState = createPackageState(OWNING_PKG_NAME, "arm64-v8a");
+        PackageState owningPkgState =
+                createPackageState(OWNING_PKG_NAME, "arm64-v8a", true /* hasPackage */);
         addPackage(OWNING_PKG_NAME, owningPkgState);
         PackageState platformPkgState =
-                createPackageState(Utils.PLATFORM_PACKAGE_NAME, "arm64-v8a");
+                createPackageState(Utils.PLATFORM_PACKAGE_NAME, "arm64-v8a", true /* hasPackage */);
         addPackage(Utils.PLATFORM_PACKAGE_NAME, platformPkgState);
 
         lenient().when(mSnapshot.getPackageStates()).thenReturn(mPackageStates);
@@ -147,8 +155,8 @@ public class DexUseManagerTest {
         mTempFile = File.createTempFile("package-dex-usage", ".pb");
         mTempFile.deleteOnExit();
 
-        lenient().when(mArtd.validateDexPath(any())).thenReturn(null);
-        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn(null);
+        lenient().when(ArtJni.validateDexPath(any())).thenReturn(null);
+        lenient().when(ArtJni.validateClassLoaderContext(any(), any())).thenReturn(null);
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
@@ -582,7 +590,8 @@ public class DexUseManagerTest {
 
     @Test
     public void testCleanup() throws Exception {
-        PackageState pkgState = createPackageState("com.example.deletedpackage", "arm64-v8a");
+        PackageState pkgState = createPackageState(
+                "com.example.deletedpackage", "arm64-v8a", true /* hasPackage */);
         addPackage("com.example.deletedpackage", pkgState);
         lenient()
                 .when(mArtd.getDexFileVisibility("/data/app/com.example.deletedpackage/base.apk"))
@@ -703,14 +712,14 @@ public class DexUseManagerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidDexPath() throws Exception {
-        lenient().when(mArtd.validateDexPath(any())).thenReturn("invalid");
+        lenient().when(ArtJni.validateDexPath(any())).thenReturn("invalid");
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidClassLoaderContext() throws Exception {
-        lenient().when(mArtd.validateClassLoaderContext(any(), any())).thenReturn("invalid");
+        lenient().when(ArtJni.validateClassLoaderContext(any(), any())).thenReturn("invalid");
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of("/a/b.jar", "PCL[]"));
     }
@@ -758,11 +767,12 @@ public class DexUseManagerTest {
         return pkg;
     }
 
-    private PackageState createPackageState(String packageName, String primaryAbi) {
+    private PackageState createPackageState(
+            String packageName, String primaryAbi, boolean hasPackage) {
         PackageState pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         AndroidPackage pkg = createPackage(packageName);
-        lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
+        lenient().when(pkgState.getAndroidPackage()).thenReturn(hasPackage ? pkg : null);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn(primaryAbi);
         return pkgState;
     }

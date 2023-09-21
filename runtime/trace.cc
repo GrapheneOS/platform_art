@@ -200,6 +200,10 @@ ALWAYS_INLINE uint64_t GetMicroTime(uint64_t counter) {
 
 }  // namespace
 
+bool TraceWriter::HasMethodEncoding(ArtMethod* method) {
+  return art_method_id_map_.find(method) != art_method_id_map_.end();
+}
+
 std::pair<uint32_t, bool> TraceWriter::GetMethodEncoding(ArtMethod* method) {
   auto it = art_method_id_map_.find(method);
   if (it != art_method_id_map_.end()) {
@@ -233,9 +237,13 @@ class TraceWriterTask final : public Task {
         cur_offset_(cur_offset),
         thread_id_(thread_id) {}
 
-  void Run(Thread* self) override {
-    ScopedObjectAccess soa(self);
-    trace_writer_->FlushBuffer(buffer_, cur_offset_, thread_id_);
+  void Run(Thread* self ATTRIBUTE_UNUSED) override {
+    std::unordered_map<ArtMethod*, std::string> method_infos;
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      trace_writer_->PreProcessTraceForMethodInfos(buffer_, cur_offset_, method_infos);
+    }
+    trace_writer_->FlushBuffer(buffer_, cur_offset_, thread_id_, method_infos);
     delete[] buffer_;
   }
 
@@ -1019,10 +1027,13 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* ti
   }
 }
 
-std::string TraceWriter::GetMethodLine(ArtMethod* method, uint32_t method_index) {
+std::string TraceWriter::GetMethodLine(std::string method_line, uint32_t method_index) {
+  return StringPrintf("%#x\t%s", (method_index << TraceActionBits), method_line.c_str());
+}
+
+std::string TraceWriter::GetMethodInfoLine(ArtMethod* method) {
   method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
-  return StringPrintf("%#x\t%s\t%s\t%s\t%s\n",
-                      (method_index << TraceActionBits),
+  return StringPrintf("%s\t%s\t%s\t%s\n",
                       PrettyDescriptor(method->GetDeclaringClassDescriptor()).c_str(),
                       method->GetName(),
                       method->GetSignature().ToString().c_str(),
@@ -1062,13 +1073,38 @@ void TraceWriter::RecordThreadInfo(Thread* thread) {
   }
 }
 
-void TraceWriter::RecordMethodInfo(ArtMethod* method,
-                                   uint32_t method_index,
+void TraceWriter::PreProcessTraceForMethodInfos(
+    uintptr_t* method_trace_entries,
+    size_t current_offset,
+    std::unordered_map<ArtMethod*, std::string>& method_infos) {
+  // Compute the method infos before we process the entries. We don't want to assign an encoding
+  // for the method here. The expectation is that once we assign a method id we write it to the
+  // file before any other thread can see the method id. So we should assign method encoding while
+  // holding the tracing_lock_ and not release it till we flush the method info to the file. We
+  // don't want to flush entries to file while holding the mutator lock. We need the mutator lock to
+  // get method info. So we just precompute method infos without assigning a method encoding here.
+  // There may be a race and multiple threads computing the method info but only one of them would
+  // actually put into the method_id_map_.
+  MutexLock mu(Thread::Current(), tracing_lock_);
+  size_t record_size = (clock_source_ == TraceClockSource::kDual) ? kNumEntriesForDualClock :
+                                                                    kNumEntriesForWallClock;
+  for (size_t entry_index = kPerThreadBufSize - 1; entry_index > current_offset;
+       entry_index -= record_size) {
+    uintptr_t method_and_action = method_trace_entries[entry_index];
+    ArtMethod* method = reinterpret_cast<ArtMethod*>(method_and_action & kMaskTraceAction);
+    if (!HasMethodEncoding(method) && method_infos.find(method) == method_infos.end()) {
+      method_infos.emplace(method, std::move(GetMethodInfoLine(method)));
+    }
+  }
+}
+
+void TraceWriter::RecordMethodInfo(std::string method_info_line,
+                                   uint32_t method_id,
                                    size_t* current_index,
                                    uint8_t* buffer,
                                    size_t buffer_size) {
+  std::string method_line(GetMethodLine(method_info_line, method_id));
   // Write a special block with the name.
-  std::string method_line(GetMethodLine(method, method_index));
   static constexpr size_t kMethodNameHeaderSize = 5;
   uint8_t method_header[kMethodNameHeaderSize];
   DCHECK_LT(kMethodNameHeaderSize, kPerThreadBufSize);
@@ -1138,7 +1174,9 @@ void TraceWriter::FlushBuffer(Thread* thread, bool is_sync) {
   DCHECK(method_trace_entries != nullptr);
 
   if (is_sync || thread_pool_ == nullptr) {
-    FlushBuffer(method_trace_entries, *current_offset, tid);
+    std::unordered_map<ArtMethod*, std::string> method_infos;
+    PreProcessTraceForMethodInfos(method_trace_entries, *current_offset, method_infos);
+    FlushBuffer(method_trace_entries, *current_offset, tid, method_infos);
 
     // This is a synchronous flush, so no need to allocate a new buffer. This is used either
     // when the tracing has finished or in non-streaming mode.
@@ -1160,7 +1198,10 @@ void TraceWriter::FlushBuffer(Thread* thread, bool is_sync) {
   return;
 }
 
-void TraceWriter::FlushBuffer(uintptr_t* method_trace_entries, size_t current_offset, size_t tid) {
+void TraceWriter::FlushBuffer(uintptr_t* method_trace_entries,
+                              size_t current_offset,
+                              size_t tid,
+                              const std::unordered_map<ArtMethod*, std::string>& method_infos) {
   // Take a tracing_lock_ to serialize writes across threads. We also need to allocate a unique
   // method id for each method. We do that by maintaining a map from id to method for each newly
   // seen method. tracing_lock_ is required to serialize these.
@@ -1201,7 +1242,8 @@ void TraceWriter::FlushBuffer(uintptr_t* method_trace_entries, size_t current_of
 
     auto [method_id, is_new_method] = GetMethodEncoding(method);
     if (is_new_method && trace_output_mode_ == TraceOutputMode::kStreaming) {
-      RecordMethodInfo(method, method_id, &current_index, buffer_ptr, buffer_size);
+      RecordMethodInfo(
+          method_infos.find(method)->second, method_id, &current_index, buffer_ptr, buffer_size);
     }
 
     const size_t record_size = GetRecordSize(clock_source_);
@@ -1330,7 +1372,7 @@ void TraceWriter::EnsureSpace(uint8_t* buffer,
 void TraceWriter::DumpMethodList(std::ostream& os) {
   MutexLock mu(Thread::Current(), tracing_lock_);
   for (auto const& entry : art_method_id_map_) {
-    os << GetMethodLine(entry.first, entry.second);
+    os << GetMethodLine(GetMethodInfoLine(entry.first), entry.second);
   }
 }
 

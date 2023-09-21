@@ -1364,8 +1364,7 @@ bool HInstructionBuilder::BuildInvokePolymorphic(uint32_t dex_pc,
                                                         method_reference,
                                                         resolved_method,
                                                         resolved_method_reference,
-                                                        proto_idx,
-                                                        !graph_->IsDebuggable());
+                                                        proto_idx);
   if (!HandleInvoke(invoke, operands, shorty, /* is_unresolved= */ false)) {
     return false;
   }

@@ -14,22 +14,16 @@
      limitations under the License.
 -->
 <configuration description="Compiles, launches an app, and checks for crashes">
-    <option name="package-name" value="{package}"/>
-    <target_preparer class="com.android.compatibility.targetprep.AppSetupPreparer">
-        <option name="test-file-name" value="app://{package}"/>
-    </target_preparer>
     <target_preparer class="com.android.compatibility.targetprep.CheckGmsPreparer"/>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <!-- We will fail if any command in RunCommandTargetPreparer fails.
-            This is useful to know if we failed to compile a package. -->
-        <option name="throw-if-cmd-fail" value="true"/>
-        <option name="run-command" value="cmd package compile -m speed {package}"/>
         <option name="run-command" value="input keyevent KEYCODE_WAKEUP"/>
         <option name="run-command" value="input keyevent KEYCODE_MENU"/>
         <option name="run-command" value="input keyevent KEYCODE_HOME"/>
     </target_preparer>
     <test class="com.android.tradefed.testtype.HostTest" >
         <option name="set-option" value="package-name:{package}"/>
-        <option name="class" value="com.android.csuite.tests.AppLaunchTest" />
+        <option name="set-option" value="install-apk:app\://{package}"/>
+        <option name="set-option" value="install-arg:-g"/>
+        <option name="class" value="com.android.art.tests.AppCompileLaunchTest" />
     </test>
 </configuration>

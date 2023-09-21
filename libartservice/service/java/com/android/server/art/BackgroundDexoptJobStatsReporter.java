@@ -51,7 +51,7 @@ public class BackgroundDexoptJobStatsReporter {
                 .filter(packageResult
                         -> packageResult.getDexContainerFileDexoptResults().stream().anyMatch(
                                 fileResult
-                                -> (fileResult.getExtraStatus()
+                                -> (fileResult.getExtraStatuses()
                                            & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                                         == 0))
                 .collect(Collectors.toList());
@@ -75,7 +75,7 @@ public class BackgroundDexoptJobStatsReporter {
                         .flatMap(packageResult
                                 -> packageResult.getDexContainerFileDexoptResults().stream())
                         .anyMatch(fileResult
-                                -> (fileResult.getExtraStatus()
+                                -> (fileResult.getExtraStatuses()
                                            & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                                         != 0);
         if (isSkippedDueToStorageLow) {

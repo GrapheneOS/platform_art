@@ -446,6 +446,7 @@
             ".*var-handle.*",
             "160-read-barrier-stress",
             "716-jli-jit-samples",
+            "849-records",
             "1002-notify-startup",
             "1975-hello-structural-transformation",
             "1976-hello-structural-static-methods",
@@ -1222,6 +1223,7 @@
                   "2009-structural-local-ref",
                   "2011-stack-walk-concurrent-instrument",
                   "2012-structural-redefinition-failures-jni-id",
+                  "2031-zygote-compiled-frame-deopt",
                   "2033-shutdown-mechanics",
                   "2035-structural-native-method",
                   "2036-structural-subclass-shadow",
@@ -1232,7 +1234,7 @@
                   "2246-trace-stream",
                   "2254-class-value-before-and-after-u",
                   "2261-badcleaner-in-systemcleaner",
-	          "2263-method-trace-jit"],
+                  "2263-method-trace-jit"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },
@@ -1347,18 +1349,10 @@
         "description": ["Occasional timeouts."]
     },
     {
-        "tests": ["2031-zygote-compiled-frame-deopt"],
-        "zipapex": true,
-        "bug": "b/144947842",
-        "description": ["This test requires strong knowledge about where the libdir is",
-                        "which the zipapex runner breaks."]
-    },
-    {
-        "tests": ["909-attach-agent", "126-miranda-multidex"],
-        "zipapex": true,
-        "bug": "b/135507613",
-        "description": ["These tests run dalvikvm multiple times, this can mess up the",
-                        "zipapex runner."]
+        "tests": ["909-attach-agent"],
+        "variant": "target",
+        "bug": "b/300654679",
+        "description": ["Library path issues."]
     },
     {
         "tests": ["175-alloc-big-bignums"],

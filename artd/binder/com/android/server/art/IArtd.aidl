@@ -22,7 +22,10 @@ interface IArtd {
     boolean isAlive();
 
     /**
-     * Deletes artifacts and returns the released space, in bytes.
+     * Deletes dexopt artifacts and returns the released space, in bytes.
+     *
+     * Note that this method doesn't delete runtime artifacts. To delete them, call
+     * `deleteRuntimeArtifacts`.
      *
      * Throws fatal errors. Logs and ignores non-fatal errors.
      */
@@ -46,13 +49,14 @@ interface IArtd {
             @utf8InCpp String dexFile);
 
     /**
-     * Copies the profile and rewrites it for the given dex file. Returns true and fills
+     * Copies the profile and rewrites it for the given dex file. Returns `SUCCESS` and fills
      * `dst.profilePath.id` if the operation succeeds and `src` exists and contains entries that
      * match the given dex file.
      *
-     * Throws fatal and non-fatal errors.
+     * Throws fatal and non-fatal errors, except if the input is a bad profile.
      */
-    boolean copyAndRewriteProfile(in com.android.server.art.ProfilePath src,
+    com.android.server.art.CopyAndRewriteProfileResult copyAndRewriteProfile(
+            in com.android.server.art.ProfilePath src,
             inout com.android.server.art.OutputProfile dst, @utf8InCpp String dexFile);
 
     /**
@@ -168,7 +172,8 @@ interface IArtd {
      */
     long cleanup(in List<com.android.server.art.ProfilePath> profilesToKeep,
             in List<com.android.server.art.ArtifactsPath> artifactsToKeep,
-            in List<com.android.server.art.VdexPath> vdexFilesToKeep);
+            in List<com.android.server.art.VdexPath> vdexFilesToKeep,
+            in List<com.android.server.art.RuntimeArtifactsPath> runtimeArtifactsToKeep);
 
     /**
      * Returns whether the artifacts of the primary dex files should be in the global dalvik-cache
@@ -179,15 +184,10 @@ interface IArtd {
     boolean isInDalvikCache(@utf8InCpp String dexFile);
 
     /**
-     * Returns an error message if the given dex path is invalid, or null if the validation
-     * passes.
+     * Deletes runtime artifacts and returns the released space, in bytes.
+     *
+     * Throws fatal errors. Logs and ignores non-fatal errors.
      */
-    @nullable @utf8InCpp String validateDexPath(@utf8InCpp String dexPath);
-
-    /**
-     * Returns an error message if the given class loader context is invalid, or null if the
-     * validation passes.
-     */
-    @nullable @utf8InCpp String validateClassLoaderContext(@utf8InCpp String dexPath,
-            @utf8InCpp String classLoaderContext);
+    long deleteRuntimeArtifacts(
+            in com.android.server.art.RuntimeArtifactsPath runtimeArtifactsPath);
 }

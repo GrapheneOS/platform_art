@@ -49,29 +49,10 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
 #define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) \
-  V(DoubleDoubleToRawLongBits)                  \
-  V(DoubleIsInfinite)                           \
-  V(DoubleLongBitsToDouble)                     \
-  V(FloatFloatToRawIntBits)                     \
-  V(FloatIsInfinite)                            \
-  V(FloatIntBitsToFloat)                        \
   V(IntegerReverse)                             \
-  V(IntegerReverseBytes)                        \
-  V(IntegerBitCount)                            \
   V(IntegerDivideUnsigned)                      \
-  V(IntegerHighestOneBit)                       \
-  V(IntegerLowestOneBit)                        \
-  V(IntegerNumberOfLeadingZeros)                \
-  V(IntegerNumberOfTrailingZeros)               \
   V(LongReverse)                                \
-  V(LongReverseBytes)                           \
-  V(LongBitCount)                               \
   V(LongDivideUnsigned)                         \
-  V(LongHighestOneBit)                          \
-  V(LongLowestOneBit)                           \
-  V(LongNumberOfLeadingZeros)                   \
-  V(LongNumberOfTrailingZeros)                  \
-  V(ShortReverseBytes)                          \
   V(MathFmaDouble)                              \
   V(MathFmaFloat)                               \
   V(MathCos)                                    \
@@ -346,6 +327,33 @@ class ParallelMoveResolverRISCV64 : public ParallelMoveResolverWithSwap {
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverRISCV64);
 };
 
+class FieldAccessCallingConventionRISCV64 : public FieldAccessCallingConvention {
+ public:
+  FieldAccessCallingConventionRISCV64() {}
+
+  Location GetObjectLocation() const override {
+    return Location::RegisterLocation(A1);
+  }
+  Location GetFieldIndexLocation() const override {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetReturnLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+    return Location::RegisterLocation(A0);
+  }
+  Location GetSetValueLocation(DataType::Type type ATTRIBUTE_UNUSED,
+                               bool is_instance) const override {
+    return is_instance
+        ? Location::RegisterLocation(A2)
+        : Location::RegisterLocation(A1);
+  }
+  Location GetFpuLocation(DataType::Type type ATTRIBUTE_UNUSED) const override {
+    return Location::FpuRegisterLocation(FA0);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(FieldAccessCallingConventionRISCV64);
+};
+
 class LocationsBuilderRISCV64 : public HGraphVisitor {
  public:
   LocationsBuilderRISCV64(HGraph* graph, CodeGeneratorRISCV64* codegen)
@@ -368,10 +376,8 @@ class LocationsBuilderRISCV64 : public HGraphVisitor {
   void HandleBinaryOp(HBinaryOperation* operation);
   void HandleCondition(HCondition* instruction);
   void HandleShift(HBinaryOperation* operation);
-  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
-  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
-  Location RegisterOrZeroConstant(HInstruction* instruction);
-  Location FpuRegisterOrConstantForStore(HInstruction* instruction);
+  void HandleFieldSet(HInstruction* instruction);
+  void HandleFieldGet(HInstruction* instruction);
 
   InvokeDexCallingConventionVisitorRISCV64 parameter_visitor_;
 
@@ -409,12 +415,9 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void HandleShift(HBinaryOperation* operation);
   void HandleFieldSet(HInstruction* instruction,
                       const FieldInfo& field_info,
-                      bool value_can_be_null);
+                      bool value_can_be_null,
+                      WriteBarrierKind write_barrier_kind);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
-
-  void GenerateMinMaxInt(LocationSummary* locations, bool is_min);
-  void GenerateMinMaxFP(LocationSummary* locations, bool is_min, DataType::Type type);
-  void GenerateMinMax(HBinaryOperation* minmax, bool is_min);
 
   // Generate a heap reference load using one register `out`:
   //
@@ -496,9 +499,27 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FpBinOp(Reg rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FSub(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FDiv(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FMul(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FMin(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+  void FMax(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FEq(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FLt(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FLe(XRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
+
+  template <typename Reg,
+            void (Riscv64Assembler::*opS)(Reg, FRegister),
+            void (Riscv64Assembler::*opD)(Reg, FRegister)>
+  void FpUnOp(Reg rd, FRegister rs1, DataType::Type type);
+  void FAbs(FRegister rd, FRegister rs1, DataType::Type type);
+  void FNeg(FRegister rd, FRegister rs1, DataType::Type type);
+  void FMv(FRegister rd, FRegister rs1, DataType::Type type);
+  void FClass(XRegister rd, FRegister rs1, DataType::Type type);
+
+  void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
+  void Store(Location value, XRegister rs1, int32_t offset, DataType::Type type);
+
+  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
 
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;
@@ -518,7 +539,11 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   void Bind(HBasicBlock* block) override;
 
-  size_t GetWordSize() const override { return kRiscv64WordSize; }
+  size_t GetWordSize() const override {
+    // The "word" for the compiler is the core register size (64-bit for riscv64) while the
+    // riscv64 assembler uses "word" for 32-bit values and "double word" for 64-bit values.
+    return kRiscv64DoublewordSize;
+  }
 
   bool SupportsPredicatedSIMD() const override {
     // TODO(riscv64): Check the vector extension.
@@ -643,10 +668,13 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
     PcRelativePatchInfo(const DexFile* dex_file,
                         uint32_t off_or_idx,
                         const PcRelativePatchInfo* info_high)
-        : PatchInfo<Riscv64Label>(dex_file, off_or_idx), patch_info_high(info_high) {}
+        : PatchInfo<Riscv64Label>(dex_file, off_or_idx),
+          pc_insn_label(info_high != nullptr ? &info_high->label : &label) {
+      DCHECK_IMPLIES(info_high != nullptr, info_high->pc_insn_label == &info_high->label);
+    }
 
     // Pointer to the info for the high part patch or nullptr if this is the high part patch info.
-    const PcRelativePatchInfo* patch_info_high;
+    const Riscv64Label* pc_insn_label;
 
    private:
     PcRelativePatchInfo(PcRelativePatchInfo&& other) = delete;
@@ -681,6 +709,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* info_low, XRegister rd, XRegister rs1);
   void EmitPcRelativeLdPlaceholder(PcRelativePatchInfo* info_low, XRegister rd, XRegister rs1);
 
+  void EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* linker_patches) override;
+
   Literal* DeduplicateBootImageAddressLiteral(uint64_t address);
 
   void LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke);
@@ -697,6 +727,93 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
   void MaybeIncrementHotness(bool is_frame_entry);
 
   bool CanUseImplicitSuspendCheck() const;
+
+
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference field load when Baker's read barriers are used.
+  void GenerateFieldLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             XRegister obj,
+                                             uint32_t offset,
+                                             Location temp,
+                                             bool needs_null_check);
+  // Fast path implementation of ReadBarrier::Barrier for a heap
+  // reference array load when Baker's read barriers are used.
+  void GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
+                                             Location ref,
+                                             XRegister obj,
+                                             uint32_t data_offset,
+                                             Location index,
+                                             Location temp,
+                                             bool needs_null_check);
+  // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+  //
+  // Load the object reference located at the address
+  // `obj + offset + (index << scale_factor)`, held by object `obj`, into
+  // `ref`, and mark it if needed.
+  //
+  // If `always_update_field` is true, the value of the reference is
+  // atomically updated in the holder (`obj`).
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 XRegister obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 ScaleFactor scale_factor,
+                                                 Location temp,
+                                                 bool needs_null_check,
+                                                 bool always_update_field = false);
+
+  // Generate a read barrier for a heap reference within `instruction`
+  // using a slow path.
+  //
+  // A read barrier for an object reference read from the heap is
+  // implemented as a call to the artReadBarrierSlow runtime entry
+  // point, which is passed the values in locations `ref`, `obj`, and
+  // `offset`:
+  //
+  //   mirror::Object* artReadBarrierSlow(mirror::Object* ref,
+  //                                      mirror::Object* obj,
+  //                                      uint32_t offset);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierSlow.
+  //
+  // When `index` is provided (i.e. for array accesses), the offset
+  // value passed to artReadBarrierSlow is adjusted to take `index`
+  // into account.
+  void GenerateReadBarrierSlow(HInstruction* instruction,
+                               Location out,
+                               Location ref,
+                               Location obj,
+                               uint32_t offset,
+                               Location index = Location::NoLocation());
+
+  // If read barriers are enabled, generate a read barrier for a heap
+  // reference using a slow path. If heap poisoning is enabled, also
+  // unpoison the reference in `out`.
+  void MaybeGenerateReadBarrierSlow(HInstruction* instruction,
+                                    Location out,
+                                    Location ref,
+                                    Location obj,
+                                    uint32_t offset,
+                                    Location index = Location::NoLocation());
+
+  // Generate a read barrier for a GC root within `instruction` using
+  // a slow path.
+  //
+  // A read barrier for an object reference GC root is implemented as
+  // a call to the artReadBarrierForRootSlow runtime entry point,
+  // which is passed the value in location `root`:
+  //
+  //   mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root);
+  //
+  // The `out` location contains the value returned by
+  // artReadBarrierForRootSlow.
+  void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
+
+  void MarkGCCard(XRegister object, XRegister value, bool value_can_be_null);
 
   //
   // Heap poisoning.
@@ -730,6 +847,11 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
                                           uint32_t offset_or_index,
                                           const PcRelativePatchInfo* info_high,
                                           ArenaDeque<PcRelativePatchInfo>* patches);
+
+  template <linker::LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
+  void EmitPcRelativeLinkerPatches(const ArenaDeque<PcRelativePatchInfo>& infos,
+                                   ArenaVector<linker::LinkerPatch>* linker_patches);
+
   Riscv64Assembler assembler_;
   LocationsBuilderRISCV64 location_builder_;
   InstructionCodeGeneratorRISCV64 instruction_visitor_;

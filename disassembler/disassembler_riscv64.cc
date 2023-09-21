@@ -393,15 +393,28 @@ void DisassemblerRiscv64::Printer::Print32BinOpImm(uint32_t insn32) {
     os_ << "zextb " << XRegName(rd) << ", " << XRegName(rs1);
   } else if (!narrow && funct3 == /*SLTIU*/ 3u && imm == 1) {
     os_ << "seqz " << XRegName(rd) << ", " << XRegName(rs1);
+  } else if ((insn32 & 0xfc00707fu) == 0x0800101bu) {
+    os_ << "slli.uw " << XRegName(rd) << ", " << XRegName(rs1) << ", " << (imm & 0x3fu);
+  } else if ((imm ^ 0x600u) < 3u && funct3 == 1u) {
+    static const char* const kBitOpcodes[] = { "clz", "ctz", "cpop" };
+    os_ << kBitOpcodes[imm ^ 0x600u] << (narrow ? "w " : " ")
+        << XRegName(rd) << ", " << XRegName(rs1);
+  } else if ((imm ^ 0x600u) < (narrow ? 32 : 64) && funct3 == 5u) {
+    os_ << "rori" << (narrow ? "w " : " ")
+        << XRegName(rd) << ", " << XRegName(rs1) << ", " << (imm ^ 0x600u);
+  } else if (imm == 0x287u && !narrow && funct3 == 5u) {
+    os_ << "orc.b " << XRegName(rd) << ", " << XRegName(rs1);
+  } else if (imm == 0x6b8u && !narrow && funct3 == 5u) {
+    os_ << "rev8 " << XRegName(rd) << ", " << XRegName(rs1);
   } else {
     bool bad_high_bits = false;
     if (funct3 == /*SLLI*/ 1u || funct3 == /*SRLI/SRAI*/ 5u) {
+      imm &= (narrow ? 0x1fu : 0x3fu);
       uint32_t high_bits = insn32 & (narrow ? 0xfe000000u : 0xfc000000u);
       if (high_bits == 0x40000000u && funct3 == /*SRAI*/ 5u) {
         os_ << "srai";
       } else {
         os_ << ((funct3 == /*SRLI*/ 5u) ? "srli" : "slli");
-        imm &= (narrow ? 0x1fu : 0x3fu);
         bad_high_bits = (high_bits != 0u);
       }
     } else if (!narrow || funct3 == /*ADDI*/ 0u) {
@@ -439,16 +452,34 @@ void DisassemblerRiscv64::Printer::Print32BinOp(uint32_t insn32) {
     os_ << "sgtz " << XRegName(rd) << ", " << XRegName(rs2);
   } else if (!narrow && funct3 == /*SLTU*/ 3u && rs1 == Zero) {
     os_ << "snez " << XRegName(rd) << ", " << XRegName(rs2);
+  } else if (narrow && high_bits == 0x08000000u && funct3 == /*ADD.UW*/ 0u && rs2 == Zero) {
+    os_ << "zext.w " << XRegName(rd) << ", " << XRegName(rs1);
   } else {
     bool bad_high_bits = false;
     if (high_bits == 0x40000000u && (funct3 == /*SUB*/ 0u || funct3 == /*SRA*/ 5u)) {
       os_ << ((funct3 == /*SUB*/ 0u) ? "sub" : "sra");
-    } else if (high_bits == 0x02000000 &&
+    } else if (high_bits == 0x02000000u &&
                (!narrow || (funct3 == /*MUL*/ 0u || funct3 >= /*DIV/DIVU/REM/REMU*/ 4u))) {
       static const char* const kOpcodes[] = {
           "mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu"
       };
       os_ << kOpcodes[funct3];
+    } else if (high_bits == 0x08000000u && narrow && funct3 == /*ADD.UW*/ 0u) {
+      os_ << "add.u";  // "w" is added below.
+    } else if (high_bits == 0x20000000u && (funct3 & 1u) == 0u && funct3 != 0u) {
+      static const char* const kZbaOpcodes[] = { nullptr, "sh1add", "sh2add", "sh3add" };
+      DCHECK(kZbaOpcodes[funct3 >> 1] != nullptr);
+      os_ << kZbaOpcodes[funct3 >> 1] << (narrow ? ".u" /* "w" is added below. */ : "");
+    } else if (high_bits == 0x40000000u && !narrow && funct3 >= 4u && funct3 != 5u) {
+      static const char* const kZbbNegOpcodes[] = { "xnor", nullptr, "orn", "andn" };
+      DCHECK(kZbbNegOpcodes[funct3 - 4u] != nullptr);
+      os_ << kZbbNegOpcodes[funct3 - 4u];
+    } else if (high_bits == 0x0a000000u && !narrow && funct3 >= 4u) {
+      static const char* const kZbbMinMaxOpcodes[] = { "min", "minu", "max", "maxu" };
+      DCHECK(kZbbMinMaxOpcodes[funct3 - 4u] != nullptr);
+      os_ << kZbbMinMaxOpcodes[funct3 - 4u];
+    } else if (high_bits == 0x60000000u && (funct3 == /*ROL*/ 1u || funct3 == /*ROL*/ 5u)) {
+      os_ << (funct3 == /*ROL*/ 1u ? "rol" : "ror");
     } else if (!narrow || (funct3 == /*ADD*/ 0u || funct3 == /*SLL*/ 1u || funct3 == /*SRL*/ 5u)) {
       static const char* const kOpcodes[] = {
           "add", "sll", "slt", "sltu", "xor", "srl", "or", "and"
@@ -501,7 +532,7 @@ void DisassemblerRiscv64::Printer::Print32Atomic(uint32_t insn32) {
 }
 
 void DisassemblerRiscv64::Printer::Print32FpOp(uint32_t insn32) {
-  DCHECK_EQ(insn32 & 0x7fu, 0x4fu);
+  DCHECK_EQ(insn32 & 0x7fu, 0x53u);
   uint32_t rd = GetRd(insn32);
   uint32_t rs1 = GetRs1(insn32);
   uint32_t rs2 = GetRs2(insn32);  // Sometimes used to to differentiate opcodes.

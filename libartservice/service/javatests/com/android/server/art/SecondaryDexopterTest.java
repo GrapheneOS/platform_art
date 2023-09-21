@@ -165,21 +165,13 @@ public class SecondaryDexopterTest {
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
                         DexContainerFileDexoptResult.create(DEX_1, true /* isPrimaryAbi */,
-                                "arm64-v8a", "speed-profile", DexoptResult.DEXOPT_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */),
+                                "arm64-v8a", "speed-profile", DexoptResult.DEXOPT_PERFORMED),
                         DexContainerFileDexoptResult.create(DEX_2, true /* isPrimaryAbi */,
-                                "arm64-v8a", "speed", DexoptResult.DEXOPT_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */),
+                                "arm64-v8a", "speed", DexoptResult.DEXOPT_PERFORMED),
                         DexContainerFileDexoptResult.create(DEX_2, false /* isPrimaryAbi */,
-                                "armeabi-v7a", "speed", DexoptResult.DEXOPT_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */),
+                                "armeabi-v7a", "speed", DexoptResult.DEXOPT_PERFORMED),
                         DexContainerFileDexoptResult.create(DEX_3, true /* isPrimaryAbi */,
-                                "arm64-v8a", "verify", DexoptResult.DEXOPT_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */));
+                                "arm64-v8a", "verify", DexoptResult.DEXOPT_PERFORMED));
 
         // It should use profile for dex 1.
 

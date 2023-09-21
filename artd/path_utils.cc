@@ -30,6 +30,8 @@
 #include "file_utils.h"
 #include "fstab/fstab.h"
 #include "oat_file_assistant.h"
+#include "runtime_image.h"
+#include "service.h"
 #include "tools/tools.h"
 
 namespace art {
@@ -40,6 +42,7 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::ProfilePath;
+using ::aidl::com::android::server::art::RuntimeArtifactsPath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Error;
 using ::android::base::Result;
@@ -47,6 +50,9 @@ using ::android::base::StartsWith;
 using ::android::fs_mgr::Fstab;
 using ::android::fs_mgr::FstabEntry;
 using ::android::fs_mgr::ReadFstabFromProcMounts;
+using ::art::service::ValidateDexPath;
+using ::art::service::ValidatePathElement;
+using ::art::service::ValidatePathElementSubstring;
 
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
@@ -56,44 +62,10 @@ using SecondaryRefProfilePath = ProfilePath::SecondaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
 using WritableProfilePath = ProfilePath::WritableProfilePath;
 
-Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
-  if (path_str.empty()) {
-    return Errorf("Path is empty");
-  }
-  if (path_str.find('\0') != std::string::npos) {
-    return Errorf("Path '{}' has invalid character '\\0'", path_str);
-  }
-  std::filesystem::path path(path_str);
-  if (!path.is_absolute()) {
-    return Errorf("Path '{}' is not an absolute path", path_str);
-  }
-  if (path.lexically_normal() != path_str) {
-    return Errorf("Path '{}' is not in normal form", path_str);
-  }
-  return {};
-}
+// Only to be changed for testing.
+std::string_view gListRootDir = "/";
 
-Result<void> ValidatePathElementSubstring(const std::string& path_element_substring,
-                                          const std::string& name) {
-  if (path_element_substring.empty()) {
-    return Errorf("{} is empty", name);
-  }
-  if (path_element_substring.find('/') != std::string::npos) {
-    return Errorf("{} '{}' has invalid character '/'", name, path_element_substring);
-  }
-  if (path_element_substring.find('\0') != std::string::npos) {
-    return Errorf("{} '{}' has invalid character '\\0'", name, path_element_substring);
-  }
-  return {};
-}
-
-Result<void> ValidatePathElement(const std::string& path_element, const std::string& name) {
-  OR_RETURN(ValidatePathElementSubstring(path_element, name));
-  if (path_element == "." || path_element == "..") {
-    return Errorf("Invalid {} '{}'", name, path_element);
-  }
-  return {};
-}
+}  // namespace
 
 Result<std::string> GetAndroidDataOrError() {
   std::string error_msg;
@@ -122,12 +94,8 @@ Result<std::string> GetArtRootOrError() {
   return result;
 }
 
-}  // namespace
-
-Result<std::vector<std::string>> ListManagedFiles() {
-  std::string android_data = OR_RETURN(GetAndroidDataOrError());
-  std::string android_expand = OR_RETURN(GetAndroidExpandOrError());
-
+std::vector<std::string> ListManagedFiles(const std::string& android_data,
+                                          const std::string& android_expand) {
   // See `art::tools::Glob` for the syntax.
   std::vector<std::string> patterns = {
       // Profiles for primary dex files.
@@ -139,24 +107,51 @@ Result<std::vector<std::string>> ListManagedFiles() {
   for (const std::string& data_root : {android_data, android_expand + "/*"}) {
     // Artifacts for primary dex files.
     patterns.push_back(data_root + "/app/*/*/oat/**");
-    // Profiles and artifacts for secondary dex files. Those files are in app data directories, so
-    // we use more granular patterns to avoid accidentally deleting apps' files.
+
     for (const char* user_dir : {"/user", "/user_de"}) {
-      std::string secondary_oat_dir = data_root + user_dir + "/*/*/**/oat";
+      std::string data_dir = data_root + user_dir + "/*/*";
+      // Profiles and artifacts for secondary dex files. Those files are in app data directories, so
+      // we use more granular patterns to avoid accidentally deleting apps' files.
+      std::string secondary_oat_dir = data_dir + "/**/oat";
       for (const char* maybe_tmp_suffix : {"", ".*.tmp"}) {
         patterns.push_back(secondary_oat_dir + "/*.prof" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.odex" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.vdex" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.art" + maybe_tmp_suffix);
       }
+      // Runtime image files.
+      patterns.push_back(RuntimeImage::GetRuntimeImageDir(data_dir) + "**");
     }
   }
 
-  return tools::Glob(patterns);
+  return tools::Glob(patterns, gListRootDir);
 }
 
-Result<void> ValidateDexPath(const std::string& dex_path) {
-  OR_RETURN(ValidateAbsoluteNormalPath(dex_path));
+std::vector<std::string> ListRuntimeArtifactsFiles(
+    const std::string& android_data,
+    const std::string& android_expand,
+    const RuntimeArtifactsPath& runtime_artifacts_path) {
+  // See `art::tools::Glob` for the syntax.
+  std::vector<std::string> patterns;
+
+  for (const std::string& data_root : {android_data, android_expand + "/*"}) {
+    for (const char* user_dir : {"/user", "/user_de"}) {
+      std::string data_dir =
+          data_root + user_dir + "/*/" + tools::EscapeGlob(runtime_artifacts_path.packageName);
+      patterns.push_back(
+          RuntimeImage::GetRuntimeImagePath(data_dir,
+                                            tools::EscapeGlob(runtime_artifacts_path.dexPath),
+                                            tools::EscapeGlob(runtime_artifacts_path.isa)));
+    }
+  }
+
+  return tools::Glob(patterns, gListRootDir);
+}
+
+Result<void> ValidateRuntimeArtifactsPath(const RuntimeArtifactsPath& runtime_artifacts_path) {
+  OR_RETURN(ValidatePathElement(runtime_artifacts_path.packageName, "packageName"));
+  OR_RETURN(ValidatePathElement(runtime_artifacts_path.isa, "isa"));
+  OR_RETURN(ValidateDexPath(runtime_artifacts_path.dexPath));
   return {};
 }
 
@@ -303,6 +298,8 @@ Result<std::vector<FstabEntry>> GetProcMountsEntriesForPath(const std::string& p
   }
   return entries;
 }
+
+void TestOnlySetListRootDir(std::string_view root_dir) { gListRootDir = root_dir; }
 
 }  // namespace artd
 }  // namespace art

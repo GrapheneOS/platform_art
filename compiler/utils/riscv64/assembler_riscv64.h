@@ -72,6 +72,20 @@ enum FenceType {
   kFenceDefault = 0xf,
 };
 
+// Used to test the values returned by FClassS/FClassD.
+enum FPClassMaskType {
+  kNegativeInfinity  = 0x001,
+  kNegativeNormal    = 0x002,
+  kNegativeSubnormal = 0x004,
+  kNegativeZero      = 0x008,
+  kPositiveZero      = 0x010,
+  kPositiveSubnormal = 0x020,
+  kPositiveNormal    = 0x040,
+  kPositiveInfinity  = 0x080,
+  kSignalingNaN      = 0x100,
+  kQuietNaN          = 0x200,
+};
+
 class Riscv64Label : public Label {
  public:
   Riscv64Label() : prev_branch_id_(kNoPrevBranchId) {}
@@ -460,6 +474,41 @@ class Riscv64Assembler final : public Assembler {
   // FP classify instructions (RV32F+RV32D): opcode = 0x53, funct3 = 0x1, funct7 = 0b111X00D
   void FClassS(XRegister rd, FRegister rs1);
   void FClassD(XRegister rd, FRegister rs1);
+
+  // "Zba" Standard Extension, opcode = 0x1b, 0x33 or 0x3b, funct3 and funct7 varies.
+  void AddUw(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh1Add(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh1AddUw(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh2Add(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh2AddUw(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh3Add(XRegister rd, XRegister rs1, XRegister rs2);
+  void Sh3AddUw(XRegister rd, XRegister rs1, XRegister rs2);
+  void SlliUw(XRegister rd, XRegister rs1, int32_t shamt);
+
+  // "Zbb" Standard Extension, opcode = 0x13, 0x1b or 0x33, funct3 and funct7 varies.
+  // Note: We do not support 32-bit sext.b, sext.h and zext.h from the Zbb extension.
+  // (Neither does the clang-r498229's assembler which we currently test against.)
+  void Andn(XRegister rd, XRegister rs1, XRegister rs2);
+  void Orn(XRegister rd, XRegister rs1, XRegister rs2);
+  void Xnor(XRegister rd, XRegister rs1, XRegister rs2);
+  void Clz(XRegister rd, XRegister rs1);
+  void Clzw(XRegister rd, XRegister rs1);
+  void Ctz(XRegister rd, XRegister rs1);
+  void Ctzw(XRegister rd, XRegister rs1);
+  void Cpop(XRegister rd, XRegister rs1);
+  void Cpopw(XRegister rd, XRegister rs1);
+  void Min(XRegister rd, XRegister rs1, XRegister rs2);
+  void Minu(XRegister rd, XRegister rs1, XRegister rs2);
+  void Max(XRegister rd, XRegister rs1, XRegister rs2);
+  void Maxu(XRegister rd, XRegister rs1, XRegister rs2);
+  void Rol(XRegister rd, XRegister rs1, XRegister rs2);
+  void Rolw(XRegister rd, XRegister rs1, XRegister rs2);
+  void Ror(XRegister rd, XRegister rs1, XRegister rs2);
+  void Rorw(XRegister rd, XRegister rs1, XRegister rs2);
+  void Rori(XRegister rd, XRegister rs1, int32_t shamt);
+  void Roriw(XRegister rd, XRegister rs1, int32_t shamt);
+  void OrcB(XRegister rd, XRegister rs1);
+  void Rev8(XRegister rd, XRegister rs1);
 
   ////////////////////////////// RV64 MACRO Instructions  START ///////////////////////////////
   // These pseudo instructions are from "RISC-V Assembly Programmer's Manual".

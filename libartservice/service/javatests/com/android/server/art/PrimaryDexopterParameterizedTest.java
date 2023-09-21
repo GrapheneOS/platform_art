@@ -272,6 +272,13 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                         isNull() /* inputVdex */, isNull() /* dmFile */,
                         eq(PriorityClass.INTERACTIVE), argThat(dexoptOptionsMatcher), any());
 
+        // Only delete runtime artifacts for successful dexopt operations, namely the first one and
+        // the fourth one.
+        doReturn(1l).when(mArtd).deleteRuntimeArtifacts(deepEq(
+                AidlUtils.buildRuntimeArtifactsPath(PKG_NAME, "/data/app/foo/base.apk", "arm64")));
+        doReturn(1l).when(mArtd).deleteRuntimeArtifacts(deepEq(
+                AidlUtils.buildRuntimeArtifactsPath(PKG_NAME, "/data/app/foo/split_0.apk", "arm")));
+
         assertThat(mPrimaryDexopter.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
@@ -280,23 +287,19 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                                 mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
                                 30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */,
-                                0 /* extraStatus */),
+                                0 /* extraStatus */, List.of() /* externalProfileErrors */),
                         DexContainerFileDexoptResult.create("/data/app/foo/base.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
-                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_FAILED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */),
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_FAILED),
                         DexContainerFileDexoptResult.create("/data/app/foo/split_0.apk",
                                 true /* isPrimaryAbi */, "arm64-v8a",
-                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_SKIPPED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */),
+                                mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_SKIPPED),
                         DexContainerFileDexoptResult.create("/data/app/foo/split_0.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, DexoptResult.DEXOPT_PERFORMED,
                                 200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */,
-                                10000 /* sizeBytes */, 0 /* sizeBeforeBytes */,
-                                0 /* extraStatus */));
+                                10000 /* sizeBytes */, 0 /* sizeBeforeBytes */, 0 /* extraStatus */,
+                                List.of() /* externalProfileErrors */));
 
         // Verify that there are no more calls than the ones above.
         verify(mArtd, times(3))

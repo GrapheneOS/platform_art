@@ -16,7 +16,6 @@ package art
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,7 +23,6 @@ import (
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
-	"android/soong/apex"
 	"android/soong/cc"
 	"android/soong/cc/config"
 )
@@ -83,9 +81,6 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	if tlab {
 		cflags = append(cflags, "-DART_USE_TLAB=1")
 	}
-
-	cdexLevel := ctx.Config().GetenvWithDefault("ART_DEFAULT_COMPACT_DEX_LEVEL", "fast")
-	cflags = append(cflags, "-DART_DEFAULT_COMPACT_DEX_LEVEL="+cdexLevel)
 
 	// We need larger stack overflow guards for ASAN, as the compiled code will have
 	// larger frame sizes. For simplicity, just use global not-target-specific cflags.
@@ -330,7 +325,6 @@ func init() {
 		"art_cc_test_library",
 		"art_cc_defaults",
 		"art_global_defaults",
-		"art_apex_test_host",
 	}
 	android.AddNeverAllowRules(
 		android.NeverAllow().
@@ -344,36 +338,6 @@ func init() {
 	android.RegisterModuleType("art_cc_test_library", artTestLibrary)
 	android.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
 	android.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
-
-	// TODO: This makes the module disable itself for host if HOST_PREFER_32_BIT is
-	// set. We need this because the multilib types of binaries listed in the apex
-	// rule must match the declared type. This is normally not difficult but HOST_PREFER_32_BIT
-	// changes this to 'prefer32' on all host binaries. Since HOST_PREFER_32_BIT is
-	// only used for testing we can just disable the module.
-	// See b/120617876 for more information.
-	android.RegisterModuleType("art_apex_test_host", artHostTestApexBundleFactory)
-}
-
-func artHostTestApexBundleFactory() android.Module {
-	module := apex.ApexBundleFactory(true)
-	android.AddLoadHook(module, func(ctx android.LoadHookContext) {
-		if ctx.Config().IsEnvTrue("HOST_PREFER_32_BIT") {
-			type props struct {
-				Target struct {
-					Host struct {
-						Enabled *bool
-					}
-				}
-			}
-
-			p := &props{}
-			p.Target.Host.Enabled = proptools.BoolPtr(false)
-			ctx.AppendProperties(p)
-			log.Print("Disabling host build of " + ctx.ModuleName() + " for HOST_PREFER_32_BIT=true")
-		}
-	})
-
-	return module
 }
 
 func artGlobalDefaultsFactory() android.Module {

@@ -246,18 +246,12 @@
     ldrsw   \reg, [xFP, \vreg, uxtw #2]
 .endm
 
-// An assembly entry that has a OatQuickMethodHeader prefix.
-.macro OAT_ENTRY name, end
+// An assembly entry for nterp.
+.macro OAT_ENTRY name
     .type \name, #function
     .hidden \name
     .global \name
     .balign 16
-    // Padding of 3 * 4 bytes to get 16 bytes alignment of code entry.
-    .long 0
-    .long 0
-    .long 0
-    // OatQuickMethodHeader. Note that the top two bits must be clear.
-    .long (\end - \name)
 \name:
 .endm
 
@@ -1612,21 +1606,22 @@ END \name
  *  rest  method parameters
  */
 
-OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+OAT_ENTRY ExecuteNterpWithClinitImpl
     .cfi_startproc
     // For simplicity, we don't do a read barrier here, but instead rely
     // on art_quick_resolution_trampoline to always have a suspend point before
     // calling back here.
     ldr wip, [x0, #ART_METHOD_DECLARING_CLASS_OFFSET]
-    ldrb wip2, [ip, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET]
-    cmp ip2, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE
+    ldr wip2, [ip, #MIRROR_CLASS_STATUS_OFFSET]
+    lsr wip2, wip2, #MIRROR_CLASS_STATUS_SHIFT
+    cmp wip2, #MIRROR_CLASS_STATUS_VISIBLY_INITIALIZED
     b.hs ExecuteNterpImpl
-    cmp ip2, #MIRROR_CLASS_IS_INITIALIZED_VALUE
+    cmp wip2, #MIRROR_CLASS_STATUS_INITIALIZED
     b.lo .Linitializing_check
     dmb ish
     b ExecuteNterpImpl
 .Linitializing_check:
-    cmp ip2, #MIRROR_CLASS_IS_INITIALIZING_VALUE
+    cmp wip2, #MIRROR_CLASS_STATUS_INITIALIZING
     b.lo .Lresolution_trampoline
     ldr wip2, [ip, #MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET]
     ldr wip, [xSELF, #THREAD_TID_OFFSET]
@@ -1635,9 +1630,12 @@ OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
 .Lresolution_trampoline:
     b art_quick_resolution_trampoline
     .cfi_endproc
+    .type EndExecuteNterpWithClinitImpl, #function
+    .hidden EndExecuteNterpWithClinitImpl
+    .global EndExecuteNterpWithClinitImpl
 EndExecuteNterpWithClinitImpl:
 
-OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
+OAT_ENTRY ExecuteNterpImpl
     .cfi_startproc
     sub x16, sp, #STACK_OVERFLOW_RESERVED_BYTES
     ldr wzr, [x16]

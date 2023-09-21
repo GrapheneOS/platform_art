@@ -17,13 +17,12 @@
 #include "runtime_image.h"
 
 #include <lz4.h>
-#include <sstream>
 #include <unistd.h>
 
 #include "android-base/file.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
+#include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
 #include "base/arena_containers.h"
 #include "base/bit_utils.h"
@@ -1813,21 +1812,28 @@ class RuntimeImageHelper {
   friend class NativePointerVisitor;
 };
 
-static std::string GetOatPath() {
-  const std::string& data_dir = Runtime::Current()->GetProcessDataDirectory();
-  if (data_dir.empty()) {
-    // The data ditectory is empty for tests.
+std::string RuntimeImage::GetRuntimeImageDir(const std::string& app_data_dir) {
+  if (app_data_dir.empty()) {
+    // The data directory is empty for tests.
     return "";
   }
-  return data_dir + "/cache/oat_primary/";
+  return app_data_dir + "/cache/oat_primary/";
 }
 
 // Note: this may return a relative path for tests.
-std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
+std::string RuntimeImage::GetRuntimeImagePath(const std::string& app_data_dir,
+                                              const std::string& dex_location,
+                                              const std::string& isa) {
   std::string basename = android::base::Basename(dex_location);
   std::string filename = ReplaceFileExtension(basename, "art");
 
-  return GetOatPath() + GetInstructionSetString(kRuntimeISA) + "/" + filename;
+  return GetRuntimeImageDir(app_data_dir) + isa + "/" + filename;
+}
+
+std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
+  return GetRuntimeImagePath(Runtime::Current()->GetProcessDataDirectory(),
+                             dex_location,
+                             GetInstructionSetString(kRuntimeISA));
 }
 
 static bool EnsureDirectoryExists(const std::string& directory, std::string* error_msg) {
@@ -1848,7 +1854,7 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
     *error_msg = "Cannot generate an app image without a boot image";
     return false;
   }
-  std::string oat_path = GetOatPath();
+  std::string oat_path = GetRuntimeImageDir(Runtime::Current()->GetProcessDataDirectory());
   if (!oat_path.empty() && !EnsureDirectoryExists(oat_path, error_msg)) {
     return false;
   }

@@ -29,12 +29,7 @@
 .macro ENTRY name
     .hidden \name  // Hide this as a global symbol, so we do not incur plt calls.
     .global \name
-    // ART-compiled functions have OatQuickMethodHeader but assembly functions do not.
-    // Prefix the assembly code with 0xFFs, which means there is no method header.
-    .byte 0xFF, 0xFF, 0xFF, 0xFF
-    // Cache alignment for function entry.
-    // Use 0xFF as the last 4 bytes of alignment stand for OatQuickMethodHeader.
-    .balign 16, 0xFF
+    .balign 16
 \name:
     .cfi_startproc
 .endm
@@ -42,6 +37,7 @@
 
 .macro END name
     .cfi_endproc
+    .size \name, .-\name
 .endm
 
 
@@ -125,6 +121,13 @@
 
 .macro RESTORE_GPR reg, offset
     RESTORE_GPR_BASE sp, \reg, \offset
+.endm
+
+
+.macro RESTORE_GPR_NE skip, reg, offset
+    .ifnc \skip, \reg
+    RESTORE_GPR_BASE sp, \reg, \offset
+    .endif
 .endm
 
 
@@ -244,12 +247,12 @@
 .endm
 
 
-.macro SETUP_CALLEE_SAVE_FRAME_COMMON tmpreg, offset
+.macro SETUP_CALLEE_SAVE_FRAME_COMMON tmpreg, runtime_method_offset
     // art::Runtime* tmpreg = art::Runtime::instance_;
     LOAD_RUNTIME_INSTANCE \tmpreg
 
     // ArtMethod* tmpreg = Runtime::instance_->callee_save_methods_[<callee-save-frame-type>];
-    ld  \tmpreg, \offset(\tmpreg)
+    ld  \tmpreg, \runtime_method_offset(\tmpreg)
 
     SETUP_CALLEE_SAVE_FRAME_COMMON_INTERNAL \tmpreg
 .endm
@@ -360,7 +363,7 @@
 .endm
 
 
-.macro SETUP_SAVE_EVERYTHING_FRAME offset
+.macro SETUP_SAVE_EVERYTHING_FRAME runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
 #if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
 #error "FRAME_SIZE_SAVE_EVERYTHING(RISCV64) size not as expected."
 #endif
@@ -434,7 +437,7 @@
 
     SAVE_GPR ra,  8*59  // x1, return address
 
-    SETUP_CALLEE_SAVE_FRAME_COMMON t0, \offset
+    SETUP_CALLEE_SAVE_FRAME_COMMON t0, \runtime_method_offset
 .endm
 
 
@@ -529,7 +532,7 @@
     SAVE_GPR s6,  (8*7)   // x22
     SAVE_GPR s7,  (8*8)   // x23
     SAVE_GPR s8,  (8*9)   // x24
-    SAVE_GPR s9,  (8*10)   // x25
+    SAVE_GPR s9,  (8*10)  // x25
     SAVE_GPR s10, (8*11)  // x26
     SAVE_GPR s11, (8*12)  // x27
     SAVE_GPR ra,  (8*13)  // x1
@@ -549,12 +552,84 @@
     RESTORE_GPR s6,  (8*7)   // x22
     RESTORE_GPR s7,  (8*8)   // x23
     RESTORE_GPR s8,  (8*9)   // x24
-    RESTORE_GPR s9,  (8*10)   // x25
+    RESTORE_GPR s9,  (8*10)  // x25
     RESTORE_GPR s10, (8*11)  // x26
     RESTORE_GPR s11, (8*12)  // x27
     RESTORE_GPR ra,  (8*13)  // x1
 
     DECREASE_FRAME FRAME_SIZE_SAVE_REFS_ONLY
+.endm
+
+
+.macro SETUP_NTERP_SAVE_CALLEE_SAVES
+#if (NTERP_SIZE_SAVE_CALLEE_SAVES != 8*(12 + 1 + 10 + 1))
+#error "NTERP_SIZE_SAVE_CALLEE_SAVES(RISCV64) size not as expected."
+#endif
+    // FP callee-saves.
+    SAVE_FPR fs0,  (8*0)   // f8
+    SAVE_FPR fs1,  (8*1)   // f9
+    SAVE_FPR fs2,  (8*2)   // f18
+    SAVE_FPR fs3,  (8*3)   // f19
+    SAVE_FPR fs4,  (8*4)   // f20
+    SAVE_FPR fs5,  (8*5)   // f21
+    SAVE_FPR fs6,  (8*6)   // f22
+    SAVE_FPR fs7,  (8*7)   // f23
+    SAVE_FPR fs8,  (8*8)   // f24
+    SAVE_FPR fs9,  (8*9)   // f25
+    SAVE_FPR fs10, (8*10)  // f26
+    SAVE_FPR fs11, (8*11)  // f27
+
+    // GP callee-saves
+    SAVE_GPR s0,  (8*12)  // x8/fp, frame pointer
+    // s1 (x9) is the ART thread register
+    SAVE_GPR s2,  (8*13)  // x18
+    SAVE_GPR s3,  (8*14)  // x19
+    SAVE_GPR s4,  (8*15)  // x20
+    SAVE_GPR s5,  (8*16)  // x21
+    SAVE_GPR s6,  (8*17)  // x22
+    SAVE_GPR s7,  (8*18)  // x23
+    SAVE_GPR s8,  (8*19)  // x24
+    SAVE_GPR s9,  (8*20)  // x25
+    SAVE_GPR s10, (8*21)  // x26
+    SAVE_GPR s11, (8*22)  // x27
+
+    SAVE_GPR ra,  (8*23)  // x1, return address
+.endm
+
+
+.macro RESTORE_NTERP_SAVE_CALLEE_SAVES
+#if (NTERP_SIZE_SAVE_CALLEE_SAVES != 8*(12 + 1 + 10 + 1))
+#error "NTERP_SIZE_SAVE_CALLEE_SAVES(RISCV64) size not as expected."
+#endif
+    // FP callee-saves.
+    RESTORE_FPR fs0,  (8*0)   // f8
+    RESTORE_FPR fs1,  (8*1)   // f9
+    RESTORE_FPR fs2,  (8*2)   // f18
+    RESTORE_FPR fs3,  (8*3)   // f19
+    RESTORE_FPR fs4,  (8*4)   // f20
+    RESTORE_FPR fs5,  (8*5)   // f21
+    RESTORE_FPR fs6,  (8*6)   // f22
+    RESTORE_FPR fs7,  (8*7)   // f23
+    RESTORE_FPR fs8,  (8*8)   // f24
+    RESTORE_FPR fs9,  (8*9)   // f25
+    RESTORE_FPR fs10, (8*10)  // f26
+    RESTORE_FPR fs11, (8*11)  // f27
+
+    // GP callee-saves
+    RESTORE_GPR s0,  (8*12)  // x8/fp, frame pointer
+    // s1 is the ART thread register
+    RESTORE_GPR s2,  (8*13)  // x18
+    RESTORE_GPR s3,  (8*14)  // x19
+    RESTORE_GPR s4,  (8*15)  // x20
+    RESTORE_GPR s5,  (8*16)  // x21
+    RESTORE_GPR s6,  (8*17)  // x22
+    RESTORE_GPR s7,  (8*18)  // x23
+    RESTORE_GPR s8,  (8*19)  // x24
+    RESTORE_GPR s9,  (8*20)  // x25
+    RESTORE_GPR s10, (8*21)  // x26
+    RESTORE_GPR s11, (8*22)  // x27
+
+    RESTORE_GPR ra,  (8*23)  // x1, return address
 .endm
 
 

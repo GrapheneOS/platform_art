@@ -41,10 +41,13 @@ class ClassIteratorData {
 };
 
 // Iterator for visiting classes in a Dex file.
-class ClassIterator : public std::iterator<std::forward_iterator_tag, ClassIteratorData> {
+class ClassIterator {
  public:
-  using value_type = std::iterator<std::forward_iterator_tag, ClassIteratorData>::value_type;
-  using difference_type = std::iterator<std::forward_iterator_tag, value_type>::difference_type;
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = ClassIteratorData;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
 
   ClassIterator(const DexFile& dex_file, uint32_t class_def_idx)
       : data_(dex_file, class_def_idx) {}

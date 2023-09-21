@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ART_LIBARTBASE_BASE_SAFE_COPY_H_
-#define ART_LIBARTBASE_BASE_SAFE_COPY_H_
+class Main {
+  public static void main(String[] args) {
+    Foo f = new Foo(args);
+    if (!f.getClass().isRecord()) {
+      throw new Error("Expected " + f.getClass() + " to be a record");
+    }
+    // Trigger a GC, which used to crash when visiting an instance of a record class.
+    Runtime.getRuntime().gc();
+  }
 
-#include <sys/types.h>
-
-namespace art {
-
-// Safely dereference a pointer.
-// Returns -1 if safe copy isn't implemented on the platform, or if the transfer is too large.
-// Returns 0 if src is unreadable.
-ssize_t SafeCopy(void *dst, const void *src, size_t len);
-
-}  // namespace art
-
-#endif  // ART_LIBARTBASE_BASE_SAFE_COPY_H_
+  record Foo(Object o) {}
+}

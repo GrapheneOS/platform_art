@@ -106,6 +106,7 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 3;
   static constexpr size_t kNumQuickFprArgs = 16;
   static constexpr bool kGprFprLockstep = false;
+  static constexpr bool kNaNBoxing = false;
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -138,6 +139,7 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
+  static constexpr bool kNaNBoxing = false;
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -183,6 +185,7 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 7;
   static constexpr size_t kNumQuickFprArgs = 8;
   static constexpr bool kGprFprLockstep = false;
+  static constexpr bool kNaNBoxing = true;
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return (gpr_index + 1) * GetBytesPerGprSpillLocation(kRuntimeISA);  // skip S0/X8/FP
   }
@@ -213,6 +216,7 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 4;  // 4 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
+  static constexpr bool kNaNBoxing = false;
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -252,6 +256,7 @@ class QuickArgumentVisitor {
   static constexpr size_t kNumQuickGprArgs = 5;  // 5 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
+  static constexpr bool kNaNBoxing = false;
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     switch (gpr_index) {
       case 0: return (4 * GetBytesPerGprSpillLocation(kRuntimeISA));
@@ -269,6 +274,8 @@ class QuickArgumentVisitor {
 #endif
 
  public:
+  static constexpr bool NaNBoxing() { return kNaNBoxing; }
+
   static StackReference<mirror::Object>* GetThisObjectReference(ArtMethod** sp)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK_GT(kNumQuickGprArgs, 0u);
@@ -752,6 +759,10 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
     // Set special exception to cause deoptimization.
     self->SetException(Thread::GetDeoptimizationException());
+  }
+
+  if (QuickArgumentVisitor::NaNBoxing() && shorty[0] == 'F') {
+    result.SetJ(result.GetJ() | UINT64_C(0xffffffff00000000));
   }
 
   // No need to restore the args since the method has already been run by the interpreter.
@@ -1342,6 +1353,7 @@ extern "C" const void* artQuickResolutionTrampoline(
  */
 template<class T> class BuildNativeCallFrameStateMachine {
  public:
+  static constexpr bool kNaNBoxing = QuickArgumentVisitor::NaNBoxing();
 #if defined(__arm__)
   static constexpr bool kNativeSoftFloatAbi = true;
   static constexpr bool kNativeSoftFloatAfterHardFloat = false;
@@ -1354,7 +1366,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = true;
   static constexpr bool kAlignDoubleOnStack = true;
-  static constexpr bool kNaNBoxing = false;
 #elif defined(__aarch64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kNativeSoftFloatAfterHardFloat = false;
@@ -1367,7 +1378,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
-  static constexpr bool kNaNBoxing = false;
 #elif defined(__riscv)
   static constexpr bool kNativeSoftFloatAbi = false;
   static constexpr bool kNativeSoftFloatAfterHardFloat = true;
@@ -1380,7 +1390,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiGPRegistersWidened = true;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
-  static constexpr bool kNaNBoxing = true;
 #elif defined(__i386__)
   static constexpr bool kNativeSoftFloatAbi = false;  // Not using int registers for fp
   static constexpr bool kNativeSoftFloatAfterHardFloat = false;
@@ -1393,7 +1402,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
-  static constexpr bool kNaNBoxing = false;
 #elif defined(__x86_64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kNativeSoftFloatAfterHardFloat = false;
@@ -1406,7 +1414,6 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kMultiGPRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
-  static constexpr bool kNaNBoxing = false;
 #else
 #error "Unsupported architecture"
 #endif
@@ -2541,8 +2548,16 @@ extern "C" void artMethodExitHook(Thread* self,
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   DCHECK(instr->RunExitHooks());
 
-  bool is_ref = false;
   ArtMethod* method = *sp;
+  if (instr->HasFastMethodExitListeners()) {
+    // Fast method listeners are only used for tracing which don't need any deoptimization checks
+    // or a return value.
+    JValue return_value;
+    instr->MethodExitEvent(self, method, /* frame= */ {}, return_value);
+    return;
+  }
+
+  bool is_ref = false;
   if (instr->HasMethodExitListeners()) {
     StackHandleScope<1> hs(self);
 

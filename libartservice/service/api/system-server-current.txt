@@ -142,6 +142,9 @@ package com.android.server.art.model {
     field public static final int DEXOPT_FAILED = 30; // 0x1e
     field public static final int DEXOPT_PERFORMED = 20; // 0x14
     field public static final int DEXOPT_SKIPPED = 10; // 0xa
+    field public static final int EXTRA_BAD_EXTERNAL_PROFILE = 4; // 0x4
+    field public static final int EXTRA_SKIPPED_NO_DEX_CODE = 2; // 0x2
+    field public static final int EXTRA_SKIPPED_STORAGE_LOW = 1; // 0x1
   }
 
   public abstract static class DexoptResult.DexContainerFileDexoptResult {
@@ -150,6 +153,8 @@ package com.android.server.art.model {
     method public abstract long getDex2oatCpuTimeMillis();
     method public abstract long getDex2oatWallTimeMillis();
     method @NonNull public abstract String getDexContainerFile();
+    method @NonNull public abstract java.util.List<java.lang.String> getExternalProfileErrors();
+    method public abstract int getExtraStatuses();
     method public abstract long getSizeBeforeBytes();
     method public abstract long getSizeBytes();
     method public abstract int getStatus();

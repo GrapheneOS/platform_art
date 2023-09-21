@@ -507,8 +507,10 @@ perfetto::protos::pbzero::HeapGraphType::Kind ProtoClassKind(uint32_t class_flag
   using perfetto::protos::pbzero::HeapGraphType;
   switch (class_flags) {
     case art::mirror::kClassFlagNormal:
+    case art::mirror::kClassFlagRecord:
       return HeapGraphType::KIND_NORMAL;
     case art::mirror::kClassFlagNoReferenceFields:
+    case art::mirror::kClassFlagNoReferenceFields | art::mirror::kClassFlagRecord:
       return HeapGraphType::KIND_NOREFERENCES;
     case art::mirror::kClassFlagString | art::mirror::kClassFlagNoReferenceFields:
       return HeapGraphType::KIND_STRING;

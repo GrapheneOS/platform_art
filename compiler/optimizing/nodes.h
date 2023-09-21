@@ -2073,12 +2073,12 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
                              ArtMethod* method,
                              uint32_t dex_pc,
                              HInstruction* holder)
-     : vregs_(number_of_vregs, allocator->Adapter(kArenaAllocEnvironmentVRegs)),
-       locations_(allocator->Adapter(kArenaAllocEnvironmentLocations)),
-       parent_(nullptr),
-       method_(method),
-       dex_pc_(dex_pc),
-       holder_(holder) {
+      : vregs_(number_of_vregs, allocator->Adapter(kArenaAllocEnvironmentVRegs)),
+        locations_(allocator->Adapter(kArenaAllocEnvironmentLocations)),
+        parent_(nullptr),
+        method_(method),
+        dex_pc_(dex_pc),
+        holder_(holder) {
   }
 
   ALWAYS_INLINE HEnvironment(ArenaAllocator* allocator,
@@ -2194,9 +2194,14 @@ class HEnvironment : public ArenaObject<kArenaAllocEnvironment> {
 std::ostream& operator<<(std::ostream& os, const HInstruction& rhs);
 
 // Iterates over the Environments
-class HEnvironmentIterator : public ValueObject,
-                             public std::iterator<std::forward_iterator_tag, HEnvironment*> {
+class HEnvironmentIterator : public ValueObject {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = HEnvironment*;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
+
   explicit HEnvironmentIterator(HEnvironment* cur) : cur_(cur) {}
 
   HEnvironment* operator*() const {
@@ -2740,7 +2745,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
  private:
   using InstructionKindField =
-     BitField<InstructionKind, kFieldInstructionKind, kFieldInstructionKindSize>;
+      BitField<InstructionKind, kFieldInstructionKind, kFieldInstructionKindSize>;
 
   void FixUpUserRecordsAfterUseInsertion(HUseList<HInstruction*>::iterator fixup_end) {
     auto before_use_node = uses_.before_begin();
@@ -2915,9 +2920,14 @@ class HBackwardInstructionIterator : public ValueObject {
 };
 
 template <typename InnerIter>
-struct HSTLInstructionIterator : public ValueObject,
-                                 public std::iterator<std::forward_iterator_tag, HInstruction*> {
+struct HSTLInstructionIterator : public ValueObject {
  public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = HInstruction*;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
+
   static_assert(std::is_same_v<InnerIter, HBackwardInstructionIterator> ||
                     std::is_same_v<InnerIter, HInstructionIterator> ||
                     std::is_same_v<InnerIter, HInstructionIteratorHandleChanges>,
@@ -4871,8 +4881,7 @@ class HInvokePolymorphic final : public HInvoke {
                      // to pass intrinsic information to the HInvokePolymorphic node.
                      ArtMethod* resolved_method,
                      MethodReference resolved_method_reference,
-                     dex::ProtoIndex proto_idx,
-                     bool enable_intrinsic_opt)
+                     dex::ProtoIndex proto_idx)
       : HInvoke(kInvokePolymorphic,
                 allocator,
                 number_of_arguments,
@@ -4883,9 +4892,8 @@ class HInvokePolymorphic final : public HInvoke {
                 resolved_method,
                 resolved_method_reference,
                 kPolymorphic,
-                enable_intrinsic_opt),
-        proto_idx_(proto_idx) {
-  }
+                /* enable_intrinsic_opt= */ true),
+        proto_idx_(proto_idx) {}
 
   bool IsClonable() const override { return true; }
 
@@ -6531,12 +6539,12 @@ class HArrayGet final : public HExpression<2> {
             HInstruction* index,
             DataType::Type type,
             uint32_t dex_pc)
-     : HArrayGet(array,
-                 index,
-                 type,
-                 SideEffects::ArrayReadOfType(type),
-                 dex_pc,
-                 /* is_string_char_at= */ false) {
+      : HArrayGet(array,
+                  index,
+                  type,
+                  SideEffects::ArrayReadOfType(type),
+                  dex_pc,
+                  /* is_string_char_at= */ false) {
   }
 
   HArrayGet(HInstruction* array,

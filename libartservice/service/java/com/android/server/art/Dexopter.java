@@ -20,6 +20,7 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.ProfilePath.TmpProfilePath;
 import static com.android.server.art.Utils.Abi;
+import static com.android.server.art.Utils.InitProfileResult;
 import static com.android.server.art.model.ArtFlags.DexoptFlags;
 import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 
@@ -104,6 +105,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         for (DexInfoType dexInfo : getDexInfoList()) {
             ProfilePath profile = null;
             boolean succeeded = true;
+            List<String> externalProfileErrors = List.of();
             try {
                 if (!isDexoptable(dexInfo)) {
                     continue;
@@ -120,13 +122,15 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                 boolean profileMerged = false;
                 if (DexFile.isProfileGuidedCompilerFilter(compilerFilter)) {
                     if (needsToBeShared) {
-                        profile = initReferenceProfile(dexInfo);
+                        InitProfileResult result = initReferenceProfile(dexInfo);
+                        profile = result.profile();
+                        isOtherReadable = result.isOtherReadable();
+                        externalProfileErrors = result.externalProfileErrors();
                     } else {
-                        Pair<ProfilePath, Boolean> pair = getOrInitReferenceProfile(dexInfo);
-                        if (pair != null) {
-                            profile = pair.first;
-                            isOtherReadable = pair.second;
-                        }
+                        InitProfileResult result = getOrInitReferenceProfile(dexInfo);
+                        profile = result.profile();
+                        isOtherReadable = result.isOtherReadable();
+                        externalProfileErrors = result.externalProfileErrors();
                         ProfilePath mergedProfile = mergeProfiles(dexInfo, profile);
                         if (mergedProfile != null) {
                             if (profile != null && profile.getTag() == ProfilePath.tmpProfilePath) {
@@ -241,9 +245,13 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                 e);
                         status = DexoptResult.DEXOPT_FAILED;
                     } finally {
+                        if (!externalProfileErrors.isEmpty()) {
+                            extraStatus |= DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE;
+                        }
                         var result = DexContainerFileDexoptResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus);
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus,
+                                externalProfileErrors);
                         Log.i(TAG,
                                 String.format("Dexopt result: [packageName = %s] %s",
                                         mPkgState.getPackageName(), result));
@@ -344,7 +352,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
 
     /** @see Utils#getOrInitReferenceProfile */
     @Nullable
-    private Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull DexInfoType dexInfo)
+    private InitProfileResult getOrInitReferenceProfile(@NonNull DexInfoType dexInfo)
             throws RemoteException {
         return Utils.getOrInitReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
                 buildRefProfilePath(dexInfo), getExternalProfiles(dexInfo),
@@ -352,7 +360,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     }
 
     @Nullable
-    private ProfilePath initReferenceProfile(@NonNull DexInfoType dexInfo) throws RemoteException {
+    private InitProfileResult initReferenceProfile(@NonNull DexInfoType dexInfo)
+            throws RemoteException {
         return Utils.initReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
                 getExternalProfiles(dexInfo), buildOutputProfile(dexInfo, true /* isPublic */));
     }
@@ -467,9 +476,25 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
             dexoptOptions.compilationReason = dexoptOptions.compilationReason + "-dm";
         }
 
-        return mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
-                target.dexInfo().classLoaderContext(), target.compilerFilter(), profile, inputVdex,
-                dmFile, priorityClass, dexoptOptions, artdCancellationSignal);
+        ArtdDexoptResult result = mInjector.getArtd().dexopt(outputArtifacts,
+                target.dexInfo().dexPath(), target.isa(), target.dexInfo().classLoaderContext(),
+                target.compilerFilter(), profile, inputVdex, dmFile, priorityClass, dexoptOptions,
+                artdCancellationSignal);
+
+        // Delete the existing runtime images after the dexopt is performed, even if they are still
+        // usable (e.g., the compiler filter is "verify"). This is to make sure the dexopt puts the
+        // dex file into a certain dexopt state, to make it easier for debugging and testing. It's
+        // also an optimization to release disk space as soon as possible. However, not doing the
+        // deletion here does not affect correctness or waste disk space: if the existing runtime
+        // images are still usable, technically, they can still be used to improve runtime
+        // performance; if they are no longer usable, they will be deleted by the file GC during the
+        // daily background dexopt job anyway.
+        if (!result.cancelled) {
+            mInjector.getArtd().deleteRuntimeArtifacts(AidlUtils.buildRuntimeArtifactsPath(
+                    mPkgState.getPackageName(), target.dexInfo().dexPath(), target.isa()));
+        }
+
+        return result;
     }
 
     @Nullable

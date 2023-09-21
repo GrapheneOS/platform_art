@@ -419,8 +419,7 @@ END art_quick_to_interpreter_bridge
 
     .extern artMethodExitHook
 ENTRY art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME \
-        RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+    SETUP_SAVE_EVERYTHING_FRAME
 
     // frame_size is passed in A4 from JITed code and `art_quick_generic_jni_trampoline`.
     addi a3, sp, SAVE_EVERYTHING_FRAME_OFFSET_FA0  // FP result ptr in kSaveEverything frame
@@ -521,6 +520,72 @@ ENTRY art_quick_do_long_jump
 
     jr  t1
 END art_quick_do_long_jump
+
+
+.macro DEOPT_OR_RETURN temp, is_ref = 0
+    lwu   \temp, THREAD_DEOPT_CHECK_REQUIRED_OFFSET(xSELF)
+    bnez  \temp, 2f
+    ret
+2:
+    SETUP_SAVE_EVERYTHING_FRAME
+    li    a2, \is_ref                 // pass if result is a reference
+    mv    a1, a0                      // pass the result
+    mv    a0, xSELF                   // pass Thread::Current
+    call  artDeoptimizeIfNeeded       // (Thread*, uintptr_t, bool)
+    RESTORE_SAVE_EVERYTHING_FRAME
+    ret
+.endm
+
+
+.macro RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+    bnez  a0, 1f
+    DEOPT_OR_RETURN a1
+1:
+    DELIVER_PENDING_EXCEPTION
+.endm
+
+
+// Entry from managed code that tries to lock the object in a fast path and
+// calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
+// A0 holds the possibly null object to lock.
+ENTRY art_quick_lock_object
+    LOCK_OBJECT_FAST_PATH a0, art_quick_lock_object_no_inline, /*can_be_null*/ 1
+END art_quick_lock_object
+
+
+// Entry from managed code that calls `artLockObjectFromCode()`, may block for GC.
+// A0 holds the possibly null object to lock.
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object_no_inline
+    // This is also the slow path for `art_quick_lock_object`.
+    SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case we block
+    mv    a1, xSELF                   // pass Thread::Current
+    call  artLockObjectFromCode       // (Object*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+END art_quick_lock_object_no_inline
+
+
+// Entry from managed code that tries to unlock the object in a fast path and calls
+// `artUnlockObjectFromCode()` for the difficult cases and delivers exception on failure.
+// A0 holds the possibly null object to unlock.
+ENTRY art_quick_unlock_object
+    UNLOCK_OBJECT_FAST_PATH a0, art_quick_unlock_object_no_inline, /*can_be_null*/ 1
+END art_quick_unlock_object
+
+
+// Entry from managed code that calls `artUnlockObjectFromCode()`
+// and delivers exception on failure.
+// A0 holds the possibly null object to unlock.
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object_no_inline
+    // This is also the slow path for `art_quick_unlock_object`.
+    SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case exception allocation triggers GC
+    mv    a1, xSELF                   // pass Thread::Current
+    call  artUnlockObjectFromCode     // (Object*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_OR_DEOPT_IF_A0_IS_ZERO_OR_DELIVER
+END art_quick_unlock_object_no_inline
 
 
 // Called by managed code that is attempting to call a method on a proxy class. On entry a0 holds
@@ -654,7 +719,7 @@ ENTRY art_quick_test_suspend
     call artTestSuspendFromCode
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
-END
+END art_quick_test_suspend
 
 
 ENTRY art_quick_compile_optimized
@@ -910,6 +975,182 @@ ENTRY art_quick_imt_conflict_trampoline
 END art_quick_imt_conflict_trampoline
 
 
+.macro UPDATE_INLINE_CACHE_ENTRY class, entry, temp, loop_label, done_label, next_label
+\loop_label:
+    lwu     \temp, (\entry)
+    beq     \class, \temp, \done_label
+    bnez    \temp, \next_label
+    lr.w    \temp, (\entry)
+    bnez    \temp, \loop_label
+    sc.w    \temp, \class, (\entry)
+    beqz    \temp, \done_label
+    j       \loop_label
+.endm
+
+// A0 contains the class, T5 contains the inline cache. T6 can be used, T5 can be clobbered.
+ENTRY art_quick_update_inline_cache
+#if (INLINE_CACHE_SIZE != 5)
+#error "INLINE_CACHE_SIZE not as expected."
+#endif
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    // Don't update the cache if we are marking.
+    lwu     t6, THREAD_IS_GC_MARKING_OFFSET(xSELF)
+    bnez    t6, .Ldone
+#endif
+    addi    t5, t5, INLINE_CACHE_CLASSES_OFFSET
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry1_loop, .Ldone, .Lentry2
+.Lentry2:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry2_loop, .Ldone, .Lentry3
+.Lentry3:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry3_loop, .Ldone, .Lentry4
+.Lentry4:
+    addi    t5, t5, 4
+    UPDATE_INLINE_CACHE_ENTRY a0, t5, t6, .Lentry4_loop, .Ldone, .Lentry5
+.Lentry5:
+    // Unconditionally store, the inline cache is megamorphic.
+    sw      a0, 4(t5)
+.Ldone:
+    ret
+END art_quick_update_inline_cache
+
+
+// Create a function `name` calling the art::ReadBarrier::Mark routine, getting its argument and
+// returning its result through \reg, saving and restoring all caller-save registers.
+//
+// The generated function follows a non-standard calling convention:
+// - register `reg` is used to pass the singleton argument,
+// - register `reg` is used to return the result,
+// - all other registers are callee-save (the values they hold are preserved).
+.macro READ_BARRIER_MARK_REG name, reg
+ENTRY \name
+    beqz \reg, .Lrb_return_\name  // early return if null
+
+    // Save t5 and t6 onto stack to honor caller-save calling convention.
+    INCREASE_FRAME 16
+    SAVE_GPR t5, (8*0)
+    SAVE_GPR t6, (8*1)
+
+    lw t5, MIRROR_OBJECT_LOCK_WORD_OFFSET(\reg)  // t5 := lock word
+    slliw t6, t5, 31-LOCK_WORD_MARK_BIT_SHIFT    // mark bit into MSB
+    bltz t6, .Lrb_tmp_restore_\name
+    // Check if the top two bits are set. If so, it is a forwarding address.
+    slliw t6, t5, 1
+    and t6, t6, t5
+    CFI_REMEMBER_STATE
+    bgez t6, .Lrb_full_\name
+    slliw \reg, t5, LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+.Lrb_tmp_restore_\name:
+    RESTORE_GPR_NE \reg, t5, (8*0)
+    RESTORE_GPR_NE \reg, t6, (8*1)
+    DECREASE_FRAME 16
+.Lrb_return_\name:
+    ret
+.Lrb_full_\name:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 16
+    // Save remaining caller-save registers on stack. t5 and t6 already saved.
+    // fa0-fa7, ft0-ft11, a0-a7, t0-t4, ra: 8 * (8 + 12 + 8 + 5 + 1) = 8 * 34 = 272 bytes
+    INCREASE_FRAME 272
+    SAVE_FPR fa0,  (8*0)
+    SAVE_FPR fa1,  (8*1)
+    SAVE_FPR fa2,  (8*2)
+    SAVE_FPR fa3,  (8*3)
+    SAVE_FPR fa4,  (8*4)
+    SAVE_FPR fa5,  (8*5)
+    SAVE_FPR fa6,  (8*6)
+    SAVE_FPR fa7,  (8*7)
+    SAVE_FPR ft0,  (8*8)
+    SAVE_FPR ft1,  (8*9)
+    SAVE_FPR ft2,  (8*10)
+    SAVE_FPR ft3,  (8*11)
+    SAVE_FPR ft4,  (8*12)
+    SAVE_FPR ft5,  (8*13)
+    SAVE_FPR ft6,  (8*14)
+    SAVE_FPR ft7,  (8*15)
+    SAVE_FPR ft8,  (8*16)
+    SAVE_FPR ft9,  (8*17)
+    SAVE_FPR ft10, (8*18)
+    SAVE_FPR ft11, (8*19)
+
+    SAVE_GPR a0,   (8*20)
+    SAVE_GPR a1,   (8*21)
+    SAVE_GPR a2,   (8*22)
+    SAVE_GPR a3,   (8*23)
+    SAVE_GPR a4,   (8*24)
+    SAVE_GPR a5,   (8*25)
+    SAVE_GPR a6,   (8*26)
+    SAVE_GPR a7,   (8*27)
+    SAVE_GPR t0,   (8*28)
+    SAVE_GPR t1,   (8*29)
+    SAVE_GPR t2,   (8*30)
+    SAVE_GPR t3,   (8*31)
+    SAVE_GPR t4,   (8*32)
+    SAVE_GPR ra,   (8*33)
+
+    .ifc \reg, t5
+      ld a0, (8*34)(sp)
+    .else
+      .ifc \reg, t6
+        ld a0, (8*35)(sp)
+      .else
+        .ifnc \reg, a0
+          mv a0, \reg
+        .endif
+      .endif
+    .endif
+    call artReadBarrierMark
+    .ifnc \reg, a0
+      mv \reg, a0
+    .endif
+
+    // Restore all caller-save registers from stack, including t5 and t6.
+    // fa0-fa7, ft0-ft11, ra, a0-a7, t0-t6: 8 * (8 + 12 + 1 + 8 + 7) = 8 * 36 = 288 bytes
+    RESTORE_FPR fa0,  (8*0)
+    RESTORE_FPR fa1,  (8*1)
+    RESTORE_FPR fa2,  (8*2)
+    RESTORE_FPR fa3,  (8*3)
+    RESTORE_FPR fa4,  (8*4)
+    RESTORE_FPR fa5,  (8*5)
+    RESTORE_FPR fa6,  (8*6)
+    RESTORE_FPR fa7,  (8*7)
+    RESTORE_FPR ft0,  (8*8)
+    RESTORE_FPR ft1,  (8*9)
+    RESTORE_FPR ft2,  (8*10)
+    RESTORE_FPR ft3,  (8*11)
+    RESTORE_FPR ft4,  (8*12)
+    RESTORE_FPR ft5,  (8*13)
+    RESTORE_FPR ft6,  (8*14)
+    RESTORE_FPR ft7,  (8*15)
+    RESTORE_FPR ft8,  (8*16)
+    RESTORE_FPR ft9,  (8*17)
+    RESTORE_FPR ft10, (8*18)
+    RESTORE_FPR ft11, (8*19)
+    RESTORE_GPR_NE \reg, a0, (8*20)
+    RESTORE_GPR_NE \reg, a1, (8*21)
+    RESTORE_GPR_NE \reg, a2, (8*22)
+    RESTORE_GPR_NE \reg, a3, (8*23)
+    RESTORE_GPR_NE \reg, a4, (8*24)
+    RESTORE_GPR_NE \reg, a5, (8*25)
+    RESTORE_GPR_NE \reg, a6, (8*26)
+    RESTORE_GPR_NE \reg, a7, (8*27)
+    RESTORE_GPR_NE \reg, t0, (8*28)
+    RESTORE_GPR_NE \reg, t1, (8*29)
+    RESTORE_GPR_NE \reg, t2, (8*30)
+    RESTORE_GPR_NE \reg, t3, (8*31)
+    RESTORE_GPR_NE \reg, t4, (8*32)
+    RESTORE_GPR_NE \reg, ra, (8*33)
+    RESTORE_GPR_NE \reg, t5, (8*34)
+    RESTORE_GPR_NE \reg, t6, (8*35)
+    DECREASE_FRAME 288
+    ret
+END \name
+.endm
+
+
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, a0
+
+
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
 UNDEFINED art_quick_method_entry_hook
@@ -1090,9 +1331,4 @@ UNDEFINED art_quick_get32_static
 UNDEFINED art_quick_get64_static
 UNDEFINED art_quick_get_obj_static
 UNDEFINED art_quick_aput_obj
-UNDEFINED art_quick_lock_object_no_inline
-UNDEFINED art_quick_lock_object
-UNDEFINED art_quick_unlock_object_no_inline
-UNDEFINED art_quick_unlock_object
-UNDEFINED art_quick_update_inline_cache
 UNDEFINED art_quick_indexof

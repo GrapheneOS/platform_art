@@ -197,19 +197,19 @@ void Riscv64Assembler::Andi(XRegister rd, XRegister rs1, int32_t imm12) {
 
 // 0x1 Split: 0x0(6b) + imm12(6b)
 void Riscv64Assembler::Slli(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 64) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 64u);
   EmitI6(0x0, shamt, rs1, 0x1, rd, 0x13);
 }
 
 // 0x5 Split: 0x0(6b) + imm12(6b)
 void Riscv64Assembler::Srli(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 64) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 64u);
   EmitI6(0x0, shamt, rs1, 0x5, rd, 0x13);
 }
 
 // 0x5 Split: 0x10(6b) + imm12(6b)
 void Riscv64Assembler::Srai(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 64) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 64u);
   EmitI6(0x10, shamt, rs1, 0x5, rd, 0x13);
 }
 
@@ -262,17 +262,17 @@ void Riscv64Assembler::Addiw(XRegister rd, XRegister rs1, int32_t imm12) {
 }
 
 void Riscv64Assembler::Slliw(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 32) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 32u);
   EmitR(0x0, shamt, rs1, 0x1, rd, 0x1b);
 }
 
 void Riscv64Assembler::Srliw(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 32) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 32u);
   EmitR(0x0, shamt, rs1, 0x5, rd, 0x1b);
 }
 
 void Riscv64Assembler::Sraiw(XRegister rd, XRegister rs1, int32_t shamt) {
-  CHECK(static_cast<uint32_t>(shamt) < 32) << shamt;
+  CHECK_LT(static_cast<uint32_t>(shamt), 32u);
   EmitR(0x20, shamt, rs1, 0x5, rd, 0x1b);
 }
 
@@ -390,18 +390,22 @@ void Riscv64Assembler::Remuw(XRegister rd, XRegister rs1, XRegister rs2) {
 /////////////////////////////// RV64 "A" Instructions  START ///////////////////////////////
 
 void Riscv64Assembler::LrW(XRegister rd, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kRelease);
   EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x2, rd, 0x2f);
 }
 
 void Riscv64Assembler::LrD(XRegister rd, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kRelease);
   EmitR4(0x2, enum_cast<uint32_t>(aqrl), 0x0, rs1, 0x3, rd, 0x2f);
 }
 
 void Riscv64Assembler::ScW(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kAcquire);
   EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x2, rd, 0x2f);
 }
 
 void Riscv64Assembler::ScD(XRegister rd, XRegister rs2, XRegister rs1, AqRl aqrl) {
+  CHECK(aqrl != AqRl::kAcquire);
   EmitR4(0x3, enum_cast<uint32_t>(aqrl), rs2, rs1, 0x3, rd, 0x2f);
 }
 
@@ -786,6 +790,132 @@ void Riscv64Assembler::FClassD(XRegister rd, FRegister rs1) {
 
 /////////////////////////////// RV64 "FD" Instructions  END ///////////////////////////////
 
+////////////////////////////// RV64 "Zba" Instructions  START /////////////////////////////
+
+void Riscv64Assembler::AddUw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x4, rs2, rs1, 0x0, rd, 0x3b);
+}
+
+void Riscv64Assembler::Sh1Add(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x2, rd, 0x33);
+}
+
+void Riscv64Assembler::Sh1AddUw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x2, rd, 0x3b);
+}
+
+void Riscv64Assembler::Sh2Add(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x4, rd, 0x33);
+}
+
+void Riscv64Assembler::Sh2AddUw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x4, rd, 0x3b);
+}
+
+void Riscv64Assembler::Sh3Add(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x6, rd, 0x33);
+}
+
+void Riscv64Assembler::Sh3AddUw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x10, rs2, rs1, 0x6, rd, 0x3b);
+}
+
+void Riscv64Assembler::SlliUw(XRegister rd, XRegister rs1, int32_t shamt) {
+  EmitI6(0x2, shamt, rs1, 0x1, rd, 0x1b);
+}
+
+/////////////////////////////// RV64 "Zba" Instructions  END //////////////////////////////
+
+////////////////////////////// RV64 "Zbb" Instructions  START /////////////////////////////
+
+void Riscv64Assembler::Andn(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x20, rs2, rs1, 0x7, rd, 0x33);
+}
+
+void Riscv64Assembler::Orn(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x20, rs2, rs1, 0x6, rd, 0x33);
+}
+
+void Riscv64Assembler::Xnor(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x20, rs2, rs1, 0x4, rd, 0x33);
+}
+
+void Riscv64Assembler::Clz(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x0, rs1, 0x1, rd, 0x13);
+}
+
+void Riscv64Assembler::Clzw(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x0, rs1, 0x1, rd, 0x1b);
+}
+
+void Riscv64Assembler::Ctz(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x1, rs1, 0x1, rd, 0x13);
+}
+
+void Riscv64Assembler::Ctzw(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x1, rs1, 0x1, rd, 0x1b);
+}
+
+void Riscv64Assembler::Cpop(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x2, rs1, 0x1, rd, 0x13);
+}
+
+void Riscv64Assembler::Cpopw(XRegister rd, XRegister rs1) {
+  EmitR(0x30, 0x2, rs1, 0x1, rd, 0x1b);
+}
+
+void Riscv64Assembler::Min(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x5, rs2, rs1, 0x4, rd, 0x33);
+}
+
+void Riscv64Assembler::Minu(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x5, rs2, rs1, 0x5, rd, 0x33);
+}
+
+void Riscv64Assembler::Max(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x5, rs2, rs1, 0x6, rd, 0x33);
+}
+
+void Riscv64Assembler::Maxu(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x5, rs2, rs1, 0x7, rd, 0x33);
+}
+
+void Riscv64Assembler::Rol(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x30, rs2, rs1, 0x1, rd, 0x33);
+}
+
+void Riscv64Assembler::Rolw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x30, rs2, rs1, 0x1, rd, 0x3b);
+}
+
+void Riscv64Assembler::Ror(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x30, rs2, rs1, 0x5, rd, 0x33);
+}
+
+void Riscv64Assembler::Rorw(XRegister rd, XRegister rs1, XRegister rs2) {
+  EmitR(0x30, rs2, rs1, 0x5, rd, 0x3b);
+}
+
+void Riscv64Assembler::Rori(XRegister rd, XRegister rs1, int32_t shamt) {
+  CHECK_LT(static_cast<uint32_t>(shamt), 64u);
+  EmitI6(0x18, shamt, rs1, 0x5, rd, 0x13);
+}
+
+void Riscv64Assembler::Roriw(XRegister rd, XRegister rs1, int32_t shamt) {
+  CHECK_LT(static_cast<uint32_t>(shamt), 32u);
+  EmitI6(0x18, shamt, rs1, 0x5, rd, 0x1b);
+}
+
+void Riscv64Assembler::OrcB(XRegister rd, XRegister rs1) {
+  EmitR(0x14, 0x7, rs1, 0x5, rd, 0x13);
+}
+
+void Riscv64Assembler::Rev8(XRegister rd, XRegister rs1) {
+  EmitR(0x35, 0x18, rs1, 0x5, rd, 0x13);
+}
+
+/////////////////////////////// RV64 "Zbb" Instructions  END //////////////////////////////
+
 ////////////////////////////// RV64 MACRO Instructions  START ///////////////////////////////
 
 // Pseudo instructions
@@ -824,6 +954,7 @@ void Riscv64Assembler::ZextH(XRegister rd, XRegister rs) {
 }
 
 void Riscv64Assembler::ZextW(XRegister rd, XRegister rs) {
+  // TODO(riscv64): Use the ZEXT.W alias for ADD.UW from the Zba extension.
   Slli(rd, rs, kXlen - 32u);
   Srli(rd, rd, kXlen - 32u);
 }

@@ -66,7 +66,8 @@ class StackMapStream : public DeletableArenaObject<kArenaAllocStackMapStream> {
                    size_t fp_spill_mask,
                    uint32_t num_dex_registers,
                    bool baseline,
-                   bool debuggable);
+                   bool debuggable,
+                   bool has_should_deoptimize_flag = false);
   void EndMethod(size_t code_size);
 
   void BeginStackMapEntry(
@@ -129,8 +130,9 @@ class StackMapStream : public DeletableArenaObject<kArenaAllocStackMapStream> {
   uint32_t core_spill_mask_ = 0;
   uint32_t fp_spill_mask_ = 0;
   uint32_t num_dex_registers_ = 0;
-  bool baseline_;
-  bool debuggable_;
+  bool baseline_ = false;
+  bool debuggable_ = false;
+  bool has_should_deoptimize_flag_ = false;
   BitTableBuilder<StackMap> stack_maps_;
   BitTableBuilder<RegisterMask> register_masks_;
   BitmapTableBuilder stack_masks_;

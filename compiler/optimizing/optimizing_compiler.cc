@@ -747,6 +747,53 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kReturn:
         case HInstruction::kReturnVoid:
         case HInstruction::kSuspendCheck:
+        case HInstruction::kDoubleConstant:
+        case HInstruction::kFloatConstant:
+        case HInstruction::kIntConstant:
+        case HInstruction::kLongConstant:
+        case HInstruction::kAbove:
+        case HInstruction::kAboveOrEqual:
+        case HInstruction::kBelow:
+        case HInstruction::kBelowOrEqual:
+        case HInstruction::kEqual:
+        case HInstruction::kGreaterThan:
+        case HInstruction::kGreaterThanOrEqual:
+        case HInstruction::kLessThan:
+        case HInstruction::kLessThanOrEqual:
+        case HInstruction::kNotEqual:
+        case HInstruction::kCompare:
+        case HInstruction::kIf:
+        case HInstruction::kAdd:
+        case HInstruction::kAnd:
+        case HInstruction::kOr:
+        case HInstruction::kSub:
+        case HInstruction::kXor:
+        case HInstruction::kRor:
+        case HInstruction::kShl:
+        case HInstruction::kShr:
+        case HInstruction::kUShr:
+        case HInstruction::kAbs:
+        case HInstruction::kBooleanNot:
+        case HInstruction::kMul:
+        case HInstruction::kNeg:
+        case HInstruction::kNot:
+        case HInstruction::kMin:
+        case HInstruction::kMax:
+        case HInstruction::kInvokeVirtual:
+        case HInstruction::kInvokeInterface:
+        case HInstruction::kCurrentMethod:
+        case HInstruction::kNullCheck:
+          break;
+        case HInstruction::kInvokeStaticOrDirect:
+          if (it.Current()->AsInvokeStaticOrDirect()->GetCodePtrLocation() ==
+                  CodePtrLocation::kCallCriticalNative &&
+              it.Current()->AsInvokeStaticOrDirect()->GetNumberOfArguments() >= 8u) {
+            // TODO(riscv64): If there are more than 8 FP args, some may be passed in GPRs
+            // and this requires a `CriticalNativeAbiFixupRiscv64` pass similar to the one
+            // we have for ARM. This is not yet implemented. For simplicity, we reject all
+            // direct @CriticalNative calls with more than 8 args.
+            return false;
+          }
           break;
         default:
           // Unimplemented instruction.
@@ -1350,7 +1397,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                             debug_info,
                             /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                             compilation_kind,
-                            /* has_should_deoptimize_flag= */ false,
                             cha_single_implementation_list)) {
       code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
       return false;
@@ -1458,8 +1504,9 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                           debug_info,
                           /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                           compilation_kind,
-                          codegen->GetGraph()->HasShouldDeoptimizeFlag(),
                           codegen->GetGraph()->GetCHASingleImplementationList())) {
+    CHECK_EQ(CodeInfo::HasShouldDeoptimizeFlag(stack_map.data()),
+             codegen->GetGraph()->HasShouldDeoptimizeFlag());
     code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
     return false;
   }

@@ -82,7 +82,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   // CBNZ x17, +0. Bits 5-23 are a placeholder for target offset from PC in units of 4-bytes.
   static constexpr uint32_t kCbnzIP1Plus0Insn = 0xb5000011u;
 
-  void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
+  static void InsertInsn(std::vector<uint8_t>* code, size_t pos, uint32_t insn) {
     CHECK_LE(pos, code->size());
     const uint8_t insn_code[] = {
         static_cast<uint8_t>(insn),
@@ -94,11 +94,11 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     code->insert(code->begin() + pos, insn_code, insn_code + sizeof(insn_code));
   }
 
-  void PushBackInsn(std::vector<uint8_t>* code, uint32_t insn) {
+  static void PushBackInsn(std::vector<uint8_t>* code, uint32_t insn) {
     InsertInsn(code, code->size(), insn);
   }
 
-  std::vector<uint8_t> RawCode(std::initializer_list<uint32_t> insns) {
+  static std::vector<uint8_t> RawCode(std::initializer_list<uint32_t> insns) {
     std::vector<uint8_t> raw_code;
     raw_code.reserve(insns.size() * 4u);
     for (uint32_t insn : insns) {
@@ -184,6 +184,12 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
         InstructionSetFeatures::FromBitmap(instruction_set_, instruction_set_features_->AsBitmap());
     CHECK(compiler_options.instruction_set_features_->Equals(instruction_set_features_.get()));
 
+    // If a test requests that implicit null checks are enabled or disabled,
+    // apply that option, otherwise use the default from `CompilerOptions`.
+    if (implicit_null_checks_.has_value()) {
+      compiler_options.implicit_null_checks_ = implicit_null_checks_.value();
+    }
+
     arm64::CodeGeneratorARM64 codegen(graph, compiler_options);
     ArenaVector<uint8_t> code(helper.GetAllocator()->Adapter());
     codegen.EmitThunkCode(patch, &code, debug_name);
@@ -235,7 +241,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return false;
   }
 
-  std::vector<uint8_t> GenNops(size_t num_nops) {
+  static std::vector<uint8_t> GenNops(size_t num_nops) {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u);
     for (size_t i = 0; i != num_nops; ++i) {
@@ -244,7 +250,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     return result;
   }
 
-  std::vector<uint8_t> GenNopsAndBl(size_t num_nops, uint32_t bl) {
+  static std::vector<uint8_t> GenNopsAndBl(size_t num_nops, uint32_t bl) {
     std::vector<uint8_t> result;
     result.reserve(num_nops * 4u + 4u);
     for (size_t i = 0; i != num_nops; ++i) {
@@ -556,7 +562,15 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
            (static_cast<uint32_t>(output_[offset + 3]) << 24);
   }
 
-  void TestBakerField(uint32_t offset, uint32_t ref_reg);
+  void TestBakerField(uint32_t offset, uint32_t ref_reg, bool implicit_null_checks);
+
+  void Reset() final {
+    RelativePatcherTest::Reset();
+    implicit_null_checks_ = std::nullopt;
+  }
+
+ private:
+  std::optional<bool> implicit_null_checks_ = std::nullopt;
 };
 
 const uint8_t Arm64RelativePatcherTest::kCallRawCode[] = {
@@ -933,7 +947,7 @@ TEST_F(Arm64RelativePatcherTestDefault, StringReferenceAddX0X0) {
       [&](uint32_t adrp_offset, uint32_t string_offset) {
         Reset();
         /* ADD that uses the result register of "ADRP x0, addr" as both source and destination. */
-        uint32_t add = kSubXInsn | (100 << 10) | (0u << 5) | 0u;  /* ADD x0, x0, #100 */
+        uint32_t add = kAddXInsn | (100 << 10) | (0u << 5) | 0u;  /* ADD x0, x0, #100 */
         TestAdrpInsn2Add(add, adrp_offset, /*has_thunk=*/ false, string_offset);
       },
       { 0x12345678u, 0xffffc840 });
@@ -1038,7 +1052,10 @@ TEST_F(Arm64RelativePatcherTestDefault, EntrypointCall) {
   EXPECT_EQ(br_ip0, GetOutputInsn(thunk_offset + 4u));
 }
 
-void Arm64RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg) {
+void Arm64RelativePatcherTest::TestBakerField(uint32_t offset,
+                                              uint32_t ref_reg,
+                                              bool implicit_null_checks) {
+  implicit_null_checks_ = implicit_null_checks;
   uint32_t valid_regs[] = {
       0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
       10, 11, 12, 13, 14, 15,         18, 19,  // IP0 and IP1 are reserved.
@@ -1092,7 +1109,7 @@ void Arm64RelativePatcherTest::TestBakerField(uint32_t offset, uint32_t ref_reg)
       }
 
       size_t gray_check_offset = thunk_offset;
-      if (holder_reg == base_reg) {
+      if (implicit_null_checks && holder_reg == base_reg) {
         // Verify that the null-check CBZ uses the correct register, i.e. holder_reg.
         ASSERT_GE(output_.size() - gray_check_offset, 4u);
         ASSERT_EQ(0x34000000u | holder_reg, GetOutputInsn(thunk_offset) & 0xff00001fu);
@@ -1138,7 +1155,9 @@ TEST_F(Arm64RelativePatcherTestDefault, BakerOffset) {
   };
   for (const TestCase& test_case : test_cases) {
     Reset();
-    TestBakerField(test_case.offset, test_case.ref_reg);
+    TestBakerField(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ true);
+    Reset();
+    TestBakerField(test_case.offset, test_case.ref_reg, /*implicit_null_checks=*/ false);
   }
 }
 

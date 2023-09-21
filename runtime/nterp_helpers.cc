@@ -235,9 +235,6 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
     return false;
   }
   if (isa == InstructionSet::kRiscv64) {
-    if (method->NeedsClinitCheckBeforeCall()) {
-      return false;  // Riscv64 nterp does not implement ExecuteNterpWithClinitImpl.
-    }
     if (method->GetDexFile()->IsCompactDexFile()) {
       return false;  // Riscv64 nterp does not support compact dex yet.
     }
@@ -278,12 +275,26 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::CONST_WIDE_32:
         case Instruction::CONST_WIDE:
         case Instruction::CONST_WIDE_HIGH16:
+        case Instruction::SPUT:
+        case Instruction::SPUT_OBJECT:
         case Instruction::NEG_INT:
         case Instruction::NOT_INT:
         case Instruction::NEG_LONG:
         case Instruction::NOT_LONG:
+        case Instruction::NEG_FLOAT:
+        case Instruction::NEG_DOUBLE:
         case Instruction::INT_TO_LONG:
+        case Instruction::INT_TO_FLOAT:
+        case Instruction::INT_TO_DOUBLE:
         case Instruction::LONG_TO_INT:
+        case Instruction::LONG_TO_FLOAT:
+        case Instruction::LONG_TO_DOUBLE:
+        case Instruction::FLOAT_TO_INT:
+        case Instruction::FLOAT_TO_LONG:
+        case Instruction::FLOAT_TO_DOUBLE:
+        case Instruction::DOUBLE_TO_INT:
+        case Instruction::DOUBLE_TO_LONG:
+        case Instruction::DOUBLE_TO_FLOAT:
         case Instruction::INT_TO_BYTE:
         case Instruction::INT_TO_CHAR:
         case Instruction::INT_TO_SHORT:
@@ -309,6 +320,16 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::SHL_LONG:
         case Instruction::SHR_LONG:
         case Instruction::USHR_LONG:
+        case Instruction::ADD_FLOAT:
+        case Instruction::SUB_FLOAT:
+        case Instruction::MUL_FLOAT:
+        case Instruction::DIV_FLOAT:
+        case Instruction::REM_FLOAT:
+        case Instruction::ADD_DOUBLE:
+        case Instruction::SUB_DOUBLE:
+        case Instruction::MUL_DOUBLE:
+        case Instruction::DIV_DOUBLE:
+        case Instruction::REM_DOUBLE:
         case Instruction::ADD_INT_2ADDR:
         case Instruction::SUB_INT_2ADDR:
         case Instruction::MUL_INT_2ADDR:
@@ -331,6 +352,16 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::SHL_LONG_2ADDR:
         case Instruction::SHR_LONG_2ADDR:
         case Instruction::USHR_LONG_2ADDR:
+        case Instruction::ADD_FLOAT_2ADDR:
+        case Instruction::SUB_FLOAT_2ADDR:
+        case Instruction::MUL_FLOAT_2ADDR:
+        case Instruction::DIV_FLOAT_2ADDR:
+        case Instruction::REM_FLOAT_2ADDR:
+        case Instruction::ADD_DOUBLE_2ADDR:
+        case Instruction::SUB_DOUBLE_2ADDR:
+        case Instruction::MUL_DOUBLE_2ADDR:
+        case Instruction::DIV_DOUBLE_2ADDR:
+        case Instruction::REM_DOUBLE_2ADDR:
         case Instruction::ADD_INT_LIT16:
         case Instruction::RSUB_INT:
         case Instruction::MUL_INT_LIT16:

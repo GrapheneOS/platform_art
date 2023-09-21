@@ -109,7 +109,9 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         // By default, none of the profiles are usable.
         lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
-        lenient().when(mArtd.copyAndRewriteProfile(any(), any(), any())).thenReturn(false);
+        lenient()
+                .when(mArtd.copyAndRewriteProfile(any(), any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
 
         // By default, no DM file exists.
         lenient().when(mArtd.getDmFileVisibility(any())).thenReturn(FileVisibility.NOT_FOUND);
@@ -175,7 +177,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(), isNull(), any(),
                         anyInt(), any(), any());
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
     }
 
     @Test
@@ -184,7 +187,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .when(mArtd.getDmFileVisibility(deepEq(mDmFile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd, times(2))
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), deepEq(mDmFile),
@@ -209,7 +213,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
@@ -245,7 +250,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64", mRefProfile,
                 true /* isOtherReadable */, true /* generateAppImage */);
@@ -262,7 +268,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -293,7 +300,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -337,7 +345,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         // It should still use "speed-profile", but with the existing reference profile only.
         verify(mArtd).getDexoptNeeded(
@@ -360,7 +369,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -374,6 +384,30 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mPrebuiltProfile);
+    }
+
+    @Test
+    public void testDexoptExternalProfileErrors() throws Exception {
+        makeProfileNotUsable(mRefProfile);
+
+        // Having no profile should not be reported.
+        makeProfileNotUsable(mPrebuiltProfile);
+
+        // Having a bad profile should be reported.
+        lenient()
+                .when(mArtd.copyAndRewriteProfile(deepEq(mDmProfile), any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileBadProfile("error_msg"));
+
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+
+        assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
+                .isNotEqualTo(0);
+        assertThat(results.get(0).getExternalProfileErrors()).containsExactly("error_msg");
+        assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE)
+                .isNotEqualTo(0);
+        assertThat(results.get(1).getExternalProfileErrors()).containsExactly("error_msg");
     }
 
     @Test
@@ -411,7 +445,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -451,7 +486,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         // It should use the default dexopt trigger.
         verify(mArtd).getDexoptNeeded(
@@ -466,7 +502,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         when(mArtd.getProfileVisibility(deepEq(mSplit0RefProfile)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd).getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), eq("speed-profile"),
                 eq(mDefaultDexoptTrigger));
@@ -564,7 +601,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         mPrimaryDexopter =
                 new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd, times(2))
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
@@ -585,7 +623,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         mPrimaryDexopter =
                 new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
-        mPrimaryDexopter.dexopt();
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
 
         verify(mArtd, never())
                 .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
@@ -609,16 +648,16 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isEqualTo(0);
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isNotEqualTo(0);
         assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(2).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isNotEqualTo(0);
         assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+        assertThat(results.get(3).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
                 .isEqualTo(0);
 
         verify(mArtd, times(2))
@@ -643,16 +682,16 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(0).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isNotEqualTo(0);
         assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(1).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isNotEqualTo(0);
         assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
-        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(2).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isEqualTo(0);
         assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
-        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+        assertThat(results.get(3).getExtraStatuses() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
                 .isEqualTo(0);
     }
 
@@ -691,7 +730,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .when(mArtd.copyAndRewriteProfile(deepEq(profile), any(), any()))
                 .thenAnswer(invocation -> {
                     mUsedProfiles.add(invocation.<ProfilePath>getArgument(0));
-                    return true;
+                    return TestingUtils.createCopyAndRewriteProfileSuccess();
                 });
     }
 
@@ -699,6 +738,14 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         lenient().when(mArtd.isProfileUsable(deepEq(profile), any())).thenReturn(false);
         lenient()
                 .when(mArtd.copyAndRewriteProfile(deepEq(profile), any(), any()))
-                .thenReturn(false);
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
+    }
+
+    private void verifyStatusAllOk(List<DexContainerFileDexoptResult> results) {
+        for (DexContainerFileDexoptResult result : results) {
+            assertThat(result.getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
+            assertThat(result.getExtraStatuses()).isEqualTo(0);
+            assertThat(result.getExternalProfileErrors()).isEmpty();
+        }
     }
 }

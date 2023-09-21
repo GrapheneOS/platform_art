@@ -190,9 +190,9 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
                 .image_locations = runtime_->GetImageLocations(),
                 .boot_class_path = runtime_->GetBootClassPath(),
                 .boot_class_path_locations = runtime_->GetBootClassPathLocations(),
-                .boot_class_path_fds = !runtime_->GetBootClassPathFds().empty() ?
-                                           &runtime_->GetBootClassPathFds() :
-                                           nullptr,
+                .boot_class_path_files = !runtime_->GetBootClassPathFiles().empty() ?
+                                             runtime_->GetBootClassPathFiles() :
+                                             std::optional<ArrayRef<File>>(),
                 .deny_art_apex_data_files = runtime_->DenyArtApexDataFiles(),
             }));
   }

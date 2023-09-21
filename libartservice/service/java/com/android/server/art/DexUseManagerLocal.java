@@ -441,7 +441,10 @@ public class DexUseManagerLocal {
 
     private static boolean isOwningPackageForPrimaryDex(
             @NonNull PackageState pkgState, @NonNull String dexPath) {
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        AndroidPackage pkg = pkgState.getAndroidPackage();
+        if (pkg == null) {
+            return false;
+        }
         List<AndroidPackageSplit> splits = pkg.getSplits();
         for (int i = 0; i < splits.size(); i++) {
             if (splits.get(i).getPath().equals(dexPath)) {
@@ -563,7 +566,8 @@ public class DexUseManagerLocal {
             }
             mDexUse = new DexUse();
             if (proto != null) {
-                mDexUse.fromProto(proto, this::validateDexPath, this::validateClassLoaderContext);
+                mDexUse.fromProto(
+                        proto, ArtJni::validateDexPath, ArtJni::validateClassLoaderContext);
             }
         }
     }
@@ -597,12 +601,12 @@ public class DexUseManagerLocal {
 
         for (var entry : classLoaderContextByDexContainerFile.entrySet()) {
             Utils.assertNonEmpty(entry.getKey());
-            String errorMsg = validateDexPath(entry.getKey());
+            String errorMsg = ArtJni.validateDexPath(entry.getKey());
             if (errorMsg != null) {
                 throw new IllegalArgumentException(errorMsg);
             }
             Utils.assertNonEmpty(entry.getValue());
-            errorMsg = validateClassLoaderContext(entry.getKey(), entry.getValue());
+            errorMsg = ArtJni.validateClassLoaderContext(entry.getKey(), entry.getValue());
             if (errorMsg != null) {
                 throw new IllegalArgumentException(errorMsg);
             }
@@ -617,29 +621,6 @@ public class DexUseManagerLocal {
         } catch (ServiceSpecificException | RemoteException e) {
             Log.e(TAG, "Failed to get visibility of " + dexPath, e);
             return FileVisibility.NOT_FOUND;
-        }
-    }
-
-    @Nullable
-    private String validateDexPath(@NonNull String dexPath) {
-        try {
-            return mInjector.getArtd().validateDexPath(dexPath);
-        } catch (RemoteException e) {
-            String errorMsg = "Failed to validate dex path " + dexPath;
-            Log.e(TAG, errorMsg, e);
-            return errorMsg;
-        }
-    }
-
-    @Nullable
-    private String validateClassLoaderContext(
-            @NonNull String dexPath, @NonNull String classLoaderContext) {
-        try {
-            return mInjector.getArtd().validateClassLoaderContext(dexPath, classLoaderContext);
-        } catch (RemoteException e) {
-            String errorMsg = "Failed to validate class loader context " + classLoaderContext;
-            Log.e(TAG, errorMsg, e);
-            return errorMsg;
         }
     }
 
@@ -1109,7 +1090,11 @@ public class DexUseManagerLocal {
 
         public @NonNull List<Path> getLocations(
                 @NonNull PackageState pkgState, @NonNull UserHandle userHandle) {
-            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            AndroidPackage pkg = pkgState.getAndroidPackage();
+            if (pkg == null) {
+                return List.of();
+            }
+
             UUID storageUuid = pkg.getStorageUuid();
             String packageName = pkgState.getPackageName();
 

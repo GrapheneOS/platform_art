@@ -57,11 +57,13 @@ class DexInstructionPcPair {
 };
 
 // Base helper class to prevent duplicated comparators.
-class DexInstructionIteratorBase : public
-        std::iterator<std::forward_iterator_tag, DexInstructionPcPair> {
+class DexInstructionIteratorBase {
  public:
-  using value_type = std::iterator<std::forward_iterator_tag, DexInstructionPcPair>::value_type;
-  using difference_type = std::iterator<std::forward_iterator_tag, value_type>::difference_type;
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = DexInstructionPcPair;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
 
   explicit DexInstructionIteratorBase(const Instruction* inst, uint32_t dex_pc)
       : data_(reinterpret_cast<const uint16_t*>(inst), dex_pc) {}

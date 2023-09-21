@@ -23,10 +23,6 @@
 
 namespace art {
 
-namespace arm {
-class ArmVIXLAssembler;
-}  // namespace arm
-
 namespace linker {
 
 class Thumb2RelativePatcher final : public ArmBaseRelativePatcher {

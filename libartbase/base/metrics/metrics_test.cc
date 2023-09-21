@@ -100,9 +100,7 @@ TEST_F(MetricsTest, AccumulatorMetric) {
   constexpr uint64_t kMaxValue = 100;
 
   for (uint64_t i = 0; i <= kMaxValue; i++) {
-    threads.emplace_back(std::thread{[&accumulator, i]() {
-      accumulator.Add(i);
-    }});
+    threads.emplace_back(std::thread{[&accumulator, i]() { accumulator.Add(i); }});
   }
 
   for (auto& thread : threads) {
@@ -120,9 +118,7 @@ TEST_F(MetricsTest, AverageMetric) {
   constexpr uint64_t kMaxValue = 100;
 
   for (uint64_t i = 0; i <= kMaxValue; i++) {
-    threads.emplace_back(std::thread{[&avg, i]() {
-      avg.Add(i);
-    }});
+    threads.emplace_back(std::thread{[&avg, i]() { avg.Add(i); }});
   }
 
   for (auto& thread : threads) {
@@ -204,10 +200,14 @@ TEST_F(MetricsTest, ArtMetricsReport) {
 
     void ReportCounter(DatumId counter_type, uint64_t value) override {
       if (counter_type == DatumId::kClassVerificationTotalTime) {
-        EXPECT_EQ(value, verification_time);
+        EXPECT_EQ(value, verification_time)
+            << "Unexpected value for counter " << DatumName(counter_type);
         found_counter_ = true;
+      } else if (counter_type == DatumId::kTimeElapsedDelta) {
+        // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+        EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
       } else {
-        EXPECT_EQ(value, 0u);
+        EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
       }
     }
 
@@ -216,14 +216,17 @@ TEST_F(MetricsTest, ArtMetricsReport) {
                          int64_t,
                          const std::vector<uint32_t>& buckets) override {
       if (histogram_type == DatumId::kYoungGcCollectionTime) {
-        EXPECT_EQ(buckets[0], 1u);
+        EXPECT_EQ(buckets[0], 1u) << "Unexpected value for bucket 0 for histogram "
+                                  << DatumName(histogram_type);
         for (size_t i = 1; i < buckets.size(); ++i) {
-          EXPECT_EQ(buckets[i], 0u);
+          EXPECT_EQ(buckets[i], 0u) << "Unexpected value for bucket " << i << " for histogram "
+                                    << DatumName(histogram_type);
         }
         found_histogram_ = true;
       } else {
         for (size_t i = 0; i < buckets.size(); ++i) {
-          EXPECT_EQ(buckets[i], 0u);
+          EXPECT_EQ(buckets[i], 0u) << "Unexpected value for bucket " << i << " for histogram "
+                                    << DatumName(histogram_type);
         }
       }
     }
@@ -272,11 +275,11 @@ TEST_F(MetricsTest, ResetMetrics) {
 
   class NonZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter([[maybe_unused]] DatumId counter_type, uint64_t value) override {
-      EXPECT_NE(value, 0u);
+    void ReportCounter(DatumId counter_type, uint64_t value) override {
+      EXPECT_NE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
     }
 
-    void ReportHistogram([[maybe_unused]] DatumId histogram_type,
+    void ReportHistogram(DatumId histogram_type,
                          [[maybe_unused]] int64_t minimum_value,
                          [[maybe_unused]] int64_t maximum_value,
                          const std::vector<uint32_t>& buckets) override {
@@ -284,7 +287,7 @@ TEST_F(MetricsTest, ResetMetrics) {
       for (const auto value : buckets) {
         nonzero |= (value != 0u);
       }
-      EXPECT_TRUE(nonzero);
+      EXPECT_TRUE(nonzero) << "Unexpected value for histogram " << DatumName(histogram_type);
     }
   } non_zero_backend;
 
@@ -296,8 +299,13 @@ TEST_F(MetricsTest, ResetMetrics) {
 
   class ZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter([[maybe_unused]] DatumId counter_type, uint64_t value) override {
-      EXPECT_EQ(value, 0u);
+    void ReportCounter(DatumId counter_type, uint64_t value) override {
+      if (counter_type == DatumId::kTimeElapsedDelta) {
+        // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+        EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      } else {
+        EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      }
     }
 
     void ReportHistogram([[maybe_unused]] DatumId histogram_type,
@@ -305,7 +313,7 @@ TEST_F(MetricsTest, ResetMetrics) {
                          [[maybe_unused]] int64_t maximum_value,
                          const std::vector<uint32_t>& buckets) override {
       for (const auto value : buckets) {
-        EXPECT_EQ(value, 0u);
+        EXPECT_EQ(value, 0u) << "Unexpected value for histogram " << DatumName(histogram_type);
       }
     }
   } zero_backend;
@@ -323,17 +331,19 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
 
   class FirstBackend : public TestBackendBase {
    public:
-    void ReportCounter([[maybe_unused]] DatumId counter_type, uint64_t value) override {
-      EXPECT_NE(value, 0u);
+    void ReportCounter(DatumId counter_type, uint64_t value) override {
+      EXPECT_NE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
     }
 
-    void ReportHistogram([[maybe_unused]] DatumId histogram_type,
+    void ReportHistogram(DatumId histogram_type,
                          [[maybe_unused]] int64_t minimum_value,
                          [[maybe_unused]] int64_t maximum_value,
                          const std::vector<uint32_t>& buckets) override {
-      EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
+      EXPECT_NE(buckets[0], 0u) << "Unexpected value for bucket 0 for histogram "
+                                << DatumName(histogram_type);
       for (size_t i = 1; i < buckets.size(); i++) {
-        EXPECT_EQ(buckets[i], 0u) << "Bucket " << i << " should have a zero value";
+        EXPECT_EQ(buckets[i], 0u) << "Unexpected value for bucket " << i << " for histogram "
+                                  << DatumName(histogram_type);
       }
     }
   } first_backend;
@@ -350,14 +360,19 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
 #define CHECK_METRIC(name, ...) case DatumId::k##name:
         ART_VALUE_METRICS(CHECK_METRIC)
 #undef CHECK_METRIC
-        EXPECT_EQ(value, 0u);
+        if (datum_id == DatumId::kTimeElapsedDelta) {
+          // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+          EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(datum_id);
+        } else {
+          EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(datum_id);
+        }
         return;
 
         // Event metrics - expected to have retained their previous value
 #define CHECK_METRIC(name, ...) case DatumId::k##name:
         ART_EVENT_METRICS(CHECK_METRIC)
 #undef CHECK_METRIC
-        EXPECT_NE(value, 0u);
+        EXPECT_NE(value, 0u) << "Unexpected value for metric " << DatumName(datum_id);
         return;
 
         default:
@@ -372,9 +387,11 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
                          [[maybe_unused]] int64_t minimum_value,
                          [[maybe_unused]] int64_t maximum_value,
                          const std::vector<uint32_t>& buckets) override {
-      EXPECT_NE(buckets[0], 0u) << "Bucket 0 should have a non-zero value";
+      EXPECT_NE(buckets[0], 0u) << "Unexpected value for bucket 0 for histogram "
+                                << DatumName(histogram_type);
       for (size_t i = 1; i < buckets.size(); i++) {
-        EXPECT_EQ(buckets[i], 0u) << "Bucket " << i << " should have a zero value";
+        EXPECT_EQ(buckets[i], 0u) << "Unexpected value for bucket " << i << " for histogram "
+                                  << DatumName(histogram_type);
       }
     }
   } second_backend;
@@ -384,7 +401,7 @@ TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
 
 TEST(TextFormatterTest, ReportMetrics_WithBuckets) {
   TextFormatter text_formatter;
-  SessionData session_data {
+  SessionData session_data{
       .session_id = 1000,
       .uid = 50,
       .compilation_reason = CompilationReason::kInstall,
@@ -393,10 +410,7 @@ TEST(TextFormatterTest, ReportMetrics_WithBuckets) {
 
   text_formatter.FormatBeginReport(200, session_data);
   text_formatter.FormatReportCounter(DatumId::kFullGcCount, 1u);
-  text_formatter.FormatReportHistogram(DatumId::kFullGcCollectionTime,
-                                       50,
-                                       200,
-                                       {2, 4, 7, 1});
+  text_formatter.FormatReportHistogram(DatumId::kFullGcCollectionTime, 50, 200, {2, 4, 7, 1});
   text_formatter.FormatEndReport();
 
   const std::string result = text_formatter.GetAndResetBuffer();
@@ -416,7 +430,7 @@ TEST(TextFormatterTest, ReportMetrics_WithBuckets) {
 
 TEST(TextFormatterTest, ReportMetrics_NoBuckets) {
   TextFormatter text_formatter;
-  SessionData session_data {
+  SessionData session_data{
       .session_id = 500,
       .uid = 15,
       .compilation_reason = CompilationReason::kCmdLine,
@@ -490,7 +504,7 @@ TEST(TextFormatterTest, GetAndResetBuffer_ActuallyResetsBuffer) {
 
 TEST(XmlFormatterTest, ReportMetrics_WithBuckets) {
   XmlFormatter xml_formatter;
-  SessionData session_data {
+  SessionData session_data{
       .session_id = 123,
       .uid = 456,
       .compilation_reason = CompilationReason::kFirstBoot,
@@ -499,45 +513,42 @@ TEST(XmlFormatterTest, ReportMetrics_WithBuckets) {
 
   xml_formatter.FormatBeginReport(250, session_data);
   xml_formatter.FormatReportCounter(DatumId::kYoungGcCount, 3u);
-  xml_formatter.FormatReportHistogram(DatumId::kYoungGcCollectionTime,
-                                      300,
-                                      600,
-                                      {1, 5, 3});
+  xml_formatter.FormatReportHistogram(DatumId::kYoungGcCollectionTime, 300, 600, {1, 5, 3});
   xml_formatter.FormatEndReport();
 
   const std::string result = xml_formatter.GetAndResetBuffer();
   ASSERT_EQ(result,
             "<art_runtime_metrics>"
-              "<version>1.0</version>"
-              "<metadata>"
-                "<timestamp_since_start_ms>250</timestamp_since_start_ms>"
-                "<session_id>123</session_id>"
-                "<uid>456</uid>"
-                "<compilation_reason>first-boot</compilation_reason>"
-                "<compiler_filter>space</compiler_filter>"
-              "</metadata>"
-              "<metrics>"
-                "<YoungGcCount>"
-                  "<counter_type>count</counter_type>"
-                  "<value>3</value>"
-                "</YoungGcCount>"
-                "<YoungGcCollectionTime>"
-                  "<counter_type>histogram</counter_type>"
-                  "<minimum_value>300</minimum_value>"
-                  "<maximum_value>600</maximum_value>"
-                  "<buckets>"
-                    "<bucket>1</bucket>"
-                    "<bucket>5</bucket>"
-                    "<bucket>3</bucket>"
-                  "</buckets>"
-                "</YoungGcCollectionTime>"
-              "</metrics>"
+            "<version>1.0</version>"
+            "<metadata>"
+            "<timestamp_since_start_ms>250</timestamp_since_start_ms>"
+            "<session_id>123</session_id>"
+            "<uid>456</uid>"
+            "<compilation_reason>first-boot</compilation_reason>"
+            "<compiler_filter>space</compiler_filter>"
+            "</metadata>"
+            "<metrics>"
+            "<YoungGcCount>"
+            "<counter_type>count</counter_type>"
+            "<value>3</value>"
+            "</YoungGcCount>"
+            "<YoungGcCollectionTime>"
+            "<counter_type>histogram</counter_type>"
+            "<minimum_value>300</minimum_value>"
+            "<maximum_value>600</maximum_value>"
+            "<buckets>"
+            "<bucket>1</bucket>"
+            "<bucket>5</bucket>"
+            "<bucket>3</bucket>"
+            "</buckets>"
+            "</YoungGcCollectionTime>"
+            "</metrics>"
             "</art_runtime_metrics>");
 }
 
 TEST(XmlFormatterTest, ReportMetrics_NoBuckets) {
   XmlFormatter xml_formatter;
-  SessionData session_data {
+  SessionData session_data{
       .session_id = 234,
       .uid = 345,
       .compilation_reason = CompilationReason::kFirstBoot,
@@ -552,26 +563,26 @@ TEST(XmlFormatterTest, ReportMetrics_NoBuckets) {
   const std::string result = xml_formatter.GetAndResetBuffer();
   ASSERT_EQ(result,
             "<art_runtime_metrics>"
-              "<version>1.0</version>"
-              "<metadata>"
-                "<timestamp_since_start_ms>160</timestamp_since_start_ms>"
-                "<session_id>234</session_id>"
-                "<uid>345</uid>"
-                "<compilation_reason>first-boot</compilation_reason>"
-                "<compiler_filter>space</compiler_filter>"
-              "</metadata>"
-              "<metrics>"
-                "<YoungGcCount>"
-                  "<counter_type>count</counter_type>"
-                  "<value>4</value>"
-                "</YoungGcCount>"
-                "<YoungGcCollectionTime>"
-                  "<counter_type>histogram</counter_type>"
-                  "<minimum_value>20</minimum_value>"
-                  "<maximum_value>40</maximum_value>"
-                  "<buckets/>"
-                "</YoungGcCollectionTime>"
-              "</metrics>"
+            "<version>1.0</version>"
+            "<metadata>"
+            "<timestamp_since_start_ms>160</timestamp_since_start_ms>"
+            "<session_id>234</session_id>"
+            "<uid>345</uid>"
+            "<compilation_reason>first-boot</compilation_reason>"
+            "<compiler_filter>space</compiler_filter>"
+            "</metadata>"
+            "<metrics>"
+            "<YoungGcCount>"
+            "<counter_type>count</counter_type>"
+            "<value>4</value>"
+            "</YoungGcCount>"
+            "<YoungGcCollectionTime>"
+            "<counter_type>histogram</counter_type>"
+            "<minimum_value>20</minimum_value>"
+            "<maximum_value>40</maximum_value>"
+            "<buckets/>"
+            "</YoungGcCollectionTime>"
+            "</metrics>"
             "</art_runtime_metrics>");
 }
 
@@ -586,16 +597,16 @@ TEST(XmlFormatterTest, BeginReport_NoSessionData) {
   std::string result = xml_formatter.GetAndResetBuffer();
   ASSERT_EQ(result,
             "<art_runtime_metrics>"
-              "<version>1.0</version>"
-              "<metadata>"
-                "<timestamp_since_start_ms>100</timestamp_since_start_ms>"
-              "</metadata>"
-              "<metrics>"
-                "<YoungGcCount>"
-                  "<counter_type>count</counter_type>"
-                  "<value>3</value>"
-                "</YoungGcCount>"
-              "</metrics>"
+            "<version>1.0</version>"
+            "<metadata>"
+            "<timestamp_since_start_ms>100</timestamp_since_start_ms>"
+            "</metadata>"
+            "<metrics>"
+            "<YoungGcCount>"
+            "<counter_type>count</counter_type>"
+            "<value>3</value>"
+            "</YoungGcCount>"
+            "</metrics>"
             "</art_runtime_metrics>");
 }
 
@@ -610,16 +621,16 @@ TEST(XmlFormatterTest, GetAndResetBuffer_ActuallyResetsBuffer) {
   std::string result = xml_formatter.GetAndResetBuffer();
   ASSERT_EQ(result,
             "<art_runtime_metrics>"
-              "<version>1.0</version>"
-              "<metadata>"
-                "<timestamp_since_start_ms>200</timestamp_since_start_ms>"
-              "</metadata>"
-              "<metrics>"
-                "<FullGcCount>"
-                  "<counter_type>count</counter_type>"
-                  "<value>1</value>"
-                "</FullGcCount>"
-              "</metrics>"
+            "<version>1.0</version>"
+            "<metadata>"
+            "<timestamp_since_start_ms>200</timestamp_since_start_ms>"
+            "</metadata>"
+            "<metrics>"
+            "<FullGcCount>"
+            "<counter_type>count</counter_type>"
+            "<value>1</value>"
+            "</FullGcCount>"
+            "</metrics>"
             "</art_runtime_metrics>");
 
   xml_formatter.FormatBeginReport(300, empty_session_data);
@@ -629,159 +640,111 @@ TEST(XmlFormatterTest, GetAndResetBuffer_ActuallyResetsBuffer) {
   result = xml_formatter.GetAndResetBuffer();
   ASSERT_EQ(result,
             "<art_runtime_metrics>"
-              "<version>1.0</version>"
-              "<metadata>"
-                "<timestamp_since_start_ms>300</timestamp_since_start_ms>"
-              "</metadata>"
-              "<metrics>"
-                "<FullGcCount>"
-                  "<counter_type>count</counter_type>"
-                  "<value>5</value>"
-                "</FullGcCount>"
-              "</metrics>"
+            "<version>1.0</version>"
+            "<metadata>"
+            "<timestamp_since_start_ms>300</timestamp_since_start_ms>"
+            "</metadata>"
+            "<metrics>"
+            "<FullGcCount>"
+            "<counter_type>count</counter_type>"
+            "<value>5</value>"
+            "</FullGcCount>"
+            "</metrics>"
             "</art_runtime_metrics>");
 }
 
 TEST(CompilerFilterReportingTest, FromName) {
-  ASSERT_EQ(CompilerFilterReportingFromName("error"),
-            CompilerFilterReporting::kError);
-  ASSERT_EQ(CompilerFilterReportingFromName("unknown"),
-            CompilerFilterReporting::kUnknown);
+  ASSERT_EQ(CompilerFilterReportingFromName("error"), CompilerFilterReporting::kError);
+  ASSERT_EQ(CompilerFilterReportingFromName("unknown"), CompilerFilterReporting::kUnknown);
   ASSERT_EQ(CompilerFilterReportingFromName("assume-verified"),
             CompilerFilterReporting::kAssumeVerified);
-  ASSERT_EQ(CompilerFilterReportingFromName("extract"),
-            CompilerFilterReporting::kExtract);
-  ASSERT_EQ(CompilerFilterReportingFromName("verify"),
-            CompilerFilterReporting::kVerify);
+  ASSERT_EQ(CompilerFilterReportingFromName("extract"), CompilerFilterReporting::kExtract);
+  ASSERT_EQ(CompilerFilterReportingFromName("verify"), CompilerFilterReporting::kVerify);
   ASSERT_EQ(CompilerFilterReportingFromName("space-profile"),
             CompilerFilterReporting::kSpaceProfile);
-  ASSERT_EQ(CompilerFilterReportingFromName("space"),
-            CompilerFilterReporting::kSpace);
+  ASSERT_EQ(CompilerFilterReportingFromName("space"), CompilerFilterReporting::kSpace);
   ASSERT_EQ(CompilerFilterReportingFromName("speed-profile"),
             CompilerFilterReporting::kSpeedProfile);
-  ASSERT_EQ(CompilerFilterReportingFromName("speed"),
-            CompilerFilterReporting::kSpeed);
+  ASSERT_EQ(CompilerFilterReportingFromName("speed"), CompilerFilterReporting::kSpeed);
   ASSERT_EQ(CompilerFilterReportingFromName("everything-profile"),
             CompilerFilterReporting::kEverythingProfile);
-  ASSERT_EQ(CompilerFilterReportingFromName("everything"),
-            CompilerFilterReporting::kEverything);
-  ASSERT_EQ(CompilerFilterReportingFromName("run-from-apk"),
-            CompilerFilterReporting::kRunFromApk);
+  ASSERT_EQ(CompilerFilterReportingFromName("everything"), CompilerFilterReporting::kEverything);
+  ASSERT_EQ(CompilerFilterReportingFromName("run-from-apk"), CompilerFilterReporting::kRunFromApk);
   ASSERT_EQ(CompilerFilterReportingFromName("run-from-apk-fallback"),
             CompilerFilterReporting::kRunFromApkFallback);
 }
 
 TEST(CompilerFilterReportingTest, Name) {
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kError),
-            "error");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kUnknown),
-            "unknown");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kError), "error");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kUnknown), "unknown");
   ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kAssumeVerified),
             "assume-verified");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kExtract),
-            "extract");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kVerify),
-            "verify");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpaceProfile),
-            "space-profile");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpace),
-            "space");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpeedProfile),
-            "speed-profile");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpeed),
-            "speed");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kExtract), "extract");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kVerify), "verify");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpaceProfile), "space-profile");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpace), "space");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpeedProfile), "speed-profile");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kSpeed), "speed");
   ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kEverythingProfile),
             "everything-profile");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kEverything),
-            "everything");
-  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kRunFromApk),
-            "run-from-apk");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kEverything), "everything");
+  ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kRunFromApk), "run-from-apk");
   ASSERT_EQ(CompilerFilterReportingName(CompilerFilterReporting::kRunFromApkFallback),
             "run-from-apk-fallback");
 }
 
 TEST(CompilerReason, FromName) {
-  ASSERT_EQ(CompilationReasonFromName("unknown"),
-            CompilationReason::kUnknown);
-  ASSERT_EQ(CompilationReasonFromName("first-boot"),
-            CompilationReason::kFirstBoot);
-  ASSERT_EQ(CompilationReasonFromName("boot-after-ota"),
-            CompilationReason::kBootAfterOTA);
-  ASSERT_EQ(CompilationReasonFromName("post-boot"),
-            CompilationReason::kPostBoot);
-  ASSERT_EQ(CompilationReasonFromName("install"),
-            CompilationReason::kInstall);
-  ASSERT_EQ(CompilationReasonFromName("install-fast"),
-            CompilationReason::kInstallFast);
-  ASSERT_EQ(CompilationReasonFromName("install-bulk"),
-            CompilationReason::kInstallBulk);
+  ASSERT_EQ(CompilationReasonFromName("unknown"), CompilationReason::kUnknown);
+  ASSERT_EQ(CompilationReasonFromName("first-boot"), CompilationReason::kFirstBoot);
+  ASSERT_EQ(CompilationReasonFromName("boot-after-ota"), CompilationReason::kBootAfterOTA);
+  ASSERT_EQ(CompilationReasonFromName("post-boot"), CompilationReason::kPostBoot);
+  ASSERT_EQ(CompilationReasonFromName("install"), CompilationReason::kInstall);
+  ASSERT_EQ(CompilationReasonFromName("install-fast"), CompilationReason::kInstallFast);
+  ASSERT_EQ(CompilationReasonFromName("install-bulk"), CompilationReason::kInstallBulk);
   ASSERT_EQ(CompilationReasonFromName("install-bulk-secondary"),
             CompilationReason::kInstallBulkSecondary);
   ASSERT_EQ(CompilationReasonFromName("install-bulk-downgraded"),
             CompilationReason::kInstallBulkDowngraded);
   ASSERT_EQ(CompilationReasonFromName("install-bulk-secondary-downgraded"),
             CompilationReason::kInstallBulkSecondaryDowngraded);
-  ASSERT_EQ(CompilationReasonFromName("bg-dexopt"),
-            CompilationReason::kBgDexopt);
-  ASSERT_EQ(CompilationReasonFromName("ab-ota"),
-            CompilationReason::kABOTA);
-  ASSERT_EQ(CompilationReasonFromName("inactive"),
-            CompilationReason::kInactive);
-  ASSERT_EQ(CompilationReasonFromName("shared"),
-            CompilationReason::kShared);
+  ASSERT_EQ(CompilationReasonFromName("bg-dexopt"), CompilationReason::kBgDexopt);
+  ASSERT_EQ(CompilationReasonFromName("ab-ota"), CompilationReason::kABOTA);
+  ASSERT_EQ(CompilationReasonFromName("inactive"), CompilationReason::kInactive);
+  ASSERT_EQ(CompilationReasonFromName("shared"), CompilationReason::kShared);
   ASSERT_EQ(CompilationReasonFromName("install-with-dex-metadata"),
             CompilationReason::kInstallWithDexMetadata);
-  ASSERT_EQ(CompilationReasonFromName("prebuilt"),
-            CompilationReason::kPrebuilt);
-  ASSERT_EQ(CompilationReasonFromName("cmdline"),
-            CompilationReason::kCmdLine);
-  ASSERT_EQ(CompilationReasonFromName("error"),
-            CompilationReason::kError);
-  ASSERT_EQ(CompilationReasonFromName("vdex"),
-            CompilationReason::kVdex);
+  ASSERT_EQ(CompilationReasonFromName("prebuilt"), CompilationReason::kPrebuilt);
+  ASSERT_EQ(CompilationReasonFromName("cmdline"), CompilationReason::kCmdLine);
+  ASSERT_EQ(CompilationReasonFromName("error"), CompilationReason::kError);
+  ASSERT_EQ(CompilationReasonFromName("vdex"), CompilationReason::kVdex);
   ASSERT_EQ(CompilationReasonFromName("boot-after-mainline-update"),
             CompilationReason::kBootAfterMainlineUpdate);
 }
 
 TEST(CompilerReason, Name) {
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kUnknown),
-            "unknown");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kFirstBoot),
-            "first-boot");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kBootAfterOTA),
-            "boot-after-ota");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kPostBoot),
-            "post-boot");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstall),
-            "install");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallFast),
-            "install-fast");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallBulk),
-            "install-bulk");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kUnknown), "unknown");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kFirstBoot), "first-boot");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kBootAfterOTA), "boot-after-ota");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kPostBoot), "post-boot");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstall), "install");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallFast), "install-fast");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallBulk), "install-bulk");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallBulkSecondary),
             "install-bulk-secondary");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallBulkDowngraded),
             "install-bulk-downgraded");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallBulkSecondaryDowngraded),
             "install-bulk-secondary-downgraded");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kBgDexopt),
-            "bg-dexopt");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kABOTA),
-            "ab-ota");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kInactive),
-            "inactive");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kShared),
-            "shared");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kBgDexopt), "bg-dexopt");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kABOTA), "ab-ota");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kInactive), "inactive");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kShared), "shared");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kInstallWithDexMetadata),
             "install-with-dex-metadata");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kPrebuilt),
-            "prebuilt");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kCmdLine),
-            "cmdline");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kError),
-            "error");
-  ASSERT_EQ(CompilationReasonName(CompilationReason::kVdex),
-            "vdex");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kPrebuilt), "prebuilt");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kCmdLine), "cmdline");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kError), "error");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kVdex), "vdex");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kBootAfterMainlineUpdate),
             "boot-after-mainline-update");
 }

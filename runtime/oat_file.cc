@@ -114,9 +114,9 @@ class OatFileBase : public OatFile {
                                   bool executable,
                                   bool low_4gb,
                                   ArrayRef<const std::string> dex_filenames,
-                                  ArrayRef<const int> dex_fds,
-                                  /*inout*/MemMap* reservation,  // Where to load if not null.
-                                  /*out*/std::string* error_msg);
+                                  ArrayRef<File> dex_files,
+                                  /*inout*/ MemMap* reservation,  // Where to load if not null.
+                                  /*out*/ std::string* error_msg);
 
   template <typename kOatFileBaseSubType>
   static OatFileBase* OpenOatFile(int zip_fd,
@@ -128,9 +128,9 @@ class OatFileBase : public OatFile {
                                   bool executable,
                                   bool low_4gb,
                                   ArrayRef<const std::string> dex_filenames,
-                                  ArrayRef<const int> dex_fds,
-                                  /*inout*/MemMap* reservation,  // Where to load if not null.
-                                  /*out*/std::string* error_msg);
+                                  ArrayRef<File> dex_files,
+                                  /*inout*/ MemMap* reservation,  // Where to load if not null.
+                                  /*out*/ std::string* error_msg);
 
  protected:
   OatFileBase(const std::string& filename, bool executable) : OatFile(filename, executable) {}
@@ -171,7 +171,7 @@ class OatFileBase : public OatFile {
 
   bool Setup(int zip_fd,
              ArrayRef<const std::string> dex_filenames,
-             ArrayRef<const int> dex_fds,
+             ArrayRef<File> dex_files,
              std::string* error_msg);
 
   bool Setup(const std::vector<const DexFile*>& dex_files, std::string* error_msg);
@@ -203,9 +203,9 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
                                       bool executable,
                                       bool low_4gb,
                                       ArrayRef<const std::string> dex_filenames,
-                                      ArrayRef<const int> dex_fds,
-                                      /*inout*/MemMap* reservation,
-                                      /*out*/std::string* error_msg) {
+                                      ArrayRef<File> dex_files,
+                                      /*inout*/ MemMap* reservation,
+                                      /*out*/ std::string* error_msg) {
   std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(location, executable));
 
   ret->PreLoad();
@@ -229,7 +229,7 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
     return nullptr;
   }
 
-  if (!ret->Setup(zip_fd, dex_filenames, dex_fds, error_msg)) {
+  if (!ret->Setup(zip_fd, dex_filenames, dex_files, error_msg)) {
     return nullptr;
   }
 
@@ -246,9 +246,9 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
                                       bool executable,
                                       bool low_4gb,
                                       ArrayRef<const std::string> dex_filenames,
-                                      ArrayRef<const int> dex_fds,
-                                      /*inout*/MemMap* reservation,
-                                      /*out*/std::string* error_msg) {
+                                      ArrayRef<File> dex_files,
+                                      /*inout*/ MemMap* reservation,
+                                      /*out*/ std::string* error_msg) {
   std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(oat_location, executable));
 
   if (!ret->Load(oat_fd,
@@ -270,7 +270,7 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
     return nullptr;
   }
 
-  if (!ret->Setup(zip_fd, dex_filenames, dex_fds, error_msg)) {
+  if (!ret->Setup(zip_fd, dex_filenames, dex_files, error_msg)) {
     return nullptr;
   }
 
@@ -574,7 +574,7 @@ bool OatFileBase::Setup(const std::vector<const DexFile*>& dex_files, std::strin
 
 bool OatFileBase::Setup(int zip_fd,
                         ArrayRef<const std::string> dex_filenames,
-                        ArrayRef<const int> dex_fds,
+                        ArrayRef<File> dex_files,
                         std::string* error_msg) {
   if (!GetOatHeader().IsValid()) {
     std::string cause = GetOatHeader().GetValidationErrorMessage();
@@ -658,7 +658,8 @@ bool OatFileBase::Setup(int zip_fd,
 
   std::string_view primary_location;
   std::string_view primary_location_replacement;
-  int dex_fd = -1;
+  File no_file;
+  File* dex_file = &no_file;
   size_t dex_filenames_pos = 0u;
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);
@@ -715,7 +716,7 @@ bool OatFileBase::Setup(int zip_fd,
           return false;
         }
         primary_location_replacement = dex_filenames[dex_filenames_pos];
-        dex_fd = dex_filenames_pos < dex_fds.size() ? dex_fds[dex_filenames_pos] : -1;
+        dex_file = dex_filenames_pos < dex_files.size() ? &dex_files[dex_filenames_pos] : &no_file;
         ++dex_filenames_pos;
       }
     }
@@ -809,7 +810,7 @@ bool OatFileBase::Setup(int zip_fd,
         std::vector<std::unique_ptr<const DexFile>> new_dex_files;
         // No dex files, load it from location.
         bool loaded = false;
-        CHECK(zip_fd == -1 || dex_fds.empty());  // Allow only the supported combinations.
+        CHECK(zip_fd == -1 || dex_files.empty());  // Allow only the supported combinations.
         if (zip_fd != -1) {
           File file(zip_fd, /*check_usage=*/false);
           ArtDexFileLoader dex_file_loader(&file, dex_file_location);
@@ -817,15 +818,13 @@ bool OatFileBase::Setup(int zip_fd,
                                         /*verify_checksum=*/false,
                                         error_msg,
                                         &new_dex_files);
-        } else if (dex_fd != -1) {
+        } else if (dex_file->IsValid()) {
           // Note that we assume dex_fds are backing by jars.
-          File file(dex_fd, /*check_usage=*/false);
-          ArtDexFileLoader dex_file_loader(&file, dex_file_location);
+          ArtDexFileLoader dex_file_loader(dex_file, dex_file_location);
           loaded = dex_file_loader.Open(/*verify=*/false,
                                         /*verify_checksum=*/false,
                                         error_msg,
                                         &new_dex_files);
-          file.Release();  // Don't close the file.
         } else {
           ArtDexFileLoader dex_file_loader(dex_file_name.c_str(), dex_file_location);
           loaded = dex_file_loader.Open(/*verify=*/false,
@@ -863,8 +862,8 @@ bool OatFileBase::Setup(int zip_fd,
                                     dex_file_location.c_str());
           return false;
         }
-        for (std::unique_ptr<const DexFile>& dex_file : new_dex_files) {
-          external_dex_files_.push_back(std::move(dex_file));
+        for (std::unique_ptr<const DexFile>& dex_file_ptr : new_dex_files) {
+          external_dex_files_.push_back(std::move(dex_file_ptr));
         }
       }
       // Defensively verify external dex file checksum. `OatFileAssistant`
@@ -1659,7 +1658,7 @@ bool ElfOatFile::InitializeFromElfFile(int zip_fd,
   SetBegin(elf_file->Begin() + offset);
   SetEnd(elf_file->Begin() + size + offset);
   // Ignore the optional .bss section when opening non-executable.
-  return Setup(zip_fd, dex_filenames, /*dex_fds=*/ArrayRef<const int>(), error_msg);
+  return Setup(zip_fd, dex_filenames, /*dex_fds=*/{}, error_msg);
 }
 
 bool ElfOatFile::Load(const std::string& elf_filename,
@@ -1930,9 +1929,9 @@ OatFile* OatFile::Open(int zip_fd,
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
-                       /*inout*/MemMap* reservation,
-                       /*out*/std::string* error_msg) {
+                       ArrayRef<File> dex_files,
+                       /*inout*/ MemMap* reservation,
+                       /*out*/ std::string* error_msg) {
   ScopedTrace trace("Open oat file " + oat_location);
   CHECK(!oat_filename.empty()) << oat_location;
   CheckLocation(oat_location);
@@ -1957,7 +1956,7 @@ OatFile* OatFile::Open(int zip_fd,
                                                                  executable,
                                                                  low_4gb,
                                                                  dex_filenames,
-                                                                 dex_fds,
+                                                                 dex_files,
                                                                  reservation,
                                                                  error_msg);
   if (with_dlopen != nullptr) {
@@ -1987,7 +1986,7 @@ OatFile* OatFile::Open(int zip_fd,
                                                                 executable,
                                                                 low_4gb,
                                                                 dex_filenames,
-                                                                dex_fds,
+                                                                dex_files,
                                                                 reservation,
                                                                 error_msg);
   return with_internal;
@@ -2000,9 +1999,9 @@ OatFile* OatFile::Open(int zip_fd,
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
-                       /*inout*/MemMap* reservation,
-                       /*out*/std::string* error_msg) {
+                       ArrayRef<File> dex_files,
+                       /*inout*/ MemMap* reservation,
+                       /*out*/ std::string* error_msg) {
   CHECK(!oat_location.empty()) << oat_location;
 
   std::string vdex_location = GetVdexFilename(oat_location);
@@ -2016,7 +2015,7 @@ OatFile* OatFile::Open(int zip_fd,
                                                                 executable,
                                                                 low_4gb,
                                                                 dex_filenames,
-                                                                dex_fds,
+                                                                dex_files,
                                                                 reservation,
                                                                 error_msg);
   return with_internal;
