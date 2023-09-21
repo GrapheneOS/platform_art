@@ -334,5 +334,6 @@
     $instr                   // read fa0 and f1, write result to fa0.
                              // instr may be a function call.
     GET_INST_OPCODE t1       // t1 holds next opcode
-    SET_VREG_FLOAT fa0, s11  // fp[A] := fa0
+    SET_VREG_FLOAT fa0, s11, is_double=$is_double
+                             // fp[A] := fa0
     GOTO_OPCODE t1           // continue to next
