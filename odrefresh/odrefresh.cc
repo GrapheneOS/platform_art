@@ -1086,13 +1086,18 @@ WARN_UNUSED bool OnDeviceRefresh::CheckSystemPropertiesHaveNotChanged(
 WARN_UNUSED bool OnDeviceRefresh::CheckBuildUserfaultFdGc() const {
   bool build_enable_uffd_gc =
       config_.GetSystemProperties().GetBool("ro.dalvik.vm.enable_uffd_gc", /*default_value=*/false);
+  bool is_at_least_u = IsAtLeastU();
   bool kernel_supports_uffd = KernelSupportsUffd();
-  if (build_enable_uffd_gc && !kernel_supports_uffd) {
+  if (!art::odrefresh::CheckBuildUserfaultFdGc(
+          build_enable_uffd_gc, is_at_least_u, kernel_supports_uffd)) {
     // Normally, this should not happen. If this happens, the system image was probably built with a
     // wrong PRODUCT_ENABLE_UFFD_GC flag.
-    LOG(WARNING) << ART_FORMAT("Userfaultfd GC check failed (build-time: {}, runtime: {}).",
-                               build_enable_uffd_gc,
-                               kernel_supports_uffd);
+    LOG(WARNING) << ART_FORMAT(
+        "Userfaultfd GC check failed (build_enable_uffd_gc: {}, is_at_least_u: {}, "
+        "kernel_supports_uffd: {}).",
+        build_enable_uffd_gc,
+        is_at_least_u,
+        kernel_supports_uffd);
     return false;
   }
   return true;
