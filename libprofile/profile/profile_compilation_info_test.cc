@@ -1029,28 +1029,28 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkMatchedButNoUpdate) {
 
 TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkButNoMatch) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  dex_files.push_back(std::unique_ptr<const DexFile>(dex1));
+  dex_files.push_back(std::unique_ptr<const DexFile>(dex1_renamed));
+  dex_files.push_back(std::unique_ptr<const DexFile>(dex2_renamed));
 
+  // This is a partial match: `dex1` matches `dex1_renamed`, but `dex3` matches nothing. It should
+  // be treated as a match failure.
   ProfileCompilationInfo info;
-  AddMethod(&info, dex2, /*method_idx=*/ 0);
+  AddMethod(&info, dex1, /*method_idx=*/0);
+  AddMethod(&info, dex3, /*method_idx=*/0);
 
   // Update the profile keys based on the original dex files.
   bool matched = false;
   ASSERT_TRUE(info.UpdateProfileKeys(dex_files, &matched));
   ASSERT_FALSE(matched);
 
-  // Verify that we did not perform any update and that we cannot find anything with the new
-  // location.
-  for (const std::unique_ptr<const DexFile>& dex : dex_files) {
-    ProfileCompilationInfo::MethodHotness loaded_hotness =
-        GetMethod(info, dex.get(), /*method_idx=*/ 0);
-    ASSERT_FALSE(loaded_hotness.IsHot());
-  }
-
-  // Verify that we can find the original entry.
-  ProfileCompilationInfo::MethodHotness loaded_hotness =
-        GetMethod(info, dex2, /*method_idx=*/ 0);
+  // Verify that the unmatched entry is kept.
+  ProfileCompilationInfo::MethodHotness loaded_hotness = GetMethod(info, dex3, /*method_idx=*/0);
   ASSERT_TRUE(loaded_hotness.IsHot());
+
+  // Verify that we can find the updated entry.
+  ProfileCompilationInfo::MethodHotness loaded_hotness_2 =
+      GetMethod(info, dex1_renamed, /*method_idx=*/0);
+  ASSERT_TRUE(loaded_hotness_2.IsHot());
 
   // Release the ownership as this is held by the test class;
   for (std::unique_ptr<const DexFile>& dex : dex_files) {
@@ -1071,7 +1071,7 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyFail) {
 
   bool matched = false;
   ASSERT_FALSE(info.UpdateProfileKeys(dex_files, &matched));
-  ASSERT_FALSE(matched);
+  ASSERT_TRUE(matched);
 
   // Release the ownership as this is held by the test class;
   for (std::unique_ptr<const DexFile>& dex : dex_files) {
