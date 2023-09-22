@@ -411,6 +411,6 @@ EOF
   msginfo "Generating linkerconfig" "in $linkerconfig_out"
   rm -rf $linkerconfig_out
   mkdir -p $linkerconfig_out
-  $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root --vndk $platform_version
+  $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root --vndk $platform_version --product_vndk $platform_version
   msgnote "Don't be scared by \"Unable to access VNDK APEX\" message, it's not fatal"
 fi
