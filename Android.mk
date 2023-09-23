@@ -343,43 +343,6 @@ endif
 # "include $(BUILD_...)".
 LOCAL_PATH := $(art_path)
 
-# Create canonical name -> file name symlink in the symbol directory for the
-# debug APEX. The symbol files for it are installed to
-# $(TARGET_OUT_UNSTRIPPED)/apex/com.android.art.debug. However, since it's
-# available via /apex/com.android.art at runtime, create a symlink so that
-# $(TARGET_OUT_UNSTRIPPED)/apex/com.android.art is linked to
-# $(TARGET_OUT_UNSTRIPPED)/apex/$(TARGET_ART_APEX). We skip this for the release
-# APEX which has com.android.art as $(TARGET_ART_APEX). Note that installation
-# of the symlink is triggered by the apex_manifest.pb file which is the file
-# that is guaranteed to be created regardless of the value of
-# TARGET_FLATTEN_APEX.
-# TODO(b/171419613): the symlink is disabled because the
-# $OUT/symbols/apex/com.android.art name is taken by the com.android.art apex
-# even when com.android.art.debug is selected by TARGET_ART_APEX.
-# Disabling the symlink means that symbols for the com.android.art.debug apex
-# will not be found.
-ifeq ($(TARGET_FLATTEN_APEX),true)
-art_apex_manifest_file := $(PRODUCT_OUT)/system/apex/$(TARGET_ART_APEX)/apex_manifest.pb
-else
-art_apex_manifest_file := $(PRODUCT_OUT)/apex/$(TARGET_ART_APEX)/apex_manifest.pb
-endif
-
-art_apex_symlink_timestamp := $(call intermediates-dir-for,FAKE,com.android.art)/symlink.timestamp
-$(art_apex_manifest_file): $(art_apex_symlink_timestamp)
-$(art_apex_manifest_file): PRIVATE_LINK_NAME := $(TARGET_OUT_UNSTRIPPED)/apex/com.android.art
-$(art_apex_symlink_timestamp):
-#ifeq ($(TARGET_ART_APEX),com.android.art)
-#	$(hide) if [ -L $(PRIVATE_LINK_NAME) ]; then rm -f $(PRIVATE_LINK_NAME); fi
-#else
-#	$(hide) mkdir -p $(dir $(PRIVATE_LINK_NAME))
-#	$(hide) rm -rf $(PRIVATE_LINK_NAME)
-#	$(hide) ln -sf $(TARGET_ART_APEX) $(PRIVATE_LINK_NAME)
-#endif
-	$(hide) touch $@
-$(art_apex_symlink_timestamp): .KATI_SYMLINK_OUTPUTS := $(PRIVATE_LINK_NAME)
-
-art_apex_manifest_file :=
-
 ####################################################################################################
 # Fake packages to ensure generation of libopenjdkd when one builds with mm/mmm/mmma.
 #
