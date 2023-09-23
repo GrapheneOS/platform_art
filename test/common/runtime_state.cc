@@ -276,9 +276,7 @@ static void ForceJitCompiled(Thread* self,
     // Will either ensure it's compiled or do the compilation itself. We do
     // this before checking if we will execute JIT code in case the request
     // is for an 'optimized' compilation.
-    if (jit->CompileMethod(method, self, kind, /*prejit=*/ false)) {
-      return;
-    }
+    jit->CompileMethod(method, self, kind, /*prejit=*/ false);
     const void* entry_point = method->GetEntryPointFromQuickCompiledCode();
     if (code_cache->ContainsPc(entry_point)) {
       // If we're running baseline or not requesting optimized, we're good to go.
