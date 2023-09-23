@@ -114,7 +114,6 @@ art_cc_defaults {
         "driver/dex_compilation_unit.cc",
         "jit/jit_compiler.cc",
         "jit/jit_logger.cc",
-        "jit/small_pattern_matcher.cc",
         "jni/quick/calling_convention.cc",
         "jni/quick/jni_compiler.cc",
         "optimizing/block_builder.cc",
