@@ -32,11 +32,14 @@
 #include <numeric>
 #include <random>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "android-base/file.h"
 #include "android-base/properties.h"
 #include "android-base/scopeguard.h"
+#include "android-base/strings.h"
 #include "android-base/unique_fd.h"
 #include "base/arena_allocator.h"
 #include "base/bit_utils.h"
@@ -2478,31 +2481,57 @@ bool ProfileCompilationInfo::IsProfileFile(int fd) {
 
 bool ProfileCompilationInfo::UpdateProfileKeys(
     const std::vector<std::unique_ptr<const DexFile>>& dex_files, /*out*/ bool* matched) {
-  *matched = false;
-  for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
-    for (const std::unique_ptr<DexFileData>& dex_data : info_) {
+  *matched = true;
+
+  // A map from the old base key to the new base key.
+  std::unordered_map<std::string, std::string> old_key_to_new_key;
+
+  // A map from the new base key to all matching old base keys (an invert of the map above), for
+  // detecting duplicate keys.
+  std::unordered_map<std::string, std::unordered_set<std::string>> new_key_to_old_keys;
+
+  for (const std::unique_ptr<DexFileData>& dex_data : info_) {
+    std::string old_base_key = GetBaseKeyFromAugmentedKey(dex_data->profile_key);
+    bool found = false;
+    for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
       if (dex_data->checksum == dex_file->GetLocationChecksum() &&
           dex_data->num_type_ids == dex_file->NumTypeIds() &&
           dex_data->num_method_ids == dex_file->NumMethodIds()) {
-        std::string new_profile_key = GetProfileDexFileBaseKey(dex_file->GetLocation());
-        std::string dex_data_base_key = GetBaseKeyFromAugmentedKey(dex_data->profile_key);
-        if (dex_data_base_key != new_profile_key) {
-          if (profile_key_map_.find(new_profile_key) != profile_key_map_.end()) {
-            // We can't update the key if the new key belongs to a different dex file.
-            LOG(ERROR) << "Cannot update profile key to " << new_profile_key
-                << " because the new key belongs to another dex file.";
-            return false;
-          }
-          profile_key_map_.erase(dex_data->profile_key);
-          // Retain the annotation (if any) during the renaming by re-attaching the info
-          // form the old key.
-          dex_data->profile_key = MigrateAnnotationInfo(new_profile_key, dex_data->profile_key);
-          profile_key_map_.Put(dex_data->profile_key, dex_data->profile_index);
-        }
-        *matched = true;
+        std::string new_base_key = GetProfileDexFileBaseKey(dex_file->GetLocation());
+        old_key_to_new_key[old_base_key] = new_base_key;
+        new_key_to_old_keys[new_base_key].insert(old_base_key);
+        found = true;
+        break;
       }
     }
+    if (!found) {
+      *matched = false;
+      // Keep the old key.
+      old_key_to_new_key[old_base_key] = old_base_key;
+      new_key_to_old_keys[old_base_key].insert(old_base_key);
+    }
   }
+
+  for (const auto& [new_key, old_keys] : new_key_to_old_keys) {
+    if (old_keys.size() > 1) {
+      LOG(ERROR) << "Cannot update multiple profile keys [" << android::base::Join(old_keys, ", ")
+                 << "] to the same new key '" << new_key << "'";
+      return false;
+    }
+  }
+
+  // Check passed. Now perform the actual mutation.
+  profile_key_map_.clear();
+
+  for (const std::unique_ptr<DexFileData>& dex_data : info_) {
+    std::string old_base_key = GetBaseKeyFromAugmentedKey(dex_data->profile_key);
+    const std::string& new_base_key = old_key_to_new_key[old_base_key];
+    DCHECK(!new_base_key.empty());
+    // Retain the annotation (if any) during the renaming by re-attaching the info from the old key.
+    dex_data->profile_key = MigrateAnnotationInfo(new_base_key, dex_data->profile_key);
+    profile_key_map_.Put(dex_data->profile_key, dex_data->profile_index);
+  }
+
   return true;
 }
 
