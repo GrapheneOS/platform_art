@@ -397,9 +397,9 @@ class LoadClassSlowPathRISCV64 : public SlowPathCodeRISCV64 {
     // Move the class to the desired location.
     if (out.IsValid()) {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
-      DataType::Type type = instruction_->GetType();
-      riscv64_codegen->MoveLocation(
-          out, Location::RegisterLocation(calling_convention.GetRegisterAt(0)), type);
+      DataType::Type type = DataType::Type::kReference;
+      DCHECK_EQ(type, instruction_->GetType());
+      riscv64_codegen->MoveLocation(out, calling_convention.GetReturnLocation(type), type);
     }
     RestoreLiveRegisters(codegen, locations);
 
@@ -665,6 +665,42 @@ class ReadBarrierMarkSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   const Location entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathRISCV64);
+};
+
+class LoadStringSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  explicit LoadStringSlowPathRISCV64(HLoadString* instruction)
+      : SlowPathCodeRISCV64(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    DCHECK(instruction_->IsLoadString());
+    DCHECK_EQ(instruction_->AsLoadString()->GetLoadKind(), HLoadString::LoadKind::kBssEntry);
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    const dex::StringIndex string_index = instruction_->AsLoadString()->GetStringIndex();
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    InvokeRuntimeCallingConvention calling_convention;
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+
+    __ LoadConst32(calling_convention.GetRegisterAt(0), string_index.index_);
+    riscv64_codegen->InvokeRuntime(
+        kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
+
+    DataType::Type type = DataType::Type::kReference;
+    DCHECK_EQ(type, instruction_->GetType());
+    riscv64_codegen->MoveLocation(
+        locations->Out(), calling_convention.GetReturnLocation(type), type);
+    RestoreLiveRegisters(codegen, locations);
+
+    __ J(GetExitLabel());
+  }
+
+  const char* GetDescription() const override { return "LoadStringSlowPathRISCV64"; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathRISCV64);
 };
 
 #undef __
@@ -4053,13 +4089,100 @@ void InstructionCodeGeneratorRISCV64::VisitLoadMethodType(HLoadMethodType* instr
 }
 
 void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  HLoadString::LoadKind load_kind = instruction->GetLoadKind();
+  LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(instruction);
+  LocationSummary* locations =
+      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  if (load_kind == HLoadString::LoadKind::kRuntimeCall) {
+    InvokeRuntimeCallingConvention calling_convention;
+    locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
+  } else {
+    locations->SetOut(Location::RequiresRegister());
+    if (load_kind == HLoadString::LoadKind::kBssEntry) {
+      if (!gUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and marking to save everything we need.
+        locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
+      } else {
+        // For non-Baker read barriers we have a temp-clobbering call.
+      }
+    }
+  }
 }
 
-void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+// NO_THREAD_SAFETY_ANALYSIS as we manipulate handles whose internal object we know does not
+// move.
+void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
+    NO_THREAD_SAFETY_ANALYSIS {
+  HLoadString::LoadKind load_kind = instruction->GetLoadKind();
+  LocationSummary* locations = instruction->GetLocations();
+  Location out_loc = locations->Out();
+  XRegister out = out_loc.AsRegister<XRegister>();
+
+  switch (load_kind) {
+    case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
+      DCHECK(codegen_->GetCompilerOptions().IsBootImage() ||
+             codegen_->GetCompilerOptions().IsBootImageExtension());
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high = codegen_->NewBootImageStringPatch(
+          instruction->GetDexFile(), instruction->GetStringIndex());
+      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low = codegen_->NewBootImageStringPatch(
+          instruction->GetDexFile(), instruction->GetStringIndex(), info_high);
+      codegen_->EmitPcRelativeAddiPlaceholder(info_low, out, out);
+      return;
+    }
+    case HLoadString::LoadKind::kBootImageRelRo: {
+      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
+      uint32_t boot_image_offset = codegen_->GetBootImageOffset(instruction);
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
+          codegen_->NewBootImageRelRoPatch(boot_image_offset);
+      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
+          codegen_->NewBootImageRelRoPatch(boot_image_offset, info_high);
+      codegen_->EmitPcRelativeLwuPlaceholder(info_low, out, out);
+      return;
+    }
+    case HLoadString::LoadKind::kBssEntry: {
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high = codegen_->NewStringBssEntryPatch(
+          instruction->GetDexFile(), instruction->GetStringIndex());
+      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
+      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low = codegen_->NewStringBssEntryPatch(
+          instruction->GetDexFile(), instruction->GetStringIndex(), info_high);
+      GenerateGcRootFieldLoad(instruction,
+                              out_loc,
+                              out,
+                              /* offset= */ 0x678,
+                              GetCompilerReadBarrierOption(),
+                              &info_low->label);
+      SlowPathCodeRISCV64* slow_path =
+          new (codegen_->GetScopedAllocator()) LoadStringSlowPathRISCV64(instruction);
+      codegen_->AddSlowPath(slow_path);
+      __ Beqz(out, slow_path->GetEntryLabel());
+      __ Bind(slow_path->GetExitLabel());
+      return;
+    }
+    case HLoadString::LoadKind::kJitBootImageAddress: {
+      uint32_t address = reinterpret_cast32<uint32_t>(instruction->GetString().Get());
+      DCHECK_NE(address, 0u);
+      __ Loadwu(out, codegen_->DeduplicateBootImageAddressLiteral(address));
+      return;
+    }
+    case HLoadString::LoadKind::kJitTableAddress:
+      __ Loadwu(
+          out,
+          codegen_->DeduplicateJitStringLiteral(
+              instruction->GetDexFile(), instruction->GetStringIndex(), instruction->GetString()));
+      GenerateGcRootFieldLoad(instruction, out_loc, out, 0, GetCompilerReadBarrierOption());
+      return;
+    default:
+      break;
+  }
+
+  DCHECK(load_kind == HLoadString::LoadKind::kRuntimeCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  DCHECK(calling_convention.GetReturnLocation(DataType::Type::kReference).Equals(out_loc));
+  __ LoadConst32(calling_convention.GetRegisterAt(0), instruction->GetStringIndex().index_);
+  codegen_->InvokeRuntime(kQuickResolveString, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
 
 void LocationsBuilderRISCV64::VisitLongConstant(HLongConstant* instruction) {
