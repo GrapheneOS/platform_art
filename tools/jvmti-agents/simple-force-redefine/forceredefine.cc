@@ -13,23 +13,21 @@
 // limitations under the License.
 //
 
-#include "__mutex_base"
-#include <cstddef>
-#include <fcntl.h>
-#include <fstream>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <unistd.h>
-#include <unordered_set>
-
 #include <android-base/logging.h>
 #include <android-base/macros.h>
-
-#include <nativehelper/scoped_local_ref.h>
-
+#include <fcntl.h>
 #include <jni.h>
 #include <jvmti.h>
+#include <nativehelper/scoped_local_ref.h>
+#include <unistd.h>
+
+#include <cstddef>
+#include <fstream>
+#include <memory>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <unordered_set>
 
 // Slicer's headers have code that triggers these warnings. b/65298177
 #pragma clang diagnostic push
