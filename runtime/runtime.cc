@@ -1620,9 +1620,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   InitializeApexVersions();
 
   BackgroundGcOption background_gc =
-      gUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
-                      : (gUseUserfaultfd ? BackgroundGcOption(xgc_option.collector_type_)
-                                         : runtime_options.GetOrDefault(Opt::BackgroundGc));
+      gUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground) :
+                        (gUseUserfaultfd ? BackgroundGcOption(gc::kCollectorTypeCMCBackground) :
+                                           runtime_options.GetOrDefault(Opt::BackgroundGc));
 
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
