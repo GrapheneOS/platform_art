@@ -4535,13 +4535,12 @@ void InstructionCodeGeneratorRISCV64::VisitStaticFieldSet(HStaticFieldSet* instr
 }
 
 void LocationsBuilderRISCV64::VisitStringBuilderAppend(HStringBuilderAppend* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  codegen_->CreateStringBuilderAppendLocations(instruction, Location::RegisterLocation(A0));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitStringBuilderAppend(HStringBuilderAppend* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  __ LoadConst32(A0, instruction->GetFormat()->GetValue());
+  codegen_->InvokeRuntime(kQuickStringBuilderAppend, instruction, instruction->GetDexPc());
 }
 
 void LocationsBuilderRISCV64::VisitUnresolvedInstanceFieldGet(
