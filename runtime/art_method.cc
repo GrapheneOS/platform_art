@@ -605,11 +605,13 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   // methods or proxy invoke handlers which are handled earlier.
   DCHECK_NE(pc, 0u) << "PC 0 for " << PrettyMethod();
 
-  // Check whether the current entry point contains this pc.
+  // Check whether the current entry point contains this pc. We need to manually
+  // check some entrypoints in case they are trampolines in the oat file.
   if (!class_linker->IsQuickGenericJniStub(existing_entry_point) &&
       !class_linker->IsQuickResolutionStub(existing_entry_point) &&
       !class_linker->IsQuickToInterpreterBridge(existing_entry_point) &&
-      existing_entry_point != GetInvokeObsoleteMethodStub()) {
+      !OatQuickMethodHeader::IsStub(
+          reinterpret_cast<const uint8_t*>(existing_entry_point)).value_or(true)) {
     OatQuickMethodHeader* method_header =
         OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
 
@@ -645,12 +647,13 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   OatFile::OatMethod oat_method =
       FindOatMethodFor(this, class_linker->GetImagePointerSize(), &found);
   if (!found) {
-    CHECK(IsNative());
+    CHECK(IsNative()) << PrettyMethod();
     // We are running the GenericJNI stub. The entrypoint may point
     // to different entrypoints or to a JIT-compiled JNI stub.
     DCHECK(class_linker->IsQuickGenericJniStub(existing_entry_point) ||
            class_linker->IsQuickResolutionStub(existing_entry_point) ||
            (jit != nullptr && jit->GetCodeCache()->ContainsPc(existing_entry_point)))
+        << " method: " << PrettyMethod()
         << " entrypoint: " << existing_entry_point
         << " size: " << OatQuickMethodHeader::FromEntryPoint(existing_entry_point)->GetCodeSize()
         << " pc: " << reinterpret_cast<const void*>(pc);

@@ -1158,6 +1158,8 @@ std::string Instrumentation::EntryPointString(const void* code) {
     return "generic jni";
   } else if (Runtime::Current()->GetOatFileManager().ContainsPc(code)) {
     return "oat";
+  } else if (OatQuickMethodHeader::IsStub(reinterpret_cast<const uint8_t*>(code)).value_or(false)) {
+    return "stub";
   }
   return "unknown";
 }
