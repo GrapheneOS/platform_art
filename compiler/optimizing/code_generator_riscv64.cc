@@ -4354,13 +4354,19 @@ void InstructionCodeGeneratorRISCV64::VisitNeg(HNeg* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNewArray(HNewArray* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitNewArray(HNewArray* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  QuickEntrypointEnum entrypoint = CodeGenerator::GetArrayAllocationEntrypoint(instruction);
+  codegen_->InvokeRuntime(entrypoint, instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayResolved, void*, mirror::Class*, int32_t>();
+  DCHECK(!codegen_->IsLeafMethod());
 }
 
 void LocationsBuilderRISCV64::VisitNewInstance(HNewInstance* instruction) {
