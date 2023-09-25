@@ -409,6 +409,8 @@ MarkCompact::MarkCompact(Heap* heap)
       lock_("mark compact lock", kGenericBottomLock),
       bump_pointer_space_(heap->GetBumpPointerSpace()),
       moving_space_bitmap_(bump_pointer_space_->GetMarkBitmap()),
+      moving_space_begin_(bump_pointer_space_->Begin()),
+      moving_space_end_(bump_pointer_space_->Limit()),
       moving_to_space_fd_(kFdUnused),
       moving_from_space_fd_(kFdUnused),
       uffd_(kFdUnused),
@@ -611,6 +613,7 @@ void MarkCompact::ClampGrowthLimit(size_t new_capacity) {
     }
     clamp_info_map_status_ = ClampInfoStatus::kClampInfoPending;
   }
+  CHECK_EQ(moving_space_begin_, bump_pointer_space_->Begin());
 }
 
 void MarkCompact::MaybeClampGcStructures() {
@@ -726,6 +729,8 @@ void MarkCompact::InitializePhase() {
   compaction_buffer_counter_.store(1, std::memory_order_relaxed);
   from_space_slide_diff_ = from_space_begin_ - bump_pointer_space_->Begin();
   black_allocations_begin_ = bump_pointer_space_->Limit();
+  CHECK_EQ(moving_space_begin_, bump_pointer_space_->Begin());
+  moving_space_end_ = bump_pointer_space_->Limit();
   walk_super_class_cache_ = nullptr;
   // TODO: Would it suffice to read it once in the constructor, which is called
   // in zygote process?
@@ -931,7 +936,7 @@ void MarkCompact::InitNonMovingSpaceFirstObjects() {
       DCHECK_LT(prev_obj, reinterpret_cast<mirror::Object*>(begin));
       first_objs_non_moving_space_[page_idx].Assign(prev_obj);
       mirror::Class* klass = prev_obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
-      if (bump_pointer_space_->HasAddress(klass)) {
+      if (HasAddress(klass)) {
         LOG(WARNING) << "found inter-page object " << prev_obj
                      << " in non-moving space with klass " << klass
                      << " in moving space";
@@ -949,7 +954,7 @@ void MarkCompact::InitNonMovingSpaceFirstObjects() {
       }
       if (prev_obj_end > begin) {
         mirror::Class* klass = prev_obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
-        if (bump_pointer_space_->HasAddress(klass)) {
+        if (HasAddress(klass)) {
           LOG(WARNING) << "found inter-page object " << prev_obj
                        << " in non-moving space with klass " << klass
                        << " in moving space";
@@ -1459,7 +1464,12 @@ class MarkCompact::RefsUpdateVisitor {
                              mirror::Object* obj,
                              uint8_t* begin,
                              uint8_t* end)
-      : collector_(collector), obj_(obj), begin_(begin), end_(end) {
+      : collector_(collector),
+        moving_space_begin_(collector->moving_space_begin_),
+        moving_space_end_(collector->moving_space_end_),
+        obj_(obj),
+        begin_(begin),
+        end_(end) {
     DCHECK(!kCheckBegin || begin != nullptr);
     DCHECK(!kCheckEnd || end != nullptr);
   }
@@ -1473,7 +1483,7 @@ class MarkCompact::RefsUpdateVisitor {
       update = (!kCheckBegin || ref >= begin_) && (!kCheckEnd || ref < end_);
     }
     if (update) {
-      collector_->UpdateRef(obj_, offset);
+      collector_->UpdateRef(obj_, offset, moving_space_begin_, moving_space_end_);
     }
   }
 
@@ -1487,7 +1497,7 @@ class MarkCompact::RefsUpdateVisitor {
                   bool /*is_obj_array*/)
       const ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
-    collector_->UpdateRef(obj_, offset);
+    collector_->UpdateRef(obj_, offset, moving_space_begin_, moving_space_end_);
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
@@ -1501,11 +1511,13 @@ class MarkCompact::RefsUpdateVisitor {
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
       ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    collector_->UpdateRoot(root);
+    collector_->UpdateRoot(root, moving_space_begin_, moving_space_end_);
   }
 
  private:
   MarkCompact* const collector_;
+  uint8_t* const moving_space_begin_;
+  uint8_t* const moving_space_end_;
   mirror::Object* const obj_;
   uint8_t* const begin_;
   uint8_t* const end_;
@@ -1527,7 +1539,7 @@ void MarkCompact::VerifyObject(mirror::Object* ref, Callback& callback) const {
     mirror::Class* pre_compact_klass = ref->GetClass<kVerifyNone, kWithoutReadBarrier>();
     mirror::Class* klass_klass = klass->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
     mirror::Class* klass_klass_klass = klass_klass->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
-    if (bump_pointer_space_->HasAddress(pre_compact_klass) &&
+    if (HasAddress(pre_compact_klass) &&
         reinterpret_cast<uint8_t*>(pre_compact_klass) < black_allocations_begin_) {
       CHECK(moving_space_bitmap_->Test(pre_compact_klass))
           << "ref=" << ref
@@ -2237,7 +2249,7 @@ void MarkCompact::UpdateClassAfterObjMap() {
                        ? super_class_iter->second
                        : pair.first;
     if (std::less<mirror::Object*>{}(pair.second.AsMirrorPtr(), key.AsMirrorPtr()) &&
-        bump_pointer_space_->HasAddress(key.AsMirrorPtr())) {
+        HasAddress(key.AsMirrorPtr())) {
       auto [ret_iter, success] = class_after_obj_ordered_map_.try_emplace(key, pair.second);
       // It could fail only if the class 'key' has objects of its own, which are lower in
       // address order, as well of some of its derived class. In this case
@@ -2572,21 +2584,15 @@ void MarkCompact::UpdateNonMovingSpaceBlackAllocations() {
 
 class MarkCompact::ImmuneSpaceUpdateObjVisitor {
  public:
-  ImmuneSpaceUpdateObjVisitor(MarkCompact* collector, bool visit_native_roots)
-      : collector_(collector), visit_native_roots_(visit_native_roots) {}
+  explicit ImmuneSpaceUpdateObjVisitor(MarkCompact* collector) : collector_(collector) {}
 
-  ALWAYS_INLINE void operator()(mirror::Object* obj) const REQUIRES(Locks::mutator_lock_) {
+  void operator()(mirror::Object* obj) const ALWAYS_INLINE REQUIRES(Locks::mutator_lock_) {
     RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/false> visitor(collector_,
                                                                         obj,
                                                                         /*begin_*/nullptr,
                                                                         /*end_*/nullptr);
-    if (visit_native_roots_) {
-      obj->VisitRefsForCompaction</*kFetchObjSize*/ false, /*kVisitNativeRoots*/ true>(
-          visitor, MemberOffset(0), MemberOffset(-1));
-    } else {
-      obj->VisitRefsForCompaction</*kFetchObjSize*/ false>(
-          visitor, MemberOffset(0), MemberOffset(-1));
-    }
+    obj->VisitRefsForCompaction</*kFetchObjSize*/ false>(
+        visitor, MemberOffset(0), MemberOffset(-1));
   }
 
   static void Callback(mirror::Object* obj, void* arg) REQUIRES(Locks::mutator_lock_) {
@@ -2595,12 +2601,14 @@ class MarkCompact::ImmuneSpaceUpdateObjVisitor {
 
  private:
   MarkCompact* const collector_;
-  const bool visit_native_roots_;
 };
 
 class MarkCompact::ClassLoaderRootsUpdater : public ClassLoaderVisitor {
  public:
-  explicit ClassLoaderRootsUpdater(MarkCompact* collector) : collector_(collector) {}
+  explicit ClassLoaderRootsUpdater(MarkCompact* collector)
+      : collector_(collector),
+        moving_space_begin_(collector->moving_space_begin_),
+        moving_space_end_(collector->moving_space_end_) {}
 
   void Visit(ObjPtr<mirror::ClassLoader> class_loader) override
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) {
@@ -2610,25 +2618,32 @@ class MarkCompact::ClassLoaderRootsUpdater : public ClassLoaderVisitor {
     }
   }
 
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const ALWAYS_INLINE
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const ALWAYS_INLINE
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
-    collector_->VisitRoots(&root, 1, RootInfo(RootType::kRootVMInternal));
+    collector_->UpdateRoot(
+        root, moving_space_begin_, moving_space_end_, RootInfo(RootType::kRootVMInternal));
   }
 
  private:
   MarkCompact* collector_;
+  uint8_t* const moving_space_begin_;
+  uint8_t* const moving_space_end_;
 };
 
 class MarkCompact::LinearAllocPageUpdater {
  public:
-  explicit LinearAllocPageUpdater(MarkCompact* collector) : collector_(collector) {}
+  explicit LinearAllocPageUpdater(MarkCompact* collector)
+      : collector_(collector),
+        moving_space_begin_(collector->moving_space_begin_),
+        moving_space_end_(collector->moving_space_end_),
+        last_page_touched_(false) {}
 
   void operator()(uint8_t* page_begin, uint8_t* first_obj) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -2674,7 +2689,7 @@ class MarkCompact::LinearAllocPageUpdater {
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* old_ref = root->AsMirrorPtr();
     DCHECK_NE(old_ref, nullptr);
-    if (collector_->live_words_bitmap_->HasAddress(old_ref)) {
+    if (MarkCompact::HasAddress(old_ref, moving_space_begin_, moving_space_end_)) {
       mirror::Object* new_ref = old_ref;
       if (reinterpret_cast<uint8_t*>(old_ref) >= collector_->black_allocations_begin_) {
         new_ref = collector_->PostCompactBlackObjAddr(old_ref);
@@ -2692,7 +2707,8 @@ class MarkCompact::LinearAllocPageUpdater {
   void VisitObject(LinearAllocKind kind,
                    void* obj,
                    uint8_t* start_boundary,
-                   uint8_t* end_boundary) const REQUIRES_SHARED(Locks::mutator_lock_) {
+                   uint8_t* end_boundary) const ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     switch (kind) {
       case LinearAllocKind::kNoGCRoots:
         break;
@@ -2743,6 +2759,9 @@ class MarkCompact::LinearAllocPageUpdater {
   }
 
   MarkCompact* const collector_;
+  // Cache to speed up checking if GC-root is in moving space or not.
+  uint8_t* const moving_space_begin_;
+  uint8_t* const moving_space_end_;
   // Whether the last page was touched or not.
   bool last_page_touched_;
 };
@@ -2873,7 +2892,7 @@ void MarkCompact::CompactionPause() {
       // place and that the classes/dex-caches in immune-spaces may have allocations
       // (ArtMethod/ArtField arrays, dex-cache array, etc.) in the
       // non-userfaultfd visited private-anonymous mappings. Visit them here.
-      ImmuneSpaceUpdateObjVisitor visitor(this, /*visit_native_roots=*/false);
+      ImmuneSpaceUpdateObjVisitor visitor(this);
       if (table != nullptr) {
         table->ProcessCards();
         table->VisitObjects(ImmuneSpaceUpdateObjVisitor::Callback, &visitor);
@@ -3087,7 +3106,7 @@ void MarkCompact::ConcurrentCompaction(uint8_t* buf) {
       break;
     }
     uint8_t* fault_page = AlignDown(fault_addr, kPageSize);
-    if (bump_pointer_space_->HasAddress(reinterpret_cast<mirror::Object*>(fault_addr))) {
+    if (HasAddress(reinterpret_cast<mirror::Object*>(fault_addr))) {
       ConcurrentlyProcessMovingPage<kMode>(fault_page, buf, nr_moving_space_used_pages);
     } else if (minor_fault_initialized_) {
       ConcurrentlyProcessLinearAllocPage<kMinorFaultMode>(
@@ -3142,7 +3161,7 @@ bool MarkCompact::SigbusHandler(siginfo_t* info) {
   ScopedInProgressCount spc(this);
   uint8_t* fault_page = AlignDown(reinterpret_cast<uint8_t*>(info->si_addr), kPageSize);
   if (!spc.IsCompactionDone()) {
-    if (bump_pointer_space_->HasAddress(reinterpret_cast<mirror::Object*>(fault_page))) {
+    if (HasAddress(reinterpret_cast<mirror::Object*>(fault_page))) {
       Thread* self = Thread::Current();
       Locks::mutator_lock_->AssertSharedHeld(self);
       size_t nr_moving_space_used_pages = moving_first_objs_count_ + black_page_count_;
@@ -3173,7 +3192,7 @@ bool MarkCompact::SigbusHandler(siginfo_t* info) {
     // We may spuriously get SIGBUS fault, which was initiated before the
     // compaction was finished, but ends up here. In that case, if the fault
     // address is valid then consider it handled.
-    return bump_pointer_space_->HasAddress(reinterpret_cast<mirror::Object*>(fault_page)) ||
+    return HasAddress(reinterpret_cast<mirror::Object*>(fault_page)) ||
            linear_alloc_spaces_data_.end() !=
                std::find_if(linear_alloc_spaces_data_.begin(),
                             linear_alloc_spaces_data_.end(),
@@ -4029,15 +4048,13 @@ class MarkCompact::RefFieldsVisitor {
     mark_compact_->MarkObject(obj->GetFieldObject<mirror::Object>(offset), obj, offset);
   }
 
-  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
-      REQUIRES(Locks::heap_bitmap_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const ALWAYS_INLINE
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     mark_compact_->DelayReferenceReferent(klass, ref);
   }
 
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      REQUIRES(Locks::heap_bitmap_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const ALWAYS_INLINE
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
@@ -4099,7 +4116,7 @@ void MarkCompact::ScanObject(mirror::Object* obj) {
 
   RefFieldsVisitor visitor(this);
   DCHECK(IsMarked(obj)) << "Scanning marked object " << obj << "\n" << heap_->DumpSpaces();
-  if (kUpdateLiveWords && moving_space_bitmap_->HasAddress(obj)) {
+  if (kUpdateLiveWords && HasAddress(obj)) {
     UpdateLivenessInfo(obj, obj_size);
   }
   obj->VisitReferences(visitor, visitor);
@@ -4149,7 +4166,7 @@ inline bool MarkCompact::MarkObjectNonNullNoPush(mirror::Object* obj,
                                                  MemberOffset offset) {
   // We expect most of the referenes to be in bump-pointer space, so try that
   // first to keep the cost of this function minimal.
-  if (LIKELY(moving_space_bitmap_->HasAddress(obj))) {
+  if (LIKELY(HasAddress(obj))) {
     return kParallel ? !moving_space_bitmap_->AtomicTestAndSet(obj)
                      : !moving_space_bitmap_->Set(obj);
   } else if (non_moving_space_bitmap_->HasAddress(obj)) {
@@ -4206,8 +4223,10 @@ void MarkCompact::VisitRoots(mirror::Object*** roots,
                              size_t count,
                              const RootInfo& info) {
   if (compacting_) {
+    uint8_t* moving_space_begin = moving_space_begin_;
+    uint8_t* moving_space_end = moving_space_end_;
     for (size_t i = 0; i < count; ++i) {
-      UpdateRoot(roots[i], info);
+      UpdateRoot(roots[i], moving_space_begin, moving_space_end, info);
     }
   } else {
     for (size_t i = 0; i < count; ++i) {
@@ -4221,8 +4240,10 @@ void MarkCompact::VisitRoots(mirror::CompressedReference<mirror::Object>** roots
                              const RootInfo& info) {
   // TODO: do we need to check if the root is null or not?
   if (compacting_) {
+    uint8_t* moving_space_begin = moving_space_begin_;
+    uint8_t* moving_space_end = moving_space_end_;
     for (size_t i = 0; i < count; ++i) {
-      UpdateRoot(roots[i], info);
+      UpdateRoot(roots[i], moving_space_begin, moving_space_end, info);
     }
   } else {
     for (size_t i = 0; i < count; ++i) {
@@ -4232,7 +4253,7 @@ void MarkCompact::VisitRoots(mirror::CompressedReference<mirror::Object>** roots
 }
 
 mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
-  if (moving_space_bitmap_->HasAddress(obj)) {
+  if (HasAddress(obj)) {
     const bool is_black = reinterpret_cast<uint8_t*>(obj) >= black_allocations_begin_;
     if (compacting_) {
       if (is_black) {
