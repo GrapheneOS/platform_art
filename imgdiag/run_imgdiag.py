@@ -21,14 +21,26 @@ import subprocess
 try:
   from tqdm import tqdm
 except:
+
   def tqdm(x):
     return x
 
 
 ProcEntry = namedtuple('ProcEntry', 'pid, ppid, cmd, name, etc_args')
 
-def get_mem_stats(zygote_pid, target_pid, target_name, imgdiag_path, boot_image, device_out_dir):
-  imgdiag_output_path = f'{device_out_dir}/imgdiag_{target_name}.txt'
+
+def get_mem_stats(
+    zygote_pid,
+    target_pid,
+    target_name,
+    imgdiag_path,
+    boot_image,
+    device_out_dir,
+    host_out_dir,
+):
+  imgdiag_output_path = (
+      f'{device_out_dir}/imgdiag_{target_name}_{target_pid}.txt'
+  )
   cmd_collect = (
       'adb shell '
       f'"{imgdiag_path} --zygote-diff-pid={zygote_pid} --image-diff-pid={target_pid} '
@@ -41,13 +53,15 @@ def get_mem_stats(zygote_pid, target_pid, target_name, imgdiag_path, boot_image,
     print('imgdiag call failed on:', target_pid, target_name)
     return
 
-  cmd_pull = f'adb pull {imgdiag_output_path} ./'
+  cmd_pull = f'adb pull {imgdiag_output_path} {host_out_dir}'
   subprocess.run(cmd_pull, shell=True, check=True, capture_output=True)
 
 
 def main():
   parser = argparse.ArgumentParser(
-      description='Run imgdiag on selected processes and pull results from the device.',
+      description=(
+          'Run imgdiag on selected processes and pull results from the device.'
+      ),
       formatter_class=argparse.ArgumentDefaultsHelpFormatter,
   )
   parser.add_argument(
@@ -75,6 +89,11 @@ def main():
       '--device-out-dir',
       default='/data/local/tmp/imgdiag_out',
       help='Directory for imgdiag output files on the device.',
+  )
+  parser.add_argument(
+      '--host-out-dir',
+      default='./',
+      help='Directory for imgdiag output files on the host.',
   )
 
   args = parser.parse_args()
@@ -104,6 +123,7 @@ def main():
   subprocess.run(
       args=f'adb shell "mkdir -p {args.device_out_dir}"', check=True, shell=True
   )
+  subprocess.run(args=f'mkdir -p {args.host_out_dir}', check=True, shell=True)
 
   for entry in tqdm(zygote_children):
     get_mem_stats(
@@ -113,8 +133,9 @@ def main():
         imgdiag_path=args.imgdiag,
         boot_image=args.boot_image,
         device_out_dir=args.device_out_dir,
+        host_out_dir=args.host_out_dir,
     )
 
 
 if __name__ == '__main__':
-    main()
+  main()
