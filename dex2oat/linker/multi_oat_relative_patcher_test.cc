@@ -146,7 +146,7 @@ TEST_F(MultiOatRelativePatcherTest, Offsets) {
   EXPECT_EQ(0u, patcher_.GetOffset(ref1));
   EXPECT_EQ(0u, patcher_.GetOffset(ref2));
 
-  uint32_t adjustment1 = 0x1000;
+  uint32_t adjustment1 = kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment1);
   EXPECT_EQ(0u, patcher_.GetOffset(ref1));
   EXPECT_EQ(0u, patcher_.GetOffset(ref2));
@@ -156,7 +156,7 @@ TEST_F(MultiOatRelativePatcherTest, Offsets) {
   EXPECT_EQ(off1, patcher_.GetOffset(ref1));
   EXPECT_EQ(0u, patcher_.GetOffset(ref2));
 
-  uint32_t adjustment2 = 0x30000;
+  uint32_t adjustment2 = 0x30 * kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment2);
   EXPECT_EQ(off1 + adjustment1 - adjustment2, patcher_.GetOffset(ref1));
   EXPECT_EQ(0u, patcher_.GetOffset(ref2));
@@ -166,7 +166,7 @@ TEST_F(MultiOatRelativePatcherTest, Offsets) {
   EXPECT_EQ(off1 + adjustment1 - adjustment2, patcher_.GetOffset(ref1));
   EXPECT_EQ(off2, patcher_.GetOffset(ref2));
 
-  uint32_t adjustment3 = 0x78000;
+  uint32_t adjustment3 = 0x78 * kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment3);
   EXPECT_EQ(off1 + adjustment1 - adjustment3, patcher_.GetOffset(ref1));
   EXPECT_EQ(off2 + adjustment2 - adjustment3, patcher_.GetOffset(ref2));
@@ -179,7 +179,7 @@ TEST_F(MultiOatRelativePatcherTest, OffsetsInReserve) {
   MethodReference ref3(dex_file, 3u);
   const CompiledMethod* method = reinterpret_cast<const CompiledMethod*>(-1);
 
-  uint32_t adjustment1 = 0x1000;
+  uint32_t adjustment1 = kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment1);
 
   uint32_t method1_offset = 0x100;
@@ -202,7 +202,7 @@ TEST_F(MultiOatRelativePatcherTest, OffsetsInReserve) {
   ASSERT_TRUE(kNullMethodRef == mock_->last_reserve_method_);
   ASSERT_EQ(end1_offset, end1_offset_check);
 
-  uint32_t adjustment2 = 0xd000;
+  uint32_t adjustment2 = 0xd * kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment2);
 
   uint32_t method3_offset = 0xf00;
@@ -224,7 +224,7 @@ TEST_F(MultiOatRelativePatcherTest, Write) {
   std::vector<uint8_t> output;
   VectorOutputStream vos("output", &output);
 
-  uint32_t adjustment1 = 0x1000;
+  uint32_t adjustment1 = kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment1);
 
   uint32_t method1_offset = 0x100;
@@ -247,7 +247,7 @@ TEST_F(MultiOatRelativePatcherTest, Write) {
   EXPECT_EQ(method2_alignment_size, patcher_.CodeAlignmentSize());
   EXPECT_EQ(method2_call_thunk_size, patcher_.RelativeCallThunksSize());
 
-  uint32_t adjustment2 = 0xd000;
+  uint32_t adjustment2 = 0xd * kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment2);
 
   uint32_t method3_offset = 0xf00;
@@ -278,7 +278,7 @@ TEST_F(MultiOatRelativePatcherTest, Write) {
 TEST_F(MultiOatRelativePatcherTest, Patch) {
   std::vector<uint8_t> code(16);
 
-  uint32_t adjustment1 = 0x1000;
+  uint32_t adjustment1 = kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment1);
 
   uint32_t method1_literal_offset = 4u;
@@ -300,7 +300,7 @@ TEST_F(MultiOatRelativePatcherTest, Patch) {
   DCHECK_EQ(method2_patch_offset + adjustment1, mock_->last_patch_offset_);
   DCHECK_EQ(method2_target_offset + adjustment1, mock_->last_target_offset_);
 
-  uint32_t adjustment2 = 0xd000;
+  uint32_t adjustment2 = 0xd * kElfSegmentAlignment;
   patcher_.StartOatFile(adjustment2);
 
   uint32_t method3_literal_offset = 8u;
