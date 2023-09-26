@@ -1550,25 +1550,29 @@ void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
 void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  UnstartedJdkUnsafeGetObjectVolatile(self, shadow_frame, result, arg_offset);
-}
-
-void UnstartedRuntime::UnstartedJdkUnsafeGetReferenceVolatile(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  UnstartedJdkUnsafeGetObjectVolatile(self, shadow_frame, result, arg_offset);
+  UnstartedJdkUnsafeGetReferenceVolatile(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  UnstartedJdkUnsafePutObjectVolatile(self, shadow_frame, result, arg_offset);
+  UnstartedJdkUnsafePutReferenceVolatile(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UnstartedJdkUnsafePutOrderedObject(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapLong(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetReference(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapObject(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapLong(
@@ -1598,11 +1602,6 @@ void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapLong(
                                                                  newValue);
   }
   result->SetZ(success ? 1 : 0);
-}
-
-void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetLong(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  UnstartedJdkUnsafeCompareAndSwapLong(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
@@ -1655,17 +1654,7 @@ void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
   result->SetZ(success ? 1 : 0);
 }
 
-void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetObject(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  UnstartedJdkUnsafeCompareAndSwapObject(self, shadow_frame, result, arg_offset);
-}
-
-void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetReference(
-    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  UnstartedJdkUnsafeCompareAndSwapObject(self, shadow_frame, result, arg_offset);
-}
-
-void UnstartedRuntime::UnstartedJdkUnsafeGetObjectVolatile(
+void UnstartedRuntime::UnstartedJdkUnsafeGetReferenceVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
@@ -1679,10 +1668,10 @@ void UnstartedRuntime::UnstartedJdkUnsafeGetObjectVolatile(
   result->SetL(value);
 }
 
-void UnstartedRuntime::UnstartedJdkUnsafePutObjectVolatile(Thread* self,
-                                                           ShadowFrame* shadow_frame,
-                                                           [[maybe_unused]] JValue* result,
-                                                           size_t arg_offset)
+void UnstartedRuntime::UnstartedJdkUnsafePutReferenceVolatile(Thread* self,
+                                                              ShadowFrame* shadow_frame,
+                                                              [[maybe_unused]] JValue* result,
+                                                              size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
@@ -1701,14 +1690,6 @@ void UnstartedRuntime::UnstartedJdkUnsafePutObjectVolatile(Thread* self,
   } else {
     obj->SetFieldObjectVolatile<false>(MemberOffset(offset), value);
   }
-}
-
-void UnstartedRuntime::UnstartedJdkUnsafePutReferenceVolatile(Thread* self,
-                                                              ShadowFrame* shadow_frame,
-                                                              JValue* result,
-                                                              size_t arg_offset)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  UnstartedJdkUnsafePutObjectVolatile(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedJdkUnsafePutOrderedObject(Thread* self,
