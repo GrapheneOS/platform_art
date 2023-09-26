@@ -2242,6 +2242,7 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
   }
 
   if (left->IsAdd()) {
+    // Cases (x + y) - y = x, and (x + y) - x = y.
     // Replace code patterns looking like
     //    ADD dst1, x, y        ADD dst1, x, y
     //    SUB dst2, dst1, y     SUB dst2, dst1, x
@@ -2250,14 +2251,75 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
     // SUB instruction is not needed in this case, we may use
     // one of inputs of ADD instead.
     // It is applicable to integral types only.
+    HAdd* add = left->AsAdd();
     DCHECK(DataType::IsIntegralType(type));
-    if (left->InputAt(1) == right) {
-      instruction->ReplaceWith(left->InputAt(0));
+    if (add->GetRight() == right) {
+      instruction->ReplaceWith(add->GetLeft());
       RecordSimplification();
       instruction->GetBlock()->RemoveInstruction(instruction);
       return;
-    } else if (left->InputAt(0) == right) {
-      instruction->ReplaceWith(left->InputAt(1));
+    } else if (add->GetLeft() == right) {
+      instruction->ReplaceWith(add->GetRight());
+      RecordSimplification();
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    }
+  } else if (right->IsAdd()) {
+    // Cases y - (x + y) = -x, and  x - (x + y) = -y.
+    // Replace code patterns looking like
+    //    ADD dst1, x, y        ADD dst1, x, y
+    //    SUB dst2, y, dst1     SUB dst2, x, dst1
+    // with
+    //    ADD dst1, x, y        ADD dst1, x, y
+    //    NEG x                 NEG y
+    // SUB instruction is not needed in this case, we may use
+    // one of inputs of ADD instead with a NEG.
+    // It is applicable to integral types only.
+    HAdd* add = right->AsAdd();
+    DCHECK(DataType::IsIntegralType(type));
+    if (add->GetRight() == left) {
+      HNeg* neg = new (GetGraph()->GetAllocator()) HNeg(add->GetType(), add->GetLeft());
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, neg);
+      RecordSimplification();
+      return;
+    } else if (add->GetLeft() == left) {
+      HNeg* neg = new (GetGraph()->GetAllocator()) HNeg(add->GetType(), add->GetRight());
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, neg);
+      RecordSimplification();
+      return;
+    }
+  } else if (left->IsSub()) {
+    // Case (x - y) - x = -y.
+    // Replace code patterns looking like
+    //    SUB dst1, x, y
+    //    SUB dst2, dst1, x
+    // with
+    //    SUB dst1, x, y
+    //    NEG y
+    // The second SUB is not needed in this case, we may use the second input of the first SUB
+    // instead with a NEG.
+    // It is applicable to integral types only.
+    HSub* sub = left->AsSub();
+    DCHECK(DataType::IsIntegralType(type));
+    if (sub->GetLeft() == right) {
+      HNeg* neg = new (GetGraph()->GetAllocator()) HNeg(sub->GetType(), sub->GetRight());
+      instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, neg);
+      RecordSimplification();
+      return;
+    }
+  } else if (right->IsSub()) {
+    // Case x - (x - y) = y.
+    // Replace code patterns looking like
+    //    SUB dst1, x, y
+    //    SUB dst2, x, dst1
+    // with
+    //    SUB dst1, x, y
+    // The second SUB is not needed in this case, we may use the second input of the first SUB.
+    // It is applicable to integral types only.
+    HSub* sub = right->AsSub();
+    DCHECK(DataType::IsIntegralType(type));
+    if (sub->GetLeft() == left) {
+      instruction->ReplaceWith(sub->GetRight());
       RecordSimplification();
       instruction->GetBlock()->RemoveInstruction(instruction);
       return;
