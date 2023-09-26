@@ -655,7 +655,7 @@ class ProfileCompilationInfo {
   // If the new profile key would collide with an existing key (for a different dex)
   // the method returns false. Otherwise it returns true.
   //
-  // `matched` is set to true if any profile has matched any input dex file.
+  // `matched` is set to true if all profiles have matched input dex files.
   bool UpdateProfileKeys(const std::vector<std::unique_ptr<const DexFile>>& dex_files,
                          /*out*/ bool* matched);
 

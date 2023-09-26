@@ -438,6 +438,7 @@
     },
     {
         "test_patterns": [
+            ".*const-method-type.*",
             ".*invoke-custom.*",
             ".*invoke-polymorphic.*",
             ".*methodhandle.*",
@@ -550,7 +551,8 @@
             "804-class-extends-itself",
             "842-vdex-hard-failure",
             "921-hello-failure",
-            "999-redefine-hiddenapi"
+            "999-redefine-hiddenapi",
+            "2267-class-implements-itself"
         ],
         "description": [
             "Tests that use illegal dex files or otherwise break dexter assumptions"
@@ -1087,7 +1089,8 @@
           "2230-profile-save-hotness",
           "2245-checker-smali-instance-of-comparison",
           "2251-checker-irreducible-loop-do-not-inline",
-          "2264-throwing-systemcleaner"
+          "2264-throwing-systemcleaner",
+          "2267-class-implements-itself"
         ],
         "variant": "jvm",
         "bug": "b/73888836",

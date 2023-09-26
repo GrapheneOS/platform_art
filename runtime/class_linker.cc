@@ -1191,8 +1191,9 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_reflect_InvocationTargetException_init,
       // Ensure `Parameter` class is initialized (avoid check at runtime).
       WellKnownClasses::java_lang_reflect_Parameter_init,
-      // Ensure `MethodHandles` class is initialized (avoid check at runtime).
+      // Ensure `MethodHandles` and `MethodType` classes are initialized (avoid check at runtime).
       WellKnownClasses::java_lang_invoke_MethodHandles_lookup,
+      WellKnownClasses::java_lang_invoke_MethodType_makeImpl,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
       WellKnownClasses::java_nio_DirectByteBuffer_init,
       // Ensure `FloatingDecimal` class is initialized (avoid check at runtime).
@@ -6339,6 +6340,19 @@ bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexF
   if (interfaces != nullptr) {
     for (size_t i = 0; i < interfaces->Size(); i++) {
       dex::TypeIndex idx = interfaces->GetTypeItem(i).type_idx_;
+      if (idx.IsValid()) {
+        // Check that a class does not implement itself directly.
+        //
+        // TODO: This is a cheap check to detect the straightforward case of a class implementing
+        // itself, but we should do a proper cycle detection on loaded classes, to detect all cases
+        // of class circularity errors. See b/28685551, b/28830038, and b/301108855
+        if (idx == class_def.class_idx_) {
+          ThrowClassCircularityError(
+              klass.Get(), "Class %s implements itself", klass->PrettyDescriptor().c_str());
+          return false;
+        }
+      }
+
       ObjPtr<mirror::Class> interface = ResolveType(idx, klass.Get());
       if (interface == nullptr) {
         DCHECK(Thread::Current()->IsExceptionPending());
