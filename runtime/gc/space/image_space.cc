@@ -107,19 +107,19 @@ ImageSpace::ImageSpace(const std::string& image_filename,
 }
 
 static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {
-  CHECK_ALIGNED(min_delta, kPageSize);
-  CHECK_ALIGNED(max_delta, kPageSize);
+  CHECK_ALIGNED(min_delta, kElfSegmentAlignment);
+  CHECK_ALIGNED(max_delta, kElfSegmentAlignment);
   CHECK_LT(min_delta, max_delta);
 
   int32_t r = GetRandomNumber<int32_t>(min_delta, max_delta);
   if (r % 2 == 0) {
-    r = RoundUp(r, kPageSize);
+    r = RoundUp(r, kElfSegmentAlignment);
   } else {
-    r = RoundDown(r, kPageSize);
+    r = RoundDown(r, kElfSegmentAlignment);
   }
   CHECK_LE(min_delta, r);
   CHECK_GE(max_delta, r);
-  CHECK_ALIGNED(r, kPageSize);
+  CHECK_ALIGNED(r, kElfSegmentAlignment);
   return r;
 }
 
@@ -597,7 +597,8 @@ class ImageSpace::Loader {
         return nullptr;
       }
 
-      uint32_t expected_reservation_size = RoundUp(image_header.GetImageSize(), kPageSize);
+      uint32_t expected_reservation_size = RoundUp(image_header.GetImageSize(),
+          kElfSegmentAlignment);
       if (!CheckImageReservationSize(*space, expected_reservation_size, error_msg) ||
           !CheckImageComponentCount(*space, /*expected_component_count=*/ 1u, error_msg)) {
         return nullptr;
@@ -732,7 +733,7 @@ class ImageSpace::Loader {
     // The location we want to map from is the first aligned page after the end of the stored
     // (possibly compressed) data.
     const size_t image_bitmap_offset =
-        RoundUp(sizeof(ImageHeader) + image_header.GetDataSize(), kPageSize);
+        RoundUp(sizeof(ImageHeader) + image_header.GetDataSize(), kElfSegmentAlignment);
     const size_t end_of_bitmap = image_bitmap_offset + bitmap_section.Size();
     if (end_of_bitmap != image_file_size) {
       *error_msg = StringPrintf(
@@ -998,8 +999,10 @@ class ImageSpace::Loader {
     const bool is_compressed = image_header.HasCompressedBlock();
     if (!is_compressed && allow_direct_mapping) {
       uint8_t* address = (image_reservation != nullptr) ? image_reservation->Begin() : nullptr;
+      // The reserved memory size is aligned up to kElfSegmentAlignment to ensure
+      // that the next reserved area will be aligned to the value.
       return MemMap::MapFileAtAddress(address,
-                                      image_header.GetImageSize(),
+                                      RoundUp(image_header.GetImageSize(), kElfSegmentAlignment),
                                       PROT_READ | PROT_WRITE,
                                       MAP_PRIVATE,
                                       fd,
@@ -1012,8 +1015,10 @@ class ImageSpace::Loader {
     }
 
     // Reserve output and copy/decompress into it.
+    // The reserved memory size is aligned up to kElfSegmentAlignment to ensure
+    // that the next reserved area will be aligned to the value.
     MemMap map = MemMap::MapAnonymous(image_location,
-                                      image_header.GetImageSize(),
+                                      RoundUp(image_header.GetImageSize(), kElfSegmentAlignment),
                                       PROT_READ | PROT_WRITE,
                                       /*low_4gb=*/ true,
                                       image_reservation,
@@ -3164,8 +3169,8 @@ class ImageSpace::BootImageLoader {
   MemMap ReserveBootImageMemory(uint8_t* addr,
                                 uint32_t reservation_size,
                                 /*out*/std::string* error_msg) {
-    DCHECK_ALIGNED(reservation_size, kPageSize);
-    DCHECK_ALIGNED(addr, kPageSize);
+    DCHECK_ALIGNED(reservation_size, kElfSegmentAlignment);
+    DCHECK_ALIGNED(addr, kElfSegmentAlignment);
     return MemMap::MapAnonymous("Boot image reservation",
                                 addr,
                                 reservation_size,
@@ -3180,7 +3185,7 @@ class ImageSpace::BootImageLoader {
                              /*inout*/MemMap* image_reservation,
                              /*out*/MemMap* extra_reservation,
                              /*out*/std::string* error_msg) {
-    DCHECK_ALIGNED(extra_reservation_size, kPageSize);
+    DCHECK_ALIGNED(extra_reservation_size, kElfSegmentAlignment);
     DCHECK(!extra_reservation->IsValid());
     size_t expected_size = image_reservation->IsValid() ? image_reservation->Size() : 0u;
     if (extra_reservation_size != expected_size) {
@@ -3305,7 +3310,7 @@ bool ImageSpace::LoadBootImage(const std::vector<std::string>& boot_class_path,
 
   DCHECK(boot_image_spaces != nullptr);
   DCHECK(boot_image_spaces->empty());
-  DCHECK_ALIGNED(extra_reservation_size, kPageSize);
+  DCHECK_ALIGNED(extra_reservation_size, kElfSegmentAlignment);
   DCHECK(extra_reservation != nullptr);
   DCHECK_NE(image_isa, InstructionSet::kNone);
 
