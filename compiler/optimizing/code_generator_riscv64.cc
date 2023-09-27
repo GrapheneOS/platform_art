@@ -4813,13 +4813,117 @@ void InstructionCodeGeneratorRISCV64::VisitTryBoundary(HTryBoundary* instruction
 }
 
 void LocationsBuilderRISCV64::VisitTypeConversion(HTypeConversion* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type input_type = instruction->GetInputType();
+  DataType::Type result_type = instruction->GetResultType();
+  DCHECK(!DataType::IsTypeConversionImplicit(input_type, result_type))
+      << input_type << " -> " << result_type;
+
+  if ((input_type == DataType::Type::kReference) || (input_type == DataType::Type::kVoid) ||
+      (result_type == DataType::Type::kReference) || (result_type == DataType::Type::kVoid)) {
+    LOG(FATAL) << "Unexpected type conversion from " << input_type << " to " << result_type;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+
+  if (DataType::IsFloatingPointType(input_type)) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+
+  if (DataType::IsFloatingPointType(result_type)) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitTypeConversion(HTypeConversion* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  DataType::Type result_type = instruction->GetResultType();
+  DataType::Type input_type = instruction->GetInputType();
+
+  DCHECK(!DataType::IsTypeConversionImplicit(input_type, result_type))
+      << input_type << " -> " << result_type;
+
+  if (DataType::IsIntegralType(result_type) && DataType::IsIntegralType(input_type)) {
+    XRegister dst = locations->Out().AsRegister<XRegister>();
+    XRegister src = locations->InAt(0).AsRegister<XRegister>();
+    switch (result_type) {
+      case DataType::Type::kUint8:
+        __ Andi(dst, src, 0xFF);
+        break;
+      case DataType::Type::kInt8:
+        __ SextB(dst, src);
+        break;
+      case DataType::Type::kUint16:
+        __ ZextH(dst, src);
+        break;
+      case DataType::Type::kInt16:
+        __ SextH(dst, src);
+        break;
+      case DataType::Type::kInt32:
+      case DataType::Type::kInt64:
+        // Sign-extend 32-bit int into bits 32 through 63 for int-to-long and long-to-int
+        // conversions, except when the input and output registers are the same and we are not
+        // converting longs to shorter types. In these cases, do nothing.
+        if ((input_type == DataType::Type::kInt64) || (dst != src)) {
+          __ Addiw(dst, src, 0);
+        }
+        break;
+
+      default:
+        LOG(FATAL) << "Unexpected type conversion from " << input_type
+                   << " to " << result_type;
+        UNREACHABLE();
+    }
+  } else if (DataType::IsFloatingPointType(result_type) && DataType::IsIntegralType(input_type)) {
+    FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+    XRegister src = locations->InAt(0).AsRegister<XRegister>();
+    if (input_type == DataType::Type::kInt64) {
+      if (result_type == DataType::Type::kFloat32) {
+        __ FCvtSL(dst, src, FPRoundingMode::kRNE);
+      } else {
+        __ FCvtDL(dst, src, FPRoundingMode::kRNE);
+      }
+    } else {
+      if (result_type == DataType::Type::kFloat32) {
+        __ FCvtSW(dst, src, FPRoundingMode::kRNE);
+      } else {
+        __ FCvtDW(dst, src);  // No rounding.
+      }
+    }
+  } else if (DataType::IsIntegralType(result_type) && DataType::IsFloatingPointType(input_type)) {
+    CHECK(result_type == DataType::Type::kInt32 || result_type == DataType::Type::kInt64);
+    XRegister dst = locations->Out().AsRegister<XRegister>();
+    FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+    if (result_type == DataType::Type::kInt64) {
+      if (input_type == DataType::Type::kFloat32) {
+        __ FCvtLS(dst, src, FPRoundingMode::kRTZ);
+      } else {
+        __ FCvtLD(dst, src, FPRoundingMode::kRTZ);
+      }
+    } else {
+      if (input_type == DataType::Type::kFloat32) {
+        __ FCvtWS(dst, src, FPRoundingMode::kRTZ);
+      } else {
+        __ FCvtWD(dst, src, FPRoundingMode::kRTZ);
+      }
+    }
+  } else if (DataType::IsFloatingPointType(result_type) &&
+             DataType::IsFloatingPointType(input_type)) {
+    FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+    FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+    if (result_type == DataType::Type::kFloat32) {
+      __ FCvtSD(dst, src);
+    } else {
+      __ FCvtDS(dst, src);
+    }
+  } else {
+    LOG(FATAL) << "Unexpected or unimplemented type conversion from " << input_type
+                << " to " << result_type;
+    UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitUShr(HUShr* instruction) {
