@@ -218,6 +218,11 @@ android_test {
         "javatests/**/*.java",
     ],
 
+    // disable the target when prebuilt modules are used
+    defaults: [
+        "art_module_source_build_java_defaults",
+    ],
+
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
