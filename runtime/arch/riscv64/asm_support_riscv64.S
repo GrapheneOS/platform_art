@@ -450,7 +450,7 @@
 .endm
 
 
-.macro RESTORE_SAVE_EVERYTHING_FRAME
+.macro RESTORE_SAVE_EVERYTHING_FRAME load_a0 = 1
     // stack slot (8*0)(sp) is for ArtMethod*
 
     // 32 slots for FPRs
@@ -498,7 +498,9 @@
 #if SAVE_EVERYTHING_FRAME_OFFSET_A0 != (8*37)
 #error "unexpected SAVE_EVERYTHING_FRAME_OFFSET_A0"
 #endif
+    .if \load_a0
     RESTORE_GPR a0,  (8*37)  // x10, offset must equal SAVE_EVERYTHING_FRAME_OFFSET_A0
+    .endif
     RESTORE_GPR a1,  (8*38)  // x11
     RESTORE_GPR a2,  (8*39)  // x12
     RESTORE_GPR a3,  (8*40)  // x13
