@@ -56,8 +56,12 @@ class TrackingHeader final {
   bool Is16Aligned() const { return size_ & kIs16Aligned; }
 
  private:
+  void SetKind(LinearAllocKind kind) { kind_ = kind; }
+
   LinearAllocKind kind_;
   uint32_t size_;
+
+  friend class LinearAlloc;  // For SetKind()
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(TrackingHeader);
 };
@@ -93,6 +97,9 @@ class LinearAlloc {
   // Force arena allocator to ask for a new arena on next allocation. This
   // is to preserve private/shared clean pages across zygote fork.
   void SetupForPostZygoteFork(Thread* self) REQUIRES(!lock_);
+  // Convert the given allocated object into a `no GC-root` so that compaction
+  // skips it. Currently only used during class linking for ArtMethod array.
+  void ConvertToNoGcRoots(void* ptr, LinearAllocKind orig_kind);
 
   // Return true if the linear alloc contains an address.
   bool Contains(void* ptr) const REQUIRES(!lock_);
