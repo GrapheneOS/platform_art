@@ -39,6 +39,10 @@
 namespace art HIDDEN {
 namespace riscv64 {
 
+// Placeholder values embedded in instructions, patched at link time.
+constexpr uint32_t kLinkTimeOffsetPlaceholderHigh = 0x12345;
+constexpr uint32_t kLinkTimeOffsetPlaceholderLow = 0x678;
+
 // Compare-and-jump packed switch generates approx. 3 + 1.5 * N 32-bit
 // instructions for N cases.
 // Table-based packed switch generates approx. 10 32-bit instructions
@@ -66,7 +70,7 @@ static constexpr FRegister kFpuCalleeSaves[] = {
 
 Location RegisterOrZeroBitPatternLocation(HInstruction* instruction) {
   return IsZeroBitPattern(instruction)
-      ? Location::ConstantLocation(instruction->AsConstant())
+      ? Location::ConstantLocation(instruction)
       : Location::RequiresRegister();
 }
 
@@ -590,7 +594,8 @@ class DivZeroCheckSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   void EmitNativeCode(CodeGenerator* codegen) override {
     CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
     __ Bind(GetEntryLabel());
-    riscv64_codegen->InvokeRuntime(kQuickThrowDivZero, instruction_, instruction_->GetDexPc(), this);
+    riscv64_codegen->InvokeRuntime(
+        kQuickThrowDivZero, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
 
@@ -1137,7 +1142,7 @@ void InstructionCodeGeneratorRISCV64::GenerateGcRootFieldLoad(HInstruction* inst
                                                               uint32_t offset,
                                                               ReadBarrierOption read_barrier_option,
                                                               Riscv64Label* label_low) {
-  DCHECK_IMPLIES(label_low != nullptr, offset == 0x678u) << offset;
+  DCHECK_IMPLIES(label_low != nullptr, offset == kLinkTimeOffsetPlaceholderLow) << offset;
   XRegister root_reg = root.AsRegister<XRegister>();
   if (read_barrier_option == kWithReadBarrier) {
     DCHECK(gUseReadBarrier);
@@ -1924,7 +1929,7 @@ void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
         can_use_imm = IsInt<12>(instruction->IsSub() ? -imm : imm);
       }
       if (can_use_imm) {
-        locations->SetInAt(1, Location::ConstantLocation(right->AsConstant()));
+        locations->SetInAt(1, Location::ConstantLocation(right));
       } else {
         locations->SetInAt(1, Location::RequiresRegister());
       }
@@ -2099,7 +2104,7 @@ void LocationsBuilderRISCV64::HandleCondition(HCondition* instruction) {
         }
       }
       if (use_imm) {
-        locations->SetInAt(1, Location::ConstantLocation(rhs->AsConstant()));
+        locations->SetInAt(1, Location::ConstantLocation(rhs));
       } else {
         locations->SetInAt(1, Location::RequiresRegister());
       }
@@ -2830,10 +2835,10 @@ void LocationsBuilderRISCV64::VisitBoundsCheck(HBoundsCheck* instruction) {
 
   locations->SetInAt(
       0,
-      const_index ? Location::ConstantLocation(index->AsConstant()) : Location::RequiresRegister());
-  locations->SetInAt(1,
-                     const_length ? Location::ConstantLocation(length->AsConstant()) :
-                                    Location::RequiresRegister());
+      const_index ? Location::ConstantLocation(index) : Location::RequiresRegister());
+  locations->SetInAt(
+      1,
+      const_length ? Location::ConstantLocation(length) : Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorRISCV64::VisitBoundsCheck(HBoundsCheck* instruction) {
@@ -2925,9 +2930,9 @@ void LocationsBuilderRISCV64::VisitCheckCast(HCheckCast* instruction) {
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   if (type_check_kind == TypeCheckKind::kBitstringCheck) {
-    locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)->AsConstant()));
-    locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)->AsConstant()));
-    locations->SetInAt(3, Location::ConstantLocation(instruction->InputAt(3)->AsConstant()));
+    locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)));
+    locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)));
+    locations->SetInAt(3, Location::ConstantLocation(instruction->InputAt(3)));
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
@@ -3544,9 +3549,9 @@ void LocationsBuilderRISCV64::VisitInstanceOf(HInstanceOf* instruction) {
   }
   locations->SetInAt(0, Location::RequiresRegister());
   if (type_check_kind == TypeCheckKind::kBitstringCheck) {
-    locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)->AsConstant()));
-    locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)->AsConstant()));
-    locations->SetInAt(3, Location::ConstantLocation(instruction->InputAt(3)->AsConstant()));
+    locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)));
+    locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)));
+    locations->SetInAt(3, Location::ConstantLocation(instruction->InputAt(3)));
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
@@ -3916,6 +3921,7 @@ void LocationsBuilderRISCV64::VisitLoadClass(HLoadClass* instruction) {
   if (load_kind == HLoadClass::LoadKind::kRuntimeCall) {
     InvokeRuntimeCallingConvention calling_convention;
     Location loc = Location::RegisterLocation(calling_convention.GetRegisterAt(0));
+    DCHECK_EQ(DataType::Type::kReference, instruction->GetType());
     DCHECK(loc.Equals(calling_convention.GetReturnLocation(DataType::Type::kReference)));
     CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(instruction, loc, loc);
     return;
@@ -4016,7 +4022,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction)
       GenerateGcRootFieldLoad(instruction,
                               out_loc,
                               out,
-                              /* offset= */ 0x678,
+                              /* offset= */ kLinkTimeOffsetPlaceholderLow,
                               read_barrier_option,
                               &info_low->label);
       generate_null_check = true;
@@ -4095,6 +4101,7 @@ void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
   if (load_kind == HLoadString::LoadKind::kRuntimeCall) {
     InvokeRuntimeCallingConvention calling_convention;
+    DCHECK_EQ(DataType::Type::kReference, instruction->GetType());
     locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
   } else {
     locations->SetOut(Location::RequiresRegister());
@@ -4150,7 +4157,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
       GenerateGcRootFieldLoad(instruction,
                               out_loc,
                               out,
-                              /* offset= */ 0x678,
+                              /* offset= */ kLinkTimeOffsetPlaceholderLow,
                               GetCompilerReadBarrierOption(),
                               &info_low->label);
       SlowPathCodeRISCV64* slow_path =
@@ -4806,13 +4813,117 @@ void InstructionCodeGeneratorRISCV64::VisitTryBoundary(HTryBoundary* instruction
 }
 
 void LocationsBuilderRISCV64::VisitTypeConversion(HTypeConversion* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  DataType::Type input_type = instruction->GetInputType();
+  DataType::Type result_type = instruction->GetResultType();
+  DCHECK(!DataType::IsTypeConversionImplicit(input_type, result_type))
+      << input_type << " -> " << result_type;
+
+  if ((input_type == DataType::Type::kReference) || (input_type == DataType::Type::kVoid) ||
+      (result_type == DataType::Type::kReference) || (result_type == DataType::Type::kVoid)) {
+    LOG(FATAL) << "Unexpected type conversion from " << input_type << " to " << result_type;
+  }
+
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+
+  if (DataType::IsFloatingPointType(input_type)) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+  } else {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+
+  if (DataType::IsFloatingPointType(result_type)) {
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  } else {
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitTypeConversion(HTypeConversion* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  DataType::Type result_type = instruction->GetResultType();
+  DataType::Type input_type = instruction->GetInputType();
+
+  DCHECK(!DataType::IsTypeConversionImplicit(input_type, result_type))
+      << input_type << " -> " << result_type;
+
+  if (DataType::IsIntegralType(result_type) && DataType::IsIntegralType(input_type)) {
+    XRegister dst = locations->Out().AsRegister<XRegister>();
+    XRegister src = locations->InAt(0).AsRegister<XRegister>();
+    switch (result_type) {
+      case DataType::Type::kUint8:
+        __ Andi(dst, src, 0xFF);
+        break;
+      case DataType::Type::kInt8:
+        __ SextB(dst, src);
+        break;
+      case DataType::Type::kUint16:
+        __ ZextH(dst, src);
+        break;
+      case DataType::Type::kInt16:
+        __ SextH(dst, src);
+        break;
+      case DataType::Type::kInt32:
+      case DataType::Type::kInt64:
+        // Sign-extend 32-bit int into bits 32 through 63 for int-to-long and long-to-int
+        // conversions, except when the input and output registers are the same and we are not
+        // converting longs to shorter types. In these cases, do nothing.
+        if ((input_type == DataType::Type::kInt64) || (dst != src)) {
+          __ Addiw(dst, src, 0);
+        }
+        break;
+
+      default:
+        LOG(FATAL) << "Unexpected type conversion from " << input_type
+                   << " to " << result_type;
+        UNREACHABLE();
+    }
+  } else if (DataType::IsFloatingPointType(result_type) && DataType::IsIntegralType(input_type)) {
+    FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+    XRegister src = locations->InAt(0).AsRegister<XRegister>();
+    if (input_type == DataType::Type::kInt64) {
+      if (result_type == DataType::Type::kFloat32) {
+        __ FCvtSL(dst, src, FPRoundingMode::kRNE);
+      } else {
+        __ FCvtDL(dst, src, FPRoundingMode::kRNE);
+      }
+    } else {
+      if (result_type == DataType::Type::kFloat32) {
+        __ FCvtSW(dst, src, FPRoundingMode::kRNE);
+      } else {
+        __ FCvtDW(dst, src);  // No rounding.
+      }
+    }
+  } else if (DataType::IsIntegralType(result_type) && DataType::IsFloatingPointType(input_type)) {
+    CHECK(result_type == DataType::Type::kInt32 || result_type == DataType::Type::kInt64);
+    XRegister dst = locations->Out().AsRegister<XRegister>();
+    FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+    if (result_type == DataType::Type::kInt64) {
+      if (input_type == DataType::Type::kFloat32) {
+        __ FCvtLS(dst, src, FPRoundingMode::kRTZ);
+      } else {
+        __ FCvtLD(dst, src, FPRoundingMode::kRTZ);
+      }
+    } else {
+      if (input_type == DataType::Type::kFloat32) {
+        __ FCvtWS(dst, src, FPRoundingMode::kRTZ);
+      } else {
+        __ FCvtWD(dst, src, FPRoundingMode::kRTZ);
+      }
+    }
+  } else if (DataType::IsFloatingPointType(result_type) &&
+             DataType::IsFloatingPointType(input_type)) {
+    FRegister dst = locations->Out().AsFpuRegister<FRegister>();
+    FRegister src = locations->InAt(0).AsFpuRegister<FRegister>();
+    if (result_type == DataType::Type::kFloat32) {
+      __ FCvtSD(dst, src);
+    } else {
+      __ FCvtDS(dst, src);
+    }
+  } else {
+    LOG(FATAL) << "Unexpected or unimplemented type conversion from " << input_type
+                << " to " << result_type;
+    UNREACHABLE();
+  }
 }
 
 void LocationsBuilderRISCV64::VisitUShr(HUShr* instruction) {
@@ -5981,7 +6092,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeAuipcPlaceholder(PcRelativePatchInfo* i
                                                           XRegister out) {
   DCHECK(info_high->pc_insn_label == &info_high->label);
   __ Bind(&info_high->label);
-  __ Auipc(out, /*imm20=*/ 0x12345);  // Placeholder `imm20` patched at link time.
+  __ Auipc(out, /*imm20=*/ kLinkTimeOffsetPlaceholderHigh);
 }
 
 void CodeGeneratorRISCV64::EmitPcRelativeAddiPlaceholder(PcRelativePatchInfo* info_low,
@@ -5989,7 +6100,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeAddiPlaceholder(PcRelativePatchInfo* in
                                                          XRegister rs1) {
   DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
-  __ Addi(rd, rs1, /*imm12=*/ 0x678);  // Placeholder `imm12` patched at link time.
+  __ Addi(rd, rs1, /*imm12=*/ kLinkTimeOffsetPlaceholderLow);
 }
 
 void CodeGeneratorRISCV64::EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* info_low,
@@ -5997,7 +6108,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeLwuPlaceholder(PcRelativePatchInfo* inf
                                                         XRegister rs1) {
   DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
-  __ Lwu(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
+  __ Lwu(rd, rs1, /*offset=*/ kLinkTimeOffsetPlaceholderLow);
 }
 
 void CodeGeneratorRISCV64::EmitPcRelativeLdPlaceholder(PcRelativePatchInfo* info_low,
@@ -6005,7 +6116,7 @@ void CodeGeneratorRISCV64::EmitPcRelativeLdPlaceholder(PcRelativePatchInfo* info
                                                        XRegister rs1) {
   DCHECK(info_low->pc_insn_label != &info_low->label);
   __ Bind(&info_low->label);
-  __ Ld(rd, rs1, /*offset=*/ 0x678);  // Placeholder `offset` patched at link time.
+  __ Ld(rd, rs1, /*offset=*/ kLinkTimeOffsetPlaceholderLow);
 }
 
 template <linker::LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
