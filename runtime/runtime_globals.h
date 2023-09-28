@@ -27,7 +27,7 @@ static constexpr size_t kVRegSize = 4;
 // Returns whether the given memory offset can be used for generating
 // an implicit null check.
 static inline bool CanDoImplicitNullCheckOn(uintptr_t offset) {
-  return offset < kPageSize;
+  return offset < gPageSize;
 }
 
 // Required object alignment

@@ -91,7 +91,7 @@ int CacheFlush(uintptr_t start, uintptr_t limit) {
 
 bool TouchAndFlushCacheLinesWithinPage(uintptr_t start, uintptr_t limit, size_t attempts) {
   CHECK_LT(start, limit);
-  CHECK_EQ(RoundDown(start, kPageSize), RoundDown(limit - 1, kPageSize)) << "range spans pages";
+  CHECK_EQ(RoundDown(start, gPageSize), RoundDown(limit - 1, gPageSize)) << "range spans pages";
   // Declare a volatile variable so the compiler does not elide reads from the page being touched.
   [[maybe_unused]] volatile uint8_t v = 0;
   for (size_t i = 0; i < attempts; ++i) {
@@ -139,14 +139,14 @@ bool FlushCpuCaches(void* begin, void* end) {
   // A rare failure has occurred implying that part of the range (begin, end] has been swapped
   // out. Retry flushing but this time grouping cache-line flushes on individual pages and
   // touching each page before flushing.
-  uintptr_t next_page = RoundUp(start + 1, kPageSize);
+  uintptr_t next_page = RoundUp(start + 1, gPageSize);
   while (start < limit) {
     uintptr_t boundary = std::min(next_page, limit);
     if (!TouchAndFlushCacheLinesWithinPage(start, boundary, kMaxFlushAttempts)) {
       return false;
     }
     start = boundary;
-    next_page += kPageSize;
+    next_page += gPageSize;
   }
   return true;
 }
@@ -366,8 +366,8 @@ bool IsAddressKnownBackedByFileOrShared(const void* addr) {
   // We use the Linux pagemap interface for knowing if an address is backed
   // by a file or is shared. See:
   // https://www.kernel.org/doc/Documentation/vm/pagemap.txt
-  uintptr_t vmstart = reinterpret_cast<uintptr_t>(AlignDown(addr, kPageSize));
-  off_t index = (vmstart / kPageSize) * sizeof(uint64_t);
+  uintptr_t vmstart = reinterpret_cast<uintptr_t>(AlignDown(addr, gPageSize));
+  off_t index = (vmstart / gPageSize) * sizeof(uint64_t);
   android::base::unique_fd pagemap(open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC));
   if (pagemap == -1) {
     return false;

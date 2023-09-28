@@ -55,7 +55,7 @@ MemMapArena::MemMapArena(size_t size, bool low_4gb, const char* name)
 MemMap MemMapArena::Allocate(size_t size, bool low_4gb, const char* name) {
   // Round up to a full page as that's the smallest unit of allocation for mmap()
   // and we want to be able to use all memory that we actually allocate.
-  size = RoundUp(size, kPageSize);
+  size = RoundUp(size, gPageSize);
   std::string error_msg;
   // TODO(b/278665389): remove this retry logic if the root cause is found.
   constexpr int MAX_RETRY_CNT = 3;

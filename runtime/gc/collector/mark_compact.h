@@ -333,8 +333,8 @@ class MarkCompact final : public GarbageCollector {
   // during concurrent compaction.
   void PrepareForCompaction() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Copy kPageSize live bytes starting from 'offset' (within the moving space),
-  // which must be within 'obj', into the kPageSize sized memory pointed by 'addr'.
+  // Copy gPageSize live bytes starting from 'offset' (within the moving space),
+  // which must be within 'obj', into the gPageSize sized memory pointed by 'addr'.
   // Then update the references within the copied objects. The boundary objects are
   // partially updated such that only the references that lie in the page are updated.
   // This is necessary to avoid cascading userfaults.
@@ -382,7 +382,7 @@ class MarkCompact final : public GarbageCollector {
   // Slides (retain the empty holes, which are usually part of some in-use TLAB)
   // black page in the moving space. 'first_obj' is the object that overlaps with
   // the first byte of the page being slid. pre_compact_page is the pre-compact
-  // address of the page being slid. 'dest' is the kPageSize sized memory where
+  // address of the page being slid. 'dest' is the gPageSize sized memory where
   // the contents would be copied.
   void SlideBlackPage(mirror::Object* first_obj,
                       mirror::Object* next_page_first_obj,
