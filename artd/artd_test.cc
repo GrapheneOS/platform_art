@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <csignal>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -119,6 +120,8 @@ using ::testing::WithArg;
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
 using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
+
+using std::literals::operator""s;  // NOLINT
 
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
@@ -429,11 +432,14 @@ class ArtdTest : public CommonArtTest {
     }
   }
 
+  template <bool kExpectOk>
+  using RunCopyAndRewriteProfileResult = Result<
+      std::pair<std::conditional_t<kExpectOk, CopyAndRewriteProfileResult, ndk::ScopedAStatus>,
+                OutputProfile>>;
+
   // Runs `copyAndRewriteProfile` with `tmp_profile_path_` and `dex_file_`.
   template <bool kExpectOk = true>
-  Result<std::pair<std::conditional_t<kExpectOk, CopyAndRewriteProfileResult, ndk::ScopedAStatus>,
-                   OutputProfile>>
-  RunCopyAndRewriteProfile() {
+  RunCopyAndRewriteProfileResult<kExpectOk> RunCopyAndRewriteProfile() {
     OutputProfile dst{.profilePath = tmp_profile_path_,
                       .fsPermission = FsPermission{.uid = -1, .gid = -1}};
     dst.profilePath.id = "";
@@ -442,6 +448,26 @@ class ArtdTest : public CommonArtTest {
     CopyAndRewriteProfileResult result;
     ndk::ScopedAStatus status =
         artd_->copyAndRewriteProfile(tmp_profile_path_, &dst, dex_file_, &result);
+    if constexpr (kExpectOk) {
+      if (!status.isOk()) {
+        return Error() << status.getMessage();
+      }
+      return std::make_pair(std::move(result), std::move(dst));
+    } else {
+      return std::make_pair(std::move(status), std::move(dst));
+    }
+  }
+
+  // Runs `copyAndRewriteEmbeddedProfile` with `dex_file_`.
+  template <bool kExpectOk = true>
+  RunCopyAndRewriteProfileResult<kExpectOk> RunCopyAndRewriteEmbeddedProfile() {
+    OutputProfile dst{.profilePath = tmp_profile_path_,
+                      .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+    dst.profilePath.id = "";
+    dst.profilePath.tmpPath = "";
+
+    CopyAndRewriteProfileResult result;
+    ndk::ScopedAStatus status = artd_->copyAndRewriteEmbeddedProfile(&dst, dex_file_, &result);
     if constexpr (kExpectOk) {
       if (!status.isOk()) {
         return Error() << status.getMessage();
@@ -461,8 +487,10 @@ class ArtdTest : public CommonArtTest {
   void CreateZipWithSingleEntry(const std::string& filename,
                                 const std::string& entry_name,
                                 const std::string& content = "") {
+    std::filesystem::path path(filename);
+    std::filesystem::create_directories(path.parent_path());
     std::unique_ptr<File> file(OS::CreateEmptyFileWriteOnly(filename.c_str()));
-    ASSERT_NE(file, nullptr);
+    ASSERT_NE(file, nullptr) << strerror(errno);
     file->MarkUnchecked();  // `writer.Finish()` flushes the file and the destructor closes it.
     ZipWriter writer(fdopen(file->Fd(), "wb"));
     ASSERT_EQ(writer.StartEntry(entry_name, /*flags=*/0), 0);
@@ -1530,6 +1558,85 @@ TEST_F(ArtdTest, copyAndRewriteProfileException) {
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
   EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+TEST_F(ArtdTest, copyAndRewriteEmbeddedProfileSuccess) {
+  CreateZipWithSingleEntry(dex_file_, "assets/art-profile/baseline.prof", "valid_profile");
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          AllOf(WhenSplitBy(
+                    "--",
+                    AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                    AllOf(Contains(art_root_ + "/bin/profman"),
+                          Contains("--copy-and-update-profile-key"),
+                          Contains(Flag("--profile-file-fd=", FdHasContent("valid_profile"))),
+                          Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+                HasKeepFdsFor("--profile-file-fd=", "--reference-profile-file-fd=", "--apk-fd=")),
+          _,
+          _))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
+                      Return(ProfmanResult::kCopyAndUpdateSuccess)));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteEmbeddedProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::SUCCESS);
+  EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
+  std::string real_path = OR_FATAL(BuildTmpProfilePath(dst.profilePath));
+  EXPECT_EQ(dst.profilePath.tmpPath, real_path);
+  CheckContent(real_path, "def");
+}
+
+// The input is a plain dex file.
+TEST_F(ArtdTest, copyAndRewriteEmbeddedProfileNoProfilePlainDex) {
+  constexpr const char* kDexMagic = "dex\n";
+  CreateFile(dex_file_, kDexMagic + "dex_code"s);
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteEmbeddedProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is neither a zip nor a plain dex file.
+TEST_F(ArtdTest, copyAndRewriteEmbeddedProfileNotZipNotDex) {
+  CreateFile(dex_file_, "wrong_format");
+
+  auto [status, dst] = OR_FAIL(RunCopyAndRewriteEmbeddedProfile</*kExpectOk=*/false>());
+
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(), HasSubstr("File is neither a zip file nor a plain dex file"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a zip file without a profile entry.
+TEST_F(ArtdTest, copyAndRewriteEmbeddedProfileNoProfileZipNoEntry) {
+  CreateZipWithSingleEntry(dex_file_, "classes.dex", "dex_code");
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteEmbeddedProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a zip file with a profile entry that doesn't match itself.
+TEST_F(ArtdTest, copyAndRewriteEmbeddedProfileBadProfileNoMatch) {
+  CreateZipWithSingleEntry(dex_file_, "assets/art-profile/baseline.prof", "no_match");
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteEmbeddedProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::BAD_PROFILE);
+  EXPECT_THAT(result.errorMsg, HasSubstr("The profile does not match the APK"));
   EXPECT_THAT(dst.profilePath.id, IsEmpty());
   EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
