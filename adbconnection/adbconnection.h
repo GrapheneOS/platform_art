@@ -33,7 +33,6 @@
 
 namespace adbconnection {
 
-static constexpr char kJdwpControlName[] = "\0jdwp-control";
 static constexpr char kAdbConnectionThreadName[] = "ADB-JDWP Connection Control Thread";
 
 // The default jdwp agent name.
