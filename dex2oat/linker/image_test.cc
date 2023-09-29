@@ -237,7 +237,7 @@ TEST_F(ImageTest, ImageChecksum) {
     ImageFileGuard image_file;
     ScratchFile location;
     image_file.reset(OS::CreateEmptyFile(location.GetFilename().c_str()));
-    const uint8_t data[] = {0};
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(&image_header);
     const uint8_t bitmap[] = {0};
     ASSERT_EQ(image_header.GetImageChecksum(), 0u);
     ASSERT_TRUE(image_header.WriteData(
