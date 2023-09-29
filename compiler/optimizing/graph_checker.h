@@ -108,7 +108,7 @@ class GraphChecker : public HGraphDelegateVisitor {
     }
   }
 
- protected:
+ private:
   // Report a new error.
   void AddError(const std::string& error) {
     errors_.push_back(error);
@@ -119,7 +119,6 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Errors encountered while checking the graph.
   ArenaVector<std::string> errors_;
 
- private:
   void VisitReversePostOrder();
 
   // Checks that the graph's flags are set correctly.
