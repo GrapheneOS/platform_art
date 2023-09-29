@@ -1191,9 +1191,8 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_reflect_InvocationTargetException_init,
       // Ensure `Parameter` class is initialized (avoid check at runtime).
       WellKnownClasses::java_lang_reflect_Parameter_init,
-      // Ensure `MethodHandles` and `MethodType` classes are initialized (avoid check at runtime).
+      // Ensure `MethodHandles` class is initialized (avoid check at runtime).
       WellKnownClasses::java_lang_invoke_MethodHandles_lookup,
-      WellKnownClasses::java_lang_invoke_MethodType_makeImpl,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
       WellKnownClasses::java_nio_DirectByteBuffer_init,
       // Ensure `FloatingDecimal` class is initialized (avoid check at runtime).
@@ -7951,9 +7950,9 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods(ObjPtr<mirror:
                                                                       kMethodSize,
                                                                       kMethodAlignment);
   const size_t old_methods_ptr_size = (old_methods != nullptr) ? old_size : 0;
-  auto* methods = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
-      class_linker_->GetAllocatorForClassLoader(klass->GetClassLoader())->Realloc(
-          self_, old_methods, old_methods_ptr_size, new_size, LinearAllocKind::kArtMethodArray));
+  LinearAlloc* allocator = class_linker_->GetAllocatorForClassLoader(klass->GetClassLoader());
+  auto* methods = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(allocator->Realloc(
+      self_, old_methods, old_methods_ptr_size, new_size, LinearAllocKind::kArtMethodArray));
   CHECK(methods != nullptr);  // Native allocation failure aborts.
 
   if (methods != old_methods) {
@@ -7966,12 +7965,9 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods(ObjPtr<mirror:
         ++out;
       }
     } else if (gUseUserfaultfd) {
-      // Clear the declaring class of the old dangling method array so that GC doesn't
-      // try to update them, which could cause crashes in userfaultfd GC due to
-      // checks in post-compact address computation.
-      for (auto& m : klass->GetMethods(kPointerSize)) {
-        m.SetDeclaringClass(nullptr);
-      }
+      // In order to make compaction code skip updating the declaring_class_ in
+      // old_methods, convert it into a 'no GC-root' array.
+      allocator->ConvertToNoGcRoots(old_methods, LinearAllocKind::kArtMethodArray);
     }
   }
 
