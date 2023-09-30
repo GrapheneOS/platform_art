@@ -169,10 +169,10 @@ static ArrayRef<const uint8_t> FindLibartCode() {
 }
 
 // Check if the current method header is in libart.
-std::optional<bool> OatQuickMethodHeader::IsStub() const {
+std::optional<bool> OatQuickMethodHeader::IsStub(const uint8_t* pc) {
 #ifndef __APPLE__
   static ArrayRef<const uint8_t> libart_code = FindLibartCode();
-  return libart_code.begin() <= code_ && code_ < libart_code.end();
+  return libart_code.begin() <= pc && pc < libart_code.end();
 #else
   return std::nullopt;
 #endif
