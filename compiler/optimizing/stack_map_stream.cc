@@ -154,8 +154,10 @@ void StackMapStream::BeginStackMapEntry(
     // Create lambda method, which will be executed at the very end to verify data.
     // Parameters and local variables will be captured(stored) by the lambda "[=]".
     dchecks_.emplace_back([=](const CodeInfo& code_info) {
+      // The `native_pc_offset` may have been overridden using `SetStackMapNativePcOffset(.)`.
+      uint32_t final_native_pc_offset = GetStackMapNativePcOffset(stack_map_index);
       if (kind == StackMap::Kind::Default || kind == StackMap::Kind::OSR) {
-        StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset,
+        StackMap stack_map = code_info.GetStackMapForNativePcOffset(final_native_pc_offset,
                                                                     instruction_set_);
         CHECK_EQ(stack_map.Row(), stack_map_index);
       } else if (kind == StackMap::Kind::Catch) {
@@ -164,7 +166,7 @@ void StackMapStream::BeginStackMapEntry(
         CHECK_EQ(stack_map.Row(), stack_map_index);
       }
       StackMap stack_map = code_info.GetStackMapAt(stack_map_index);
-      CHECK_EQ(stack_map.GetNativePcOffset(instruction_set_), native_pc_offset);
+      CHECK_EQ(stack_map.GetNativePcOffset(instruction_set_), final_native_pc_offset);
       CHECK_EQ(stack_map.GetKind(), static_cast<uint32_t>(kind));
       CHECK_EQ(stack_map.GetDexPc(), dex_pc);
       CHECK_EQ(code_info.GetRegisterMaskOf(stack_map), register_mask);
