@@ -22,6 +22,7 @@
 #include "obj_ptr-inl.h"
 #include "object_array-alloc-inl.h"
 #include "object_array-inl.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
@@ -39,29 +40,17 @@ ObjPtr<ObjectArray<Class>> AllocatePTypesArray(Thread* self, int count)
 ObjPtr<MethodType> MethodType::Create(Thread* const self,
                                       Handle<Class> return_type,
                                       Handle<ObjectArray<Class>> parameter_types) {
-  StackHandleScope<1> hs(self);
-  Handle<MethodType> mt(
-      hs.NewHandle(ObjPtr<MethodType>::DownCast(GetClassRoot<MethodType>()->AllocObject(self))));
+  ArtMethod* make_impl = WellKnownClasses::java_lang_invoke_MethodType_makeImpl;
 
-  if (mt == nullptr) {
-    self->AssertPendingOOMException();
+  const bool is_trusted = true;
+  ObjPtr<MethodType> mt = ObjPtr<MethodType>::DownCast(make_impl->InvokeStatic<'L', 'L', 'L', 'Z'>(
+      self, return_type.Get(), parameter_types.Get(), is_trusted));
+
+  if (self->IsExceptionPending()) {
     return nullptr;
   }
 
-  // We're initializing a newly allocated object, so we do not need to record that under
-  // a transaction. If the transaction is aborted, the whole object shall be unreachable.
-  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      FormOffset(), nullptr);
-  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      MethodDescriptorOffset(), nullptr);
-  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      RTypeOffset(), return_type.Get());
-  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      PTypesOffset(), parameter_types.Get());
-  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      WrapAltOffset(), nullptr);
-
-  return mt.Get();
+  return mt;
 }
 
 ObjPtr<MethodType> MethodType::CloneWithoutLeadingParameter(Thread* const self,
