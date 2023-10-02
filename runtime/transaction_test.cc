@@ -530,8 +530,19 @@ TEST_F(TransactionTest, ResolveString) {
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
 
+class MethodTypeTransactionTest : public TransactionTest {
+ protected:
+  MethodTypeTransactionTest() {
+    // java.lang.invoke.MethodType factory methods and mirror::MethodType::Create
+    // are backed by the same cache, which is in the primary boot image. As as a
+    // result, MethodType creation can lead to writes to the map under a
+    // transaction, which is forbidden.
+    this->use_boot_image_ = false;
+  }
+};
+
 // Tests rolling back resolved method types in dex cache.
-TEST_F(TransactionTest, ResolveMethodType) {
+TEST_F(MethodTypeTransactionTest, ResolveMethodType) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
