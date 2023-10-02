@@ -136,6 +136,17 @@ static constexpr int64_t ShiftedSignExtendedClassStatusValue() {
   return static_cast<int64_t>(kShiftedStatusValue) - (INT64_C(1) << 32);
 }
 
+int32_t ReadBarrierMarkEntrypointOffset(Location ref) {
+  DCHECK(ref.IsRegister());
+  int reg = ref.reg();
+  DCHECK(T0 <= reg && reg <= T6 && reg != TR) << reg;
+  // Note: Entrypoints for registers X30 (T5) and X31 (T6) are stored in entries
+  // for X0 (Zero) and X1 (RA) because these are not valid registers for marking
+  // and we currently have slots only up to register 29.
+  int entry_point_number = (reg >= 30) ? reg - 30 : reg;
+  return Thread::ReadBarrierMarkEntryPointsOffset<kRiscv64PointerSize>(entry_point_number);
+}
+
 Location InvokeRuntimeCallingConvention::GetReturnLocation(DataType::Type return_type) {
   return Riscv64ReturnLocation(return_type);
 }
@@ -658,7 +669,7 @@ class ReadBarrierMarkSlowPathRISCV64 : public SlowPathCodeRISCV64 {
     //
     riscv64_codegen->ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction_, this);
     DCHECK_NE(entrypoint_.AsRegister<XRegister>(), TMP);  // A taken branch can clobber `TMP`.
-    __ Jalr(entrypoint_.AsRegister<XRegister>());
+    __ Jalr(entrypoint_.AsRegister<XRegister>());  // Clobbers `RA` (used as the `entrypoint_`).
     __ J(GetExitLabel());
   }
 
@@ -1178,16 +1189,13 @@ void InstructionCodeGeneratorRISCV64::GenerateGcRootFieldLoad(HInstruction* inst
                     "have different sizes.");
 
       // Slow path marking the GC root `root`.
-      ScratchRegisterScope srs(GetAssembler());
-      srs.ExcludeXRegister(TMP);  // A taken branch can clobber `TMP`.
-      XRegister tmp = srs.AllocateXRegister();
+      XRegister tmp = RA;  // Use RA as temp. It is clobbered in the slow path anyway.
       SlowPathCodeRISCV64* slow_path =
           new (codegen_->GetScopedAllocator()) ReadBarrierMarkSlowPathRISCV64(
               instruction, root, Location::RegisterLocation(tmp));
       codegen_->AddSlowPath(slow_path);
 
-      const int32_t entry_point_offset =
-          Thread::ReadBarrierMarkEntryPointsOffset<kRiscv64PointerSize>(root.reg());
+      const int32_t entry_point_offset = ReadBarrierMarkEntrypointOffset(root);
       // Loading the entrypoint does not require a load acquire since it is only changed when
       // threads are suspended or running a checkpoint.
       __ Loadd(tmp, TR, entry_point_offset);
@@ -1710,13 +1718,8 @@ void CodeGeneratorRISCV64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* i
                                                                  uint32_t offset,
                                                                  Location temp,
                                                                  bool needs_null_check) {
-  UNUSED(instruction);
-  UNUSED(ref);
-  UNUSED(obj);
-  UNUSED(offset);
-  UNUSED(temp);
-  UNUSED(needs_null_check);
-  LOG(FATAL) << "Unimplemented";
+  GenerateReferenceLoadWithBakerReadBarrier(
+      instruction, ref, obj, offset, /*index=*/ Location::NoLocation(), temp, needs_null_check);
 }
 
 void CodeGeneratorRISCV64::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -1726,14 +1729,8 @@ void CodeGeneratorRISCV64::GenerateArrayLoadWithBakerReadBarrier(HInstruction* i
                                                                  Location index,
                                                                  Location temp,
                                                                  bool needs_null_check) {
-  UNUSED(instruction);
-  UNUSED(ref);
-  UNUSED(obj);
-  UNUSED(data_offset);
-  UNUSED(index);
-  UNUSED(temp);
-  UNUSED(needs_null_check);
-  LOG(FATAL) << "Unimplemented";
+  GenerateReferenceLoadWithBakerReadBarrier(
+      instruction, ref, obj, data_offset, index, temp, needs_null_check);
 }
 
 void CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -1741,20 +1738,43 @@ void CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier(HInstructio
                                                                      XRegister obj,
                                                                      uint32_t offset,
                                                                      Location index,
-                                                                     ScaleFactor scale_factor,
                                                                      Location temp,
-                                                                     bool needs_null_check,
-                                                                     bool always_update_field) {
-  UNUSED(instruction);
-  UNUSED(ref);
-  UNUSED(obj);
-  UNUSED(offset);
-  UNUSED(index);
-  UNUSED(scale_factor);
+                                                                     bool needs_null_check) {
+  // For now, use the same approach as for GC roots plus unpoison the reference if needed.
+  // TODO(riscv64): Implement checking if the holder is black.
   UNUSED(temp);
-  UNUSED(needs_null_check);
-  UNUSED(always_update_field);
-  LOG(FATAL) << "Unimplemented";
+
+  XRegister reg = ref.AsRegister<XRegister>();
+  if (index.IsValid()) {
+    DCHECK(instruction->IsArrayGet());
+    DCHECK(!needs_null_check);
+    DCHECK(index.IsRegister());
+    // /* HeapReference<Object> */ ref = *(obj + index * element_size + offset)
+    DataType::Type type = DataType::Type::kReference;
+    DCHECK_EQ(type, instruction->GetType());
+    instruction_visitor_.ShNAdd(reg, index.AsRegister<XRegister>(), obj, type);
+    __ Loadwu(reg, reg, offset);
+  } else {
+    // /* HeapReference<Object> */ ref = *(obj + offset)
+    __ Loadwu(reg, obj, offset);
+    if (needs_null_check) {
+      MaybeRecordImplicitNullCheck(instruction);
+    }
+  }
+  MaybeUnpoisonHeapReference(reg);
+
+  // Slow path marking the reference.
+  XRegister tmp = RA;  // Use RA as temp. It is clobbered in the slow path anyway.
+  SlowPathCodeRISCV64* slow_path = new (GetScopedAllocator()) ReadBarrierMarkSlowPathRISCV64(
+      instruction, ref, Location::RegisterLocation(tmp));
+  AddSlowPath(slow_path);
+
+  const int32_t entry_point_offset = ReadBarrierMarkEntrypointOffset(ref);
+  // Loading the entrypoint does not require a load acquire since it is only changed when
+  // threads are suspended or running a checkpoint.
+  __ Loadd(tmp, TR, entry_point_offset);
+  __ Bnez(tmp, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void CodeGeneratorRISCV64::GenerateReadBarrierSlow(HInstruction* instruction,
@@ -5837,8 +5857,6 @@ void CodeGeneratorRISCV64::Finalize() {
       entry.code_interval.end = __ GetAdjustedPosition(entry.code_interval.end);
     }
   }
-
-  CodeGenerator::Finalize();
 }
 
 // Generate code to invoke a runtime entry point.
