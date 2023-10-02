@@ -363,12 +363,11 @@
 .endm
 
 
-.macro SETUP_SAVE_EVERYTHING_FRAME runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_RA \
+        runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
 #if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
 #error "FRAME_SIZE_SAVE_EVERYTHING(RISCV64) size not as expected."
 #endif
-    INCREASE_FRAME FRAME_SIZE_SAVE_EVERYTHING
-
     // stack slot (8*0)(sp) is for ArtMethod*
 
     // 32 slots for FPRs
@@ -435,9 +434,19 @@
     SAVE_GPR t5,  8*57  // x30
     SAVE_GPR t6,  8*58  // x31
 
-    SAVE_GPR ra,  8*59  // x1, return address
+    // RA already saved by the user of this macro.
 
     SETUP_CALLEE_SAVE_FRAME_COMMON t0, \runtime_method_offset
+.endm
+
+
+.macro SETUP_SAVE_EVERYTHING_FRAME runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+#if (FRAME_SIZE_SAVE_EVERYTHING != 8*(1 + 32 + 27))
+#error "FRAME_SIZE_SAVE_EVERYTHING(RISCV64) size not as expected."
+#endif
+    INCREASE_FRAME FRAME_SIZE_SAVE_EVERYTHING
+    SAVE_GPR ra,  8*59  // x1, return address
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_RA \runtime_method_offset
 .endm
 
 
