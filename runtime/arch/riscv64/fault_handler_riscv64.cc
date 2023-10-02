@@ -45,9 +45,43 @@ uintptr_t FaultManager::GetFaultSp(void* context) {
   return mc->__gregs[REG_SP];
 }
 
-bool NullPointerHandler::Action(int, siginfo_t*, void*) {
-  LOG(FATAL) << "NullPointerHandler::Action is not implemented for RISC-V";
-  return false;
+bool NullPointerHandler::Action([[maybe_unused]] int sig, siginfo_t* info, void* context) {
+  uintptr_t fault_address = reinterpret_cast<uintptr_t>(info->si_addr);
+  if (!IsValidFaultAddress(fault_address)) {
+    return false;
+  }
+
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  ArtMethod** sp = reinterpret_cast<ArtMethod**>(mc->__gregs[REG_SP]);
+  if (!IsValidMethod(*sp)) {
+    return false;
+  }
+
+  // For null checks in compiled code we insert a stack map that is immediately
+  // after the load/store instruction that might cause the fault and we need to
+  // pass the return PC to the handler. For null checks in Nterp, we similarly
+  // need the return PC to recognize that this was a null check in Nterp, so
+  // that the handler can get the needed data from the Nterp frame.
+
+  // Need to work out the size of the instruction that caused the exception.
+  uintptr_t old_pc = mc->__gregs[REG_PC];
+  uintptr_t instr_size = (reinterpret_cast<uint16_t*>(old_pc)[0] & 3u) == 3u ? 4u : 2u;
+  uintptr_t return_pc = old_pc + instr_size;
+  if (!IsValidReturnPc(sp, return_pc)) {
+    return false;
+  }
+
+  // Push the return PC to the stack and pass the fault address in RA.
+  mc->__gregs[REG_SP] -= sizeof(uintptr_t);
+  *reinterpret_cast<uintptr_t*>(mc->__gregs[REG_SP]) = return_pc;
+  mc->__gregs[REG_RA] = fault_address;
+
+  // Arrange for the signal handler to return to the NPE entrypoint.
+  mc->__gregs[REG_PC] =
+      reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
+  VLOG(signals) << "Generating null pointer exception";
+  return true;
 }
 
 bool SuspensionHandler::Action(int, siginfo_t*, void*) {
