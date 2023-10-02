@@ -22,20 +22,20 @@ import sun.misc.Unsafe;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        testFieldReads();
-        testArrayReadsWithConstIndex();
-        testArrayReadsWithNonConstIndex();
-        testGcRoots();
-        testUnsafeGet();
-        testUnsafeCas();
-        testUnsafeCasRegression();
-        testVarHandleCompareAndSet();
-        testVarHandleCompareAndExchange();
-        testVarHandleGetAndSet();
-        testReferenceRefersTo();
+        $noinline$testFieldReads();
+        $noinline$testArrayReadsWithConstIndex();
+        $noinline$testArrayReadsWithNonConstIndex();
+        $noinline$testGcRoots();
+        $noinline$testUnsafeGet();
+        $noinline$testUnsafeCas();
+        $noinline$testUnsafeCasRegression();
+        $noinline$testVarHandleCompareAndSet();
+        $noinline$testVarHandleCompareAndExchange();
+        $noinline$testVarHandleGetAndSet();
+        $noinline$testReferenceRefersTo();
     }
 
-    public static void testFieldReads() {
+    public static void $noinline$testFieldReads() {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f1024 = manyFields.testField1024;
@@ -46,19 +46,19 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test reference field access.
-            assertSameObject(f0000, mf.testField0000);
-            assertDifferentObject(f0000, mf.testField0001);
-            assertSameObject(f1024, mf.testField1024);
-            assertSameObject(f4444, mf.testField4444);
-            assertDifferentObject(f4999, mf.testField4998);
-            assertSameObject(f4999, mf.testField4999);
+            $noinline$assertSameObject(f0000, mf.testField0000);
+            $noinline$assertDifferentObject(f0000, mf.testField0001);
+            $noinline$assertSameObject(f1024, mf.testField1024);
+            $noinline$assertSameObject(f4444, mf.testField4444);
+            $noinline$assertDifferentObject(f4999, mf.testField4998);
+            $noinline$assertSameObject(f4999, mf.testField4999);
         }
     }
 
-    public static void testArrayReadsWithConstIndex() {
+    public static void $noinline$testArrayReadsWithConstIndex() {
         // Initialize local variables for comparison.
         Object f0000 = new Integer(0);
         Object f1024 = new Integer(1024);
@@ -79,19 +79,19 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             Object[] la = largeArray;    // Load the volatile `largeArray` once on each iteration.
             // Test array access with constant index.
-            assertSameObject(f0000, la[0]);
-            assertDifferentObject(f0000, la[1]);
-            assertSameObject(f1024, la[1024]);
-            assertSameObject(f4444, la[4444]);
-            assertDifferentObject(f4999, la[4998]);
-            assertSameObject(f4999, la[4999]);
+            $noinline$assertSameObject(f0000, la[0]);
+            $noinline$assertDifferentObject(f0000, la[1]);
+            $noinline$assertSameObject(f1024, la[1024]);
+            $noinline$assertSameObject(f4444, la[4444]);
+            $noinline$assertDifferentObject(f4999, la[4998]);
+            $noinline$assertSameObject(f4999, la[4999]);
         }
     }
 
-    public static void testArrayReadsWithNonConstIndex() {
+    public static void $noinline$testArrayReadsWithNonConstIndex() {
         // Initialize local variables for comparison.
         Object f0000 = new Integer(0);
         Object f1024 = new Integer(1024);
@@ -119,15 +119,15 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             Object[] la = largeArray;    // Load the volatile `largeArray` once on each iteration.
             // Test array access with non-constant index.
-            assertSameObject(f0000, la[i0]);
-            assertDifferentObject(f0000, la[i1]);
-            assertSameObject(f1024, la[i1024]);
-            assertSameObject(f4444, la[i4444]);
-            assertDifferentObject(f4999, la[i4998]);
-            assertSameObject(f4999, la[i4999]);
+            $noinline$assertSameObject(f0000, la[i0]);
+            $noinline$assertDifferentObject(f0000, la[i1]);
+            $noinline$assertSameObject(f1024, la[i1024]);
+            $noinline$assertSameObject(f4444, la[i4444]);
+            $noinline$assertDifferentObject(f4999, la[i4998]);
+            $noinline$assertSameObject(f4999, la[i4999]);
 
             la = largeArray;
             // Group the ArrayGets so they aren't divided by a function call; this will enable
@@ -139,16 +139,16 @@ public class Main {
             Object tmp5 = la[i0 + 4998];
             Object tmp6 = la[i0 + 4999];
 
-            assertSameObject(f0000, tmp1);
-            assertDifferentObject(f0000, tmp2);
-            assertSameObject(f1024, tmp3);
-            assertSameObject(f4444, tmp4);
-            assertDifferentObject(f4999, tmp5);
-            assertSameObject(f4999, tmp6);
+            $noinline$assertSameObject(f0000, tmp1);
+            $noinline$assertDifferentObject(f0000, tmp2);
+            $noinline$assertSameObject(f1024, tmp3);
+            $noinline$assertSameObject(f4444, tmp4);
+            $noinline$assertDifferentObject(f4999, tmp5);
+            $noinline$assertSameObject(f4999, tmp6);
         }
     }
 
-    public static void testGcRoots() {
+    public static void $noinline$testGcRoots() {
         // Initialize strings, hide this under a condition based on a volatile field.
         String testString0 = null;
         String testString1 = null;
@@ -167,19 +167,19 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             // Test GC roots.
             if (index0 != 12345678) {
-              assertSameObject(testString0, "testString0");
-              assertSameObject(testString1, "testString1");
-              assertSameObject(testString2, "testString2");
-              assertSameObject(testString3, "testString3");
+              $noinline$assertSameObject(testString0, "testString0");
+              $noinline$assertSameObject(testString1, "testString1");
+              $noinline$assertSameObject(testString2, "testString2");
+              $noinline$assertSameObject(testString3, "testString3");
             }
             // TODO: Stress GC roots (const-class, kBssEntry/kReferrersClass).
         }
     }
 
-    public static void testUnsafeGet() throws Exception {
+    public static void $noinline$testUnsafeGet() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f1024 = manyFields.testField1024;
@@ -204,19 +204,19 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test Unsafe.getObject().
-            assertSameObject(f0000, unsafe.getObject(mf, f0000Offset));
-            assertDifferentObject(f0000, unsafe.getObject(mf, f0001Offset));
-            assertSameObject(f1024, unsafe.getObject(mf, f1024Offset));
-            assertSameObject(f4444, unsafe.getObject(mf, f4444Offset));
-            assertDifferentObject(f4999, unsafe.getObject(mf, f4998Offset));
-            assertSameObject(f4999, unsafe.getObject(mf, f4999Offset));
+            $noinline$assertSameObject(f0000, unsafe.getObject(mf, f0000Offset));
+            $noinline$assertDifferentObject(f0000, unsafe.getObject(mf, f0001Offset));
+            $noinline$assertSameObject(f1024, unsafe.getObject(mf, f1024Offset));
+            $noinline$assertSameObject(f4444, unsafe.getObject(mf, f4444Offset));
+            $noinline$assertDifferentObject(f4999, unsafe.getObject(mf, f4998Offset));
+            $noinline$assertSameObject(f4999, unsafe.getObject(mf, f4999Offset));
         }
     }
 
-    public static void testUnsafeCas() throws Exception {
+    public static void $noinline$testUnsafeCas() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f1024 = manyFields.testField1024;
@@ -241,21 +241,29 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test Unsafe.compareAndSwapObject().
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f0000Offset, f1024, f4444));
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f0001Offset, f1024, f4444));
-            assertEqual(true, unsafe.compareAndSwapObject(mf, f1024Offset, f1024, f4444));
-            assertEqual(true, unsafe.compareAndSwapObject(mf, f1024Offset, f4444, f1024));
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f1024Offset, f4444, f1024));
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f4444Offset, f1024, f4444));
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f4998Offset, f1024, f4444));
-            assertEqual(false, unsafe.compareAndSwapObject(mf, f4999Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f0000Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f0001Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   true, unsafe.compareAndSwapObject(mf, f1024Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   true, unsafe.compareAndSwapObject(mf, f1024Offset, f4444, f1024));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f1024Offset, f4444, f1024));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f4444Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f4998Offset, f1024, f4444));
+            $noinline$assertEqual(
+                   false, unsafe.compareAndSwapObject(mf, f4999Offset, f1024, f4444));
         }
     }
 
-    public static void testUnsafeCasRegression() throws Exception {
+    public static void $noinline$testUnsafeCasRegression() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         // Initialize Unsafe.
@@ -267,7 +275,7 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
 
             // With https://android-review.googlesource.com/729224 , the intrinsic could
@@ -286,7 +294,7 @@ public class Main {
         }
     }
 
-    public static void testVarHandleCompareAndSet() throws Exception {
+    public static void $noinline$testVarHandleCompareAndSet() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f1024 = manyFields.testField1024;
@@ -310,21 +318,21 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test VarHandle.compareAndSet().
-            assertEqual(false, f0000vh.compareAndSet(mf, f1024, f4444));
-            assertEqual(false, f0001vh.compareAndSet(mf, f1024, f4444));
-            assertEqual(true, f1024vh.compareAndSet(mf, f1024, f4444));
-            assertEqual(true, f1024vh.compareAndSet(mf, f4444, f1024));
-            assertEqual(false, f1024vh.compareAndSet(mf, f4444, f1024));
-            assertEqual(false, f4444vh.compareAndSet(mf, f1024, f4444));
-            assertEqual(false, f4998vh.compareAndSet(mf, f1024, f4444));
-            assertEqual(false, f4999vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(false, f0000vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(false, f0001vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(true, f1024vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(true, f1024vh.compareAndSet(mf, f4444, f1024));
+            $noinline$assertEqual(false, f1024vh.compareAndSet(mf, f4444, f1024));
+            $noinline$assertEqual(false, f4444vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(false, f4998vh.compareAndSet(mf, f1024, f4444));
+            $noinline$assertEqual(false, f4999vh.compareAndSet(mf, f1024, f4444));
         }
     }
 
-    public static void testVarHandleCompareAndExchange() throws Exception {
+    public static void $noinline$testVarHandleCompareAndExchange() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f0001 = manyFields.testField0001;
@@ -350,21 +358,29 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test VarHandle.compareAndExchange(). Use reference comparison, not equals().
-            assertSameObject(f0000, f0000vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
-            assertSameObject(f0001, f0001vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
-            assertSameObject(f1024, f1024vh.compareAndExchange(mf, f1024, f4444));  // Replaced.
-            assertSameObject(f4444, f1024vh.compareAndExchange(mf, f4444, f1024));  // Replaced.
-            assertSameObject(f1024, f1024vh.compareAndExchange(mf, f4444, f1024));  // Unchanged.
-            assertSameObject(f4444, f4444vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
-            assertSameObject(f4998, f4998vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
-            assertSameObject(f4999, f4999vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
+            $noinline$assertSameObject(
+                    f0000, f0000vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
+            $noinline$assertSameObject(
+                    f0001, f0001vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
+            $noinline$assertSameObject(
+                    f1024, f1024vh.compareAndExchange(mf, f1024, f4444));  // Replaced.
+            $noinline$assertSameObject(
+                    f4444, f1024vh.compareAndExchange(mf, f4444, f1024));  // Replaced.
+            $noinline$assertSameObject(
+                    f1024, f1024vh.compareAndExchange(mf, f4444, f1024));  // Unchanged.
+            $noinline$assertSameObject(
+                    f4444, f4444vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
+            $noinline$assertSameObject(
+                    f4998, f4998vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
+            $noinline$assertSameObject(
+                    f4999, f4999vh.compareAndExchange(mf, f1024, f4444));  // Unchanged.
         }
     }
 
-    public static void testVarHandleGetAndSet() throws Exception {
+    public static void $noinline$testVarHandleGetAndSet() throws Exception {
         // Initialize local variables for comparison.
         Object f0000 = manyFields.testField0000;
         Object f0001 = manyFields.testField0001;
@@ -390,21 +406,21 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and
         // stress the read barrier implementation if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test VarHandle.getAndSet(). Use reference comparison, not equals().
-            assertSameObject(f0000, f0000vh.getAndSet(mf, f0000));  // Unchanged.
-            assertSameObject(f0001, f0001vh.getAndSet(mf, f0001));  // Unchanged.
-            assertSameObject(f1024, f1024vh.getAndSet(mf, f4444));  // Replaced.
-            assertSameObject(f4444, f1024vh.getAndSet(mf, f1024));  // Replaced.
-            assertSameObject(f1024, f1024vh.getAndSet(mf, f1024));  // Unchanged.
-            assertSameObject(f4444, f4444vh.getAndSet(mf, f4444));  // Unchanged.
-            assertSameObject(f4998, f4998vh.getAndSet(mf, f4998));  // Unchanged.
-            assertSameObject(f4999, f4999vh.getAndSet(mf, f4999));  // Unchanged.
+            $noinline$assertSameObject(f0000, f0000vh.getAndSet(mf, f0000));  // Unchanged.
+            $noinline$assertSameObject(f0001, f0001vh.getAndSet(mf, f0001));  // Unchanged.
+            $noinline$assertSameObject(f1024, f1024vh.getAndSet(mf, f4444));  // Replaced.
+            $noinline$assertSameObject(f4444, f1024vh.getAndSet(mf, f1024));  // Replaced.
+            $noinline$assertSameObject(f1024, f1024vh.getAndSet(mf, f1024));  // Unchanged.
+            $noinline$assertSameObject(f4444, f4444vh.getAndSet(mf, f4444));  // Unchanged.
+            $noinline$assertSameObject(f4998, f4998vh.getAndSet(mf, f4998));  // Unchanged.
+            $noinline$assertSameObject(f4999, f4999vh.getAndSet(mf, f4999));  // Unchanged.
         }
     }
 
-    public static void testReferenceRefersTo() throws Exception {
+    public static void $noinline$testReferenceRefersTo() throws Exception {
         // Initialize local variables for comparison.
         manyFields.testField0000 = new Object();
         manyFields.testField1024 = new Object();
@@ -419,33 +435,33 @@ public class Main {
         // over 64MiB memory (with heap size limited to 16MiB), ensuring we run GC and stress the
         // read barrier implementation in Reference.refersTo() if concurrent collector is enabled.
         for (int i = 0; i != 64 * 1024; ++i) {
-            allocateAtLeast1KiB();
+            $noinline$allocateAtLeast1KiB();
             ManyFields mf = manyFields;  // Load the volatile `manyFields` once on each iteration.
             // Test Reference.refersTo() with reference field access.
-            assertEqual(true, f0000.refersTo(mf.testField0000));
-            assertEqual(false, f0000.refersTo(mf.testField0001));
-            assertEqual(true, f1024.refersTo(mf.testField1024));
-            assertEqual(true, f4444.refersTo(mf.testField4444));
-            assertEqual(false, f4999.refersTo(mf.testField4998));
-            assertEqual(true, f4999.refersTo(mf.testField4999));
+            $noinline$assertEqual(true, f0000.refersTo(mf.testField0000));
+            $noinline$assertEqual(false, f0000.refersTo(mf.testField0001));
+            $noinline$assertEqual(true, f1024.refersTo(mf.testField1024));
+            $noinline$assertEqual(true, f4444.refersTo(mf.testField4444));
+            $noinline$assertEqual(false, f4999.refersTo(mf.testField4998));
+            $noinline$assertEqual(true, f4999.refersTo(mf.testField4999));
         }
     }
 
     public static int $noinline$foo() { return 42; }
 
-    public static void assertDifferentObject(Object lhs, Object rhs) {
+    public static void $noinline$assertDifferentObject(Object lhs, Object rhs) {
         if (lhs == rhs) {
             throw new Error("Same objects: " + lhs + " and " + rhs);
         }
     }
 
-    public static void assertSameObject(Object lhs, Object rhs) {
+    public static void $noinline$assertSameObject(Object lhs, Object rhs) {
       if (lhs != rhs) {
           throw new Error("Different objects: " + lhs + " and " + rhs);
       }
   }
 
-    public static void assertEqual(boolean expected, boolean actual) {
+    public static void $noinline$assertEqual(boolean expected, boolean actual) {
       if (expected != actual) {
         throw new Error("Expected " + expected +", got " + actual);
       }
@@ -458,7 +474,7 @@ public class Main {
       return (Unsafe) f.get(null);
     }
 
-    public static void allocateAtLeast1KiB() {
+    public static void $noinline$allocateAtLeast1KiB() {
         // Give GC more work by allocating Object arrays.
         memory[allocationIndex] = new Object[1024 / 4];
         ++allocationIndex;

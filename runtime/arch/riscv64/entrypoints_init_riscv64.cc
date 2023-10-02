@@ -22,11 +22,68 @@ namespace art {
 // art_quick_read_barrier_mark_regX uses an non-standard calling convention: it
 // expects its input in register X and returns its result in that same register,
 // and saves and restores all other registers.
+
+// No read barrier for X0 (Zero), X1 (RA), X2 (SP), X3 (GP) and X4 (TP).
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg05(mirror::Object*);  // t0/x5
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg06(mirror::Object*);  // t1/x6
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg07(mirror::Object*);  // t2/x7
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg08(mirror::Object*);  // t3/x8
+// No read barrier for X9 (S1/xSELF).
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg10(mirror::Object*);  // a0/x10
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg11(mirror::Object*);  // a1/x11
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg12(mirror::Object*);  // a2/x12
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg13(mirror::Object*);  // a3/x13
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg14(mirror::Object*);  // a4/x14
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg15(mirror::Object*);  // a5/x15
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg16(mirror::Object*);  // a6/x16
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg17(mirror::Object*);  // a7/x17
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg18(mirror::Object*);  // s2/x18
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg19(mirror::Object*);  // s3/x19
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg20(mirror::Object*);  // s4/x20
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg21(mirror::Object*);  // s5/x21
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg22(mirror::Object*);  // s6/x22
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg23(mirror::Object*);  // s7/x23
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg24(mirror::Object*);  // s8/x24
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg25(mirror::Object*);  // s9/x25
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg26(mirror::Object*);  // s10/x26
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg27(mirror::Object*);  // s11/x27
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg28(mirror::Object*);  // t3/x28
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg29(mirror::Object*);  // t4/x29
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg30(mirror::Object*);  // t5/x30
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg31(mirror::Object*);  // t6/x31
 
 void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
-  // TODO(riscv64): add read barrier entrypoints
+  // No read barrier for X0 (Zero), X1 (RA), X2 (SP), X3 (GP) and X4 (TP).
+  qpoints->SetReadBarrierMarkReg05(is_active ? art_quick_read_barrier_mark_reg05 : nullptr);
+  qpoints->SetReadBarrierMarkReg06(is_active ? art_quick_read_barrier_mark_reg06 : nullptr);
+  qpoints->SetReadBarrierMarkReg07(is_active ? art_quick_read_barrier_mark_reg07 : nullptr);
+  qpoints->SetReadBarrierMarkReg08(is_active ? art_quick_read_barrier_mark_reg08 : nullptr);
+  // No read barrier for X9 (S1/xSELF).
   qpoints->SetReadBarrierMarkReg10(is_active ? art_quick_read_barrier_mark_reg10 : nullptr);
+  qpoints->SetReadBarrierMarkReg11(is_active ? art_quick_read_barrier_mark_reg11 : nullptr);
+  qpoints->SetReadBarrierMarkReg12(is_active ? art_quick_read_barrier_mark_reg12 : nullptr);
+  qpoints->SetReadBarrierMarkReg13(is_active ? art_quick_read_barrier_mark_reg13 : nullptr);
+  qpoints->SetReadBarrierMarkReg14(is_active ? art_quick_read_barrier_mark_reg14 : nullptr);
+  qpoints->SetReadBarrierMarkReg15(is_active ? art_quick_read_barrier_mark_reg15 : nullptr);
+  qpoints->SetReadBarrierMarkReg16(is_active ? art_quick_read_barrier_mark_reg16 : nullptr);
+  qpoints->SetReadBarrierMarkReg17(is_active ? art_quick_read_barrier_mark_reg17 : nullptr);
+  qpoints->SetReadBarrierMarkReg18(is_active ? art_quick_read_barrier_mark_reg18 : nullptr);
+  qpoints->SetReadBarrierMarkReg19(is_active ? art_quick_read_barrier_mark_reg19 : nullptr);
+  qpoints->SetReadBarrierMarkReg20(is_active ? art_quick_read_barrier_mark_reg20 : nullptr);
+  qpoints->SetReadBarrierMarkReg21(is_active ? art_quick_read_barrier_mark_reg21 : nullptr);
+  qpoints->SetReadBarrierMarkReg22(is_active ? art_quick_read_barrier_mark_reg22 : nullptr);
+  qpoints->SetReadBarrierMarkReg23(is_active ? art_quick_read_barrier_mark_reg23 : nullptr);
+  qpoints->SetReadBarrierMarkReg24(is_active ? art_quick_read_barrier_mark_reg24 : nullptr);
+  qpoints->SetReadBarrierMarkReg25(is_active ? art_quick_read_barrier_mark_reg25 : nullptr);
+  qpoints->SetReadBarrierMarkReg26(is_active ? art_quick_read_barrier_mark_reg26 : nullptr);
+  qpoints->SetReadBarrierMarkReg27(is_active ? art_quick_read_barrier_mark_reg27 : nullptr);
+  qpoints->SetReadBarrierMarkReg28(is_active ? art_quick_read_barrier_mark_reg28 : nullptr);
+  qpoints->SetReadBarrierMarkReg29(is_active ? art_quick_read_barrier_mark_reg29 : nullptr);
+  // Note: Entrypoints for registers X30 (T5) and T31 (T6) are stored in entries
+  // for X0 (Zero) and X1 (RA) because these are not valid registers for marking
+  // and we currently have slots only up to register 29.
+  qpoints->SetReadBarrierMarkReg00(is_active ? art_quick_read_barrier_mark_reg30 : nullptr);
+  qpoints->SetReadBarrierMarkReg01(is_active ? art_quick_read_barrier_mark_reg31 : nullptr);
 }
 
 void InitEntryPoints(JniEntryPoints* jpoints,

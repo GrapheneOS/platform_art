@@ -751,6 +751,14 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kFloatConstant:
         case HInstruction::kIntConstant:
         case HInstruction::kLongConstant:
+        case HInstruction::kNullConstant:
+        case HInstruction::kLoadClass:
+        case HInstruction::kLoadString:
+        case HInstruction::kLoadMethodHandle:
+        case HInstruction::kLoadMethodType:
+        case HInstruction::kInstanceFieldGet:
+        case HInstruction::kStaticFieldGet:
+        case HInstruction::kArrayGet:
         case HInstruction::kAbove:
         case HInstruction::kAboveOrEqual:
         case HInstruction::kBelow:
