@@ -406,6 +406,8 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
 
   void GenerateMemoryBarrier(MemBarrierKind kind);
 
+  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
+
  protected:
   void GenerateClassInitializationCheck(SlowPathCodeRISCV64* slow_path, XRegister class_reg);
   void GenerateBitstringTypeCheckCompare(HTypeCheckInstruction* check, XRegister temp);
@@ -518,8 +520,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
   void Store(Location value, XRegister rs1, int32_t offset, DataType::Type type);
-
-  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
 
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;
@@ -759,22 +759,13 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
                                              bool needs_null_check);
   // Factored implementation, used by GenerateFieldLoadWithBakerReadBarrier
   // and GenerateArrayLoadWithBakerReadBarrier.
-  //
-  // Load the object reference located at the address
-  // `obj + offset + (index << scale_factor)`, held by object `obj`, into
-  // `ref`, and mark it if needed.
-  //
-  // If `always_update_field` is true, the value of the reference is
-  // atomically updated in the holder (`obj`).
   void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                  Location ref,
                                                  XRegister obj,
                                                  uint32_t offset,
                                                  Location index,
-                                                 ScaleFactor scale_factor,
                                                  Location temp,
-                                                 bool needs_null_check,
-                                                 bool always_update_field = false);
+                                                 bool needs_null_check);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.

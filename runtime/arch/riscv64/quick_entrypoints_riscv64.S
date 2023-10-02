@@ -545,6 +545,26 @@ END art_quick_do_long_jump
 .endm
 
 
+.macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_A0 temp, is_ref
+  ld      \temp, THREAD_DEOPT_CHECK_REQUIRED_OFFSET(xSELF)
+  CFI_REMEMBER_STATE
+  bnez    \temp, 2f
+  RESTORE_SAVE_EVERYTHING_FRAME /* load_a0= */ 0
+  ret
+2:
+  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
+  sd      a0, SAVE_EVERYTHING_FRAME_OFFSET_A0(sp)    // update result in the frame
+  li      a2, \is_ref                                // pass if result is a reference
+  mv      a1, x0                                     // pass the result
+  mv      a0, xSELF                                  // Thread::Current
+  call    artDeoptimizeIfNeeded
+  CFI_REMEMBER_STATE
+  RESTORE_SAVE_EVERYTHING_FRAME
+  ret
+  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
+.endm
+
+
 // Entry from managed code that tries to lock the object in a fast path and
 // calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
 // A0 holds the possibly null object to lock.
@@ -1033,6 +1053,36 @@ ENTRY art_quick_update_inline_cache
 END art_quick_update_inline_cache
 
 
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL \
+        name, entrypoint, runtime_method_offset = RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET
+    .extern \entrypoint
+ENTRY \name
+    SETUP_SAVE_EVERYTHING_FRAME \runtime_method_offset  // Save everything for stack crawl.
+    mv    a1, xSELF                   // Pass Thread::Current().
+    call  \entrypoint                 // (uint32_t/Class* index/klass, Thread* self)
+    beqz  a0, 1f                      // If result is null, deliver the exception.
+    DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_A0 /* temp= */ a1, /* is_ref= */ 1
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+END \name
+.endm
+
+.macro ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT name, entrypoint
+    ONE_ARG_SAVE_EVERYTHING_DOWNCALL \
+            \name, \entrypoint, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
+.endm
+
+
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT \
+        art_quick_initialize_static_storage, artInitializeStaticStorageFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT art_quick_resolve_type, artResolveTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL \
+        art_quick_resolve_type_and_verify_access, artResolveTypeAndVerifyAccessFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_method_handle, artResolveMethodHandleFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_method_type, artResolveMethodTypeFromCode
+ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
+
+
 // Create a function `name` calling the art::ReadBarrier::Mark routine, getting its argument and
 // returning its result through \reg, saving and restoring all caller-save registers.
 //
@@ -1165,7 +1215,34 @@ END \name
 .endm
 
 
+// No read barrier for X0 (Zero), X1 (RA), X2 (SP), X3 (GP) and X4 (TP).
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, t0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, t1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, t2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, s0
+// No read barrier for X9 (S1/xSELF).
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, a0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, a1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, a2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, a3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, a4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg15, a5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, a6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, a7
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, s2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, s3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg20, s4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg21, s5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, s6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg23, s7
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg24, s8
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg25, s9
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg26, s10
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg27, s11
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg28, t3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, t4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg30, t5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg31, t6
 
 
 UNDEFINED art_quick_deoptimize_from_compiled_code
@@ -1317,12 +1394,6 @@ UNDEFINED art_quick_alloc_string_from_chars_region_tlab
 UNDEFINED art_quick_alloc_string_from_chars_region_tlab_instrumented
 UNDEFINED art_quick_alloc_string_from_string_region_tlab
 UNDEFINED art_quick_alloc_string_from_string_region_tlab_instrumented
-UNDEFINED art_quick_initialize_static_storage
-UNDEFINED art_quick_resolve_type_and_verify_access
-UNDEFINED art_quick_resolve_type
-UNDEFINED art_quick_resolve_method_handle
-UNDEFINED art_quick_resolve_method_type
-UNDEFINED art_quick_resolve_string
 UNDEFINED art_quick_set8_instance
 UNDEFINED art_quick_set8_static
 UNDEFINED art_quick_set16_instance
