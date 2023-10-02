@@ -163,6 +163,7 @@ class Riscv64Assembler final : public Assembler {
                             const Riscv64InstructionSetFeatures* instruction_set_features = nullptr)
       : Assembler(allocator),
         branches_(allocator->Adapter(kArenaAllocAssembler)),
+        finalized_(false),
         overwriting_(false),
         overwrite_location_(0),
         literals_(allocator->Adapter(kArenaAllocAssembler)),
@@ -1041,6 +1042,9 @@ class Riscv64Assembler final : public Assembler {
   }
 
   ArenaVector<Branch> branches_;
+
+  // For checking that we finalize the code only once.
+  bool finalized_;
 
   // Whether appending instructions at the end of the buffer or overwriting the existing ones.
   bool overwriting_;
