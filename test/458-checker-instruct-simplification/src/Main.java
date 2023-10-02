@@ -2982,6 +2982,144 @@ public class Main {
     return array[0];
   }
 
+  // If a == b returns b (which is equal to a) else returns a. This can be simplified to just
+  // return a.
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:i\d+>> ParameterValue
+  /// CHECK:     <<Param2:i\d+>> ParameterValue
+  /// CHECK:     <<Select:i\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (after)
+  /// CHECK:     <<Param1:i\d+>> ParameterValue
+  /// CHECK:     <<Param2:i\d+>> ParameterValue
+  /// CHECK:     <<Return:v\d+>> Return [<<Param1>>]
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (after)
+  /// CHECK-NOT: Select
+  private static int $noinline$returnSecondIfEqualElseFirstInt(int a, int b) {
+    return a == b ? b : a;
+  }
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:j\d+>> ParameterValue
+  /// CHECK:     <<Param2:j\d+>> ParameterValue
+  /// CHECK:     <<Select:j\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (after)
+  /// CHECK:     <<Param1:j\d+>> ParameterValue
+  /// CHECK:     <<Param2:j\d+>> ParameterValue
+  /// CHECK:     <<Return:v\d+>> Return [<<Param1>>]
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (after)
+  /// CHECK-NOT: Select
+  private static long $noinline$returnSecondIfEqualElseFirstLong(long a, long b) {
+    return a == b ? b : a;
+  }
+
+  // Note that we do not do the optimization for Float/Double.
+
+  /// CHECK-START: float Main.$noinline$returnSecondIfEqualElseFirstFloat(float, float) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:f\d+>> ParameterValue
+  /// CHECK:     <<Param2:f\d+>> ParameterValue
+  /// CHECK:     <<Select:f\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: float Main.$noinline$returnSecondIfEqualElseFirstFloat(float, float) disassembly (after)
+  /// CHECK:     <<Param1:f\d+>> ParameterValue
+  /// CHECK:     <<Param2:f\d+>> ParameterValue
+  /// CHECK:     <<Select:f\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+  private static float $noinline$returnSecondIfEqualElseFirstFloat(float a, float b) {
+    return a == b ? b : a;
+  }
+
+  /// CHECK-START: double Main.$noinline$returnSecondIfEqualElseFirstDouble(double, double) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:d\d+>> ParameterValue
+  /// CHECK:     <<Param2:d\d+>> ParameterValue
+  /// CHECK:     <<Select:d\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: double Main.$noinline$returnSecondIfEqualElseFirstDouble(double, double) disassembly (after)
+  /// CHECK:     <<Param1:d\d+>> ParameterValue
+  /// CHECK:     <<Param2:d\d+>> ParameterValue
+  /// CHECK:     <<Select:d\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+  private static double $noinline$returnSecondIfEqualElseFirstDouble(double a, double b) {
+    return a == b ? b : a;
+  }
+
+  // If a != b returns b else returns a (which is equal to b). This can be simplified to just
+  // return b.
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfNotEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:i\d+>> ParameterValue
+  /// CHECK:     <<Param2:i\d+>> ParameterValue
+  /// CHECK:     <<Select:i\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfNotEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (after)
+  /// CHECK:     <<Param1:i\d+>> ParameterValue
+  /// CHECK:     <<Param2:i\d+>> ParameterValue
+  /// CHECK:     <<Return:v\d+>> Return [<<Param2>>]
+
+  /// CHECK-START: int Main.$noinline$returnSecondIfNotEqualElseFirstInt(int, int) instruction_simplifier$after_gvn (after)
+  /// CHECK-NOT: Select
+  private static int $noinline$returnSecondIfNotEqualElseFirstInt(int a, int b) {
+    return a != b ? b : a;
+  }
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfNotEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:j\d+>> ParameterValue
+  /// CHECK:     <<Param2:j\d+>> ParameterValue
+  /// CHECK:     <<Select:j\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfNotEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (after)
+  /// CHECK:     <<Param1:j\d+>> ParameterValue
+  /// CHECK:     <<Param2:j\d+>> ParameterValue
+  /// CHECK:     <<Return:v\d+>> Return [<<Param2>>]
+
+  /// CHECK-START: long Main.$noinline$returnSecondIfNotEqualElseFirstLong(long, long) instruction_simplifier$after_gvn (after)
+  /// CHECK-NOT: Select
+  private static long $noinline$returnSecondIfNotEqualElseFirstLong(long a, long b) {
+    return a != b ? b : a;
+  }
+
+  // Note that we do not do the optimization for Float/Double.
+
+  /// CHECK-START: float Main.$noinline$returnSecondIfNotEqualElseFirstFloat(float, float) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:f\d+>> ParameterValue
+  /// CHECK:     <<Param2:f\d+>> ParameterValue
+  /// CHECK:     <<Select:f\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: float Main.$noinline$returnSecondIfNotEqualElseFirstFloat(float, float) disassembly (after)
+  /// CHECK:     <<Param1:f\d+>> ParameterValue
+  /// CHECK:     <<Param2:f\d+>> ParameterValue
+  /// CHECK:     <<Select:f\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+  private static float $noinline$returnSecondIfNotEqualElseFirstFloat(float a, float b) {
+    return a != b ? b : a;
+  }
+
+  /// CHECK-START: double Main.$noinline$returnSecondIfNotEqualElseFirstDouble(double, double) instruction_simplifier$after_gvn (before)
+  /// CHECK:     <<Param1:d\d+>> ParameterValue
+  /// CHECK:     <<Param2:d\d+>> ParameterValue
+  /// CHECK:     <<Select:d\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+
+  /// CHECK-START: double Main.$noinline$returnSecondIfNotEqualElseFirstDouble(double, double) disassembly (after)
+  /// CHECK:     <<Param1:d\d+>> ParameterValue
+  /// CHECK:     <<Param2:d\d+>> ParameterValue
+  /// CHECK:     <<Select:d\d+>> Select [<<Param2>>,<<Param1>>,<<Cond:z\d+>>]
+  /// CHECK:     <<Return:v\d+>> Return [<<Select>>]
+  private static double $noinline$returnSecondIfNotEqualElseFirstDouble(double a, double b) {
+    return a != b ? b : a;
+  }
+
   public static void main(String[] args) throws Exception {
     Class smaliTests2 = Class.forName("SmaliTests2");
     Method $noinline$XorAllOnes = smaliTests2.getMethod("$noinline$XorAllOnes", int.class);
@@ -3194,7 +3332,7 @@ public class Main {
     assertFloatEquals(floatArg, $noinline$floatSubAddSimplifyRight(floatArg, 654321.125f));
 
     // Sub/Add and Sub/Sub simplifications
-    int[] int_inputs = {0, 1, -1, Integer.MIN_VALUE, Integer.MAX_VALUE, 42, -9000};
+    final int[] int_inputs = {0, 1, -1, Integer.MIN_VALUE, Integer.MAX_VALUE, 42, -9000};
     for (int x : int_inputs) {
       for (int y : int_inputs) {
         // y - (x + y) = -x
@@ -3208,8 +3346,8 @@ public class Main {
       }
     }
 
-    long[] long_inputs = {0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE, 0x100000000L, 0x100000001L,
-            -9000L, 0x0123456789ABCDEFL};
+    final long[] long_inputs = {0L, 1L, -1L, Long.MIN_VALUE, Long.MAX_VALUE, 0x100000000L,
+            0x100000001L, -9000L, 0x0123456789ABCDEFL};
     for (long x : long_inputs) {
       for (long y : long_inputs) {
         // y - (x + y) = -x
@@ -3321,6 +3459,20 @@ public class Main {
     assertIntEquals(111, $noinline$redundantAndRegressionNotConstant(-1, 0x6f45));
 
     assertIntEquals(50, $noinline$deadAddAfterUnrollingAndSimplification(new int[] { 0 }));
+
+    for (int x : int_inputs) {
+      for (int y : int_inputs) {
+        assertIntEquals(x, $noinline$returnSecondIfEqualElseFirstInt(x, y));
+        assertIntEquals(y, $noinline$returnSecondIfNotEqualElseFirstInt(x, y));
+      }
+    }
+
+    for (long x : long_inputs) {
+      for (long y : long_inputs) {
+        assertLongEquals(x, $noinline$returnSecondIfEqualElseFirstLong(x, y));
+        assertLongEquals(y, $noinline$returnSecondIfNotEqualElseFirstLong(x, y));
+      }
+    }
   }
 
   private static boolean $inline$true() { return true; }
