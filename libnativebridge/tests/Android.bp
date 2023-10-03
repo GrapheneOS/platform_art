@@ -186,11 +186,37 @@ cc_test {
     // loaded, to avoid the problems with test_per_src and pushing the extra
     // libnativebridge*-test-case.so files to device through tradefed.
     srcs: [
-        // ValidNameNativeBridge_test.cpp needs to be first due to global state
-        // had_error that isn't reset between tests.
-        "ValidNameNativeBridge_test.cpp",
         "NeedsNativeBridge_test.cpp",
         "UnavailableNativeBridge_test.cpp",
+    ],
+    static_libs: [
+        "libdl_android",
+        "libnativebridge",
+    ],
+    shared_libs: [
+        "liblog",
+    ],
+    header_libs: ["libbase_headers"],
+
+    test_config_template: ":art-gtests-target-standalone-cts-template",
+    test_suites: [
+        "cts",
+        "general-tests",
+        "mts-art",
+    ],
+}
+
+// ValidNameNativeBridge_test.cpp needs to be in it own executable due
+// to global state had_error that isn't reset between tests.
+cc_test {
+    name: "art_libnativebridge_valid_name_cts_tests",
+    defaults: [
+        "art_standalone_test_defaults",
+        "libnativebridge-tests-defaults",
+    ],
+
+    srcs: [
+        "ValidNameNativeBridge_test.cpp",
     ],
     static_libs: [
         "libdl_android",
