@@ -28,10 +28,12 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -437,18 +439,21 @@ void AddDex2OatInstructionSet(/*inout*/ CmdlineBuilder& args, InstructionSet isa
   args.Add("--instruction-set=%s", isa_str);
 }
 
-// Returns true if any profile has been added.
-bool AddDex2OatProfile(
+// Returns true if any profile has been added, or false if no profile exists, or error if any error
+// occurred.
+Result<bool> AddDex2OatProfile(
     /*inout*/ CmdlineBuilder& args,
     /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
     const std::vector<std::string>& profile_paths) {
   bool has_any_profile = false;
-  for (auto& path : profile_paths) {
+  for (const std::string& path : profile_paths) {
     std::unique_ptr<File> profile_file(OS::OpenFileForReading(path.c_str()));
-    if (profile_file && profile_file->IsOpened()) {
+    if (profile_file != nullptr) {
       args.Add("--profile-file-fd=%d", profile_file->Fd());
       output_files.emplace_back(std::move(profile_file));
       has_any_profile = true;
+    } else if (errno != ENOENT) {
+      return ErrnoErrorf("Failed to open profile file '{}'", path);
     }
   }
   return has_any_profile;
@@ -467,8 +472,8 @@ Result<void> AddBootClasspathFds(/*inout*/ CmdlineBuilder& args,
     } else {
       std::string actual_path = RewriteParentDirectoryIfNeeded(jar);
       std::unique_ptr<File> jar_file(OS::OpenFileForReading(actual_path.c_str()));
-      if (!jar_file || !jar_file->IsValid()) {
-        return Errorf("Failed to open a BCP jar '{}'", actual_path);
+      if (jar_file == nullptr) {
+        return ErrnoErrorf("Failed to open a BCP jar '{}'", actual_path);
       }
       bcp_fds.push_back(std::to_string(jar_file->Fd()));
       output_files.push_back(std::move(jar_file));
@@ -499,7 +504,7 @@ std::string GetBootImageComponentBasename(const std::string& jar_path, bool is_f
   return "boot-" + ReplaceFileExtension(jar_name, "art");
 }
 
-void AddCompiledBootClasspathFdsIfAny(
+Result<void> AddCompiledBootClasspathFdsIfAny(
     /*inout*/ CmdlineBuilder& args,
     /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
     const std::vector<std::string>& bcp_jars,
@@ -526,32 +531,38 @@ void AddCompiledBootClasspathFdsIfAny(
     std::string image_path = artifact_dir + "/" + basename;
     image_path = GetSystemImageFilename(image_path.c_str(), isa);
     std::unique_ptr<File> image_file(OS::OpenFileForReading(image_path.c_str()));
-    if (image_file && image_file->IsValid()) {
+    if (image_file != nullptr) {
       bcp_image_fds.push_back(std::to_string(image_file->Fd()));
       opened_files.push_back(std::move(image_file));
       added_any = true;
-    } else {
+    } else if (errno == ENOENT) {
       bcp_image_fds.push_back("-1");
+    } else {
+      return ErrnoErrorf("Failed to open boot image file '{}'", image_path);
     }
 
     std::string oat_path = ReplaceFileExtension(image_path, "oat");
     std::unique_ptr<File> oat_file(OS::OpenFileForReading(oat_path.c_str()));
-    if (oat_file && oat_file->IsValid()) {
+    if (oat_file != nullptr) {
       bcp_oat_fds.push_back(std::to_string(oat_file->Fd()));
       opened_files.push_back(std::move(oat_file));
       added_any = true;
-    } else {
+    } else if (errno == ENOENT) {
       bcp_oat_fds.push_back("-1");
+    } else {
+      return ErrnoErrorf("Failed to open boot image file '{}'", oat_path);
     }
 
     std::string vdex_path = ReplaceFileExtension(image_path, "vdex");
     std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex_path.c_str()));
-    if (vdex_file && vdex_file->IsValid()) {
+    if (vdex_file != nullptr) {
       bcp_vdex_fds.push_back(std::to_string(vdex_file->Fd()));
       opened_files.push_back(std::move(vdex_file));
       added_any = true;
-    } else {
+    } else if (errno == ENOENT) {
       bcp_vdex_fds.push_back("-1");
+    } else {
+      return ErrnoErrorf("Failed to open boot image file '{}'", vdex_path);
     }
   }
   // Add same amount of FDs as BCP JARs, or none.
@@ -562,6 +573,8 @@ void AddCompiledBootClasspathFdsIfAny(
     args.AddRuntime("-Xbootclasspathoatfds:%s", Join(bcp_oat_fds, ':'));
     args.AddRuntime("-Xbootclasspathvdexfds:%s", Join(bcp_vdex_fds, ':'));
   }
+
+  return {};
 }
 
 std::string GetStagingLocation(const std::string& staging_dir, const std::string& path) {
@@ -732,7 +745,7 @@ Result<art_apex::CacheInfo> OnDeviceRefresh::ReadCacheInfo() const {
 Result<void> OnDeviceRefresh::WriteCacheInfo() const {
   if (OS::FileExists(cache_info_filename_.c_str())) {
     if (unlink(cache_info_filename_.c_str()) != 0) {
-      return ErrnoErrorf("Failed to unlink() file {}", QuotePath(cache_info_filename_));
+      return ErrnoErrorf("Failed to unlink file {}", QuotePath(cache_info_filename_));
     }
   }
 
@@ -768,7 +781,7 @@ Result<void> OnDeviceRefresh::WriteCacheInfo() const {
 
   std::ofstream out(cache_info_filename_.c_str());
   if (out.fail()) {
-    return Errorf("Cannot open {} for writing.", QuotePath(cache_info_filename_));
+    return ErrnoErrorf("Could not create cache info file {}", QuotePath(cache_info_filename_));
   }
 
   std::unique_ptr<art_apex::CacheInfo> info(new art_apex::CacheInfo(
@@ -783,7 +796,7 @@ Result<void> OnDeviceRefresh::WriteCacheInfo() const {
   art_apex::write(out, *info);
   out.close();
   if (out.fail()) {
-    return Errorf("Cannot write to {}", QuotePath(cache_info_filename_));
+    return ErrnoErrorf("Could not write cache info file {}", QuotePath(cache_info_filename_));
   }
 
   return {};
@@ -1661,6 +1674,11 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
     std::string actual_path = RewriteParentDirectoryIfNeeded(dex_file);
     args.Add("--dex-file=%s", dex_file);
     std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
+    if (file == nullptr) {
+      return CompilationResult::Error(
+          OdrMetrics::Status::kIoError,
+          ART_FORMAT("Failed to open dex file '{}': {}", actual_path, strerror(errno)));
+    }
     args.Add("--dex-fd=%d", file->Fd());
     readonly_files_raii.push_back(std::move(file));
   }
@@ -1673,8 +1691,11 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
 
   if (!input_boot_images.empty()) {
     args.Add("--boot-image=%s", Join(input_boot_images, ':'));
-    AddCompiledBootClasspathFdsIfAny(
+    result = AddCompiledBootClasspathFdsIfAny(
         args, readonly_files_raii, boot_classpath, isa, input_boot_images);
+    if (!result.ok()) {
+      return CompilationResult::Error(OdrMetrics::Status::kIoError, result.error().message());
+    }
   }
 
   args.Add("--oat-location=%s", artifacts.OatPath());
@@ -1689,7 +1710,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
     if (staging_file == nullptr) {
       return CompilationResult::Error(
           OdrMetrics::Status::kIoError,
-          ART_FORMAT("Failed to create {} file '{}'", kind, staging_location));
+          ART_FORMAT("Failed to create {} file '{}': {}", kind, staging_location, strerror(errno)));
     }
     // Don't check the state of the staging file. It doesn't need to be flushed because it's removed
     // after the compilation regardless of success or failure.
@@ -1755,9 +1776,13 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
     // Primary boot image.
     std::string art_boot_profile_file = GetArtRoot() + "/etc/boot-image.prof";
     std::string framework_boot_profile_file = GetAndroidRoot() + "/etc/boot-image.prof";
-    bool has_any_profile = AddDex2OatProfile(
+    Result<bool> has_any_profile = AddDex2OatProfile(
         args, readonly_files_raii, {art_boot_profile_file, framework_boot_profile_file});
-    if (!has_any_profile) {
+    if (!has_any_profile.ok()) {
+      return CompilationResult::Error(OdrMetrics::Status::kIoError,
+                                      has_any_profile.error().message());
+    }
+    if (!*has_any_profile) {
       return CompilationResult::Error(OdrMetrics::Status::kIoError, "Missing boot image profile");
     }
     const std::string& compiler_filter = config_.GetBootImageCompilerFilter();
@@ -1770,21 +1795,31 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
     args.Add(StringPrintf("--base=0x%08x", ART_BASE_ADDRESS));
 
     std::string dirty_image_objects_file(GetAndroidRoot() + "/etc/dirty-image-objects");
-    if (OS::FileExists(dirty_image_objects_file.c_str())) {
-      std::unique_ptr<File> file(OS::OpenFileForReading(dirty_image_objects_file.c_str()));
+    std::unique_ptr<File> file(OS::OpenFileForReading(dirty_image_objects_file.c_str()));
+    if (file != nullptr) {
       args.Add("--dirty-image-objects-fd=%d", file->Fd());
       readonly_files_raii.push_back(std::move(file));
+    } else if (errno == ENOENT) {
+      LOG(WARNING) << ART_FORMAT("Missing dirty objects file '{}'", dirty_image_objects_file);
     } else {
-      LOG(WARNING) << ART_FORMAT("Missing dirty objects file: '{}'", dirty_image_objects_file);
+      return CompilationResult::Error(OdrMetrics::Status::kIoError,
+                                      ART_FORMAT("Failed to open dirty objects file '{}': {}",
+                                                 dirty_image_objects_file,
+                                                 strerror(errno)));
     }
 
     std::string preloaded_classes_file(GetAndroidRoot() + "/etc/preloaded-classes");
-    if (OS::FileExists(preloaded_classes_file.c_str())) {
-      std::unique_ptr<File> file(OS::OpenFileForReading(preloaded_classes_file.c_str()));
+    file.reset(OS::OpenFileForReading(preloaded_classes_file.c_str()));
+    if (file != nullptr) {
       args.Add("--preloaded-classes-fds=%d", file->Fd());
       readonly_files_raii.push_back(std::move(file));
+    } else if (errno == ENOENT) {
+      LOG(WARNING) << ART_FORMAT("Missing preloaded classes file '{}'", preloaded_classes_file);
     } else {
-      LOG(WARNING) << ART_FORMAT("Missing preloaded classes file: '{}'", preloaded_classes_file);
+      return CompilationResult::Error(OdrMetrics::Status::kIoError,
+                                      ART_FORMAT("Failed to open preloaded classes file '{}': {}",
+                                                 preloaded_classes_file,
+                                                 strerror(errno)));
     }
   } else {
     // Mainline extension.
@@ -1912,8 +1947,15 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
   std::string profile = actual_jar_path + ".prof";
   const std::string& compiler_filter = config_.GetSystemServerCompilerFilter();
   bool maybe_add_profile = !compiler_filter.empty() || HasVettedDeviceSystemServerProfiles();
-  bool has_added_profile =
-      maybe_add_profile && AddDex2OatProfile(args, readonly_files_raii, {profile});
+  bool has_added_profile = false;
+  if (maybe_add_profile) {
+    Result<bool> has_any_profile = AddDex2OatProfile(args, readonly_files_raii, {profile});
+    if (!has_any_profile.ok()) {
+      return CompilationResult::Error(OdrMetrics::Status::kIoError,
+                                      has_any_profile.error().message());
+    }
+    has_added_profile = *has_any_profile;
+  }
   if (!compiler_filter.empty()) {
     args.Add("--compiler-filter=%s", compiler_filter);
   } else if (has_added_profile) {
@@ -1933,7 +1975,7 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
     for (const std::string& path : classloader_context) {
       std::string actual_path = RewriteParentDirectoryIfNeeded(path);
       std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
-      if (!file->IsValid()) {
+      if (file == nullptr) {
         return CompilationResult::Error(
             OdrMetrics::Status::kIoError,
             ART_FORMAT(
