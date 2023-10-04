@@ -93,7 +93,7 @@ using ArenaHashMap = HashMap<Key,
 template <typename Key,
           typename Value,
           typename Hash = std::hash<Key>,
-          typename Pred = std::equal_to<Value>>
+          typename Pred = std::equal_to<Key>>
 using ArenaUnorderedMap = std::unordered_map<Key,
                                              Value,
                                              Hash,
