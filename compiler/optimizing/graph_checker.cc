@@ -168,52 +168,68 @@ void GraphChecker::CheckGraphFlags() {
 void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   current_block_ = block;
 
-  // Use local allocator for allocating memory.
-  ScopedArenaAllocator allocator(GetGraph()->GetArenaStack());
+  {
+    // Use local allocator for allocating memory. We use C++ scopes (i.e. `{}`) to reclaim the
+    // memory as soon as possible, and to end the scope of this `ScopedArenaAllocator`.
+    ScopedArenaAllocator allocator(GetGraph()->GetArenaStack());
 
-  // Check consistency with respect to predecessors of `block`.
-  // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
-  ScopedArenaVector<HBasicBlock*> sorted_predecessors(allocator.Adapter(kArenaAllocGraphChecker));
-  sorted_predecessors.assign(block->GetPredecessors().begin(), block->GetPredecessors().end());
-  std::sort(sorted_predecessors.begin(), sorted_predecessors.end());
-  for (auto it = sorted_predecessors.begin(), end = sorted_predecessors.end(); it != end; ) {
-    HBasicBlock* p = *it++;
-    size_t p_count_in_block_predecessors = 1u;
-    for (; it != end && *it == p; ++it) {
-      ++p_count_in_block_predecessors;
+    {
+      // Check consistency with respect to predecessors of `block`.
+      // Note: Counting duplicates with a sorted vector uses up to 6x less memory
+      // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+      ScopedArenaVector<HBasicBlock*> sorted_predecessors(
+          allocator.Adapter(kArenaAllocGraphChecker));
+      sorted_predecessors.assign(block->GetPredecessors().begin(), block->GetPredecessors().end());
+      std::sort(sorted_predecessors.begin(), sorted_predecessors.end());
+      for (auto it = sorted_predecessors.begin(), end = sorted_predecessors.end(); it != end;) {
+        HBasicBlock* p = *it++;
+        size_t p_count_in_block_predecessors = 1u;
+        for (; it != end && *it == p; ++it) {
+          ++p_count_in_block_predecessors;
+        }
+        size_t block_count_in_p_successors =
+            std::count(p->GetSuccessors().begin(), p->GetSuccessors().end(), block);
+        if (p_count_in_block_predecessors != block_count_in_p_successors) {
+          AddError(StringPrintf(
+              "Block %d lists %zu occurrences of block %d in its predecessors, whereas "
+              "block %d lists %zu occurrences of block %d in its successors.",
+              block->GetBlockId(),
+              p_count_in_block_predecessors,
+              p->GetBlockId(),
+              p->GetBlockId(),
+              block_count_in_p_successors,
+              block->GetBlockId()));
+        }
+      }
     }
-    size_t block_count_in_p_successors =
-        std::count(p->GetSuccessors().begin(), p->GetSuccessors().end(), block);
-    if (p_count_in_block_predecessors != block_count_in_p_successors) {
-      AddError(StringPrintf(
-          "Block %d lists %zu occurrences of block %d in its predecessors, whereas "
-          "block %d lists %zu occurrences of block %d in its successors.",
-          block->GetBlockId(), p_count_in_block_predecessors, p->GetBlockId(),
-          p->GetBlockId(), block_count_in_p_successors, block->GetBlockId()));
-    }
-  }
 
-  // Check consistency with respect to successors of `block`.
-  // Note: Counting duplicates with a sorted vector uses up to 6x less memory
-  // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
-  ScopedArenaVector<HBasicBlock*> sorted_successors(allocator.Adapter(kArenaAllocGraphChecker));
-  sorted_successors.assign(block->GetSuccessors().begin(), block->GetSuccessors().end());
-  std::sort(sorted_successors.begin(), sorted_successors.end());
-  for (auto it = sorted_successors.begin(), end = sorted_successors.end(); it != end; ) {
-    HBasicBlock* s = *it++;
-    size_t s_count_in_block_successors = 1u;
-    for (; it != end && *it == s; ++it) {
-      ++s_count_in_block_successors;
-    }
-    size_t block_count_in_s_predecessors =
-        std::count(s->GetPredecessors().begin(), s->GetPredecessors().end(), block);
-    if (s_count_in_block_successors != block_count_in_s_predecessors) {
-      AddError(StringPrintf(
-          "Block %d lists %zu occurrences of block %d in its successors, whereas "
-          "block %d lists %zu occurrences of block %d in its predecessors.",
-          block->GetBlockId(), s_count_in_block_successors, s->GetBlockId(),
-          s->GetBlockId(), block_count_in_s_predecessors, block->GetBlockId()));
+    {
+      // Check consistency with respect to successors of `block`.
+      // Note: Counting duplicates with a sorted vector uses up to 6x less memory
+      // than ArenaSafeMap<HBasicBlock*, size_t> and also allows storage reuse.
+      ScopedArenaVector<HBasicBlock*> sorted_successors(allocator.Adapter(kArenaAllocGraphChecker));
+      sorted_successors.assign(block->GetSuccessors().begin(), block->GetSuccessors().end());
+      std::sort(sorted_successors.begin(), sorted_successors.end());
+      for (auto it = sorted_successors.begin(), end = sorted_successors.end(); it != end;) {
+        HBasicBlock* s = *it++;
+        size_t s_count_in_block_successors = 1u;
+        for (; it != end && *it == s; ++it) {
+          ++s_count_in_block_successors;
+        }
+        size_t block_count_in_s_predecessors =
+            std::count(s->GetPredecessors().begin(), s->GetPredecessors().end(), block);
+        if (s_count_in_block_successors != block_count_in_s_predecessors) {
+          AddError(
+              StringPrintf("Block %d lists %zu occurrences of block %d in its successors, whereas "
+                           "block %d lists %zu occurrences of block %d in its predecessors.",
+                           block->GetBlockId(),
+                           s_count_in_block_successors,
+                           s->GetBlockId(),
+                           s->GetBlockId(),
+                           block_count_in_s_predecessors,
+                           block->GetBlockId()));
+        }
+      }
     }
   }
 
@@ -587,21 +603,38 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 
   // Ensure 'instruction' has pointers to its inputs' use entries.
-  auto&& input_records = instruction->GetInputRecords();
-  for (size_t i = 0; i < input_records.size(); ++i) {
-    const HUserRecord<HInstruction*>& input_record = input_records[i];
-    HInstruction* input = input_record.GetInstruction();
-    if ((input_record.GetBeforeUseNode() == input->GetUses().end()) ||
-        (input_record.GetUseNode() == input->GetUses().end()) ||
-        !input->GetUses().ContainsNode(*input_record.GetUseNode()) ||
-        (input_record.GetUseNode()->GetIndex() != i)) {
-      AddError(StringPrintf("Instruction %s:%d has an invalid iterator before use entry "
-                            "at input %u (%s:%d).",
-                            instruction->DebugName(),
-                            instruction->GetId(),
-                            static_cast<unsigned>(i),
-                            input->DebugName(),
-                            input->GetId()));
+  {
+    auto&& input_records = instruction->GetInputRecords();
+    for (size_t i = 0; i < input_records.size(); ++i) {
+      const HUserRecord<HInstruction*>& input_record = input_records[i];
+      HInstruction* input = input_record.GetInstruction();
+
+      // Populate bookkeeping, if needed. See comment in graph_checker.h for uses_per_instruction_.
+      auto it = uses_per_instruction_.find(input->GetId());
+      if (it == uses_per_instruction_.end()) {
+        it = uses_per_instruction_
+                 .insert({input->GetId(),
+                          ScopedArenaSet<const art::HUseListNode<art::HInstruction*>*>(
+                              allocator_.Adapter(kArenaAllocGraphChecker))})
+                 .first;
+        for (auto&& use : input->GetUses()) {
+          it->second.insert(std::addressof(use));
+        }
+      }
+
+      if ((input_record.GetBeforeUseNode() == input->GetUses().end()) ||
+          (input_record.GetUseNode() == input->GetUses().end()) ||
+          (it->second.find(std::addressof(*input_record.GetUseNode())) == it->second.end()) ||
+          (input_record.GetUseNode()->GetIndex() != i)) {
+        AddError(
+            StringPrintf("Instruction %s:%d has an invalid iterator before use entry "
+                         "at input %u (%s:%d).",
+                         instruction->DebugName(),
+                         instruction->GetId(),
+                         static_cast<unsigned>(i),
+                         input->DebugName(),
+                         input->GetId()));
+      }
     }
   }
 
