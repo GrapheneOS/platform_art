@@ -50,6 +50,7 @@ ALWAYS_INLINE static inline int32_t ToInt12(uint32_t uint12) {
 }
 
 void Riscv64Assembler::FinalizeCode() {
+  CHECK(!finalized_);
   Assembler::FinalizeCode();
   ReserveJumpTableSpace();
   EmitLiterals();
@@ -57,6 +58,7 @@ void Riscv64Assembler::FinalizeCode() {
   EmitBranches();
   EmitJumpTables();
   PatchCFI();
+  finalized_ = true;
 }
 
 void Riscv64Assembler::Emit(uint32_t value) {

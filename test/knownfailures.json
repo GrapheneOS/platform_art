@@ -438,6 +438,7 @@
     },
     {
         "test_patterns": [
+            ".*const-method-type.*",
             ".*invoke-custom.*",
             ".*invoke-polymorphic.*",
             ".*methodhandle.*",
@@ -1180,7 +1181,6 @@
                   "845-data-image",
                   "846-multidex-data-image",
                   "847-filled-new-aray",
-                  "848-pattern-match",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",

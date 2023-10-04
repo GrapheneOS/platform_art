@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_JIT_SMALL_PATTERN_MATCHER_H_
-#define ART_COMPILER_JIT_SMALL_PATTERN_MATCHER_H_
+package annotations;
 
-#include "base/locks.h"
-#include "base/macros.h"
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-namespace art HIDDEN {
+/**
+ * Methods annotated with this annotation will be replaced with ldc bytecode
+ * with the MethodType described by the annotation.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface ConstantMethodType {
+    Class<?> returnType() default void.class;
 
-class ArtMethod;
-
-namespace jit {
-
-class SmallPatternMatcher {
- public:
-  static const void* TryMatch(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
-};
-
-}  // namespace jit
-}  // namespace art
-
-#endif  // ART_COMPILER_JIT_SMALL_PATTERN_MATCHER_H_
+    Class<?>[] parameterTypes() default {};
+}
