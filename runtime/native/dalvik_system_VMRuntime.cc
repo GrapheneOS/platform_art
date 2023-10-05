@@ -554,7 +554,7 @@ static jboolean VMRuntime_isArtTestRwFlagEnabled([[maybe_unused]] JNIEnv* env,
   return is_test_rw_flag_enabled();
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
     NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
     NATIVE_METHOD(VMRuntime, clampGrowthLimit, "()V"),

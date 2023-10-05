@@ -98,7 +98,7 @@ static void Continuation_enterSpecial(
   self->SetVirtualThreadFlags(kIsVirtual | kContinuation | kParking, false);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     NATIVE_METHOD(
         Continuation,
         doYieldNative,
