@@ -60,6 +60,10 @@ class FakeOatFile;
 }  // namespace collector
 }  // namespace gc
 
+// A special compilation reason to indicate that only the VDEX file is usable. Keep in sync with
+// `ArtConstants::REASON_VDEX` in artd/binder/com/android/server/art/ArtConstants.aidl.
+static constexpr const char* kReasonVdex = "vdex";
+
 // OatMethodOffsets are currently 5x32-bits=160-bits long, so if we can
 // save even one OatMethodOffsets struct, the more complicated encoding
 // using a bitmap pays for itself since few classes will have 160

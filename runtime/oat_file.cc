@@ -1862,7 +1862,7 @@ class OatFileBackedByVdex final : public OatFileBase {
         InstructionSetFeatures::FromCppDefines();
     SafeMap<std::string, std::string> store;
     store.Put(OatHeader::kCompilerFilter, CompilerFilter::NameOfFilter(CompilerFilter::kVerify));
-    store.Put(OatHeader::kCompilationReasonKey, "vdex");
+    store.Put(OatHeader::kCompilationReasonKey, kReasonVdex);
     store.Put(OatHeader::kConcurrentCopying,
               gUseReadBarrier ? OatHeader::kTrueValue : OatHeader::kFalseValue);
     if (context != nullptr) {

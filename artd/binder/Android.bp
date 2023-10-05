@@ -31,6 +31,10 @@ aidl_interface {
     backend: {
         java: {
             enabled: true,
+            apex_available: [
+                "com.android.art",
+                "com.android.art.debug",
+            ],
         },
         cpp: {
             enabled: false,
@@ -40,9 +44,7 @@ aidl_interface {
             apex_available: [
                 "com.android.art",
                 "com.android.art.debug",
-                "com.android.compos",
             ],
-            min_sdk_version: "31",
         },
     },
     unstable: true,
@@ -50,4 +52,5 @@ aidl_interface {
         "//system/tools/aidl/build",
         "//art:__subpackages__",
     ],
+    min_sdk_version: "31",
 }

@@ -18,11 +18,24 @@
 #define ART_LIBARTTOOLS_TOOLS_TOOLS_H_
 
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace art {
 namespace tools {
 
-std::string getMsg();
+// Searches in a filesystem, starting from `root_dir`. Returns all regular files (i.e., excluding
+// directories, symlinks, etc.) that match at least one pattern in `patterns`. Each pattern is an
+// absolute path that contains zero or more wildcards. The scan does not follow symlinks to
+// directories.
+//
+// Supported wildcards are:
+// - Those documented in glob(7)
+// - '**': Matches zero or more path elements. This is only recognised by itself as a path segment.
+//
+// For simplicity and efficiency, at most one '**' is allowed.
+std::vector<std::string> Glob(const std::vector<std::string>& patterns,
+                              std::string_view root_dir = "/");
 
 }  // namespace tools
 }  // namespace art

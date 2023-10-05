@@ -60,13 +60,61 @@ cc_library {
     ],
 }
 
+java_defaults {
+    name: "service-art-defaults",
+    defaults: [
+        "framework-system-server-module-defaults",
+    ],
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
+    srcs: [
+        "java/**/*.java",
+    ],
+    libs: [
+        "androidx.annotation_annotation",
+        "auto_value_annotations",
+        "sdk_module-lib_current_framework-permission-s",
+        // TODO(b/256866172): Transitive dependency, for r8 only.
+        "framework-statsd.stubs.module_lib",
+        // TODO(b/256866172): Transitive dependency, for r8 only. This module
+        // always refers to the jar in prebuilts/sdk. We can't use
+        // "framework-connectivity.stubs.module_lib" here because it's not
+        // available on master-art.
+        "sdk_module-lib_current_framework-connectivity",
+    ],
+    static_libs: [
+        "art-statslog-art-java",
+        "artd-aidl-java",
+        "modules-utils-package-state",
+        "modules-utils-shell-command-handler",
+        "service-art-proto-java",
+    ],
+    plugins: [
+        "auto_value_plugin",
+    ],
+}
+
+// Used by tests to allow tests to mock the right classes.
+java_library {
+    name: "service-art-pre-jarjar",
+    defaults: ["service-art-defaults"],
+    installable: false,
+    visibility: [
+        "//visibility:override",
+        "//visibility:private",
+    ],
+}
+
 // Provides the API and implementation of the ART Service class that will be
 // loaded by the System Server.
 java_sdk_library {
     // This target is named 'service-art' to conform to the naming conventions
     // for JAR files in the System Server.
     name: "service-art",
-    defaults: ["framework-system-server-module-defaults"],
+    defaults: [
+        "service-art-defaults",
+        "framework-system-server-module-optimize-defaults",
+    ],
     permitted_packages: ["com.android.server.art"],
     dex_preopt: {
         profile: "art-profile",
@@ -79,14 +127,49 @@ java_sdk_library {
         "com.android.art",
         "com.android.art.debug",
     ],
+    jarjar_rules: "jarjar-rules.txt",
+    optimize: {
+        proguard_flags_files: ["proguard.flags"],
+    },
+}
+
+java_library {
+    name: "service-art-proto-java",
+    proto: {
+        type: "lite",
+    },
+    srcs: [
+        "proto/**/*.proto",
+    ],
     sdk_version: "system_server_current",
     min_sdk_version: "31",
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
+java_library {
+    name: "art-statslog-art-java",
     srcs: [
-        "java/**/*.java",
+        ":art-statslog-art-java-gen",
     ],
-    static_libs: [
+    libs: [
+        "framework-statsd.stubs.module_lib",
     ],
-    jarjar_rules: "jarjar-rules.txt",
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
+genrule {
+    name: "art-statslog-art-java-gen",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module art --javaPackage com.android.server.art --javaClass ArtStatsLog",
+    out: ["java/com/android/server/art/ArtStatsLog.java"],
 }
 
 art_cc_defaults {
@@ -134,12 +217,31 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
         "androidx.test.runner",
-        "mockito-target-minus-junit4",
-        "service-art.impl",
+        "artd-aidl-java",
+        "framework-annotations-lib",
+        // We need ExtendedMockito to mock static methods.
+        "mockito-target-extended-minus-junit4",
+        "modules-utils-package-state",
+        "service-art-pre-jarjar",
+        // Statically link against system server to allow us to mock system
+        // server APIs. This won't work on master-art, but it's fine because we
+        // don't run this test on master-art.
+        "services.core",
     ],
 
-    sdk_version: "system_server_current",
+    jni_libs: [
+        // The two libraries below are required by ExtendedMockito.
+        "libdexmakerjvmtiagent",
+        "libstaticjvmtiagent",
+    ],
+    compile_multilib: "both",
+
+    // TODO: This module should move to sdk_version: "system_server_current" when possible,
+    //   as this will restrict the APIs available to just that expected system API. For now,
+    //   a compileOnly / runtimeOnly split for dependencies doesn't exist in the build system
+    //   and so it's not possible to enforce.
     min_sdk_version: "31",
 
     test_suites: ["general-tests"],
+    test_config: "ArtServiceTests.xml",
 }
