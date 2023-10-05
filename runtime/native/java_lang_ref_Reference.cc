@@ -76,7 +76,7 @@ static void Reference_clearReferent(JNIEnv* env, jobject javaThis) {
   Runtime::Current()->GetHeap()->GetReferenceProcessor()->ClearReferent(ref);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Reference, getReferent, "()Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Reference, clearReferent, "()V"),
   FAST_NATIVE_METHOD(Reference, refersTo0, "(Ljava/lang/Object;)Z"),

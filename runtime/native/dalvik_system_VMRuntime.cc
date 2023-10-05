@@ -536,7 +536,7 @@ static jobject VMRuntime_getBaseApkOptimizationInfo(JNIEnv* env, [[maybe_unused]
   return env->NewObject(cls.get(), ctor, j_compiler_filter.get(), j_compilation_reason.get());
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clampGrowthLimit, "()V"),
