@@ -164,7 +164,7 @@ static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
       MakeTransformRange(Filter(path, dchecked_is_base_dex), get_location)));
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMClassLoader, findLoadedClass, "(Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/Class;"),
   NATIVE_METHOD(VMClassLoader, getBootClassPathEntries, "()[Ljava/lang/String;"),
 };
