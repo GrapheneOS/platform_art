@@ -137,7 +137,7 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
   return soa.AddLocalReference<jbyteArray>(result);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(CharsetUtils, asciiBytesToChars, "([BII[C)V"),
   FAST_NATIVE_METHOD(CharsetUtils, toAsciiBytes, "(Ljava/lang/String;II)[B"),
   FAST_NATIVE_METHOD(CharsetUtils, toIsoLatin1Bytes, "(Ljava/lang/String;II)[B"),
