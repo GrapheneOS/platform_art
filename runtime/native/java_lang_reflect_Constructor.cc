@@ -129,7 +129,7 @@ static jobject Constructor_newInstanceFromSerialization(JNIEnv* env,
   return env->NewObject(allocClass, ctor);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Constructor, getExceptionTypes, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Constructor, newInstance0, "([Ljava/lang/Object;)Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Constructor, newInstanceFromSerialization, "(Ljava/lang/Class;Ljava/lang/Class;)Ljava/lang/Object;"),
