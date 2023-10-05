@@ -41,7 +41,7 @@ static jint StackStreamFactory_nativeFetchStackFrameInfo(JNIEnv* env, jclass,
     startLevel, batchSize, startBufferIndex, frameBuffer);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(StackStreamFactory, nativeGetStackAnchor, "()Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(StackStreamFactory, nativeFetchStackFrameInfo, "(JLjava/lang/Object;III[Ljava/lang/Object;)I"),
 };
