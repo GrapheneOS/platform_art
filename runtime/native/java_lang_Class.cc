@@ -947,7 +947,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   return soa.AddLocalReference<jobject>(receiver.Get());
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, classForName,
                 "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, ensureExtDataPresent, "()Ldalvik/system/ClassExt;"),
