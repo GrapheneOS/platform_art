@@ -390,7 +390,7 @@ static void Thread_parkVirtualInternal(
   env->Throw(reinterpret_cast<jthrowable>(vm_error));
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(Thread, currentThread, "()Ljava/lang/Thread;"),
     FAST_NATIVE_METHOD(Thread, interrupted, "()Z"),
     FAST_NATIVE_METHOD(Thread, isInterrupted, "()Z"),
