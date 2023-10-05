@@ -109,7 +109,7 @@ static void Continuation_enterSpecial(
   DCHECK(unmounted) << mounted_data;
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     NATIVE_METHOD(
         Continuation,
         doYieldNative,

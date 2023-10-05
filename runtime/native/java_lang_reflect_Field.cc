@@ -582,7 +582,7 @@ static jboolean Field_isUnmodifiable0(JNIEnv* env, jobject javaField) {
   return IsUnmodifiable(f);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Field, get,        "(Ljava/lang/Object;)Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Field, getBoolean, "(Ljava/lang/Object;)Z"),
   FAST_NATIVE_METHOD(Field, getByte,    "(Ljava/lang/Object;)B"),

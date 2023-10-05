@@ -703,7 +703,7 @@ static jobject Unsafe_allocateInstance(JNIEnv* env, jobject, jclass cls) {
   return env->AllocObject(cls);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(Unsafe, compareAndSetInt, "(Ljava/lang/Object;JII)Z"),
     FAST_NATIVE_METHOD(Unsafe, compareAndSetLong, "(Ljava/lang/Object;JJJ)Z"),
     FAST_NATIVE_METHOD(Unsafe, compareAndExchangeLong, "(Ljava/lang/Object;JJJ)J"),

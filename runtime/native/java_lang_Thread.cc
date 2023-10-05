@@ -282,7 +282,7 @@ static void Thread_releaseThinLockId(JNIEnv*, jobject, jint thread_id) {
   thread_list->ReleaseThreadId(Thread::Current(), thread_id);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(Thread, currentCarrierThread, "()Ljava/lang/Thread;"),
     FAST_NATIVE_METHOD(Thread, currentThread, "()Ljava/lang/Thread;"),
     FAST_NATIVE_METHOD(Thread, setCurrentThreadNative, "(Ljava/lang/Thread;)V"),

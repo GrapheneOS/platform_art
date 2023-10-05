@@ -37,7 +37,7 @@ static void MethodHandle_invokeExactWithFrame(JNIEnv* env, jobject thiz, jobject
   MethodHandleInvokeExactWithFrame(soa.Self(), handle, frame);
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   NATIVE_METHOD(MethodHandle, invokeExactWithFrame, "(Ldalvik/system/EmulatedStackFrame;)V")
 };
 
