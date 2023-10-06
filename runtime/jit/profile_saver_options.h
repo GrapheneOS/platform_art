@@ -78,7 +78,7 @@ struct ProfileSaverOptions {
     wait_for_jit_notifications_to_save_(wait_for_jit_notifications_to_save) {}
 
   bool IsEnabled() const {
-    return enabled_;
+    return false;
   }
   void SetEnabled(bool enabled) {
     enabled_ = enabled;
