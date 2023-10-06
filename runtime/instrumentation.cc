@@ -899,12 +899,9 @@ Instrumentation::InstrumentationLevel Instrumentation::GetCurrentInstrumentation
   return instrumentation_level_;
 }
 
-bool Instrumentation::RequiresInstrumentationInstallation(InstrumentationLevel new_level) const {
-  // We need to reinstall instrumentation if we go to a different level.
-  return GetCurrentInstrumentationLevel() != new_level;
-}
-
-void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desired_level) {
+void Instrumentation::ConfigureStubs(const char* key,
+                                     InstrumentationLevel desired_level,
+                                     bool try_switch_to_non_debuggable) {
   // Store the instrumentation level for this key or remove it.
   if (desired_level == InstrumentationLevel::kInstrumentNothing) {
     // The client no longer needs instrumentation.
@@ -914,7 +911,7 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
     requested_instrumentation_levels_.Overwrite(key, desired_level);
   }
 
-  UpdateStubs();
+  UpdateStubs(try_switch_to_non_debuggable);
 }
 
 void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_level) {
@@ -923,7 +920,9 @@ void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_
 
 void Instrumentation::EnableEntryExitHooks(const char* key) {
   DCHECK(Runtime::Current()->IsJavaDebuggable());
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithEntryExitHooks);
+  ConfigureStubs(key,
+                 InstrumentationLevel::kInstrumentWithEntryExitHooks,
+                 /*try_switch_to_non_debuggable=*/false);
 }
 
 void Instrumentation::MaybeRestoreInstrumentationStack() {
@@ -960,22 +959,33 @@ void Instrumentation::MaybeRestoreInstrumentationStack() {
   }
 }
 
-void Instrumentation::UpdateStubs() {
+void Instrumentation::UpdateStubs(bool try_switch_to_non_debuggable) {
   // Look for the highest required instrumentation level.
   InstrumentationLevel requested_level = InstrumentationLevel::kInstrumentNothing;
   for (const auto& v : requested_instrumentation_levels_) {
     requested_level = std::max(requested_level, v.second);
   }
 
-  if (!RequiresInstrumentationInstallation(requested_level)) {
+  if (GetCurrentInstrumentationLevel() == requested_level) {
     // We're already set.
     return;
   }
+
   Thread* const self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
+  // The following needs to happen in the same order.
+  // 1. Update the instrumentation level
+  // 2. Switch the runtime to non-debuggable if requested. We switch to non-debuggable only when
+  // the instrumentation level is set to kInstrumentNothing. So this needs to happen only after
+  // updating the instrumentation level.
+  // 3. Update the entry points. We use AOT code only if we aren't debuggable runtime. So update
+  // entrypoints after switching the instrumentation level.
   UpdateInstrumentationLevel(requested_level);
+  if (try_switch_to_non_debuggable) {
+    MaybeSwitchRuntimeDebugState(self);
+  }
   InstallStubsClassVisitor visitor(this);
   runtime->GetClassLinker()->VisitClasses(&visitor);
   if (requested_level > InstrumentationLevel::kInstrumentNothing) {
@@ -1219,9 +1229,9 @@ bool Instrumentation::IsDeoptimized(ArtMethod* method) {
   return IsDeoptimizedMethod(method);
 }
 
-void Instrumentation::DisableDeoptimization(const char* key) {
+void Instrumentation::DisableDeoptimization(const char* key, bool try_switch_to_non_debuggable) {
   // Remove any instrumentation support added for deoptimization.
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing, try_switch_to_non_debuggable);
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
   // Undeoptimized selected methods.
   while (true) {
@@ -1259,12 +1269,22 @@ void Instrumentation::MaybeSwitchRuntimeDebugState(Thread* self) {
 }
 
 void Instrumentation::DeoptimizeEverything(const char* key) {
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreter);
+  // We want to switch to non-debuggable only when the debugger / profile tools are detaching.
+  // This call is used for supporting debug related features (ex: single stepping across all
+  // threads) while the debugger is still connected.
+  ConfigureStubs(key,
+                 InstrumentationLevel::kInstrumentWithInterpreter,
+                 /*try_switch_to_non_debuggable=*/false);
 }
 
 void Instrumentation::UndeoptimizeEverything(const char* key) {
   CHECK(InterpreterStubsInstalled());
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
+  // We want to switch to non-debuggable only when the debugger / profile tools are detaching.
+  // This is used when we no longer need to run in interpreter. The debugger is still connected
+  // so don't switch the runtime. We use "DisableDeoptimization" when detaching the debugger.
+  ConfigureStubs(key,
+                 InstrumentationLevel::kInstrumentNothing,
+                 /*try_switch_to_non_debuggable=*/false);
 }
 
 void Instrumentation::EnableMethodTracing(const char* key,
@@ -1276,7 +1296,8 @@ void Instrumentation::EnableMethodTracing(const char* key,
   } else {
     level = InstrumentationLevel::kInstrumentWithEntryExitHooks;
   }
-  ConfigureStubs(key, level);
+  // We are enabling method tracing here and need to stay in debuggable.
+  ConfigureStubs(key, level, /*try_switch_to_non_debuggable=*/false);
 
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
@@ -1285,7 +1306,11 @@ void Instrumentation::EnableMethodTracing(const char* key,
 }
 
 void Instrumentation::DisableMethodTracing(const char* key) {
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
+  // We no longer need to be in debuggable runtime since we are stopping method tracing. If no
+  // other debugger / profiling tools are active switch back to non-debuggable.
+  ConfigureStubs(key,
+                 InstrumentationLevel::kInstrumentNothing,
+                 /*try_switch_to_non_debuggable=*/true);
 }
 
 const void* Instrumentation::GetCodeForInvoke(ArtMethod* method) {
