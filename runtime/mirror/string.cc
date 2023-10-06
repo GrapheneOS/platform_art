@@ -37,15 +37,27 @@ namespace mirror {
 
 int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   int32_t count = GetLength();
-  if (start < 0) {
+  if (start >= count) {
+    return -1;
+  } else if (start < 0) {
     start = 0;
-  } else if (start > count) {
-    start = count;
   }
   if (IsCompressed()) {
     return FastIndexOf<uint8_t>(GetValueCompressed(), ch, start);
   } else {
     return FastIndexOf<uint16_t>(GetValue(), ch, start);
+  }
+}
+
+int32_t String::LastIndexOf(int32_t ch) {
+  int32_t count = GetLength();
+  if (count == 0) {
+    return -1;
+  }
+  if (IsCompressed()) {
+    return LastIndexOf<uint8_t>(GetValueCompressed(), ch, count - 1);
+  } else {
+    return LastIndexOf<uint16_t>(GetValue(), ch, count - 1);
   }
 }
 
