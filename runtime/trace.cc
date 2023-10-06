@@ -657,7 +657,6 @@ void Trace::StopTracing(bool flush_entries) {
               instrumentation::Instrumentation::kMethodUnwind,
           is_fast_trace);
       runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
-      runtime->GetInstrumentation()->MaybeSwitchRuntimeDebugState(self);
     }
 
     // Flush thread specific buffer from all threads before resetting the_trace_ to nullptr.
