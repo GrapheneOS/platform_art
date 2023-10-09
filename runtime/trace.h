@@ -113,10 +113,11 @@ static constexpr uint32_t kNumEntriesForDualClock = kNumEntriesForWallClock + 1;
 // These define offsets in bytes for the individual fields of a trace entry. These are used by the
 // JITed code when storing a trace entry.
 static constexpr int32_t kMethodOffsetInBytes = 0;
-static constexpr int32_t kTimestampOffsetInBytes = -1 * static_cast<uint32_t>(kRuntimePointerSize);
-// This is valid only for 32-bit architectures.
-static constexpr int32_t kLowTimestampOffsetInBytes =
-    -2 * static_cast<uint32_t>(kRuntimePointerSize);
+static constexpr int32_t kTimestampOffsetInBytes = 1 * static_cast<uint32_t>(kRuntimePointerSize);
+// On 32-bit architectures we store 64-bit timestamp as two 32-bit values.
+// kHighTimestampOffsetInBytes is only relevant on 32-bit architectures.
+static constexpr int32_t kHighTimestampOffsetInBytes =
+    2 * static_cast<uint32_t>(kRuntimePointerSize);
 
 static constexpr uintptr_t kMaskTraceAction = ~0b11;
 

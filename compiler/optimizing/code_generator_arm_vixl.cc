@@ -2229,19 +2229,19 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
   __ B(gt, slow_path->GetEntryLabel());
 
   // Check if there is place in the buffer to store a new entry, if no, take slow path.
-  uint32_t trace_buffer_index_addr = Thread::TraceBufferIndexOffset<kArmPointerSize>().Int32Value();
+  uint32_t trace_buffer_index_offset =
+      Thread::TraceBufferIndexOffset<kArmPointerSize>().Int32Value();
   vixl32::Register index = value;
-  __ Ldr(index, MemOperand(tr, trace_buffer_index_addr));
-  __ Cmp(index, kNumEntriesForWallClock);
+  __ Ldr(index, MemOperand(tr, trace_buffer_index_offset));
+  __ Subs(index, index, kNumEntriesForWallClock);
   __ B(lt, slow_path->GetEntryLabel());
 
-  // Just update the buffer and advance the offset
+  // Update the index in the `Thread`.
+  __ Str(index, MemOperand(tr, trace_buffer_index_offset));
+  // Calculate the entry address in the buffer.
   // addr = base_addr + sizeof(void*) * index
   __ Ldr(addr, MemOperand(tr, Thread::TraceBufferPtrOffset<kArmPointerSize>().SizeValue()));
   __ Add(addr, addr, Operand(index, LSL, TIMES_4));
-  // Advance the index
-  __ Sub(index, index, kNumEntriesForWallClock);
-  __ Str(index, MemOperand(tr, trace_buffer_index_addr));
 
   // Record method pointer and trace action.
   __ Ldr(tmp, MemOperand(sp, 0));
@@ -2249,8 +2249,9 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
   // so no need to set the bits since they are 0 already.
   if (instruction->IsMethodExitHook()) {
     DCHECK_GE(ArtMethod::Alignment(kRuntimePointerSize), static_cast<size_t>(4));
-    uint32_t trace_action = 1;
-    __ Orr(tmp, tmp, Operand(trace_action));
+    static_assert(enum_cast<int32_t>(TraceAction::kTraceMethodEnter) == 0);
+    static_assert(enum_cast<int32_t>(TraceAction::kTraceMethodExit) == 1);
+    __ Orr(tmp, tmp, Operand(enum_cast<int32_t>(TraceAction::kTraceMethodExit)));
   }
   __ Str(tmp, MemOperand(addr, kMethodOffsetInBytes));
 
@@ -2261,8 +2262,9 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
           /* coproc= */ 15,
           /* opc1= */ 1,
           /* crm= */ 14);
-  __ Str(tmp1, MemOperand(addr, kTimestampOffsetInBytes));
-  __ Str(tmp, MemOperand(addr, kLowTimestampOffsetInBytes));
+  static_assert(kHighTimestampOffsetInBytes ==
+                kTimestampOffsetInBytes + static_cast<uint32_t>(kRuntimePointerSize));
+  __ Strd(tmp, tmp1, MemOperand(addr, kTimestampOffsetInBytes));
   __ Bind(slow_path->GetExitLabel());
 }
 
