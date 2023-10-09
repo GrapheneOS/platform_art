@@ -31,6 +31,9 @@
     RESTORE_NTERP_SAVE_CALLEE_SAVES
     DECREASE_FRAME NTERP_SIZE_SAVE_CALLEE_SAVES
     ret
+    // Since opcode handlers are merely labeled asm chunks within ExecuteNterpImpl's FDE, we must
+    // restate the correct CFA rule for subsequent handlers. It is initially stated when setting up
+    // the nterp frame (setup_nterp_frame).
     .cfi_restore_state
     CFI_DEF_CFA_BREG_PLUS_UCONST CFI_REFS, -8, NTERP_SIZE_SAVE_CALLEE_SAVES
 
