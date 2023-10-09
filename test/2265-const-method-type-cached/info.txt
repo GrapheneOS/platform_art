@@ -1,3 +1,0 @@
-const-method-type and MethodType factory methods should use the same intern
-mechanism and return the same object when equal return and parameter types are
-passed.
