@@ -35,7 +35,8 @@
     FETCH_ADVANCE_INST 1  // advance xPC, load xINST
     and t2, t2, 0xF       // t2 := A
     GET_INST_OPCODE t3    // t3 holds next opcode
-    SET_VREG_WIDE t1, t2  // fp[A:A+1] := t1
+    SET_VREG_WIDE t1, t2, z0=t0
+                          // fp[A:A+1] := t1
     GOTO_OPCODE t3        // continue to next
 
 // long-to-int vA, vB
@@ -77,7 +78,7 @@
     FETCH_ADVANCE_INST 1  // advance xPC, load xINST
     $instr                // read t1, write result to t1.
                           // do not clobber t2!
-    SET_VREG t1, t2, is_wide=$is_wide
+    SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                           // fp[A] := t1
     GET_INST_OPCODE t0    // t0 holds next opcode
     GOTO_OPCODE t0        // continue to next
@@ -236,7 +237,8 @@
     $instr                // read t1 and t2, write result to t1.
                           // do not clobber t3!
     GET_INST_OPCODE t2    // t2 holds next opcode
-    SET_VREG t1, t3, is_wide=$is_wide  // fp[AA] := t1
+    SET_VREG t1, t3, z0=t0, is_wide=$is_wide
+                          // fp[AA] := t1
     GOTO_OPCODE t2        // continue to next
 1:
     .if $divz_throw
@@ -263,7 +265,8 @@
     $instr                // read t1 and t2, write result to t1.
                           // do not clobber t3!
     GET_INST_OPCODE t2    // t2 holds next opcode
-    SET_VREG_WIDE t1, t3  // fp[AA] := t1
+    SET_VREG_WIDE t1, t3, z0=t0
+                          // fp[AA] := t1
     GOTO_OPCODE t2        // continue to next
 
 //
@@ -414,7 +417,7 @@
     $instr                // read t1 and t2, write result to t1.
                           // do not clobber t3!
     GET_INST_OPCODE t2    // t2 holds next opcode
-    SET_VREG t1, t3, is_wide=$is_wide
+    SET_VREG t1, t3, z0=t0, is_wide=$is_wide
                           // fp[A] := t1
     GOTO_OPCODE t2        // continue to next
 1:
@@ -442,7 +445,8 @@
     $instr                // read t1 and t2, write result to t1.
                           // do not clobber t3!
     GET_INST_OPCODE t2    // t2 holds next opcode
-    SET_VREG_WIDE t1, t3  // fp[A] := t1
+    SET_VREG_WIDE t1, t3, z0=t0
+                          // fp[A] := t1
     GOTO_OPCODE t2        // continue to next
 
 //
@@ -517,7 +521,7 @@
     $instr                       // read t1 and t2, write result to t1.
                                  // do not clobber t3!
     GET_INST_OPCODE t2           // t2 holds next opcode
-    SET_VREG t1, t3              // fp[A] := t1
+    SET_VREG t1, t3, z0=t0       // fp[A] := t1
     GOTO_OPCODE t2               // continue to next
 1:
     .if $divz_throw
@@ -613,7 +617,7 @@
     $instr                       // read t1 and t2, write result to t1.
                                  // do not clobber t3!
     GET_INST_OPCODE t2           // t2 holds next opcode
-    SET_VREG t1, t3              // fp[AA] := t1
+    SET_VREG t1, t3, z0=t0       // fp[AA] := t1
     GOTO_OPCODE t2               // continue to next
 1:
     .if $divz_throw

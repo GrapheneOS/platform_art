@@ -19,10 +19,10 @@
     FETCH_ADVANCE_INST 1  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 holds next opcode
     .if $is_object
-      SET_VREG_OBJECT t1, t2
+      SET_VREG_OBJECT t1, t2, z0=t0
                           // refs[A] := fp[B]
     .else
-      SET_VREG t1, t2 is_wide=$is_wide
+      SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                          // fp[A] := fp[B]
     .endif
     GOTO_OPCODE t3       // continue to next
@@ -37,10 +37,10 @@
     FETCH_ADVANCE_INST 2  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
     .if $is_object
-      SET_VREG_OBJECT t1, t2
+      SET_VREG_OBJECT t1, t2, z0=t0
                           // refs[AA] := fp[BBBB]
     .else
-      SET_VREG t1, t2, is_wide=$is_wide
+      SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                           // fp[AA] := fp[BBBB]
     .endif
     GOTO_OPCODE t3        // continue to next
@@ -55,10 +55,10 @@
     FETCH_ADVANCE_INST 3  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
     .if $is_object
-      SET_VREG_OBJECT t1, t2
+      SET_VREG_OBJECT t1, t2, z0=t0
                           // refs[AAAA] := fp[BBBB]
     .else
-      SET_VREG t1, t2, is_wide=$is_wide
+      SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                           // fp[AAAA] := fp[BBBB]
     .endif
     GOTO_OPCODE t3        // continue to next
@@ -103,10 +103,10 @@
     FETCH_ADVANCE_INST 1  // advance xPC, load xINST
     GET_INST_OPCODE t2    // t2 := next opcode
     .if $is_object
-      SET_VREG_OBJECT a0, t1
+      SET_VREG_OBJECT a0, t1, z0=t0
                           // refs[AA] := a0
     .else
-      SET_VREG a0, t1, is_wide=$is_wide
+      SET_VREG a0, t1, z0=t0, is_wide=$is_wide
                           // fp[AA] := a0
     .endif
     GOTO_OPCODE t2        // continue to next
@@ -127,7 +127,7 @@
     ld t1, THREAD_EXCEPTION_OFFSET(xSELF)    // t1 := exception object
     srliw t2, xINST, 8                       // t2 := AA
     FETCH_ADVANCE_INST 1                     // advance xPC, load xINST
-    SET_VREG_OBJECT t1, t2                   // refs[AA] := exception object
+    SET_VREG_OBJECT t1, t2, z0=t0            // refs[AA] := exception object
     GET_INST_OPCODE t3                       // t3 := next opcode
     sd zero, THREAD_EXCEPTION_OFFSET(xSELF)  // clear exception
     GOTO_OPCODE t3                           // continue to next
@@ -136,14 +136,14 @@
 // Format 11n: B|A|12
 // Clobbers: t0, t1, t2, t3
 %def op_const_4():
-    slliw t1, xINST, 16   // B as MSB of word
-    sraiw t1, t1, 28      // t1 := sssssssB
-    slliw t2, xINST, 20   // A as MSB of word
-    srliw t2, t2, 28      // t2 := A
-    FETCH_ADVANCE_INST 1  // advance xPC, load xINST
-    GET_INST_OPCODE t3    // t3 holds next opcode
-    SET_VREG t1, t2       // fp[A] := sssssssB
-    GOTO_OPCODE t3        // continue to next
+    slliw t1, xINST, 16     // B as MSB of word
+    sraiw t1, t1, 28        // t1 := sssssssB
+    slliw t2, xINST, 20     // A as MSB of word
+    srliw t2, t2, 28        // t2 := A
+    FETCH_ADVANCE_INST 1    // advance xPC, load xINST
+    GET_INST_OPCODE t3      // t3 holds next opcode
+    SET_VREG t1, t2, z0=t0  // fp[A] := sssssssB
+    GOTO_OPCODE t3          // continue to next
 
 // const/16 vAA, #+BBBB
 // Format 21s: AA|13 BBBB
@@ -154,7 +154,7 @@
     srliw t2, xINST, 8    // t2 := AA
     FETCH_ADVANCE_INST 2  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
-    SET_VREG t1, t2, is_wide=$is_wide
+    SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                           // fp[AA] := +BBBB
     GOTO_OPCODE t3        // continue to next
 
@@ -167,7 +167,7 @@
     srliw t2, xINST, 8    // t2 := AA
     FETCH_ADVANCE_INST 3  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
-    SET_VREG t1, t2, is_wide=$is_wide
+    SET_VREG t1, t2, z0=t0, is_wide=$is_wide
                           // fp[AA] := +BBBBBBBB
     GOTO_OPCODE t3        // continue to next
 
@@ -175,13 +175,13 @@
 // Format 21h: AA|15 BBBB
 // Clobbers: t0, t1, t2, t3
 %def op_const_high16():
-    FETCH t1, count=1     // t1 := BBBB
-    srliw t2, xINST, 8    // t2 := AA
-    slliw t1, t1, 16      // t1 := BBBB0000
-    FETCH_ADVANCE_INST 2  // advance xPC, load xINST
-    GET_INST_OPCODE t3    // t3 := next opcode
-    SET_VREG t1, t2       // fp[AA] := BBBB0000
-    GOTO_OPCODE t3        // continue to next
+    FETCH t1, count=1       // t1 := BBBB
+    srliw t2, xINST, 8      // t2 := AA
+    slliw t1, t1, 16        // t1 := BBBB0000
+    FETCH_ADVANCE_INST 2    // advance xPC, load xINST
+    GET_INST_OPCODE t3      // t3 := next opcode
+    SET_VREG t1, t2, z0=t0  // fp[AA] := BBBB0000
+    GOTO_OPCODE t3          // continue to next
 
 // const-wide/16 vAA, #+BBBB
 // Format 21s: AA|16 BBBB
@@ -201,7 +201,8 @@
     srliw t2, xINST, 8    // t2 := AA
     FETCH_ADVANCE_INST 5  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
-    SET_VREG_WIDE t1, t2  // fp[AA] := BBBBBBBBBBBBBBBB
+    SET_VREG_WIDE t1, t2, z0=t0
+                          // fp[AA] := BBBBBBBBBBBBBBBB
     GOTO_OPCODE t3        // continue to next
 
 // const-wide/high16 vAA, #+BBBB000000000000
@@ -212,7 +213,8 @@
     slli t1, t1, 48       // t1 := BBBB000000000000
     FETCH_ADVANCE_INST 2  // advance xPC, load xINST
     GET_INST_OPCODE t3    // t3 := next opcode
-    SET_VREG_WIDE t1, t2  // fp[AA] := BBBB000000000000
+    SET_VREG_WIDE t1, t2, z0=t0
+                          // fp[AA] := BBBB000000000000
     GOTO_OPCODE t3        // continue to next
 
 // Common helper.
