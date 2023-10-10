@@ -272,6 +272,13 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                         isNull() /* inputVdex */, isNull() /* dmFile */,
                         eq(PriorityClass.INTERACTIVE), argThat(dexoptOptionsMatcher), any());
 
+        // Only delete runtime artifacts for successful dexopt operations, namely the first one and
+        // the fourth one.
+        doReturn(1l).when(mArtd).deleteRuntimeArtifacts(deepEq(
+                AidlUtils.buildRuntimeArtifactsPath(PKG_NAME, "/data/app/foo/base.apk", "arm64")));
+        doReturn(1l).when(mArtd).deleteRuntimeArtifacts(deepEq(
+                AidlUtils.buildRuntimeArtifactsPath(PKG_NAME, "/data/app/foo/split_0.apk", "arm")));
+
         assertThat(mPrimaryDexopter.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
