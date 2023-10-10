@@ -110,6 +110,37 @@ TEST_F(ArtToolsTest, Glob) {
                                    scratch_path_ + "/abc/aaa/bbb/pqr/ccc/ddd/123.txt"));
 }
 
+TEST_F(ArtToolsTest, EscapeGlob) {
+  CreateFile(scratch_path_ + "/**");
+  CreateFile(scratch_path_ + "/*.txt");
+  CreateFile(scratch_path_ + "/?.txt");
+  CreateFile(scratch_path_ + "/[a-z].txt");
+  CreateFile(scratch_path_ + "/**.txt");
+  CreateFile(scratch_path_ + "/??.txt");
+  CreateFile(scratch_path_ + "/[a-z[a-z]][a-z].txt");
+
+  // Paths that shouldn't be matched if the paths above are escaped.
+  CreateFile(scratch_path_ + "/abc/b.txt");
+  CreateFile(scratch_path_ + "/b.txt");
+  CreateFile(scratch_path_ + "/*b.txt");
+  CreateFile(scratch_path_ + "/?b.txt");
+  CreateFile(scratch_path_ + "/[a-zb]b.txt");
+
+  // Verifies that the escaped path only matches the given path.
+  auto verify_escape = [this](const std::string& file) {
+    EXPECT_THAT(Glob({EscapeGlob(file)}, scratch_path_), UnorderedElementsAre(file));
+  };
+
+  verify_escape(scratch_path_ + "/**");
+  verify_escape(scratch_path_ + "/*.txt");
+  verify_escape(scratch_path_ + "/?.txt");
+  verify_escape(scratch_path_ + "/[a-z].txt");
+  verify_escape(scratch_path_ + "/**.txt");
+  verify_escape(scratch_path_ + "/**");
+  verify_escape(scratch_path_ + "/??.txt");
+  verify_escape(scratch_path_ + "/[a-z[a-z]][a-z].txt");
+}
+
 }  // namespace
 }  // namespace tools
 }  // namespace art
