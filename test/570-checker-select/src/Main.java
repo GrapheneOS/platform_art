@@ -500,7 +500,6 @@ public class Main {
   /// CHECK-START: float Main.$noinline$FloatGtMatCond_FloatVarVar(float, float, float, float) register (after)
   /// CHECK:            <<Cond:z\d+>> GreaterThanOrEqual
   /// CHECK-NEXT:       <<Sel:f\d+>>  Select [{{f\d+}},{{f\d+}},<<Cond>>]
-  /// CHECK-NEXT:                     TypeConversion [<<Cond>>]
 
   /// CHECK-START-ARM64: float Main.$noinline$FloatGtMatCond_FloatVarVar(float, float, float, float) disassembly (after)
   /// CHECK:               GreaterThanOrEqual
