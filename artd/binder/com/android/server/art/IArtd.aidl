@@ -46,13 +46,14 @@ interface IArtd {
             @utf8InCpp String dexFile);
 
     /**
-     * Copies the profile and rewrites it for the given dex file. Returns true and fills
+     * Copies the profile and rewrites it for the given dex file. Returns `SUCCESS` and fills
      * `dst.profilePath.id` if the operation succeeds and `src` exists and contains entries that
      * match the given dex file.
      *
-     * Throws fatal and non-fatal errors.
+     * Throws fatal and non-fatal errors, except if the input is a bad profile.
      */
-    boolean copyAndRewriteProfile(in com.android.server.art.ProfilePath src,
+    com.android.server.art.CopyAndRewriteProfileResult copyAndRewriteProfile(
+            in com.android.server.art.ProfilePath src,
             inout com.android.server.art.OutputProfile dst, @utf8InCpp String dexFile);
 
     /**
