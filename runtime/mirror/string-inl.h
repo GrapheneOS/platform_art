@@ -67,6 +67,20 @@ int32_t String::FastIndexOf(MemoryType* chars, int32_t ch, int32_t start) {
   return -1;
 }
 
+template <typename MemoryType>
+int32_t String::LastIndexOf(MemoryType* chars, int32_t ch, int32_t from_index) {
+  DCHECK_LT(from_index, GetLength());
+  const MemoryType* start = chars;
+  const MemoryType* p = chars + from_index;
+  while (p >= start) {
+    if (*p == ch) {
+      return p - chars;
+    }
+    p--;
+  }
+  return -1;
+}
+
 inline int32_t String::ComputeHashCode() {
   uint32_t hash = IsCompressed()
       ? ComputeUtf16Hash(GetValueCompressed(), GetLength())
