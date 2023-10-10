@@ -190,17 +190,4 @@ interface IArtd {
      */
     long deleteRuntimeArtifacts(
             in com.android.server.art.RuntimeArtifactsPath runtimeArtifactsPath);
-
-    /**
-     * Returns an error message if the given dex path is invalid, or null if the validation
-     * passes.
-     */
-    @nullable @utf8InCpp String validateDexPath(@utf8InCpp String dexPath);
-
-    /**
-     * Returns an error message if the given class loader context is invalid, or null if the
-     * validation passes.
-     */
-    @nullable @utf8InCpp String validateClassLoaderContext(@utf8InCpp String dexPath,
-            @utf8InCpp String classLoaderContext);
 }
