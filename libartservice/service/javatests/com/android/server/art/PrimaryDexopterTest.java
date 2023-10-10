@@ -102,6 +102,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
     private PrimaryDexopter mPrimaryDexopter;
 
     private List<ProfilePath> mUsedProfiles;
+    private List<String> mUsedEmbeddedProfiles;
 
     @Before
     public void setUp() throws Exception {
@@ -111,6 +112,9 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
         lenient()
                 .when(mArtd.copyAndRewriteProfile(any(), any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
+        lenient()
+                .when(mArtd.copyAndRewriteEmbeddedProfile(any(), any()))
                 .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
 
         // By default, no DM file exists.
@@ -133,6 +137,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
 
         mUsedProfiles = new ArrayList<>();
+        mUsedEmbeddedProfiles = new ArrayList<>();
     }
 
     @Test
@@ -212,6 +217,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         // Other profiles are also usable, but they shouldn't be used.
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
+        makeEmbeddedProfileUsable(mDexPath);
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
@@ -237,6 +243,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verifyProfileNotUsed(mPrebuiltProfile);
         verifyProfileNotUsed(mDmProfile);
+        verifyEmbeddedProfileNotUsed(mDexPath);
     }
 
     @Test
@@ -249,6 +256,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         // Other profiles are also usable, but they shouldn't be used.
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
+        makeEmbeddedProfileUsable(mDexPath);
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
@@ -260,13 +268,14 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verifyProfileNotUsed(mPrebuiltProfile);
         verifyProfileNotUsed(mDmProfile);
+        verifyEmbeddedProfileNotUsed(mDexPath);
     }
 
     @Test
     public void testDexoptUsesPrebuiltProfile() throws Exception {
-        makeProfileNotUsable(mRefProfile);
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
+        makeEmbeddedProfileUsable(mDexPath);
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
@@ -287,6 +296,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mDmProfile);
+        verifyEmbeddedProfileNotUsed(mDexPath);
     }
 
     @Test
@@ -365,9 +375,8 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
     @Test
     public void testDexoptUsesDmProfile() throws Exception {
-        makeProfileNotUsable(mRefProfile);
-        makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
+        makeEmbeddedProfileUsable(mDexPath);
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
@@ -384,15 +393,34 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mPrebuiltProfile);
+        verifyEmbeddedProfileNotUsed(mDexPath);
+    }
+
+    @Test
+    public void testDexoptUsesEmbeddedProfile() throws Exception {
+        makeEmbeddedProfileUsable(mDexPath);
+
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        verifyStatusAllOk(results);
+
+        verify(mArtd).copyAndRewriteProfile(
+                deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
+
+        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64",
+                ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
+                true /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm",
+                ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
+                true /* isOtherReadable */, true /* generateAppImage */);
+
+        verifyProfileNotUsed(mRefProfile);
+        verifyProfileNotUsed(mPrebuiltProfile);
+        verifyProfileNotUsed(mDmProfile);
     }
 
     @Test
     public void testDexoptExternalProfileErrors() throws Exception {
-        makeProfileNotUsable(mRefProfile);
-
         // Having no profile should not be reported.
-        makeProfileNotUsable(mPrebuiltProfile);
-
         // Having a bad profile should be reported.
         lenient()
                 .when(mArtd.copyAndRewriteProfile(deepEq(mDmProfile), any(), any()))
@@ -414,8 +442,6 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
     @Test
     public void testDexoptDeletesProfileOnFailure() throws Exception {
-        makeProfileNotUsable(mRefProfile);
-        makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
         when(mArtd.dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
@@ -439,7 +465,6 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         // The ref profile is usable but shouldn't be used.
         makeProfileUsable(mRefProfile);
 
-        makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
         // The existing artifacts are private.
@@ -482,7 +507,6 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .thenReturn(true);
 
         makeProfileUsable(mRefProfile);
-        makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
         when(mArtd.getArtifactsVisibility(
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
@@ -731,6 +755,10 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 .doesNotContain(profile);
     }
 
+    private void verifyEmbeddedProfileNotUsed(String dexPath) throws Exception {
+        assertThat(mUsedEmbeddedProfiles).doesNotContain(dexPath);
+    }
+
     private void makeProfileUsable(ProfilePath profile) throws Exception {
         lenient().when(mArtd.isProfileUsable(deepEq(profile), any())).thenAnswer(invocation -> {
             mUsedProfiles.add(invocation.<ProfilePath>getArgument(0));
@@ -744,11 +772,13 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 });
     }
 
-    private void makeProfileNotUsable(ProfilePath profile) throws Exception {
-        lenient().when(mArtd.isProfileUsable(deepEq(profile), any())).thenReturn(false);
+    private void makeEmbeddedProfileUsable(String dexPath) throws Exception {
         lenient()
-                .when(mArtd.copyAndRewriteProfile(deepEq(profile), any(), any()))
-                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
+                .when(mArtd.copyAndRewriteEmbeddedProfile(any(), eq(dexPath)))
+                .thenAnswer(invocation -> {
+                    mUsedEmbeddedProfiles.add(invocation.<String>getArgument(1));
+                    return TestingUtils.createCopyAndRewriteProfileSuccess();
+                });
     }
 
     private void verifyStatusAllOk(List<DexContainerFileDexoptResult> results) {
