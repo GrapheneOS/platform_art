@@ -819,14 +819,10 @@ public class DexoptHelperTest {
 
     private List<DexContainerFileDexoptResult> createResults(
             String dexPath, @DexoptResultStatus int status1, @DexoptResultStatus int status2) {
-        return List.of(DexContainerFileDexoptResult.create(dexPath, true /* isPrimaryAbi */,
-                               "arm64-v8a", "verify", status1, 100 /* dex2oatWallTimeMillis */,
-                               400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */,
-                               0 /* sizeBeforeBytes */, 0 /* extraStatus */),
-                DexContainerFileDexoptResult.create(dexPath, false /* isPrimaryAbi */,
-                        "armeabi-v7a", "verify", status2, 100 /* dex2oatWallTimeMillis */,
-                        400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
-                        0 /* extraStatus */));
+        return List.of(DexContainerFileDexoptResult.create(
+                               dexPath, true /* isPrimaryAbi */, "arm64-v8a", "verify", status1),
+                DexContainerFileDexoptResult.create(
+                        dexPath, false /* isPrimaryAbi */, "armeabi-v7a", "verify", status2));
     }
 
     private void checkPackageResult(DexoptResult result, int index, String packageName,

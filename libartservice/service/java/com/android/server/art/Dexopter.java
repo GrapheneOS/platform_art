@@ -20,6 +20,7 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.ProfilePath.TmpProfilePath;
 import static com.android.server.art.Utils.Abi;
+import static com.android.server.art.Utils.InitProfileResult;
 import static com.android.server.art.model.ArtFlags.DexoptFlags;
 import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 
@@ -104,6 +105,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         for (DexInfoType dexInfo : getDexInfoList()) {
             ProfilePath profile = null;
             boolean succeeded = true;
+            List<String> externalProfileErrors = List.of();
             try {
                 if (!isDexoptable(dexInfo)) {
                     continue;
@@ -120,13 +122,15 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                 boolean profileMerged = false;
                 if (DexFile.isProfileGuidedCompilerFilter(compilerFilter)) {
                     if (needsToBeShared) {
-                        profile = initReferenceProfile(dexInfo);
+                        InitProfileResult result = initReferenceProfile(dexInfo);
+                        profile = result.profile();
+                        isOtherReadable = result.isOtherReadable();
+                        externalProfileErrors = result.externalProfileErrors();
                     } else {
-                        Pair<ProfilePath, Boolean> pair = getOrInitReferenceProfile(dexInfo);
-                        if (pair != null) {
-                            profile = pair.first;
-                            isOtherReadable = pair.second;
-                        }
+                        InitProfileResult result = getOrInitReferenceProfile(dexInfo);
+                        profile = result.profile();
+                        isOtherReadable = result.isOtherReadable();
+                        externalProfileErrors = result.externalProfileErrors();
                         ProfilePath mergedProfile = mergeProfiles(dexInfo, profile);
                         if (mergedProfile != null) {
                             if (profile != null && profile.getTag() == ProfilePath.tmpProfilePath) {
@@ -241,9 +245,13 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                 e);
                         status = DexoptResult.DEXOPT_FAILED;
                     } finally {
+                        if (!externalProfileErrors.isEmpty()) {
+                            extraStatus |= DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE;
+                        }
                         var result = DexContainerFileDexoptResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus);
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, extraStatus,
+                                externalProfileErrors);
                         Log.i(TAG,
                                 String.format("Dexopt result: [packageName = %s] %s",
                                         mPkgState.getPackageName(), result));
@@ -344,7 +352,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
 
     /** @see Utils#getOrInitReferenceProfile */
     @Nullable
-    private Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull DexInfoType dexInfo)
+    private InitProfileResult getOrInitReferenceProfile(@NonNull DexInfoType dexInfo)
             throws RemoteException {
         return Utils.getOrInitReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
                 buildRefProfilePath(dexInfo), getExternalProfiles(dexInfo),
@@ -352,7 +360,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     }
 
     @Nullable
-    private ProfilePath initReferenceProfile(@NonNull DexInfoType dexInfo) throws RemoteException {
+    private InitProfileResult initReferenceProfile(@NonNull DexInfoType dexInfo)
+            throws RemoteException {
         return Utils.initReferenceProfile(mInjector.getArtd(), dexInfo.dexPath(),
                 getExternalProfiles(dexInfo), buildOutputProfile(dexInfo, true /* isPublic */));
     }
