@@ -29,6 +29,7 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -1100,6 +1101,7 @@ ScopedAStatus Artd::createCancellationSignal(
 ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
                             const std::vector<ArtifactsPath>& in_artifactsToKeep,
                             const std::vector<VdexPath>& in_vdexFilesToKeep,
+                            const std::vector<RuntimeArtifactsPath>& in_runtimeArtifactsToKeep,
                             int64_t* _aidl_return) {
   std::unordered_set<std::string> files_to_keep;
   for (const ProfilePath& profile : in_profilesToKeep) {
@@ -1114,8 +1116,16 @@ ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
   for (const VdexPath& vdex : in_vdexFilesToKeep) {
     files_to_keep.insert(OR_RETURN_FATAL(BuildVdexPath(vdex)));
   }
+  std::string android_data = OR_RETURN_NON_FATAL(GetAndroidDataOrError());
+  std::string android_expand = OR_RETURN_NON_FATAL(GetAndroidExpandOrError());
+  for (const RuntimeArtifactsPath& runtime_image_path : in_runtimeArtifactsToKeep) {
+    OR_RETURN_FATAL(ValidateRuntimeArtifactsPath(runtime_image_path));
+    std::vector<std::string> files =
+        ListRuntimeArtifactsFiles(android_data, android_expand, runtime_image_path);
+    std::move(files.begin(), files.end(), std::inserter(files_to_keep, files_to_keep.end()));
+  }
   *_aidl_return = 0;
-  for (const std::string& file : OR_RETURN_NON_FATAL(ListManagedFiles())) {
+  for (const std::string& file : ListManagedFiles(android_data, android_expand)) {
     if (files_to_keep.find(file) == files_to_keep.end()) {
       LOG(INFO) << ART_FORMAT("Cleaning up obsolete file '{}'", file);
       *_aidl_return += GetSizeAndDeleteFile(file);
@@ -1158,8 +1168,10 @@ ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_r
 ScopedAStatus Artd::deleteRuntimeArtifacts(const RuntimeArtifactsPath& in_runtimeArtifactsPath,
                                            int64_t* _aidl_return) {
   OR_RETURN_FATAL(ValidateRuntimeArtifactsPath(in_runtimeArtifactsPath));
+  std::string android_data = OR_RETURN_NON_FATAL(GetAndroidDataOrError());
+  std::string android_expand = OR_RETURN_NON_FATAL(GetAndroidExpandOrError());
   for (const std::string& file :
-       OR_RETURN_NON_FATAL(ListRuntimeArtifactsFiles(in_runtimeArtifactsPath))) {
+       ListRuntimeArtifactsFiles(android_data, android_expand, in_runtimeArtifactsPath)) {
     *_aidl_return += GetSizeAndDeleteFile(file);
   }
   return ScopedAStatus::ok();

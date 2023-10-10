@@ -97,6 +97,8 @@ Result<void> ValidatePathElement(const std::string& path_element, const std::str
   return {};
 }
 
+}  // namespace
+
 Result<std::string> GetAndroidDataOrError() {
   std::string error_msg;
   std::string result = GetAndroidDataSafe(&error_msg);
@@ -124,12 +126,8 @@ Result<std::string> GetArtRootOrError() {
   return result;
 }
 
-}  // namespace
-
-Result<std::vector<std::string>> ListManagedFiles() {
-  std::string android_data = OR_RETURN(GetAndroidDataOrError());
-  std::string android_expand = OR_RETURN(GetAndroidExpandOrError());
-
+std::vector<std::string> ListManagedFiles(const std::string& android_data,
+                                          const std::string& android_expand) {
   // See `art::tools::Glob` for the syntax.
   std::vector<std::string> patterns = {
       // Profiles for primary dex files.
@@ -141,27 +139,30 @@ Result<std::vector<std::string>> ListManagedFiles() {
   for (const std::string& data_root : {android_data, android_expand + "/*"}) {
     // Artifacts for primary dex files.
     patterns.push_back(data_root + "/app/*/*/oat/**");
-    // Profiles and artifacts for secondary dex files. Those files are in app data directories, so
-    // we use more granular patterns to avoid accidentally deleting apps' files.
+
     for (const char* user_dir : {"/user", "/user_de"}) {
-      std::string secondary_oat_dir = data_root + user_dir + "/*/*/**/oat";
+      std::string data_dir = data_root + user_dir + "/*/*";
+      // Profiles and artifacts for secondary dex files. Those files are in app data directories, so
+      // we use more granular patterns to avoid accidentally deleting apps' files.
+      std::string secondary_oat_dir = data_dir + "/**/oat";
       for (const char* maybe_tmp_suffix : {"", ".*.tmp"}) {
         patterns.push_back(secondary_oat_dir + "/*.prof" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.odex" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.vdex" + maybe_tmp_suffix);
         patterns.push_back(secondary_oat_dir + "/*/*.art" + maybe_tmp_suffix);
       }
+      // Runtime image files.
+      patterns.push_back(RuntimeImage::GetRuntimeImageDir(data_dir) + "**");
     }
   }
 
   return tools::Glob(patterns);
 }
 
-Result<std::vector<std::string>> ListRuntimeArtifactsFiles(
+std::vector<std::string> ListRuntimeArtifactsFiles(
+    const std::string& android_data,
+    const std::string& android_expand,
     const RuntimeArtifactsPath& runtime_artifacts_path) {
-  std::string android_data = OR_RETURN(GetAndroidDataOrError());
-  std::string android_expand = OR_RETURN(GetAndroidExpandOrError());
-
   // See `art::tools::Glob` for the syntax.
   std::vector<std::string> patterns;
 

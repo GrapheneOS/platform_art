@@ -289,6 +289,9 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
           // is executable.
           image_space = oat_file_assistant->OpenImageSpace(oat_file.get());
         }
+        // Load the runtime image. This logic must be aligned with the one that determines when to
+        // keep runtime images in `ArtManagerLocal.cleanup` in
+        // `art/libartservice/service/java/com/android/server/art/ArtManagerLocal.java`.
         if (kEnableRuntimeAppImage && image_space == nullptr && !compilation_enabled) {
           std::string art_file = RuntimeImage::GetRuntimeImagePath(dex_location);
           std::string error_msg;
