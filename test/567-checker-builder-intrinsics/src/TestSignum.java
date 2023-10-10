@@ -92,13 +92,11 @@ public class TestSignum {
   /// CHECK-START: int TestSignum.signBoolean(boolean) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int TestSignum.signBoolean(boolean) instruction_simplifier$before_codegen (after)
+  /// CHECK-START: int TestSignum.signBoolean(boolean) instruction_simplifier$after_gvn (after)
   /// CHECK-DAG:     <<Arg:z\d+>>    ParameterValue
-  /// CHECK-DAG:     <<Zero:i\d+>>   IntConstant 0
-  /// CHECK-DAG:     <<Result:i\d+>> Compare [<<Arg>>,<<Zero>>]
-  /// CHECK-DAG:                     Return [<<Result>>]
+  /// CHECK-DAG:                     Return [<<Arg>>]
 
-  /// CHECK-START: int TestSignum.signBoolean(boolean) instruction_simplifier$before_codegen (after)
+  /// CHECK-START: int TestSignum.signBoolean(boolean) instruction_simplifier$after_gvn (after)
   /// CHECK-NOT:                     Select
 
   private static int signBoolean(boolean x) {
