@@ -2016,6 +2016,13 @@ TEST_F(ArtdTest, cleanup) {
   CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/aaa/oat/arm64/2.odex");
   CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/aaa/oat/arm64/2.vdex");
   CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/aaa/oat/arm64/2.art");
+  CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/cache/oat_primary/arm64/base.art");
+  CreateGcKeptFile(android_data_ + "/user/0/com.android.foo/cache/oat_primary/arm64/base.art");
+  CreateGcKeptFile(android_data_ + "/user/1/com.android.foo/cache/oat_primary/arm64/base.art");
+  CreateGcKeptFile(android_expand_ +
+                   "/123456-7890/user/1/com.android.foo/cache/oat_primary/arm64/base.art");
+  CreateGcKeptFile(android_data_ +
+                   "/user/0/com.android.foo/cache/not_oat_dir/oat_primary/arm64/base.art");
 
   // Files to remove.
   CreateGcRemovedFile(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof");
@@ -2050,6 +2057,12 @@ TEST_F(ArtdTest, cleanup) {
   CreateGcRemovedFile(android_data_ +
                       "/user_de/0/com.android.foo/aaa/bbb/oat/arm64/1.art.123456.tmp");
   CreateGcRemovedFile(android_data_ + "/user_de/0/com.android.bar/aaa/oat/arm64/1.vdex");
+  CreateGcRemovedFile(android_data_ +
+                      "/user/0/com.android.different_package/cache/oat_primary/arm64/base.art");
+  CreateGcRemovedFile(android_data_ +
+                      "/user/0/com.android.foo/cache/oat_primary/arm64/different_dex.art");
+  CreateGcRemovedFile(android_data_ +
+                      "/user/0/com.android.foo/cache/oat_primary/different_isa/base.art");
 
   int64_t aidl_return;
   ASSERT_TRUE(
@@ -2080,6 +2093,10 @@ TEST_F(ArtdTest, cleanup) {
                       .dexPath = android_data_ + "/user_de/0/com.android.foo/aaa/1.apk",
                       .isa = "arm64",
                       .isInDalvikCache = false}},
+              },
+              {
+                  RuntimeArtifactsPath{
+                      .packageName = "com.android.foo", .isa = "arm64", .dexPath = "/a/b/base.apk"},
               },
               &aidl_return)
           .isOk());
