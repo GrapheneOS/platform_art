@@ -38,6 +38,7 @@
 #include "interpreter/interpreter.h"
 #include "jit-inl.h"
 #include "jit_code_cache.h"
+#include "small_pattern_matcher.h"
 #include "jni/java_vm_ext.h"
 #include "mirror/method_handle_impl.h"
 #include "mirror/var_handle.h"
@@ -326,6 +327,20 @@ bool Jit::CompileMethodInternal(ArtMethod* method,
   // If we get a request to compile a proxy method, we pass the actual Java method
   // of that proxy method, as the compiler does not expect a proxy method.
   ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+
+  // Try to pattern match the method. Only on arm and arm64 for now as we have
+  // sufficiently similar calling convention between C++ and managed code.
+  if (kRuntimeISA == InstructionSet::kArm || kRuntimeISA == InstructionSet::kArm64) {
+    if (!Runtime::Current()->IsJavaDebuggable() && compilation_kind == CompilationKind::kBaseline) {
+      const void* pattern = SmallPatternMatcher::TryMatch(method);
+      if (pattern != nullptr) {
+        VLOG(jit) << "Successfully pattern matched " << method->PrettyMethod();
+        Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(method, pattern);
+        return true;
+      }
+    }
+  }
+
   if (!code_cache_->NotifyCompilationOf(method_to_compile, self, compilation_kind, prejit)) {
     return false;
   }

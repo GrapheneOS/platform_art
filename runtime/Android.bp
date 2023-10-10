@@ -191,6 +191,7 @@ cc_defaults {
         "jit/jit_memory_region.cc",
         "jit/profiling_info.cc",
         "jit/profile_saver.cc",
+        "jit/small_pattern_matcher.cc",
         "jni/check_jni.cc",
         "jni/java_vm_ext.cc",
         "jni/jni_env_ext.cc",
