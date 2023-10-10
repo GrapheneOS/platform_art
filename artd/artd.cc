@@ -1103,6 +1103,44 @@ ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_r
   return NonFatal(ART_FORMAT("Fstab entries not found for '{}'", in_dexFile));
 }
 
+ScopedAStatus Artd::validateDexPath(const std::string& in_dexPath,
+                                    std::optional<std::string>* _aidl_return) {
+  if (Result<void> result = ValidateDexPath(in_dexPath); !result.ok()) {
+    *_aidl_return = result.error().message();
+  } else {
+    *_aidl_return = std::nullopt;
+  }
+  return ScopedAStatus::ok();
+}
+
+ScopedAStatus Artd::validateClassLoaderContext(const std::string& in_dexPath,
+                                               const std::string& in_classLoaderContext,
+                                               std::optional<std::string>* _aidl_return) {
+  if (in_classLoaderContext == ClassLoaderContext::kUnsupportedClassLoaderContextEncoding) {
+    *_aidl_return = std::nullopt;
+    return ScopedAStatus::ok();
+  }
+
+  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(in_classLoaderContext);
+  if (context == nullptr) {
+    *_aidl_return = ART_FORMAT("Class loader context '{}' is invalid", in_classLoaderContext);
+    return ScopedAStatus::ok();
+  }
+
+  std::vector<std::string> flattened_context = context->FlattenDexPaths();
+  std::string dex_dir = Dirname(in_dexPath);
+  for (const std::string& context_element : flattened_context) {
+    std::string context_path = std::filesystem::path(dex_dir).append(context_element);
+    if (Result<void> result = ValidateDexPath(context_path); !result.ok()) {
+      *_aidl_return = result.error().message();
+      return ScopedAStatus::ok();
+    }
+  }
+
+  *_aidl_return = std::nullopt;
+  return ScopedAStatus::ok();
+}
+
 Result<void> Artd::Start() {
   OR_RETURN(SetLogVerbosity());
 
