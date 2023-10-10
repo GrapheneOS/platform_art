@@ -609,6 +609,19 @@ NterpInvokeCustomRange:
 // This is the logical end of ExecuteNterpImpl, where the frame info applies.
 .cfi_endproc
 
+NterpToNterpInstance:
+%  nterp_to_nterp_instance()
+NterpToNterpStringInit:
+%  nterp_to_nterp_string_init()
+NterpToNterpStatic:
+%  nterp_to_nterp_static()
+NterpToNterpInstanceRange:
+%  nterp_to_nterp_instance_range()
+NterpToNterpStaticRange:
+%  nterp_to_nterp_static_range()
+NterpToNterpStringInitRange:
+%  nterp_to_nterp_string_init_range()
+
 NAME_END nterp_helper
 
 // EndExecuteNterpImpl includes the methods after .cfi_endproc, as we want the runtime to see them
