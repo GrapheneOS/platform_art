@@ -35,6 +35,7 @@ cc_defaults {
         "profman_headers",
     ],
     shared_libs: [
+        "libartservice",
         "libarttools", // Contains "libc++fs".
         "libbase",
         "libbinder_ndk",
