@@ -293,12 +293,12 @@ ReportingConfig ReportingConfig::FromFlags(bool is_system_server) {
 
   return {
       .dump_to_logcat = gFlags.MetricsWriteToLogcat(),
-      .dump_to_file = gFlags.MetricsWriteToFile.GetValueOptional(),
       .dump_to_statsd = gFlags.MetricsWriteToStatsd(),
+      .dump_to_file = gFlags.MetricsWriteToFile.GetValueOptional(),
       .metrics_format = gFlags.MetricsFormat(),
       .period_spec = period_spec,
-      .reporting_num_mods = reporting_num_mods,
       .reporting_mods = reporting_mods,
+      .reporting_num_mods = reporting_num_mods,
   };
 }
 
