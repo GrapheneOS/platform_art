@@ -51,8 +51,8 @@ public class BackgroundDexoptJobStatsReporter {
                 .filter(packageResult
                         -> packageResult.getDexContainerFileDexoptResults().stream().anyMatch(
                                 fileResult
-                                -> (fileResult.getExtraStatuses()
-                                           & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                                -> (fileResult.getExtendedStatusFlags()
+                                           & DexoptResult.EXTENDED_SKIPPED_NO_DEX_CODE)
                                         == 0))
                 .collect(Collectors.toList());
     }
@@ -75,8 +75,8 @@ public class BackgroundDexoptJobStatsReporter {
                         .flatMap(packageResult
                                 -> packageResult.getDexContainerFileDexoptResults().stream())
                         .anyMatch(fileResult
-                                -> (fileResult.getExtraStatuses()
-                                           & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                                -> (fileResult.getExtendedStatusFlags()
+                                           & DexoptResult.EXTENDED_SKIPPED_STORAGE_LOW)
                                         != 0);
         if (isSkippedDueToStorageLow) {
             return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_NO_SPACE_LEFT;
