@@ -39,6 +39,7 @@ cc_defaults {
         "libarttools", // Contains "libc++fs".
         "libbase",
         "libbinder_ndk",
+        "libdexfile",
         "libselinux",
     ],
     static_libs: [

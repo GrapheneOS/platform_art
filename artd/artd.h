@@ -101,6 +101,11 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_dexFile,
       aidl::com::android::server::art::CopyAndRewriteProfileResult* _aidl_return) override;
 
+  ndk::ScopedAStatus copyAndRewriteEmbeddedProfile(
+      aidl::com::android::server::art::OutputProfile* in_dst,
+      const std::string& in_dexFile,
+      aidl::com::android::server::art::CopyAndRewriteProfileResult* _aidl_return) override;
+
   ndk::ScopedAStatus commitTmpProfile(
       const aidl::com::android::server::art::ProfilePath::TmpProfilePath& in_profile) override;
 
@@ -220,6 +225,12 @@ class Artd : public aidl::com::android::server::art::BnArtd {
                           /*out*/ art::tools::CmdlineBuilder& args);
 
   android::base::Result<struct stat> Fstat(const art::File& file) const;
+
+  ndk::ScopedAStatus CopyAndRewriteProfileImpl(
+      File src,
+      aidl::com::android::server::art::OutputProfile* dst_aidl,
+      const std::string& dex_path,
+      aidl::com::android::server::art::CopyAndRewriteProfileResult* aidl_return);
 
   std::mutex cache_mu_;
   std::optional<std::vector<std::string>> cached_boot_image_locations_ GUARDED_BY(cache_mu_);
