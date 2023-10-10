@@ -204,6 +204,11 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
   # Provide /sys/kernel/debug in chroot.
   adb shell mount | grep -q "^debugfs on $ART_TEST_CHROOT/sys/kernel/debug type debugfs " \
     || adb shell mount -t debugfs debugfs "$ART_TEST_CHROOT/sys/kernel/debug"
+  # Provide /sys/kernel/tracing in chroot. Using a bind mount is important,
+  # otherwise mounting tracefs multiple times confuses the
+  # android.hardware.atrace service.
+  adb shell mount | grep -q "^tracefs on $ART_TEST_CHROOT/sys/kernel/tracing type tracefs " \
+    || adb shell mount -o bind /sys/kernel/tracing "$ART_TEST_CHROOT/sys/kernel/tracing"
 
   # Provide /dev in chroot.
   adb shell mkdir -p "$ART_TEST_CHROOT/dev"

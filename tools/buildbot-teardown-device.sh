@@ -101,10 +101,11 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
     remove_filesystem_from_chroot dev/pts devpts false
     remove_filesystem_from_chroot dev tmpfs true
 
-    # Remove /sys/kernel/debug from chroot.
-    # The /sys/kernel/debug directory under the chroot dir cannot be
-    # deleted, as it is part of the host device's /sys filesystem.
+    # Remove /sys/kernel/{debug,tracing} from chroot.
+    # The /sys/kernel/{debug,tracing} directories under the chroot dir cannot be
+    # deleted, as they are part of the host device's /sys filesystem.
     remove_filesystem_from_chroot sys/kernel/debug debugfs false
+    remove_filesystem_from_chroot sys/kernel/tracing tracefs false
     # Remove /sys from chroot.
     remove_filesystem_from_chroot sys sysfs true
 
