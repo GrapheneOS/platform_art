@@ -28,10 +28,19 @@
 namespace art {
 namespace artd {
 
-// Returns all existing files that are managed by artd.
-android::base::Result<std::vector<std::string>> ListManagedFiles();
+android::base::Result<std::string> GetAndroidDataOrError();
 
-android::base::Result<std::vector<std::string>> ListRuntimeArtifactsFiles(
+android::base::Result<std::string> GetAndroidExpandOrError();
+
+android::base::Result<std::string> GetArtRootOrError();
+
+// Returns all existing files that are managed by artd.
+std::vector<std::string> ListManagedFiles(const std::string& android_data,
+                                          const std::string& android_expand);
+
+std::vector<std::string> ListRuntimeArtifactsFiles(
+    const std::string& android_data,
+    const std::string& android_expand,
     const aidl::com::android::server::art::RuntimeArtifactsPath& runtime_artifacts_path);
 
 android::base::Result<void> ValidateRuntimeArtifactsPath(
