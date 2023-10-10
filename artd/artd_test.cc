@@ -25,6 +25,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <csignal>
+#include <cstdio>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -61,6 +62,7 @@
 #include "profman/profman_result.h"
 #include "testing.h"
 #include "tools/system_properties.h"
+#include "ziparchive/zip_writer.h"
 
 namespace art {
 namespace artd {
@@ -69,6 +71,7 @@ namespace {
 using ::aidl::com::android::server::art::ArtConstants;
 using ::aidl::com::android::server::art::ArtdDexoptResult;
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::CopyAndRewriteProfileResult;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::FileVisibility;
@@ -373,15 +376,15 @@ class ArtdTest : public CommonArtTest {
     clc_2_ = GetTestDexFileName("Nested");
     class_loader_context_ = ART_FORMAT("PCL[{}:{}]", clc_1_, clc_2_);
     compiler_filter_ = "speed";
-    TmpProfilePath tmp_profile_path{
-        .finalPath =
-            PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
-        .id = "12345"};
-    profile_path_ = tmp_profile_path;
+    tmp_profile_path_ =
+        TmpProfilePath{.finalPath = PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                          .profileName = "primary"},
+                       .id = "12345"};
+    profile_path_ = tmp_profile_path_;
     vdex_path_ = artifacts_path_;
     dm_path_ = DexMetadataPath{.dexPath = dex_file_};
     std::filesystem::create_directories(
-        std::filesystem::path(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))).parent_path());
+        std::filesystem::path(OR_FATAL(BuildFinalProfilePath(tmp_profile_path_))).parent_path());
   }
 
   void TearDown() override {
@@ -425,10 +428,46 @@ class ArtdTest : public CommonArtTest {
     }
   }
 
+  // Runs `copyAndRewriteProfile` with `tmp_profile_path_` and `dex_file_`.
+  template <bool kExpectOk = true>
+  Result<std::pair<std::conditional_t<kExpectOk, CopyAndRewriteProfileResult, ndk::ScopedAStatus>,
+                   OutputProfile>>
+  RunCopyAndRewriteProfile() {
+    OutputProfile dst{.profilePath = tmp_profile_path_,
+                      .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+    dst.profilePath.id = "";
+    dst.profilePath.tmpPath = "";
+
+    CopyAndRewriteProfileResult result;
+    ndk::ScopedAStatus status =
+        artd_->copyAndRewriteProfile(tmp_profile_path_, &dst, dex_file_, &result);
+    if constexpr (kExpectOk) {
+      if (!status.isOk()) {
+        return Error() << status.getMessage();
+      }
+      return std::make_pair(std::move(result), std::move(dst));
+    } else {
+      return std::make_pair(std::move(status), std::move(dst));
+    }
+  }
+
   void CreateFile(const std::string& filename, const std::string& content = "") {
     std::filesystem::path path(filename);
     std::filesystem::create_directories(path.parent_path());
     ASSERT_TRUE(WriteStringToFile(content, filename));
+  }
+
+  void CreateZipWithSingleEntry(const std::string& filename,
+                                const std::string& entry_name,
+                                const std::string& content = "") {
+    std::unique_ptr<File> file(OS::CreateEmptyFileWriteOnly(filename.c_str()));
+    ASSERT_NE(file, nullptr);
+    file->MarkUnchecked();  // `writer.Finish()` flushes the file and the destructor closes it.
+    ZipWriter writer(fdopen(file->Fd(), "wb"));
+    ASSERT_EQ(writer.StartEntry(entry_name, /*flags=*/0), 0);
+    ASSERT_EQ(writer.WriteBytes(content.c_str(), content.size()), 0);
+    ASSERT_EQ(writer.FinishEntry(), 0);
+    ASSERT_EQ(writer.Finish(), 0);
   }
 
   std::shared_ptr<Artd> artd_;
@@ -460,6 +499,7 @@ class ArtdTest : public CommonArtTest {
   PriorityClass priority_class_ = PriorityClass::BACKGROUND;
   DexoptOptions dexopt_options_;
   std::optional<ProfilePath> profile_path_;
+  TmpProfilePath tmp_profile_path_;
   bool dex_file_other_readable_ = true;
   bool profile_other_readable_ = true;
 
@@ -1309,13 +1349,9 @@ TEST_F(ArtdTest, isProfileUsableFailed) {
   EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
 }
 
-TEST_F(ArtdTest, copyAndRewriteProfile) {
-  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
-  CreateFile(src_file, "abc");
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-  dst.profilePath.tmpPath = "";
+TEST_F(ArtdTest, copyAndRewriteProfileSuccess) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateFile(src_file, "valid_profile");
 
   CreateFile(dex_file_);
 
@@ -1335,64 +1371,160 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
                       Return(ProfmanResult::kCopyAndUpdateSuccess)));
 
-  bool result;
-  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
-  EXPECT_TRUE(result);
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::SUCCESS);
   EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
   std::string real_path = OR_FATAL(BuildTmpProfilePath(dst.profilePath));
   EXPECT_EQ(dst.profilePath.tmpPath, real_path);
   CheckContent(real_path, "def");
 }
 
-TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
-  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
-  CreateFile(src_file, "abc");
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-  dst.profilePath.tmpPath = "";
+// The input is a plain profile file in the wrong format.
+TEST_F(ArtdTest, copyAndRewriteProfileBadProfileWrongFormat) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateFile(src_file, "wrong_format");
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::BAD_PROFILE);
+  EXPECT_THAT(result.errorMsg,
+              HasSubstr("The profile is in the wrong format or an I/O error has occurred"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a plain profile file that doesn't match the APK.
+TEST_F(ArtdTest, copyAndRewriteProfileBadProfileNoMatch) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateFile(src_file, "no_match");
 
   CreateFile(dex_file_);
 
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
       .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
 
-  bool result;
-  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
-  EXPECT_FALSE(result);
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::BAD_PROFILE);
+  EXPECT_THAT(result.errorMsg, HasSubstr("The profile does not match the APK"));
   EXPECT_THAT(dst.profilePath.id, IsEmpty());
   EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
 
-TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
+// The input is a plain profile file that is empty.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileEmpty) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateFile(src_file, "");
+
   CreateFile(dex_file_);
 
-  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-  dst.profilePath.tmpPath = "";
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
 
-  bool result;
-  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
-  EXPECT_FALSE(result);
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
   EXPECT_THAT(dst.profilePath.id, IsEmpty());
   EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
 
-TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
-  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
-  CreateFile(src_file, "abc");
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-  dst.profilePath.tmpPath = "";
+// The input does not exist.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileNoFile) {
+  CreateFile(dex_file_);
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a dm file with a profile entry in the wrong format.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileDmWrongFormat) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateZipWithSingleEntry(src_file, "primary.prof", "wrong_format");
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::BAD_PROFILE);
+  EXPECT_THAT(result.errorMsg,
+              HasSubstr("The profile is in the wrong format or an I/O error has occurred"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a dm file with a profile entry that doesn't match the APK.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileDmNoMatch) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateZipWithSingleEntry(src_file, "primary.prof", "no_match");
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::BAD_PROFILE);
+  EXPECT_THAT(result.errorMsg, HasSubstr("The profile does not match the APK"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a dm file with a profile entry that is empty.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileDmEmpty) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateZipWithSingleEntry(src_file, "primary.prof");
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+// The input is a dm file without a profile entry.
+TEST_F(ArtdTest, copyAndRewriteProfileNoProfileDmNoEntry) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateZipWithSingleEntry(src_file, "primary.vdex");
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
+
+  auto [result, dst] = OR_FAIL(RunCopyAndRewriteProfile());
+
+  EXPECT_EQ(result.status, CopyAndRewriteProfileResult::Status::NO_PROFILE);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
+}
+
+TEST_F(ArtdTest, copyAndRewriteProfileException) {
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
+  CreateFile(src_file, "valid_profile");
 
   CreateFile(dex_file_);
 
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillOnce(Return(100));
 
-  bool result;
-  ndk::ScopedAStatus status = artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result);
+  auto [status, dst] = OR_FAIL(RunCopyAndRewriteProfile</*kExpectOk=*/false>());
 
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
@@ -1402,19 +1534,17 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
 }
 
 TEST_F(ArtdTest, commitTmpProfile) {
-  const TmpProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
-  std::string tmp_profile_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path));
+  std::string tmp_profile_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path_));
   CreateFile(tmp_profile_file);
 
-  EXPECT_TRUE(artd_->commitTmpProfile(tmp_profile_path).isOk());
+  EXPECT_TRUE(artd_->commitTmpProfile(tmp_profile_path_).isOk());
 
   EXPECT_FALSE(std::filesystem::exists(tmp_profile_file));
-  EXPECT_TRUE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))));
+  EXPECT_TRUE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path_))));
 }
 
 TEST_F(ArtdTest, commitTmpProfileFailed) {
-  const TmpProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
-  ndk::ScopedAStatus status = artd_->commitTmpProfile(tmp_profile_path);
+  ndk::ScopedAStatus status = artd_->commitTmpProfile(tmp_profile_path_);
 
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
@@ -1422,7 +1552,7 @@ TEST_F(ArtdTest, commitTmpProfileFailed) {
       status.getMessage(),
       ContainsRegex(R"re(Failed to move .*primary\.prof\.12345\.tmp.* to .*primary\.prof)re"));
 
-  EXPECT_FALSE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))));
+  EXPECT_FALSE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path_))));
 }
 
 TEST_F(ArtdTest, deleteProfile) {
@@ -1589,7 +1719,7 @@ TEST_F(ArtdGetVisibilityTest, getDmFileVisibilityPermissionDenied) {
 }
 
 TEST_F(ArtdTest, mergeProfiles) {
-  const TmpProfilePath& reference_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
+  const TmpProfilePath& reference_profile_path = tmp_profile_path_;
   std::string reference_profile_file = OR_FATAL(BuildTmpProfilePath(reference_profile_path));
   CreateFile(reference_profile_file, "abc");
 
@@ -1655,7 +1785,7 @@ TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
   std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
   CreateFile(profile_0_file, "def");
 
-  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+  OutputProfile output_profile{.profilePath = tmp_profile_path_,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
   output_profile.profilePath.tmpPath = "";
@@ -1691,7 +1821,7 @@ TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
 }
 
 TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
-  const TmpProfilePath& reference_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
+  const TmpProfilePath& reference_profile_path = tmp_profile_path_;
   std::string reference_profile_file = OR_FATAL(BuildTmpProfilePath(reference_profile_path));
   CreateFile(reference_profile_file, "abc");
 
@@ -1734,7 +1864,7 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsForceMerge) {
   std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
   CreateFile(profile_0_file, "def");
 
-  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+  OutputProfile output_profile{.profilePath = tmp_profile_path_,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
   output_profile.profilePath.tmpPath = "";
@@ -1769,7 +1899,7 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpOnly) {
   std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
   CreateFile(profile_0_file, "def");
 
-  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+  OutputProfile output_profile{.profilePath = tmp_profile_path_,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
   output_profile.profilePath.tmpPath = "";
@@ -1808,7 +1938,7 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpClassesAndMethods) {
   std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
   CreateFile(profile_0_file, "def");
 
-  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+  OutputProfile output_profile{.profilePath = tmp_profile_path_,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
   output_profile.profilePath.tmpPath = "";
