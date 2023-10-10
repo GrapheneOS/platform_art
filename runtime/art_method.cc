@@ -647,7 +647,15 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   OatFile::OatMethod oat_method =
       FindOatMethodFor(this, class_linker->GetImagePointerSize(), &found);
   if (!found) {
-    CHECK(IsNative()) << PrettyMethod();
+    if (!IsNative()) {
+      PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
+      MemMap::DumpMaps(LOG_STREAM(FATAL_WITHOUT_ABORT), /* terse= */ true);
+      LOG(FATAL)
+          << PrettyMethod()
+          << " pc=" << pc
+          << ", entrypoint= " << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
+          << ", jit= " << jit;
+    }
     // We are running the GenericJNI stub. The entrypoint may point
     // to different entrypoints or to a JIT-compiled JNI stub.
     DCHECK(class_linker->IsQuickGenericJniStub(existing_entry_point) ||
