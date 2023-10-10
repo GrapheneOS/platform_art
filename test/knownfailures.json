@@ -438,7 +438,6 @@
     },
     {
         "test_patterns": [
-            ".*const-method-type.*",
             ".*invoke-custom.*",
             ".*invoke-polymorphic.*",
             ".*methodhandle.*",
@@ -1572,5 +1571,14 @@
         "tests": ["2031-zygote-compiled-frame-deopt"],
         "variant": "jit-on-first-use",
         "description": ["Test doesn't work when jitting can happen in parallel."]
+    },
+    {
+        "tests": ["689-zygote-jit-deopt",
+                  "728-imt-conflict-zygote",
+                  "2031-zygote-compiled-frame-deopt"],
+        "bug": "b/137887811",
+        "description": "ASAN issue.",
+        "variant": "host",
+        "env_vars": {"SANITIZE_HOST": "address"}
     }
 ]
