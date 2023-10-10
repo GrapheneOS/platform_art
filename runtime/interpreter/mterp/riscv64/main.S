@@ -47,6 +47,7 @@
 // Android references
 //   Bytecodes: https://source.android.com/docs/core/runtime/dalvik-bytecode
 //   Instruction formats: https://source.android.com/docs/core/runtime/instruction-formats
+//   Shorty: https://source.android.com/docs/core/runtime/dex-format#shortydescriptor
 
 // Fixed register usages in Nterp.
 //    nickname  ABI    reg   purpose
@@ -57,6 +58,8 @@
 #define xIBASE   s5  // x21,  interpreted instruction base pointer: for computed goto
 #define xREFS    s6  // x22,  base of object references of dex registers
 
+// DWARF registers reference
+// https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-dwarf.adoc
 #define CFI_TMP  10  // DWARF register number for       a0/x10
 #define CFI_DEX  19  // DWARF register number for xPC  /s3/x19
 #define CFI_REFS 22  // DWARF register number for xREFS/s6/x22
@@ -119,21 +122,22 @@ END \name
 // Unpack code items from dex format.
 // Input: \code_item
 // Output:
-//   - \registers: register count
+//   - \regs: register count
 //   - \outs: out count
-//   - \ins: in count
+//   - \ins: in count. If set to register "zero" (x0), load is skipped.
 //   - \code_item: holds instruction array on exit
-// Clobbers: t0
-.macro FETCH_CODE_ITEM_INFO code_item, registers, outs, ins
+.macro FETCH_CODE_ITEM_INFO code_item, regs, outs, ins
     // Check LSB of \code_item. If 1, it's a compact dex file.
-    andi t0, \code_item, 0x1
-    beqz t0, 1f  // Regular dex.
+    bexti \regs, \code_item, 0x0
+    beqz \regs, 1f  // Regular dex.
     unimp  // Compact dex: unimplemented.
 1:
     // Unpack values from regular dex format.
-    lhu \registers, CODE_ITEM_REGISTERS_SIZE_OFFSET(\code_item)
+    lhu \regs, CODE_ITEM_REGISTERS_SIZE_OFFSET(\code_item)
     lhu \outs, CODE_ITEM_OUTS_SIZE_OFFSET(\code_item)
-    lhu \ins, CODE_ITEM_INS_SIZE_OFFSET(\code_item)
+    .ifnc \ins, zero
+      lhu \ins, CODE_ITEM_INS_SIZE_OFFSET(\code_item)
+    .endif
     addi \code_item, \code_item, CODE_ITEM_INSNS_OFFSET
 .endm
 
@@ -238,22 +242,30 @@ END \name
 // A \width flag allows reading 32 bits (2 units) or 64 bits (4 units) from the offset.
 // The RISC-V ISA supports unaligned accesses for these wider loads.
 //
+// If \width=8, \byte={0,1} indexes into the code unit at the offset.
+//
 // Default behavior loads one code unit with unsigned zext.
 // The \signed flag is for signed sext, for shorter loads.
 //
 // Does not advance xPC.
-.macro FETCH reg, count, signed=0, width=16
-    .if \width == 16
+.macro FETCH reg, count, signed=0, width=16, byte=0
+    .if \width == 8
+      .if \signed
+        lb  \reg, (\count*2 + \byte)(xPC)
+      .else
+        lbu \reg, (\count*2 + \byte)(xPC)
+      .endif
+    .elseif \width == 16
       .if \signed
         lh  \reg, (\count*2)(xPC)
       .else
-        lhu  \reg, (\count*2)(xPC)
+        lhu \reg, (\count*2)(xPC)
       .endif
     .elseif \width == 32
       .if \signed
         lw  \reg, (\count*2)(xPC)
       .else
-        lwu  \reg, (\count*2)(xPC)
+        lwu \reg, (\count*2)(xPC)
       .endif
     .elseif \width == 64
       ld  \reg, (\count*2)(xPC)
@@ -291,8 +303,7 @@ END \name
     jr \reg
 .endm
 
-// Clobbers: t0, t1
-.macro FETCH_FROM_THREAD_CACHE reg, miss_label
+.macro FETCH_FROM_THREAD_CACHE reg, miss_label, z0, z1
     // See art::InterpreterCache::IndexOf() for computing index of key within cache array.
     // Entry address:
     //   xSELF + OFFSET + ((xPC>>2 & xFF) << 4)
@@ -308,12 +319,12 @@ END \name
 #if ((THREAD_INTERPRETER_CACHE_OFFSET & 0x3) != 0)
 #error Expected interpreter cache offset to be 4-byte aligned
 #endif
-    andi t0, xPC, 0xFF << 2
-    addi t0, t0, THREAD_INTERPRETER_CACHE_OFFSET >> 2
-    sh2add t0, t0, xSELF  // t0 := entry's address
-    ld t1, (t0)           // t1 := dex PC
-    bne xPC, t1, \miss_label
-    ld \reg, 8(t0)        // value: depends on context; see call site
+    andi \z0, xPC, 0xFF << 2
+    addi \z0, \z0, THREAD_INTERPRETER_CACHE_OFFSET >> 2
+    sh2add \z0, \z0, xSELF  // z0 := entry's address
+    ld \z1, (\z0)           // z1 := dex PC
+    bne xPC, \z1, \miss_label
+    ld \reg, 8(\z0)         // value: depends on context; see call site
 .endm
 
 // Inputs:
@@ -322,9 +333,9 @@ END \name
 // Clobbers: t0
 .macro CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot, if_not_hot
     lw t0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
-    // Send flag bit to MSB, branch if bit is unset.
-    sll t0, t0, 63 - ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT
-    bgez t0, \if_hot
+    // Extract flag bit, branch if bit is unset.
+    bexti t0, t0, ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT
+    beqz t0, \if_hot
 
     lw t0, THREAD_SHARED_METHOD_HOTNESS_OFFSET(xSELF)
     beqz t0, \if_hot
@@ -335,14 +346,16 @@ END \name
 .endm
 
 // Increase method hotness before starting the method.
-// Clobbers: a0, t0
+// Hardcoded:
+// - a0: ArtMethod*
+// Clobbers: t0
 .macro START_EXECUTING_INSTRUCTIONS
     ld a0, (sp)
     lhu t0, ART_METHOD_HOTNESS_COUNT_OFFSET(a0)
 #if (NTERP_HOTNESS_VALUE != 0)
 #error Expected 0 for hotness value
 #endif
-    // If the counter is at zero, handle it in the runtime.
+    // If the counter is at zero (hot), handle it in the runtime.
     beqz t0, 3f
     addi t0, t0, -1
     sh t0, ART_METHOD_HOTNESS_COUNT_OFFSET(a0)
@@ -361,30 +374,28 @@ END \name
     j 2b
 .endm
 
-// Typed read, defaults to 32-bit read.
-// Clobbers: \reg, \vreg
+// Typed read, defaults to 32-bit read
+// Clobbers: \reg
 // Safe if \reg == \vreg.
 .macro GET_VREG reg, vreg, is_wide=0
     .if \is_wide
       GET_VREG_WIDE \reg, \vreg
     .else
-      slliw \vreg, \vreg, 2  // vreg id to byte offset
-      add \vreg, xFP, \vreg  // vreg addr in register array
-      lw \reg, (\vreg)       // reg := fp[vreg]
+      sh2add \reg, \vreg, xFP  // vreg addr in register array
+      lw \reg, (\reg)          // reg := fp[vreg]
     .endif
 .endm
 
 // Typed write, defaults to 32-bit write.
-// Clobbers: t0, \reg, \vreg
-.macro SET_VREG reg, vreg, is_wide=0
+// Clobbers: z0
+.macro SET_VREG reg, vreg, z0, is_wide=0
     .if \is_wide
-      SET_VREG_WIDE \reg, \vreg
+      SET_VREG_WIDE \reg, \vreg, \z0
     .else
-      slliw \vreg, \vreg, 2  // vreg id to byte offset
-      add t0, xFP, \vreg     // vreg addr in register array
-      sw \reg, (t0)          // fp[vreg] := reg
-      add t0, xREFS, \vreg   // vreg addr in reference array
-      sw zero, (t0)          // refs[vreg] := null
+      sh2add \z0, \vreg, xFP    // vreg addr in register array
+      sw \reg, (\z0)            // fp[vreg] := reg
+      sh2add \z0, \vreg, xREFS  // vreg addr in reference array
+      sw zero, (\z0)            // refs[vreg] := null
     .endif
 .endm
 
@@ -392,38 +403,34 @@ END \name
 // Clobbers: \reg
 // Safe if \reg == \vreg.
 .macro GET_VREG_WIDE reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add \vreg, xFP, \vreg  // vreg addr in register array
-    ld \reg, (\vreg)       // reg := fp[vreg](lo) | fp[vreg+1](hi)
+    sh2add \reg, \vreg, xFP  // vreg addr in register array
+    ld \reg, (\reg)          // reg := fp[vreg](lo) | fp[vreg+1](hi)
 .endm
 
 // 64 bit write
-// Clobbers: t0, \vreg
-.macro SET_VREG_WIDE reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add t0, xFP, \vreg     // vreg addr in register array
-    sd \reg, (t0)          // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
-    add t0, xREFS, \vreg   // vreg addr in reference array
-    sd zero, (t0)          // refs[vreg] := null ; refs[vreg+1] := null
+// Clobbers: z0
+.macro SET_VREG_WIDE reg, vreg, z0
+    sh2add \z0, \vreg, xFP    // vreg addr in register array
+    sd \reg, (\z0)            // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
+    sh2add \z0, \vreg, xREFS  // vreg addr in reference array
+    sd zero, (\z0)            // refs[vreg] := null ; refs[vreg+1] := null
 .endm
 
 // Object read
 // Clobbers: \reg
 // Safe if \reg == \vreg.
 .macro GET_VREG_OBJECT reg, vreg
-    slliw \vreg, \vreg, 2    // vreg id to byte offset
-    add \vreg, xREFS, \vreg  // vreg addr in reference array
-    lw \reg, (\vreg)         // reg := refs[vreg]
+    sh2add \reg, \vreg, xREFS  // vreg addr in reference array
+    lwu \reg, (\reg)           // reg := refs[vreg]
 .endm
 
 // Object write
-// Clobbers: t0, \vreg
-.macro SET_VREG_OBJECT reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add t0, xFP, \vreg     // vreg addr in register array
-    sw \reg, (t0)          // fp[vreg] := reg
-    add t0, xREFS, \vreg   // vreg addr in reference array
-    sw \reg, (t0)          // refs[vreg] := reg
+// Clobbers: z0
+.macro SET_VREG_OBJECT reg, vreg, z0
+    sh2add \z0, \vreg, xFP    // vreg addr in register array
+    sw \reg, (\z0)            // fp[vreg] := reg
+    sh2add \z0, \vreg, xREFS  // vreg addr in reference array
+    sw \reg, (\z0)            // refs[vreg] := reg
 .endm
 
 // Floating-point read, defaults to 32-bit read.
@@ -432,42 +439,38 @@ END \name
     .if \is_double
       GET_VREG_DOUBLE \reg, \vreg
     .else
-      slliw \vreg, \vreg, 2  // vreg id to byte offset
-      add \vreg, xFP, \vreg  // vreg addr in register array
-      flw \reg, (\vreg)      // reg := fp[vreg]
+      sh2add \vreg, \vreg, xFP  // vreg addr in register array
+      flw \reg, (\vreg)         // reg := fp[vreg]
     .endif
 .endm
 
 // Floating-point write, defaults to 32-bit write.
-// Clobbers: t0, \reg, \vreg
-.macro SET_VREG_FLOAT reg, vreg, is_double=0
+// Clobbers: \reg, z0
+.macro SET_VREG_FLOAT reg, vreg, z0, is_double=0
     .if \is_double
-      SET_VREG_DOUBLE \reg, \vreg
+      SET_VREG_DOUBLE \reg, \vreg, \z0
     .else
-      slliw \vreg, \vreg, 2  // vreg id to byte offset
-      add t0, xFP, \vreg     // vreg addr in register array
-      fsw \reg, (t0)         // fp[vreg] := reg
-      add t0, xREFS, \vreg   // vreg addr in reference array
-      sw zero, (t0)          // refs[vreg] := null
+      sh2add \z0, \vreg, xFP    // vreg addr in register array
+      fsw \reg, (\z0)           // fp[vreg] := reg
+      sh2add \z0, \vreg, xREFS  // vreg addr in reference array
+      sw zero, (\z0)            // refs[vreg] := null
     .endif
 .endm
 
 // Floating-point 64 bit read
-// Clobbers: \reg
+// Clobbers: \reg, \vreg
 .macro GET_VREG_DOUBLE reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add \vreg, xFP, \vreg  // vreg addr in register array
-    fld \reg, (\vreg)       // reg := fp[vreg](lo) | fp[vreg+1](hi)
+    sh2add \vreg, \vreg, xFP  // vreg addr in register array
+    fld \reg, (\vreg)         // reg := fp[vreg](lo) | fp[vreg+1](hi)
 .endm
 
 // Floating-point 64 bit write
-// Clobbers: t0, \vreg
-.macro SET_VREG_DOUBLE reg, vreg
-    slliw \vreg, \vreg, 2  // vreg id to byte offset
-    add t0, xFP, \vreg     // vreg addr in register array
-    fsd \reg, (t0)         // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
-    add t0, xREFS, \vreg   // vreg addr in reference array
-    sd zero, (t0)          // refs[vreg] := null ; refs[vreg+1] := null
+// Clobbers: \reg, z0
+.macro SET_VREG_DOUBLE reg, vreg, z0
+    sh2add \z0, \vreg, xFP    // vreg addr in register array
+    fsd \reg, (\z0)           // fp[vreg] := reg(lo) ; fp[vreg+1] := reg(hi)
+    sh2add \z0, \vreg, xREFS  // vreg addr in reference array
+    sd zero, (\z0)            // refs[vreg] := null ; refs[vreg+1] := null
 .endm
 
 %def entry():
@@ -553,8 +556,13 @@ NAME_START nterp_helper
 
 common_errDivideByZero:
     EXPORT_PC
-    // Control doesn't return, but stack walking needs the return address.
+    // CALL preserves RA for stack walking.
     call art_quick_throw_div_zero
+
+// This is the logical end of ExecuteNterpImpl, where the frame info applies.
+.cfi_endproc
+
+NAME_END nterp_helper
 
 // EndExecuteNterpImpl includes the methods after .cfi_endproc, as we want the runtime to see them
 // as part of the Nterp PCs. This label marks the end of PCs contained by the OatQuickMethodHeader
@@ -563,10 +571,6 @@ common_errDivideByZero:
     .hidden EndExecuteNterpImpl
     .global EndExecuteNterpImpl
 EndExecuteNterpImpl:
-
-// This is the logical end of ExecuteNterpImpl, where the frame info applies.
-.cfi_endproc
-NAME_END nterp_helper
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
