@@ -58,8 +58,10 @@ public class BackgroundDexoptJobStatsReporter {
                         .stream()
                         .flatMap(packageResult
                                 -> packageResult.getDexContainerFileDexoptResults().stream())
-                        .anyMatch(DexoptResult
-                                          .DexContainerFileDexoptResult::isSkippedDueToStorageLow);
+                        .anyMatch(fileResult
+                                -> (fileResult.getExtraStatus()
+                                           & DexoptResult.EXTRA_SKIPPED_STORAGE_LOW)
+                                        != 0);
         if (isSkippedDueToStorageLow) {
             return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_NO_SPACE_LEFT;
         }
