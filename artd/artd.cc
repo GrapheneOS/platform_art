@@ -73,6 +73,7 @@
 #include "path_utils.h"
 #include "profman/profman_result.h"
 #include "selinux/android.h"
+#include "service.h"
 #include "tools/cmdline_builder.h"
 #include "tools/tools.h"
 
@@ -109,6 +110,7 @@ using ::android::base::Split;
 using ::android::base::StringReplace;
 using ::android::base::WriteStringToFd;
 using ::android::fs_mgr::FstabEntry;
+using ::art::service::ValidateDexPath;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
@@ -1174,44 +1176,6 @@ ScopedAStatus Artd::deleteRuntimeArtifacts(const RuntimeArtifactsPath& in_runtim
        ListRuntimeArtifactsFiles(android_data, android_expand, in_runtimeArtifactsPath)) {
     *_aidl_return += GetSizeAndDeleteFile(file);
   }
-  return ScopedAStatus::ok();
-}
-
-ScopedAStatus Artd::validateDexPath(const std::string& in_dexPath,
-                                    std::optional<std::string>* _aidl_return) {
-  if (Result<void> result = ValidateDexPath(in_dexPath); !result.ok()) {
-    *_aidl_return = result.error().message();
-  } else {
-    *_aidl_return = std::nullopt;
-  }
-  return ScopedAStatus::ok();
-}
-
-ScopedAStatus Artd::validateClassLoaderContext(const std::string& in_dexPath,
-                                               const std::string& in_classLoaderContext,
-                                               std::optional<std::string>* _aidl_return) {
-  if (in_classLoaderContext == ClassLoaderContext::kUnsupportedClassLoaderContextEncoding) {
-    *_aidl_return = std::nullopt;
-    return ScopedAStatus::ok();
-  }
-
-  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(in_classLoaderContext);
-  if (context == nullptr) {
-    *_aidl_return = ART_FORMAT("Class loader context '{}' is invalid", in_classLoaderContext);
-    return ScopedAStatus::ok();
-  }
-
-  std::vector<std::string> flattened_context = context->FlattenDexPaths();
-  std::string dex_dir = Dirname(in_dexPath);
-  for (const std::string& context_element : flattened_context) {
-    std::string context_path = std::filesystem::path(dex_dir).append(context_element);
-    if (Result<void> result = ValidateDexPath(context_path); !result.ok()) {
-      *_aidl_return = result.error().message();
-      return ScopedAStatus::ok();
-    }
-  }
-
-  *_aidl_return = std::nullopt;
   return ScopedAStatus::ok();
 }
 
