@@ -300,6 +300,7 @@ public class SecondaryDexopterTest {
         result.isDexoptNeeded = true;
         result.artifactsLocation = ArtifactsLocation.NONE_OR_ERROR;
         result.isVdexUsable = false;
+        result.hasDexCode = true;
         return result;
     }
 

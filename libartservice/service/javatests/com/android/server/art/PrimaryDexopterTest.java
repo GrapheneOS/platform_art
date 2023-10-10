@@ -626,6 +626,36 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                         any());
     }
 
+    @Test
+    public void testDexoptDexStatus() throws Exception {
+        lenient()
+                .when(mArtd.getDexoptNeeded(any(), any(), any(), any(), anyInt()))
+                .thenReturn(dexoptIsNotNeeded(false /* hasDexCode */),
+                        dexoptIsNotNeeded(false /* hasDexCode */),
+                        dexoptIsNotNeeded(true /* hasDexCode */), dexoptIsNeeded());
+
+        mDexoptParams = new DexoptParams.Builder("install")
+                                .setCompilerFilter("speed-profile")
+                                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
+                                .build();
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+
+        List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
+        assertThat(results.get(0).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
+        assertThat(results.get(0).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                .isNotEqualTo(0);
+        assertThat(results.get(1).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
+        assertThat(results.get(1).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                .isNotEqualTo(0);
+        assertThat(results.get(2).getStatus()).isEqualTo(DexoptResult.DEXOPT_SKIPPED);
+        assertThat(results.get(2).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                .isEqualTo(0);
+        assertThat(results.get(3).getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
+        assertThat(results.get(3).getExtraStatus() & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                .isEqualTo(0);
+    }
+
     private void checkDexoptWithProfile(IArtd artd, String dexPath, String isa, ProfilePath profile,
             boolean isOtherReadable, boolean generateAppImage) throws Exception {
         artd.dexopt(argThat(artifacts

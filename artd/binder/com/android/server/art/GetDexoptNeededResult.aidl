@@ -28,7 +28,14 @@ parcelable GetDexoptNeededResult {
     boolean isVdexUsable;
     /** The location of the best usable artifacts. */
     ArtifactsLocation artifactsLocation = ArtifactsLocation.NONE_OR_ERROR;
+    /**
+     * True if the dex file has dex code. (The dex file is a .jar/.apk file that has .dex entries,
+     * or is a .dex file.) False otherwise. (The dex file is a .jar/.apk file that has no .dex
+     * entries.)
+     */
+    boolean hasDexCode;
 
+    @Backing(type="int")
     enum ArtifactsLocation {
         /** No usable artifacts. */
         NONE_OR_ERROR = 0,
