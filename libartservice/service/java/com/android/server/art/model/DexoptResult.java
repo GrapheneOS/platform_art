@@ -23,12 +23,14 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
+import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.auto.value.AutoValue;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** @hide */
@@ -65,12 +67,15 @@ public abstract class DexoptResult {
     public static final int EXTRA_SKIPPED_STORAGE_LOW = 1 << 0;
     /** @hide */
     public static final int EXTRA_SKIPPED_NO_DEX_CODE = 1 << 1;
+    /** @hide */
+    public static final int EXTRA_BAD_EXTERNAL_PROFILE = 1 << 2;
 
     /** @hide */
     // clang-format off
     @IntDef(flag = true, prefix = {"EXTRA_"}, value = {
         EXTRA_SKIPPED_STORAGE_LOW,
         EXTRA_SKIPPED_NO_DEX_CODE,
+        EXTRA_BAD_EXTERNAL_PROFILE,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
@@ -152,6 +157,9 @@ public abstract class DexoptResult {
         if ((extraStatus & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE) != 0) {
             strs.add("EXTRA_SKIPPED_NO_DEX_CODE");
         }
+        if ((extraStatus & DexoptResult.EXTRA_BAD_EXTERNAL_PROFILE) != 0) {
+            strs.add("EXTRA_BAD_EXTERNAL_PROFILE");
+        }
         return String.join(", ", strs);
     }
 
@@ -213,6 +221,7 @@ public abstract class DexoptResult {
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     @AutoValue
+    @SuppressWarnings("AutoValueImmutableFields") // Can't use ImmutableList because it's in Guava.
     public static abstract class DexContainerFileDexoptResult {
         /** @hide */
         protected DexContainerFileDexoptResult() {}
@@ -222,10 +231,23 @@ public abstract class DexoptResult {
                 boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
                 @DexoptResultStatus int status, long dex2oatWallTimeMillis,
                 long dex2oatCpuTimeMillis, long sizeBytes, long sizeBeforeBytes,
-                @DexoptResultExtraStatus int extraStatus) {
+                @DexoptResultExtraStatus int extraStatus,
+                @NonNull List<String> externalProfileErrors) {
             return new AutoValue_DexoptResult_DexContainerFileDexoptResult(dexContainerFile,
                     isPrimaryAbi, abi, compilerFilter, status, dex2oatWallTimeMillis,
-                    dex2oatCpuTimeMillis, sizeBytes, sizeBeforeBytes, extraStatus);
+                    dex2oatCpuTimeMillis, sizeBytes, sizeBeforeBytes, extraStatus,
+                    Collections.unmodifiableList(externalProfileErrors));
+        }
+
+        /** @hide */
+        @VisibleForTesting
+        public static @NonNull DexContainerFileDexoptResult create(@NonNull String dexContainerFile,
+                boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
+                @DexoptResultStatus int status) {
+            return create(dexContainerFile, isPrimaryAbi, abi, compilerFilter, status,
+                    0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */,
+                    0 /* sizeBeforeBytes */, 0 /* extraStatus */,
+                    List.of() /* externalProfileErrors */);
         }
 
         /** The absolute path to the dex container file. */
@@ -281,6 +303,9 @@ public abstract class DexoptResult {
 
         /** @hide */
         public abstract @DexoptResultExtraStatus int getExtraStatus();
+
+        /** @hide */
+        public abstract @NonNull List<String> getExternalProfileErrors();
 
         @Override
         @NonNull
