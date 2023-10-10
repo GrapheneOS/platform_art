@@ -151,16 +151,16 @@
 1:
 
     .ifc $dst, w
-      SET_VREG t1, t2          // fp[A] := t1
+      SET_VREG t1, t2, z0=t0          // fp[A] := t1
     .endif
     .ifc $dst, l
-      SET_VREG_WIDE t1, t2     // fp[A] := t1
+      SET_VREG_WIDE t1, t2, z0=t0     // fp[A] := t1
     .endif
     .ifc $dst, s
-      SET_VREG_FLOAT ft0, t2   // fp[A] := ft0
+      SET_VREG_FLOAT ft0, t2, z0=t0   // fp[A] := ft0
     .endif
     .ifc $dst, d
-      SET_VREG_DOUBLE ft0, t2  // fp[B] := ft0
+      SET_VREG_DOUBLE ft0, t2, z0=t0  // fp[B] := ft0
     .endif
 
     GET_INST_OPCODE t0         // t0 holds next opcode
@@ -247,7 +247,7 @@
     FETCH_ADVANCE_INST 2  // advance xPC, load xINST
     $instr                // read fa0 and fa1, write result to fa0.
                           // instr may be a function call.
-    SET_VREG_FLOAT fa0, s11, is_double=$is_double
+    SET_VREG_FLOAT fa0, s11, z0=t0, is_double=$is_double
                           // fp[AA] := fa0
     GET_INST_OPCODE t0    // t0 holds next opcode
     GOTO_OPCODE t0        // continue to next
@@ -334,6 +334,6 @@
     $instr                   // read fa0 and f1, write result to fa0.
                              // instr may be a function call.
     GET_INST_OPCODE t1       // t1 holds next opcode
-    SET_VREG_FLOAT fa0, s11, is_double=$is_double
+    SET_VREG_FLOAT fa0, s11, z0=t0, is_double=$is_double
                              // fp[A] := fa0
     GOTO_OPCODE t1           // continue to next
