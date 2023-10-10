@@ -30,6 +30,7 @@
 #include "file_utils.h"
 #include "fstab/fstab.h"
 #include "oat_file_assistant.h"
+#include "runtime_image.h"
 #include "tools/tools.h"
 
 namespace art {
@@ -40,6 +41,7 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::ProfilePath;
+using ::aidl::com::android::server::art::RuntimeArtifactsPath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Error;
 using ::android::base::Result;
@@ -153,6 +155,35 @@ Result<std::vector<std::string>> ListManagedFiles() {
   }
 
   return tools::Glob(patterns);
+}
+
+Result<std::vector<std::string>> ListRuntimeArtifactsFiles(
+    const RuntimeArtifactsPath& runtime_artifacts_path) {
+  std::string android_data = OR_RETURN(GetAndroidDataOrError());
+  std::string android_expand = OR_RETURN(GetAndroidExpandOrError());
+
+  // See `art::tools::Glob` for the syntax.
+  std::vector<std::string> patterns;
+
+  for (const std::string& data_root : {android_data, android_expand + "/*"}) {
+    for (const char* user_dir : {"/user", "/user_de"}) {
+      std::string data_dir =
+          data_root + user_dir + "/*/" + tools::EscapeGlob(runtime_artifacts_path.packageName);
+      patterns.push_back(
+          RuntimeImage::GetRuntimeImagePath(data_dir,
+                                            tools::EscapeGlob(runtime_artifacts_path.dexPath),
+                                            tools::EscapeGlob(runtime_artifacts_path.isa)));
+    }
+  }
+
+  return tools::Glob(patterns);
+}
+
+Result<void> ValidateRuntimeArtifactsPath(const RuntimeArtifactsPath& runtime_artifacts_path) {
+  OR_RETURN(ValidatePathElement(runtime_artifacts_path.packageName, "packageName"));
+  OR_RETURN(ValidatePathElement(runtime_artifacts_path.isa, "isa"));
+  OR_RETURN(ValidateDexPath(runtime_artifacts_path.dexPath));
+  return {};
 }
 
 Result<void> ValidateDexPath(const std::string& dex_path) {

@@ -31,6 +31,12 @@ namespace artd {
 // Returns all existing files that are managed by artd.
 android::base::Result<std::vector<std::string>> ListManagedFiles();
 
+android::base::Result<std::vector<std::string>> ListRuntimeArtifactsFiles(
+    const aidl::com::android::server::art::RuntimeArtifactsPath& runtime_artifacts_path);
+
+android::base::Result<void> ValidateRuntimeArtifactsPath(
+    const aidl::com::android::server::art::RuntimeArtifactsPath& runtime_artifacts_path);
+
 android::base::Result<void> ValidateDexPath(const std::string& dex_path);
 
 android::base::Result<std::string> BuildArtBinPath(const std::string& binary_name);

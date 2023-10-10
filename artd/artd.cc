@@ -96,6 +96,7 @@ using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
+using ::aidl::com::android::server::art::RuntimeArtifactsPath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Dirname;
 using ::android::base::Error;
@@ -1152,6 +1153,16 @@ ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_r
   }
 
   return NonFatal(ART_FORMAT("Fstab entries not found for '{}'", in_dexFile));
+}
+
+ScopedAStatus Artd::deleteRuntimeArtifacts(const RuntimeArtifactsPath& in_runtimeArtifactsPath,
+                                           int64_t* _aidl_return) {
+  OR_RETURN_FATAL(ValidateRuntimeArtifactsPath(in_runtimeArtifactsPath));
+  for (const std::string& file :
+       OR_RETURN_NON_FATAL(ListRuntimeArtifactsFiles(in_runtimeArtifactsPath))) {
+    *_aidl_return += GetSizeAndDeleteFile(file);
+  }
+  return ScopedAStatus::ok();
 }
 
 ScopedAStatus Artd::validateDexPath(const std::string& in_dexPath,
