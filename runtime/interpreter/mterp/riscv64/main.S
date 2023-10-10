@@ -568,6 +568,44 @@ common_errDivideByZero:
     // CALL preserves RA for stack walking.
     call art_quick_throw_div_zero
 
+common_errNullObject:
+    EXPORT_PC
+    // CALL preserves RA for stack walking.
+    call art_quick_throw_null_pointer_exception
+
+NterpInvokeVirtual:
+%  nterp_invoke_virtual()
+NterpInvokeSuper:
+%  nterp_invoke_super()
+NterpInvokeDirect:
+%  nterp_invoke_direct()
+NterpInvokeStringInit:
+%  nterp_invoke_string_init()
+NterpInvokeStatic:
+%  nterp_invoke_static()
+NterpInvokeInterface:
+%  nterp_invoke_interface()
+NterpInvokePolymorphic:
+%  nterp_invoke_polymorphic()
+NterpInvokeCustom:
+%  nterp_invoke_custom()
+NterpInvokeVirtualRange:
+%  nterp_invoke_virtual_range()
+NterpInvokeSuperRange:
+%  nterp_invoke_super_range()
+NterpInvokeDirectRange:
+%  nterp_invoke_direct_range()
+NterpInvokeStringInitRange:
+%  nterp_invoke_string_init_range()
+NterpInvokeStaticRange:
+%  nterp_invoke_static_range()
+NterpInvokeInterfaceRange:
+%  nterp_invoke_interface_range()
+NterpInvokePolymorphicRange:
+%  nterp_invoke_polymorphic_range()
+NterpInvokeCustomRange:
+%  nterp_invoke_custom_range()
+
 // This is the logical end of ExecuteNterpImpl, where the frame info applies.
 .cfi_endproc
 
@@ -583,6 +621,7 @@ EndExecuteNterpImpl:
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
+NTERP_TRAMPOLINE nterp_get_method, NterpGetMethod
 NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 
