@@ -171,9 +171,10 @@ interface IArtd {
             in List<com.android.server.art.VdexPath> vdexFilesToKeep);
 
     /**
-     * Returns whether the dex file is in Incremental FS.
+     * Returns whether the artifacts of the primary dex files should be in the global dalvik-cache
+     * directory.
      *
-     * Throws fatal errors. On non-fatal errors, logs the error and returns false.
+     * Throws fatal and non-fatal errors.
      */
-    boolean isIncrementalFsPath(@utf8InCpp String dexFile);
+    boolean isInDalvikCache(@utf8InCpp String dexFile);
 }
