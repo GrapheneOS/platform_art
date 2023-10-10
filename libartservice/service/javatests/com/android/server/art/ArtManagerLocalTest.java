@@ -942,7 +942,7 @@ public class ArtManagerLocalTest {
 
     @Test
     public void testCleanup() throws Exception {
-        // It should keep all artifacts.
+        // It should keep all artifacts, but not runtime images.
         doReturn(createGetDexoptStatusResult("speed-profile", "bg-dexopt", "location"))
                 .when(mArtd)
                 .getDexoptStatus(eq("/data/app/foo/base.apk"), eq("arm64"), any());
@@ -950,15 +950,17 @@ public class ArtManagerLocalTest {
                 .when(mArtd)
                 .getDexoptStatus(eq("/data/user/0/foo/1.apk"), eq("arm64"), any());
 
-        // It should only keep VDEX files.
-        doReturn(createGetDexoptStatusResult("verify", "vdex", "location"))
+        // It should keep all artifacts and runtime images.
+        doReturn(createGetDexoptStatusResult("verify", "bg-dexopt", "location"))
                 .when(mArtd)
                 .getDexoptStatus(eq("/data/app/foo/split_0.apk"), eq("arm64"), any());
+
+        // It should only keep VDEX files and runtime images.
         doReturn(createGetDexoptStatusResult("verify", "vdex", "location"))
                 .when(mArtd)
                 .getDexoptStatus(eq("/data/app/foo/split_0.apk"), eq("arm"), any());
 
-        // It should not keep any artifacts.
+        // It should not keep any artifacts or runtime images.
         doReturn(createGetDexoptStatusResult("run-from-apk", "unknown", "unknown"))
                 .when(mArtd)
                 .getDexoptStatus(eq("/data/app/foo/base.apk"), eq("arm"), any());
@@ -982,12 +984,15 @@ public class ArtManagerLocalTest {
                 inAnyOrderDeepEquals(AidlUtils.buildArtifactsPath(
                                              "/data/app/foo/base.apk", "arm64", mIsInDalvikCache),
                         AidlUtils.buildArtifactsPath(
-                                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)),
-                inAnyOrderDeepEquals(
-                        VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */),
+                        AidlUtils.buildArtifactsPath(
                                 "/data/app/foo/split_0.apk", "arm64", mIsInDalvikCache)),
-                        VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
-                                "/data/app/foo/split_0.apk", "arm", mIsInDalvikCache))));
+                inAnyOrderDeepEquals(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                        "/data/app/foo/split_0.apk", "arm", mIsInDalvikCache))),
+                inAnyOrderDeepEquals(AidlUtils.buildRuntimeArtifactsPath(
+                                             PKG_NAME_1, "/data/app/foo/split_0.apk", "arm64"),
+                        AidlUtils.buildRuntimeArtifactsPath(
+                                PKG_NAME_1, "/data/app/foo/split_0.apk", "arm")));
     }
 
     private AndroidPackage createPackage(boolean multiSplit) {
