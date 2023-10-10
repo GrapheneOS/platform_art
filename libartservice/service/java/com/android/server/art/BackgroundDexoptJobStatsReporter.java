@@ -12,6 +12,7 @@ import dalvik.system.DexFile;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * This is an helper class to report the background DexOpt job metrics to StatsD.
@@ -31,7 +32,7 @@ public class BackgroundDexoptJobStatsReporter {
     public static void reportSuccess(@NonNull BackgroundDexoptJob.CompletedResult completedResult,
             Optional<Integer> stopReason) {
         List<DexoptResult.PackageDexoptResult> packageDexoptResults =
-                completedResult.dexoptResult().getPackageDexoptResults();
+                getFilteredPackageResults(completedResult);
         ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
                 getStatusForStats(completedResult, stopReason),
                 stopReason.orElse(JobParameters.STOP_REASON_UNDEFINED),
@@ -39,6 +40,21 @@ public class BackgroundDexoptJobStatsReporter {
                 getDexoptedPackagesCount(packageDexoptResults),
                 getPackagesDependingOnBootClasspathCount(packageDexoptResults),
                 packageDexoptResults.size());
+    }
+
+    @NonNull
+    private static List<DexoptResult.PackageDexoptResult> getFilteredPackageResults(
+            @NonNull BackgroundDexoptJob.CompletedResult completedResult) {
+        return completedResult.dexoptResult()
+                .getPackageDexoptResults()
+                .stream()
+                .filter(packageResult
+                        -> packageResult.getDexContainerFileDexoptResults().stream().anyMatch(
+                                fileResult
+                                -> (fileResult.getExtraStatus()
+                                           & DexoptResult.EXTRA_SKIPPED_NO_DEX_CODE)
+                                        == 0))
+                .collect(Collectors.toList());
     }
 
     private static int getStatusForStats(
