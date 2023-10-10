@@ -41,6 +41,17 @@ template <typename T> class StackReference;
 // may either be shadow frames or lists of frames using fixed frame sizes. Transition records are
 // necessary for transitions between code using different frame layouts and transitions into native
 // code.
+//
+// Each ManagedStack fragment may contain either a quick code's sp or address to a shadow frame.
+// It is an invariant that both are never set at the same time.
+//
+// Each fragment may contain a mini stack, more than one call frame. For quick code, we extract the
+// call's frame size (known a priori) to obtain the caller's sp. The walk for this fragment
+// terminates when a potential caller's sp contains null (instead of a valid ArtMethod*). A
+// null-valued sp is set up by a quick code stub. For shadow frames, we chase the link_ pointer
+// until null. Once a mini stack is completely walked, we move onto the next fragment.
+//
+// The topmost fragment is always held in the thread's TLS region.
 class PACKED(4) ManagedStack {
  public:
   static size_t constexpr kTaggedJniSpMask = 0x3;
