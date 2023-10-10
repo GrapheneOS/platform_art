@@ -681,22 +681,45 @@ static jint Class_getInnerClassFlags(JNIEnv* env, jobject javaThis, jint default
   return mirror::Class::GetInnerClassFlags(klass, defaultValue);
 }
 
-static jstring Class_getInnerClassName(JNIEnv* env, jobject javaThis) {
+static jstring Class_getSimpleNameNative(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  StackHandleScope<1> hs(soa.Self());
+  StackHandleScope<3> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+  MutableHandle<mirror::String> h_name(hs.NewHandle<mirror::String>(nullptr));
+  MutableHandle<mirror::String> h_inner_name(hs.NewHandle<mirror::String>(nullptr));
   if (klass->IsObsoleteObject()) {
     ThrowRuntimeException("Obsolete Object!");
     return nullptr;
   }
-  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+  if (!klass->IsProxyClass() && klass->GetDexCache() != nullptr) {
+    ObjPtr<mirror::String> class_name = nullptr;
+    if (annotations::GetInnerClass(klass, &class_name)) {
+      if (class_name == nullptr) {  // Anonymous class
+        gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+        return soa.AddLocalReference<jstring>(
+            mirror::String::AllocEmptyString(soa.Self(), allocator_type));
+      }
+      h_inner_name.Assign(class_name);
+      if (annotations::GetDeclaringClass(klass) != nullptr ||   // member class
+          annotations::GetEnclosingMethod(klass) != nullptr) {  // local class
+        return soa.AddLocalReference<jstring>(h_inner_name.Get());
+      }
+    }
+  }
+
+  h_name.Assign(mirror::Class::ComputeName(klass));
+  if (h_name == nullptr) {
     return nullptr;
   }
-  ObjPtr<mirror::String> class_name = nullptr;
-  if (!annotations::GetInnerClass(klass, &class_name)) {
-    return nullptr;
+  int32_t dot_index = h_name->LastIndexOf('.');
+  if (dot_index < 0) {
+    return soa.AddLocalReference<jstring>(h_name.Get());
   }
-  return soa.AddLocalReference<jstring>(class_name);
+  int32_t start_index = dot_index + 1;
+  int32_t length = h_name->GetLength() - start_index;
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  return soa.AddLocalReference<jstring>(
+      mirror::String::AllocFromString(soa.Self(), length, h_name, start_index, allocator_type));
 }
 
 static jobjectArray Class_getSignatureAnnotation(JNIEnv* env, jobject javaThis) {
@@ -971,7 +994,6 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, getEnclosingConstructorNative, "()Ljava/lang/reflect/Constructor;"),
   FAST_NATIVE_METHOD(Class, getEnclosingMethodNative, "()Ljava/lang/reflect/Method;"),
   FAST_NATIVE_METHOD(Class, getInnerClassFlags, "(I)I"),
-  FAST_NATIVE_METHOD(Class, getInnerClassName, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, getInterfacesInternal, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getPrimitiveClass, "(Ljava/lang/String;)Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
@@ -981,6 +1003,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, getPublicDeclaredFields, "()[Ljava/lang/reflect/Field;"),
   FAST_NATIVE_METHOD(Class, getRecordAnnotationElement, "(Ljava/lang/String;Ljava/lang/Class;)[Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Class, getSignatureAnnotation, "()[Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(Class, getSimpleNameNative, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
   FAST_NATIVE_METHOD(Class, isDeclaredAnnotationPresent, "(Ljava/lang/Class;)Z"),
   FAST_NATIVE_METHOD(Class, isRecord0, "()Z"),
