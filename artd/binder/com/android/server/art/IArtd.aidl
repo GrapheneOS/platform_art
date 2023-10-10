@@ -60,6 +60,15 @@ interface IArtd {
             inout com.android.server.art.OutputProfile dst, @utf8InCpp String dexFile);
 
     /**
+     * Similar to above. The difference is that the profile is not taken from a separate file but
+     * taken from `dexFile` itself. Specifically, if `dexFile` is a zip file, the profile is taken
+     * from `assets/art-profile/baseline.prof` in the zip. Returns `NO_PROFILE` if `dexFile` is not
+     * a zip file or it doesn't contain a profile.
+     */
+    com.android.server.art.CopyAndRewriteProfileResult copyAndRewriteEmbeddedProfile(
+            inout com.android.server.art.OutputProfile dst, @utf8InCpp String dexFile);
+
+    /**
      * Moves the temporary profile to the permanent location.
      *
      * Throws fatal and non-fatal errors.

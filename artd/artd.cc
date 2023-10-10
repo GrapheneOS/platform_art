@@ -25,6 +25,7 @@
 
 #include <climits>
 #include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -62,9 +63,12 @@
 #include "base/globals.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/mem_map.h"
+#include "base/memfd.h"
 #include "base/os.h"
 #include "base/zip_archive.h"
 #include "cmdline_types.h"
+#include "dex/dex_file_loader.h"
 #include "exec_utils.h"
 #include "file_utils.h"
 #include "fstab/fstab.h"
@@ -101,6 +105,7 @@ using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::RuntimeArtifactsPath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Dirname;
+using ::android::base::ErrnoError;
 using ::android::base::Error;
 using ::android::base::Join;
 using ::android::base::make_scope_guard;
@@ -398,6 +403,74 @@ CopyAndRewriteProfileResult AnalyzeCopyAndRewriteProfileFailure(
   return bad_profile("The profile is in the wrong format or an I/O error has occurred");
 }
 
+// Returns the fd on success, or an invalid fd if the dex file contains no profile, or error if any
+// error occurs.
+Result<File> ExtractEmbeddedProfileToFd(const std::string& dex_path) {
+  std::unique_ptr<File> dex_file = OR_RETURN(OpenFileForReading(dex_path));
+
+  std::string error_msg;
+  uint32_t magic;
+  if (!ReadMagicAndReset(dex_file->Fd(), &magic, &error_msg)) {
+    return Error() << error_msg;
+  }
+  if (!IsZipMagic(magic)) {
+    if (DexFileLoader::IsMagicValid(magic)) {
+      // The dex file can be a plain dex file. This is expected.
+      return File();
+    }
+    return Error() << "File is neither a zip file nor a plain dex file";
+  }
+
+  std::unique_ptr<ZipArchive> zip_archive(
+      ZipArchive::OpenFromOwnedFd(dex_file->Fd(), dex_path.c_str(), &error_msg));
+  if (zip_archive == nullptr) {
+    return Error() << error_msg;
+  }
+  constexpr const char* kEmbeddedProfileEntry = "assets/art-profile/baseline.prof";
+  std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(kEmbeddedProfileEntry, &error_msg));
+  size_t size;
+  if (zip_entry == nullptr || (size = zip_entry->GetUncompressedLength()) == 0) {
+    // From system/libziparchive/zip_error.cpp.
+    constexpr const char* kEntryNotFound = "Entry not found";
+    if (error_msg != kEntryNotFound) {
+      LOG(WARNING) << ART_FORMAT(
+          "Failed to find zip entry '{}' in '{}': {}", kEmbeddedProfileEntry, dex_path, error_msg);
+    }
+    // The dex file doesn't necessarily contain a profile. This is expected.
+    return File();
+  }
+
+  // The name is for debugging only.
+  std::string memfd_name =
+      ART_FORMAT("{} extracted in memory from {}", kEmbeddedProfileEntry, dex_path);
+  File memfd(memfd_create(memfd_name.c_str(), /*flags=*/0),
+             memfd_name,
+             /*check_usage=*/false);
+  if (!memfd.IsValid()) {
+    return ErrnoError() << "Failed to create memfd";
+  }
+  if (ftruncate(memfd.Fd(), size) != 0) {
+    return ErrnoError() << "Failed to ftruncate memfd";
+  }
+  // Map with MAP_SHARED because we're feeding the fd to profman.
+  MemMap mem_map = MemMap::MapFile(size,
+                                   PROT_READ | PROT_WRITE,
+                                   MAP_SHARED,
+                                   memfd.Fd(),
+                                   /*start=*/0,
+                                   /*low_4gb=*/false,
+                                   memfd_name.c_str(),
+                                   &error_msg);
+  if (!mem_map.IsValid()) {
+    return Errorf("Failed to mmap memfd: {}", error_msg);
+  }
+  if (!zip_entry->ExtractToMemory(mem_map.Begin(), &error_msg)) {
+    return Errorf("Failed to extract '{}': {}", kEmbeddedProfileEntry, error_msg);
+  }
+
+  return memfd;
+}
+
 class FdLogger {
  public:
   void Add(const NewFile& file) { fd_mapping_.emplace_back(file.Fd(), file.TempPath()); }
@@ -545,13 +618,12 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
   return ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
-                                               OutputProfile* in_dst,
-                                               const std::string& in_dexFile,
-                                               CopyAndRewriteProfileResult* _aidl_return) {
-  std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
-  std::string dst_path = OR_RETURN_FATAL(BuildFinalProfilePath(in_dst->profilePath));
-  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+ndk::ScopedAStatus Artd::CopyAndRewriteProfileImpl(File src,
+                                                   OutputProfile* dst_aidl,
+                                                   const std::string& dex_path,
+                                                   CopyAndRewriteProfileResult* aidl_return) {
+  std::string dst_path = OR_RETURN_FATAL(BuildFinalProfilePath(dst_aidl->profilePath));
+  OR_RETURN_FATAL(ValidateDexPath(dex_path));
 
   FdLogger fd_logger;
 
@@ -561,24 +633,15 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   CmdlineBuilder args;
   args.Add(OR_RETURN_FATAL(GetProfman())).Add("--copy-and-update-profile-key");
 
-  Result<std::unique_ptr<File>> src = OpenFileForReading(src_path);
-  if (!src.ok()) {
-    if (src.error().code() == ENOENT) {
-      _aidl_return->status = CopyAndRewriteProfileResult::Status::NO_PROFILE;
-      return ScopedAStatus::ok();
-    }
-    return NonFatal(
-        ART_FORMAT("Failed to open src profile '{}': {}", src_path, src.error().message()));
-  }
-  args.Add("--profile-file-fd=%d", src.value()->Fd());
-  fd_logger.Add(*src.value());
+  args.Add("--profile-file-fd=%d", src.Fd());
+  fd_logger.Add(src);
 
-  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
+  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(dex_path));
   args.Add("--apk-fd=%d", dex_file->Fd());
   fd_logger.Add(*dex_file);
 
   std::unique_ptr<NewFile> dst =
-      OR_RETURN_NON_FATAL(NewFile::Create(dst_path, in_dst->fsPermission));
+      OR_RETURN_NON_FATAL(NewFile::Create(dst_path, dst_aidl->fsPermission));
   args.Add("--reference-profile-file-fd=%d", dst->Fd());
   fd_logger.Add(*dst);
 
@@ -596,8 +659,8 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
 
   if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch ||
       result.value() == ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile) {
-    *_aidl_return = AnalyzeCopyAndRewriteProfileFailure(
-        src->get(), static_cast<ProfmanResult::CopyAndUpdateResult>(result.value()));
+    *aidl_return = AnalyzeCopyAndRewriteProfileFailure(
+        &src, static_cast<ProfmanResult::CopyAndUpdateResult>(result.value()));
     return ScopedAStatus::ok();
   }
 
@@ -606,10 +669,47 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   }
 
   OR_RETURN_NON_FATAL(dst->Keep());
-  _aidl_return->status = CopyAndRewriteProfileResult::Status::SUCCESS;
-  in_dst->profilePath.id = dst->TempId();
-  in_dst->profilePath.tmpPath = dst->TempPath();
+  aidl_return->status = CopyAndRewriteProfileResult::Status::SUCCESS;
+  dst_aidl->profilePath.id = dst->TempId();
+  dst_aidl->profilePath.tmpPath = dst->TempPath();
   return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
+                                               OutputProfile* in_dst,
+                                               const std::string& in_dexFile,
+                                               CopyAndRewriteProfileResult* _aidl_return) {
+  std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
+
+  Result<std::unique_ptr<File>> src = OpenFileForReading(src_path);
+  if (!src.ok()) {
+    if (src.error().code() == ENOENT) {
+      _aidl_return->status = CopyAndRewriteProfileResult::Status::NO_PROFILE;
+      return ScopedAStatus::ok();
+    }
+    return NonFatal(
+        ART_FORMAT("Failed to open src profile '{}': {}", src_path, src.error().message()));
+  }
+
+  return CopyAndRewriteProfileImpl(std::move(*src.value()), in_dst, in_dexFile, _aidl_return);
+}
+
+ndk::ScopedAStatus Artd::copyAndRewriteEmbeddedProfile(OutputProfile* in_dst,
+                                                       const std::string& in_dexFile,
+                                                       CopyAndRewriteProfileResult* _aidl_return) {
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+
+  Result<File> src = ExtractEmbeddedProfileToFd(in_dexFile);
+  if (!src.ok()) {
+    return NonFatal(ART_FORMAT(
+        "Failed to extract profile from dex file '{}': {}", in_dexFile, src.error().message()));
+  }
+  if (!src->IsValid()) {
+    _aidl_return->status = CopyAndRewriteProfileResult::Status::NO_PROFILE;
+    return ScopedAStatus::ok();
+  }
+
+  return CopyAndRewriteProfileImpl(std::move(src.value()), in_dst, in_dexFile, _aidl_return);
 }
 
 ndk::ScopedAStatus Artd::commitTmpProfile(const TmpProfilePath& in_profile) {
@@ -1181,6 +1281,7 @@ ScopedAStatus Artd::deleteRuntimeArtifacts(const RuntimeArtifactsPath& in_runtim
 
 Result<void> Artd::Start() {
   OR_RETURN(SetLogVerbosity());
+  MemMap::Init();
 
   ScopedAStatus status = ScopedAStatus::fromStatus(
       AServiceManager_registerLazyService(this->asBinder().get(), kServiceName));
