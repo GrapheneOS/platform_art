@@ -90,6 +90,22 @@
 .endm
 
 
+// Macro to poison (negate) the reference for heap poisoning.
+.macro POISON_HEAP_REF ref
+#ifdef USE_HEAP_POISONING
+    neg \ref, \ref
+#endif  // USE_HEAP_POISONING
+.endm
+
+
+// Macro to unpoison (negate) the reference for heap poisoning.
+.macro UNPOISON_HEAP_REF ref
+#ifdef USE_HEAP_POISONING
+    neg \ref, \ref
+#endif  // USE_HEAP_POISONING
+.endm
+
+
 .macro INCREASE_FRAME frame_adjustment
     addi sp, sp, -(\frame_adjustment)
     .cfi_adjust_cfa_offset (\frame_adjustment)
