@@ -72,13 +72,13 @@ public class HaddOther {
 
   //  Should be just add and shift right, not halving add.
   //
-  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_casted(short[], short[], short[]) loop_optimization (after)
+  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_cast(short[], short[], short[]) loop_optimization (after)
   /// CHECK: VecAdd
   /// CHECK: VecShr
 
-  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_casted(short[], short[], short[]) loop_optimization (after)
+  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_cast(short[], short[], short[]) loop_optimization (after)
   /// CHECK-NOT: VecHalvingAdd
-  private static void test_no_hadd_sum_casted(short[] a, short[] b, short[] out) {
+  private static void test_no_hadd_sum_cast(short[] a, short[] b, short[] out) {
     int min_length = Math.min(out.length, Math.min(a.length, b.length));
     for (int i = 0; i < min_length; i++) {
       out[i] = (short) (((short) (a[i] + b[i])) >> 1);
@@ -87,10 +87,10 @@ public class HaddOther {
 
   //  This loop is not vectorized: mismatched packed type size.
   //
-  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_casted_ints(int[], int[], int[]) loop_optimization (after)
+  /// CHECK-START-{ARM,ARM64}: void HaddOther.test_no_hadd_sum_cast_ints(int[], int[], int[]) loop_optimization (after)
   /// CHECK-NOT: VecLoad
   /// CHECK-NOT: VecHalvingAdd
-  private static void test_no_hadd_sum_casted_ints(int[] a, int[] b, int[] out) {
+  private static void test_no_hadd_sum_cast_ints(int[] a, int[] b, int[] out) {
     int min_length = Math.min(out.length, Math.min(a.length, b.length));
     for (int i = 0; i < min_length; i++) {
       out[i] = (short) ((short) (a[i] + b[i]) >> 1);
@@ -99,11 +99,11 @@ public class HaddOther {
 
   //  Should be an add, followed by a halving add.
   //
-  /// CHECK-START-ARM: void HaddOther.test_no_hadd_sum_casted_plus_const(short[], short[], short[]) loop_optimization (after)
+  /// CHECK-START-ARM: void HaddOther.test_no_hadd_sum_cast_plus_const(short[], short[], short[]) loop_optimization (after)
   /// CHECK: VecAdd
   /// CHECK: VecHalvingAdd
   //
-  /// CHECK-START-ARM64: void HaddOther.test_no_hadd_sum_casted_plus_const(short[], short[], short[]) loop_optimization (after)
+  /// CHECK-START-ARM64: void HaddOther.test_no_hadd_sum_cast_plus_const(short[], short[], short[]) loop_optimization (after)
   /// CHECK-IF:     hasIsaFeature("sve")
   //
   //      HalvingAdd idiom is not supported for SVE.
@@ -115,7 +115,7 @@ public class HaddOther {
   ///     CHECK: VecHalvingAdd
   //
   /// CHECK-FI:
-  private static void test_no_hadd_sum_casted_plus_const(short[] a, short[] b, short[] out) {
+  private static void test_no_hadd_sum_cast_plus_const(short[] a, short[] b, short[] out) {
     int min_length = Math.min(out.length, Math.min(a.length, b.length));
     for (int i = 0; i < min_length; i++) {
       out[i] = (short) (((short) (a[i] + b[i]) + 1) >> 1);
@@ -170,17 +170,17 @@ public class HaddOther {
       int e = iA[i] >> 1;
       expectEquals(e, iOut[i]);
     }
-    test_no_hadd_sum_casted(sA, sB, sOut);
+    test_no_hadd_sum_cast(sA, sB, sOut);
     for (int i = 0; i < M; i++) {
       short e = (short) (((short) (sA[i] + sB[i])) >> 1);
       expectEquals(e, sOut[i]);
     }
-    test_no_hadd_sum_casted_ints(iA, iB, iOut);
+    test_no_hadd_sum_cast_ints(iA, iB, iOut);
     for (int i = 0; i < M; i++) {
       int e = (short) ((short) (iA[i] + iB[i]) >> 1);
       expectEquals(e, iOut[i]);
     }
-    test_no_hadd_sum_casted_plus_const(sA, sB, sOut);
+    test_no_hadd_sum_cast_plus_const(sA, sB, sOut);
     for (int i = 0; i < M; i++) {
       short e = (short) (((short) (sA[i] + sB[i]) + 1) >> 1);
       expectEquals(e, sOut[i]);

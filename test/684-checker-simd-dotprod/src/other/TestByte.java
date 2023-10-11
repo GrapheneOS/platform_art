@@ -274,7 +274,7 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdComplexUnsignedCastedToSigned(byte[], byte[]) loop_optimization (before)
+  /// CHECK-START: int other.TestByte.testDotProdComplexUnsignedCastToSigned(byte[], byte[]) loop_optimization (before)
   /// CHECK-DAG: <<Const0:i\d+>>  IntConstant 0                                         loop:none
   /// CHECK-DAG: <<Const1:i\d+>>  IntConstant 1                                         loop:none
   /// CHECK-DAG: <<Phi1:i\d+>>    Phi [<<Const0>>,{{i\d+}}]                             loop:<<Loop:B\d+>> outer_loop:none
@@ -289,7 +289,7 @@ public class TestByte {
   /// CHECK-DAG:                  Add [<<Phi2>>,<<Mul>>]                                loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                  Add [<<Phi1>>,<<Const1>>]                             loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: int other.TestByte.testDotProdComplexUnsignedCastedToSigned(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START-ARM64: int other.TestByte.testDotProdComplexUnsignedCastToSigned(byte[], byte[]) loop_optimization (after)
   /// CHECK-DAG: <<Const0:i\d+>>  IntConstant 0                                         loop:none
   /// CHECK-DAG: <<Const1:i\d+>>  IntConstant 1                                         loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -327,7 +327,7 @@ public class TestByte {
   ///     CHECK-DAG:                  VecExtractScalar [<<Reduce>>]                         loop:none
   //
   /// CHECK-FI:
-  public static final int testDotProdComplexUnsignedCastedToSigned(byte[] a, byte[] b) {
+  public static final int testDotProdComplexUnsignedCastToSigned(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       int temp = ((byte)((a[i] & 0xff) + 1)) * ((byte)((b[i] & 0xff) + 1));
@@ -336,7 +336,7 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdComplexSignedCastedToUnsigned(byte[], byte[]) loop_optimization (before)
+  /// CHECK-START: int other.TestByte.testDotProdComplexSignedCastToUnsigned(byte[], byte[]) loop_optimization (before)
   /// CHECK-DAG: <<Const0:i\d+>>  IntConstant 0                                         loop:none
   /// CHECK-DAG: <<Const1:i\d+>>  IntConstant 1                                         loop:none
   /// CHECK-DAG: <<Phi1:i\d+>>    Phi [<<Const0>>,{{i\d+}}]                             loop:<<Loop:B\d+>> outer_loop:none
@@ -351,7 +351,7 @@ public class TestByte {
   /// CHECK-DAG:                  Add [<<Phi2>>,<<Mul>>]                                loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                  Add [<<Phi1>>,<<Const1>>]                             loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START-ARM64: int other.TestByte.testDotProdComplexSignedCastedToUnsigned(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START-ARM64: int other.TestByte.testDotProdComplexSignedCastToUnsigned(byte[], byte[]) loop_optimization (after)
   /// CHECK-DAG: <<Const0:i\d+>>  IntConstant 0                                         loop:none
   /// CHECK-DAG: <<Const1:i\d+>>  IntConstant 1                                         loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -389,7 +389,7 @@ public class TestByte {
   ///     CHECK-DAG:                  VecExtractScalar [<<Reduce>>]                         loop:none
   //
   /// CHECK-FI:
-  public static final int testDotProdComplexSignedCastedToUnsigned(byte[] a, byte[] b) {
+  public static final int testDotProdComplexSignedCastToUnsigned(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       int temp = ((a[i] + 1) & 0xff) * ((b[i] + 1) & 0xff);
@@ -457,9 +457,9 @@ public class TestByte {
 
   // Cases when result of Mul is type-converted are not supported.
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleCastedToSignedByte(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleCastToSignedByte(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleCastedToSignedByte(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleCastToSignedByte(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       byte temp = (byte)(a[i] * b[i]);
@@ -468,9 +468,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleCastedToUnsignedByte(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleCastToUnsignedByte(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleCastedToUnsignedByte(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleCastToUnsignedByte(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       s += (a[i] * b[i]) & 0xff;
@@ -478,9 +478,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastedToSignedByte(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastToSignedByte(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleUnsignedCastedToSignedByte(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleUnsignedCastToSignedByte(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       byte temp = (byte)((a[i] & 0xff) * (b[i] & 0xff));
@@ -489,9 +489,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastedToUnsignedByte(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastToUnsignedByte(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleUnsignedCastedToUnsignedByte(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleUnsignedCastToUnsignedByte(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       s += ((a[i] & 0xff) * (b[i] & 0xff)) & 0xff;
@@ -499,9 +499,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleCastedToShort(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleCastToShort(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleCastedToShort(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleCastToShort(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       short temp = (short)(a[i] * b[i]);
@@ -510,9 +510,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleCastedToChar(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleCastToChar(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleCastedToChar(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleCastToChar(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       char temp = (char)(a[i] * b[i]);
@@ -521,9 +521,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastedToShort(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastToShort(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleUnsignedCastedToShort(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleUnsignedCastToShort(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       short temp = (short)((a[i] & 0xff) * (b[i] & 0xff));
@@ -532,9 +532,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastedToChar(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastToChar(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleUnsignedCastedToChar(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleUnsignedCastToChar(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       char temp = (char)((a[i] & 0xff) * (b[i] & 0xff));
@@ -543,9 +543,9 @@ public class TestByte {
     return s - 1;
   }
 
-  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastedToLong(byte[], byte[]) loop_optimization (after)
+  /// CHECK-START: int other.TestByte.testDotProdSimpleUnsignedCastToLong(byte[], byte[]) loop_optimization (after)
   /// CHECK-NOT:                  VecDotProd
-  public static final int testDotProdSimpleUnsignedCastedToLong(byte[] a, byte[] b) {
+  public static final int testDotProdSimpleUnsignedCastToLong(byte[] a, byte[] b) {
     int s = 1;
     for (int i = 0; i < b.length; i++) {
       long temp = (long)((a[i] & 0xff) * (b[i] & 0xff));
@@ -576,22 +576,22 @@ public class TestByte {
     expectEquals(results[1], testDotProdComplex(b1, b2));
     expectEquals(results[2], testDotProdSimpleUnsigned(b1, b2));
     expectEquals(results[3], testDotProdComplexUnsigned(b1, b2));
-    expectEquals(results[4], testDotProdComplexUnsignedCastedToSigned(b1, b2));
-    expectEquals(results[5], testDotProdComplexSignedCastedToUnsigned(b1, b2));
+    expectEquals(results[4], testDotProdComplexUnsignedCastToSigned(b1, b2));
+    expectEquals(results[5], testDotProdComplexSignedCastToUnsigned(b1, b2));
     expectEquals(results[6], testDotProdSignedWidening(b1, b2));
     expectEquals(results[7], testDotProdParamSigned(-128, b2));
     expectEquals(results[8], testDotProdParamUnsigned(-128, b2));
     expectEquals(results[9], testDotProdIntParam(-128, b2));
     expectEquals(results[10], testDotProdSignedToChar(b1, b2));
-    expectEquals(results[11], testDotProdSimpleCastedToSignedByte(b1, b2));
-    expectEquals(results[12], testDotProdSimpleCastedToUnsignedByte(b1, b2));
-    expectEquals(results[13], testDotProdSimpleUnsignedCastedToSignedByte(b1, b2));
-    expectEquals(results[14], testDotProdSimpleUnsignedCastedToUnsignedByte(b1, b2));
-    expectEquals(results[15], testDotProdSimpleCastedToShort(b1, b2));
-    expectEquals(results[16], testDotProdSimpleCastedToChar(b1, b2));
-    expectEquals(results[17], testDotProdSimpleUnsignedCastedToShort(b1, b2));
-    expectEquals(results[18], testDotProdSimpleUnsignedCastedToChar(b1, b2));
-    expectEquals(results[19], testDotProdSimpleUnsignedCastedToLong(b1, b2));
+    expectEquals(results[11], testDotProdSimpleCastToSignedByte(b1, b2));
+    expectEquals(results[12], testDotProdSimpleCastToUnsignedByte(b1, b2));
+    expectEquals(results[13], testDotProdSimpleUnsignedCastToSignedByte(b1, b2));
+    expectEquals(results[14], testDotProdSimpleUnsignedCastToUnsignedByte(b1, b2));
+    expectEquals(results[15], testDotProdSimpleCastToShort(b1, b2));
+    expectEquals(results[16], testDotProdSimpleCastToChar(b1, b2));
+    expectEquals(results[17], testDotProdSimpleUnsignedCastToShort(b1, b2));
+    expectEquals(results[18], testDotProdSimpleUnsignedCastToChar(b1, b2));
+    expectEquals(results[19], testDotProdSimpleUnsignedCastToLong(b1, b2));
     expectEquals(results[20], testDotProdUnsignedSigned(b1, b2));
   }
 
