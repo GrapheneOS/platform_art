@@ -2343,14 +2343,17 @@ void InstructionCodeGeneratorRISCV64::HandleFieldSet(HInstruction* instruction,
       } else {
         __ AmoSwapW(Zero, swap_src, addr, AqRl::kRelease);
       }
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
     } else {
       // Use fences for smaller data types.
       codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
       Store(value, obj, offset, type);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
       codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
     }
   } else {
     Store(value, obj, offset, type);
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1)) &&
@@ -2444,6 +2447,7 @@ void InstructionCodeGeneratorRISCV64::HandleFieldGet(HInstruction* instruction,
                                                     /* needs_null_check= */ true);
   } else {
     Load(dst_loc, obj, offset, type);
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
   if (is_volatile) {
@@ -2589,6 +2593,7 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
       ScratchRegisterScope srs(GetAssembler());
       XRegister tmp = srs.AllocateXRegister();
       __ Loadw(tmp, obj, count_offset);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
       __ Andi(tmp, tmp, 0x1);
       static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
                     "Expecting 0=compressed, 1=uncompressed");
@@ -2640,6 +2645,9 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
     int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
     int32_t offset = data_offset + (const_index << DataType::SizeShift(type));
     Load(out_loc, obj, offset, type);
+    if (!maybe_compressed_char_at) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
     if (type == DataType::Type::kReference) {
       DCHECK(!(gUseReadBarrier && kUseBakerReadBarrier));
       // If read barriers are enabled, emit read barriers other than Baker's using
@@ -2651,6 +2659,9 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
     XRegister tmp = srs.AllocateXRegister();
     ShNAdd(tmp, index.AsRegister<XRegister>(), obj, type);
     Load(out_loc, tmp, data_offset, type);
+    if (!maybe_compressed_char_at) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
     if (type == DataType::Type::kReference) {
       DCHECK(!(gUseReadBarrier && kUseBakerReadBarrier));
       // If read barriers are enabled, emit read barriers other than Baker's using
