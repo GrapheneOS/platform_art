@@ -768,13 +768,9 @@ class DexFile {
     return begin_;
   }
 
-  size_t Size() const {
-    return size_;
-  }
+  size_t Size() const { return header_->file_size_; }
 
-  static ArrayRef<const uint8_t> GetDataRange(const uint8_t* data,
-                                              size_t size,
-                                              DexFileContainer* container);
+  static ArrayRef<const uint8_t> GetDataRange(const uint8_t* data, DexFileContainer* container);
 
   const uint8_t* DataBegin() const { return data_.data(); }
 
@@ -867,7 +863,6 @@ class DexFile {
   static constexpr uint32_t kDefaultMethodsVersion = 37;
 
   DexFile(const uint8_t* base,
-          size_t size,
           const std::string& location,
           uint32_t location_checksum,
           const OatDexFile* oat_dex_file,
@@ -886,9 +881,6 @@ class DexFile {
 
   // The base address of the memory mapping.
   const uint8_t* const begin_;
-
-  // The size of the underlying memory allocation in bytes.
-  const size_t size_;
 
   // Data memory range: Most dex offsets are relative to this memory range.
   // Standard dex: same as (begin_, size_).
