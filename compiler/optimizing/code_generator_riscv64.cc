@@ -2286,7 +2286,7 @@ void CodeGeneratorRISCV64::MarkGCCard(XRegister object,
   // This dual use of the value in register `card` (1. to calculate the location
   // of the card to mark; and 2. to load the `kCardDirty` value) saves a load
   // (no need to explicitly load `kCardDirty` as an immediate value).
-  __ Storeb(card, temp, 0);
+  __ Sb(card, temp, 0);  // No scratch register left for `Storeb()`.
   if (value_can_be_null) {
     __ Bind(&done);
   }
