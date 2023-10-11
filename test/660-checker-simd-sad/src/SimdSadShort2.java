@@ -17,46 +17,47 @@
 /**
  * Tests for SAD (sum of absolute differences).
  *
- * Special case, char array that is first casted to short, forcing sign extension.
+ * Special case, char array that is first cast to short, forcing sign extension.
  */
 public class SimdSadShort2 {
 
   // TODO: lower precision still coming, b/64091002
 
-  private static short sadCastedChar2Short(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    short sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      sad += Math.abs(((short) s1[i]) - ((short) s2[i]));
-    }
-    return sad;
+  private static short sadCastChar2Short(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      short sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          sad += Math.abs(((short) s1[i]) - ((short) s2[i]));
+      }
+      return sad;
   }
 
-  private static short sadCastedChar2ShortAlt(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    short sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      short s = (short) s1[i];
-      short p = (short) s2[i];
-      sad += s >= p ? s - p : p - s;
-    }
-    return sad;
+  private static short sadCastChar2ShortAlt(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      short sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          short s = (short) s1[i];
+          short p = (short) s2[i];
+          sad += s >= p ? s - p : p - s;
+      }
+      return sad;
   }
 
-  private static short sadCastedChar2ShortAlt2(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    short sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      short s = (short) s1[i];
-      short p = (short) s2[i];
-      int x = s - p;
-      if (x < 0) x = -x;
-      sad += x;
-    }
-    return sad;
+  private static short sadCastChar2ShortAlt2(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      short sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          short s = (short) s1[i];
+          short p = (short) s2[i];
+          int x = s - p;
+          if (x < 0)
+              x = -x;
+          sad += x;
+      }
+      return sad;
   }
 
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2Int(char[], char[]) instruction_simplifier (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2Int(char[], char[]) instruction_simplifier (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -72,7 +73,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2Int(char[], char[]) loop_optimization (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2Int(char[], char[]) loop_optimization (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -84,7 +85,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: int SimdSadShort2.sadCastedChar2Int(char[], char[]) loop_optimization (after)
+  /// CHECK-START-ARM64: int SimdSadShort2.sadCastChar2Int(char[], char[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
   //
@@ -103,16 +104,16 @@ public class SimdSadShort2 {
   ///     CHECK-DAG:                 Add [<<Phi1>>,<<Cons8>>]       loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-FI:
-  private static int sadCastedChar2Int(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    int sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      sad += Math.abs(((short) s1[i]) - ((short) s2[i]));
-    }
-    return sad;
+  private static int sadCastChar2Int(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      int sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          sad += Math.abs(((short) s1[i]) - ((short) s2[i]));
+      }
+      return sad;
   }
 
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2IntAlt(char[], char[]) instruction_simplifier (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2IntAlt(char[], char[]) instruction_simplifier (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -129,7 +130,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Phi3>>]        loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2IntAlt(char[], char[]) loop_optimization (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2IntAlt(char[], char[]) loop_optimization (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -141,7 +142,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Intrin>>]      loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: int SimdSadShort2.sadCastedChar2IntAlt(char[], char[]) loop_optimization (after)
+  /// CHECK-START-ARM64: int SimdSadShort2.sadCastChar2IntAlt(char[], char[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
   //
@@ -160,18 +161,18 @@ public class SimdSadShort2 {
   ///     CHECK-DAG:                 Add [<<Phi1>>,<<Cons8>>]       loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-FI:
-  private static int sadCastedChar2IntAlt(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    int sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      short s = (short) s1[i];
-      short p = (short) s2[i];
-      sad += s >= p ? s - p : p - s;
-    }
-    return sad;
+  private static int sadCastChar2IntAlt(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      int sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          short s = (short) s1[i];
+          short p = (short) s2[i];
+          sad += s >= p ? s - p : p - s;
+      }
+      return sad;
   }
 
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2IntAlt2(char[], char[]) instruction_simplifier (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2IntAlt2(char[], char[]) instruction_simplifier (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -188,7 +189,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Phi3>>]        loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START: int SimdSadShort2.sadCastedChar2IntAlt2(char[], char[]) loop_optimization (before)
+  /// CHECK-START: int SimdSadShort2.sadCastChar2IntAlt2(char[], char[]) loop_optimization (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<Phi2:i\d+>>   Phi [<<Cons0>>,{{i\d+}}]       loop:<<Loop:B\d+>> outer_loop:none
@@ -200,7 +201,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Intrin>>]      loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: int SimdSadShort2.sadCastedChar2IntAlt2(char[], char[]) loop_optimization (after)
+  /// CHECK-START-ARM64: int SimdSadShort2.sadCastChar2IntAlt2(char[], char[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
   //
@@ -219,20 +220,21 @@ public class SimdSadShort2 {
   ///     CHECK-DAG:                 Add [<<Phi1>>,<<Cons8>>]       loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-FI:
-  private static int sadCastedChar2IntAlt2(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    int sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      short s = (short) s1[i];
-      short p = (short) s2[i];
-      int x = s - p;
-      if (x < 0) x = -x;
-      sad += x;
-    }
-    return sad;
+  private static int sadCastChar2IntAlt2(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      int sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          short s = (short) s1[i];
+          short p = (short) s2[i];
+          int x = s - p;
+          if (x < 0)
+              x = -x;
+          sad += x;
+      }
+      return sad;
   }
 
-  /// CHECK-START: long SimdSadShort2.sadCastedChar2Long(char[], char[]) instruction_simplifier (before)
+  /// CHECK-START: long SimdSadShort2.sadCastChar2Long(char[], char[]) instruction_simplifier (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 0                 loop:none
@@ -251,7 +253,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START: long SimdSadShort2.sadCastedChar2Long(char[], char[]) loop_optimization (before)
+  /// CHECK-START: long SimdSadShort2.sadCastChar2Long(char[], char[]) loop_optimization (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 0                 loop:none
@@ -266,7 +268,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: long SimdSadShort2.sadCastedChar2Long(char[], char[]) loop_optimization (after)
+  /// CHECK-START-ARM64: long SimdSadShort2.sadCastChar2Long(char[], char[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 0                 loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -286,18 +288,18 @@ public class SimdSadShort2 {
   ///     CHECK-DAG:                 Add [<<Phi1>>,<<Cons8>>]       loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-FI:
-  private static long sadCastedChar2Long(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    long sad = 0;
-    for (int i = 0; i < min_length; i++) {
-      long x = (short) s1[i];
-      long y = (short) s2[i];
-      sad += Math.abs(x - y);
-    }
-    return sad;
+  private static long sadCastChar2Long(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      long sad = 0;
+      for (int i = 0; i < min_length; i++) {
+          long x = (short) s1[i];
+          long y = (short) s2[i];
+          sad += Math.abs(x - y);
+      }
+      return sad;
   }
 
-  /// CHECK-START: long SimdSadShort2.sadCastedChar2LongAt1(char[], char[]) instruction_simplifier (before)
+  /// CHECK-START: long SimdSadShort2.sadCastChar2LongAt1(char[], char[]) instruction_simplifier (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 1                 loop:none
@@ -316,7 +318,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START: long SimdSadShort2.sadCastedChar2LongAt1(char[], char[]) loop_optimization (before)
+  /// CHECK-START: long SimdSadShort2.sadCastChar2LongAt1(char[], char[]) loop_optimization (before)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<Cons1:i\d+>>  IntConstant 1                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 1                 loop:none
@@ -331,7 +333,7 @@ public class SimdSadShort2 {
   /// CHECK-DAG:                 Add [<<Phi2>>,<<Abs>>]         loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                 Add [<<Phi1>>,<<Cons1>>]       loop:<<Loop>>      outer_loop:none
   //
-  /// CHECK-START-ARM64: long SimdSadShort2.sadCastedChar2LongAt1(char[], char[]) loop_optimization (after)
+  /// CHECK-START-ARM64: long SimdSadShort2.sadCastChar2LongAt1(char[], char[]) loop_optimization (after)
   /// CHECK-DAG: <<Cons0:i\d+>>  IntConstant 0                  loop:none
   /// CHECK-DAG: <<ConsL:j\d+>>  LongConstant 1                 loop:none
   /// CHECK-IF:     hasIsaFeature("sve")
@@ -351,37 +353,37 @@ public class SimdSadShort2 {
   ///     CHECK-DAG:                 Add [<<Phi1>>,<<Cons8>>]       loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-FI:
-  private static long sadCastedChar2LongAt1(char[] s1, char[] s2) {
-    int min_length = Math.min(s1.length, s2.length);
-    long sad = 1;  // starts at 1
-    for (int i = 0; i < min_length; i++) {
-      long x = (short) s1[i];
-      long y = (short) s2[i];
-      sad += Math.abs(x - y);
-    }
-    return sad;
+  private static long sadCastChar2LongAt1(char[] s1, char[] s2) {
+      int min_length = Math.min(s1.length, s2.length);
+      long sad = 1; // starts at 1
+      for (int i = 0; i < min_length; i++) {
+          long x = (short) s1[i];
+          long y = (short) s2[i];
+          sad += Math.abs(x - y);
+      }
+      return sad;
   }
 
   public static void main() {
     // Cross-test the two most extreme values individually.
     char[] s1 = { 0, 0x8000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     char[] s2 = { 0, 0x7fff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    expectEquals(-1, sadCastedChar2Short(s1, s2));
-    expectEquals(-1, sadCastedChar2Short(s2, s1));
-    expectEquals(-1, sadCastedChar2ShortAlt(s1, s2));
-    expectEquals(-1, sadCastedChar2ShortAlt(s2, s1));
-    expectEquals(-1, sadCastedChar2ShortAlt2(s1, s2));
-    expectEquals(-1, sadCastedChar2ShortAlt2(s2, s1));
-    expectEquals(65535, sadCastedChar2Int(s1, s2));
-    expectEquals(65535, sadCastedChar2Int(s2, s1));
-    expectEquals(65535, sadCastedChar2IntAlt(s1, s2));
-    expectEquals(65535, sadCastedChar2IntAlt(s2, s1));
-    expectEquals(65535, sadCastedChar2IntAlt2(s1, s2));
-    expectEquals(65535, sadCastedChar2IntAlt2(s2, s1));
-    expectEquals(65535L, sadCastedChar2Long(s1, s2));
-    expectEquals(65535L, sadCastedChar2Long(s2, s1));
-    expectEquals(65536L, sadCastedChar2LongAt1(s1, s2));
-    expectEquals(65536L, sadCastedChar2LongAt1(s2, s1));
+    expectEquals(-1, sadCastChar2Short(s1, s2));
+    expectEquals(-1, sadCastChar2Short(s2, s1));
+    expectEquals(-1, sadCastChar2ShortAlt(s1, s2));
+    expectEquals(-1, sadCastChar2ShortAlt(s2, s1));
+    expectEquals(-1, sadCastChar2ShortAlt2(s1, s2));
+    expectEquals(-1, sadCastChar2ShortAlt2(s2, s1));
+    expectEquals(65535, sadCastChar2Int(s1, s2));
+    expectEquals(65535, sadCastChar2Int(s2, s1));
+    expectEquals(65535, sadCastChar2IntAlt(s1, s2));
+    expectEquals(65535, sadCastChar2IntAlt(s2, s1));
+    expectEquals(65535, sadCastChar2IntAlt2(s1, s2));
+    expectEquals(65535, sadCastChar2IntAlt2(s2, s1));
+    expectEquals(65535L, sadCastChar2Long(s1, s2));
+    expectEquals(65535L, sadCastChar2Long(s2, s1));
+    expectEquals(65536L, sadCastChar2LongAt1(s1, s2));
+    expectEquals(65536L, sadCastChar2LongAt1(s2, s1));
 
     // Use cross-values to test all cases.
     char[] interesting = {
@@ -408,14 +410,14 @@ public class SimdSadShort2 {
     }
     s1[k] = 10;
     s2[k] = 2;
-    expectEquals(-18932, sadCastedChar2Short(s1, s2));
-    expectEquals(-18932, sadCastedChar2ShortAlt(s1, s2));
-    expectEquals(-18932, sadCastedChar2ShortAlt2(s1, s2));
-    expectEquals(1291788, sadCastedChar2Int(s1, s2));
-    expectEquals(1291788, sadCastedChar2IntAlt(s1, s2));
-    expectEquals(1291788, sadCastedChar2IntAlt2(s1, s2));
-    expectEquals(1291788L, sadCastedChar2Long(s1, s2));
-    expectEquals(1291789L, sadCastedChar2LongAt1(s1, s2));
+    expectEquals(-18932, sadCastChar2Short(s1, s2));
+    expectEquals(-18932, sadCastChar2ShortAlt(s1, s2));
+    expectEquals(-18932, sadCastChar2ShortAlt2(s1, s2));
+    expectEquals(1291788, sadCastChar2Int(s1, s2));
+    expectEquals(1291788, sadCastChar2IntAlt(s1, s2));
+    expectEquals(1291788, sadCastChar2IntAlt2(s1, s2));
+    expectEquals(1291788L, sadCastChar2Long(s1, s2));
+    expectEquals(1291789L, sadCastChar2LongAt1(s1, s2));
 
     System.out.println("SimdSadShort2 passed");
   }
