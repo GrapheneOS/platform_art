@@ -555,7 +555,7 @@ END art_quick_do_long_jump
   CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
   sd      a0, SAVE_EVERYTHING_FRAME_OFFSET_A0(sp)    // update result in the frame
   li      a2, \is_ref                                // pass if result is a reference
-  mv      a1, x0                                     // pass the result
+  mv      a1, a0                                     // pass the result
   mv      a0, xSELF                                  // Thread::Current
   call    artDeoptimizeIfNeeded
   CFI_REMEMBER_STATE
@@ -1083,6 +1083,182 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_method_type, artResolveMethod
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
 
+// Helper macros for `art_quick_aput_obj`.
+#ifdef USE_READ_BARRIER
+#ifdef USE_BAKER_READ_BARRIER
+.macro BAKER_RB_CHECK_GRAY_BIT_AND_LOAD dest, obj, offset, gray_slow_path_label
+    lw    t6, MIRROR_OBJECT_LOCK_WORD_OFFSET(\obj)
+    slliw t6, t6, 31 - LOCK_WORD_READ_BARRIER_STATE_SHIFT  // Shift the state bit to sign bit.
+    bltz  t6, \gray_slow_path_label
+    // False dependency to avoid needing load/load fence.
+    xor   t6, t6, t6
+    add   \obj, \obj, t6
+    lwu   \dest, \offset(\obj)                     // Heap reference = 32b; zero-extends to `dest`.
+    UNPOISON_HEAP_REF \dest
+.endm
+
+.macro BAKER_RB_LOAD_AND_MARK dest, obj, offset, mark_function
+    lwu   \dest, \offset(\obj)                     // Heap reference = 32b; zero-extends to `dest`.
+    UNPOISON_HEAP_REF \dest
+    // Save RA in a register preserved by `art_quick_read_barrier_mark_regNN`
+    // and unused by the `art_quick_aput_obj`.
+    mv    t2, ra
+    call  \mark_function
+    mv    ra, t2                                   // Restore RA.
+.endm
+#else  // USE_BAKER_READ_BARRIER
+    .extern artReadBarrierSlow
+.macro READ_BARRIER_SLOW dest, obj, offset
+    // Store registers used in art_quick_aput_obj (a0-a4, RA), stack is 16B aligned.
+    INCREASE_FRAME 48
+    SAVE_GPR a0, 0*8
+    SAVE_GPR a1, 1*8
+    SAVE_GPR a2, 2*8
+    SAVE_GPR a3, 3*8
+    SAVE_GPR a4, 4*8
+    SAVE_GPR ra, 5*8
+
+    // mv a0, \ref                  // Pass ref in A0 (no-op for now since parameter ref is unused).
+    .ifnc \obj, a1
+        mv a1, \obj                 // Pass `obj`.
+    .endif
+    li    a2, #\offset              // Pass offset.
+    call  artReadBarrierSlow        // artReadBarrierSlow(ref, obj, offset)
+    // No need to unpoison return value in A0, `artReadBarrierSlow()` would do the unpoisoning.
+    .ifnc \dest, a0
+        mv \dest, a0                // save return value in dest
+    .endif
+
+    // Conditionally restore saved registers
+    RESTORE_GPR_NE a0, 0*8, \dest
+    RESTORE_GPR_NE a1, 1*8, \dest
+    RESTORE_GPR_NE a2, 2*8, \dest
+    RESTORE_GPR_NE a3, 3*8, \dest
+    RESTORE_GPR_NE a4, 4*8, \dest
+    RESTORE_GPR ra, 5*8
+    DECREASE_FRAME 48
+.endm
+#endif // USE_BAKER_READ_BARRIER
+#endif  // USE_READ_BARRIER
+
+ENTRY art_quick_aput_obj
+    beqz  a2, .Laput_obj_null
+#if defined(USE_READ_BARRIER) && !defined(USE_BAKER_READ_BARRIER)
+    READ_BARRIER_SLOW a3, a0, MIRROR_OBJECT_CLASS_OFFSET
+    READ_BARRIER_SLOW a3, a3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET
+    READ_BARRIER_SLOW a4, a2, MIRROR_OBJECT_CLASS_OFFSET
+#else  // !defined(USE_READ_BARRIER) || defined(USE_BAKER_READ_BARRIER)
+#ifdef USE_READ_BARRIER
+    // TODO(riscv64): Define marking register to avoid this load.
+    lw    t6, THREAD_IS_GC_MARKING_OFFSET(xSELF)
+    bnez  t6, .Laput_obj_gc_marking
+#endif  // USE_READ_BARRIER
+    lwu   a3, MIRROR_OBJECT_CLASS_OFFSET(a0)           // Heap reference = 32b; zero-extends to a3.
+    UNPOISON_HEAP_REF a3
+    lwu   a3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET(a3)   // Heap reference = 32b; zero-extends to a3.
+    UNPOISON_HEAP_REF a3
+    lwu   a4, MIRROR_OBJECT_CLASS_OFFSET(a2)           // Heap reference = 32b; zero-extends to a4.
+    UNPOISON_HEAP_REF a4
+#endif  // !defined(USE_READ_BARRIER) || defined(USE_BAKER_READ_BARRIER)
+    // value's type == array's component type - trivial assignability
+    bne   a3, a4, .Laput_obj_check_assignability
+.Laput_obj_store:
+    sh2add a3, a1, a0
+    POISON_HEAP_REF a2
+    sw    a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET(a3)      // Heap reference = 32b.
+    ld    a3, THREAD_CARD_TABLE_OFFSET(xSELF)
+    srli  a0, a0, CARD_TABLE_CARD_SHIFT
+    add   a0, a0, a3
+    sb    a3, (a0)
+    ret
+
+.Laput_obj_null:
+    sh2add a3, a1, a0
+    sw    a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET(a3)      // Heap reference = 32b.
+    ret
+
+.Laput_obj_check_assignability:
+    // Store arguments and return register
+    INCREASE_FRAME 32
+    SAVE_GPR a0, 0*8
+    SAVE_GPR a1, 1*8
+    SAVE_GPR a2, 2*8
+    SAVE_GPR ra, 3*8
+
+    // Call runtime code
+    mv    a0, a3          // Heap reference, 32b, "uncompress" = do nothing, already zero-extended.
+    mv    a1, a4          // Heap reference, 32b, "uncompress" = do nothing, already zero-extended.
+    call  artIsAssignableFromCode
+
+    // Check for exception
+    CFI_REMEMBER_STATE
+    beqz a0, .Laput_obj_throw_array_store_exception
+
+    // Restore
+    RESTORE_GPR a0, 0*8
+    RESTORE_GPR a1, 1*8
+    RESTORE_GPR a2, 2*8
+    RESTORE_GPR ra, 3*8
+    DECREASE_FRAME 32
+
+    sh2add a3, a1, a0
+    POISON_HEAP_REF a2
+    sw    a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET(a3)      // Heap reference = 32b.
+    ld    a3, THREAD_CARD_TABLE_OFFSET(xSELF)
+    srli  a0, a0, CARD_TABLE_CARD_SHIFT
+    add   a0, a0, a3
+    sb    a3, (a0)
+    ret
+
+.Laput_obj_throw_array_store_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
+    RESTORE_GPR a0, 0*8
+    RESTORE_GPR a1, 1*8
+    RESTORE_GPR a2, 2*8
+    RESTORE_GPR ra, 3*8
+    DECREASE_FRAME 32
+
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    CFI_REMEMBER_STATE
+#endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+    mv    a1, a2                        // Pass value.
+    mv    a2, xSELF                     // Pass Thread::Current().
+    call  artThrowArrayStoreException   // (Object*, Object*, Thread*).
+    unimp                               // Unreachable.
+
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 0
+.Laput_obj_gc_marking:
+    BAKER_RB_CHECK_GRAY_BIT_AND_LOAD \
+        a3, a0, MIRROR_OBJECT_CLASS_OFFSET, .Laput_obj_mark_array_class
+.Laput_obj_mark_array_class_continue:
+    BAKER_RB_CHECK_GRAY_BIT_AND_LOAD \
+        a3, a3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET, .Laput_obj_mark_array_element
+.Laput_obj_mark_array_element_continue:
+    BAKER_RB_CHECK_GRAY_BIT_AND_LOAD \
+        a4, a2, MIRROR_OBJECT_CLASS_OFFSET, .Laput_obj_mark_object_class
+.Laput_obj_mark_object_class_continue:
+    // value's type == array's component type - trivial assignability
+    bne   a3, a4, .Laput_obj_check_assignability
+    j     .Laput_obj_store
+
+.Laput_obj_mark_array_class:
+    BAKER_RB_LOAD_AND_MARK a3, a0, MIRROR_OBJECT_CLASS_OFFSET, art_quick_read_barrier_mark_reg13
+    j     .Laput_obj_mark_array_class_continue
+
+.Laput_obj_mark_array_element:
+    BAKER_RB_LOAD_AND_MARK \
+        a3, a3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET, art_quick_read_barrier_mark_reg13
+    j     .Laput_obj_mark_array_element_continue
+
+.Laput_obj_mark_object_class:
+    BAKER_RB_LOAD_AND_MARK a4, a2, MIRROR_OBJECT_CLASS_OFFSET, art_quick_read_barrier_mark_reg14
+    j     .Laput_obj_mark_object_class_continue
+#endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+END art_quick_aput_obj
+
+
 // Create a function `name` calling the art::ReadBarrier::Mark routine, getting its argument and
 // returning its result through \reg, saving and restoring all caller-save registers.
 //
@@ -1418,5 +1594,4 @@ UNDEFINED art_quick_get_char_static
 UNDEFINED art_quick_get32_static
 UNDEFINED art_quick_get64_static
 UNDEFINED art_quick_get_obj_static
-UNDEFINED art_quick_aput_obj
 UNDEFINED art_quick_indexof
