@@ -109,7 +109,7 @@
     // Fast path: NterpGetStaticField's resolved_field from thread-local cache.
     // Stores cache value in a0 to match slow path's return from NterpGetStaticField.
     // Slow path: updates s7 if is_object, for possible GC movement.
-    FETCH_FROM_THREAD_CACHE /*resolved_field*/a0, .L${opcode}_slow
+    FETCH_FROM_THREAD_CACHE /*resolved_field*/a0, .L${opcode}_slow, t0, t1
 
 .L${opcode}_regular_resume:
     lw t0, ART_FIELD_OFFSET_OFFSET(a0)

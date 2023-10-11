@@ -16,7 +16,7 @@
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println(test());
+        System.out.println(test(0L));
     }
 
     public static long testField = 0;
@@ -29,18 +29,18 @@ public class Main {
     public static long longField6 = 0;
     public static long longField7 = 0;
 
-    /// CHECK-START-ARM: int Main.test() register (after)
+    /// CHECK-START-ARM: int Main.test(long) register (after)
     /// CHECK: TypeConversion locations:[#-8690466096623102344]->{{.*}}
-    public static int test() {
+    public static int test(long other) {
         // To avoid constant folding TypeConversion(const), hide the constant in a field. Then, hide
-        // it even more inside a Select that can only be reduced after LSE+InstructionSelector. We
+        // it even more inside a Select that can only be reduced after LSE+InstructionSimplifier. We
         // don't run constant folding after that.
         testField = 0x8765432112345678L;
         long value = testField;
         if (value + 1 == 0x8765432112345679L) {
             value = testField;
         } else {
-            value = 0;
+            value = other;
         }
         // Now, the `value` is in a register because of the store but we need
         // a constant location to trigger the bug, so load a bunch of other fields.

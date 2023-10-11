@@ -187,8 +187,10 @@
 
 ## CHECK-START: long SmaliTests.booleanToLong(boolean) instruction_simplifier$before_codegen (after)
 ## CHECK-DAG:     <<Arg:z\d+>>           ParameterValue
-## CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
-## CHECK-DAG:                            Return [<<ZToJ>>]
+## CHECK-DAG:     <<Zero:j\d+>>          LongConstant 0
+## CHECK-DAG:     <<One:j\d+>>           LongConstant 1
+## CHECK-DAG:     <<Sel:j\d+>>           Select [<<Zero>>,<<One>>,<<Arg>>]
+## CHECK-DAG:                            Return [<<Sel>>]
 .method public static booleanToLong(Z)J
     .registers 3
     .param p0, "b"    # Z

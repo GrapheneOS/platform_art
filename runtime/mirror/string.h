@@ -215,6 +215,12 @@ class MANAGED String final : public Object {
   int32_t FastIndexOf(MemoryType* chars, int32_t ch, int32_t start)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  int32_t LastIndexOf(int32_t ch) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <typename MemoryType>
+  int32_t LastIndexOf(MemoryType* chars, int32_t ch, int32_t from_index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   int32_t CompareTo(ObjPtr<String> other) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static ObjPtr<CharArray> ToCharArray(Handle<String> h_this, Thread* self)

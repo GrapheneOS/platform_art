@@ -50,10 +50,10 @@ SessionData SessionData::CreateDefault() {
 #endif
 
   return SessionData{
-    .compilation_reason = CompilationReason::kUnknown,
-    .compiler_filter = CompilerFilterReporting::kUnknown,
-    .session_id = kInvalidSessionId,
-    .uid = uid,
+      .session_id = kInvalidSessionId,
+      .uid = uid,
+      .compilation_reason = CompilationReason::kUnknown,
+      .compiler_filter = CompilerFilterReporting::kUnknown,
   };
 }
 
