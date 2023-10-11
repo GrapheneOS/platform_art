@@ -267,10 +267,13 @@ static void VMRuntime_setDisabledCompatChangesNative(JNIEnv* env, jobject,
     return;
   }
   std::set<uint64_t> disabled_compat_changes_set;
-  int length = env->GetArrayLength(disabled_compat_changes);
-  jlong* elements = env->GetLongArrayElements(disabled_compat_changes, /*isCopy*/nullptr);
-  for (int i = 0; i < length; i++) {
-    disabled_compat_changes_set.insert(static_cast<uint64_t>(elements[i]));
+  {
+    ScopedObjectAccess soa(env);
+    ObjPtr<mirror::LongArray> array = soa.Decode<mirror::LongArray>(disabled_compat_changes);
+    int length = array->GetLength();
+    for (int i = 0; i < length; i++) {
+      disabled_compat_changes_set.insert(static_cast<uint64_t>(array->Get(i)));
+    }
   }
   Runtime::Current()->GetCompatFramework().SetDisabledCompatChanges(disabled_compat_changes_set);
 }
