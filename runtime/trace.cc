@@ -107,6 +107,8 @@ uint64_t GetTimestamp() {
   unsigned int lo, hi;
   asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
   t = (static_cast<uint64_t>(hi) << 32) | lo;
+#elif defined(__riscv)
+  asm volatile("rdtime %0" : "=r"(t));
 #else
   t = MicroTime();
 #endif
