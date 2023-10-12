@@ -183,9 +183,15 @@ class CommonArtTestImpl {
     const std::unique_ptr<const DexFile>& dex = dex_files[0];
     CHECK(dex->EnableWrite()) << "Failed to enable write";
     DexFile* dex_file = const_cast<DexFile*>(dex.get());
+    size_t original_size = dex_file->Size();
     mutator(dex_file);
-    const_cast<DexFile::Header&>(dex_file->GetHeader()).checksum_ = dex_file->CalculateChecksum();
-    if (!output_dex->WriteFully(dex->Begin(), dex->Size())) {
+    // NB: mutation might have changed the DEX size in the header.
+    std::vector<uint8_t> copy(dex_file->Begin(), dex_file->Begin() + original_size);
+    copy.resize(dex_file->Size());  // Shrink/expand to new size.
+    uint32_t checksum = DexFile::CalculateChecksum(copy.data(), copy.size());
+    CHECK_GE(copy.size(), sizeof(DexFile::Header));
+    reinterpret_cast<DexFile::Header*>(copy.data())->checksum_ = checksum;
+    if (!output_dex->WriteFully(copy.data(), copy.size())) {
       return false;
     }
     if (output_dex->Flush() != 0) {
