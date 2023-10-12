@@ -18,8 +18,10 @@ package art;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.Integer;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
@@ -27,8 +29,8 @@ import java.util.Set;
 public class Test1911 {
   // Class/dex file containing the following class.
   //
-  // CLASS_BYTES generated with java version 1.8.0_45: javac -g art/Target.java
-  // DEX_BYTES generated with dx version 1.14: dx --dex --output=./classes.dex art/Target.class
+  // CLASS_BYTES generated with java version 17.0.4.1: javac -g art/Target.java
+  // DEX_BYTES generated with d8 version 8.3.7-dev: d8 --debug art/Target.class
   //
   // package art;
   // import java.util.ArrayList;
@@ -53,58 +55,76 @@ public class Test1911 {
   //     long q = 3 * p;
   //     doNothing(p, q, o, i);
   //   }
+  //   public void testGenericParameters(ArrayList<Integer> array, int i, Integer val) {
+  //     array.set(i, val);
+  //   }
   // }
   public static byte[] CLASS_BYTES = Base64.getDecoder().decode(
-    "yv66vgAAADQARgoABAAuCQANAC8KAA0AMAcAMQY/0zMzMzMzMwoAMgAzCgA0ADUHADYKAAkALgoA" +
-    "NwA4CgA5ADoHADsBAAN6enoBAAFJAQAGPGluaXQ+AQAEKEkpVgEABENvZGUBAA9MaW5lTnVtYmVy" +
-    "VGFibGUBABJMb2NhbFZhcmlhYmxlVGFibGUBAAR0aGlzAQAMTGFydC9UYXJnZXQ7AQADeHh4AQAB" +
-    "cQEACWRvTm90aGluZwEAFihbTGphdmEvbGFuZy9PYmplY3Q7KVYBAARvYmpzAQATW0xqYXZhL2xh" +
-    "bmcvT2JqZWN0OwEAC2RvU29tZXRoaW5nAQABRgEAAWkBAAFEAQABegEAAXgBAAF5AQABbwEAEkxq" +
-    "YXZhL2xhbmcvT2JqZWN0OwEAFUxqYXZhL3V0aWwvQXJyYXlMaXN0OwEAAXABAAFKAQAWTG9jYWxW" +
-    "YXJpYWJsZVR5cGVUYWJsZQEAKkxqYXZhL3V0aWwvQXJyYXlMaXN0PExqYXZhL2xhbmcvSW50ZWdl" +
-    "cjs+OwEADVN0YWNrTWFwVGFibGUBAApTb3VyY2VGaWxlAQALVGFyZ2V0LmphdmEMABAAPAwADgAP" +
-    "DAAZABoBABBqYXZhL2xhbmcvT2JqZWN0BwA9DAA+AD8HAEAMAD4AQQEAE2phdmEvdXRpbC9BcnJh" +
-    "eUxpc3QHAEIMAD4AQwcARAwAPgBFAQAKYXJ0L1RhcmdldAEAAygpVgEAD2phdmEvbGFuZy9GbG9h" +
-    "dAEAB3ZhbHVlT2YBABQoRilMamF2YS9sYW5nL0Zsb2F0OwEAEGphdmEvbGFuZy9Eb3VibGUBABUo" +
-    "RClMamF2YS9sYW5nL0RvdWJsZTsBABFqYXZhL2xhbmcvSW50ZWdlcgEAFihJKUxqYXZhL2xhbmcv" +
-    "SW50ZWdlcjsBAA5qYXZhL2xhbmcvTG9uZwEAEyhKKUxqYXZhL2xhbmcvTG9uZzsAIQANAAQAAAAB" +
-    "AAEADgAPAAAAAwABABAAEQABABIAAABYAAIAAwAAAA4qtwABGwdoPSoctQACsQAAAAIAEwAAABIA" +
-    "BAAAAAUABAAGAAgABwANAAgAFAAAACAAAwAAAA4AFQAWAAAAAAAOABcADwABAAgABgAYAA8AAgCJ" +
-    "ABkAGgABABIAAAAvAAEAAQAAAAUquAADsQAAAAIAEwAAAAYAAQAAAAkAFAAAAAwAAQAAAAUAGwAc" +
-    "AAAAAQAdABEAAQASAAABWAAFAAgAAACCBL0ABFkDKlO4AAMbBmA9Az4dHBtoogAvHB1khjgEFAAF" +
-    "FwSNazkFBb0ABFkDFwS4AAdTWQQYBbgACFO4AAOEAwGn/9C7AARZtwABTrsACVm3AAo6BAcbgDYF" +
-    "BhUFaIU3Bge9AARZAxUFuAALU1kEFga4AAxTWQUtU1kGGQRTuAADsQAAAAQAEwAAADYADQAAAAsA" +
-    "CwAMAA8ADQAYAA4AHgAPACcAEAA+AA0ARAASAEwAEwBVABQAWgAVAGEAFgCBABcAFAAAAGYACgAe" +
-    "ACAAGAAeAAQAJwAXAB8AIAAFABEAMwAhAA8AAwAAAIIAFQAWAAAAAACCACIADwABAA8AcwAjAA8A" +
-    "AgBMADYAJAAlAAMAVQAtAB8AJgAEAFoAKAAnAA8ABQBhACEAGAAoAAYAKQAAAAwAAQBVAC0AHwAq" +
-    "AAQAKwAAAAoAAv0AEQEB+gAyAAEALAAAAAIALQ==");
+      "yv66vgAAADcAUQoABAA2CQAOADcKAA4AOAcAOQY/0zMzMzMzMwoAOgA7CgA8AD0HAD4KAAkANgoA" +
+      "PwBACgBBAEIKAAkAQwcARAEAA3p6egEAAUkBAAY8aW5pdD4BAAQoSSlWAQAEQ29kZQEAD0xpbmVO" +
+      "dW1iZXJUYWJsZQEAEkxvY2FsVmFyaWFibGVUYWJsZQEABHRoaXMBAAxMYXJ0L1RhcmdldDsBAAN4" +
+      "eHgBAAFxAQAJZG9Ob3RoaW5nAQAWKFtMamF2YS9sYW5nL09iamVjdDspVgEABG9ianMBABNbTGph" +
+      "dmEvbGFuZy9PYmplY3Q7AQALZG9Tb21ldGhpbmcBAAFGAQABaQEAAUQBAAF6AQABeAEAAXkBAAFv" +
+      "AQASTGphdmEvbGFuZy9PYmplY3Q7AQAVTGphdmEvdXRpbC9BcnJheUxpc3Q7AQABcAEAAUoBABZM" +
+      "b2NhbFZhcmlhYmxlVHlwZVRhYmxlAQAqTGphdmEvdXRpbC9BcnJheUxpc3Q8TGphdmEvbGFuZy9J" +
+      "bnRlZ2VyOz47AQANU3RhY2tNYXBUYWJsZQEAFXRlc3RHZW5lcmljUGFyYW1ldGVycwEALChMamF2" +
+      "YS91dGlsL0FycmF5TGlzdDtJTGphdmEvbGFuZy9JbnRlZ2VyOylWAQAFYXJyYXkBAAN2YWwBABNM" +
+      "amF2YS9sYW5nL0ludGVnZXI7AQAJU2lnbmF0dXJlAQBBKExqYXZhL3V0aWwvQXJyYXlMaXN0PExq" +
+      "YXZhL2xhbmcvSW50ZWdlcjs+O0lMamF2YS9sYW5nL0ludGVnZXI7KVYBAApTb3VyY2VGaWxlAQAL" +
+      "VGFyZ2V0LmphdmEMABEARQwADwAQDAAaABsBABBqYXZhL2xhbmcvT2JqZWN0BwBGDABHAEgHAEkM" +
+      "AEcASgEAE2phdmEvdXRpbC9BcnJheUxpc3QHAEsMAEcATAcATQwARwBODABPAFABAAphcnQvVGFy" +
+      "Z2V0AQADKClWAQAPamF2YS9sYW5nL0Zsb2F0AQAHdmFsdWVPZgEAFChGKUxqYXZhL2xhbmcvRmxv" +
+      "YXQ7AQAQamF2YS9sYW5nL0RvdWJsZQEAFShEKUxqYXZhL2xhbmcvRG91YmxlOwEAEWphdmEvbGFu" +
+      "Zy9JbnRlZ2VyAQAWKEkpTGphdmEvbGFuZy9JbnRlZ2VyOwEADmphdmEvbGFuZy9Mb25nAQATKEop" +
+      "TGphdmEvbGFuZy9Mb25nOwEAA3NldAEAJyhJTGphdmEvbGFuZy9PYmplY3Q7KUxqYXZhL2xhbmcv" +
+      "T2JqZWN0OwAhAA4ABAAAAAEAAQAPABAAAAAEAAEAEQASAAEAEwAAAFgAAgADAAAADiq3AAEbB2g9" +
+      "Khy1AAKxAAAAAgAUAAAAEgAEAAAACAAEAAkACAAKAA0ACwAVAAAAIAADAAAADgAWABcAAAAAAA4A" +
+      "GAAQAAEACAAGABkAEAACAIkAGgAbAAEAEwAAAC8AAQABAAAABSq4AAOxAAAAAgAUAAAABgABAAAA" +
+      "DQAVAAAADAABAAAABQAcAB0AAAABAB4AEgABABMAAAFYAAUACAAAAIIEvQAEWQMqU7gAAxsGYD0D" +
+      "Ph0cG2iiAC8cHWSGOAQUAAUXBI1rOQUFvQAEWQMXBLgAB1NZBBgFuAAIU7gAA4QDAaf/0LsABFm3" +
+      "AAFOuwAJWbcACjoEBxuANgUGFQVohTcGB70ABFkDFQW4AAtTWQQWBrgADFNZBS1TWQYZBFO4AAOx" +
+      "AAAABAAUAAAANgANAAAAEAALABEADwASABgAEwAeABQAJwAVAD4AEgBEABcATAAYAFUAGQBaABoA" +
+      "YQAbAIEAHAAVAAAAZgAKAB4AIAAZAB8ABAAnABcAIAAhAAUAEQAzACIAEAADAAAAggAWABcAAAAA" +
+      "AIIAIwAQAAEADwBzACQAEAACAEwANgAlACYAAwBVAC0AIAAnAAQAWgAoACgAEAAFAGEAIQAZACkA" +
+      "BgAqAAAADAABAFUALQAgACsABAAsAAAACgAC/QARAQH6ADIAAQAtAC4AAgATAAAAZgADAAQAAAAI" +
+      "KxwttgANV7EAAAADABQAAAAKAAIAAAAfAAcAIAAVAAAAKgAEAAAACAAWABcAAAAAAAgALwAnAAEA" +
+      "AAAIACAAEAACAAAACAAwADEAAwAqAAAADAABAAAACAAvACsAAQAyAAAAAgAzAAEANAAAAAIANQ==");
   public static byte[] DEX_BYTES = Base64.getDecoder().decode(
-    "ZGV4CjAzNQCQtgjEV631Ma/btYyIy2IzqHWNN+nZiwl0BQAAcAAAAHhWNBIAAAAAAAAAANQEAAAk" +
-    "AAAAcAAAAA0AAAAAAQAABwAAADQBAAABAAAAiAEAAAkAAACQAQAAAQAAANgBAAB8AwAA+AEAAB4D" +
-    "AAAmAwAAKQMAACwDAAAvAwAAMgMAADYDAAA6AwAAPgMAAEIDAABQAwAAZAMAAHcDAACMAwAAngMA" +
-    "ALIDAADJAwAA9QMAAAIEAAAFBAAACQQAAA0EAAAiBAAALQQAADoEAAA9BAAAQAQAAEYEAABJBAAA" +
-    "TAQAAFIEAABbBAAAXgQAAGMEAABmBAAAaQQAAAEAAAACAAAAAwAAAAQAAAAJAAAACgAAAAsAAAAM" +
-    "AAAADQAAAA4AAAAPAAAAEgAAABUAAAAFAAAABQAAAPgCAAAGAAAABgAAAAADAAAHAAAABwAAAAgD" +
-    "AAAIAAAACAAAABADAAASAAAACwAAAAAAAAATAAAACwAAAAgDAAAUAAAACwAAABgDAAAEAAIAIwAA" +
-    "AAQABQAAAAAABAAGABYAAAAEAAUAFwAAAAUAAAAeAAAABgABAB4AAAAHAAIAHgAAAAgAAwAeAAAA" +
-    "CQAEAAAAAAAKAAQAAAAAAAQAAAABAAAACQAAAAAAAAARAAAAAAAAAL4EAAAAAAAAAwACAAEAAABu" +
-    "BAAACAAAAHAQBwABANoAAgRZEAAADgABAAEAAQAAAHsEAAAEAAAAcRABAAAADgAQAAIAAgAAAIEE" +
-    "AABcAAAAEhkjmQwAEgpNDgkKcRABAAkA2AUPAxIIkgkFDzWYJACRCQUIgpYYCjMzMzMzM9M/iWyt" +
-    "AAoMEikjmQwAEgpxEAQABgAMC00LCQoSGnEgAwAQAAwLTQsJCnEQAQAJANgICAEo2yIDCQBwEAcA" +
-    "AwAiAgoAcBAIAAIA3gQPBNoJBAOBlhJJI5kMABIKcRAFAAQADAtNCwkKEhpxIAYAdgAMC00LCQoS" +
-    "Kk0DCQoSOk0CCQpxEAEACQAOAAEAAAAAAAAAAQAAAAEAAAABAAAAAgAAAAEAAAADAAAAAQAAAAwA" +
-    "Bjxpbml0PgABRAABRgABSQABSgACTEQAAkxGAAJMSQACTEoADExhcnQvVGFyZ2V0OwASTGphdmEv" +
-    "bGFuZy9Eb3VibGU7ABFMamF2YS9sYW5nL0Zsb2F0OwATTGphdmEvbGFuZy9JbnRlZ2VyOwAQTGph" +
-    "dmEvbGFuZy9Mb25nOwASTGphdmEvbGFuZy9PYmplY3Q7ABVMamF2YS91dGlsL0FycmF5TGlzdDsA" +
-    "KkxqYXZhL3V0aWwvQXJyYXlMaXN0PExqYXZhL2xhbmcvSW50ZWdlcjs+OwALVGFyZ2V0LmphdmEA" +
-    "AVYAAlZJAAJWTAATW0xqYXZhL2xhbmcvT2JqZWN0OwAJZG9Ob3RoaW5nAAtkb1NvbWV0aGluZwAB" +
-    "aQABbwAEb2JqcwABcAABcQAEdGhpcwAHdmFsdWVPZgABeAADeHh4AAF5AAF6AAN6enoABQEhBw48" +
-    "LQMAHQMtAAkBGwcOAAsBIAcOli0DBSIDAQEDCCMDSzwDBh0ChwMAGQEBFAtABQAFBloDAxoKWgQC" +
-    "GQsRLQMEHAM8AwYdBAEaDwAAAQIBAAEAgYAE+AMBiQGYBAIBsAQADQAAAAAAAAABAAAAAAAAAAEA" +
-    "AAAkAAAAcAAAAAIAAAANAAAAAAEAAAMAAAAHAAAANAEAAAQAAAABAAAAiAEAAAUAAAAJAAAAkAEA" +
-    "AAYAAAABAAAA2AEAAAEgAAADAAAA+AEAAAEQAAAFAAAA+AIAAAIgAAAkAAAAHgMAAAMgAAADAAAA" +
-    "bgQAAAAgAAABAAAAvgQAAAAQAAABAAAA1AQAAA==");
-
+      "ZGV4CjAzNQAALyjG3vy0POIlfGUh9Q7yf3NFwlp6VbWoBwAAcAAAAHhWNBIAAAAAAAAAAOQGAAAz" +
+      "AAAAcAAAAA8AAAA8AQAACgAAAHgBAAABAAAA8AEAAAwAAAD4AQAAAQAAAFgCAAAwBQAAeAIAACIE" +
+      "AAAlBAAAKQQAADEEAAA2BAAAOQQAADwEAAA/BAAAQgQAAEYEAABKBAAATgQAAFMEAABXBAAAZQQA" +
+      "AIQEAACYBAAAqwQAAMAEAADSBAAA5gQAAP0EAAAUBQAAQAUAAE0FAABQBQAAVAUAAFgFAABeBQAA" +
+      "YQUAAGUFAAB6BQAAgQUAAIwFAACZBQAAnAUAAKMFAACmBQAArAUAAK8FAACyBQAAtwUAAM4FAADT" +
+      "BQAA2gUAAOMFAADmBQAA6wUAAO4FAADxBQAA9gUAAAQAAAAFAAAABgAAAAcAAAANAAAADgAAAA8A" +
+      "AAAQAAAAEQAAABIAAAATAAAAFAAAABgAAAAcAAAAHgAAAAgAAAAGAAAA6AMAAAkAAAAHAAAA8AMA" +
+      "AAoAAAAIAAAA+AMAAAwAAAAJAAAAAAQAAAsAAAAKAAAACAQAABgAAAAMAAAAAAAAABkAAAAMAAAA" +
+      "+AMAABsAAAAMAAAAEAQAABoAAAAMAAAAHAQAAB0AAAANAAAA6AMAAAQAAgAxAAAABAAGAAIAAAAE" +
+      "AAgAIAAAAAQABgAhAAAABAAHACkAAAAGAAkAIwAAAAYAAAAsAAAABwABACwAAAAIAAIALAAAAAkA" +
+      "AwAsAAAACgAFAAIAAAALAAUAAgAAAAsABAAoAAAABAAAAAEAAAAKAAAAAAAAABcAAADMBgAApgYA" +
+      "AAAAAAADAAIAAQAAAIwDAAAIAAAAcBAJAAEA2gACBFkQAAAOAAEAAQABAAAAmAMAAAQAAABxEAEA" +
+      "AAAOAA4AAgACAAAAnQMAAFoAAAASECMBDgASAk0MAQJxEAEAAQDYAQ0DEgOSBAENEiU1QyQAkQQB" +
+      "A4JEGAYzMzMzMzPTP4lIcSAEAJgArQgIBnEQBgAEAAwGcSAFAJgADAcjVQ4ATQYFAk0HBQBxEAEA" +
+      "BQDYAwMBKNoiAwoAcBAJAAMAIgQLAHAQCgAEAN4GDQTaBwYDgXdxEAcABgAMCXEgCACHAAwKEksj" +
+      "uw4ATQkLAk0KCwBNAwsFEjBNBAsAcRABAAsADgAEAAQAAwAAANsDAAAEAAAAbjALACEDDgAIAS8O" +
+      "PC0DACgDLQANASYOABABLg6WLQMBMAMBAQMDMQNaPAMEKAK0AwgjAQERCwUEBQhABQNaAwMlC1oE" +
+      "BCMMFy0DBicDPAMHKAQBFw8AHwMAIysOBAEgDBc8AAEAAAAAAAAAAQAAAAEAAAABAAAAAgAAAAEA" +
+      "AAADAAAAAgAAAAIACgADAAAACwACAAgAAAABAAAADgABKAACKVYABjxpbml0PgADPjtJAAFEAAFG" +
+      "AAFJAAFKAAJMRAACTEYAAkxJAANMSUwAAkxKAAxMYXJ0L1RhcmdldDsAHUxkYWx2aWsvYW5ub3Rh" +
+      "dGlvbi9TaWduYXR1cmU7ABJMamF2YS9sYW5nL0RvdWJsZTsAEUxqYXZhL2xhbmcvRmxvYXQ7ABNM" +
+      "amF2YS9sYW5nL0ludGVnZXI7ABBMamF2YS9sYW5nL0xvbmc7ABJMamF2YS9sYW5nL09iamVjdDsA" +
+      "FUxqYXZhL3V0aWwvQXJyYXlMaXN0OwAVTGphdmEvdXRpbC9BcnJheUxpc3Q8ACpMamF2YS91dGls" +
+      "L0FycmF5TGlzdDxMamF2YS9sYW5nL0ludGVnZXI7PjsAC1RhcmdldC5qYXZhAAFWAAJWSQACVkwA" +
+      "BFZMSUwAAVoAAlpEABNbTGphdmEvbGFuZy9PYmplY3Q7AAVhcnJheQAJZG9Ob3RoaW5nAAtkb1Nv" +
+      "bWV0aGluZwABaQAFaXNOYU4AAW8ABG9ianMAAXAAAXEAA3NldAAVdGVzdEdlbmVyaWNQYXJhbWV0" +
+      "ZXJzAAN2YWwABXZhbHVlAAd2YWx1ZU9mAAF4AAN4eHgAAXkAAXoAA3p6egCbAX5+RDh7ImJhY2tl" +
+      "bmQiOiJkZXgiLCJjb21waWxhdGlvbi1tb2RlIjoiZGVidWciLCJoYXMtY2hlY2tzdW1zIjpmYWxz" +
+      "ZSwibWluLWFwaSI6MSwic2hhLTEiOiIzMTAxYWQ2Zjc0ZWUyMzI1MjhkZmM2NmEyNjE3YTkzODM4" +
+      "NGU2NmVhIiwidmVyc2lvbiI6IjguMy43LWRldiJ9AAIFASscBhcAFxUXERcDFxEXAQABAgIAAQCB" +
+      "gAT4BAGJAZgFAgGwBQEB9AYAAAAAAAEAAACUBgAAwAYAAAAAAAABAAAAAAAAAAMAAADEBgAAEAAA" +
+      "AAAAAAABAAAAAAAAAAEAAAAzAAAAcAAAAAIAAAAPAAAAPAEAAAMAAAAKAAAAeAEAAAQAAAABAAAA" +
+      "8AEAAAUAAAAMAAAA+AEAAAYAAAABAAAAWAIAAAEgAAAEAAAAeAIAAAMgAAAEAAAAjAMAAAEQAAAH" +
+      "AAAA6AMAAAIgAAAzAAAAIgQAAAQgAAABAAAAlAYAAAAgAAABAAAApgYAAAMQAAACAAAAwAYAAAYg" +
+      "AAABAAAAzAYAAAAQAAABAAAA5AYAAA==");
 
   // The variables of the functions in the above Target class.
   public static Set<Locals.VariableDescription>[] CONSTRUCTOR_VARIABLES = new Set[] {
@@ -149,22 +169,48 @@ public class Test1911 {
                                              4))),
       // ART Local variable table
       new HashSet<>(Arrays.asList(
-              new Locals.VariableDescription(19, 31, "q", "F", null, 6),
-              new Locals.VariableDescription(55, 37, "o", "Ljava/lang/Object;", null, 3),
-              new Locals.VariableDescription(0, 92, "this", "Lart/Target;", null, 14),
-              new Locals.VariableDescription(12, 80, "z", "I", null, 8),
-              new Locals.VariableDescription(11, 81, "y", "I", null, 5),
-              new Locals.VariableDescription(62, 30, "p", "I", null, 4),
-              new Locals.VariableDescription(0, 92, "x", "I", null, 15),
-              new Locals.VariableDescription(27, 23, "i", "D", null, 0),
-              new Locals.VariableDescription(65, 27, "q", "J", null, 6),
-              new Locals.VariableDescription(60,
-                                             32,
+              new Locals.VariableDescription(20, 28, "q", "F", null, 4),
+              new Locals.VariableDescription(56, 34, "o", "Ljava/lang/Object;", null, 3),
+              new Locals.VariableDescription(0, 90, "this", "Lart/Target;", null, 12),
+              new Locals.VariableDescription(12, 39, "z", "I", null, 3),
+              new Locals.VariableDescription(11, 79, "y", "I", null, 1),
+              new Locals.VariableDescription(63, 27, "p", "I", null, 6),
+              new Locals.VariableDescription(0, 90, "x", "I", null, 13),
+              new Locals.VariableDescription(31, 17, "i", "D", null, 8),
+              new Locals.VariableDescription(66, 24, "q", "J", null, 7),
+              new Locals.VariableDescription(61,
+                                             29,
                                              "i",
                                              "Ljava/util/ArrayList;",
                                              "Ljava/util/ArrayList<Ljava/lang/Integer;>;",
-                                             2))),
+                                             4))),
   };
+
+  public static Set<Locals.VariableDescription>[] TEST_GENERIC_PARAMETERS_VARIABLES = new Set[] {
+      // RI Local variable table
+      new HashSet<>(Arrays.asList(
+              new Locals.VariableDescription(0, 8, "this", "Lart/Target;", null, 0),
+              new Locals.VariableDescription(0,
+                                             8,
+                                             "array",
+                                             "Ljava/util/ArrayList;",
+                                             "Ljava/util/ArrayList<Ljava/lang/Integer;>;",
+                                             1),
+              new Locals.VariableDescription(0, 8, "i", "I", null, 2),
+              new Locals.VariableDescription(0, 8, "val", "Ljava/lang/Integer;", null, 3))),
+      // ART Local variable table
+      new HashSet<>(Arrays.asList(
+              new Locals.VariableDescription(0, 4, "this", "Lart/Target;", null, 0),
+              new Locals.VariableDescription(0,
+                                             4,
+                                             "array",
+                                             "Ljava/util/ArrayList;",
+                                             "Ljava/util/ArrayList<Ljava/lang/Integer;>;",
+                                             1),
+              new Locals.VariableDescription(0, 4, "i", "I", null, 2),
+              new Locals.VariableDescription(0, 4, "val", "Ljava/lang/Integer;", null, 3))),
+  };
+
 
   // Get a classloader that can load the Target class.
   public static ClassLoader getClassLoader() throws Exception {
@@ -213,6 +259,9 @@ public class Test1911 {
             DO_NOTHING_VARIABLES);
     CheckLocalVariableTable(target.getDeclaredMethod("doSomething", Integer.TYPE),
             DO_SOMETHING_VARIABLES);
+    CheckLocalVariableTable(target.getDeclaredMethod("testGenericParameters",
+            (new ArrayList<Integer>(0)).getClass(), Integer.TYPE, (new Integer(0)).getClass()),
+            TEST_GENERIC_PARAMETERS_VARIABLES);
   }
 }
 
