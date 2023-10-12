@@ -186,9 +186,11 @@
       sh $value_reg, (t0)
       fence rw, rw
     .elseif $width == 32
-      amoswap.w.rl $value_reg, $value_reg, (t0)
+      // value_reg must NOT be the destination register, the destination gets clobbered!
+      // For refs, value_reg's original value is used in the write barrier below.
+      amoswap.w.rl zero, $value_reg, (t0)
     .else  // width == 64
-      amoswap.d.rl $value_reg, $value_reg, (t0)
+      amoswap.d.rl zero, $value_reg, (t0)
     .endif  // width
     WRITE_BARRIER_IF_OBJECT $is_object, $value_reg, /*holder*/a0, /*uniq*/slow_${opcode}
 
