@@ -25,7 +25,7 @@ java_test {
     test_config_template: ":art-run-test-target-no-test-suite-tag-template",
     srcs: ["src2/**/*.java"],
     static_libs: [
-        "art-run-test-2262-default-conflict-methods-src"
+        "art-run-test-2262-default-conflict-methods-src",
     ],
     data: [
         ":art-run-test-2262-default-conflict-methods-expected-stdout",
