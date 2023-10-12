@@ -481,6 +481,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                            DataType::Type type,
                            LocationSummary* locations,
                            Riscv64Label* label = nullptr);
+  void GenerateMethodEntryExitHook(HInstruction* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
   void GenPackedSwitchWithCompares(XRegister adjusted,
                                    XRegister temp,
