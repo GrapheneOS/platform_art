@@ -417,6 +417,20 @@ ENTRY art_quick_to_interpreter_bridge
 END art_quick_to_interpreter_bridge
 
 
+    .extern artMethodEntryHook
+ENTRY art_quick_method_entry_hook
+    SETUP_SAVE_EVERYTHING_FRAME
+
+    ld   a0, FRAME_SIZE_SAVE_EVERYTHING(sp)   // Pass ArtMethod*.
+    mv   a1, xSELF                            // Pass Thread::Current().
+    mv   a2, sp                               // pass SP
+    call artMethodEntryHook                   // (ArtMethod*, Thread*, SP)
+
+    RESTORE_SAVE_EVERYTHING_FRAME
+    ret
+END art_quick_method_entry_hook
+
+
     .extern artMethodExitHook
 ENTRY art_quick_method_exit_hook
     SETUP_SAVE_EVERYTHING_FRAME
@@ -1423,7 +1437,6 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg31, t6
 
 UNDEFINED art_quick_deoptimize_from_compiled_code
 UNDEFINED art_quick_string_builder_append
-UNDEFINED art_quick_method_entry_hook
 UNDEFINED art_quick_check_instance_of
 
 UNDEFINED art_quick_alloc_array_resolved_dlmalloc
