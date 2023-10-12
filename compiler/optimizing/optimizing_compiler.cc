@@ -741,6 +741,8 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
           // and this check is done before register allocation.
           LOG(FATAL) << "Unexpected ParallelMove before register allocation!";
           UNREACHABLE();
+        case HInstruction::kMethodEntryHook:
+        case HInstruction::kMethodExitHook:
         case HInstruction::kExit:
         case HInstruction::kGoto:
         case HInstruction::kPackedSwitch:
