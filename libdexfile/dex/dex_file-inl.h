@@ -327,7 +327,14 @@ bool DexFile::DecodeDebugLocalInfo(const uint8_t* stream,
         // Emit what was previously there, if anything
         if (local_in_reg[reg].is_live_) {
           local_in_reg[reg].end_address_ = address;
-          new_local_callback(local_in_reg[reg]);
+          // Parameters with generic types cannot be encoded in the debug_info_item header. So d8
+          // encodes it as null in the header with start and end address as 0. There will be a
+          // START_LOCAL_EXTENDED that will declare the parameter with correct signature
+          // Debuggers get confused when they see empty ranges. So don't emit them.
+          // See b/297843934 for more details.
+          if (local_in_reg[reg].end_address_ != 0) {
+            new_local_callback(local_in_reg[reg]);
+          }
         }
 
         local_in_reg[reg].name_ = index_to_string_data(name_idx);
