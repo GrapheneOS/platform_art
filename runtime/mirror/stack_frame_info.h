@@ -46,7 +46,7 @@ class MANAGED StackFrameInfo final : public Object {
   HeapReference<Class> declaring_class_;
   HeapReference<String> file_name_;
   HeapReference<String> method_name_;
-  HeapReference<Class> method_type_;
+  HeapReference<MethodType> method_type_;
   HeapReference<StackTraceElement> ste_;
   int32_t bci_;
   int32_t line_number_;
