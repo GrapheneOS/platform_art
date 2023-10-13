@@ -1363,7 +1363,7 @@ ENTRY \c_name
                                                               // already aligned we can combine the
                                                               // two shifts together.
     add    x4, xSELF, x3, lsr #(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT - POINTER_SIZE_SHIFT)
-                                                              // Subtract pointer size since ther
+                                                              // Subtract pointer size since there
                                                               // are no runs for 0 byte allocations
                                                               // and the size is already aligned.
     ldr    x4, [x4, #(THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)]
