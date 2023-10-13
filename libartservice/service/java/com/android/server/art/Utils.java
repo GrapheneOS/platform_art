@@ -362,6 +362,10 @@ public final class Utils {
      * final location by calling {@link IArtd#commitTmpProfile} or clean it up by calling {@link
      * IArtd#deleteProfile}.
      *
+     * Note: "External profile" means profiles that are external to the device, as opposed to local
+     * profiles, which are collected on the device. An embedded profile (a profile embedded in the
+     * dex file) is also an external profile.
+     *
      * @param dexPath the path to the dex file that the profile is checked against
      * @param refProfile the path where an existing reference profile would be found, if present
      * @param externalProfiles a list of external profiles to initialize the reference profile from,
@@ -401,16 +405,25 @@ public final class Utils {
     public static InitProfileResult initReferenceProfile(@NonNull IArtd artd,
             @NonNull String dexPath, @NonNull List<ProfilePath> externalProfiles,
             @NonNull OutputProfile output) throws RemoteException {
-        List<String> externalProfileErrors = new ArrayList<>();
+        // Each element is a pair of a profile name (for logging) and the corresponding initializer.
+        // The order matters. Non-embedded profiles should take precedence.
+        List<Pair<String, ProfileInitializer>> profileInitializers = new ArrayList<>();
         for (ProfilePath profile : externalProfiles) {
+            // If the profile path is a PrebuiltProfilePath, and the APK is really a prebuilt
+            // one, rewriting the profile is unnecessary because the dex location is known at
+            // build time and is correctly set in the profile header. However, the APK can also
+            // be an installed one, in which case partners may place a profile file next to the
+            // APK at install time. Rewriting the profile in the latter case is necessary.
+            profileInitializers.add(Pair.create(AidlUtils.toString(profile),
+                    () -> artd.copyAndRewriteProfile(profile, output, dexPath)));
+        }
+        profileInitializers.add(Pair.create(
+                "embedded profile", () -> artd.copyAndRewriteEmbeddedProfile(output, dexPath)));
+
+        List<String> externalProfileErrors = new ArrayList<>();
+        for (var pair : profileInitializers) {
             try {
-                // If the profile path is a PrebuiltProfilePath, and the APK is really a prebuilt
-                // one, rewriting the profile is unnecessary because the dex location is known at
-                // build time and is correctly set in the profile header. However, the APK can also
-                // be an installed one, in which case partners may place a profile file next to the
-                // APK at install time. Rewriting the profile in the latter case is necessary.
-                CopyAndRewriteProfileResult result =
-                        artd.copyAndRewriteProfile(profile, output, dexPath);
+                CopyAndRewriteProfileResult result = pair.second.get();
                 if (result.status == CopyAndRewriteProfileResult.Status.SUCCESS) {
                     return InitProfileResult.create(ProfilePath.tmpProfilePath(output.profilePath),
                             true /* isOtherReadable */, externalProfileErrors);
@@ -419,7 +432,7 @@ public final class Utils {
                     externalProfileErrors.add(result.errorMsg);
                 }
             } catch (ServiceSpecificException e) {
-                Log.e(TAG, "Failed to initialize profile from " + AidlUtils.toString(profile), e);
+                Log.e(TAG, "Failed to initialize profile from " + pair.first, e);
             }
         }
 
@@ -517,5 +530,10 @@ public final class Utils {
 
         /** Errors encountered when initializing from external profiles. */
         abstract @NonNull List<String> externalProfileErrors();
+    }
+
+    @FunctionalInterface
+    private interface ProfileInitializer {
+        CopyAndRewriteProfileResult get() throws RemoteException;
     }
 }
