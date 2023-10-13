@@ -331,11 +331,13 @@ bool Jit::CompileMethodInternal(ArtMethod* method,
   // Try to pattern match the method. Only on arm and arm64 for now as we have
   // sufficiently similar calling convention between C++ and managed code.
   if (kRuntimeISA == InstructionSet::kArm || kRuntimeISA == InstructionSet::kArm64) {
-    if (!Runtime::Current()->IsJavaDebuggable() && compilation_kind == CompilationKind::kBaseline) {
-      const void* pattern = SmallPatternMatcher::TryMatch(method);
+    if (!Runtime::Current()->IsJavaDebuggable() &&
+        compilation_kind == CompilationKind::kBaseline &&
+        !method_to_compile->StillNeedsClinitCheck()) {
+      const void* pattern = SmallPatternMatcher::TryMatch(method_to_compile);
       if (pattern != nullptr) {
-        VLOG(jit) << "Successfully pattern matched " << method->PrettyMethod();
-        Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(method, pattern);
+        VLOG(jit) << "Successfully pattern matched " << method_to_compile->PrettyMethod();
+        Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(method_to_compile, pattern);
         return true;
       }
     }
