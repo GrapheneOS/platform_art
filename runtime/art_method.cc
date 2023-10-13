@@ -669,7 +669,15 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
   const void* oat_entry_point = oat_method.GetQuickCode();
   if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
-    DCHECK(IsNative()) << PrettyMethod();
+    DCHECK(IsNative())
+        << PrettyMethod()
+        << " pc=" << pc
+        << ", entrypoint= " << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
+        << ", jit= " << jit
+        << ", nterp_start= " << reinterpret_cast<uintptr_t>(OatQuickMethodHeader::NterpImpl.data())
+        << ", nterp_end= "
+        << reinterpret_cast<uintptr_t>(
+               OatQuickMethodHeader::NterpImpl.data() + OatQuickMethodHeader::NterpImpl.size());
     return nullptr;
   }
 
