@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,38 +14,42 @@
  * limitations under the License.
  */
 
-#include "critical_native_abi_fixup_arm.h"
+#include "critical_native_abi_fixup_riscv64.h"
 
+#include "arch/riscv64/jni_frame_riscv64.h"
 #include "intrinsics.h"
 #include "nodes.h"
 
 namespace art HIDDEN {
-namespace arm {
+namespace riscv64 {
 
 // Fix up FP arguments passed in core registers for call to @CriticalNative by inserting fake calls
 // to Float.floatToRawIntBits() or Double.doubleToRawLongBits() to satisfy type consistency checks.
 static void FixUpArguments(HInvokeStaticOrDirect* invoke) {
   DCHECK_EQ(invoke->GetCodePtrLocation(), CodePtrLocation::kCallCriticalNative);
-  size_t reg = 0u;
+  size_t core_reg = 0u;
+  size_t fp_reg = 0u;
   for (size_t i = 0, num_args = invoke->GetNumberOfArguments(); i != num_args; ++i) {
+    if (core_reg == kMaxIntLikeArgumentRegisters) {
+      break;  // Remaining arguments are passed in FP regs or on the stack.
+    }
     HInstruction* input = invoke->InputAt(i);
     DataType::Type input_type = input->GetType();
-    size_t next_reg = reg + 1u;
-    if (DataType::Is64BitType(input_type)) {
-      reg = RoundUp(reg, 2u);
-      next_reg = reg + 2u;
-    }
-    if (reg == 4u) {
-      break;  // Remaining arguments are passed on stack.
-    }
     if (DataType::IsFloatingPointType(input_type)) {
-      InsertFpToIntegralIntrinsic(invoke, i);
+      if (fp_reg < kMaxFloatOrDoubleArgumentRegisters) {
+        ++fp_reg;
+      } else {
+        DCHECK_LT(core_reg, kMaxIntLikeArgumentRegisters);
+        InsertFpToIntegralIntrinsic(invoke, i);
+        ++core_reg;
+      }
+    } else {
+      ++core_reg;
     }
-    reg = next_reg;
   }
 }
 
-bool CriticalNativeAbiFixupArm::Run() {
+bool CriticalNativeAbiFixupRiscv64::Run() {
   if (!graph_->HasDirectCriticalNativeCall()) {
     return false;
   }
@@ -63,5 +67,5 @@ bool CriticalNativeAbiFixupArm::Run() {
   return true;
 }
 
-}  // namespace arm
+}  // namespace riscv64
 }  // namespace art
