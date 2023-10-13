@@ -741,8 +741,14 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
           // and this check is done before register allocation.
           LOG(FATAL) << "Unexpected ParallelMove before register allocation!";
           UNREACHABLE();
+        case HInstruction::kMethodEntryHook:
+        case HInstruction::kMethodExitHook:
         case HInstruction::kExit:
         case HInstruction::kGoto:
+        case HInstruction::kPackedSwitch:
+        case HInstruction::kTryBoundary:
+        case HInstruction::kClearException:
+        case HInstruction::kLoadException:
         case HInstruction::kParameterValue:
         case HInstruction::kReturn:
         case HInstruction::kReturnVoid:
@@ -757,8 +763,13 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kLoadMethodHandle:
         case HInstruction::kLoadMethodType:
         case HInstruction::kInstanceFieldGet:
+        case HInstruction::kInstanceFieldSet:
         case HInstruction::kStaticFieldGet:
+        case HInstruction::kStaticFieldSet:
         case HInstruction::kArrayGet:
+        case HInstruction::kArrayLength:
+        case HInstruction::kArraySet:
+        case HInstruction::kBoundsCheck:
         case HInstruction::kAbove:
         case HInstruction::kAboveOrEqual:
         case HInstruction::kBelow:

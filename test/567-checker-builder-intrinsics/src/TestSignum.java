@@ -102,7 +102,14 @@ public class TestSignum {
   private static int signBoolean(boolean x) {
     // Note: D8 would replace the ternary expression `x ? 1 : 0` with `x`
     // but explicit `if` is preserved.
-    int src_x;
+
+    // Use `Integer.` here to have the clinit check now instead of later, which would block the
+    // optimization when run without an image.
+    int src_x = 0;
+    if (Integer.signum(src_x) == -1) {
+        return -1;
+    }
+
     if (x) {
       src_x = 1;
     } else {
