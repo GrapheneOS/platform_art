@@ -285,6 +285,11 @@ public class SecondaryDexopterTest {
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
         lenient().when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(true);
+
+        // By default, none of the embedded profiles are usable.
+        lenient()
+                .when(mArtd.copyAndRewriteEmbeddedProfile(any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
     }
 
     private GetDexoptNeededResult dexoptIsNeeded() {
