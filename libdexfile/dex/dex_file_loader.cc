@@ -435,10 +435,10 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::shared_ptr<DexFileContai
   auto header = reinterpret_cast<const DexFile::Header*>(base);
   if (size >= sizeof(StandardDexFile::Header) && StandardDexFile::IsMagicValid(base)) {
     uint32_t checksum = location_checksum.value_or(header->checksum_);
-    dex_file.reset(new StandardDexFile(base, location, checksum, oat_dex_file, container));
+    dex_file.reset(new StandardDexFile(base, size, location, checksum, oat_dex_file, container));
   } else if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(base)) {
     uint32_t checksum = location_checksum.value_or(header->checksum_);
-    dex_file.reset(new CompactDexFile(base, location, checksum, oat_dex_file, container));
+    dex_file.reset(new CompactDexFile(base, size, location, checksum, oat_dex_file, container));
   } else {
     *error_msg = StringPrintf("Invalid or truncated dex file '%s'", location.c_str());
   }
