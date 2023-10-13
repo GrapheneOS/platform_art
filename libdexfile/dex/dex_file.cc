@@ -97,15 +97,13 @@ bool DexFile::DisableWrite() const {
 }
 
 DexFile::DexFile(const uint8_t* base,
-                 size_t size,
                  const std::string& location,
                  uint32_t location_checksum,
                  const OatDexFile* oat_dex_file,
                  std::shared_ptr<DexFileContainer> container,
                  bool is_compact_dex)
     : begin_(base),
-      size_(size),
-      data_(GetDataRange(base, size, container.get())),
+      data_(GetDataRange(base, container.get())),
       location_(location),
       location_checksum_(location_checksum),
       header_(reinterpret_cast<const Header*>(base)),
@@ -125,7 +123,6 @@ DexFile::DexFile(const uint8_t* base,
       is_compact_dex_(is_compact_dex),
       hiddenapi_domain_(hiddenapi::Domain::kApplication) {
   CHECK(begin_ != nullptr) << GetLocation();
-  CHECK_GT(size_, 0U) << GetLocation();
   // Check base (=header) alignment.
   // Must be 4-byte aligned to avoid undefined behavior when accessing
   // any of the sections via a pointer.
@@ -191,11 +188,15 @@ bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
   return true;
 }
 
-ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data,
-                                              size_t size,
-                                              DexFileContainer* container) {
+ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data, DexFileContainer* container) {
   CHECK(container != nullptr);
-  if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(data)) {
+  CHECK_GE(data, container->Begin());
+  CHECK_LE(data, container->End());
+  size_t size = container->End() - data;
+  if (size >= sizeof(StandardDexFile::Header) && StandardDexFile::IsMagicValid(data)) {
+    auto header = reinterpret_cast<const DexFile::Header*>(data);
+    size = std::min<size_t>(size, header->file_size_);
+  } else if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(data)) {
     auto header = reinterpret_cast<const CompactDexFile::Header*>(data);
     // TODO: Remove. This is a hack. See comment of the Data method.
     ArrayRef<const uint8_t> separate_data = container->Data();
@@ -205,6 +206,9 @@ ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data,
     // Shared compact dex data is located at the end after all dex files.
     data += header->data_off_;
     size = header->data_size_;
+  } else {
+    // Invalid dex file header.
+    // Some tests create dex files using just zeroed memory.
   }
   return {data, size};
 }
