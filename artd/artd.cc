@@ -468,7 +468,12 @@ Result<File> ExtractEmbeddedProfileToFd(const std::string& dex_path) {
     return Errorf("Failed to extract '{}': {}", kEmbeddedProfileEntry, error_msg);
   }
 
-  return memfd;
+  // Reopen the memfd with readonly to make SELinux happy when the fd is passed to a child process
+  // who doesn't have write permission. (b/303909581)
+  std::string path = ART_FORMAT("/proc/self/fd/{}", memfd.Fd());
+  std::unique_ptr<File> memfd_readonly = OR_RETURN(OpenFileForReading(path));
+
+  return std::move(*memfd_readonly);
 }
 
 class FdLogger {
