@@ -231,6 +231,9 @@ public class ArtManagerLocalTest {
         lenient()
                 .when(mArtd.copyAndRewriteProfile(any(), any(), any()))
                 .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
+        lenient()
+                .when(mArtd.copyAndRewriteEmbeddedProfile(any(), any()))
+                .thenReturn(TestingUtils.createCopyAndRewriteProfileNoProfile());
 
         mArtManagerLocal = new ArtManagerLocal(mInjector);
     }

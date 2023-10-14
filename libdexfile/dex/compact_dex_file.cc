@@ -82,11 +82,13 @@ uint32_t CompactDexFile::CalculateChecksum() const {
 }
 
 CompactDexFile::CompactDexFile(const uint8_t* base,
+                               size_t size,
                                const std::string& location,
                                uint32_t location_checksum,
                                const OatDexFile* oat_dex_file,
                                std::shared_ptr<DexFileContainer> container)
     : DexFile(base,
+              size,
               location,
               location_checksum,
               oat_dex_file,
