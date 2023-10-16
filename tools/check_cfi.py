@@ -38,7 +38,7 @@ IGNORE : Dict[str, List[str]] = {
     # Saves/restores SP in other register.
     "art_quick_generic_jni_trampoline": ["arm", "i386", "x86_64"],
     # Starts with non-zero offset at the start of the method.
-    "art_quick_throw_null_pointer_exception_from_signal": ["arm", "aarch64", "i386", "x86_64"],
+    "art_quick_throw_null_pointer_exception_from_signal": ARCHES,
     # Pops stack without static control flow past the opcode.
     "nterp_op_return": ["arm", "aarch64", "i386", "x86_64", "riscv64"],
 }
