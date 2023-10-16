@@ -39,7 +39,7 @@ inline uint32_t String::ClassSize(PointerSize pointer_size) {
 #else
   uint32_t vtable_entries = Object::kVTableLength + 72;
 #endif
-  return Class::ComputeClassSize(true, vtable_entries, 3, 0, 0, 1, 2, pointer_size);
+  return Class::ComputeClassSize(true, vtable_entries, 3, 0, 0, 1, 3, pointer_size);
 }
 
 inline uint16_t String::CharAt(int32_t index) {
