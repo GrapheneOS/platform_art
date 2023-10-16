@@ -255,6 +255,14 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   return kAnalysisSuccess;
 }
 
+GraphAnalysisResult HGraph::RecomputeDominatorTree() {
+  DCHECK(!HasIrreducibleLoops()) << "Recomputing loop information in graphs with irreducible loops "
+                                 << "is unsupported, as it could lead to loop header changes";
+  ClearLoopInformation();
+  ClearDominanceInformation();
+  return BuildDominatorTree();
+}
+
 void HGraph::ClearDominanceInformation() {
   for (HBasicBlock* block : GetActiveBlocks()) {
     block->ClearDominanceInformation();
@@ -3001,12 +3009,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       }
     }
     if (rerun_loop_analysis) {
-      DCHECK(!outer_graph->HasIrreducibleLoops())
-          << "Recomputing loop information in graphs with irreducible loops "
-          << "is unsupported, as it could lead to loop header changes";
-      outer_graph->ClearLoopInformation();
-      outer_graph->ClearDominanceInformation();
-      outer_graph->BuildDominatorTree();
+      outer_graph->RecomputeDominatorTree();
     } else if (rerun_dominance) {
       outer_graph->ClearDominanceInformation();
       outer_graph->ComputeDominanceInformation();

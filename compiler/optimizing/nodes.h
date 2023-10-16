@@ -467,6 +467,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   void ClearLoopInformation();
   void FindBackEdges(ArenaBitVector* visited);
   GraphAnalysisResult BuildDominatorTree();
+  GraphAnalysisResult RecomputeDominatorTree();
   void SimplifyCFG();
   void SimplifyCatchBlocks();
 
