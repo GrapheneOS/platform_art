@@ -429,7 +429,8 @@ EOF
     # TODO(b/300291157): One command line for all arches (VNDK flag was dropped as a workaround).
     $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root
   else
-    $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root --vndk $platform_version
+    # TODO(b/300291157): Remove VNDK versions and enable Treble once VNDK deprecation is set as default
+    $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root --vndk $platform_version --product_vndk $platform_version
   fi
   msgnote "Don't be scared by \"Unable to access VNDK APEX\" message, it's not fatal"
 fi
