@@ -244,7 +244,6 @@ class OptimizingUnitTestHelper {
     auto container =
         std::make_shared<MemoryDexFileContainer>(dex_data, sizeof(StandardDexFile::Header));
     dex_files_.emplace_back(new StandardDexFile(dex_data,
-                                                sizeof(StandardDexFile::Header),
                                                 "no_location",
                                                 /*location_checksum*/ 0,
                                                 /*oat_dex_file*/ nullptr,
