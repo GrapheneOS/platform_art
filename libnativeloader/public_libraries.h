@@ -47,10 +47,6 @@ const std::string& apex_jni_libraries(const std::string& apex_name);
 // but provided by com.android.foo APEX.
 const std::map<std::string, std::string>& apex_public_libraries();
 
-// Returns true if libnativeloader is running on devices and the device has
-// ro.product.vndk.version property. It returns false for host.
-bool is_product_vndk_version_defined();
-
 std::string get_vndk_version(bool is_product_vndk);
 
 // These are exported for testing
