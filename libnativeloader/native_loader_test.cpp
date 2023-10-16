@@ -378,15 +378,14 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
   dex_path = "/product/app/foo/foo.apk";
   is_shared = false;
 
-  if (is_product_vndk_version_defined()) {
-    expected_namespace_prefix = "product-clns";
-    expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
-    expected_permitted_path =
-        expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
-    expected_shared_libs_to_platform_ns =
-        append_extended_libraries(default_public_libraries() + ":" + llndk_libraries_product());
-    expected_link_with_vndk_product_ns = true;
-  }
+  expected_namespace_prefix = "product-clns";
+  expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
+  expected_permitted_path =
+      expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
+  expected_shared_libs_to_platform_ns =
+      append_extended_libraries(default_public_libraries() + ":" + llndk_libraries_product());
+  expected_link_with_vndk_product_ns = true;
+
   SetExpectations();
   RunTest();
 }
