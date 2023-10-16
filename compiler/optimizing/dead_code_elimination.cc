@@ -312,9 +312,7 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
 
   // We need to re-analyze the graph in order to run DCE afterwards.
   if (rerun_dominance_and_loop_analysis) {
-    graph_->ClearLoopInformation();
-    graph_->ClearDominanceInformation();
-    graph_->BuildDominatorTree();
+    graph_->RecomputeDominatorTree();
     return true;
   }
   return false;
@@ -438,9 +436,7 @@ bool HDeadCodeElimination::SimplifyIfs() {
   // We need to re-analyze the graph in order to run DCE afterwards.
   if (simplified_one_or_more_ifs) {
     if (rerun_dominance_and_loop_analysis) {
-      graph_->ClearLoopInformation();
-      graph_->ClearDominanceInformation();
-      graph_->BuildDominatorTree();
+      graph_->RecomputeDominatorTree();
     } else {
       graph_->ClearDominanceInformation();
       // We have introduced critical edges, remove them.
@@ -808,9 +804,7 @@ bool HDeadCodeElimination::RemoveDeadBlocks(bool force_recomputation,
   // dominator tree and try block membership.
   if (removed_one_or_more_blocks || force_recomputation) {
     if (rerun_dominance_and_loop_analysis || force_loop_recomputation) {
-      graph_->ClearLoopInformation();
-      graph_->ClearDominanceInformation();
-      graph_->BuildDominatorTree();
+      graph_->RecomputeDominatorTree();
     } else {
       graph_->ClearDominanceInformation();
       graph_->ComputeDominanceInformation();
