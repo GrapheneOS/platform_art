@@ -8111,21 +8111,10 @@ TEST_F(LoadStoreEliminationTest, PartialIrreducibleLoop) {
   EXPECT_TRUE(loop_header->IsLoopHeader());
   EXPECT_TRUE(loop_header->GetLoopInformation()->IsIrreducible());
 
+  // Partial LSE cannot run with irreducible loops.
   EXPECT_INS_RETAINED(left_set);
-  EXPECT_INS_REMOVED(write_start);
-  EXPECT_INS_REMOVED(read_end);
-
-  HPredicatedInstanceFieldGet* pred_get =
-      FindSingleInstruction<HPredicatedInstanceFieldGet>(graph_, breturn);
-  ASSERT_NE(pred_get, nullptr);
-  ASSERT_TRUE(pred_get->GetDefaultValue()->IsPhi()) << pred_get->DumpWithArgs();
-  EXPECT_INS_EQ(pred_get->GetDefaultValue()->InputAt(0), c11);
-  EXPECT_INS_EQ(pred_get->GetDefaultValue()->InputAt(1), graph_->GetIntConstant(0));
-  ASSERT_TRUE(pred_get->GetTarget()->IsPhi()) << pred_get->DumpWithArgs();
-  EXPECT_INS_EQ(pred_get->GetTarget()->InputAt(0), graph_->GetNullConstant());
-  HNewInstance* mat = FindSingleInstruction<HNewInstance>(graph_, right->GetSinglePredecessor());
-  ASSERT_NE(mat, nullptr);
-  EXPECT_INS_EQ(pred_get->GetTarget()->InputAt(1), mat);
+  EXPECT_INS_RETAINED(write_start);
+  EXPECT_INS_RETAINED(read_end);
 }
 
 enum class UsesOrder { kDefaultOrder, kReverseOrder };
