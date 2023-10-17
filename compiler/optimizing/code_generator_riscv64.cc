@@ -207,11 +207,13 @@ Location CriticalNativeCallingConventionVisitorRiscv64::GetNextLocation(DataType
     if (fpr_index_ < kParameterFpuRegistersLength) {
       location = Location::FpuRegisterLocation(kParameterFpuRegisters[fpr_index_]);
       ++fpr_index_;
+    } else {
+      // Native ABI allows passing excessive FP args in GPRs. This is facilitated by
+      // inserting fake conversion intrinsic calls (`Double.doubleToRawLongBits()`
+      // or `Float.floatToRawIntBits()`) by `CriticalNativeAbiFixupRiscv64`.
+      // Remaining FP args shall be passed on the stack.
+      CHECK_EQ(gpr_index_, kRuntimeParameterCoreRegistersLength);
     }
-    // Native ABI allows passing excessive FP args in GPRs. This is facilitated by
-    // inserting fake conversion intrinsic calls (`Double.doubleToRawLongBits()`
-    // or `Float.floatToRawIntBits()`) by `CriticalNativeAbiFixupRiscv64`.
-    // TODO(riscv64): Implement these  intrinsics and `CriticalNativeAbiFixupRiscv64`.
   } else {
     // Native ABI uses the same core registers as a runtime call.
     if (gpr_index_ < kRuntimeParameterCoreRegistersLength) {
@@ -220,10 +222,11 @@ Location CriticalNativeCallingConventionVisitorRiscv64::GetNextLocation(DataType
     }
   }
   if (location.IsInvalid()) {
-    if (DataType::Is64BitType(type)) {
-      location = Location::DoubleStackSlot(stack_offset_);
-    } else {
+    // Only a `float` gets a single slot. Integral args need to be sign-extended to 64 bits.
+    if (type == DataType::Type::kFloat32) {
       location = Location::StackSlot(stack_offset_);
+    } else {
+      location = Location::DoubleStackSlot(stack_offset_);
     }
     stack_offset_ += kFramePointerSize;
 
@@ -5840,10 +5843,13 @@ void CodeGeneratorRISCV64::MoveLocation(Location destination,
               destination.IsStackSlot() ? DataType::Type::kFloat32 : DataType::Type::kFloat64;
         }
       }
-      DCHECK((destination.IsDoubleStackSlot() == DataType::Is64BitType(dst_type)) &&
-             (source.IsFpuRegister() == DataType::IsFloatingPointType(dst_type)));
+      DCHECK_EQ(source.IsFpuRegister(), DataType::IsFloatingPointType(dst_type));
+      // For direct @CriticalNative calls, we need to sign-extend narrow integral args
+      // to 64 bits, so widening integral values is allowed. Narrowing is forbidden.
+      DCHECK_IMPLIES(DataType::IsFloatingPointType(dst_type) || destination.IsStackSlot(),
+                     destination.IsDoubleStackSlot() == DataType::Is64BitType(dst_type));
       // Move to stack from GPR/FPR
-      if (DataType::Is64BitType(dst_type)) {
+      if (destination.IsDoubleStackSlot()) {
         if (source.IsRegister()) {
           __ Stored(source.AsRegister<XRegister>(), SP, destination.GetStackIndex());
         } else {
@@ -5872,15 +5878,20 @@ void CodeGeneratorRISCV64::MoveLocation(Location destination,
       }
     } else {
       DCHECK(source.IsStackSlot() || source.IsDoubleStackSlot());
-      DCHECK_EQ(source.IsDoubleStackSlot(), destination.IsDoubleStackSlot());
+      // For direct @CriticalNative calls, we need to sign-extend narrow integral args
+      // to 64 bits, so widening move is allowed. Narrowing move is forbidden.
+      DCHECK_IMPLIES(destination.IsStackSlot(), source.IsStackSlot());
       // Move to stack from stack
       ScratchRegisterScope srs(GetAssembler());
       XRegister tmp = srs.AllocateXRegister();
-      if (destination.IsStackSlot()) {
+      if (source.IsStackSlot()) {
         __ Loadw(tmp, SP, source.GetStackIndex());
-        __ Storew(tmp, SP, destination.GetStackIndex());
       } else {
         __ Loadd(tmp, SP, source.GetStackIndex());
+      }
+      if (destination.IsStackSlot()) {
+        __ Storew(tmp, SP, destination.GetStackIndex());
+      } else {
         __ Stored(tmp, SP, destination.GetStackIndex());
       }
     }

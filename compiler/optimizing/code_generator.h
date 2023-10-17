@@ -598,7 +598,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
       if (kIsDebugBuild) {
         uint32_t shorty_len;
         const char* shorty = GetCriticalNativeShorty(invoke, &shorty_len);
-        DCHECK_EQ(GetCriticalNativeDirectCallFrameSize(shorty, shorty_len), out_frame_size);
+        CHECK_EQ(GetCriticalNativeDirectCallFrameSize(shorty, shorty_len), out_frame_size);
       }
       if (out_frame_size != 0u) {
         FinishCriticalNativeFrameSetup(out_frame_size, &parallel_move);
