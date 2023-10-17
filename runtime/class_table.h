@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/allocator.h"
+#include "base/gc_visited_arena_pool.h"
 #include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -151,7 +151,7 @@ class ClassTable {
                            TableSlotEmptyFn,
                            ClassDescriptorHash,
                            ClassDescriptorEquals,
-                           TrackingAllocator<TableSlot, kAllocatorTagClassTable>>;
+                           GcRootArenaAllocator<TableSlot, kAllocatorTagClassTable>>;
 
   ClassTable();
 
@@ -181,7 +181,7 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns the number of classes in the class table.
+  // Returns the number of class-sets in the class table.
   size_t Size() const
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -194,17 +194,13 @@ class ClassTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS for object marking requiring heap bitmap lock.
-  template<class Visitor>
-  void VisitRoots(Visitor& visitor)
-      NO_THREAD_SAFETY_ANALYSIS
-      REQUIRES(!lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  template <class Visitor>
+  void VisitRoots(Visitor& visitor, bool skip_classes = false) NO_THREAD_SAFETY_ANALYSIS
+      REQUIRES(!lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<class Visitor>
-  void VisitRoots(const Visitor& visitor)
-      NO_THREAD_SAFETY_ANALYSIS
-      REQUIRES(!lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  template <class Visitor>
+  void VisitRoots(const Visitor& visitor, bool skip_classes = false) NO_THREAD_SAFETY_ANALYSIS
+      REQUIRES(!lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<class Visitor>
   void VisitClassesAndRoots(Visitor& visitor)
@@ -212,6 +208,10 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Visit classes in those class-sets which satisfy 'cond'.
+  template <class Condition, class Visitor>
+  void VisitClassesIfConditionMet(Condition& cond, Visitor& visitor) REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // Stops visit if the visitor returns false.
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
   bool Visit(Visitor& visitor)
