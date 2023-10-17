@@ -30,7 +30,7 @@ inline void MarkCompact::UpdateClassAfterObjectMap(mirror::Object* obj) {
   // Track a class if it needs walking super-classes for visiting references or
   // if it's higher in address order than its objects and is in moving space.
   if (UNLIKELY(
-          (std::less<mirror::Object*>{}(obj, klass) && bump_pointer_space_->HasAddress(klass)) ||
+          (std::less<mirror::Object*>{}(obj, klass) && HasAddress(klass)) ||
           (klass->GetReferenceInstanceOffsets<kVerifyNone>() == mirror::Class::kClassWalkSuper &&
            walk_super_class_cache_ != klass))) {
     // Since this function gets invoked in the compaction pause as well, it is
@@ -42,12 +42,12 @@ inline void MarkCompact::UpdateClassAfterObjectMap(mirror::Object* obj) {
       if (klass->GetReferenceInstanceOffsets<kVerifyNone>() == mirror::Class::kClassWalkSuper) {
         // In this case we require traversing through the super class hierarchy
         // and find the super class at the highest address order.
-        mirror::Class* highest_klass = bump_pointer_space_->HasAddress(klass) ? klass : nullptr;
+        mirror::Class* highest_klass = HasAddress(klass) ? klass : nullptr;
         for (ObjPtr<mirror::Class> k = klass->GetSuperClass<kVerifyNone, kWithoutReadBarrier>();
              k != nullptr;
              k = k->GetSuperClass<kVerifyNone, kWithoutReadBarrier>()) {
           // TODO: Can we break once we encounter a super class outside the moving space?
-          if (bump_pointer_space_->HasAddress(k.Ptr())) {
+          if (HasAddress(k.Ptr())) {
             highest_klass = std::max(highest_klass, k.Ptr(), std::less<mirror::Class*>());
           }
         }
@@ -220,13 +220,16 @@ uint32_t MarkCompact::LiveWordsBitmap<kAlignment>::FindNthLiveWordOffset(size_t 
   UNREACHABLE();
 }
 
-inline void MarkCompact::UpdateRef(mirror::Object* obj, MemberOffset offset) {
+inline void MarkCompact::UpdateRef(mirror::Object* obj,
+                                   MemberOffset offset,
+                                   uint8_t* begin,
+                                   uint8_t* end) {
   mirror::Object* old_ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, /*kIsVolatile*/false>(offset);
   if (kIsDebugBuild) {
-    if (live_words_bitmap_->HasAddress(old_ref)
-        && reinterpret_cast<uint8_t*>(old_ref) < black_allocations_begin_
-        && !moving_space_bitmap_->Test(old_ref)) {
+    if (HasAddress(old_ref) &&
+        reinterpret_cast<uint8_t*>(old_ref) < black_allocations_begin_ &&
+        !moving_space_bitmap_->Test(old_ref)) {
       mirror::Object* from_ref = GetFromSpaceAddr(old_ref);
       std::ostringstream oss;
       heap_->DumpSpaces(oss);
@@ -249,7 +252,7 @@ inline void MarkCompact::UpdateRef(mirror::Object* obj, MemberOffset offset) {
                  << " maps\n" << oss.str();
     }
   }
-  mirror::Object* new_ref = PostCompactAddress(old_ref);
+  mirror::Object* new_ref = PostCompactAddress(old_ref, begin, end);
   if (new_ref != old_ref) {
     obj->SetFieldObjectWithoutWriteBarrier<
         /*kTransactionActive*/false, /*kCheckTransaction*/false, kVerifyNone, /*kIsVolatile*/false>(
@@ -267,7 +270,7 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
   if (kIsDebugBuild && !kMemoryToolIsAvailable) {
     void* stack_low_addr = stack_low_addr_;
     void* stack_high_addr = stack_high_addr_;
-    if (!live_words_bitmap_->HasAddress(old_ref)) {
+    if (!HasAddress(old_ref)) {
       return false;
     }
     Thread* self = Thread::Current();
@@ -291,21 +294,26 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
 }
 
 inline void MarkCompact::UpdateRoot(mirror::CompressedReference<mirror::Object>* root,
+                                    uint8_t* begin,
+                                    uint8_t* end,
                                     const RootInfo& info) {
   DCHECK(!root->IsNull());
   mirror::Object* old_ref = root->AsMirrorPtr();
   if (VerifyRootSingleUpdate(root, old_ref, info)) {
-    mirror::Object* new_ref = PostCompactAddress(old_ref);
+    mirror::Object* new_ref = PostCompactAddress(old_ref, begin, end);
     if (old_ref != new_ref) {
       root->Assign(new_ref);
     }
   }
 }
 
-inline void MarkCompact::UpdateRoot(mirror::Object** root, const RootInfo& info) {
+inline void MarkCompact::UpdateRoot(mirror::Object** root,
+                                    uint8_t* begin,
+                                    uint8_t* end,
+                                    const RootInfo& info) {
   mirror::Object* old_ref = *root;
   if (VerifyRootSingleUpdate(root, old_ref, info)) {
-    mirror::Object* new_ref = PostCompactAddress(old_ref);
+    mirror::Object* new_ref = PostCompactAddress(old_ref, begin, end);
     if (old_ref != new_ref) {
       *root = new_ref;
     }
@@ -378,10 +386,10 @@ inline mirror::Object* MarkCompact::PostCompactAddressUnchecked(mirror::Object* 
   return PostCompactOldObjAddr(old_ref);
 }
 
-inline mirror::Object* MarkCompact::PostCompactAddress(mirror::Object* old_ref) const {
-  // TODO: To further speedup the check, maybe we should consider caching heap
-  // start/end in this object.
-  if (LIKELY(live_words_bitmap_->HasAddress(old_ref))) {
+inline mirror::Object* MarkCompact::PostCompactAddress(mirror::Object* old_ref,
+                                                       uint8_t* begin,
+                                                       uint8_t* end) const {
+  if (LIKELY(HasAddress(old_ref, begin, end))) {
     return PostCompactAddressUnchecked(old_ref);
   }
   return old_ref;
