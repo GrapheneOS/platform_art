@@ -475,7 +475,6 @@ class ReleaseChecker:
     # Check internal libraries for ART.
     self._checker.check_native_library('libadbconnection')
     self._checker.check_native_library('libart')
-    self._checker.check_native_library('libart-compiler')
     self._checker.check_native_library('libart-dexlayout')
     self._checker.check_native_library('libart-disassembler')
     self._checker.check_native_library('libartbase')
@@ -622,7 +621,6 @@ class DebugChecker:
     self._checker.check_native_library('libadbconnectiond')
     self._checker.check_native_library('libartbased')
     self._checker.check_native_library('libartd')
-    self._checker.check_native_library('libartd-compiler')
     self._checker.check_native_library('libartd-dexlayout')
     self._checker.check_native_library('libartd-disassembler')
     self._checker.check_native_library('libopenjdkjvmd')

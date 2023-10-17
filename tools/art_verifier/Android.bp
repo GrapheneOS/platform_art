@@ -59,8 +59,6 @@ art_cc_binary {
     defaults: [
         "art_verifier-defaults",
         "libart_static_defaults",
-        // TODO(b/186902856): remove once libart-compiler is merged into libart
-        "libart-compiler_static_defaults",
     ],
 }
 
@@ -70,7 +68,5 @@ art_cc_binary {
         "art_debug_defaults",
         "art_verifier-defaults",
         "libartd_static_defaults",
-        // TODO(b/186902856): remove once libart-compiler is merged into libart
-        "libartd-compiler_static_defaults",
     ],
 }
