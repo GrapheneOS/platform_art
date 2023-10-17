@@ -80,6 +80,7 @@ package com.android.server.art.model {
     field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1
     field public static final int FLAG_FOR_SECONDARY_DEX = 2; // 0x2
     field public static final int FLAG_FOR_SINGLE_SPLIT = 32; // 0x20
+    field public static final int FLAG_IGNORE_PROFILE = 128; // 0x80
     field public static final int FLAG_SHOULD_DOWNGRADE = 8; // 0x8
     field public static final int FLAG_SHOULD_INCLUDE_DEPENDENCIES = 4; // 0x4
     field public static final int FLAG_SKIP_IF_STORAGE_LOW = 64; // 0x40
