@@ -93,6 +93,9 @@ enum class OptimizationPass {
 #ifdef ART_ENABLE_CODEGEN_arm64
   kInstructionSimplifierArm64,
 #endif
+#ifdef ART_ENABLE_CODEGEN_riscv64
+  kCriticalNativeAbiFixupRiscv64,
+#endif
 #ifdef ART_ENABLE_CODEGEN_x86
   kPcRelativeFixupsX86,
   kInstructionSimplifierX86,

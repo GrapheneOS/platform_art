@@ -638,6 +638,34 @@ extern "C" JNIEXPORT jint JNICALL Java_CriticalSignatures_nativeFullArgs(
   return 42;
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_CriticalSignatures_nativeDFDFDFDFDFIJ(
+    jdouble d1,
+    jfloat f1,
+    jdouble d2,
+    jfloat f2,
+    jdouble d3,
+    jfloat f3,
+    jdouble d4,
+    jfloat f4,
+    jdouble d5,
+    jfloat f5,
+    jint i,
+    jlong j) {
+  if (d1 != 1.0) return -1;
+  if (f1 != 2.0f) return -2;
+  if (d2 != 3.0) return -3;
+  if (f2 != 4.0f) return -4;
+  if (d3 != 5.0) return -5;
+  if (f3 != 6.0f) return -6;
+  if (d4 != 7.0) return -7;
+  if (f4 != 8.0f) return -8;
+  if (d5 != 9.0) return -9;
+  if (f5 != 10.0f) return -10;
+  if (i != 11) return -11;
+  if (j != 12) return -12;
+  return 42;
+}
+
 extern "C" JNIEXPORT jint JNICALL Java_CriticalClinitCheck_nativeMethodVoid() {
   return 42;
 }

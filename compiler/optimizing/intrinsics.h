@@ -328,6 +328,11 @@ bool IsCallFreeIntrinsic(HInvoke* invoke, Codegenerator* codegen) {
   return false;
 }
 
+// Insert a `Float.floatToRawIntBits()` or `Double.doubleToRawLongBits()` intrinsic for a
+// given input. These fake calls are needed on arm and riscv64 to satisfy type consistency
+// checks while passing certain FP args in core registers for direct @CriticalNative calls.
+void InsertFpToIntegralIntrinsic(HInvokeStaticOrDirect* invoke, size_t input_index);
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_H_
