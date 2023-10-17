@@ -543,6 +543,11 @@ class MarkCompact final : public GarbageCollector {
   // Initialize all the info-map related fields of this GC. Returns total size
   // of all the structures in info-map.
   size_t InitializeInfoMap(uint8_t* p, size_t moving_space_sz);
+  // Update class-table classes in compaction pause if we are running in debuggable
+  // mode. Only visit class-table in image spaces if 'immune_class_table_only'
+  // is true.
+  void UpdateClassTableClasses(Runtime* runtime, bool immune_class_table_only)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // For checkpoints
   Barrier gc_barrier_;
