@@ -14,4 +14,5 @@ HSPLMain;->$noinline$opt$testMissing()V
 HSPLMain;->$noinline$opt$testMissingFast()V
 HSPLMain;->$noinline$opt$testMissingCritical()V
 HSPLMain;->$noinline$opt$testCriticalSignatures()V
+HSPLMain;->$noinline$opt$testCriticalSignaturesStackMoves()V
 HSPLMain;->$noinline$opt$testCriticalClinitCheck()V
