@@ -307,9 +307,8 @@ static constexpr size_t kMaxNumUffdWorkers = 2;
 // Number of compaction buffers reserved for mutator threads in SIGBUS feature
 // case. It's extremely unlikely that we will ever have more than these number
 // of mutator threads trying to access the moving-space during one compaction
-// phase. Using a lower number in debug builds to hopefully catch the issue
-// before it becomes a problem on user builds.
-static constexpr size_t kMutatorCompactionBufferCount = kIsDebugBuild ? 256 : 2048;
+// phase.
+static constexpr size_t kMutatorCompactionBufferCount = 2048;
 // Minimum from-space chunk to be madvised (during concurrent compaction) in one go.
 static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
 // Concurrent compaction termination logic is different (and slightly more efficient) if the
@@ -2397,7 +2396,7 @@ void MarkCompact::UpdateNonMovingPage(mirror::Object* first, uint8_t* page) {
 }
 
 void MarkCompact::UpdateNonMovingSpace() {
-  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  TimingLogger::ScopedTiming t("(Paused)UpdateNonMovingSpace", GetTimings());
   // Iterating in reverse ensures that the class pointer in objects which span
   // across more than one page gets updated in the end. This is necessary for
   // VisitRefsForCompaction() to work correctly.
@@ -2614,7 +2613,8 @@ class MarkCompact::ClassLoaderRootsUpdater : public ClassLoaderVisitor {
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) {
     ClassTable* const class_table = class_loader->GetClassTable();
     if (class_table != nullptr) {
-      class_table->VisitRoots(*this);
+      // Classes are updated concurrently.
+      class_table->VisitRoots(*this, /*skip_classes=*/true);
     }
   }
 
@@ -2645,8 +2645,10 @@ class MarkCompact::LinearAllocPageUpdater {
         moving_space_end_(collector->moving_space_end_),
         last_page_touched_(false) {}
 
-  void operator()(uint8_t* page_begin, uint8_t* first_obj) ALWAYS_INLINE
+  // Update a page in multi-object arena.
+  void MultiObjectArena(uint8_t* page_begin, uint8_t* first_obj)
       REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(first_obj != nullptr);
     DCHECK_ALIGNED(page_begin, kPageSize);
     uint8_t* page_end = page_begin + kPageSize;
     uint32_t obj_size;
@@ -2676,6 +2678,28 @@ class MarkCompact::LinearAllocPageUpdater {
     last_page_touched_ = true;
   }
 
+  // This version is only used for cases where the entire page is filled with
+  // GC-roots. For example, class-table and intern-table.
+  void SingleObjectArena(uint8_t* page_begin, size_t page_size)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    static_assert(sizeof(uint32_t) == sizeof(GcRoot<mirror::Object>));
+    DCHECK_ALIGNED(page_begin, kAlignment);
+    // Least significant bits are used by class-table.
+    static constexpr uint32_t kMask = kObjectAlignment - 1;
+    size_t num_roots = page_size / sizeof(GcRoot<mirror::Object>);
+    uint32_t* root_ptr = reinterpret_cast<uint32_t*>(page_begin);
+    for (size_t i = 0; i < num_roots; root_ptr++, i++) {
+      uint32_t word = *root_ptr;
+      if (word != 0) {
+        uint32_t lsbs = word & kMask;
+        word &= ~kMask;
+        VisitRootIfNonNull(reinterpret_cast<mirror::CompressedReference<mirror::Object>*>(&word));
+        *root_ptr = word | lsbs;
+        last_page_touched_ = true;
+      }
+    }
+  }
+
   bool WasLastPageTouched() const { return last_page_touched_; }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
@@ -2694,7 +2718,8 @@ class MarkCompact::LinearAllocPageUpdater {
       if (reinterpret_cast<uint8_t*>(old_ref) >= collector_->black_allocations_begin_) {
         new_ref = collector_->PostCompactBlackObjAddr(old_ref);
       } else if (collector_->live_words_bitmap_->Test(old_ref)) {
-        DCHECK(collector_->moving_space_bitmap_->Test(old_ref)) << old_ref;
+        DCHECK(collector_->moving_space_bitmap_->Test(old_ref))
+            << "ref:" << old_ref << " root:" << root;
         new_ref = collector_->PostCompactOldObjAddr(old_ref);
       }
       if (old_ref != new_ref) {
@@ -2763,8 +2788,33 @@ class MarkCompact::LinearAllocPageUpdater {
   uint8_t* const moving_space_begin_;
   uint8_t* const moving_space_end_;
   // Whether the last page was touched or not.
-  bool last_page_touched_;
+  bool last_page_touched_ = false;
 };
+
+void MarkCompact::UpdateClassTableClasses(Runtime* runtime, bool immune_class_table_only) {
+  // If the process is debuggable then redefinition is allowed, which may mean
+  // pre-zygote-fork class-tables may have pointer to class in moving-space.
+  // So visit classes from class-sets that are not in linear-alloc arena-pool.
+  if (UNLIKELY(runtime->IsJavaDebuggableAtInit())) {
+    ClassLinker* linker = runtime->GetClassLinker();
+    ClassLoaderRootsUpdater updater(this);
+    GcVisitedArenaPool* pool = static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
+    auto cond = [this, pool, immune_class_table_only](ClassTable::ClassSet& set) -> bool {
+      if (!set.empty()) {
+        return immune_class_table_only ?
+               immune_spaces_.ContainsObject(reinterpret_cast<mirror::Object*>(&*set.begin())) :
+               !pool->Contains(reinterpret_cast<void*>(&*set.begin()));
+      }
+      return false;
+    };
+    linker->VisitClassTables([cond, &updater](ClassTable* table)
+                                 REQUIRES_SHARED(Locks::mutator_lock_) {
+                               table->VisitClassesIfConditionMet(cond, updater);
+                             });
+    ReaderMutexLock rmu(thread_running_gc_, *Locks::classlinker_classes_lock_);
+    linker->GetBootClassTable()->VisitClassesIfConditionMet(cond, updater);
+  }
+}
 
 void MarkCompact::CompactionPause() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
@@ -2819,65 +2869,6 @@ void MarkCompact::CompactionPause() {
     heap_->GetReferenceProcessor()->UpdateRoots(this);
   }
   {
-    TimingLogger::ScopedTiming t2("(Paused)UpdateClassLoaderRoots", GetTimings());
-    ReaderMutexLock rmu(thread_running_gc_, *Locks::classlinker_classes_lock_);
-    {
-      ClassLoaderRootsUpdater updater(this);
-      runtime->GetClassLinker()->VisitClassLoaders(&updater);
-    }
-  }
-
-  bool has_zygote_space = heap_->HasZygoteSpace();
-  // TODO: Find out why it's not sufficient to visit native roots of immune
-  // spaces, and why all the pre-zygote fork arenas have to be linearly updated.
-  // Is it possible that some native root starts getting pointed to by some object
-  // in moving space after fork? Or are we missing a write-barrier somewhere
-  // when a native root is updated?
-  GcVisitedArenaPool* arena_pool =
-      static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
-  if (uffd_ == kFallbackMode || (!has_zygote_space && runtime->IsZygote())) {
-    // Besides fallback-mode, visit linear-alloc space in the pause for zygote
-    // processes prior to first fork (that's when zygote space gets created).
-    if (kIsDebugBuild && IsValidFd(uffd_)) {
-      // All arenas allocated so far are expected to be pre-zygote fork.
-      arena_pool->ForEachAllocatedArena(
-          [](const TrackedArena& arena)
-              REQUIRES_SHARED(Locks::mutator_lock_) { CHECK(arena.IsPreZygoteForkArena()); });
-    }
-    LinearAllocPageUpdater updater(this);
-    arena_pool->VisitRoots(updater);
-  } else {
-    // Clear the flag as we care about this only if arenas are freed during
-    // concurrent compaction.
-    arena_pool->ClearArenasFreed();
-    arena_pool->ForEachAllocatedArena(
-        [this](const TrackedArena& arena) REQUIRES_SHARED(Locks::mutator_lock_) {
-          // The pre-zygote fork arenas are not visited concurrently in the
-          // zygote children processes. The native roots of the dirty objects
-          // are visited during immune space visit below.
-          if (!arena.IsPreZygoteForkArena()) {
-            uint8_t* last_byte = arena.GetLastUsedByte();
-            CHECK(linear_alloc_arenas_.insert({&arena, last_byte}).second);
-          } else {
-            LinearAllocPageUpdater updater(this);
-            arena.VisitRoots(updater);
-          }
-        });
-  }
-
-  SweepSystemWeaks(thread_running_gc_, runtime, /*paused*/ true);
-
-  {
-    TimingLogger::ScopedTiming t2("(Paused)UpdateConcurrentRoots", GetTimings());
-    runtime->VisitConcurrentRoots(this, kVisitRootFlagAllRoots);
-  }
-  {
-    // TODO: don't visit the transaction roots if it's not active.
-    TimingLogger::ScopedTiming t2("(Paused)UpdateNonThreadRoots", GetTimings());
-    runtime->VisitNonThreadRoots(this);
-  }
-
-  {
     // TODO: Immune space updation has to happen either before or after
     // remapping pre-compact pages to from-space. And depending on when it's
     // done, we have to invoke VisitRefsForCompaction() with or without
@@ -2908,11 +2899,98 @@ void MarkCompact::CompactionPause() {
     }
   }
 
-  if (use_uffd_sigbus_) {
-    // Release order wrt to mutator threads' SIGBUS handler load.
-    sigbus_in_progress_count_.store(0, std::memory_order_release);
+  {
+    TimingLogger::ScopedTiming t2("(Paused)UpdateRoots", GetTimings());
+    runtime->VisitConcurrentRoots(this, kVisitRootFlagAllRoots);
+    runtime->VisitNonThreadRoots(this);
+    {
+      ClassLinker* linker = runtime->GetClassLinker();
+      ClassLoaderRootsUpdater updater(this);
+      ReaderMutexLock rmu(thread_running_gc_, *Locks::classlinker_classes_lock_);
+      linker->VisitClassLoaders(&updater);
+      linker->GetBootClassTable()->VisitRoots(updater, /*skip_classes=*/true);
+    }
+    SweepSystemWeaks(thread_running_gc_, runtime, /*paused=*/true);
+
+    bool has_zygote_space = heap_->HasZygoteSpace();
+    GcVisitedArenaPool* arena_pool =
+        static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
+    // Update immune/pre-zygote class-tables in case class redefinition took
+    // place. pre-zygote class-tables that are not in immune spaces are updated
+    // below if we are in fallback-mode or if there is no zygote space. So in
+    // that case only visit class-tables that are there in immune-spaces.
+    UpdateClassTableClasses(runtime, uffd_ == kFallbackMode || !has_zygote_space);
+
+    // Acquire arena-pool's lock, which should be released after the pool is
+    // userfaultfd registered. This is to ensure that no new arenas are
+    // allocated and used in between. Since they will not be captured in
+    // linear_alloc_arenas_ below, we will miss updating their pages. The same
+    // reason also applies to new allocations within the existing arena which
+    // may change last_byte.
+    // Since we are in a STW pause, this shouldn't happen anyways, but holding
+    // the lock confirms it.
+    // TODO (b/305779657): Replace with ExclusiveTryLock() and assert that it
+    // doesn't fail once it is available for ReaderWriterMutex.
+    WriterMutexLock pool_wmu(thread_running_gc_, arena_pool->GetLock());
+
+    // TODO: Find out why it's not sufficient to visit native roots of immune
+    // spaces, and why all the pre-zygote fork arenas have to be linearly updated.
+    // Is it possible that some native root starts getting pointed to by some object
+    // in moving space after fork? Or are we missing a write-barrier somewhere
+    // when a native root is updated?
+    auto arena_visitor = [this](uint8_t* page_begin, uint8_t* first_obj, size_t page_size)
+                             REQUIRES_SHARED(Locks::mutator_lock_) {
+                           LinearAllocPageUpdater updater(this);
+                           if (first_obj != nullptr) {
+                             updater.MultiObjectArena(page_begin, first_obj);
+                           } else {
+                             updater.SingleObjectArena(page_begin, page_size);
+                           }
+                         };
+    if (uffd_ == kFallbackMode || (!has_zygote_space && runtime->IsZygote())) {
+      // Besides fallback-mode, visit linear-alloc space in the pause for zygote
+      // processes prior to first fork (that's when zygote space gets created).
+      if (kIsDebugBuild && IsValidFd(uffd_)) {
+        // All arenas allocated so far are expected to be pre-zygote fork.
+        arena_pool->ForEachAllocatedArena(
+            [](const TrackedArena& arena)
+                REQUIRES_SHARED(Locks::mutator_lock_) { CHECK(arena.IsPreZygoteForkArena()); });
+      }
+      arena_pool->VisitRoots(arena_visitor);
+    } else {
+      // Inform the arena-pool that compaction is going on. So the TrackedArena
+      // objects corresponding to the arenas that are freed shouldn't be deleted
+      // immediately. We will do that in FinishPhase(). This is to avoid ABA
+      // problem.
+      arena_pool->DeferArenaFreeing();
+      arena_pool->ForEachAllocatedArena(
+          [this, arena_visitor, has_zygote_space](const TrackedArena& arena)
+              REQUIRES_SHARED(Locks::mutator_lock_) {
+            // The pre-zygote fork arenas are not visited concurrently in the
+            // zygote children processes. The native roots of the dirty objects
+            // are visited during immune space visit below.
+            if (!arena.IsPreZygoteForkArena()) {
+              uint8_t* last_byte = arena.GetLastUsedByte();
+              auto ret = linear_alloc_arenas_.insert({&arena, last_byte});
+              CHECK(ret.second);
+            } else if (!arena.IsSingleObjectArena() || !has_zygote_space) {
+              // Pre-zygote class-table and intern-table don't need to be updated.
+              // TODO: Explore the possibility of using /proc/self/pagemap to
+              // fetch which pages in these arenas are private-dirty and then only
+              // visit those pages. To optimize it further, we can keep all
+              // pre-zygote arenas in a single memory range so that just one read
+              // from pagemap is sufficient.
+              arena.VisitRoots(arena_visitor);
+            }
+          });
+    }
+    if (use_uffd_sigbus_) {
+      // Release order wrt to mutator threads' SIGBUS handler load.
+      sigbus_in_progress_count_.store(0, std::memory_order_release);
+    }
+    KernelPreparation();
   }
-  KernelPreparation();
+
   UpdateNonMovingSpace();
   // fallback mode
   if (uffd_ == kFallbackMode) {
@@ -2978,7 +3056,7 @@ void MarkCompact::KernelPrepareRangeForUffd(uint8_t* to_addr,
 }
 
 void MarkCompact::KernelPreparation() {
-  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  TimingLogger::ScopedTiming t("(Paused)KernelPreparation", GetTimings());
   uint8_t* moving_space_begin = bump_pointer_space_->Begin();
   size_t moving_space_size = bump_pointer_space_->Capacity();
   int mode = kCopyMode;
@@ -3405,14 +3483,22 @@ void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool i
     arena_iter = arena_iter != linear_alloc_arenas_.begin() ? std::prev(arena_iter)
                                                             : linear_alloc_arenas_.end();
   }
-  if (arena_iter == linear_alloc_arenas_.end() || arena_iter->second <= fault_page) {
+  // Unlike ProcessLinearAlloc(), we don't need to hold arena-pool's lock here
+  // because a thread trying to access the page and as a result causing this
+  // userfault confirms that nobody can delete the corresponding arena and
+  // release its pages.
+  // NOTE: We may have some memory range be recycled several times during a
+  // compaction cycle, thereby potentially causing userfault on the same page
+  // several times. That's not a problem as all of them (except for possibly the
+  // first one) would require us mapping a zero-page, which we do without updating
+  // the 'state_arr'.
+  if (arena_iter == linear_alloc_arenas_.end() ||
+      arena_iter->first->IsWaitingForDeletion() ||
+      arena_iter->second <= fault_page) {
     // Fault page isn't in any of the arenas that existed before we started
     // compaction. So map zeropage and return.
     ZeropageIoctl(fault_page, /*tolerate_eexist=*/true, /*tolerate_enoent=*/false);
   } else {
-    // fault_page should always belong to some arena.
-    DCHECK(arena_iter != linear_alloc_arenas_.end())
-        << "fault_page:" << static_cast<void*>(fault_page) << "is_minor_fault:" << is_minor_fault;
     // Find the linear-alloc space containing fault-page
     LinearAllocSpaceData* space_data = nullptr;
     for (auto& data : linear_alloc_spaces_data_) {
@@ -3437,10 +3523,15 @@ void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool i
           if (state_arr[page_idx].compare_exchange_strong(
                   state, PageState::kProcessingAndMapping, std::memory_order_acquire)) {
             if (kMode == kCopyMode || is_minor_fault) {
-              uint8_t* first_obj = arena_iter->first->GetFirstObject(fault_page);
-              DCHECK_NE(first_obj, nullptr);
               LinearAllocPageUpdater updater(this);
-              updater(fault_page + diff, first_obj + diff);
+              uint8_t* first_obj = arena_iter->first->GetFirstObject(fault_page);
+              // null first_obj indicates that it's a page from arena for
+              // intern-table/class-table. So first object isn't required.
+              if (first_obj != nullptr) {
+                updater.MultiObjectArena(fault_page + diff, first_obj + diff);
+              } else {
+                updater.SingleObjectArena(fault_page + diff, kPageSize);
+              }
               if (kMode == kCopyMode) {
                 MapUpdatedLinearAllocPage(fault_page,
                                           fault_page + diff,
@@ -3509,6 +3600,7 @@ void MarkCompact::ConcurrentlyProcessLinearAllocPage(uint8_t* fault_page, bool i
 void MarkCompact::ProcessLinearAlloc() {
   GcVisitedArenaPool* arena_pool =
       static_cast<GcVisitedArenaPool*>(Runtime::Current()->GetLinearAllocArenaPool());
+  DCHECK_EQ(thread_running_gc_, Thread::Current());
   for (auto& pair : linear_alloc_arenas_) {
     const TrackedArena* arena = pair.first;
     size_t arena_size;
@@ -3516,12 +3608,15 @@ void MarkCompact::ProcessLinearAlloc() {
     ptrdiff_t diff;
     bool others_processing;
     {
-      // Acquire arena-pool's lock so that the arena being worked cannot be
-      // deallocated at the same time.
-      std::lock_guard<std::mutex> lock(arena_pool->GetLock());
+      // Acquire arena-pool's lock (in shared-mode) so that the arena being updated
+      // does not get deleted at the same time. If this critical section is too
+      // long and impacts mutator response time, then we get rid of this lock by
+      // holding onto memory ranges of all deleted (since compaction pause)
+      // arenas until completion finishes.
+      ReaderMutexLock rmu(thread_running_gc_, arena_pool->GetLock());
       // If any arenas were freed since compaction pause then skip them from
       // visiting.
-      if (arena_pool->AreArenasFreed() && !arena_pool->FindAllocatedArena(arena)) {
+      if (arena->IsWaitingForDeletion()) {
         continue;
       }
       uint8_t* last_byte = pair.second;
@@ -3537,11 +3632,12 @@ void MarkCompact::ProcessLinearAlloc() {
           break;
         }
       }
-      DCHECK_NE(space_data, nullptr);
+      CHECK_NE(space_data, nullptr);
       diff = space_data->shadow_.Begin() - space_data->begin_;
       auto visitor = [space_data, last_byte, diff, this, &others_processing](
                          uint8_t* page_begin,
-                         uint8_t* first_obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+                         uint8_t* first_obj,
+                         size_t page_size) REQUIRES_SHARED(Locks::mutator_lock_) {
         // No need to process pages past last_byte as they already have updated
         // gc-roots, if any.
         if (page_begin >= last_byte) {
@@ -3560,7 +3656,14 @@ void MarkCompact::ProcessLinearAlloc() {
         // reason, we used 'release' order for changing the state to 'processed'.
         if (state_arr[page_idx].compare_exchange_strong(
                 expected_state, desired_state, std::memory_order_acquire)) {
-          updater(page_begin + diff, first_obj + diff);
+          // null first_obj indicates that it's a page from arena for
+          // intern-table/class-table. So first object isn't required.
+          if (first_obj != nullptr) {
+            updater.MultiObjectArena(page_begin + diff, first_obj + diff);
+          } else {
+            DCHECK_EQ(page_size, kPageSize);
+            updater.SingleObjectArena(page_begin + diff, page_size);
+          }
           expected_state = PageState::kProcessing;
           if (!minor_fault_initialized_) {
             MapUpdatedLinearAllocPage(
@@ -4364,6 +4467,9 @@ void MarkCompact::FinishPhase() {
     DCHECK_EQ(fstat(moving_to_space_fd_, &buf), 0) << "fstat failed: " << strerror(errno);
     DCHECK_EQ(buf.st_blocks, 0u);
   }
+  GcVisitedArenaPool* arena_pool =
+      static_cast<GcVisitedArenaPool*>(Runtime::Current()->GetLinearAllocArenaPool());
+  arena_pool->DeleteUnusedArenas();
 }
 
 }  // namespace collector

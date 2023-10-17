@@ -514,7 +514,7 @@ class ClassLinker {
   void VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags)
       REQUIRES(!Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
+  void VisitRoots(RootVisitor* visitor, VisitRootFlags flags, bool visit_class_roots = true)
       REQUIRES(!Locks::dex_lock_, !Locks::classlinker_classes_lock_, !Locks::trace_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   // Visits all dex-files accessible by any class-loader or the BCP.
@@ -866,6 +866,9 @@ class ClassLinker {
   // Enable or disable public sdk checks.
   virtual void SetEnablePublicSdkChecks(bool enabled);
   void RemoveDexFromCaches(const DexFile& dex_file);
+  ClassTable* GetBootClassTable() REQUIRES_SHARED(Locks::classlinker_classes_lock_) {
+    return boot_class_table_.get();
+  }
 
  protected:
   virtual bool InitializeClass(Thread* self,
