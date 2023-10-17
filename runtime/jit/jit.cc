@@ -38,6 +38,7 @@
 #include "interpreter/interpreter.h"
 #include "jit-inl.h"
 #include "jit_code_cache.h"
+#include "jit_create.h"
 #include "small_pattern_matcher.h"
 #include "jni/java_vm_ext.h"
 #include "mirror/method_handle_impl.h"
@@ -82,9 +83,7 @@ static constexpr uint32_t kJitSlowStressDefaultWarmupThreshold =
 DEFINE_RUNTIME_DEBUG_FLAG(Jit, kSlowMode);
 
 // JIT compiler
-void* Jit::jit_library_handle_ = nullptr;
 JitCompilerInterface* Jit::jit_compiler_ = nullptr;
-JitCompilerInterface* (*Jit::jit_load_)(void) = nullptr;
 
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
   auto* jit_options = new JitOptions;
@@ -188,16 +187,8 @@ Jit::Jit(JitCodeCache* code_cache, JitOptions* options)
       fd_methods_(-1),
       fd_methods_size_(0) {}
 
-Jit* Jit::Create(JitCodeCache* code_cache, JitOptions* options) {
-  if (jit_load_ == nullptr) {
-    LOG(WARNING) << "Not creating JIT: library not loaded";
-    return nullptr;
-  }
-  jit_compiler_ = (jit_load_)();
-  if (jit_compiler_ == nullptr) {
-    LOG(WARNING) << "Not creating JIT: failed to allocate a compiler";
-    return nullptr;
-  }
+std::unique_ptr<Jit> Jit::Create(JitCodeCache* code_cache, JitOptions* options) {
+  jit_compiler_ = jit_create();
   std::unique_ptr<Jit> jit(new Jit(code_cache, options));
 
   // If the code collector is enabled, check if that still holds:
@@ -230,42 +221,8 @@ Jit* Jit::Create(JitCodeCache* code_cache, JitOptions* options) {
 
   // Notify native debugger about the classes already loaded before the creation of the jit.
   jit->DumpTypeInfoForLoadedTypes(Runtime::Current()->GetClassLinker());
-  return jit.release();
-}
 
-template <typename T>
-bool Jit::LoadSymbol(T* address, const char* name, std::string* error_msg) {
-  *address = reinterpret_cast<T>(dlsym(jit_library_handle_, name));
-  if (*address == nullptr) {
-    *error_msg = std::string("JIT couldn't find ") + name + std::string(" entry point");
-    return false;
-  }
-  return true;
-}
-
-#ifdef ART_STATIC_LIBART
-extern "C" JitCompilerInterface* jit_load();
-#endif
-
-bool Jit::LoadCompilerLibrary([[maybe_unused]] /*out*/ std::string* error_msg) {
-#ifdef ART_STATIC_LIBART
-  jit_load_ = &jit_load;
-  return true;
-#else
-  jit_library_handle_ = dlopen(
-      kIsDebugBuild ? "libartd-compiler.so" : "libart-compiler.so", RTLD_NOW);
-  if (jit_library_handle_ == nullptr) {
-    std::ostringstream oss;
-    oss << "JIT could not load libart-compiler.so: " << dlerror();
-    *error_msg = oss.str();
-    return false;
-  }
-  if (!LoadSymbol(&jit_load_, "jit_load", error_msg)) {
-    dlclose(jit_library_handle_);
-    return false;
-  }
-  return true;
-#endif
+  return jit;
 }
 
 bool Jit::CompileMethodInternal(ArtMethod* method,
@@ -434,10 +391,6 @@ Jit::~Jit() {
   if (jit_compiler_ != nullptr) {
     delete jit_compiler_;
     jit_compiler_ = nullptr;
-  }
-  if (jit_library_handle_ != nullptr) {
-    dlclose(jit_library_handle_);
-    jit_library_handle_ = nullptr;
   }
 }
 
