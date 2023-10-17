@@ -240,7 +240,7 @@ class Jit {
   virtual ~Jit();
 
   // Create JIT itself.
-  static Jit* Create(JitCodeCache* code_cache, JitOptions* options);
+  static std::unique_ptr<Jit> Create(JitCodeCache* code_cache, JitOptions* options);
 
   bool CompileMethod(ArtMethod* method, Thread* self, CompilationKind compilation_kind, bool prejit)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -364,9 +364,6 @@ class Jit {
                                         JValue* result)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Load the compiler library.
-  static bool LoadCompilerLibrary(std::string* error_msg);
-
   ThreadPool* GetThreadPool() const {
     return thread_pool_.get();
   }
@@ -475,10 +472,7 @@ class Jit {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // JIT compiler
-  static void* jit_library_handle_;
   static JitCompilerInterface* jit_compiler_;
-  static JitCompilerInterface* (*jit_load_)(void);
-  template <typename T> static bool LoadSymbol(T*, const char* symbol, std::string* error_msg);
 
   // JIT resources owned by runtime.
   jit::JitCodeCache* const code_cache_;

@@ -71,7 +71,6 @@ art_cc_library {
     name: "libart-dexlayout",
     defaults: [
         "libart-dexlayout-defaults",
-        "dex2oat-pgo-defaults",
     ],
     target: {
         android: {
