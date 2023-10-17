@@ -158,6 +158,10 @@ class ThreadList {
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
 
+  // Wait until there are no Unregister() requests in flight. Only makes sense when we know that
+  // no new calls can be made. e.g. because we're the last thread.
+  void WaitForUnregisterToComplete(Thread* self) REQUIRES(Locks::thread_list_lock_);
+
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -174,6 +178,8 @@ class ThreadList {
   std::list<Thread*> GetList() REQUIRES(Locks::thread_list_lock_) {
     return list_;
   }
+
+  size_t Size() REQUIRES(Locks::thread_list_lock_) { return list_.size(); }
 
   void DumpNativeStacks(std::ostream& os)
       REQUIRES(!Locks::thread_list_lock_);
