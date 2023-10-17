@@ -859,11 +859,7 @@ void Runtime::CallExitHook(jint status) {
 }
 
 void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
-  // Userfaultfd compaction updates weak intern-table page-by-page via
-  // LinearAlloc.
-  if (!GetHeap()->IsPerformingUffdCompaction()) {
-    GetInternTable()->SweepInternTableWeaks(visitor);
-  }
+  GetInternTable()->SweepInternTableWeaks(visitor);
   GetMonitorList()->SweepMonitorList(visitor);
   GetJavaVM()->SweepJniWeakGlobals(visitor);
   GetHeap()->SweepAllocationRecords(visitor);
@@ -2594,14 +2590,8 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
 }
 
 void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
-  // Userfaultfd compaction updates intern-tables and class-tables page-by-page
-  // via LinearAlloc. So don't visit them here.
-  if (GetHeap()->IsPerformingUffdCompaction()) {
-    class_linker_->VisitRoots(visitor, flags, /*visit_class_roots=*/false);
-  } else {
-    intern_table_->VisitRoots(visitor, flags);
-    class_linker_->VisitRoots(visitor, flags, /*visit_class_roots=*/true);
-  }
+  intern_table_->VisitRoots(visitor, flags);
+  class_linker_->VisitRoots(visitor, flags);
   jni_id_manager_->VisitRoots(visitor);
   heap_->VisitAllocationRecords(visitor);
   if (jit_ != nullptr) {
