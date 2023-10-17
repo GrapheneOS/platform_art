@@ -1409,6 +1409,14 @@ void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
   }
 }
 
+void ThreadList::WaitForUnregisterToComplete(Thread* self) {
+  // We hold thread_list_lock_ .
+  while (unregistering_count_ != 0) {
+    LOG(WARNING) << "Waiting for a thread to finish unregistering";
+    Locks::thread_exit_cond_->Wait(self);
+  }
+}
+
 void ThreadList::VisitRootsForSuspendedThreads(RootVisitor* visitor) {
   Thread* const self = Thread::Current();
   std::vector<Thread*> threads_to_visit;
