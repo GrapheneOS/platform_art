@@ -2115,7 +2115,8 @@ static bool AreEflagsSetFrom(HInstruction* cond, HInstruction* branch) {
   return cond->IsCondition() &&
          cond->GetNext() == branch &&
          cond->InputAt(0)->GetType() != DataType::Type::kInt64 &&
-         !DataType::IsFloatingPointType(cond->InputAt(0)->GetType());
+         !DataType::IsFloatingPointType(cond->InputAt(0)->GetType()) &&
+         !cond->GetBlock()->GetGraph()->IsCompilingBaseline();
 }
 
 template<class LabelType>
@@ -2206,7 +2207,13 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
 void LocationsBuilderX86::VisitIf(HIf* if_instr) {
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(if_instr);
   if (IsBooleanValueOrMaterializedCondition(if_instr->InputAt(0))) {
-    locations->SetInAt(0, Location::Any());
+    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresRegister());
+    } else {
+      locations->SetInAt(0, Location::Any());
+    }
   }
 }
 
@@ -2217,6 +2224,34 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
       nullptr : codegen_->GetLabelOf(true_successor);
   Label* false_target = codegen_->GoesToNextBlock(if_instr->GetBlock(), false_successor) ?
       nullptr : codegen_->GetLabelOf(false_successor);
+  if (IsBooleanValueOrMaterializedCondition(if_instr->InputAt(0))) {
+    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+      DCHECK(if_instr->InputAt(0)->IsCondition());
+      Register temp = if_instr->GetLocations()->GetTemp(0).AsRegister<Register>();
+      Register counter = if_instr->GetLocations()->GetTemp(1).AsRegister<Register>();
+      ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+      DCHECK(info != nullptr);
+      BranchCache* cache = info->GetBranchCache(if_instr->GetDexPc());
+      // Currently, not all If branches are profiled.
+      if (cache != nullptr) {
+        uint64_t address =
+            reinterpret_cast64<uint64_t>(cache) + BranchCache::FalseOffset().Int32Value();
+        static_assert(
+            BranchCache::TrueOffset().Int32Value() - BranchCache::FalseOffset().Int32Value() == 2,
+            "Unexpected offsets for BranchCache");
+        NearLabel done;
+        Location lhs = if_instr->GetLocations()->InAt(0);
+        __ movl(temp, Immediate(address));
+        __ movzxw(counter, Address(temp, lhs.AsRegister<Register>(), TIMES_2, 0));
+        __ addw(counter, Immediate(1));
+        __ j(kEqual, &done);
+        __ movw(Address(temp, lhs.AsRegister<Register>(), TIMES_2, 0), counter);
+        __ Bind(&done);
+      }
+    }
+  } else {
+    DCHECK(!GetGraph()->IsCompilingBaseline()) << if_instr->InputAt(0)->DebugName();
+  }
   GenerateTestAndBranch(if_instr, /* condition_input_index= */ 0, true_target, false_target);
 }
 
