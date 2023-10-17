@@ -852,7 +852,9 @@ class X86_64Assembler final : public Assembler {
   void addl(CpuRegister reg, const Address& address);
   void addl(const Address& address, CpuRegister reg);
   void addl(const Address& address, const Immediate& imm);
+  void addw(CpuRegister reg, const Immediate& imm);
   void addw(const Address& address, const Immediate& imm);
+  void addw(const Address& address, CpuRegister reg);
 
   void addq(CpuRegister reg, const Immediate& imm);
   void addq(CpuRegister dst, CpuRegister src);

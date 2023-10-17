@@ -278,8 +278,12 @@ TEST_F(AssemblerX86Test, MovlLoad) {
   DriverStr(RepeatRA(&x86::X86Assembler::movl, "movl {mem}, %{reg}"), "movl-load");
 }
 
-TEST_F(AssemblerX86Test, Addw) {
+TEST_F(AssemblerX86Test, AddwMem) {
   DriverStr(RepeatAI(&x86::X86Assembler::addw, /*imm_bytes*/ 2U, "addw ${imm}, {mem}"), "addw");
+}
+
+TEST_F(AssemblerX86Test, AddwImm) {
+  DriverStr(RepeatrI(&x86::X86Assembler::addw, /*imm_bytes*/ 2U, "addw ${imm}, %{reg}"), "addw");
 }
 
 TEST_F(AssemblerX86Test, Andw) {
