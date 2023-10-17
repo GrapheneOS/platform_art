@@ -789,6 +789,7 @@ class X86Assembler final : public Assembler {
   void addl(const Address& address, Register reg);
   void addl(const Address& address, const Immediate& imm);
   void addw(const Address& address, const Immediate& imm);
+  void addw(Register reg, const Immediate& imm);
 
   void adcl(Register dst, Register src);
   void adcl(Register reg, const Immediate& imm);
