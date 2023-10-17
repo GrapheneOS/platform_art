@@ -201,9 +201,7 @@ static std::string InitVendorPublicLibraries() {
 // contains the extended public libraries that are loaded from the system namespace.
 static std::string InitProductPublicLibraries() {
   std::vector<std::string> sonames;
-  if (is_product_vndk_version_defined()) {
-    ReadExtensionLibraries("/product/etc", &sonames);
-  }
+  ReadExtensionLibraries("/product/etc", &sonames);
   std::string libs = android::base::Join(sonames, ':');
   ALOGD("InitProductPublicLibraries: %s", libs.c_str());
   return libs;
@@ -218,9 +216,6 @@ static std::string InitExtendedPublicLibraries() {
   std::vector<std::string> sonames;
   ReadExtensionLibraries("/system/etc", &sonames);
   ReadExtensionLibraries("/system_ext/etc", &sonames);
-  if (!is_product_vndk_version_defined()) {
-    ReadExtensionLibraries("/product/etc", &sonames);
-  }
   std::string libs = android::base::Join(sonames, ':');
   ALOGD("InitExtendedPublicLibraries: %s", libs.c_str());
   return libs;
@@ -261,10 +256,6 @@ static std::string InitLlndkLibrariesVendor() {
 }
 
 static std::string InitLlndkLibrariesProduct() {
-  if (!is_product_vndk_version_defined()) {
-    ALOGD("InitLlndkLibrariesProduct: No product VNDK version defined");
-    return "";
-  }
   std::string config_file;
   if (IsProductVndkEnabled()) {
     config_file = kLlndkLibrariesFile;
@@ -283,6 +274,11 @@ static std::string InitLlndkLibrariesProduct() {
 }
 
 static std::string InitVndkspLibrariesVendor() {
+  if (!IsVendorVndkEnabled()) {
+    ALOGD("InitVndkspLibrariesVendor: VNDK is deprecated with vendor");
+    return "";
+  }
+
   std::string config_file = kVndkLibrariesFile;
   InsertVndkVersionStr(&config_file, false);
   auto sonames = ReadConfig(config_file, always_true);
@@ -296,8 +292,8 @@ static std::string InitVndkspLibrariesVendor() {
 }
 
 static std::string InitVndkspLibrariesProduct() {
-  if (!is_product_vndk_version_defined()) {
-    ALOGD("InitVndkspLibrariesProduct: No product VNDK version defined");
+  if (!IsProductVndkEnabled()) {
+    ALOGD("InitVndkspLibrariesProduct: VNDK is deprecated with product");
     return "";
   }
   std::string config_file = kVndkLibrariesFile;
@@ -418,14 +414,6 @@ const std::string& apex_jni_libraries(const std::string& apex_ns_name) {
 const std::map<std::string, std::string>& apex_public_libraries() {
   static std::map<std::string, std::string> public_libraries = InitApexLibraries("public");
   return public_libraries;
-}
-
-bool is_product_vndk_version_defined() {
-#if defined(ART_TARGET_ANDROID)
-  return android::sysprop::VndkProperties::product_vndk_version().has_value();
-#else
-  return false;
-#endif
 }
 
 std::string get_vndk_version(bool is_product_vndk) {
