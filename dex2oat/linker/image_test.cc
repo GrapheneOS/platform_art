@@ -215,10 +215,12 @@ TEST_F(ImageTest, ImageChecksum) {
   uint32_t image_begin = ART_BASE_ADDRESS;
   uint32_t image_roots = ART_BASE_ADDRESS + (1 * KB);
   ImageSection sections[ImageHeader::kSectionCount];
+  // We require bitmap section to be at least one page.
+  sections[ImageHeader::kSectionImageBitmap] = ImageSection(0, kPageSize);
   ImageHeader image_header(/*image_reservation_size=*/ kPageSize,
                            /*component_count=*/ 1u,
                            image_begin,
-                           /*image_size=*/ kPageSize,
+                           /*image_size=*/ sizeof(ImageHeader),
                            sections,
                            image_roots,
                            /*oat_checksum=*/ 0u,
@@ -238,12 +240,13 @@ TEST_F(ImageTest, ImageChecksum) {
     ScratchFile location;
     image_file.reset(OS::CreateEmptyFile(location.GetFilename().c_str()));
     const uint8_t* data = reinterpret_cast<const uint8_t*>(&image_header);
-    const uint8_t bitmap[] = {0};
+    std::unique_ptr<uint8_t> bitmap(new uint8_t[kPageSize]);
+    memset(bitmap.get(), 0, kPageSize);
     ASSERT_EQ(image_header.GetImageChecksum(), 0u);
     ASSERT_TRUE(image_header.WriteData(
         image_file,
         data,
-        bitmap,
+        bitmap.get(),
         ImageHeader::kStorageModeUncompressed,
         /*max_image_block_size=*/std::numeric_limits<uint32_t>::max(),
         /*update_checksum=*/ true,
@@ -259,7 +262,7 @@ TEST_F(ImageTest, ImageChecksum) {
     ASSERT_TRUE(image_header.WriteData(
         image_file,
         data,
-        bitmap,
+        bitmap.get(),
         ImageHeader::kStorageModeUncompressed,
         /*max_image_block_size=*/std::numeric_limits<uint32_t>::max(),
         /*update_checksum=*/ true,
