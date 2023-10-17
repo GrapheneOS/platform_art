@@ -201,7 +201,9 @@ class DexFileVerifier {
         init_indices_{std::numeric_limits<size_t>::max(),
                       std::numeric_limits<size_t>::max(),
                       std::numeric_limits<size_t>::max(),
-                      std::numeric_limits<size_t>::max()} {}
+                      std::numeric_limits<size_t>::max()} {
+    CHECK(!dex_file->IsCompactDexFile()) << "Not supported";
+  }
 
   bool Verify();
 
@@ -575,9 +577,15 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
 
 bool DexFileVerifier::CheckHeader() {
   // Check file size from the header.
-  uint32_t expected_size = header_->file_size_;
-  if (size_ != expected_size) {
-    ErrorStringPrintf("Bad file size (%zd, expected %u)", size_, expected_size);
+  CHECK_EQ(size_, header_->file_size_);
+  uint32_t expected_header_size = sizeof(StandardDexFile::Header);
+  if (size_ < expected_header_size) {
+    ErrorStringPrintf("Bad file size (%zd, expected at least %u)", size_, expected_header_size);
+    return false;
+  }
+  uint32_t expected_file_size = dex_file_->GetContainer()->End() - begin_;
+  if (size_ > expected_file_size) {
+    ErrorStringPrintf("Bad file size (%zd, expected at most %u)", size_, expected_file_size);
     return false;
   }
 
@@ -598,10 +606,6 @@ bool DexFileVerifier::CheckHeader() {
     ErrorStringPrintf("Unexpected endian_tag: %x", header_->endian_tag_);
     return false;
   }
-
-  const uint32_t expected_header_size = dex_file_->IsCompactDexFile()
-      ? sizeof(CompactDexFile::Header)
-      : sizeof(StandardDexFile::Header);
 
   if (header_->header_size_ != expected_header_size) {
     ErrorStringPrintf("Bad header size: %ud expected %ud",
