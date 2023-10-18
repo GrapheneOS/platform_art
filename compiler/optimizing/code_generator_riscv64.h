@@ -494,7 +494,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   int32_t VecAddress(LocationSummary* locations,
                      size_t size,
                      /*out*/ XRegister* adjusted_base);
-  void GenConditionalMove(HSelect* select);
 
   template <typename Reg,
             void (Riscv64Assembler::*opS)(Reg, FRegister, FRegister),
