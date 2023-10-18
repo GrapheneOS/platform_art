@@ -78,7 +78,10 @@ const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProp
                           .default_value = "false"},
      SystemPropertyConfig{.name = kPhDisableCompactDex, .default_value = "false"},
      SystemPropertyConfig{.name = kSystemPropertySystemServerCompilerFilterOverride,
-                          .default_value = ""}}};
+                          .default_value = ""},
+     // For testing only (cf. odsign_e2e_tests_full).
+     SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.odrefresh_test_toggle",
+                          .default_value = "false"}}};
 
 // An enumeration of the possible zygote configurations on Android.
 enum class ZygoteKind : uint8_t {
