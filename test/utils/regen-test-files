@@ -430,7 +430,7 @@ class Generator:
               """.join(libraries)
     return f"""
           {library_type}: [
-              {libraries_joined}
+              {libraries_joined},
           ],"""
 
   def gen_libs_list(self, libraries):
@@ -527,11 +527,9 @@ class Generator:
     src_library_rules = []
     test_libraries = []
     if os.path.isdir(os.path.join(run_test_path, "src2")):
-      src_library_rules.append(self.gen_java_library_rule(
-          f"{run_test_module_name}-{source_dir}",
-          source_dir,
-          test_libraries))
-      test_libraries.append(f"\"{run_test_module_name}-src\"")
+      test_library = f"{run_test_module_name}-{source_dir}"
+      src_library_rules.append(self.gen_java_library_rule(test_library, source_dir, test_libraries))
+      test_libraries.append(f"\"{test_library}\"")
       source_dir = "src2"
 
     with open(bp_file, "w") as f:
