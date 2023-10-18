@@ -67,6 +67,13 @@ class Riscv64InstructionSetFeatures final : public InstructionSetFeatures {
   virtual ~Riscv64InstructionSetFeatures() {}
 
  protected:
+  // If `features` is empty, this method doesn't add/remove anything from the
+  // existing set of features.
+  // If `features` is not empty, this method expects it to have exactly one value
+  // which is assumed to be a complete and valid features string. In this case, the
+  // new features will override the old ones. For example, if the existing set of
+  // features were `rv64gcv_zba_zbb_zbs` but `features` is `{"rv64gcv"}`, then the
+  // new features will not have the bits set for Zba, Zbb, or Zbs.
   std::unique_ptr<const InstructionSetFeatures> AddFeaturesFromSplitString(
       const std::vector<std::string>& features, std::string* error_msg) const override;
 
