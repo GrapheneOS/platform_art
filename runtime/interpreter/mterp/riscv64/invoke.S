@@ -82,7 +82,23 @@
 // the string factory call, so we disable thread-caching the resolution of string init, and skip
 // fast paths out to managed ABI calls.
 %def op_invoke_direct(range=""):
-   unimp
+   EXPORT_PC
+   FETCH s7, count=2               // s7 := F|E|D|C or CCCC (range)
+   FETCH_FROM_THREAD_CACHE a0, /*slow path*/2f, t0, t1
+                                   // a0 := ArtMethod*, never String.<init>
+1:
+%  fetch_receiver(reg="a1", vreg="s7", range=range)
+                                   // a1 := fp[C] (this)
+   beqz a1, 3f                     // throw if null
+   tail NterpInvokeDirect${range}  // args a0, a1, s7
+2:
+%  resolve_method_into_a0()        #  a0 := ArtMethod* or String.<init>
+   and t0, a0, 0x1                 // t0 := string-init bit
+   beqz t0, 1b                     // not string init
+   and a0, a0, ~0x1                // clear string-init bit
+   tail NterpInvokeStringInit      // args a0, a1, s7
+3:
+   tail common_errNullObject
 
 
 // invoke-static {vC, vD, vE, vF, vG}, meth@BBBB
@@ -92,12 +108,14 @@
 // method).
 %def op_invoke_static(range=""):
    EXPORT_PC
+   // TODO: Unnecessary if A=0, and unnecessary if nterp-to-nterp.
+   FETCH s7, count=2               // s7 := F|E|D|C or CCCC (range)
    FETCH_FROM_THREAD_CACHE a0, /*slow path*/1f, t0, t1
                                    // a0 := ArtMethod*
-   tail NterpInvokeStatic${range}  // arg a0
+   tail NterpInvokeStatic${range}  // arg a0, s7
 1:
 %  resolve_method_into_a0()
-   tail NterpInvokeStatic${range}  // arg a0
+   tail NterpInvokeStatic${range}  // arg a0, s7
 
 
 // invoke-interface {vC, vD, vE, vF, vG}, meth@BBBB
@@ -254,6 +272,14 @@
    call nterp_get_method
 
 
+%def fetch_receiver(reg="", vreg="", range=""):
+%  if range == 'Range':
+     GET_VREG_OBJECT $reg, $vreg           // reg := refs[CCCC]
+%  else:
+     andi $reg, $vreg, 0xF                 // reg := C
+     GET_VREG_OBJECT $reg, $reg            // reg := refs[C]
+
+
 //
 // These asm blocks are positioned in main.S for visibility to stack walking.
 //
@@ -275,56 +301,113 @@
 // NterpInvokeDirect
 // a0: ArtMethod*
 // a1: this
+// s7: vreg ids F|E|D|C
 %def nterp_invoke_direct(uniq="invoke_direct"):
-   unimp
+   ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
+                                 // s8 := quick code
+%  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_simple")
+   call NterpToNterpInstance     // args a0, a1
+   j .L${uniq}_next_op
+
+.L${uniq}_simple:
+   srliw t0, xINST, 12           // t0 := A
+%  try_simple_args(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_01", uniq=uniq)
+                                 // a2, a3, a4, a5 := fp[D], fp[E], fp[F], fp[G]
+   jalr s8                       // args a0 - a5
+   j .L${uniq}_next_op
+
+.L${uniq}_01:
+   mv s9, zero                   // initialize shorty reg
+%  try_01_args(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
+                                 // a2, fa0 := fp[D], maybe
+   // Return value expected. Get shorty, stash in callee-save to be available on return.
+   // When getting shorty, stash this fast path's arg registers then restore.
+   // Unconditionally restores a2/fa0, even if extra arg not found.
+   mv s0, a2                    // skip fa0, bitwise equiv to a2
+%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+   mv a2, s0
+   fmv.w.x fa0, s0
+.L${uniq}_01_call:
+   jalr s8                       // args a0, a1, and maybe a2, fa0
+   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
+                                 // a0 := fa0 if float return
+   j .L${uniq}_next_op
+
+.L${uniq}_slow:
+%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+%  slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
+   jalr s8                       // args in a0-a5, fa0-fa4
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
+                                 // a0 := fa0 if float return
+.L${uniq}_next_op:
+   FETCH_ADVANCE_INST 3
+   GET_INST_OPCODE t0
+   GOTO_OPCODE t0
 
 
 // NterpInvokeStringInit
 // a0: ArtMethod*
 // a1: this
+// s7: vreg ids F|E|D|C
 %def nterp_invoke_string_init(uniq="invoke_string_init"):
-   unimp
+   ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
+                                 // s8 := quick code
+%  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_slow")
+   call NterpToNterpStringInit   // args a0, a1
+   j .L${uniq}_next_op
+
+.L${uniq}_slow:
+%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+%  slow_setup_args_string_init(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
+   mv s9, a1                     // save "this" in callee-save for return-time fixup
+   jalr s8                       // args in a0-a5, fa0-fa4
+
+.L${uniq}_next_op:
+%  subst_vreg_references(old="s9", new="a0", z0="t0", z1="t1", z2="t2", uniq=uniq)
+   FETCH_ADVANCE_INST 3
+   GET_INST_OPCODE t0
+   GOTO_OPCODE t0
 
 
 // NterpInvokeStatic
 // a0: ArtMethod*
+// s7: vreg ids F|E|D|C
 %def nterp_invoke_static(uniq="invoke_static"):
-   ld s7, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
-                                 // s7 := quick code
-%  try_nterp(quick="s7", z0="t0", skip=f".L{uniq}_simple")
+   ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
+                                 // s8 := quick code
+%  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_simple")
    call NterpToNterpStatic       // arg a0
    j .L${uniq}_next_op
 
 .L${uniq}_simple:
    srliw t0, xINST, 12           // t0 := A
-%  try_simple_args_static(ins="t0", z0="t1", z1="t2", skip=f".L{uniq}_01", uniq=uniq)
-                                 // a1, a2, a3, a4, a5 := C, D, E, F, G
-   jalr s7                       // args a0 - a5
+%  try_simple_args_static(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_01", uniq=uniq)
+                                 // a1, a2, a3, a4, a5 := fp[C], fp[D], fp[E], fp[F], fp[G]
+   jalr s8                       // args a0 - a5
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   mv s8, zero                   // initialize shorty reg
-%  try_01_args_static(ins="t0", z0="t1", z1="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
+   mv s9, zero                   // initialize shorty reg
+%  try_01_args_static(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
+                                 // a1, fa0 := fp[C], maybe
    // Return value expected. Get shorty, stash in callee-save to be available on return.
    // When getting shorty, stash this fast path's arg registers then restore.
-   // Unconditionally stores a1/fa0, even if extra arg not found.
-   fmv.s fs0, fa0
-   mv s10, a1
-%  get_shorty_preserve_a0(shorty="s8", y0="s9")
-   mv a1, s10
-   fmv.s fa0, fs0
+   // Unconditionally restores a1/fa0, even if extra arg not found.
+%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+   fmv.w.x fa0, s11
 .L${uniq}_01_call:
-   jalr s7                       // args a0, and maybe a1, fa0
-   beqz s8, .L${uniq}_next_op    // no shorty, no return value
-%  maybe_float_returned(shorty="s8", z0="t0", z1="t1", uniq=f"{uniq}_0")
+   jalr s8                       // args a0, and maybe a1, fa0
+   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
                                  // a0 := fa0 if float return
    j .L${uniq}_next_op
 
 .L${uniq}_slow:
-%  get_shorty_preserve_a0(shorty="s8", y0="s9")
-%  slow_setup_args(shorty="s8", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", arg_start="0", uniq=uniq)
-   jalr s7                       // args in a0-a5, fa0-fa4
-%  maybe_float_returned(shorty="s8", z0="t0", z1="t1", uniq=f"{uniq}_1")
+%  get_shorty_save_a0(shorty="s9", y0="s10")
+%  slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", arg_start="0", uniq=uniq)
+   jalr s8                       // args in a0-a5, fa0-fa4
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
                                  // a0 := fa0 if float return
 .L${uniq}_next_op:
    FETCH_ADVANCE_INST 3
@@ -407,13 +490,48 @@
    lla $z0, ExecuteNterpImpl
    bne $z0, $quick, $skip
 
+
+// Hardcoded
+// - a0: ArtMethod*
+// Input
+// - ins: arg count
+// - v_fedc: vreg ids F|E|D|C
+// Temporaries: z0
+%def try_simple_args(ins="", v_fedc="", z0="", skip="", uniq=""):
+   lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
+   bexti $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT
+   beqz $z0, $skip
+   li $z0, 2
+   blt $ins, $z0, .L${uniq}_simple_done  // A = 1: no further args.
+   beq $ins, $z0, .L${uniq}_simple_2  // A = 2
+   li $z0, 4
+   blt $ins, $z0, .L${uniq}_simple_3  // A = 3
+   beq $ins, $z0, .L${uniq}_simple_4  // A = 4
+   // A = 5
+   srliw $z0, xINST, 8                // z0 := A|G
+   andi $z0, $z0, 0xF                 // z0 := G
+   GET_VREG a5, $z0
+.L${uniq}_simple_4:
+   srliw $z0, $v_fedc, 12             // z0 := F
+   GET_VREG a4, $z0
+.L${uniq}_simple_3:
+   srliw $z0, $v_fedc, 8              // z0 := F|E
+   andi $z0, $z0, 0xF                 // z0 := E
+   GET_VREG a3, $z0
+.L${uniq}_simple_2:
+   srliw $z0, $v_fedc, 4              // z0 := F|E|D
+   andi $z0, $z0, 0xF                 // z0 := D
+   GET_VREG a2, $z0
+.L${uniq}_simple_done:
+   // a1 already set to "this"
+
+
 // Static variant.
-%def try_simple_args_static(ins="", z0="", z1="", skip="", uniq=""):
+%def try_simple_args_static(ins="", v_fedc="", z0="", skip="", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
    bexti $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT
    beqz $z0, $skip
    beqz $ins, .L${uniq}_simple_done   // A = 0: no further args.
-   FETCH $z1, count=2                 // z1 := F|E|D|C
    li $z0, 2
    blt $ins, $z0, .L${uniq}_simple_1  // A = 1
    beq $ins, $z0, .L${uniq}_simple_2  // A = 2
@@ -425,32 +543,48 @@
    andi $z0, $z0, 0xF                 // z0 := G
    GET_VREG a5, $z0
 .L${uniq}_simple_4:
-   srliw $z0, $z1, 12                 // z0 := F
+   srliw $z0, $v_fedc, 12             // z0 := F
    GET_VREG a4, $z0
 .L${uniq}_simple_3:
-   srliw $z0, $z1, 8                  // z0 := F|E
+   srliw $z0, $v_fedc , 8             // z0 := F|E
    andi $z0, $z0, 0xF                 // z0 := E
    GET_VREG a3, $z0
 .L${uniq}_simple_2:
-   srliw $z0, $z1, 4                  // z0 := F|E|D
+   srliw $z0, $v_fedc, 4              // z0 := F|E|D
    andi $z0, $z0, 0xF                 // z0 := D
    GET_VREG a2, $z0
 .L${uniq}_simple_1:
-   andi $z0, $z1, 0xF                 // z0 := C
+   andi $z0, $v_fedc, 0xF             // z0 := C
    GET_VREG a1, $z0
 .L${uniq}_simple_done:
 
 
+// Check if a 0/1 arg invoke form is possible, set up a2 and fa0 if needed.
+// If a return value expected, move possible float return to a0.
+// zN are temporaries
+// yN are callee-saved
+%def try_01_args(ins="", v_fedc="", z0="", skip="", call="", uniq=""):
+   li $z0, 2                    // z0 := 2
+   blt $ins, $z0, .L${uniq}_01_peek_next  // A = 1
+   bgt $ins, $z0, $skip         // A >= 3
+   // A = 2: this, plus one arg
+   srliw $z0, $v_fedc, 4        // z0 := F|E|D
+   andi $z0, $z0, 0xF           // z0 := D
+   GET_VREG a2, $z0
+   fmv.w.x fa0, a2
+.L${uniq}_01_peek_next:
+%  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
+   bnez $z0, $call
+
+
 // Static variant.
-%def try_01_args_static(ins="", z0="", z1="", skip="", call="", uniq=""):
+%def try_01_args_static(ins="", v_fedc="", z0="", skip="", call="", uniq=""):
    beqz $ins, .L${uniq}_01_peek_next  // A = 0
    li $z0, 1                    // z0 := imm 1
    bgt $ins, $z0, $skip         // A >= 2
    // A = 1
-   FETCH $z1, count=2, width=8, byte=0
-                                // z1 := D|C
-   andi $z1, $z1, 0xF           // z1 := C
-   GET_VREG a1, $z1
+   andi $z0, $v_fedc, 0xF       // z0 := C
+   GET_VREG a1, $z0
    fmv.w.x fa0, a1
 .L${uniq}_01_peek_next:
 %  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
@@ -481,50 +615,115 @@
 .L${uniq}_float_return_done:
 
 
+// Hardcoded:
+// - a0: ArtMethod*
+// - a1: this
+// y0, y1 - callee-save
+%def get_shorty_save_a0_a1(shorty="", y0="", y1=""):
+   mv $y1, a1
+   mv $y0, a0
+   call NterpGetShorty  // arg a0
+   mv $shorty, a0
+   mv a0, $y0
+   mv a1, $y1
+
+
 // Static variant.
-%def get_shorty_preserve_a0(shorty="", y0=""):
+// y0 - callee-save
+%def get_shorty_save_a0(shorty="", y0=""):
    mv $y0, a0
    call NterpGetShorty  // arg a0
    mv $shorty, a0
    mv a0, $y0
 
 
+// Hardcoded: xFP, xREFS
+// Starting with vreg index 0, replace any old reference with new reference.
+%def subst_vreg_references(old="", new="", z0="", z1="", z2="", uniq=""):
+   mv $z0, xFP               // z0 := &fp[0]
+   mv $z1, xREFS             // z1 := &refs[0]
+.L${uniq}_subst_try:
+   lwu $z2, ($z1)
+   bne $z2, $old, .L${uniq}_subst_next
+   sw $new, ($z0)
+   sw $new, ($z1)
+.L${uniq}_subst_next:
+   addi $z0, $z0, 4
+   addi $z1, $z1, 4
+   bne $z1, xFP, .L${uniq}_subst_try
+
+
 // Hardcoded
 // - a0: ArtMethod*
 // - a1: this
-%def slow_setup_args(shorty="", z0="", z1="", z2="", z3="", z4="", arg_start="1", uniq=""):
-   srliw $z0, xINST, 12    // z0 := A
+// Input
+// - vregs: F|E|D|C
+%def slow_setup_args(shorty="", vregs="", z0="", z1="", z2="", z3="", arg_start="1", uniq=""):
+   srliw $z0, xINST, 12     // z0 := A
    li $z1, 5
-   FETCH $z2, count=2      // z2 := F|E|D|C
    blt $z0, $z1, .L${uniq}_slow_gpr
    // A = 5: need vreg G
-   srliw $z1, xINST, 8     // z1 := A|G
-   andi $z1, $z1, 0xF      // z1 := G
-   slliw $z1, $z1, 16      // z1 := G0000
-   add $z2, $z1, $z2       // z2 := G|F|E|D|C
+   srliw $z1, xINST, 8      // z1 := A|G
+   andi $z1, $z1, 0xF       // z1 := G
+   slliw $z1, $z1, 16       // z1 := G0000
+   add $vregs, $z1, $vregs  // vregs := G|F|E|D|C
 
 .L${uniq}_slow_gpr:
-   addi $z0, $shorty, 1    // z0 := first arg of shorty
-   srliw $z1, $z2, 4*$arg_start  // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
+   addi $z0, $shorty, 1     // z0 := first arg of shorty
+   srliw $z1, $vregs, 4*$arg_start
+                            // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
    // linear scan through shorty: extract non-float vregs
 %  if arg_start == "0":  # static can place vC into a1; instance already loaded "this" into a1.
-%    load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
-%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
-%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
-%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
-%  load_vreg_in_gpr(gpr="a5", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_4")
+%    load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
+%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
+%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
+%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
+%  load_vreg_in_gpr(gpr="a5", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_4")
 
 .L${uniq}_slow_fpr:
-   addi $z0, $shorty, 1    // z0 := first arg of shorty
-   srliw $z1, $z2, 4*$arg_start  // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
+   addi $z0, $shorty, 1     // z0 := first arg of shorty
+   srliw $z1, $vregs, 4*$arg_start
+                            // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
    // linear scan through shorty: extract float/double vregs
-%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
-%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
-%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
-%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
+%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
+%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
+%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
+%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
 %  if arg_start == "0":  # static can place G into fa4; instance has only 4 args.
-%    load_vreg_in_fpr(fpr="fa4", shorty=z0, vregs=z1, z0=z3, z1=z4, done=f".L{uniq}_slow_done", uniq=f"{uniq}_4")
+%    load_vreg_in_fpr(fpr="fa4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_4")
 %#:
+.L${uniq}_slow_done:
+
+
+// string-init variant
+%def slow_setup_args_string_init(shorty="", vregs="", z0="", z1="", z2="", z3="", uniq=""):
+   srliw $z0, xINST, 12     // z0 := A
+   li $z1, 5
+   blt $z0, $z1, .L${uniq}_slow_gpr
+   // A = 5: need vreg G
+   srliw $z1, xINST, 8      // z1 := A|G
+   andi $z1, $z1, 0xF       // z1 := G
+   slliw $z1, $z1, 16       // z1 := G0000
+   add $vregs, $z1, $vregs  // vregs := G|F|E|D|C
+
+.L${uniq}_slow_gpr:
+   addi $z0, $shorty, 1     // z0 := first arg of shorty
+   srliw $z1, $vregs, 4     // z1 := (instance) F|E|D or G|F|E|D
+   // linear scan through shorty: extract non-float vregs
+%  load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
+%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
+%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
+%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
+
+   // TODO: java.lang.StringFactory methods don't have floating point args; skip FPR loads.
+.L${uniq}_slow_fpr:
+   addi $z0, $shorty, 1     // z0 := first arg of shorty
+   srliw $z1, $vregs, 4     // z1 := (instance) F|E|D or G|F|E|D
+   // linear scan through shorty: extract float/double vregs
+%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
+%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
+%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
+%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
 .L${uniq}_slow_done:
 
 
@@ -593,18 +792,14 @@
 // a0: ArtMethod*
 // a1: this
 %def nterp_to_nterp_instance():
-   .cfi_startproc
-   unimp
-   .cfi_endproc
+%  nterp_to_nterp(how_vC="in_a1", uniq="n2n_instance")
 
 
 // NterpToNterpStringInit
 // a0: ArtMethod*
 // a1: this
 %def nterp_to_nterp_string_init():
-   .cfi_startproc
-   unimp
-   .cfi_endproc
+%  nterp_to_nterp(how_vC="in_a1", uniq="n2n_string_init")
 
 
 // NterpToNterpStatic
@@ -632,17 +827,17 @@
 
 %def nterp_to_nterp(a1_instance=True, how_vC="", uniq=""):
    .cfi_startproc
-%  setup_nterp_frame(cfi_refs="23", refs="s7", fp="s8", pc="s9", regs="s10", spills_sp="s11", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
-       // sp := callee sp
-       // s7 := callee xREFS
-       // s8 := callee xFP
-       // s9 := callee xPC
-       // s10 := fp/refs vreg count
-       // s11 := caller sp (unused here)
-%  n2n_arg_move(refs="s7", fp="s8", pc="s9", regs="s10", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
-   mv xREFS, s7
-   mv xFP, s8
-   mv xPC, s9
+%  setup_nterp_frame(cfi_refs="23", refs="s8", fp="s9", pc="s10", regs="s11", spills_sp="t0", z0="t1", z1="t2", z2="t3", z3="t4", uniq=uniq)
+       // s8  := callee xREFS
+       // s9  := callee xFP
+       // s10 := callee xPC
+       // s11 := fp/refs vreg count
+       // t0  := post-spills pre-frame sp (unused here)
+       // sp  := post-frame callee sp
+%  n2n_arg_move(refs="s8", fp="s9", pc="s10", regs="s11", v_fedc="s7", z0="t0", z1="t1", z2="t2", z3="t3", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
+   mv xREFS, s8
+   mv xFP, s9
+   mv xPC, s10
    CFI_DEFINE_DEX_PC_WITH_OFFSET(/*tmpReg*/CFI_TMP, /*dexReg*/CFI_DEX, /*dexOffset*/0)
 
    START_EXECUTING_INSTRUCTIONS
@@ -738,7 +933,7 @@
 // - (caller) xINST, xFP, xREFS, xPC
 // - a0: ArtMethod*
 // - a1: this, for instance invoke
-%def n2n_arg_move(refs="", fp="", regs="", pc="", z0="", z1="", z2="", z3="", z4="", a1_instance=True, how_vC="", uniq=""):
+%def n2n_arg_move(refs="", fp="", regs="", pc="", v_fedc="", z0="", z1="", z2="", z3="", a1_instance=True, how_vC="", uniq=""):
    srliw $z0, xINST, 12       // z0 := A (arg count)
 
 %  if not a1_instance:
@@ -749,7 +944,6 @@
    sub $z2, $regs, $z0        // z2 := regs - A; vC's index in fp
    sh2add $z3, $z2, $fp       // z3 := addr of fp[C]
    sh2add $z2, $z2, $refs     // z2 := addr of refs[C]
-   FETCH $z4, 2               // z4 := F|E|D|C
    blt $z0, $z1, .L${uniq}_arg_1
    beq $z0, $z1, .L${uniq}_arg_2
    li $z1, 4
@@ -764,20 +958,20 @@
    GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[G]
    sw $z0, (4*4)($z2)         // refs[G] := z0
 .L${uniq}_arg_4:
-   srliw $z0, $z4, 12         // z0 := F
+   srliw $z0, $v_fedc, 12     // z0 := F
    GET_VREG $z1, $z0          // z1 := xFP[F]
    sw $z1, (3*4)($z3)         // fp[F] := z1
    GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[F]
    sw $z0, (3*4)($z2)         // refs[F] := z0
 .L${uniq}_arg_3:
-   srliw $z0, $z4, 8          // z0 := F|E
+   srliw $z0, $v_fedc, 8      // z0 := F|E
    andi $z0, $z0, 0xF         // z0 := E
    GET_VREG $z1, $z0          // z1 := xFP[E]
    sw $z1, (2*4)($z3)         // fp[E] := z1
    GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[E]
    sw $z0, (2*4)($z2)         // refs[E] := z0
 .L${uniq}_arg_2:
-   srliw $z0, $z4, 4          // z0 := F|E|D
+   srliw $z0, $v_fedc, 4      // z0 := F|E|D
    andi $z0, $z0, 0xF         // z0 := D
    GET_VREG $z1, $z0          // z1 := xFP[D]
    sw $z1, (1*4)($z3)         // fp[D] := z1
@@ -792,7 +986,7 @@
      // string init doesn't read "this"
 %  elif how_vC == "load":
      // static method loads vC just like other vregs
-     andi $z0, $z4, 0xF       // z0 := C
+     andi $z0, $v_fedc, 0xF   // z0 := C
      GET_VREG $z1, $z0        // z1 := xFP[C]
      sw $z1, (0*4)($z3)       // fp[C] := z1
      GET_VREG_OBJECT $z0, $z0 // z0 := xREFS[C]
