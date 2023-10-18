@@ -43,7 +43,15 @@ Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromBitmap(uint32_t bitm
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromCppDefines() {
-  return Riscv64FeaturesUniquePtr(new Riscv64InstructionSetFeatures(BasicFeatures()));
+  // Assume kExtGeneric is always present.
+  uint32_t bits = kExtGeneric;
+#ifdef __riscv_c
+  bits |= kExtCompressed;
+#endif
+#ifdef __riscv_v
+  bits |= kExtVector;
+#endif
+  return FromBitmap(bits);
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromCpuInfo() {
