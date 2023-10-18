@@ -1971,11 +1971,6 @@ int32_t InstructionCodeGeneratorRISCV64::VecAddress(LocationSummary* locations,
   UNREACHABLE();
 }
 
-void InstructionCodeGeneratorRISCV64::GenConditionalMove(HSelect* select) {
-  UNUSED(select);
-  LOG(FATAL) << "Unimplemented";
-}
-
 void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
   DCHECK_EQ(instruction->InputCount(), 2u);
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
@@ -4899,13 +4894,163 @@ void InstructionCodeGeneratorRISCV64::VisitUnresolvedStaticFieldSet(
 }
 
 void LocationsBuilderRISCV64::VisitSelect(HSelect* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  if (DataType::IsFloatingPointType(instruction->GetType())) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+    locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  }  else {
+    HConstant* cst_true_value = instruction->GetTrueValue()->AsConstantOrNull();
+    HConstant* cst_false_value = instruction->GetFalseValue()->AsConstantOrNull();
+    bool is_true_value_constant = cst_true_value != nullptr;
+    bool is_false_value_constant = cst_false_value != nullptr;
+    bool true_value_in_register = !is_true_value_constant;
+    bool false_value_in_register = !is_false_value_constant;
+
+    locations->SetInAt(1, true_value_in_register ? Location::RequiresRegister()
+                                                 : Location::ConstantLocation(cst_true_value));
+    locations->SetInAt(0, false_value_in_register ? Location::RequiresRegister()
+                                                  : Location::ConstantLocation(cst_false_value));
+    locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  }
+
+  if (IsBooleanValueOrMaterializedCondition(instruction->GetCondition())) {
+    locations->SetInAt(2, Location::RequiresRegister());
+  }
 }
 
 void InstructionCodeGeneratorRISCV64::VisitSelect(HSelect* instruction) {
-  UNUSED(instruction);
-  LOG(FATAL) << "Unimplemented";
+  LocationSummary* locations = instruction->GetLocations();
+  HCondition* cond = instruction->GetCondition()->AsCondition();
+  if (!IsBooleanValueOrMaterializedCondition(cond)) {
+    if (DataType::IsFloatingPointType(cond->InputAt(0)->GetType())) {
+      // compare left and right
+      //    ...
+      //   beq/bne/... true_label
+      //   FMv dst, false_value
+      //   J done
+      // true_label:
+      //   FMv dst, true_value
+      // done:
+      // FIXME(riscv64): The type of the select can differ from the type of the condition.
+      FRegister true_register = locations->InAt(0).AsRegister<FRegister>();
+      FRegister false_register = locations->InAt(1).AsRegister<FRegister>();
+      FRegister dst = locations->Out().AsRegister<FRegister>();
+      Riscv64Label true_label;
+      Riscv64Label done_label;
+      DataType::Type type = cond->InputAt(0)->GetType();
+      GenerateFpCondition(
+          cond->GetCondition(), cond->IsGtBias(), type, cond->GetLocations(), &true_label);
+      FMv(dst, false_register, type);
+      __ J(&done_label);
+      __ Bind(&true_label);
+      FMv(dst, true_register, type);
+      __ Bind(&done_label);
+    } else {
+      // compare left and right
+      //   ...
+      //   beq/bne/... true_label
+      //   mv dst, false_register/LoadConst64 dst, false_constant
+      //   J done
+      // true_label:
+      //   mv dst, true_register/LoadConst64 dst, false_constant
+      // done
+      Riscv64Label true_label;
+      Riscv64Label done_label;
+      Location true_location = locations->InAt(0);
+      Location false_location = locations->InAt(1);
+      XRegister dst = locations->Out().AsRegister<XRegister>();
+
+      GenerateIntLongCompareAndBranch(cond->GetCondition(), cond->GetLocations(), &true_label);
+      if (false_location.IsConstant()) {
+        __ LoadConst64(dst, codegen_->GetInt64ValueOf(false_location.GetConstant()->AsConstant()));
+      } else {
+        __ Mv(dst, locations->InAt(1).AsRegister<XRegister>());
+      }
+      __ J(&done_label);
+
+      __ Bind(&true_label);
+      if (true_location.IsConstant()) {
+        __ LoadConst64(dst, codegen_->GetInt64ValueOf(true_location.GetConstant()->AsConstant()));
+      } else {
+        __ Mv(dst, locations->InAt(0).AsRegister<XRegister>());
+      }
+      __ Bind(&done_label);
+    }
+  } else {
+    XRegister cond_register = locations->InAt(2).AsRegister<XRegister>();
+
+    if (DataType::IsFloatingPointType(instruction->GetType())) {
+      // fmv.x.d/w tmp0, true_value
+      // fmv.x.d/w tmp1, false_value
+      // neg tmp2, cond
+      // xor tmp3, tmp0, tmp1
+      // and tmp3, tmp3, tmp2
+      // xor tmp2, tmp0, tmp3
+      // fmv.d/w.x fd, tmp2
+      FRegister true_register = locations->InAt(0).AsRegister<FRegister>();
+      FRegister false_register = locations->InAt(1).AsRegister<FRegister>();
+      FRegister dst = locations->Out().AsRegister<FRegister>();
+      ScratchRegisterScope srs(GetAssembler());
+      // FIXME(riscv64): We have only two scratch registers.
+      XRegister tmp0 = srs.AllocateXRegister();
+      XRegister tmp1 = srs.AllocateXRegister();
+      XRegister tmp2 = srs.AllocateXRegister();
+      XRegister tmp3 = srs.AllocateXRegister();
+      if (DataType::Is64BitType(instruction->GetType())) {
+        __ FMvXD(tmp0, true_register);
+      } else {
+        __ FMvXW(tmp0, true_register);
+      }
+      if (DataType::Is64BitType(instruction->GetType())) {
+        __ FMvXD(tmp1, false_register);
+      } else {
+        __ FMvXW(tmp1, false_register);
+      }
+      __ Neg(tmp2, cond_register);
+      __ Xor(tmp3, tmp0, tmp1);
+      __ And(tmp3, tmp3, tmp2);
+      __ Xor(tmp2, tmp0, tmp3);
+      if (DataType::Is64BitType(instruction->GetType())) {
+        __ FMvDX(dst, tmp2);
+      } else {
+        __ FMvWX(dst, tmp2);
+      }
+    } else {
+      // li rs1, true_value, if needed
+      // li rs2, false_value, if needed
+      // neg tmp1, cond
+      // xor tmp2, rs1, rs2
+      // and tmp2, tmp2, tmp1
+      // xor rd, rs1, tmp2
+      Location true_location = locations->InAt(0);
+      Location false_location = locations->InAt(1);
+      XRegister dst = locations->Out().AsRegister<XRegister>();
+      ScratchRegisterScope srs(GetAssembler());
+      XRegister true_register;
+      XRegister false_register;
+      XRegister tmp1 = srs.AllocateXRegister();
+      XRegister tmp2 = srs.AllocateXRegister();
+      if (true_location.IsConstant()) {
+        true_register = srs.AllocateXRegister();
+        __ LoadConst64(true_register,
+                       codegen_->GetInt64ValueOf(true_location.GetConstant()->AsConstant()));
+      } else {
+        true_register = locations->InAt(0).AsRegister<XRegister>();
+      }
+      if (false_location.IsConstant()) {
+        false_register = srs.AllocateXRegister();
+        __ LoadConst64(false_register,
+                       codegen_->GetInt64ValueOf(false_location.GetConstant()->AsConstant()));
+      } else {
+        false_register = locations->InAt(1).AsRegister<XRegister>();
+      }
+      __ Neg(tmp1, cond_register);
+      __ Xor(tmp2, true_register, false_register);
+      __ And(tmp2, tmp2, tmp1);
+      __ Xor(dst, true_register, tmp2);
+    }
+  }
 }
 
 void LocationsBuilderRISCV64::VisitSub(HSub* instruction) {
