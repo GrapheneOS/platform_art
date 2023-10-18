@@ -27,10 +27,14 @@ namespace art {
 
 using android::base::StringPrintf;
 
-// Basic feature set is rv64gcv, aka rv64imafdcv.
+// Basic feature set is rv64gcv_zba_zbb_zbs, aka rv64imafdcv_zba_zbb_zbs.
 constexpr uint32_t BasicFeatures() {
   return Riscv64InstructionSetFeatures::kExtGeneric |
-         Riscv64InstructionSetFeatures::kExtCompressed | Riscv64InstructionSetFeatures::kExtVector;
+         Riscv64InstructionSetFeatures::kExtCompressed |
+         Riscv64InstructionSetFeatures::kExtVector |
+         Riscv64InstructionSetFeatures::kExtZba |
+         Riscv64InstructionSetFeatures::kExtZbb |
+         Riscv64InstructionSetFeatures::kExtZbs;
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromVariant(
@@ -53,6 +57,15 @@ Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromCppDefines() {
 #endif
 #ifdef __riscv_v
   bits |= kExtVector;
+#endif
+#ifdef __riscv_zba
+  bits |= kExtZba;
+#endif
+#ifdef __riscv_zbb
+  bits |= kExtZbb;
+#endif
+#ifdef __riscv_zbs
+  bits |= kExtZbs;
 #endif
   return FromBitmap(bits);
 }
@@ -90,6 +103,9 @@ static const std::pair<uint32_t, std::string> kExtensionList[] = {
     {Riscv64InstructionSetFeatures::kExtGeneric, "rv64g"},
     {Riscv64InstructionSetFeatures::kExtCompressed, "c"},
     {Riscv64InstructionSetFeatures::kExtVector, "v"},
+    {Riscv64InstructionSetFeatures::kExtZba, "_zba"},
+    {Riscv64InstructionSetFeatures::kExtZbb, "_zbb"},
+    {Riscv64InstructionSetFeatures::kExtZbs, "_zbs"},
 };
 
 std::string Riscv64InstructionSetFeatures::GetFeatureString() const {
