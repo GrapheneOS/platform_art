@@ -25,7 +25,7 @@ java_test {
     test_config_template: ":art-run-test-target-template",
     srcs: ["src2/**/*.java"],
     static_libs: [
-        "art-run-test-843-default-interface-src"
+        "art-run-test-843-default-interface-src",
     ],
     data: [
         ":art-run-test-843-default-interface-expected-stdout",

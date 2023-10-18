@@ -25,7 +25,7 @@ java_test {
     test_config_template: ":art-run-test-target-no-test-suite-tag-template",
     srcs: ["src2/**/*.java"],
     static_libs: [
-        "art-run-test-823-cha-inlining-src"
+        "art-run-test-823-cha-inlining-src",
     ],
     data: [
         ":art-run-test-823-cha-inlining-expected-stdout",
