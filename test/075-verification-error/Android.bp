@@ -25,7 +25,7 @@ java_test {
     test_config_template: ":art-run-test-target-template",
     srcs: ["src2/**/*.java"],
     static_libs: [
-        "art-run-test-075-verification-error-src"
+        "art-run-test-075-verification-error-src",
     ],
     data: [
         ":art-run-test-075-verification-error-expected-stdout",
