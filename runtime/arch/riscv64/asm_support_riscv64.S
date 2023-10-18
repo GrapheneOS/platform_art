@@ -588,6 +588,54 @@
 .endm
 
 
+// CFI note. This macro is used where the CFA rule is a dwarf expression, so adjustment of SP does
+// not affect CFA computation. We also elide CFI descriptors for the argument registers, because
+// they can be recovered from the stack in a debugging scenario.
+.macro SPILL_ALL_ARGUMENTS
+#if (FRAME_SIZE_SAVE_ARGS_ONLY != 128)
+#error "FRAME_SIZE_SAVE_ARGS_ONLY(riscv64) not as expected."
+#endif
+    addi sp, sp, -FRAME_SIZE_SAVE_ARGS_ONLY
+    sd a0,   (8*0)(sp)
+    sd a1,   (8*1)(sp)
+    sd a2,   (8*2)(sp)
+    sd a3,   (8*3)(sp)
+    sd a4,   (8*4)(sp)
+    sd a5,   (8*5)(sp)
+    sd a6,   (8*6)(sp)
+    sd a7,   (8*7)(sp)
+    fsd fa0, (8*8)(sp)
+    fsd fa1, (8*9)(sp)
+    fsd fa2, (8*10)(sp)
+    fsd fa3, (8*11)(sp)
+    fsd fa4, (8*12)(sp)
+    fsd fa5, (8*13)(sp)
+    fsd fa6, (8*14)(sp)
+    fsd fa7, (8*15)(sp)
+.endm
+
+
+.macro RESTORE_ALL_ARGUMENTS
+    ld a0,   (8*0)(sp)
+    ld a1,   (8*1)(sp)
+    ld a2,   (8*2)(sp)
+    ld a3,   (8*3)(sp)
+    ld a4,   (8*4)(sp)
+    ld a5,   (8*5)(sp)
+    ld a6,   (8*6)(sp)
+    ld a7,   (8*7)(sp)
+    fld fa0, (8*8)(sp)
+    fld fa1, (8*9)(sp)
+    fld fa2, (8*10)(sp)
+    fld fa3, (8*11)(sp)
+    fld fa4, (8*12)(sp)
+    fld fa5, (8*13)(sp)
+    fld fa6, (8*14)(sp)
+    fld fa7, (8*15)(sp)
+    addi sp, sp, FRAME_SIZE_SAVE_ARGS_ONLY
+.endm
+
+
 .macro SETUP_NTERP_SAVE_CALLEE_SAVES
 #if (NTERP_SIZE_SAVE_CALLEE_SAVES != 8*(12 + 1 + 10 + 1))
 #error "NTERP_SIZE_SAVE_CALLEE_SAVES(RISCV64) size not as expected."
