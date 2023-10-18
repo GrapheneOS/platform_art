@@ -1,5 +1,4 @@
-#
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,23 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-ART_COMPILER {
-  global:
-    extern "C++" {
-      art::debug::MakeMiniDebugInfo*;
-      *art::debug::WriteDebugInfo*;
-      art::Compiler::Create*;
-      art::CompilerOptions::*;
-      art::CreateTrampoline*;
-      art::IntrinsicObjects::*;
-      art::linker::operator*art::linker::LinkerPatch::Type*;
-      art::operator*art::Whence*;
-    };
+.class public LTestCase;
 
-    jit_load;
+.super Ljava/lang/Object;
 
-  local:
-    *;
-};
+## CHECK-START: int TestCase.withBranch(boolean) select_generator (before)
+## CHECK: If true_count:2 false_count:1
+.method public static withBranch(Z)I
+  .registers 2
+  const/4 v0, 0x1
+  if-nez v1, :return_2
+  return v0
+:return_2
+  const/4 v0, 0x2
+  return v0
+.end method

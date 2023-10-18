@@ -69,7 +69,6 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libartbase",
-        "libart-compiler",
     ],
     apex_available: [
         "com.android.art",
@@ -86,7 +85,6 @@ art_cc_binary {
     shared_libs: [
         "libartd",
         "libartbased",
-        "libartd-compiler",
         "libdexfiled",
     ],
     apex_available: [

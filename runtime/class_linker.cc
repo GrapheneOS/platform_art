@@ -2426,17 +2426,9 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     boot_class_table_->VisitRoots(root_visitor);
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
     if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
-      gc::Heap* const heap = Runtime::Current()->GetHeap();
-      // Don't visit class-loaders if compacting with userfaultfd GC as these
-      // weaks are updated using Runtime::SweepSystemWeaks() and the GC doesn't
-      // tolerate double updates.
-      if (!heap->IsPerformingUffdCompaction()) {
-        for (const ClassLoaderData& data : class_loaders_) {
-          GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
-          root.VisitRoot(visitor, RootInfo(kRootVMInternal));
-        }
-      } else {
-        DCHECK_EQ(heap->CurrentCollectorType(), gc::CollectorType::kCollectorTypeCMC);
+      for (const ClassLoaderData& data : class_loaders_) {
+        GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
+        root.VisitRoot(visitor, RootInfo(kRootVMInternal));
       }
     }
   } else if (!gUseReadBarrier && (flags & kVisitRootFlagNewRoots) != 0) {
@@ -2476,9 +2468,11 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
+void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags, bool visit_class_roots) {
   class_roots_.VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
-  VisitClassRoots(visitor, flags);
+  if (visit_class_roots) {
+    VisitClassRoots(visitor, flags);
+  }
   // Instead of visiting the find_array_class_cache_ drop it so that it doesn't prevent class
   // unloading if we are marking roots.
   DropFindArrayClassCache();

@@ -37,6 +37,7 @@ cc_defaults {
         "libartpalette",
     ],
     header_libs: [
+        "libart_headers",
         "libart_generated_headers",
     ],
 }
@@ -65,11 +66,23 @@ art_cc_defaults {
             ],
         },
     },
-    runtime_libs: [
-        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
-        // `libart-disassembler.so`.
-        "libart-disassembler",
-    ],
+    // In order to save memory on device `art::HGraphVisualizerDisassembler` loads
+    // `libart-disassembler.so` dynamically. Host builds of `libart-compiler` depend on
+    // `libart-disassembler` directly with `shared_libs` or `static_libs`.
+    target: {
+        host: {
+            shared: {
+                shared_libs: [
+                    "libart-disassembler",
+                ],
+            },
+        },
+        android: {
+            runtime_libs: [
+                "libart-disassembler",
+            ],
+        },
+    },
 }
 
 // Dependencies of libartd-compiler, used to propagate libartd-compiler deps when static linking.
@@ -96,11 +109,23 @@ art_cc_defaults {
             ],
         },
     },
-    runtime_libs: [
-        // `art::HGraphVisualizerDisassembler::HGraphVisualizerDisassembler` may dynamically load
-        // `libartd-disassembler.so`.
-        "libartd-disassembler",
-    ],
+    // In order to save memory on device `art::HGraphVisualizerDisassembler` loads
+    // `libartd-disassembler.so` dynamically. Host builds of `libartd-compiler` depend on
+    // `libartd-disassembler` directly with `shared_libs` or `static_libs`.
+    target: {
+        host: {
+            shared: {
+                shared_libs: [
+                    "libartd-disassembler",
+                ],
+            },
+        },
+        android: {
+            runtime_libs: [
+                "libartd-disassembler",
+            ],
+        },
+    },
 }
 
 art_cc_defaults {
@@ -210,6 +235,7 @@ art_cc_defaults {
             srcs: [
                 "jni/quick/riscv64/calling_convention_riscv64.cc",
                 "optimizing/code_generator_riscv64.cc",
+                "optimizing/critical_native_abi_fixup_riscv64.cc",
                 "optimizing/intrinsics_riscv64.cc",
                 "utils/riscv64/assembler_riscv64.cc",
                 "utils/riscv64/jni_macro_assembler_riscv64.cc",
@@ -244,14 +270,7 @@ art_cc_defaults {
             ],
         },
     },
-    static: {
-        cflags: ["-DART_STATIC_LIBART_COMPILER"],
-    },
     generated_sources: ["art_compiler_operator_srcs"],
-    shared_libs: [
-        "libbase",
-        "liblzma", // libelffile(d) dependency; must be repeated here since it's a static lib.
-    ],
     header_libs: [
         "art_cmdlineparser_headers", // For compiler_options.
         "art_disassembler_headers",
@@ -259,8 +278,6 @@ art_cc_defaults {
     ],
 
     export_include_dirs: ["."],
-    // Not using .map.txt because this is an internal API
-    version_script: "libart-compiler.map",
 }
 
 cc_defaults {
@@ -285,18 +302,11 @@ gensrcs {
     output_extension: "operator_out.cc",
 }
 
-art_cc_library {
+art_cc_library_static {
     name: "libart-compiler",
     defaults: [
         "libart-compiler-defaults",
-        "dex2oat-pgo-defaults",
-        "art_hugepage_defaults",
         "libart-compiler_deps",
-    ],
-    shared_libs: [
-        // libart is not included in libart-compiler_deps to allow libart-compiler(-for-test)
-        // select suitable libart library (either with or without LTO).
-        "libart",
     ],
     target: {
         android: {
@@ -319,12 +329,7 @@ art_cc_library_static {
     name: "libart-compiler-for-test",
     defaults: [
         "libart-compiler-defaults",
-        "dex2oat-pgo-defaults",
-        "art_hugepage_defaults",
         "libart-compiler_deps",
-    ],
-    header_libs: [
-        "libart_headers",
     ],
 }
 
@@ -333,7 +338,6 @@ cc_defaults {
     defaults: [
         "libart-compiler_static_base_defaults",
         "libart-disassembler_static_defaults",
-        "libart_static_defaults",
         "libartbase_static_defaults",
         "libdexfile_static_defaults",
         "libprofile_static_defaults",
@@ -349,7 +353,6 @@ cc_defaults {
     defaults: [
         "libart-compiler_static_base_defaults",
         "libart-disassembler_static_defaults",
-        "libart-for-test_static_defaults",
         "libartbase_static_defaults",
         "libdexfile_static_defaults",
         "libprofile_static_defaults",
@@ -357,15 +360,12 @@ cc_defaults {
     whole_static_libs: ["libart-compiler-for-test"],
 }
 
-art_cc_library {
+art_cc_library_static {
     name: "libartd-compiler",
     defaults: [
         "art_debug_defaults",
         "libart-compiler-defaults",
         "libartd-compiler_deps",
-    ],
-    shared_libs: [
-        "libartd",
     ],
     apex_available: [
         "com.android.art.debug",
@@ -382,7 +382,6 @@ cc_defaults {
         "libart-compiler_static_base_defaults",
         "libartbased_static_defaults",
         "libartd-disassembler_static_defaults",
-        "libartd_static_defaults",
         "libdexfiled_static_defaults",
         "libprofiled_static_defaults",
     ],
@@ -399,11 +398,23 @@ cc_defaults {
         "libart-compiler_static_base_defaults",
         "libartbased_static_defaults",
         "libartd-disassembler_static_defaults",
-        "libartd-for-test_static_defaults",
         "libdexfiled_static_defaults",
         "libprofiled_static_defaults",
     ],
     whole_static_libs: ["libartd-compiler"],
+}
+
+// Export headers required by `libart-runtime` to use JIT from `libart-compiler`.
+cc_library_headers {
+    name: "libart-compiler_jit_headers",
+    defaults: ["art_defaults"],
+    host_supported: true,
+    export_include_dirs: ["export"],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+        "test_broken_com.android.art",
+    ],
 }
 
 // Properties common to `libart-compiler-gtest` and `libartd-compiler-gtest`.
@@ -411,6 +422,9 @@ art_cc_defaults {
     name: "libart-compiler-gtest-common",
     srcs: [
         "common_compiler_test.cc",
+    ],
+    header_libs: [
+        "libart_headers",
     ],
 }
 

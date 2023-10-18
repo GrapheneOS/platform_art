@@ -25,14 +25,24 @@
 
 namespace art {
 
-ProfilingInfo::ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
+ProfilingInfo::ProfilingInfo(ArtMethod* method,
+                             const std::vector<uint32_t>& inline_cache_entries,
+                             const std::vector<uint32_t>& branch_cache_entries)
       : baseline_hotness_count_(GetOptimizeThreshold()),
         method_(method),
-        number_of_inline_caches_(entries.size()),
+        number_of_inline_caches_(inline_cache_entries.size()),
+        number_of_branch_caches_(branch_cache_entries.size()),
         current_inline_uses_(0) {
-  memset(&cache_, 0, number_of_inline_caches_ * sizeof(InlineCache));
+  InlineCache* inline_caches = GetInlineCaches();
+  memset(inline_caches, 0, number_of_inline_caches_ * sizeof(InlineCache));
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
-    cache_[i].dex_pc_ = entries[i];
+    inline_caches[i].dex_pc_ = inline_cache_entries[i];
+  }
+
+  BranchCache* branch_caches = GetBranchCaches();
+  memset(branch_caches, 0, number_of_branch_caches_ * sizeof(BranchCache));
+  for (size_t i = 0; i < number_of_branch_caches_; ++i) {
+    branch_caches[i].dex_pc_ = branch_cache_entries[i];
   }
 }
 
@@ -45,14 +55,30 @@ ProfilingInfo* ProfilingInfo::Create(Thread* self, ArtMethod* method) {
   // instructions we are interested in profiling.
   DCHECK(!method->IsNative());
 
-  std::vector<uint32_t> entries;
+  std::vector<uint32_t> inline_cache_entries;
+  std::vector<uint32_t> branch_cache_entries;
   for (const DexInstructionPcPair& inst : method->DexInstructions()) {
     switch (inst->Opcode()) {
       case Instruction::INVOKE_VIRTUAL:
       case Instruction::INVOKE_VIRTUAL_RANGE:
       case Instruction::INVOKE_INTERFACE:
       case Instruction::INVOKE_INTERFACE_RANGE:
-        entries.push_back(inst.DexPc());
+        inline_cache_entries.push_back(inst.DexPc());
+        break;
+
+      case Instruction::IF_EQ:
+      case Instruction::IF_EQZ:
+      case Instruction::IF_NE:
+      case Instruction::IF_NEZ:
+      case Instruction::IF_LT:
+      case Instruction::IF_LTZ:
+      case Instruction::IF_LE:
+      case Instruction::IF_LEZ:
+      case Instruction::IF_GT:
+      case Instruction::IF_GTZ:
+      case Instruction::IF_GE:
+      case Instruction::IF_GEZ:
+        branch_cache_entries.push_back(inst.DexPc());
         break;
 
       default:
@@ -61,23 +87,37 @@ ProfilingInfo* ProfilingInfo::Create(Thread* self, ArtMethod* method) {
   }
 
   // We always create a `ProfilingInfo` object, even if there is no instruction we are
-  // interested in. The JIT code cache internally uses it.
+  // interested in. The JIT code cache internally uses it for hotness counter.
 
   // Allocate the `ProfilingInfo` object int the JIT's data space.
   jit::JitCodeCache* code_cache = Runtime::Current()->GetJit()->GetCodeCache();
-  return code_cache->AddProfilingInfo(self, method, entries);
+  return code_cache->AddProfilingInfo(self, method, inline_cache_entries, branch_cache_entries);
 }
 
 InlineCache* ProfilingInfo::GetInlineCache(uint32_t dex_pc) {
   // TODO: binary search if array is too long.
+  InlineCache* caches = GetInlineCaches();
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
-    if (cache_[i].dex_pc_ == dex_pc) {
-      return &cache_[i];
+    if (caches[i].dex_pc_ == dex_pc) {
+      return &caches[i];
     }
   }
   ScopedObjectAccess soa(Thread::Current());
   LOG(FATAL) << "No inline cache found for "  << ArtMethod::PrettyMethod(method_) << "@" << dex_pc;
   UNREACHABLE();
+}
+
+BranchCache* ProfilingInfo::GetBranchCache(uint32_t dex_pc) {
+  // TODO: binary search if array is too long.
+  BranchCache* caches = GetBranchCaches();
+  for (size_t i = 0; i < number_of_branch_caches_; ++i) {
+    if (caches[i].dex_pc_ == dex_pc) {
+      return &caches[i];
+    }
+  }
+  // Currently, only if instructions are profiled. The compiler will see other
+  // branches, like switches.
+  return nullptr;
 }
 
 void ProfilingInfo::AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls) {

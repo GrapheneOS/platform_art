@@ -160,7 +160,7 @@ class ThreadList {
 
   // Wait until there are no Unregister() requests in flight. Only makes sense when we know that
   // no new calls can be made. e.g. because we're the last thread.
-  void WaitForUnregisterToComplete() REQUIRES(Locks::thread_list_lock_);
+  void WaitForUnregisterToComplete(Thread* self) REQUIRES(Locks::thread_list_lock_);
 
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags) const
       REQUIRES_SHARED(Locks::mutator_lock_);

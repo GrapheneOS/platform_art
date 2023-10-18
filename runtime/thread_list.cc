@@ -1409,11 +1409,11 @@ void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
   }
 }
 
-void ThreadList::WaitForUnregisterToComplete() {
+void ThreadList::WaitForUnregisterToComplete(Thread* self) {
   // We hold thread_list_lock_ .
   while (unregistering_count_ != 0) {
     LOG(WARNING) << "Waiting for a thread to finish unregistering";
-    Locks::thread_exit_cond_->Wait(Thread::Current());
+    Locks::thread_exit_cond_->Wait(self);
   }
 }
 

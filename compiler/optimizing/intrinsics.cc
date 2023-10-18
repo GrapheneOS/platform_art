@@ -32,6 +32,7 @@
 #include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 
@@ -410,6 +411,56 @@ void IntrinsicVisitor::AssertNonMovableStringClass() {
     ObjPtr<mirror::Class> string_class = GetClassRoot<mirror::String>();
     CHECK(!art::Runtime::Current()->GetHeap()->IsMovableObject(string_class));
   }
+}
+
+void InsertFpToIntegralIntrinsic(HInvokeStaticOrDirect* invoke, size_t input_index) {
+  DCHECK_EQ(invoke->GetCodePtrLocation(), CodePtrLocation::kCallCriticalNative);
+  DCHECK(!invoke->GetBlock()->GetGraph()->IsDebuggable())
+      << "Unexpected direct @CriticalNative call in a debuggable graph!";
+  DCHECK_LT(input_index, invoke->GetNumberOfArguments());
+  HInstruction* input = invoke->InputAt(input_index);
+  DataType::Type input_type = input->GetType();
+  DCHECK(DataType::IsFloatingPointType(input_type));
+  bool is_double = (input_type == DataType::Type::kFloat64);
+  DataType::Type converted_type = is_double ? DataType::Type::kInt64 : DataType::Type::kInt32;
+  ArtMethod* resolved_method = is_double
+      ? WellKnownClasses::java_lang_Double_doubleToRawLongBits
+      : WellKnownClasses::java_lang_Float_floatToRawIntBits;
+  DCHECK(resolved_method != nullptr);
+  DCHECK(resolved_method->IsIntrinsic());
+  MethodReference target_method(nullptr, 0);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    target_method =
+        MethodReference(resolved_method->GetDexFile(), resolved_method->GetDexMethodIndex());
+  }
+  // Use arbitrary dispatch info that does not require the method argument.
+  HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
+      MethodLoadKind::kBssEntry,
+      CodePtrLocation::kCallArtMethod,
+      /*method_load_data=*/ 0u
+  };
+  HBasicBlock* block = invoke->GetBlock();
+  ArenaAllocator* allocator = block->GetGraph()->GetAllocator();
+  HInvokeStaticOrDirect* new_input = new (allocator) HInvokeStaticOrDirect(
+      allocator,
+      /*number_of_arguments=*/ 1u,
+      converted_type,
+      invoke->GetDexPc(),
+      /*method_reference=*/ MethodReference(nullptr, dex::kDexNoIndex),
+      resolved_method,
+      dispatch_info,
+      kStatic,
+      target_method,
+      HInvokeStaticOrDirect::ClinitCheckRequirement::kNone,
+      /*enable_intrinsic_opt=*/ true);
+  // The intrinsic has no side effects and does not need the environment.
+  new_input->SetSideEffects(SideEffects::None());
+  IntrinsicOptimizations opt(new_input);
+  opt.SetDoesNotNeedEnvironment();
+  new_input->SetRawInputAt(0u, input);
+  block->InsertInstructionBefore(new_input, invoke);
+  invoke->ReplaceInput(new_input, input_index);
 }
 
 }  // namespace art
