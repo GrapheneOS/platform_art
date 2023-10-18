@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_INTERN_TABLE_H_
 #define ART_RUNTIME_INTERN_TABLE_H_
 
-#include "base/allocator.h"
 #include "base/dchecked_vector.h"
+#include "base/gc_visited_arena_pool.h"
 #include "base/hash_set.h"
 #include "base/mutex.h"
 #include "gc/weak_root_state.h"
@@ -109,11 +109,12 @@ class InternTable {
     }
   };
 
-  using UnorderedSet = HashSet<GcRoot<mirror::String>,
-                               GcRootEmptyFn,
-                               StringHash,
-                               StringEquals,
-                               TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>>;
+  using UnorderedSet =
+      HashSet<GcRoot<mirror::String>,
+              GcRootEmptyFn,
+              StringHash,
+              StringEquals,
+              GcRootArenaAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>>;
 
   InternTable();
 
