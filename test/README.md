@@ -177,7 +177,7 @@ $ art/test.py -b --host -r
 $ art/test.py --target -r
 ```
 
-## Running one run-test on the build host
+## Building and running one run-test on the build host
 
 ```sh
 $ # Build test files
@@ -192,11 +192,15 @@ Or:
 $ art/test.py -b --host -r -t 001-HelloWorld
 ```
 
-## Running one run-test on the target device
+## Building and running one run-test on the target device
 
 ```sh
-$ art/test.py --target -r -t 001-HelloWorld
+$ art/test.py --target -b -r -t 001-HelloWorld
 ```
+
+The `-b` option (re)builds the shard for the given test(s) and pushes it to
+device. However the push may not include all necessary dependencies, e.g. test
+`.so` libraries like `libarttest.so`.
 
 ## Running one gtest on the build host
 
