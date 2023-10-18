@@ -255,7 +255,7 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
 
       // Different name is useful for debugging
       namespace_name = kVendorClassloaderNamespaceName;
-    } else if (apk_origin == APK_ORIGIN_PRODUCT) {
+    } else if (apk_origin == APK_ORIGIN_PRODUCT && is_product_treblelized()) {
       unbundled_app_origin = APK_ORIGIN_PRODUCT;
       apk_origin_msg = "unbundled product apk";
 
@@ -405,7 +405,10 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
   auto product_libs = filter_public_libraries(target_sdk_version, uses_libraries,
                                               product_public_libraries());
   if (!product_libs.empty()) {
-    auto target_ns = NativeLoaderNamespace::GetExportedNamespace(kProductNamespaceName, is_bridged);
+    auto target_ns = system_ns;
+    if (is_product_treblelized()) {
+      target_ns = NativeLoaderNamespace::GetExportedNamespace(kProductNamespaceName, is_bridged);
+    }
     if (target_ns.ok()) {
       linked = app_ns->Link(&target_ns.value(), product_libs);
       if (!linked.ok()) {
