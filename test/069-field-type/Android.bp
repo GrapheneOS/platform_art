@@ -25,7 +25,7 @@ java_test {
     test_config_template: ":art-run-test-target-template",
     srcs: ["src2/**/*.java"],
     static_libs: [
-        "art-run-test-069-field-type-src"
+        "art-run-test-069-field-type-src",
     ],
     data: [
         ":art-run-test-069-field-type-expected-stdout",

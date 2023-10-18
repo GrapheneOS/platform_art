@@ -4024,6 +4024,9 @@
       "name": "art-run-test-660-checker-simd-sad"
     },
     {
+      "name": "art-run-test-661-checker-simd-cf-loops"
+    },
+    {
       "name": "art-run-test-661-checker-simd-reduc"
     },
     {
@@ -4246,6 +4249,11 @@
   "avf-presubmit": [
     {
       "name": "ComposHostTestCases"
+    }
+  ],
+  "postsubmit": [
+    {
+      "name": "art-run-test-2265-checker-select-binary-unary"
     }
   ]
 }
