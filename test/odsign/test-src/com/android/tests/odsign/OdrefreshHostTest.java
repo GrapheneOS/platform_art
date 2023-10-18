@@ -34,7 +34,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Test to check end-to-end odrefresh invocations, but without odsign amd fs-verity involved.
+ * Test to check end-to-end odrefresh invocations, but without odsign and fs-verity involved.
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class OdrefreshHostTest extends BaseHostJUnit4Test {
@@ -130,14 +130,14 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyEnableUffdGcChangeTriggersCompilation() throws Exception {
+    public void verifyPhenotypeFlagChangeTriggersCompilation() throws Exception {
         // Simulate that the flag value is initially empty.
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
+        mDeviceState.setPhenotypeFlag("odrefresh_test_toggle", null);
 
         long timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", "false");
+        mDeviceState.setPhenotypeFlag("odrefresh_test_toggle", "false");
 
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
@@ -148,7 +148,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                 mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", "true");
+        mDeviceState.setPhenotypeFlag("odrefresh_test_toggle", "true");
 
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
@@ -168,7 +168,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                 mTestUtils.getExpectedBootImageMainlineExtension(), timeMs);
         mTestUtils.assertNotModifiedAfter(mTestUtils.getSystemServerExpectedArtifacts(), timeMs);
 
-        mDeviceState.setPhenotypeFlag("enable_uffd_gc_2", null);
+        mDeviceState.setPhenotypeFlag("odrefresh_test_toggle", null);
 
         timeMs = mTestUtils.getCurrentTimeMs();
         mTestUtils.runOdrefresh();
