@@ -18,9 +18,9 @@
 
 #include "native_loader_test.h"
 
-#include <dlfcn.h>
-
+#include <android-base/properties.h>
 #include <android-base/strings.h>
+#include <dlfcn.h>
 #include <gtest/gtest.h>
 
 #include "nativehelper/scoped_utf_chars.h"
@@ -378,13 +378,16 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
   dex_path = "/product/app/foo/foo.apk";
   is_shared = false;
 
-  expected_namespace_prefix = "product-clns";
-  expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
-  expected_permitted_path =
-      expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
-  expected_shared_libs_to_platform_ns =
-      append_extended_libraries(default_public_libraries() + ":" + llndk_libraries_product());
-  expected_link_with_vndk_product_ns = true;
+  if (is_product_treblelized()) {
+    expected_namespace_prefix = "product-clns";
+    expected_library_path =
+        expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
+    expected_permitted_path =
+        expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
+    expected_shared_libs_to_platform_ns =
+        append_extended_libraries(default_public_libraries() + ":" + llndk_libraries_product());
+    expected_link_with_vndk_product_ns = true;
+  }
 
   SetExpectations();
   RunTest();
