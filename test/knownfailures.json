@@ -1354,12 +1354,6 @@
         "description": ["Occasional timeouts."]
     },
     {
-        "tests": ["909-attach-agent"],
-        "variant": "target",
-        "bug": "b/300654679",
-        "description": ["Library path issues."]
-    },
-    {
         "tests": ["175-alloc-big-bignums"],
         "variant": "interpreter | interp-ac | trace | no-image | debuggable | prebuild",
         "bug": "b/174470490",
