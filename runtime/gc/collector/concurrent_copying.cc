@@ -923,9 +923,11 @@ class ConcurrentCopying::ImmuneSpaceScanObjVisitor {
       // Only need to scan gray objects.
       if (obj->GetReadBarrierState() == ReadBarrier::GrayState()) {
         collector_->ScanImmuneObject(obj);
-        // Done scanning the object, go back to black (non-gray).
-        bool success = obj->AtomicSetReadBarrierState(ReadBarrier::GrayState(),
-                                                      ReadBarrier::NonGrayState());
+        // Done scanning the object, go back to black (non-gray). Release order
+        // required to ensure that stores of to-space references done by
+        // ScanImmuneObject() are visible before state change.
+        bool success = obj->AtomicSetReadBarrierState(
+            ReadBarrier::GrayState(), ReadBarrier::NonGrayState(), std::memory_order_release);
         CHECK(success)
             << Runtime::Current()->GetHeap()->GetVerification()->DumpObjectInfo(obj, "failed CAS");
       }
@@ -2378,9 +2380,8 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
     // above IsInToSpace() evaluates to true and we change the color from gray to non-gray here in
     // this else block.
     if (kUseBakerReadBarrier) {
-      bool success = to_ref->AtomicSetReadBarrierState<std::memory_order_release>(
-          ReadBarrier::GrayState(),
-          ReadBarrier::NonGrayState());
+      bool success = to_ref->AtomicSetReadBarrierState(
+          ReadBarrier::GrayState(), ReadBarrier::NonGrayState(), std::memory_order_release);
       DCHECK(success) << "Must succeed as we won the race.";
     }
   }
