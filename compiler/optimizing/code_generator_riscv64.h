@@ -473,10 +473,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void GenerateIntLongCondition(IfCondition cond, LocationSummary* locations);
-  void GenerateIntLongCondition(IfCondition cond,
-                                LocationSummary* locations,
-                                XRegister rd,
-                                bool to_all_bits);
   void GenerateIntLongCompareAndBranch(IfCondition cond,
                                        LocationSummary* locations,
                                        Riscv64Label* label);
@@ -485,13 +481,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                            DataType::Type type,
                            LocationSummary* locations,
                            Riscv64Label* label = nullptr);
-  void GenerateFpCondition(IfCondition cond,
-                           bool gt_bias,
-                           DataType::Type type,
-                           LocationSummary* locations,
-                           Riscv64Label* label,
-                           XRegister rd,
-                           bool to_all_bits);
   void GenerateMethodEntryExitHook(HInstruction* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
   void GenPackedSwitchWithCompares(XRegister adjusted,
@@ -527,7 +516,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FAbs(FRegister rd, FRegister rs1, DataType::Type type);
   void FNeg(FRegister rd, FRegister rs1, DataType::Type type);
   void FMv(FRegister rd, FRegister rs1, DataType::Type type);
-  void FMvX(XRegister rd, FRegister rs1, DataType::Type type);
   void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
