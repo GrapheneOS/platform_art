@@ -120,12 +120,6 @@ public class SecondaryDexopter extends Dexopter<DetailedSecondaryDexInfo> {
     }
 
     @Override
-    protected boolean isAppImageAllowed(@NonNull DetailedSecondaryDexInfo dexInfo) {
-        // The runtime can only load the app image of the base APK.
-        return false;
-    }
-
-    @Override
     @NonNull
     protected OutputProfile buildOutputProfile(
             @NonNull DetailedSecondaryDexInfo dexInfo, boolean isPublic) {
