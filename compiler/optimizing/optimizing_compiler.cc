@@ -770,6 +770,7 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kExit:
         case HInstruction::kGoto:
         case HInstruction::kPackedSwitch:
+        case HInstruction::kSelect:
         case HInstruction::kTryBoundary:
         case HInstruction::kClearException:
         case HInstruction::kLoadException:
