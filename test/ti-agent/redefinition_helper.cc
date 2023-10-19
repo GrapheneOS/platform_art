@@ -45,6 +45,15 @@ static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
                                          jint num_targets,
                                          jclass* target,
                                          jvmtiError res) {
+  // Get the last error message which might give more details on what went wrong.
+  using GetLastError = jvmtiError (*)(jvmtiEnv* env, char** msg);
+  GetLastError get_last_error =
+      GetExtensionFunction<GetLastError>(env, jvmti, "com.android.art.misc.get_last_error_message");
+  char* error_msg = nullptr;
+  if (get_last_error != nullptr) {
+    get_last_error(jvmti_env, &error_msg);
+  }
+
   std::stringstream err;
   char* error = nullptr;
   jvmti->GetErrorName(res, &error);
@@ -65,8 +74,12 @@ static void throwCommonRedefinitionError(jvmtiEnv* jvmti,
     jvmti->Deallocate(reinterpret_cast<unsigned char*>(generic));
   }
   err << "> due to " << error;
+  if (error_msg != nullptr) {
+    err << " (" << error_msg << ")";
+  }
   std::string message = err.str();
   jvmti->Deallocate(reinterpret_cast<unsigned char*>(error));
+  jvmti->Deallocate(reinterpret_cast<unsigned char*>(error_msg));
   env->ThrowNew(env->FindClass("java/lang/Exception"), message.c_str());
 }
 
