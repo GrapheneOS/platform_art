@@ -837,6 +837,8 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kInvokeStaticOrDirect:
         case HInstruction::kInvokeVirtual:
         case HInstruction::kInvokeInterface:
+        case HInstruction::kInvokeCustom:
+        case HInstruction::kInvokePolymorphic:
         case HInstruction::kCurrentMethod:
         case HInstruction::kNullCheck:
         case HInstruction::kDeoptimize:
