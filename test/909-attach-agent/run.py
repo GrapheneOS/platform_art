@@ -24,24 +24,6 @@ def run(ctx, args):
     # have a slightly different expected output.
     ctx.expected_stdout = ctx.expected_stdout.with_suffix(".interpreter.txt")
 
-  # Provide additional runtime options when running on device.
-  if not args.host:
-    for i, opt in enumerate(args.runtime_option):
-      if opt.startswith("-Djava.library.path="):
-        libpath = opt.split("=")[-1]
-        assert libpath.startswith("/data/nativetest"), libpath
-
-        # The linker configuration used for dalvikvm(64) in the ART APEX requires us
-        # to pass the full path to the agent to the runtime when running on device.
-        agent = f"{libpath}/{agent}"
-
-        # The above agent path is an absolute one; append the root directory to the
-        # library path so that the agent can be found via the `java.library.path`
-        # system property (see method `Main.find` in
-        # test/909-attach-agent/src-art/Main.java).
-        args.runtime_option[i] += ":/"
-        break
-
   ctx.default_run(
       args,
       android_runtime_option=[

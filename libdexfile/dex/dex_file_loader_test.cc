@@ -293,6 +293,11 @@ static const char kIncorrectSectionSizeInHeader[] =
     "BgAwqDYA//8YAQAAAQAAAAAAAG8zAQAAARAAAAIAAABwAQAAAiAAABAAAAB+AQAA"
     "AwAAKQIAAAAzAgAABiAAAAEAAABDAgAAABAAAAEAAABUAgAA";
 
+static const char kFileSizeTooSmallInHeader[] =
+    "ZGV4CjAzOADm+mgA5vpofOqtMUsBCAAAJAEAAAJ3AAABAAAAcQAA/////////0ES"
+    "+//4mrr////u/wAAAAAAADv//0X/ZAEAAFwBAABgY2Q6JAEAAHsBAACBAQAAAQAA"
+    "AAIAAAAFAAAEAAAAAAAAAA==";
+
 static void DecodeDexFile(const char* base64, std::vector<uint8_t>* dex_bytes) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -593,6 +598,10 @@ TEST_F(DexFileLoaderTest, BadDebugInfoItem) {
 
 TEST_F(DexFileLoaderTest, IncorrectSectionSizeInHeader) {
   OpenAndVerify(kIncorrectSectionSizeInHeader, /*expected_success=*/false);
+}
+
+TEST_F(DexFileLoaderTest, FileSizeTooSmallInHeader) {
+  OpenAndVerify(kFileSizeTooSmallInHeader, /*expected_success=*/false);
 }
 
 }  // namespace art

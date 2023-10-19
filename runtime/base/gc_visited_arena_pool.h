@@ -103,7 +103,7 @@ class TrackedArena final : public Arena {
   void SetFirstObject(uint8_t* obj_begin, uint8_t* obj_end);
   // Setup the arena for deferred deletion.
   void SetupForDeferredDeletion(TrackedArena* next_arena) {
-    DCHECK(next_arena->waiting_for_deletion_);
+    DCHECK(next_arena == nullptr || next_arena->waiting_for_deletion_);
     DCHECK(!waiting_for_deletion_);
     waiting_for_deletion_ = true;
     next_ = next_arena;

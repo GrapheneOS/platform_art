@@ -41,6 +41,8 @@ class GraphChecker : public HGraphDelegateVisitor {
         allocator_(graph->GetArenaStack()),
         seen_ids_(&allocator_, graph->GetCurrentInstructionId(), false, kArenaAllocGraphChecker),
         uses_per_instruction_(allocator_.Adapter(kArenaAllocGraphChecker)),
+        instructions_per_block_(allocator_.Adapter(kArenaAllocGraphChecker)),
+        phis_per_block_(allocator_.Adapter(kArenaAllocGraphChecker)),
         codegen_(codegen) {
     seen_ids_.ClearAllBits();
   }
@@ -124,6 +126,11 @@ class GraphChecker : public HGraphDelegateVisitor {
   // Checks that the graph's flags are set correctly.
   void CheckGraphFlags();
 
+  // Checks if `instruction` is in its block's instruction/phi list. To do so, it searches
+  // instructions_per_block_/phis_per_block_ which are set versions of that. If the set to
+  // check hasn't been populated yet, it does so now.
+  bool ContainedInItsBlockList(HInstruction* instruction);
+
   // String displayed before dumped errors.
   const char* const dump_prefix_;
   ScopedArenaAllocator allocator_;
@@ -135,6 +142,11 @@ class GraphChecker : public HGraphDelegateVisitor {
   // of a list.
   ScopedArenaSafeMap<int, ScopedArenaSet<const art::HUseListNode<art::HInstruction*>*>>
       uses_per_instruction_;
+
+  // Extra bookkeeping to increase GraphChecker's speed while asking if an instruction is contained
+  // in a list of instructions/phis.
+  ScopedArenaSafeMap<HBasicBlock*, ScopedArenaHashSet<HInstruction*>> instructions_per_block_;
+  ScopedArenaSafeMap<HBasicBlock*, ScopedArenaHashSet<HInstruction*>> phis_per_block_;
 
   // Used to access target information.
   CodeGenerator* codegen_;
