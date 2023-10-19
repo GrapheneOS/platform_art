@@ -146,8 +146,9 @@ inline uint32_t Object::GetReadBarrierStateAcquire() {
   return rb_state;
 }
 
-template<std::memory_order kMemoryOrder>
-inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32_t rb_state) {
+inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state,
+                                              uint32_t rb_state,
+                                              std::memory_order order) {
   if (!kUseBakerReadBarrier) {
     LOG(FATAL) << "Unreachable";
     UNREACHABLE();
@@ -171,7 +172,7 @@ inline bool Object::AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32
     // If `kMemoryOrder` == `std::memory_order_release`, use a CAS release so that when GC updates
     // all the fields of an object and then changes the object from gray to black (non-gray), the
     // field updates (stores) will be visible (won't be reordered after this CAS.)
-  } while (!CasLockWord(expected_lw, new_lw, CASMode::kWeak, kMemoryOrder));
+  } while (!CasLockWord(expected_lw, new_lw, CASMode::kWeak, order));
   return true;
 }
 
