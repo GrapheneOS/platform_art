@@ -32,7 +32,6 @@ import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptSt
 import android.annotation.CallbackExecutor;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.annotation.SystemService;
 import android.app.job.JobInfo;
@@ -123,7 +122,7 @@ public final class ArtManagerLocal {
 
     @Deprecated
     public ArtManagerLocal() {
-        mInjector = new Injector(this, null /* context */);
+        mInjector = new Injector();
     }
 
     /**
@@ -1267,29 +1266,31 @@ public final class ArtManagerLocal {
         @Nullable private final Config mConfig;
         @Nullable private BackgroundDexoptJob mBgDexoptJob = null;
 
-        // TODO(jiakaiz): Remove @SuppressLint and check `Build.VERSION.SDK_INT >=
-        // Build.VERSION_CODES.UPSIDE_DOWN_CAKE` once the SDK is finalized.
-        @SuppressLint("NewApi")
+        /** For compatibility with S and T. New code should not use this. */
+        @Deprecated
+        Injector() {
+            mArtManagerLocal = null;
+            mContext = null;
+            mPackageManagerLocal = null;
+            mConfig = null;
+        }
+
+        @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
         Injector(@NonNull ArtManagerLocal artManagerLocal, @Nullable Context context) {
+            // We only need them on Android U and above, where a context is passed.
             mArtManagerLocal = artManagerLocal;
             mContext = context;
-            if (context != null) {
-                // We only need them on Android U and above, where a context is passed.
-                mPackageManagerLocal = Objects.requireNonNull(
-                        LocalManagerRegistry.getManager(PackageManagerLocal.class));
-                mConfig = new Config();
+            mPackageManagerLocal = Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(PackageManagerLocal.class));
+            mConfig = new Config();
 
-                // Call the getters for the dependencies that aren't optional, to ensure correct
-                // initialization order.
-                getDexoptHelper();
-                getUserManager();
-                getDexUseManager();
-                getStorageManager();
-                ArtModuleServiceInitializer.getArtModuleServiceManager();
-            } else {
-                mPackageManagerLocal = null;
-                mConfig = null;
-            }
+            // Call the getters for the dependencies that aren't optional, to ensure correct
+            // initialization order.
+            getDexoptHelper();
+            getUserManager();
+            getDexUseManager();
+            getStorageManager();
+            ArtModuleServiceInitializer.getArtModuleServiceManager();
         }
 
         @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
