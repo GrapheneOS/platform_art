@@ -899,6 +899,11 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
                            {},
                            result);
   }
+
+  if (QuickArgumentVisitor::NaNBoxing() && shorty[0] == 'F') {
+    result.SetJ(result.GetJ() | UINT64_C(0xffffffff00000000));
+  }
+
   return result.GetJ();
 }
 
