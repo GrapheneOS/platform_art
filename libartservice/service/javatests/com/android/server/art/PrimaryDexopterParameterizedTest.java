@@ -156,6 +156,18 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         params.mSkipIfStorageLow = true;
         list.add(params);
 
+        params = new Params();
+        params.mIgnoreProfile = true;
+        params.mRequestedCompilerFilter = "speed-profile";
+        params.mExpectedCompilerFilter = "verify";
+        list.add(params);
+
+        params = new Params();
+        params.mIgnoreProfile = true;
+        params.mRequestedCompilerFilter = "speed";
+        params.mExpectedCompilerFilter = "speed";
+        list.add(params);
+
         return list;
     }
 
@@ -195,6 +207,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                                 ArtFlags.FLAG_SHOULD_DOWNGRADE)
                         .setFlags(mParams.mSkipIfStorageLow ? ArtFlags.FLAG_SKIP_IF_STORAGE_LOW : 0,
                                 ArtFlags.FLAG_SKIP_IF_STORAGE_LOW)
+                        .setFlags(mParams.mIgnoreProfile ? ArtFlags.FLAG_IGNORE_PROFILE : 0,
+                                ArtFlags.FLAG_IGNORE_PROFILE)
                         .build();
 
         mPrimaryDexopter =
@@ -323,6 +337,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         public boolean mForce = false;
         public boolean mShouldDowngrade = false;
         public boolean mSkipIfStorageLow = false;
+        public boolean mIgnoreProfile = false;
 
         // System properties.
         public boolean mAlwaysDebuggable = false;
@@ -335,8 +350,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         public boolean mExpectedIsHiddenApiPolicyEnabled = true;
 
         public String toString() {
-            return String.format("mIsInDalvikCache=%b,"
-                            + "mHiddenApiEnforcementPolicy=%d,"
+            return String.format("isInDalvikCache=%b,"
+                            + "hiddenApiEnforcementPolicy=%d,"
                             + "isVmSafeMode=%b,"
                             + "isDebuggable=%b,"
                             + "isSystemUi=%b,"
@@ -345,7 +360,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                             + "requestedCompilerFilter=%s,"
                             + "force=%b,"
                             + "shouldDowngrade=%b,"
-                            + "mSkipIfStorageLow=%b,"
+                            + "skipIfStorageLow=%b,"
+                            + "ignoreProfile=%b,"
                             + "alwaysDebuggable=%b"
                             + " => "
                             + "targetCompilerFilter=%s,"
@@ -354,8 +370,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                             + "expectedIsHiddenApiPolicyEnabled=%b",
                     mIsInDalvikCache, mHiddenApiEnforcementPolicy, mIsVmSafeMode, mIsDebuggable,
                     mIsSystemUi, mIsLauncher, mIsUseEmbeddedDex, mRequestedCompilerFilter, mForce,
-                    mShouldDowngrade, mSkipIfStorageLow, mAlwaysDebuggable, mExpectedCompilerFilter,
-                    mExpectedDexoptTrigger, mExpectedIsDebuggable,
+                    mShouldDowngrade, mSkipIfStorageLow, mIgnoreProfile, mAlwaysDebuggable,
+                    mExpectedCompilerFilter, mExpectedDexoptTrigger, mExpectedIsDebuggable,
                     mExpectedIsHiddenApiPolicyEnabled);
         }
     }
