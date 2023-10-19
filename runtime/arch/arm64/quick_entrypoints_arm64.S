@@ -903,6 +903,8 @@ ENTRY art_quick_check_instance_of
     cbz x0, .Lthrow_class_cast_exception
 
     // Restore and return
+    // TODO: We do not need to restore X0 and X1 on success. We also do not need
+    // to record CFI for them as the information is not very useful.
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
 
