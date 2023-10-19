@@ -492,7 +492,7 @@ OAT_ENTRY ExecuteNterpImpl
    sh2add t0, s7, xFP       // t0 := &xFP[a1]
    sh2add t1, s7, xREFS     // t1 := &xREFS[a1]
    addi t2, s11, 1          // t2 := shorty arg (skip return type)
-   binvi s10, s10, 0        // s10 := 0 if static, 1 if instance
+   xori s10, s10, 1         // s10 := 0 if static, 1 if instance
    slliw t3, s10, 2         // t3 := (static) 0, (instance) 4: fp/refs/outs byte offset
    // constant setup for gpr/fpr shorty comparisons
    li s0, 'D'               // s0 := double char (unused fp)

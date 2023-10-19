@@ -182,7 +182,7 @@
    ld a0, (t1)            // a0 := ArtMethod*
    tail NterpInvokeInterface${range}  // args a0, a1, s7, t0
 4:
-   bclri t0, t0, 1        // t0 := method index, LSB #1 cleared
+   andi t0, t0, ~2        // t0 := method index, LSB #1 cleared
    lh t2, ART_METHOD_METHOD_INDEX_OFFSET(t0)
                           // t2 := method_index_ (16-bit value)
    // Default methods have a contract with art::IMTable.
@@ -710,7 +710,7 @@
 %def try_01_args_peek_next(z0=""):
    FETCH $z0, count=3, width=8, byte=0
                                 // z0 := next op
-   bclri $z0, $z0, 0            // clear bit #0
+   andi $z0, $z0, ~1            // clear bit #0
    addi $z0, $z0, -0x0A         // z0 := zero if op is 0x0A or 0x0B
 
 
