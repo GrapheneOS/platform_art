@@ -52,7 +52,7 @@ art_cc_library {
         // libdexfile hence depends on the source instead.
         // TODO(b/172480617): Alternatively, clean up when we no longer need to
         // support both prebuilts and sources present simultaneously.
-        "//prebuilts/module_sdk/art/current/host-exports",
+        "//prebuilts/module_sdk/art:__subpackages__",
     ],
     header_libs: [
         "libbase_headers",
