@@ -18,6 +18,7 @@ package com.android.server.art.model;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.app.job.JobScheduler;
 
@@ -78,6 +79,14 @@ public class ArtFlags {
      * sys_storage_threshold_max_bytes}.
      */
     public static final int FLAG_SKIP_IF_STORAGE_LOW = 1 << 6;
+    /**
+     * If set, no profile will be used by dexopt. I.e., if the compiler filter is a profile-guided
+     * one, such as "speed-profile", it will be adjusted to "verify". This option is especially
+     * useful when the compiler filter is not explicitly specified (i.e., is inferred from the
+     * compilation reason).
+     */
+    @SuppressLint("UnflaggedApi") // Flag support for mainline is not available.
+    public static final int FLAG_IGNORE_PROFILE = 1 << 7;
 
     /**
      * Flags for {@link
@@ -118,6 +127,7 @@ public class ArtFlags {
         FLAG_FORCE,
         FLAG_FOR_SINGLE_SPLIT,
         FLAG_SKIP_IF_STORAGE_LOW,
+        FLAG_IGNORE_PROFILE,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
