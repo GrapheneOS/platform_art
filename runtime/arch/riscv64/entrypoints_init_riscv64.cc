@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
+#include  <math.h>
+
 #include "entrypoints/quick/quick_default_init_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
 
+// Cast entrypoints.
+extern "C" size_t artInstanceOfFromCode(mirror::Object* obj, mirror::Class* ref_class);
+
+// Read barrier entrypoints.
 // art_quick_read_barrier_mark_regX uses an non-standard calling convention: it
 // expects its input in register X and returns its result in that same register,
 // and saves and restores all other registers.
-
 // No read barrier for X0 (Zero), X1 (RA), X2 (SP), X3 (GP) and X4 (TP).
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg05(mirror::Object*);  // t0/x5
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg06(mirror::Object*);  // t1/x6
@@ -90,6 +95,33 @@ void InitEntryPoints(JniEntryPoints* jpoints,
                      QuickEntryPoints* qpoints,
                      bool monitor_jni_entry_exit) {
   DefaultInitEntryPoints(jpoints, qpoints, monitor_jni_entry_exit);
+
+  // Cast
+  qpoints->SetInstanceofNonTrivial(artInstanceOfFromCode);
+  qpoints->SetCheckInstanceOf(art_quick_check_instance_of);
+
+  // Math
+  // TODO(riscv64): null entrypoints not needed for riscv64 - using generated code.
+  qpoints->SetCmpgDouble(nullptr);
+  qpoints->SetCmpgFloat(nullptr);
+  qpoints->SetCmplDouble(nullptr);
+  qpoints->SetCmplFloat(nullptr);
+  qpoints->SetFmod(fmod);
+  qpoints->SetL2d(nullptr);
+  qpoints->SetFmodf(fmodf);
+  qpoints->SetL2f(nullptr);
+  qpoints->SetD2iz(nullptr);
+  qpoints->SetF2iz(nullptr);
+  qpoints->SetIdivmod(nullptr);
+  qpoints->SetD2l(nullptr);
+  qpoints->SetF2l(nullptr);
+  qpoints->SetLdiv(nullptr);
+  qpoints->SetLmod(nullptr);
+  qpoints->SetLmul(nullptr);
+  qpoints->SetShlLong(nullptr);
+  qpoints->SetShrLong(nullptr);
+  qpoints->SetUshrLong(nullptr);
+
   // TODO(riscv64): add other entrypoints
 }
 
