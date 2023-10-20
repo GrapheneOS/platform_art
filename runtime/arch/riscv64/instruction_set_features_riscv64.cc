@@ -24,9 +24,10 @@
 
 namespace art {
 
-// Basic feature set is rv64gc, aka rv64imafdc.
+// Basic feature set is rv64gcv, aka rv64imafdcv.
 constexpr uint32_t BasicFeatures() {
-  return Riscv64InstructionSetFeatures::kExtGeneric | Riscv64InstructionSetFeatures::kExtCompressed;
+  return Riscv64InstructionSetFeatures::kExtGeneric |
+         Riscv64InstructionSetFeatures::kExtCompressed | Riscv64InstructionSetFeatures::kExtVector;
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromVariant(
