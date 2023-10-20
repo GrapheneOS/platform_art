@@ -30,9 +30,11 @@ TEST(Riscv64InstructionSetFeaturesTest, Riscv64FeaturesFromDefaultVariant) {
 
   EXPECT_TRUE(riscv64_features->Equals(riscv64_features.get()));
 
-  uint32_t expected_extensions =
-      Riscv64InstructionSetFeatures::kExtGeneric | Riscv64InstructionSetFeatures::kExtCompressed;
-  EXPECT_EQ(riscv64_features->AsBitmap(), expected_extensions);  // rv64gc, aka rv64imafdc
+  // rv64gcv, aka rv64imafdcv
+  uint32_t expected_extensions = Riscv64InstructionSetFeatures::kExtGeneric |
+                                 Riscv64InstructionSetFeatures::kExtCompressed |
+                                 Riscv64InstructionSetFeatures::kExtVector;
+  EXPECT_EQ(riscv64_features->AsBitmap(), expected_extensions);
 }
 
 }  // namespace art
