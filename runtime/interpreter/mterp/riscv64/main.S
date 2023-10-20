@@ -141,72 +141,6 @@ END \name
     addi \code_item, \code_item, CODE_ITEM_INSNS_OFFSET
 .endm
 
-// Set up the stack to start executing the method.
-// See runtime/nterp_helpers.cc for a diagram of the setup.
-// Input:
-//   - a0: ArtMethod*
-//   - sp
-//   - \code_item: CodeItem*
-//   - \cfi_refs: DWARF register number for \refs
-// Output:
-//   - \code_item: pointer to instruction array `insns_*` on exit
-//   - \refs: pointer to obj reference array
-//   - \fp: pointer to dex register array
-//   - \regs: count of dex registers
-//   - \ins: count of in-registers
-//   - \old_sp: old stack pointer
-//   - sp modified
-//
-// Clobbers: t0, t1
-.macro SETUP_STACK_FRAME code_item, cfi_refs, refs, fp, regs, ins, old_sp
-    FETCH_CODE_ITEM_INFO \code_item, \regs, /*out count*/ t1, \ins
-
-    // Compute required frame size: ((2 * \regs) + t1) * 4 + 24
-    // - The register array and reference array are each \regs in length.
-    // - The out array is t1 in length.
-    // - Each register is 4 bytes.
-    // - Additional 24 bytes for 3 fields: saved frame pointer, dex pc, and ArtMethod*.
-    sll t0, \regs, 1
-    add t0, t0, t1
-    sll t0, t0, 2
-    add t0, t0, 24
-
-    // Compute new stack pointer in t0.
-    sub t0, sp, t0
-    // 16-byte alignment.
-    andi t0, t0, ~0xF
-
-    // Set \refs to base of reference array. Align to pointer size for the frame pointer and dex pc
-    // pointer, below the reference array.
-    sll t1, t1, 2  // 4 bytes per entry.
-    add t1, t0, t1
-    add t1, t1, 28  // 24 bytes from 3 fields mentioned earlier, plus 4 for alignment slack.
-    andi \refs, t1, -__SIZEOF_POINTER__
-
-    // Set \fp to base of register array, above the reference array. This region is already aligned.
-    sll t1, \regs, 2
-    add \fp, \refs, t1
-
-    // Set up the stack pointer.
-    mv \old_sp, sp
-    .cfi_def_cfa_register \old_sp
-    mv sp, t0
-    sd \old_sp, -8(\refs)
-    CFI_DEF_CFA_BREG_PLUS_UCONST \cfi_refs, -8, NTERP_SIZE_SAVE_CALLEE_SAVES
-
-    // Put nulls in reference array.
-    beqz \regs, 2f
-    mv t1, \refs  // t1 as iterator
-1:
-    // Write in 8-byte increments, so vreg(0) gets zero'ed too, if \regs is odd.
-    sd zero, (t1)
-    addi t1, t1, 8
-    bltu t1, \fp, 1b
-2:
-    // Save the ArtMethod*.
-    sd a0, (sp)
-.endm
-
 .macro EXPORT_PC
     sd xPC, -16(xREFS)
 .endm
@@ -515,25 +449,100 @@ OAT_ENTRY ExecuteNterpWithClinitImpl
 EndExecuteNterpWithClinitImpl:
 
 OAT_ENTRY ExecuteNterpImpl
-    .cfi_startproc
+   .cfi_startproc
+%  setup_nterp_frame(cfi_refs="CFI_REFS", refs="xREFS", fp="xFP", pc="xPC", regs="s7", ins="s8", spills_sp="s9", z0="t0", z1="t1", z2="t2", z3="t3", uniq="entry")
+                            // xREFS := callee refs array
+                            // xFP   := callee fp array
+                            // xPC   := callee dex array
+                            // s7    := refs/fp vreg count
+                            // s8    := ins count
+                            // s9    := post-spills pre-frame sp
+                            // sp    := post-frame sp
+   CFI_DEFINE_DEX_PC_WITH_OFFSET(/*tmpReg*/CFI_TMP, /*dexReg*/CFI_DEX, /*dexOffset*/0)
 
-    // Check guard page for stack overflow.
-    li t0, -STACK_OVERFLOW_RESERVED_BYTES
-    add t0, t0, sp
-    ld zero, (t0)
+   // Fast path: zero args.
+   beqz s8, .Lentry_go
 
-    INCREASE_FRAME NTERP_SIZE_SAVE_CALLEE_SAVES
-    SETUP_NTERP_SAVE_CALLEE_SAVES
+   sub s7, s7, s8           // s7 := a1 index in fp/refs
+   lwu s10, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
+                            // s10 := method flags
 
-    ld xPC, ART_METHOD_DATA_OFFSET_64(a0)
-    SETUP_STACK_FRAME xPC, CFI_REFS, xREFS, xFP, /*reg count*/ s7, /*in count*/s8, /*old sp*/s9
+   // Fast path: all reference args.
+   sh2add t0, s7, xFP       // t0 := &xFP[a1]
+   sh2add t1, s7, xREFS     // t1 := &xREFS[a1]
+   bexti t2, s10, ART_METHOD_NTERP_ENTRY_POINT_FAST_PATH_FLAG_BIT
+   beqz t2, .Lentry_a1
+%  setup_ref_args_and_go(fp="t0", refs="t1", refs_end="xFP", spills_sp="s9", z0="t2", z1="t3", done=".Lentry_go")
 
-    beqz s8, .Lsetup_execution  // no args
-    unimp
+   // Fast path: instance with zero args.
+.Lentry_a1:
+   bexti s10, s10, ART_METHOD_IS_STATIC_FLAG_BIT
+                            // s10 := 1 if static, 0 if instance
+   bnez s10, .Lentry_shorty
+   sw a1, (t0)
+   sw a1, (t1)
+   li t2, 1
+   beq s8, t2, .Lentry_go
 
-.Lsetup_execution:
-    CFI_DEFINE_DEX_PC_WITH_OFFSET(/*tmpReg*/CFI_TMP, /*dexReg*/CFI_DEX, /*dexOffset*/0)
+   // Slow path: runtime call to obtain shorty, full setup from managed ABI.
+.Lentry_shorty:
+   SPILL_ALL_ARGUMENTS
+   // TODO: Better way to get shorty
+   call NterpGetShorty      // arg a0
+   mv s11, a0               // s11 := shorty
+   RESTORE_ALL_ARGUMENTS
 
+   // temporaries are trashed, recompute some values
+   sh2add t0, s7, xFP       // t0 := &xFP[a1]
+   sh2add t1, s7, xREFS     // t1 := &xREFS[a1]
+   addi t2, s11, 1          // t2 := shorty arg (skip return type)
+   binvi s10, s10, 0        // s10 := 0 if static, 1 if instance
+   slliw t3, s10, 2         // t3 := (static) 0, (instance) 4: fp/refs/outs byte offset
+   // constant setup for gpr/fpr shorty comparisons
+   li s0, 'D'               // s0 := double char (unused fp)
+   li s4, 'F'               // s4 := float char (unused xINST)
+   li s5, 'J'               // s5 := long char (unused xIBASE)
+   li s8, 'L'               // s8 := ref char (unused ins count)
+   bnez s10, .Lentry_args   // instance a1 already stored into callee's xFP and xREFS
+
+%  store_gpr_to_vreg(gpr="a1", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+
+.Lentry_args:
+   // linear scan through shorty: extract non-float args
+%  store_gpr_to_vreg(gpr="a2", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+%  store_gpr_to_vreg(gpr="a3", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+%  store_gpr_to_vreg(gpr="a4", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+%  store_gpr_to_vreg(gpr="a5", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+%  store_gpr_to_vreg(gpr="a6", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+%  store_gpr_to_vreg(gpr="a7", offset="t3", shorty="t2", fp="t0", refs="t1", z0="t4", z1="t5", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+   // We drained arg registers, so continue from caller stack's out array. Unlike the reference-only
+   // fast-path, the continuation offset in the out array can vary, depending on the presence of
+   // 64-bit values in the arg registers. \offset tracks this value as a byte offset.
+   addi t4, s9, (NTERP_SIZE_SAVE_CALLEE_SAVES + 8)
+                            // t4 := (caller) outs array base address, for here and fargs
+   add t0, t3, t0           // t0 := (callee) &FP[next]
+   add t1, t3, t1           // t1 := (callee) &REFS[next]
+   add t3, t3, t4           // t3 := (caller) &OUTS[next]
+%  store_outs_to_vregs(outs="t3", shorty="t2", fp="t0", refs="t1", z0="t5", z1="t6", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+
+.Lentry_fargs:
+   sh2add t0, s7, xFP       // t0 := &FP[a1]
+   addi t1, s11, 1          // t1 := shorty arg (skip return type)
+   slliw t2, s10, 2         // t2 := starting byte offset for fp/outs, static and instance
+   // linear scan through shorty: extract float args
+%  store_fpr_to_vreg(fpr="fa0", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa1", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa2", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa3", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa4", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa5", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa6", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa7", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+   add t0, t2, t0           // t0 := (callee) &FP[next]
+   add t2, t2, t4           // t2 := (caller) &OUTS[next]
+%  store_float_outs_to_vregs(outs="t2", shorty="t1", fp="t0", z0="t3", D="s0", F="s4", J="s5", next=".Lentry_go")
+
+.Lentry_go:
     la xIBASE, artNterpAsmInstructionStart
     START_EXECUTING_INSTRUCTIONS
     // NOTE: no fallthrough
@@ -559,6 +568,44 @@ common_errDivideByZero:
     // CALL preserves RA for stack walking.
     call art_quick_throw_div_zero
 
+common_errNullObject:
+    EXPORT_PC
+    // CALL preserves RA for stack walking.
+    call art_quick_throw_null_pointer_exception
+
+NterpInvokeVirtual:
+%  nterp_invoke_virtual()
+NterpInvokeSuper:
+%  nterp_invoke_super()
+NterpInvokeDirect:
+%  nterp_invoke_direct()
+NterpInvokeStringInit:
+%  nterp_invoke_string_init()
+NterpInvokeStatic:
+%  nterp_invoke_static()
+NterpInvokeInterface:
+%  nterp_invoke_interface()
+NterpInvokePolymorphic:
+%  nterp_invoke_polymorphic()
+NterpInvokeCustom:
+%  nterp_invoke_custom()
+NterpInvokeVirtualRange:
+%  nterp_invoke_virtual_range()
+NterpInvokeSuperRange:
+%  nterp_invoke_super_range()
+NterpInvokeDirectRange:
+%  nterp_invoke_direct_range()
+NterpInvokeStringInitRange:
+%  nterp_invoke_string_init_range()
+NterpInvokeStaticRange:
+%  nterp_invoke_static_range()
+NterpInvokeInterfaceRange:
+%  nterp_invoke_interface_range()
+NterpInvokePolymorphicRange:
+%  nterp_invoke_polymorphic_range()
+NterpInvokeCustomRange:
+%  nterp_invoke_custom_range()
+
 // This is the logical end of ExecuteNterpImpl, where the frame info applies.
 .cfi_endproc
 
@@ -574,6 +621,7 @@ EndExecuteNterpImpl:
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
+NTERP_TRAMPOLINE nterp_get_method, NterpGetMethod
 NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 

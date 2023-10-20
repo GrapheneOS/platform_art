@@ -20,10 +20,15 @@
 #include "asm_support.h"
 #include "entrypoints/entrypoint_asm_constants.h"
 
+// Each frame size constant must be a whole multiple of 16 to ensure 16-byte alignment on the stack.
+
 // clang-format off
 // S0, S2 - S11, RA, ArtMethod*, and padding,
 //            total 8*(11 + 1 + 1 + 1) = 112
 #define FRAME_SIZE_SAVE_REFS_ONLY        112
+
+// A0 - A7, FA0 - FA7, total 8*(8 + 8) = 128
+#define FRAME_SIZE_SAVE_ARGS_ONLY        128
 
 // FS0 - FS11, S0, S2 - S11, RA, ArtMethod* and padding,
 //       total 8*(12 + 11 + 1 + 1 + 1) = 208

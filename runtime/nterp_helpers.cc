@@ -241,9 +241,6 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
     if (method->DexInstructionData().TriesSize() != 0u) {
       return false;  // Riscv64 nterp does not support exception handling yet.
     }
-    if (method->DexInstructionData().InsSize() != 0u) {
-      return false;  // Riscv64 nterp does not support argument processing yet.
-    }
     for (DexInstructionPcPair pair : method->DexInstructions()) {
       // TODO(riscv64): Add support for more instructions.
       // Remove the check when all instructions are supported.
@@ -277,6 +274,7 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::CONST_WIDE_HIGH16:
         case Instruction::SPUT:
         case Instruction::SPUT_OBJECT:
+        case Instruction::INVOKE_STATIC:
         case Instruction::NEG_INT:
         case Instruction::NOT_INT:
         case Instruction::NEG_LONG:
