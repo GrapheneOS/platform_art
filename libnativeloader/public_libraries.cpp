@@ -201,7 +201,9 @@ static std::string InitVendorPublicLibraries() {
 // contains the extended public libraries that are loaded from the system namespace.
 static std::string InitProductPublicLibraries() {
   std::vector<std::string> sonames;
-  ReadExtensionLibraries("/product/etc", &sonames);
+  if (is_product_treblelized()) {
+    ReadExtensionLibraries("/product/etc", &sonames);
+  }
   std::string libs = android::base::Join(sonames, ':');
   ALOGD("InitProductPublicLibraries: %s", libs.c_str());
   return libs;
@@ -216,6 +218,9 @@ static std::string InitExtendedPublicLibraries() {
   std::vector<std::string> sonames;
   ReadExtensionLibraries("/system/etc", &sonames);
   ReadExtensionLibraries("/system_ext/etc", &sonames);
+  if (!is_product_treblelized()) {
+    ReadExtensionLibraries("/product/etc", &sonames);
+  }
   std::string libs = android::base::Join(sonames, ':');
   ALOGD("InitExtendedPublicLibraries: %s", libs.c_str());
   return libs;
@@ -256,6 +261,10 @@ static std::string InitLlndkLibrariesVendor() {
 }
 
 static std::string InitLlndkLibrariesProduct() {
+  if (!is_product_treblelized()) {
+    ALOGD("InitLlndkLibrariesProduct: Product is not treblelized");
+    return "";
+  }
   std::string config_file;
   if (IsProductVndkEnabled()) {
     config_file = kLlndkLibrariesFile;
@@ -414,6 +423,19 @@ const std::string& apex_jni_libraries(const std::string& apex_ns_name) {
 const std::map<std::string, std::string>& apex_public_libraries() {
   static std::map<std::string, std::string> public_libraries = InitApexLibraries("public");
   return public_libraries;
+}
+
+bool is_product_treblelized() {
+#if defined(ART_TARGET_ANDROID)
+  // Product is not treblelized iff launching version is prior to R and
+  // ro.product.vndk.version is not defined
+  static bool product_treblelized =
+      !(android::base::GetIntProperty("ro.product.first_api_level", 0) < __ANDROID_API_R__ &&
+        !android::sysprop::VndkProperties::product_vndk_version().has_value());
+  return product_treblelized;
+#else
+  return false;
+#endif
 }
 
 std::string get_vndk_version(bool is_product_vndk) {
