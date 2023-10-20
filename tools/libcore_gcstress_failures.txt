@@ -30,6 +30,8 @@
   modes: [device],
   names: ["jsr166.TimeUnitTest#testConvert",
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testCollectorMultiThreaded",
+          "libcore.java.lang.invoke.MethodHandleCombinersTest#testConstantMultithreaded",
+          "libcore.java.lang.invoke.MethodHandleCombinersTest#testPermuteArgumentsMultiThreaded",
           "libcore.java.lang.StringTest#testFastPathString_wellFormedUtf8Sequence",
           "libcore.java.math.BigIntegerTest#test_Constructor_IILjava_util_Random",
           "libcore.java.math.BigIntegerTest#test_probablePrime",
