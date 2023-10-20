@@ -342,6 +342,9 @@ class JitCodeCache {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) REQUIRES(!Locks::jit_lock_);
+  void DumpAllCompiledMethods(std::ostream& os)
+      REQUIRES(!Locks::jit_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsOsrCompiled(ArtMethod* method) REQUIRES(!Locks::jit_lock_);
 
