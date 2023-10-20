@@ -291,6 +291,11 @@
 %def nterp_invoke_static(uniq="invoke_static"):
    ld s7, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
                                  // s7 := quick code
+%  try_nterp(quick="s7", z0="t0", skip=f".L{uniq}_simple")
+   call NterpToNterpStatic       // arg a0
+   j .L${uniq}_next_op
+
+.L${uniq}_simple:
    srliw t0, xINST, 12           // t0 := A
 %  try_simple_args_static(ins="t0", z0="t1", z1="t2", skip=f".L{uniq}_01", uniq=uniq)
                                  // a1, a2, a3, a4, a5 := C, D, E, F, G
@@ -393,6 +398,14 @@
 
 
 // fast path and slow path helpers
+
+
+// Input
+// - quick: quick code ptr
+// Temporaries: z0
+%def try_nterp(quick="", z0="", skip=""):
+   lla $z0, ExecuteNterpImpl
+   bne $z0, $quick, $skip
 
 // Static variant.
 %def try_simple_args_static(ins="", z0="", z1="", skip="", uniq=""):
@@ -576,6 +589,70 @@
 .L${uniq}_fpr_set:
 
 
+// NterpToNterpInstance
+// a0: ArtMethod*
+// a1: this
+%def nterp_to_nterp_instance():
+   .cfi_startproc
+   unimp
+   .cfi_endproc
+
+
+// NterpToNterpStringInit
+// a0: ArtMethod*
+// a1: this
+%def nterp_to_nterp_string_init():
+   .cfi_startproc
+   unimp
+   .cfi_endproc
+
+
+// NterpToNterpStatic
+// a0: ArtMethod*
+%def nterp_to_nterp_static():
+%  nterp_to_nterp(a1_instance=False, how_vC="load", uniq="n2n_static")
+
+
+// NterpToNterpInstanceRange
+%def nterp_to_nterp_instance_range():
+%  nterp_to_nterp_range()
+
+
+// NterpToNterpStringInitRange
+%def nterp_to_nterp_string_init_range():
+%  nterp_to_nterp_range()
+
+
+// NterpToNterpStaticRange
+%def nterp_to_nterp_static_range():
+%  nterp_to_nterp_range()
+
+
+// helpers
+
+%def nterp_to_nterp(a1_instance=True, how_vC="", uniq=""):
+   .cfi_startproc
+%  setup_nterp_frame(cfi_refs="23", refs="s7", fp="s8", pc="s9", regs="s10", spills_sp="s11", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
+       // sp := callee sp
+       // s7 := callee xREFS
+       // s8 := callee xFP
+       // s9 := callee xPC
+       // s10 := fp/refs vreg count
+       // s11 := caller sp (unused here)
+%  n2n_arg_move(refs="s7", fp="s8", pc="s9", regs="s10", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
+   mv xREFS, s7
+   mv xFP, s8
+   mv xPC, s9
+   CFI_DEFINE_DEX_PC_WITH_OFFSET(/*tmpReg*/CFI_TMP, /*dexReg*/CFI_DEX, /*dexOffset*/0)
+
+   START_EXECUTING_INSTRUCTIONS
+   .cfi_endproc
+
+
+%def nterp_to_nterp_range(a1_instance=True, how_vC="", uniq=""):
+   .cfi_startproc
+   unimp
+   .cfi_endproc
 
 // See runtime/nterp_helpers.cc for a diagram of the setup.
 // Hardcoded
@@ -655,6 +732,73 @@
 .L${uniq}_ref_zero_done:
    // Save the ArtMethod*.
    sd a0, (sp)
+
+
+// Hardcoded
+// - (caller) xINST, xFP, xREFS, xPC
+// - a0: ArtMethod*
+// - a1: this, for instance invoke
+%def n2n_arg_move(refs="", fp="", regs="", pc="", z0="", z1="", z2="", z3="", z4="", a1_instance=True, how_vC="", uniq=""):
+   srliw $z0, xINST, 12       // z0 := A (arg count)
+
+%  if not a1_instance:
+     beqz $z0, .L${uniq}_arg_done
+%#:
+   // A >= 1, decide and branch
+   li $z1, 2
+   sub $z2, $regs, $z0        // z2 := regs - A; vC's index in fp
+   sh2add $z3, $z2, $fp       // z3 := addr of fp[C]
+   sh2add $z2, $z2, $refs     // z2 := addr of refs[C]
+   FETCH $z4, 2               // z4 := F|E|D|C
+   blt $z0, $z1, .L${uniq}_arg_1
+   beq $z0, $z1, .L${uniq}_arg_2
+   li $z1, 4
+   blt $z0, $z1, .L${uniq}_arg_3
+   beq $z0, $z1, .L${uniq}_arg_4
+
+   // A = 5
+   slliw $z0, xINST, 8
+   andi $z0, $z0, 0xF         // z0 := G
+   GET_VREG $z1, $z0          // z1 := xFP[G]
+   sw $z1, (4*4)($z3)         // fp[G] := z1
+   GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[G]
+   sw $z0, (4*4)($z2)         // refs[G] := z0
+.L${uniq}_arg_4:
+   srliw $z0, $z4, 12         // z0 := F
+   GET_VREG $z1, $z0          // z1 := xFP[F]
+   sw $z1, (3*4)($z3)         // fp[F] := z1
+   GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[F]
+   sw $z0, (3*4)($z2)         // refs[F] := z0
+.L${uniq}_arg_3:
+   srliw $z0, $z4, 8          // z0 := F|E
+   andi $z0, $z0, 0xF         // z0 := E
+   GET_VREG $z1, $z0          // z1 := xFP[E]
+   sw $z1, (2*4)($z3)         // fp[E] := z1
+   GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[E]
+   sw $z0, (2*4)($z2)         // refs[E] := z0
+.L${uniq}_arg_2:
+   srliw $z0, $z4, 4          // z0 := F|E|D
+   andi $z0, $z0, 0xF         // z0 := D
+   GET_VREG $z1, $z0          // z1 := xFP[D]
+   sw $z1, (1*4)($z3)         // fp[D] := z1
+   GET_VREG_OBJECT $z0, $z0   // z0 := xREFS[D]
+   sw $z0, (1*4)($z2)         // refs[D] := z0
+.L${uniq}_arg_1:
+%  if how_vC == "in_a1":
+     // a1 = xFP[C] from earlier stage of instance invoke
+     sw a1, (0*4)($z3)        // fp[C] := a1
+     sw a1, (0*4)($z2)        // refs[C] := a1
+%  elif how_vC == "skip":
+     // string init doesn't read "this"
+%  elif how_vC == "load":
+     // static method loads vC just like other vregs
+     andi $z0, $z4, 0xF       // z0 := C
+     GET_VREG $z1, $z0        // z1 := xFP[C]
+     sw $z1, (0*4)($z3)       // fp[C] := z1
+     GET_VREG_OBJECT $z0, $z0 // z0 := xREFS[C]
+     sw $z0, (0*4)($z2)       // refs[C] := z0
+%#:
+.L${uniq}_arg_done:
 
 
 //
