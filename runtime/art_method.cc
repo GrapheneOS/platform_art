@@ -633,12 +633,15 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
       DCHECK(method_header->Contains(pc));
       return method_header;
     } else {
-      DCHECK(!code_cache->ContainsPc(reinterpret_cast<const void*>(pc)))
-          << PrettyMethod()
-          << ", pc=" << std::hex << pc
-          << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
-          << ", copy=" << std::boolalpha << IsCopied()
-          << ", proxy=" << std::boolalpha << IsProxyMethod();
+      if (code_cache->ContainsPc(reinterpret_cast<const void*>(pc))) {
+        code_cache->DumpAllCompiledMethods(LOG_STREAM(FATAL_WITHOUT_ABORT));
+        LOG(FATAL)
+            << PrettyMethod()
+            << ", pc=" << std::hex << pc
+            << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
+            << ", copy=" << std::boolalpha << IsCopied()
+            << ", proxy=" << std::boolalpha << IsProxyMethod();
+      }
     }
   }
 
@@ -669,15 +672,21 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
   const void* oat_entry_point = oat_method.GetQuickCode();
   if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
-    DCHECK(IsNative())
-        << PrettyMethod()
-        << " pc=" << pc
-        << ", entrypoint= " << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
-        << ", jit= " << jit
-        << ", nterp_start= " << reinterpret_cast<uintptr_t>(OatQuickMethodHeader::NterpImpl.data())
-        << ", nterp_end= "
-        << reinterpret_cast<uintptr_t>(
-               OatQuickMethodHeader::NterpImpl.data() + OatQuickMethodHeader::NterpImpl.size());
+    if (!IsNative()) {
+      PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
+      MemMap::DumpMaps(LOG_STREAM(FATAL_WITHOUT_ABORT), /* terse= */ true);
+      LOG(FATAL)
+          << PrettyMethod()
+          << std::hex
+          << " pc=" << pc
+          << ", entrypoint= " << reinterpret_cast<uintptr_t>(existing_entry_point)
+          << ", jit= " << jit
+          << ", nterp_start= "
+          << reinterpret_cast<uintptr_t>(OatQuickMethodHeader::NterpImpl.data())
+          << ", nterp_end= "
+          << reinterpret_cast<uintptr_t>(
+                 OatQuickMethodHeader::NterpImpl.data() + OatQuickMethodHeader::NterpImpl.size());
+    }
     return nullptr;
   }
 

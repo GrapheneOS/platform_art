@@ -1896,6 +1896,17 @@ void JitCodeCache::Dump(std::ostream& os) {
   histogram_profiling_info_memory_use_.PrintMemoryUse(os);
 }
 
+void JitCodeCache::DumpAllCompiledMethods(std::ostream& os) {
+  MutexLock mu(Thread::Current(), *Locks::jit_lock_);
+  for (auto it : method_code_map_) {  // Includes OSR methods.
+    ArtMethod* meth = it.second;
+    const void* code_ptr = it.first;
+    OatQuickMethodHeader* header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+    os << meth->PrettyMethod() << "@"  << std::hex
+       << code_ptr << "-" << reinterpret_cast<uintptr_t>(code_ptr) + header->GetCodeSize() << '\n';
+  }
+}
+
 void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
   Thread* self = Thread::Current();
 
