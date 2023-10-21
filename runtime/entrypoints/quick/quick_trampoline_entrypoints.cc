@@ -683,6 +683,12 @@ static void HandleDeoptimization(JValue* result,
                                               method_type);
 }
 
+static int64_t NanBoxResultIfNeeded(int64_t result, char result_shorty) {
+  return (QuickArgumentVisitor::NaNBoxing() && result_shorty == 'F')
+      ? result | UINT64_C(0xffffffff00000000)
+      : result;
+}
+
 NO_STACK_PROTECTOR
 extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -761,12 +767,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     self->SetException(Thread::GetDeoptimizationException());
   }
 
-  if (QuickArgumentVisitor::NaNBoxing() && shorty[0] == 'F') {
-    result.SetJ(result.GetJ() | UINT64_C(0xffffffff00000000));
-  }
-
   // No need to restore the args since the method has already been run by the interpreter.
-  return result.GetJ();
+  return NanBoxResultIfNeeded(result.GetJ(), shorty[0]);
 }
 
 // Visits arguments on the stack placing them into the args vector, Object* arguments are converted
@@ -899,7 +901,8 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
                            {},
                            result);
   }
-  return result.GetJ();
+
+  return NanBoxResultIfNeeded(result.GetJ(), shorty[0]);
 }
 
 // Visitor returning a reference argument at a given position in a Quick stack frame.
@@ -2447,7 +2450,7 @@ extern "C" uint64_t artInvokePolymorphic(mirror::Object* raw_receiver, Thread* s
   Runtime::Current()->GetInstrumentation()->PushDeoptContextIfNeeded(
       self, DeoptimizationMethodType::kDefault, is_ref, result);
 
-  return result.GetJ();
+  return NanBoxResultIfNeeded(result.GetJ(), shorty[0]);
 }
 
 // Returns uint64_t representing raw bits from JValue.
@@ -2506,7 +2509,7 @@ extern "C" uint64_t artInvokeCustom(uint32_t call_site_idx, Thread* self, ArtMet
   Runtime::Current()->GetInstrumentation()->PushDeoptContextIfNeeded(
       self, DeoptimizationMethodType::kDefault, is_ref, result);
 
-  return result.GetJ();
+  return NanBoxResultIfNeeded(result.GetJ(), shorty[0]);
 }
 
 extern "C" void artJniMethodEntryHook(Thread* self)

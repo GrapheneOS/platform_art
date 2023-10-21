@@ -770,6 +770,9 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kExit:
         case HInstruction::kGoto:
         case HInstruction::kPackedSwitch:
+        case HInstruction::kSelect:
+        case HInstruction::kThrow:
+        case HInstruction::kNop:
         case HInstruction::kTryBoundary:
         case HInstruction::kClearException:
         case HInstruction::kLoadException:
@@ -789,6 +792,8 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kLoadMethodType:
         case HInstruction::kNewArray:
         case HInstruction::kNewInstance:
+        case HInstruction::kConstructorFence:
+        case HInstruction::kMemoryBarrier:
         case HInstruction::kInstanceFieldGet:
         case HInstruction::kInstanceFieldSet:
         case HInstruction::kStaticFieldGet:
@@ -820,16 +825,27 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kUShr:
         case HInstruction::kAbs:
         case HInstruction::kBooleanNot:
+        case HInstruction::kDiv:
+        case HInstruction::kRem:
         case HInstruction::kMul:
         case HInstruction::kNeg:
         case HInstruction::kNot:
         case HInstruction::kMin:
         case HInstruction::kMax:
+        case HInstruction::kMonitorOperation:
+        case HInstruction::kStringBuilderAppend:
         case HInstruction::kInvokeStaticOrDirect:
         case HInstruction::kInvokeVirtual:
         case HInstruction::kInvokeInterface:
+        case HInstruction::kInvokeCustom:
+        case HInstruction::kInvokePolymorphic:
         case HInstruction::kCurrentMethod:
         case HInstruction::kNullCheck:
+        case HInstruction::kDeoptimize:
+        case HInstruction::kDivZeroCheck:
+        case HInstruction::kCheckCast:
+        case HInstruction::kInstanceOf:
+        case HInstruction::kBoundType:
           break;
         default:
           // Unimplemented instruction.

@@ -107,8 +107,8 @@ public abstract class DexoptResult {
 
     /**
      * The requested compiler filter. Note that the compiler filter might be adjusted before the
-     * execution based on factors like whether the profile is available or whether the app is
-     * used by other apps.
+     * execution based on factors like dexopt flags, whether the profile is available, or whether
+     * the app is used by other apps.
      *
      * @see DexoptParams.Builder#setCompilerFilter(String)
      * @see DexContainerFileDexoptResult#getActualCompilerFilter()
@@ -334,6 +334,9 @@ public abstract class DexoptResult {
          * If the same dex container file is dexopted for multiple ABIs, the same profile errors
          * will be repeated for each ABI in the {@link DexContainerFileDexoptResult}s of the same
          * dex container file.
+         *
+         * The error messages are for logging only, and they include the paths to the profile files
+         * that caused the errors.
          *
          * @see #EXTENDED_BAD_EXTERNAL_PROFILE.
          */

@@ -667,6 +667,72 @@ ENTRY art_quick_proxy_invoke_handler
 END art_quick_proxy_invoke_handler
 
 
+// Compiled code has requested that we deoptimize into the interpreter. The deoptimization
+// will long jump to the upcall with a special exception of -1.
+    .extern artDeoptimizeFromCompiledCode
+ENTRY art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_EVERYTHING_FRAME
+    mv    a1, xSELF                           // Pass Thread::Current().
+    call  artDeoptimizeFromCompiledCode       // (DeoptimizationKind, Thread*)
+    unimp
+END art_quick_deoptimize_from_compiled_code
+
+
+    .extern artStringBuilderAppend
+ENTRY art_quick_string_builder_append
+    SETUP_SAVE_REFS_ONLY_FRAME                // Save callee saves in case of GC.
+    addi  a1, sp, (FRAME_SIZE_SAVE_REFS_ONLY + __SIZEOF_POINTER__)  // Pass args.
+    mv    a2, xSELF                           // Pass Thread::Current().
+    call  artStringBuilderAppend              // (uint32_t, const unit32_t*, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
+END art_quick_string_builder_append
+
+
+// Entry from managed code that calls artInstanceOfFromCode and on failure calls
+// artThrowClassCastExceptionForObject.
+    .extern artInstanceOfFromCode
+    .extern artThrowClassCastExceptionForObject
+ENTRY art_quick_check_instance_of
+    // Type check using the bit string passes null as the target class. In that case just throw.
+    beqz  a1, .Lthrow_class_cast_exception_for_bitstring_check
+
+    // Store arguments and return address register.
+    // Stack needs to be 16B aligned on calls.
+    INCREASE_FRAME 32
+    sd    a0, 0*8(sp)
+    sd    a1, 1*8(sp)
+    SAVE_GPR ra, 3*8
+
+    // Call runtime code.
+    call  artInstanceOfFromCode
+
+    // Restore RA.
+    RESTORE_GPR ra, 3*8
+
+    // Check for exception.
+    CFI_REMEMBER_STATE
+    beqz a0, .Lthrow_class_cast_exception
+
+    // Remove spill area and return (no need to restore A0 and A1).
+    DECREASE_FRAME 32
+    ret
+
+.Lthrow_class_cast_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
+    // Restore A0 and remove spill area.
+    ld    a0, 0*8(sp)
+    ld    a1, 1*8(sp)
+    DECREASE_FRAME 32
+
+.Lthrow_class_cast_exception_for_bitstring_check:
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME         // Save all registers as basis for long jump context.
+    mv    a2, xSELF                           // Pass Thread::Current().
+    call  artThrowClassCastExceptionForObject // (Object*, Class*, Thread*)
+    unimp                                     // We should not return here...
+END art_quick_check_instance_of
+
+
 .macro N_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING n, c_name, cxx_name
 .extern \cxx_name
 ENTRY \c_name
@@ -1169,7 +1235,7 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromC
     RESTORE_GPR ra, 5*8
     DECREASE_FRAME 48
 .endm
-#endif // USE_BAKER_READ_BARRIER
+#endif  // USE_BAKER_READ_BARRIER
 #endif  // USE_READ_BARRIER
 
 ENTRY art_quick_aput_obj
@@ -1764,25 +1830,26 @@ END \name
 
 .macro COMPUTE_ARRAY_SIZE_8 class, count, temp0, temp1, temp2
     // Add array data offset and alignment adjustment to the `\count`.
-    addi   \temp1, \count, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+    li     \temp1, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
+    add.uw \temp1, \count, \temp1
 .endm
 
 .macro COMPUTE_ARRAY_SIZE_16 class, count, temp0, temp1, temp2
     // Add array data offset and alignment adjustment to the shifted `\count`.
     li     \temp1, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
-    sh1add \temp1, \count, \temp1
+    sh1add.uw \temp1, \count, \temp1
 .endm
 
 .macro COMPUTE_ARRAY_SIZE_32 class, count, temp0, temp1, temp2
     // Add array data offset and alignment adjustment to the shifted `\count`.
     li     \temp1, (MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
-    sh2add \temp1, \count, \temp1
+    sh2add.uw \temp1, \count, \temp1
 .endm
 
 .macro COMPUTE_ARRAY_SIZE_64 class, count, temp0, temp1, temp2
     // Add array data offset and alignment adjustment to the shifted `\count`.
     li     \temp1, (MIRROR_WIDE_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK)
-    sh3add \temp1, \count, \temp1
+    sh3add.uw \temp1, \count, \temp1
 .endm
 
 // TODO(ngeoffray): art_quick_alloc_array_resolved_region_tlab is not used for arm64, remove
@@ -1818,10 +1885,6 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, \
                           artAllocArrayFromCodeResolvedTLAB, \
                           COMPUTE_ARRAY_SIZE_64
 
-
-UNDEFINED art_quick_deoptimize_from_compiled_code
-UNDEFINED art_quick_string_builder_append
-UNDEFINED art_quick_check_instance_of
 
 UNDEFINED art_quick_set8_instance
 UNDEFINED art_quick_set8_static
