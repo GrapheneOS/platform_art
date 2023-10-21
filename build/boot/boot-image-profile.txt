@@ -1200,7 +1200,6 @@ HSPLdalvik/system/ZygoteHooks;->onEndPreload()V
 HSPLdalvik/system/ZygoteHooks;->postForkChild(IZZLjava/lang/String;)V
 HSPLdalvik/system/ZygoteHooks;->postForkCommon()V
 HSPLdalvik/system/ZygoteHooks;->preFork()V
-HSPLdalvik/system/ZygoteHooks;->waitUntilAllThreadsStopped()V
 HSPLjava/io/Bits;->getBoolean([BI)Z
 HSPLjava/io/Bits;->getDouble([BI)D
 HSPLjava/io/Bits;->getFloat([BI)F
@@ -1291,10 +1290,10 @@ HSPLjava/io/DataInputStream;->read([BII)I
 HSPLjava/io/DataInputStream;->readBoolean()Z
 HSPLjava/io/DataInputStream;->readByte()B
 HSPLjava/io/DataInputStream;->readFully([B)V
-HSPLjava/io/DataInputStream;->readFully([BII)V
+HSPLjava/io/DataInputStream;->readFully([BII)V+]Ljava/io/InputStream;Ljava/io/ByteArrayInputStream;
 HSPLjava/io/DataInputStream;->readInt()I
 HSPLjava/io/DataInputStream;->readLong()J
-HSPLjava/io/DataInputStream;->readShort()S
+HSPLjava/io/DataInputStream;->readShort()S+]Ljava/io/DataInputStream;Ljava/io/DataInputStream;
 HSPLjava/io/DataInputStream;->readUTF()Ljava/lang/String;
 HSPLjava/io/DataInputStream;->readUTF(Ljava/io/DataInput;)Ljava/lang/String;
 HSPLjava/io/DataInputStream;->readUnsignedByte()I
@@ -1415,7 +1414,7 @@ HSPLjava/io/FilterInputStream;->available()I
 HSPLjava/io/FilterInputStream;->close()V
 HSPLjava/io/FilterInputStream;->mark(I)V
 HSPLjava/io/FilterInputStream;->markSupported()Z
-HSPLjava/io/FilterInputStream;->read()I
+HSPLjava/io/FilterInputStream;->read()I+]Ljava/io/InputStream;Ljava/io/BufferedInputStream;,Ljava/io/PushbackInputStream;
 HSPLjava/io/FilterInputStream;->read([B)I
 HSPLjava/io/FilterInputStream;->read([BII)I
 HSPLjava/io/FilterInputStream;->reset()V
@@ -1874,7 +1873,7 @@ HSPLjava/io/Writer;->append(C)Ljava/io/Writer;
 HSPLjava/io/Writer;->append(Ljava/lang/CharSequence;)Ljava/io/Writer;
 HSPLjava/io/Writer;->write(Ljava/lang/String;)V
 HSPLjava/lang/AbstractStringBuilder;-><init>(I)V
-HSPLjava/lang/AbstractStringBuilder;->append(C)Ljava/lang/AbstractStringBuilder;
+HSPLjava/lang/AbstractStringBuilder;->append(C)Ljava/lang/AbstractStringBuilder;+]Ljava/lang/AbstractStringBuilder;Ljava/lang/StringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(D)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(F)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(I)Ljava/lang/AbstractStringBuilder;
@@ -1882,7 +1881,7 @@ HSPLjava/lang/AbstractStringBuilder;->append(J)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/AbstractStringBuilder;)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/CharSequence;)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/CharSequence;II)Ljava/lang/AbstractStringBuilder;
-HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/String;)Ljava/lang/AbstractStringBuilder;
+HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/String;)Ljava/lang/AbstractStringBuilder;+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/AbstractStringBuilder;->append(Ljava/lang/StringBuffer;)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append(Z)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->append([CII)Ljava/lang/AbstractStringBuilder;
@@ -1910,7 +1909,7 @@ HSPLjava/lang/AbstractStringBuilder;->isLatin1()Z
 HSPLjava/lang/AbstractStringBuilder;->lastIndexOf(Ljava/lang/String;I)I
 HSPLjava/lang/AbstractStringBuilder;->length()I
 HSPLjava/lang/AbstractStringBuilder;->newCapacity(I)I
-HSPLjava/lang/AbstractStringBuilder;->putStringAt(ILjava/lang/String;)V
+HSPLjava/lang/AbstractStringBuilder;->putStringAt(ILjava/lang/String;)V+]Ljava/lang/String;Ljava/lang/String;]Ljava/lang/AbstractStringBuilder;Ljava/lang/StringBuilder;,Ljava/lang/StringBuffer;
 HSPLjava/lang/AbstractStringBuilder;->replace(IILjava/lang/String;)Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->reverse()Ljava/lang/AbstractStringBuilder;
 HSPLjava/lang/AbstractStringBuilder;->setCharAt(IC)V
@@ -1953,7 +1952,7 @@ HSPLjava/lang/Byte;->toString(B)Ljava/lang/String;
 HSPLjava/lang/Byte;->toUnsignedInt(B)I
 HSPLjava/lang/Byte;->valueOf(B)Ljava/lang/Byte;
 HSPLjava/lang/CaseMapper;->toLowerCase(Ljava/util/Locale;Ljava/lang/String;)Ljava/lang/String;+]Ljava/lang/String;Ljava/lang/String;]Ljava/util/Locale;Ljava/util/Locale;
-HSPLjava/lang/CaseMapper;->toUpperCase(Ljava/util/Locale;Ljava/lang/String;I)Ljava/lang/String;
+HSPLjava/lang/CaseMapper;->toUpperCase(Ljava/util/Locale;Ljava/lang/String;I)Ljava/lang/String;+]Ljava/lang/String;Ljava/lang/String;]Ljava/util/Locale;Ljava/util/Locale;
 HSPLjava/lang/CaseMapper;->upperIndex(I)I
 HSPLjava/lang/Character$Subset;->equals(Ljava/lang/Object;)Z
 HSPLjava/lang/Character$Subset;->hashCode()I
@@ -2032,7 +2031,7 @@ HSPLjava/lang/Class;->getConstructors()[Ljava/lang/reflect/Constructor;
 HSPLjava/lang/Class;->getDeclaredConstructor([Ljava/lang/Class;)Ljava/lang/reflect/Constructor;
 HSPLjava/lang/Class;->getDeclaredConstructors()[Ljava/lang/reflect/Constructor;
 HSPLjava/lang/Class;->getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
-HSPLjava/lang/Class;->getDeclaredMethods()[Ljava/lang/reflect/Method;
+HSPLjava/lang/Class;->getDeclaredMethods()[Ljava/lang/reflect/Method;+]Ljava/lang/reflect/Method;Ljava/lang/reflect/Method;]Ljava/lang/Class;Ljava/lang/Class;
 HSPLjava/lang/Class;->getEnclosingConstructor()Ljava/lang/reflect/Constructor;
 HSPLjava/lang/Class;->getEnclosingMethod()Ljava/lang/reflect/Method;
 HSPLjava/lang/Class;->getEnumConstants()[Ljava/lang/Object;
@@ -2062,9 +2061,9 @@ HSPLjava/lang/Class;->getTypeParameters()[Ljava/lang/reflect/TypeVariable;
 HSPLjava/lang/Class;->isAnnotation()Z
 HSPLjava/lang/Class;->isAnnotationPresent(Ljava/lang/Class;)Z
 HSPLjava/lang/Class;->isArray()Z
-HSPLjava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z
+HSPLjava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z+]Ljava/lang/Class;Ljava/lang/Class;
 HSPLjava/lang/Class;->isEnum()Z
-HSPLjava/lang/Class;->isInstance(Ljava/lang/Object;)Z
+HSPLjava/lang/Class;->isInstance(Ljava/lang/Object;)Z+]Ljava/lang/Class;Ljava/lang/Class;
 HSPLjava/lang/Class;->isInterface()Z
 HSPLjava/lang/Class;->isLocalClass()Z
 HSPLjava/lang/Class;->isLocalOrAnonymousClass()Z
@@ -2242,7 +2241,7 @@ HSPLjava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 HSPLjava/lang/Integer;->valueOf(Ljava/lang/String;)Ljava/lang/Integer;
 HSPLjava/lang/Integer;->valueOf(Ljava/lang/String;I)Ljava/lang/Integer;
 HSPLjava/lang/InterruptedException;-><init>()V
-HSPLjava/lang/Iterable;->forEach(Ljava/util/function/Consumer;)V+]Ljava/lang/Iterable;Ljava/util/HashSet;]Ljava/util/function/Consumer;Lcom/android/internal/app/LocaleStore$$ExternalSyntheticLambda0;,Ljava/util/ArrayDeque$$ExternalSyntheticLambda1;]Ljava/util/Iterator;missing_types
+HSPLjava/lang/Iterable;->forEach(Ljava/util/function/Consumer;)V+]Ljava/lang/Iterable;Ljava/util/HashSet;]Ljava/util/function/Consumer;missing_types]Ljava/util/Iterator;missing_types
 HSPLjava/lang/LinkageError;-><init>(Ljava/lang/String;)V
 HSPLjava/lang/Long;-><init>(J)V
 HSPLjava/lang/Long;->bitCount(J)I
@@ -2269,7 +2268,7 @@ HSPLjava/lang/Long;->numberOfLeadingZeros(J)I
 HSPLjava/lang/Long;->numberOfTrailingZeros(J)I
 HSPLjava/lang/Long;->parseLong(Ljava/lang/CharSequence;III)J
 HSPLjava/lang/Long;->parseLong(Ljava/lang/String;)J
-HSPLjava/lang/Long;->parseLong(Ljava/lang/String;I)J
+HSPLjava/lang/Long;->parseLong(Ljava/lang/String;I)J+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/Long;->reverse(J)J
 HSPLjava/lang/Long;->reverseBytes(J)J
 HSPLjava/lang/Long;->rotateLeft(JI)J
@@ -2409,7 +2408,7 @@ HSPLjava/lang/String;->checkOffset(II)V
 HSPLjava/lang/String;->codePointAt(I)I
 HSPLjava/lang/String;->codePointCount(II)I
 HSPLjava/lang/String;->coder()B
-HSPLjava/lang/String;->compareTo(Ljava/lang/Object;)I
+HSPLjava/lang/String;->compareTo(Ljava/lang/Object;)I+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/String;->compareToIgnoreCase(Ljava/lang/String;)I
 HSPLjava/lang/String;->contains(Ljava/lang/CharSequence;)Z
 HSPLjava/lang/String;->contentEquals(Ljava/lang/CharSequence;)Z
@@ -2421,8 +2420,8 @@ HSPLjava/lang/String;->format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/S
 HSPLjava/lang/String;->format(Ljava/util/Locale;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
 HSPLjava/lang/String;->getBytes()[B
 HSPLjava/lang/String;->getBytes(Ljava/lang/String;)[B
-HSPLjava/lang/String;->getBytes(Ljava/nio/charset/Charset;)[B
-HSPLjava/lang/String;->getBytes([BIB)V
+HSPLjava/lang/String;->getBytes(Ljava/nio/charset/Charset;)[B+]Ljava/lang/String;Ljava/lang/String;]Ljava/nio/charset/Charset;Lcom/android/icu/charset/CharsetICU;
+HSPLjava/lang/String;->getBytes([BIB)V+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/String;->getChars(II[CI)V
 HSPLjava/lang/String;->getChars([CI)V
 HSPLjava/lang/String;->hashCode()I+]Ljava/lang/String;Ljava/lang/String;
@@ -2436,7 +2435,7 @@ HSPLjava/lang/String;->isEmpty()Z
 HSPLjava/lang/String;->join(Ljava/lang/CharSequence;Ljava/lang/Iterable;)Ljava/lang/String;
 HSPLjava/lang/String;->join(Ljava/lang/CharSequence;[Ljava/lang/CharSequence;)Ljava/lang/String;
 HSPLjava/lang/String;->lastIndexOf(I)I
-HSPLjava/lang/String;->lastIndexOf(II)I
+HSPLjava/lang/String;->lastIndexOf(II)I+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/String;->lastIndexOf(Ljava/lang/String;)I
 HSPLjava/lang/String;->lastIndexOf(Ljava/lang/String;I)I
 HSPLjava/lang/String;->lastIndexOf(Ljava/lang/String;Ljava/lang/String;I)I
@@ -2453,7 +2452,7 @@ HSPLjava/lang/String;->replaceFirst(Ljava/lang/String;Ljava/lang/String;)Ljava/l
 HSPLjava/lang/String;->split(Ljava/lang/String;)[Ljava/lang/String;
 HSPLjava/lang/String;->split(Ljava/lang/String;I)[Ljava/lang/String;
 HSPLjava/lang/String;->startsWith(Ljava/lang/String;)Z
-HSPLjava/lang/String;->startsWith(Ljava/lang/String;I)Z
+HSPLjava/lang/String;->startsWith(Ljava/lang/String;I)Z+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/lang/String;->subSequence(II)Ljava/lang/CharSequence;
 HSPLjava/lang/String;->substring(I)Ljava/lang/String;
 HSPLjava/lang/String;->substring(II)Ljava/lang/String;
@@ -2662,7 +2661,7 @@ HSPLjava/lang/ThreadLocal$ThreadLocalMap;-><init>(Ljava/lang/ThreadLocal;Ljava/l
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->cleanSomeSlots(II)Z
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->expungeStaleEntries()V
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->expungeStaleEntry(I)I
-HSPLjava/lang/ThreadLocal$ThreadLocalMap;->getEntry(Ljava/lang/ThreadLocal;)Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;
+HSPLjava/lang/ThreadLocal$ThreadLocalMap;->getEntry(Ljava/lang/ThreadLocal;)Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;+]Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->getEntryAfterMiss(Ljava/lang/ThreadLocal;ILjava/lang/ThreadLocal$ThreadLocalMap$Entry;)Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->nextIndex(II)I
 HSPLjava/lang/ThreadLocal$ThreadLocalMap;->prevIndex(II)I
@@ -2676,7 +2675,7 @@ HSPLjava/lang/ThreadLocal;->-$$Nest$fgetthreadLocalHashCode(Ljava/lang/ThreadLoc
 HSPLjava/lang/ThreadLocal;-><init>()V
 HSPLjava/lang/ThreadLocal;->createInheritedMap(Ljava/lang/ThreadLocal$ThreadLocalMap;)Ljava/lang/ThreadLocal$ThreadLocalMap;
 HSPLjava/lang/ThreadLocal;->createMap(Ljava/lang/Thread;Ljava/lang/Object;)V
-HSPLjava/lang/ThreadLocal;->get()Ljava/lang/Object;
+HSPLjava/lang/ThreadLocal;->get()Ljava/lang/Object;+]Ljava/lang/ThreadLocal;missing_types
 HSPLjava/lang/ThreadLocal;->getMap(Ljava/lang/Thread;)Ljava/lang/ThreadLocal$ThreadLocalMap;
 HSPLjava/lang/ThreadLocal;->initialValue()Ljava/lang/Object;
 HSPLjava/lang/ThreadLocal;->nextHashCode()I
@@ -2895,10 +2894,10 @@ HSPLjava/lang/reflect/Method;->getDeclaringClass()Ljava/lang/Class;
 HSPLjava/lang/reflect/Method;->getGenericParameterTypes()[Ljava/lang/reflect/Type;
 HSPLjava/lang/reflect/Method;->getGenericReturnType()Ljava/lang/reflect/Type;
 HSPLjava/lang/reflect/Method;->getModifiers()I
-HSPLjava/lang/reflect/Method;->getName()Ljava/lang/String;
+HSPLjava/lang/reflect/Method;->getName()Ljava/lang/String;+]Ljava/lang/reflect/Method;Ljava/lang/reflect/Method;
 HSPLjava/lang/reflect/Method;->getParameterAnnotations()[[Ljava/lang/annotation/Annotation;
 HSPLjava/lang/reflect/Method;->getParameterTypes()[Ljava/lang/Class;
-HSPLjava/lang/reflect/Method;->getReturnType()Ljava/lang/Class;
+HSPLjava/lang/reflect/Method;->getReturnType()Ljava/lang/Class;+]Ljava/lang/reflect/Method;Ljava/lang/reflect/Method;
 HSPLjava/lang/reflect/Method;->hashCode()I
 HSPLjava/lang/reflect/Method;->isBridge()Z
 HSPLjava/lang/reflect/Method;->isDefault()Z
@@ -3636,7 +3635,6 @@ HSPLjava/nio/ByteBuffer;->clear()Ljava/nio/Buffer;
 HSPLjava/nio/ByteBuffer;->compare(BB)I
 HSPLjava/nio/ByteBuffer;->compareTo(Ljava/lang/Object;)I
 HSPLjava/nio/ByteBuffer;->compareTo(Ljava/nio/ByteBuffer;)I
-HSPLjava/nio/ByteBuffer;->equals(BB)Z
 HSPLjava/nio/ByteBuffer;->equals(Ljava/lang/Object;)Z
 HSPLjava/nio/ByteBuffer;->flip()Ljava/nio/Buffer;
 HSPLjava/nio/ByteBuffer;->get([B)Ljava/nio/ByteBuffer;
@@ -5008,7 +5006,7 @@ HSPLjava/util/ArrayList;->equalsArrayList(Ljava/util/ArrayList;)Z
 HSPLjava/util/ArrayList;->equalsRange(Ljava/util/List;II)Z
 HSPLjava/util/ArrayList;->fastRemove([Ljava/lang/Object;I)V
 HSPLjava/util/ArrayList;->forEach(Ljava/util/function/Consumer;)V
-HSPLjava/util/ArrayList;->get(I)Ljava/lang/Object;
+HSPLjava/util/ArrayList;->get(I)Ljava/lang/Object;+]Ljava/util/ArrayList;Ljava/util/ArrayList;
 HSPLjava/util/ArrayList;->grow()[Ljava/lang/Object;
 HSPLjava/util/ArrayList;->grow(I)[Ljava/lang/Object;
 HSPLjava/util/ArrayList;->hashCode()I
@@ -5450,7 +5448,7 @@ HSPLjava/util/Comparator;->naturalOrder()Ljava/util/Comparator;
 HSPLjava/util/Comparator;->nullsFirst(Ljava/util/Comparator;)Ljava/util/Comparator;
 HSPLjava/util/Comparator;->reversed()Ljava/util/Comparator;
 HSPLjava/util/Comparator;->thenComparing(Ljava/util/Comparator;)Ljava/util/Comparator;
-HSPLjava/util/Comparator;->thenComparing(Ljava/util/function/Function;)Ljava/util/Comparator;
+HSPLjava/util/Comparator;->thenComparing(Ljava/util/function/Function;)Ljava/util/Comparator;+]Ljava/util/Comparator;Ljava/util/Comparator$$ExternalSyntheticLambda5;
 HSPLjava/util/Comparators$NaturalOrderComparator;->compare(Ljava/lang/Comparable;Ljava/lang/Comparable;)I
 HSPLjava/util/Comparators$NaturalOrderComparator;->compare(Ljava/lang/Object;Ljava/lang/Object;)I
 HSPLjava/util/Comparators$NullComparator;-><init>(ZLjava/util/Comparator;)V
@@ -5739,7 +5737,7 @@ HSPLjava/util/HashMap;->forEach(Ljava/util/function/BiConsumer;)V
 HSPLjava/util/HashMap;->get(Ljava/lang/Object;)Ljava/lang/Object;
 HSPLjava/util/HashMap;->getNode(Ljava/lang/Object;)Ljava/util/HashMap$Node;
 HSPLjava/util/HashMap;->getOrDefault(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
-HSPLjava/util/HashMap;->hash(Ljava/lang/Object;)I
+HSPLjava/util/HashMap;->hash(Ljava/lang/Object;)I+]Ljava/lang/Object;missing_types
 HSPLjava/util/HashMap;->internalWriteEntries(Ljava/io/ObjectOutputStream;)V
 HSPLjava/util/HashMap;->isEmpty()Z
 HSPLjava/util/HashMap;->keySet()Ljava/util/Set;
@@ -5830,6 +5828,7 @@ HSPLjava/util/IdentityHashMap$EntryIterator;-><init>(Ljava/util/IdentityHashMap;
 HSPLjava/util/IdentityHashMap$EntryIterator;->next()Ljava/lang/Object;
 HSPLjava/util/IdentityHashMap$EntryIterator;->next()Ljava/util/Map$Entry;
 HSPLjava/util/IdentityHashMap$EntrySet;-><init>(Ljava/util/IdentityHashMap;)V
+HSPLjava/util/IdentityHashMap$EntrySet;-><init>(Ljava/util/IdentityHashMap;Ljava/util/IdentityHashMap$EntrySet-IA;)V
 HSPLjava/util/IdentityHashMap$EntrySet;->iterator()Ljava/util/Iterator;
 HSPLjava/util/IdentityHashMap$EntrySet;->size()I
 HSPLjava/util/IdentityHashMap$IdentityHashMapIterator;-><init>(Ljava/util/IdentityHashMap;)V
@@ -5888,10 +5887,9 @@ HSPLjava/util/ImmutableCollections$MapN;->probe(Ljava/lang/Object;)I
 HSPLjava/util/ImmutableCollections$SetN;-><init>([Ljava/lang/Object;)V
 HSPLjava/util/ImmutableCollections$SetN;->contains(Ljava/lang/Object;)Z
 HSPLjava/util/ImmutableCollections$SetN;->probe(Ljava/lang/Object;)I
-HSPLjava/util/ImmutableCollections;->-$$Nest$sfgetEMPTY()Ljava/lang/Object;
 HSPLjava/util/ImmutableCollections;-><clinit>()V
 HSPLjava/util/ImmutableCollections;->listCopy(Ljava/util/Collection;)Ljava/util/List;
-HSPLjava/util/Iterator;->forEachRemaining(Ljava/util/function/Consumer;)V+]Ljava/util/function/Consumer;Ljava/util/stream/Nodes$FixedNodeBuilder;,Ljava/util/stream/ReferencePipeline$2$1;,Ljava/util/stream/ReferencePipeline$3$1;,Ljava/util/stream/ReferencePipeline$4$1;]Ljava/util/Iterator;Landroid/util/MapCollections$ArrayIterator;
+HSPLjava/util/Iterator;->forEachRemaining(Ljava/util/function/Consumer;)V+]Ljava/util/function/Consumer;missing_types]Ljava/util/Iterator;Landroid/util/MapCollections$ArrayIterator;
 HSPLjava/util/JumboEnumSet$EnumSetIterator;-><init>(Ljava/util/JumboEnumSet;)V
 HSPLjava/util/JumboEnumSet$EnumSetIterator;->hasNext()Z
 HSPLjava/util/JumboEnumSet$EnumSetIterator;->next()Ljava/lang/Enum;
@@ -5966,7 +5964,7 @@ HSPLjava/util/LinkedList;-><init>()V
 HSPLjava/util/LinkedList;-><init>(Ljava/util/Collection;)V
 HSPLjava/util/LinkedList;->add(ILjava/lang/Object;)V
 HSPLjava/util/LinkedList;->add(Ljava/lang/Object;)Z
-HSPLjava/util/LinkedList;->addAll(ILjava/util/Collection;)Z
+HSPLjava/util/LinkedList;->addAll(ILjava/util/Collection;)Z+]Ljava/util/Collection;Ljava/util/LinkedList;]Ljava/util/LinkedList;Ljava/util/LinkedList;
 HSPLjava/util/LinkedList;->addAll(Ljava/util/Collection;)Z
 HSPLjava/util/LinkedList;->addFirst(Ljava/lang/Object;)V
 HSPLjava/util/LinkedList;->addLast(Ljava/lang/Object;)V
@@ -6013,7 +6011,7 @@ HSPLjava/util/List;->of(Ljava/lang/Object;)Ljava/util/List;
 HSPLjava/util/List;->of(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/List;
 HSPLjava/util/List;->of(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/List;
 HSPLjava/util/List;->of([Ljava/lang/Object;)Ljava/util/List;
-HSPLjava/util/List;->sort(Ljava/util/Comparator;)V
+HSPLjava/util/List;->sort(Ljava/util/Comparator;)V+]Ljava/util/ListIterator;Ljava/util/LinkedList$ListItr;]Ljava/util/List;Ljava/util/LinkedList;
 HSPLjava/util/List;->spliterator()Ljava/util/Spliterator;
 HSPLjava/util/Locale$Builder;-><init>()V
 HSPLjava/util/Locale$Builder;->build()Ljava/util/Locale;
@@ -6037,12 +6035,12 @@ HSPLjava/util/Locale;-><init>(Lsun/util/locale/BaseLocale;Lsun/util/locale/Local
 HSPLjava/util/Locale;->cleanCache()V
 HSPLjava/util/Locale;->clone()Ljava/lang/Object;
 HSPLjava/util/Locale;->convertOldISOCodes(Ljava/lang/String;)Ljava/lang/String;
-HSPLjava/util/Locale;->equals(Ljava/lang/Object;)Z
+HSPLjava/util/Locale;->equals(Ljava/lang/Object;)Z+]Lsun/util/locale/BaseLocale;Lsun/util/locale/BaseLocale;
 HSPLjava/util/Locale;->forLanguageTag(Ljava/lang/String;)Ljava/util/Locale;
 HSPLjava/util/Locale;->getAvailableLocales()[Ljava/util/Locale;
 HSPLjava/util/Locale;->getBaseLocale()Lsun/util/locale/BaseLocale;
 HSPLjava/util/Locale;->getCompatibilityExtensions(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsun/util/locale/LocaleExtensions;
-HSPLjava/util/Locale;->getCountry()Ljava/lang/String;
+HSPLjava/util/Locale;->getCountry()Ljava/lang/String;+]Lsun/util/locale/BaseLocale;Lsun/util/locale/BaseLocale;
 HSPLjava/util/Locale;->getDefault()Ljava/util/Locale;
 HSPLjava/util/Locale;->getDefault(Ljava/util/Locale$Category;)Ljava/util/Locale;
 HSPLjava/util/Locale;->getDisplayCountry(Ljava/util/Locale;)Ljava/lang/String;
@@ -6054,10 +6052,10 @@ HSPLjava/util/Locale;->getISO3Language()Ljava/lang/String;
 HSPLjava/util/Locale;->getISOLanguages()[Ljava/lang/String;
 HSPLjava/util/Locale;->getInstance(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsun/util/locale/LocaleExtensions;)Ljava/util/Locale;
 HSPLjava/util/Locale;->getInstance(Lsun/util/locale/BaseLocale;Lsun/util/locale/LocaleExtensions;)Ljava/util/Locale;
-HSPLjava/util/Locale;->getLanguage()Ljava/lang/String;
+HSPLjava/util/Locale;->getLanguage()Ljava/lang/String;+]Lsun/util/locale/BaseLocale;Lsun/util/locale/BaseLocale;
 HSPLjava/util/Locale;->getScript()Ljava/lang/String;
 HSPLjava/util/Locale;->getUnicodeLocaleType(Ljava/lang/String;)Ljava/lang/String;
-HSPLjava/util/Locale;->getVariant()Ljava/lang/String;
+HSPLjava/util/Locale;->getVariant()Ljava/lang/String;+]Lsun/util/locale/BaseLocale;Lsun/util/locale/BaseLocale;
 HSPLjava/util/Locale;->hasExtensions()Z
 HSPLjava/util/Locale;->hashCode()I
 HSPLjava/util/Locale;->isUnicodeExtensionKey(Ljava/lang/String;)Z
@@ -6068,7 +6066,7 @@ HSPLjava/util/Locale;->readObject(Ljava/io/ObjectInputStream;)V
 HSPLjava/util/Locale;->readResolve()Ljava/lang/Object;
 HSPLjava/util/Locale;->setDefault(Ljava/util/Locale$Category;Ljava/util/Locale;)V
 HSPLjava/util/Locale;->setDefault(Ljava/util/Locale;)V
-HSPLjava/util/Locale;->toLanguageTag()Ljava/lang/String;
+HSPLjava/util/Locale;->toLanguageTag()Ljava/lang/String;+]Ljava/lang/String;Ljava/lang/String;]Ljava/lang/StringBuilder;Ljava/lang/StringBuilder;]Lsun/util/locale/LanguageTag;Lsun/util/locale/LanguageTag;]Ljava/util/List;Ljava/util/Collections$EmptyList;]Ljava/util/Iterator;Ljava/util/Collections$EmptyIterator;
 HSPLjava/util/Locale;->toString()Ljava/lang/String;
 HSPLjava/util/Locale;->writeObject(Ljava/io/ObjectOutputStream;)V
 HSPLjava/util/Map;->computeIfAbsent(Ljava/lang/Object;Ljava/util/function/Function;)Ljava/lang/Object;+]Ljava/util/function/Function;missing_types]Ljava/util/Map;Landroid/util/ArrayMap;
@@ -6080,7 +6078,7 @@ HSPLjava/util/NoSuchElementException;-><init>()V
 HSPLjava/util/NoSuchElementException;-><init>(Ljava/lang/String;)V
 HSPLjava/util/Objects;->checkFromIndexSize(III)I
 HSPLjava/util/Objects;->checkIndex(II)I
-HSPLjava/util/Objects;->equals(Ljava/lang/Object;Ljava/lang/Object;)Z
+HSPLjava/util/Objects;->equals(Ljava/lang/Object;Ljava/lang/Object;)Z+]Ljava/lang/Object;megamorphic_types
 HSPLjava/util/Objects;->hash([Ljava/lang/Object;)I
 HSPLjava/util/Objects;->hashCode(Ljava/lang/Object;)I
 HSPLjava/util/Objects;->nonNull(Ljava/lang/Object;)Z
@@ -6267,7 +6265,7 @@ HSPLjava/util/SimpleTimeZone;->getOffset(J)I
 HSPLjava/util/SimpleTimeZone;->getOffsets(J[I)I
 HSPLjava/util/SimpleTimeZone;->getRawOffset()I
 HSPLjava/util/SimpleTimeZone;->hasSameRules(Ljava/util/TimeZone;)Z
-HSPLjava/util/Spliterator$OfInt;->forEachRemaining(Ljava/util/function/Consumer;)V+]Ljava/util/Spliterator$OfInt;Ljava/util/Spliterators$IntArraySpliterator;
+HSPLjava/util/Spliterator$OfInt;->forEachRemaining(Ljava/util/function/Consumer;)V+]Ljava/util/Spliterator$OfInt;Ljava/util/Spliterators$IntArraySpliterator;,Ljava/util/stream/Streams$RangeIntSpliterator;
 HSPLjava/util/Spliterator;->getExactSizeIfKnown()J+]Ljava/util/Spliterator;megamorphic_types
 HSPLjava/util/Spliterators$ArraySpliterator;-><init>([Ljava/lang/Object;I)V
 HSPLjava/util/Spliterators$ArraySpliterator;-><init>([Ljava/lang/Object;III)V
@@ -6716,7 +6714,7 @@ HSPLjava/util/concurrent/ConcurrentHashMap;->putVal(Ljava/lang/Object;Ljava/lang
 HSPLjava/util/concurrent/ConcurrentHashMap;->remove(Ljava/lang/Object;)Ljava/lang/Object;
 HSPLjava/util/concurrent/ConcurrentHashMap;->remove(Ljava/lang/Object;Ljava/lang/Object;)Z
 HSPLjava/util/concurrent/ConcurrentHashMap;->replace(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z
-HSPLjava/util/concurrent/ConcurrentHashMap;->replaceNode(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+HSPLjava/util/concurrent/ConcurrentHashMap;->replaceNode(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;+]Ljava/lang/Object;Landroid/icu/impl/locale/BaseLocale$Key;
 HSPLjava/util/concurrent/ConcurrentHashMap;->resizeStamp(I)I
 HSPLjava/util/concurrent/ConcurrentHashMap;->setTabAt([Ljava/util/concurrent/ConcurrentHashMap$Node;ILjava/util/concurrent/ConcurrentHashMap$Node;)V
 HSPLjava/util/concurrent/ConcurrentHashMap;->size()I
@@ -7617,7 +7615,7 @@ HSPLjava/util/regex/Pattern;-><init>(Ljava/lang/String;I)V
 HSPLjava/util/regex/Pattern;->compile()V
 HSPLjava/util/regex/Pattern;->compile(Ljava/lang/String;)Ljava/util/regex/Pattern;
 HSPLjava/util/regex/Pattern;->compile(Ljava/lang/String;I)Ljava/util/regex/Pattern;
-HSPLjava/util/regex/Pattern;->fastSplit(Ljava/lang/String;Ljava/lang/String;I)[Ljava/lang/String;
+HSPLjava/util/regex/Pattern;->fastSplit(Ljava/lang/String;Ljava/lang/String;I)[Ljava/lang/String;+]Ljava/lang/String;Ljava/lang/String;
 HSPLjava/util/regex/Pattern;->matcher(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;
 HSPLjava/util/regex/Pattern;->matches(Ljava/lang/String;Ljava/lang/CharSequence;)Z
 HSPLjava/util/regex/Pattern;->pattern()Ljava/lang/String;
