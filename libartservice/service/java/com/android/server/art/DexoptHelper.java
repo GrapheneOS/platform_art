@@ -53,6 +53,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -116,7 +117,7 @@ public class DexoptHelper {
     private DexoptResult dexoptPackages(@NonNull List<PackageState> pkgStates,
             @NonNull DexoptParams params, @NonNull CancellationSignal cancellationSignal,
             @NonNull Executor dexoptExecutor, @Nullable Executor progressCallbackExecutor,
-            @Nullable Consumer<OperationProgress> progressCallback) {
+            @Nullable Consumer<OperationProgress> origProgressCallback) {
         // TODO(jiakaiz): Find out whether this is still needed.
         long identityToken = Binder.clearCallingIdentity();
 
@@ -157,7 +158,19 @@ public class DexoptHelper {
                 }, dexoptExecutor));
             }
 
+            Consumer<OperationProgress> progressCallback =
+                DexoptHooks.maybeWrapDexoptProgressCallback(params, origProgressCallback);
+
             if (progressCallback != null) {
+                if (progressCallbackExecutor == null) {
+                    if (origProgressCallback == progressCallback) {
+                        // this is not a wrapper progress callback, and caller hasn't supplied the
+                        // executor
+                        throw new NullPointerException("progressCallbackExecutor");
+                    }
+                    progressCallbackExecutor = Executors.newSingleThreadExecutor();
+                }
+
                 CompletableFuture.runAsync(() -> {
                     progressCallback.accept(OperationProgress.create(
                             0 /* current */, futures.size(), null /* packageDexoptResult */));
