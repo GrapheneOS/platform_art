@@ -73,7 +73,8 @@ ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
 }
 
 // This must be called whenever DequeuePendingReference is called.
-void ReferenceQueue::DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref) {
+void ReferenceQueue::DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref,
+                                                    std::memory_order order) {
   Heap* heap = Runtime::Current()->GetHeap();
   if (kUseBakerReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
       heap->ConcurrentCopyingCollector()->IsActive()) {
@@ -84,7 +85,7 @@ void ReferenceQueue::DisableReadBarrierForReference(ObjPtr<mirror::Reference> re
     collector::ConcurrentCopying* concurrent_copying = heap->ConcurrentCopyingCollector();
     uint32_t rb_state = ref->GetReadBarrierState();
     if (rb_state == ReadBarrier::GrayState()) {
-      ref->AtomicSetReadBarrierState(ReadBarrier::GrayState(), ReadBarrier::NonGrayState());
+      ref->AtomicSetReadBarrierState(ReadBarrier::GrayState(), ReadBarrier::NonGrayState(), order);
       CHECK_EQ(ref->GetReadBarrierState(), ReadBarrier::NonGrayState());
     } else {
       // In ConcurrentCopying::ProcessMarkStackRef() we may leave a non-gray reference in the queue
@@ -158,7 +159,7 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
     }
     // Delay disabling the read barrier until here so that the ClearReferent call above in
     // transaction mode will trigger the read barrier.
-    DisableReadBarrierForReference(ref);
+    DisableReadBarrierForReference(ref, std::memory_order_relaxed);
   }
 }
 
@@ -186,7 +187,7 @@ FinalizerStats ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue* cleare
     }
     // Delay disabling the read barrier until here so that the ClearReferent call above in
     // transaction mode will trigger the read barrier.
-    DisableReadBarrierForReference(ref->AsReference());
+    DisableReadBarrierForReference(ref->AsReference(), std::memory_order_relaxed);
   }
   return FinalizerStats(num_refs, num_enqueued);
 }
@@ -216,7 +217,7 @@ uint32_t ReferenceQueue::ForwardSoftReferences(MarkObjectVisitor* visitor) {
         visitor->MarkHeapReference(referent_addr, /*do_atomic_update=*/ true);
         ++num_refs;
       }
-      DisableReadBarrierForReference(buf[i]->AsReference());
+      DisableReadBarrierForReference(buf[i]->AsReference(), std::memory_order_release);
     }
   } while (!empty);
   return num_refs;
