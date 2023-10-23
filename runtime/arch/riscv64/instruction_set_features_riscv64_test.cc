@@ -37,4 +37,21 @@ TEST(Riscv64InstructionSetFeaturesTest, Riscv64FeaturesFromDefaultVariant) {
   EXPECT_EQ(riscv64_features->AsBitmap(), expected_extensions);
 }
 
+TEST(Riscv64InstructionSetFeaturesTest, Riscv64FeaturesFromString) {
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> generic_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kRiscv64, "generic", &error_msg));
+  ASSERT_TRUE(generic_features.get() != nullptr) << error_msg;
+
+  std::unique_ptr<const InstructionSetFeatures> rv64gv_features(
+      generic_features->AddFeaturesFromString("rv64gv", &error_msg));
+  ASSERT_TRUE(rv64gv_features.get() != nullptr) << error_msg;
+
+  EXPECT_FALSE(generic_features->Equals(rv64gv_features.get()));
+
+  uint32_t expected_extensions = Riscv64InstructionSetFeatures::kExtGeneric |
+                                 Riscv64InstructionSetFeatures::kExtVector;
+  EXPECT_EQ(rv64gv_features->AsBitmap(), expected_extensions);
+}
+
 }  // namespace art
