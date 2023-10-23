@@ -26,8 +26,11 @@ import os
 import argparse
 
 ANDROID_BUILD_TOP = os.environ.get('ANDROID_BUILD_TOP', os.getcwd())
+TEST_RUNNER = 'art/test/testrunner/testrunner.py'
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description='Test runner wrapper to run ART run tests. All unrecognised ' +
+    'arguments are passed on to ' + TEST_RUNNER + '.')
 parser.add_argument('-j', default='', dest='n_threads', help='specify number of concurrent tests')
 parser.add_argument('--run-test', '-r', action='store_true', dest='run_test', help='execute run tests')
 parser.add_argument('--gtest', '-g', action='store_true', dest='gtest', help='execute gtest tests')
@@ -37,9 +40,7 @@ parser.add_argument('--help-runner', action='store_true', dest='help_runner', he
 options, unknown = parser.parse_known_args()
 
 if options.run_test or options.help_runner or not options.gtest:
-  testrunner = os.path.join('./',
-                          ANDROID_BUILD_TOP,
-                            'art/test/testrunner/testrunner.py')
+  testrunner = os.path.join('./', ANDROID_BUILD_TOP, TEST_RUNNER)
   run_test_args = []
   for arg in sys.argv[1:]:
     if arg == '--run-test' or arg == '--gtest' \
@@ -51,7 +52,7 @@ if options.run_test or options.help_runner or not options.gtest:
     run_test_args.append(arg)
 
   test_runner_cmd = [testrunner] + run_test_args
-  print(test_runner_cmd)
+  print(' '.join(test_runner_cmd))
   if subprocess.call(test_runner_cmd) or options.help_runner:
     sys.exit(1)
 
