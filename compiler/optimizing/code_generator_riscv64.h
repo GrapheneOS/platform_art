@@ -615,6 +615,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   InstructionSet GetInstructionSet() const override { return InstructionSet::kRiscv64; }
 
+  const Riscv64InstructionSetFeatures& GetInstructionSetFeatures() const;
+
   uint32_t GetPreferredSlotsAlignment() const override {
     return static_cast<uint32_t>(kRiscv64PointerSize);
   }
