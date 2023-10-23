@@ -22,6 +22,8 @@
 
 #include "dex_file.h"
 
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
+
 namespace art {
 
 class OatDexFile;
@@ -131,6 +133,7 @@ class StandardDexFile : public DexFile {
 
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for constructor
   friend class OptimizingUnitTestHelper;  // for constructor
+  friend int ::LLVMFuzzerTestOneInput(const uint8_t*, size_t);  // for constructor
 
   DISALLOW_COPY_AND_ASSIGN(StandardDexFile);
 };
