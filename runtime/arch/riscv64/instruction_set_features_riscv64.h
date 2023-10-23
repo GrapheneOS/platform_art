@@ -31,7 +31,10 @@ class Riscv64InstructionSetFeatures final : public InstructionSetFeatures {
   enum {
     kExtGeneric = (1 << 0),     // G extension covers the basic set IMAFD
     kExtCompressed = (1 << 1),  // C extension adds compressed instructions
-    kExtVector = (1 << 2)       // V extension adds vector instructions
+    kExtVector = (1 << 2),      // V extension adds vector instructions
+    kExtZba = (1 << 3),         // Zba adds address generation bit-manipulation instructions
+    kExtZbb = (1 << 4),         // Zbb adds basic bit-manipulation instructions
+    kExtZbs = (1 << 5),         // Zbs adds single-bit bit-manipulation instructions
   };
 
   static Riscv64FeaturesUniquePtr FromVariant(const std::string& variant, std::string* error_msg);
