@@ -304,6 +304,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     @NonNull
     private String adjustCompilerFilter(
             @NonNull String targetCompilerFilter, @NonNull DexInfoType dexInfo) {
+        if (mPkgState.isSystem()) {
+            return "speed";
+        }
+
         if (mInjector.isSystemUiPackage(mPkgState.getPackageName())) {
             String systemUiCompilerFilter = getSystemUiCompilerFilter();
             if (!systemUiCompilerFilter.isEmpty()) {
