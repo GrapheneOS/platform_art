@@ -1262,6 +1262,7 @@ ONE_ARG_REF_DOWNCALL art_quick_get32_static, \
 ONE_ARG_REF_DOWNCALL art_quick_get64_static, \
                      artGet64StaticFromCompiledCode, \
                      RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+// FIXME: This is passing `is_ref = 0` to `DEOPT_OR_DELIVER` but we have a reference!
 ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, \
                      artGetObjStaticFromCompiledCode, \
                      RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
@@ -1284,6 +1285,7 @@ TWO_ARG_REF_DOWNCALL art_quick_get32_instance, \
 TWO_ARG_REF_DOWNCALL art_quick_get64_instance, \
                      artGet64InstanceFromCompiledCode, \
                      RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+// FIXME: This is passing `is_ref = 0` to `DEOPT_OR_DELIVER` but we have a reference!
 TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, \
                      artGetObjInstanceFromCompiledCode, \
                      RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION

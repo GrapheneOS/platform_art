@@ -798,6 +798,10 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kInstanceFieldSet:
         case HInstruction::kStaticFieldGet:
         case HInstruction::kStaticFieldSet:
+        case HInstruction::kUnresolvedInstanceFieldGet:
+        case HInstruction::kUnresolvedInstanceFieldSet:
+        case HInstruction::kUnresolvedStaticFieldGet:
+        case HInstruction::kUnresolvedStaticFieldSet:
         case HInstruction::kArrayGet:
         case HInstruction::kArrayLength:
         case HInstruction::kArraySet:
@@ -839,6 +843,7 @@ static bool CanAssembleGraphForRiscv64(HGraph* graph) {
         case HInstruction::kInvokeInterface:
         case HInstruction::kInvokeCustom:
         case HInstruction::kInvokePolymorphic:
+        case HInstruction::kInvokeUnresolved:
         case HInstruction::kCurrentMethod:
         case HInstruction::kNullCheck:
         case HInstruction::kDeoptimize:
