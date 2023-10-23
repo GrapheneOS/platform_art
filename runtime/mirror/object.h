@@ -111,8 +111,9 @@ class MANAGED LOCKABLE Object {
 
   ALWAYS_INLINE void SetReadBarrierState(uint32_t rb_state) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<std::memory_order kMemoryOrder = std::memory_order_relaxed>
-  ALWAYS_INLINE bool AtomicSetReadBarrierState(uint32_t expected_rb_state, uint32_t rb_state)
+  ALWAYS_INLINE bool AtomicSetReadBarrierState(uint32_t expected_rb_state,
+                                               uint32_t rb_state,
+                                               std::memory_order order = std::memory_order_relaxed)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE uint32_t GetMarkBit() REQUIRES_SHARED(Locks::mutator_lock_);
