@@ -18,8 +18,12 @@ class DexoptHooks {
     static Consumer<OperationProgress> maybeWrapDexoptProgressCallback(
             DexoptParams params, @Nullable Consumer<OperationProgress> orig) {
 
-        if (!ReasonMapping.REASON_BOOT_AFTER_OTA.equals(params.getReason())) {
-            return orig;
+        switch (params.getReason()) {
+            case ReasonMapping.REASON_BOOT_AFTER_OTA:
+            case ReasonMapping.REASON_BG_DEXOPT:
+                break;
+            default:
+                return orig;
         }
 
         var pm = Objects.requireNonNull(LocalManagerRegistry.getManager(PackageManagerLocal.class));
@@ -29,9 +33,16 @@ class DexoptHooks {
                 orig.accept(progress);
             }
 
-            Slog.d(TAG, progress.toString());
+            String reason = params.getReason();
 
-            pm.showDexoptProgressBootMessage(progress.getPercentage(), progress.getCurrent(), progress.getTotal());
+            Slog.d(TAG, "onDexoptProgress: reason " + reason + ", " + progress);
+
+            switch (reason) {
+                case ReasonMapping.REASON_BOOT_AFTER_OTA ->
+                    pm.showDexoptProgressBootMessage(progress.getPercentage(), progress.getCurrent(), progress.getTotal());
+                case ReasonMapping.REASON_BG_DEXOPT ->
+                    pm.onBgDexoptProgressUpdate(progress.getPercentage(), progress.getCurrent(), progress.getTotal());
+            }
         };
 
         return res;
