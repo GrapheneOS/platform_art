@@ -31,8 +31,10 @@ import androidx.annotation.RequiresApi;
 
 import com.android.art.rw.flags.Flags;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.LocalManagerRegistry;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.ArtFlags.PriorityClassApi;
+import com.android.server.art.model.DexoptStatus;
 import com.android.server.art.utils.Utils;
 import com.android.server.art.utils.Utils.Clock;
 import com.android.server.pm.PackageManagerLocal;
@@ -259,13 +261,35 @@ public class ReasonMapping {
         var appHibernationManager = mInjector.getAppHibernationManager();
         long now = mInjector.getClock().currentTimeMillis();
 
+        ArtManagerLocal artManager = LocalManagerRegistry.getManager(ArtManagerLocal.class);
+        Objects.requireNonNull(artManager);
+
         Stream<PackageInfo> packages =
                 snapshot.getPackageStates()
                         .values()
                         .stream()
-                        // Filter out hibernating packages even if the reason is REASON_INACTIVE.
-                        // This is because artifacts for hibernating packages are already deleted.
-                        .filter(pkgState -> Utils.canDexoptPackage(pkgState, appHibernationManager))
+                        .filter(pkgState -> {
+                            // Filter out hibernating packages even if the reason is REASON_INACTIVE.
+                            // This is because artifacts for hibernating packages are already deleted.
+                            if (!Utils.canDexoptPackage(pkgState, appHibernationManager)) {
+                                return false;
+                            }
+                            if (reason.equals(ReasonMapping.REASON_PRE_REBOOT_DEXOPT)) {
+                                // pre-reboot dexopt runs ART code from next OTA update, it doesn't have access to
+                                // system_server code that is called below
+                                return true;
+                            }
+
+                            List<DexoptStatus.DexContainerFileDexoptStatus> statuses = artManager.getDexoptStatus(snapshot, pkgState.getPackageName())
+                                .getDexContainerFileDexoptStatuses();
+
+                            for (var s : statuses) {
+                                if (!"speed".equals(s.getCompilerFilter())) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })
                         .map(pkgState
                                 -> new PackageInfo(pkgState,
                                         Utils.getPackageLastActiveTime(pkgState,
