@@ -494,6 +494,9 @@
       "name": "art-run-test-2262-checker-return-sinking[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2265-checker-select-binary-unary[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-300-package-override[com.google.android.art.apex]"
     },
     {
@@ -1922,6 +1925,9 @@
       "name": "art-run-test-2262-checker-return-sinking"
     },
     {
+      "name": "art-run-test-2265-checker-select-binary-unary"
+    },
+    {
       "name": "art-run-test-300-package-override"
     },
     {
@@ -3337,6 +3343,9 @@
       "name": "art-run-test-2262-checker-return-sinking"
     },
     {
+      "name": "art-run-test-2265-checker-select-binary-unary"
+    },
+    {
       "name": "art-run-test-300-package-override"
     },
     {
@@ -4249,11 +4258,6 @@
   "avf-presubmit": [
     {
       "name": "ComposHostTestCases"
-    }
-  ],
-  "postsubmit": [
-    {
-      "name": "art-run-test-2265-checker-select-binary-unary"
     }
   ]
 }
