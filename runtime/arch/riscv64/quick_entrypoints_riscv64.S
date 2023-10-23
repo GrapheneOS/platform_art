@@ -575,6 +575,20 @@ END art_quick_do_long_jump
 .endm
 
 
+.macro RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION is_ref = 0
+    lwu   a1, THREAD_EXCEPTION_OFFSET(xSELF)   // Get exception field.
+    bnez  a1, 1f
+    DEOPT_OR_RETURN a1, \is_ref                // Check if deopt is required.
+1:
+    DELIVER_PENDING_EXCEPTION                  // Deliver exception on current thread.
+.endm
+
+
+.macro RETURN_REF_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+    RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION /* is_ref= */ 1
+.endm
+
+
 .macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_A0 temp, is_ref
   ld      \temp, THREAD_DEOPT_CHECK_REQUIRED_OFFSET(xSELF)
   CFI_REMEMBER_STATE
@@ -1886,28 +1900,84 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, \
                           COMPUTE_ARRAY_SIZE_64
 
 
-UNDEFINED art_quick_set8_instance
-UNDEFINED art_quick_set8_static
-UNDEFINED art_quick_set16_instance
-UNDEFINED art_quick_set16_static
-UNDEFINED art_quick_set32_instance
-UNDEFINED art_quick_set32_static
-UNDEFINED art_quick_set64_instance
-UNDEFINED art_quick_set64_static
-UNDEFINED art_quick_set_obj_instance
-UNDEFINED art_quick_set_obj_static
-UNDEFINED art_quick_get_byte_instance
-UNDEFINED art_quick_get_boolean_instance
-UNDEFINED art_quick_get_short_instance
-UNDEFINED art_quick_get_char_instance
-UNDEFINED art_quick_get32_instance
-UNDEFINED art_quick_get64_instance
-UNDEFINED art_quick_get_obj_instance
-UNDEFINED art_quick_get_byte_static
-UNDEFINED art_quick_get_boolean_static
-UNDEFINED art_quick_get_short_static
-UNDEFINED art_quick_get_char_static
-UNDEFINED art_quick_get32_static
-UNDEFINED art_quick_get64_static
-UNDEFINED art_quick_get_obj_static
+// Note: Functions `art{Get,Set}<Kind>{Static,Instance}FromCompiledCode` are
+// defined with a macro in runtime/entrypoints/quick/quick_field_entrypoints.cc.
+
+ONE_ARG_DOWNCALL art_quick_get_boolean_static, \
+                 artGetBooleanStaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get_byte_static, \
+                 artGetByteStaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get_char_static, \
+                 artGetCharStaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get_short_static, \
+                 artGetShortStaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get32_static, \
+                 artGet32StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get64_static, \
+                 artGet64StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_DOWNCALL art_quick_get_obj_static, \
+                 artGetObjStaticFromCompiledCode, \
+                 RETURN_REF_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+
+TWO_ARG_DOWNCALL art_quick_get_boolean_instance, \
+                 artGetBooleanInstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get_byte_instance, \
+                 artGetByteInstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get_char_instance, \
+                 artGetCharInstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get_short_instance, \
+                 artGetShortInstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get32_instance, \
+                 artGet32InstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get64_instance, \
+                 artGet64InstanceFromCompiledCode, \
+                 RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_quick_get_obj_instance, \
+                 artGetObjInstanceFromCompiledCode, \
+                 RETURN_REF_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+
+TWO_ARG_DOWNCALL art_quick_set8_static, \
+                 artSet8StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_set16_static, \
+                 artSet16StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_set32_static, \
+                 artSet32StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_set64_static, \
+                 artSet64StaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_set_obj_static, \
+                 artSetObjStaticFromCompiledCode, \
+                 RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+
+THREE_ARG_DOWNCALL art_quick_set8_instance, \
+                   artSet8InstanceFromCompiledCode, \
+                   RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_set16_instance, \
+                   artSet16InstanceFromCompiledCode, \
+                   RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_set32_instance, \
+                   artSet32InstanceFromCompiledCode, \
+                   RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_set64_instance, \
+                   artSet64InstanceFromCompiledCode, \
+                   RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_set_obj_instance, \
+                   artSetObjInstanceFromCompiledCode, \
+                   RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
+
+
 UNDEFINED art_quick_indexof
