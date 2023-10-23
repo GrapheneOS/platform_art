@@ -131,6 +131,8 @@ public class BackgroundDexoptJob implements ArtServiceJobInterface {
             throw new IllegalStateException("This job cannot be scheduled");
         }
 
+        start();
+
         if (SystemProperties.getBoolean("pm.dexopt.disable_bg_dexopt", false /* def */)) {
             Log.i(TAG, "Job is disabled by system property 'pm.dexopt.disable_bg_dexopt'");
             return ArtFlags.SCHEDULE_DISABLED_BY_SYSPROP;
