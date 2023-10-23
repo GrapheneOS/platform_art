@@ -182,6 +182,17 @@ public class BackgroundDexoptJob {
                 }
             }
         });
+
+        mRunningJob.thenAcceptAsync(result -> {
+            DexoptResult dr = null;
+            long durationMs = 0L;
+            if (result instanceof CompletedResult r) {
+                dr = r.dexoptResult();
+                durationMs = r.durationMs();
+            }
+            mInjector.getPackageManagerLocal().onBgDexoptCompleted(dr, durationMs);
+        });
+
         return mRunningJob;
     }
 
