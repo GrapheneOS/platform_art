@@ -380,8 +380,7 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         dexoptOptions.debuggable = mPkg.isDebuggable() || isAlwaysDebuggable();
         // Generating a meaningful app image needs a profile to determine what to include in the
         // image. Otherwise, the app image will be nearly empty.
-        dexoptOptions.generateAppImage =
-                isProfileGuidedFilter && isAppImageAllowed(dexInfo) && isAppImageEnabled();
+        dexoptOptions.generateAppImage = isProfileGuidedFilter && isAppImageEnabled();
         dexoptOptions.hiddenApiPolicyEnabled = isHiddenApiPolicyEnabled();
         dexoptOptions.comments = String.format(
                 "app-version-name:%s,app-version-code:%d,art-version:%d", mPkg.getVersionName(),
@@ -616,9 +615,6 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
 
     /** Returns the path to the reference profile of the given dex file. */
     @NonNull protected abstract ProfilePath buildRefProfilePath(@NonNull DexInfoType dexInfo);
-
-    /** Returns true if app image (--app-image-fd) is allowed. */
-    protected abstract boolean isAppImageAllowed(@NonNull DexInfoType dexInfo);
 
     /**
      * Returns the data structure that represents the temporary profile to use during processing.

@@ -224,13 +224,13 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64", mRefProfile,
-                false /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm64", mRefProfile, false /* isOtherReadable */);
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm", mRefProfile,
-                false /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm", mRefProfile, false /* isOtherReadable */);
 
         // There is no profile for split 0, so it should fall back to "verify".
         verify(mArtd).getDexoptNeeded(
@@ -261,10 +261,10 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
 
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64", mRefProfile,
-                true /* isOtherReadable */, true /* generateAppImage */);
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm", mRefProfile,
-                true /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm64", mRefProfile, true /* isOtherReadable */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm", mRefProfile, true /* isOtherReadable */);
 
         verifyProfileNotUsed(mPrebuiltProfile);
         verifyProfileNotUsed(mDmProfile);
@@ -287,10 +287,10 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         checkDexoptWithProfile(inOrder.verify(mArtd), mDexPath, "arm64",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
         checkDexoptWithProfile(inOrder.verify(mArtd), mDexPath, "arm",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
 
         inOrder.verify(mArtd).commitTmpProfile(deepEq(mPublicOutputProfile.profilePath));
 
@@ -328,13 +328,13 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 eq(mBetterOrSameDexoptTrigger));
         checkDexoptWithProfile(inOrder.verify(mArtd), mDexPath, "arm64",
                 ProfilePath.tmpProfilePath(mPrivateOutputProfile.profilePath),
-                false /* isOtherReadable */, true /* generateAppImage */);
+                false /* isOtherReadable */);
 
         inOrder.verify(mArtd).getDexoptNeeded(eq(mDexPath), eq("arm"), any(), eq("speed-profile"),
                 eq(mBetterOrSameDexoptTrigger));
         checkDexoptWithProfile(inOrder.verify(mArtd), mDexPath, "arm",
                 ProfilePath.tmpProfilePath(mPrivateOutputProfile.profilePath),
-                false /* isOtherReadable */, true /* generateAppImage */);
+                false /* isOtherReadable */);
 
         inOrder.verify(mArtd).commitTmpProfile(deepEq(mPrivateOutputProfile.profilePath));
 
@@ -361,13 +361,13 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         // It should still use "speed-profile", but with the existing reference profile only.
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64", mRefProfile,
-                true /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm64", mRefProfile, true /* isOtherReadable */);
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
-        checkDexoptWithProfile(verify(mArtd), mDexPath, "arm", mRefProfile,
-                true /* isOtherReadable */, true /* generateAppImage */);
+        checkDexoptWithProfile(
+                verify(mArtd), mDexPath, "arm", mRefProfile, true /* isOtherReadable */);
 
         verify(mArtd, never()).deleteProfile(any());
         verify(mArtd, never()).commitTmpProfile(any());
@@ -386,10 +386,10 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mPrebuiltProfile);
@@ -408,10 +408,10 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mPrebuiltProfile);
@@ -483,13 +483,13 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mForceDexoptTrigger));
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm64",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm"), any(), eq("speed-profile"), eq(mForceDexoptTrigger));
         checkDexoptWithProfile(verify(mArtd), mDexPath, "arm",
                 ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath),
-                true /* isOtherReadable */, true /* generateAppImage */);
+                true /* isOtherReadable */);
 
         checkDexoptWithNoProfile(verify(mArtd), mSplit0DexPath, "arm64", "speed");
         checkDexoptWithNoProfile(verify(mArtd), mSplit0DexPath, "arm", "speed");
@@ -534,12 +534,12 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         verify(mArtd).getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), eq("speed-profile"),
                 eq(mDefaultDexoptTrigger));
         checkDexoptWithProfile(verify(mArtd), mSplit0DexPath, "arm64", mSplit0RefProfile,
-                false /* isOtherReadable */, false /* generateAppImage */);
+                false /* isOtherReadable */);
 
         verify(mArtd).getDexoptNeeded(eq(mSplit0DexPath), eq("arm"), any(), eq("speed-profile"),
                 eq(mDefaultDexoptTrigger));
         checkDexoptWithProfile(verify(mArtd), mSplit0DexPath, "arm", mSplit0RefProfile,
-                false /* isOtherReadable */, false /* generateAppImage */);
+                false /* isOtherReadable */);
     }
 
     @Test
@@ -730,14 +730,12 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
     }
 
     private void checkDexoptWithProfile(IArtd artd, String dexPath, String isa, ProfilePath profile,
-            boolean isOtherReadable, boolean generateAppImage) throws Exception {
+            boolean isOtherReadable) throws Exception {
         artd.dexopt(argThat(artifacts
                             -> artifacts.permissionSettings.fileFsPermission.isOtherReadable
                                     == isOtherReadable),
                 eq(dexPath), eq(isa), any(), eq("speed-profile"), deepEq(profile), any(), any(),
-                anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == generateAppImage),
-                any());
+                anyInt(), argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithNoProfile(

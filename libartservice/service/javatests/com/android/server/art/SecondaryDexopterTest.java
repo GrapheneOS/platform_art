@@ -318,7 +318,7 @@ public class SecondaryDexopterTest {
                 dexPath, isa, false /* isInDalvikCache */, permissionSettings);
         artd.dexopt(deepEq(outputArtifacts), eq(dexPath), eq(isa), eq(classLoaderContext),
                 eq("speed-profile"), deepEq(profile), any(), isNull() /* dmFile */, anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == false), any());
+                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithNoProfile(IArtd artd, String dexPath, String isa,
