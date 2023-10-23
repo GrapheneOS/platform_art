@@ -30,10 +30,14 @@ TEST(Riscv64InstructionSetFeaturesTest, Riscv64FeaturesFromDefaultVariant) {
 
   EXPECT_TRUE(riscv64_features->Equals(riscv64_features.get()));
 
-  // rv64gcv, aka rv64imafdcv
-  uint32_t expected_extensions = Riscv64InstructionSetFeatures::kExtGeneric |
-                                 Riscv64InstructionSetFeatures::kExtCompressed |
-                                 Riscv64InstructionSetFeatures::kExtVector;
+  // rv64gcv_zba_zbb_zbs, aka rv64imafdcv_zba_zbb_zbs
+  uint32_t expected_extensions =
+      Riscv64InstructionSetFeatures::kExtGeneric |
+      Riscv64InstructionSetFeatures::kExtCompressed |
+      Riscv64InstructionSetFeatures::kExtVector |
+      Riscv64InstructionSetFeatures::kExtZba |
+      Riscv64InstructionSetFeatures::kExtZbb |
+      Riscv64InstructionSetFeatures::kExtZbs;
   EXPECT_EQ(riscv64_features->AsBitmap(), expected_extensions);
 }
 
@@ -52,6 +56,19 @@ TEST(Riscv64InstructionSetFeaturesTest, Riscv64FeaturesFromString) {
   uint32_t expected_extensions = Riscv64InstructionSetFeatures::kExtGeneric |
                                  Riscv64InstructionSetFeatures::kExtVector;
   EXPECT_EQ(rv64gv_features->AsBitmap(), expected_extensions);
+
+  std::unique_ptr<const InstructionSetFeatures> rv64gc_zba_zbb_features(
+      generic_features->AddFeaturesFromString("rv64gc_zba_zbb", &error_msg));
+  ASSERT_TRUE(rv64gc_zba_zbb_features.get() != nullptr) << error_msg;
+
+  EXPECT_FALSE(generic_features->Equals(rv64gc_zba_zbb_features.get()));
+
+  expected_extensions =
+      Riscv64InstructionSetFeatures::kExtGeneric |
+      Riscv64InstructionSetFeatures::kExtCompressed |
+      Riscv64InstructionSetFeatures::kExtZba |
+      Riscv64InstructionSetFeatures::kExtZbb;
+  EXPECT_EQ(rv64gc_zba_zbb_features->AsBitmap(), expected_extensions);
 }
 
 }  // namespace art
