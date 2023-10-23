@@ -1274,10 +1274,29 @@ public final class ArtManagerLocal {
             @NonNull /* @BatchDexoptReason|REASON_INACTIVE */ String reason) {
         var appHibernationManager = mInjector.getAppHibernationManager();
 
-        // Filter out hibernating packages even if the reason is REASON_INACTIVE. This is because
-        // artifacts for hibernating packages are already deleted.
-        Stream<PackageState> packages = snapshot.getPackageStates().values().stream().filter(
-                pkgState -> Utils.canDexoptPackage(pkgState, appHibernationManager));
+        Stream<PackageState> packages = snapshot.getPackageStates().values().stream().filter(pkgState -> {
+            // Filter out hibernating packages even if the reason is REASON_INACTIVE. This is because
+            // artifacts for hibernating packages are already deleted.
+            if (!Utils.canDexoptPackage(pkgState, appHibernationManager)) {
+                return false;
+            }
+
+            if (reason.equals(ReasonMapping.REASON_PRE_REBOOT_DEXOPT)) {
+                // pre-reboot dexopt runs ART code from next OTA update, it doesn't have access to
+                // system_server code that is called below
+                return true;
+            }
+
+            List<DexContainerFileDexoptStatus> statuses = getDexoptStatus(snapshot, pkgState.getPackageName())
+                .getDexContainerFileDexoptStatuses();
+
+            for (var s : statuses) {
+                if (!"speed".equals(s.getCompilerFilter())) {
+                    return true;
+                }
+            }
+            return false;
+        });
 
         switch (reason) {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
