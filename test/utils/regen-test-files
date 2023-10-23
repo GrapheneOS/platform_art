@@ -222,8 +222,6 @@ known_failing_tests = frozenset([
 # pre-submit SLOs. Monitor their post-submit runs before removing them
 # from this set (in order to promote them to presubmits).
 postsubmit_only_tests = frozenset([
-  # 2265-checker-select-binary-unary: Added via aosp/2756354 on 2023-10-10.
-  "2265-checker-select-binary-unary",
 ])
 
 known_failing_on_hwasan_tests = frozenset([
