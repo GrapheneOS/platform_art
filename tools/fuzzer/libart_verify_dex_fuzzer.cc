@@ -14,34 +14,29 @@
  * limitations under the License.
  */
 
-#include "base/mem_map.h"
-#include "dex/dex_file_loader.h"
+#include "dex/dex_file_verifier.h"
+#include "dex/standard_dex_file.h"
 
 extern "C" int LLVMFuzzerInitialize([[maybe_unused]] int* argc, [[maybe_unused]] char*** argv) {
-  // Initialize environment.
-  // TODO(solanes): `art::MemMap::Init` is not needed for the current DexFileLoader code path.
-  // Consider removing it once the fuzzer stabilizes and check that it is actually not needed.
-  art::MemMap::Init();
   // Set logging to error and above to avoid warnings about unexpected checksums.
   android::base::SetMinimumLogSeverity(android::base::ERROR);
   return 0;
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  // Skip compact DEX.
-  // TODO(dsrbecky): Remove after removing compact DEX.
-  const char* dex_string = "cdex";
-  if (size >= strlen(dex_string) &&
-      strncmp(dex_string, (const char*)data, strlen(dex_string)) == 0) {
-    // A -1 indicates we don't want this DEX added to the corpus.
-    return -1;
-  }
+  // Do not verify the checksum as we only care about the DEX file contents,
+  // and know that the checksum would probably be erroneous (i.e. random).
+  constexpr bool kVerify = false;
 
-  // Open and verify the DEX file. Do not verify the checksum as we only care about the DEX file
-  // contents, and know that the checksum would probably be erroneous.
+  auto container = std::make_shared<art::MemoryDexFileContainer>(data, size);
+  art::StandardDexFile dex_file(data,
+                                /*location=*/"fuzz.dex",
+                                /*location_checksum=*/0,
+                                /*oat_dex_file=*/nullptr,
+                                container);
+
   std::string error_msg;
-  art::DexFileLoader loader(data, size, /*location=*/"");
-  std::unique_ptr<const art::DexFile> dex_file = loader.Open(
-      /*location_checksum=*/0, /*verify=*/true, /*verify_checksum=*/false, &error_msg);
+  art::dex::Verify(&dex_file, dex_file.GetLocation().c_str(), kVerify, &error_msg);
+
   return 0;
 }
