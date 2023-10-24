@@ -576,21 +576,49 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
 }
 
 bool DexFileVerifier::CheckHeader() {
-  // Check file size from the header.
-  CHECK_EQ(size_, header_->file_size_);
-  uint32_t expected_header_size = sizeof(StandardDexFile::Header);
-  if (size_ < expected_header_size) {
-    ErrorStringPrintf("Bad file size (%zd, expected at least %u)", size_, expected_header_size);
+  // Check magic.
+  size_t size = dex_file_->GetContainer()->End() - dex_file_->Begin();
+  if (size < sizeof(DexFile::Header)) {
+    ErrorStringPrintf("Empty or truncated file.");
     return false;
   }
-  uint32_t expected_file_size = dex_file_->GetContainer()->End() - begin_;
-  if (size_ > expected_file_size) {
-    ErrorStringPrintf("Bad file size (%zd, expected at most %u)", size_, expected_file_size);
+  if (!StandardDexFile::IsMagicValid(header_->magic_.data())) {
+    ErrorStringPrintf("Bad file magic");
+    return false;
+  }
+  if (!StandardDexFile::IsVersionValid(header_->magic_.data())) {
+    ErrorStringPrintf("Unknown dex version");
     return false;
   }
 
-  uint32_t adler_checksum = dex_file_->CalculateChecksum();
+  // Check file size from the header.
+  CHECK_EQ(size_, header_->file_size_);
+  size_t file_size = header_->file_size_;
+  size_t header_size = sizeof(DexFile::Header);
+  if (file_size < header_size) {
+    ErrorStringPrintf("Bad file size (%zu, expected at least %zu)", file_size, header_size);
+    return false;
+  }
+  if (file_size > size) {
+    ErrorStringPrintf("Bad file size (%zu, expected at most %zu)", file_size, size);
+    return false;
+  }
+  CHECK_GE(size, header_size);  // Implied by the two checks above.
+
+  // Check header size.
+  if (header_->header_size_ != header_size) {
+    ErrorStringPrintf("Bad header size: %ud expected %zud", header_->header_size_, header_size);
+    return false;
+  }
+
+  // Check the endian.
+  if (header_->endian_tag_ != DexFile::kDexEndianConstant) {
+    ErrorStringPrintf("Unexpected endian_tag: %x", header_->endian_tag_);
+    return false;
+  }
+
   // Compute and verify the checksum in the header.
+  uint32_t adler_checksum = dex_file_->CalculateChecksum();
   if (adler_checksum != header_->checksum_) {
     if (verify_checksum_) {
       ErrorStringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
@@ -599,19 +627,6 @@ bool DexFileVerifier::CheckHeader() {
       LOG(WARNING) << StringPrintf(
           "Ignoring bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
     }
-  }
-
-  // Check the contents of the header.
-  if (header_->endian_tag_ != DexFile::kDexEndianConstant) {
-    ErrorStringPrintf("Unexpected endian_tag: %x", header_->endian_tag_);
-    return false;
-  }
-
-  if (header_->header_size_ != expected_header_size) {
-    ErrorStringPrintf("Bad header size: %ud expected %ud",
-                      header_->header_size_,
-                      expected_header_size);
-    return false;
   }
 
   // Check that all offsets are inside the file.
