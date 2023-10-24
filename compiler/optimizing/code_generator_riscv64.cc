@@ -5176,6 +5176,13 @@ void InstructionCodeGeneratorRISCV64::VisitTypeConversion(HTypeConversion* instr
         __ FCvtWD(dst, src, FPRoundingMode::kRTZ);
       }
     }
+    // For NaN inputs we need to return 0.
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister tmp = srs.AllocateXRegister();
+    FClass(tmp, src, input_type);
+    __ Sltiu(tmp, tmp, kFClassNaNMinValue);  // 0 for NaN, 1 otherwise.
+    __ Neg(tmp, tmp);  // 0 for NaN, -1 otherwise.
+    __ And(dst, dst, tmp);  // Cleared for NaN.
   } else if (DataType::IsFloatingPointType(result_type) &&
              DataType::IsFloatingPointType(input_type)) {
     FRegister dst = locations->Out().AsFpuRegister<FRegister>();
