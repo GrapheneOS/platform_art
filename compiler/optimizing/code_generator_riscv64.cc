@@ -6083,6 +6083,10 @@ void CodeGeneratorRISCV64::DumpFloatingPointRegister(std::ostream& stream, int r
   stream << FRegister(reg);
 }
 
+const Riscv64InstructionSetFeatures& CodeGeneratorRISCV64::GetInstructionSetFeatures() const {
+  return *GetCompilerOptions().GetInstructionSetFeatures()->AsRiscv64InstructionSetFeatures();
+}
+
 void CodeGeneratorRISCV64::Finalize() {
   // Ensure that we fix up branches and literal loads and emit the literal pool.
   __ FinalizeCode();

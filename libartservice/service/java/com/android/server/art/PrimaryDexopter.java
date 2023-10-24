@@ -152,16 +152,6 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
     }
 
     @Override
-    protected boolean isAppImageAllowed(@NonNull DetailedPrimaryDexInfo dexInfo) {
-        // Only allow app image for the base APK because having multiple app images is not
-        // supported.
-        // Additionally, disable app images if the app requests for the splits to be loaded in
-        // isolation because app images are unsupported for multiple class loaders (b/72696798).
-        // TODO(jiakaiz): Investigate whether this is still the best choice today.
-        return dexInfo.splitName() == null && !PrimaryDexUtils.isIsolatedSplitLoading(mPkg);
-    }
-
-    @Override
     @NonNull
     protected OutputProfile buildOutputProfile(
             @NonNull DetailedPrimaryDexInfo dexInfo, boolean isPublic) {

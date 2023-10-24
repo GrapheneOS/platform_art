@@ -29,6 +29,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
@@ -166,14 +167,11 @@ public class ArtManagerLocalTest {
                 .thenReturn("verify");
         lenient().when(SystemProperties.get(eq("pm.dexopt.inactive"))).thenReturn("verify");
         lenient()
-                .when(SystemProperties.getInt(eq("pm.dexopt.bg-dexopt.concurrency"), anyInt()))
+                .when(SystemProperties.getInt(matches("pm\\.dexopt\\..*\\.concurrency"), anyInt()))
                 .thenReturn(3);
         lenient()
                 .when(SystemProperties.getInt(
-                        eq("pm.dexopt.boot-after-mainline-update.concurrency"), anyInt()))
-                .thenReturn(3);
-        lenient()
-                .when(SystemProperties.getInt(eq("pm.dexopt.inactive.concurrency"), anyInt()))
+                        matches("persist\\.device_config\\.runtime\\..*_concurrency"), anyInt()))
                 .thenReturn(3);
         lenient()
                 .when(SystemProperties.getInt(

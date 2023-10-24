@@ -19,15 +19,22 @@
 #include <fstream>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "base/logging.h"
 
 namespace art {
 
-// Basic feature set is rv64gcv, aka rv64imafdcv.
+using android::base::StringPrintf;
+
+// Basic feature set is rv64gcv_zba_zbb_zbs, aka rv64imafdcv_zba_zbb_zbs.
 constexpr uint32_t BasicFeatures() {
   return Riscv64InstructionSetFeatures::kExtGeneric |
-         Riscv64InstructionSetFeatures::kExtCompressed | Riscv64InstructionSetFeatures::kExtVector;
+         Riscv64InstructionSetFeatures::kExtCompressed |
+         Riscv64InstructionSetFeatures::kExtVector |
+         Riscv64InstructionSetFeatures::kExtZba |
+         Riscv64InstructionSetFeatures::kExtZbb |
+         Riscv64InstructionSetFeatures::kExtZbs;
 }
 
 Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromVariant(
@@ -50,6 +57,15 @@ Riscv64FeaturesUniquePtr Riscv64InstructionSetFeatures::FromCppDefines() {
 #endif
 #ifdef __riscv_v
   bits |= kExtVector;
+#endif
+#ifdef __riscv_zba
+  bits |= kExtZba;
+#endif
+#ifdef __riscv_zbb
+  bits |= kExtZbb;
+#endif
+#ifdef __riscv_zbs
+  bits |= kExtZbs;
 #endif
   return FromBitmap(bits);
 }
@@ -83,26 +99,47 @@ bool Riscv64InstructionSetFeatures::Equals(const InstructionSetFeatures* other) 
 
 uint32_t Riscv64InstructionSetFeatures::AsBitmap() const { return bits_; }
 
+static const std::pair<uint32_t, std::string> kExtensionList[] = {
+    {Riscv64InstructionSetFeatures::kExtGeneric, "rv64g"},
+    {Riscv64InstructionSetFeatures::kExtCompressed, "c"},
+    {Riscv64InstructionSetFeatures::kExtVector, "v"},
+    {Riscv64InstructionSetFeatures::kExtZba, "_zba"},
+    {Riscv64InstructionSetFeatures::kExtZbb, "_zbb"},
+    {Riscv64InstructionSetFeatures::kExtZbs, "_zbs"},
+};
+
 std::string Riscv64InstructionSetFeatures::GetFeatureString() const {
-  std::string result = "rv64";
-  if (bits_ & kExtGeneric) {
-    result += "g";
-  }
-  if (bits_ & kExtCompressed) {
-    result += "c";
-  }
-  if (bits_ & kExtVector) {
-    result += "v";
+  std::string result = "";
+  for (auto&& [ext_bit, ext_string] : kExtensionList) {
+    if (bits_ & ext_bit) {
+      result += ext_string;
+    }
   }
   return result;
 }
 
 std::unique_ptr<const InstructionSetFeatures>
-Riscv64InstructionSetFeatures::AddFeaturesFromSplitString(
-    [[maybe_unused]] const std::vector<std::string>& features,
-    [[maybe_unused]] std::string* error_msg) const {
-  UNIMPLEMENTED(WARNING);
-  return std::unique_ptr<const InstructionSetFeatures>(new Riscv64InstructionSetFeatures(bits_));
+Riscv64InstructionSetFeatures::AddFeaturesFromSplitString(const std::vector<std::string>& features,
+                                                          std::string* error_msg) const {
+  uint32_t bits = bits_;
+  if (!features.empty()) {
+    // There should be only one feature, the ISA string.
+    DCHECK_EQ(features.size(), 1U);
+    std::string_view isa_string = features.front();
+    bits = 0;
+    for (auto&& [ext_bit, ext_string] : kExtensionList) {
+      if (isa_string.substr(0, ext_string.length()) == ext_string) {
+        isa_string.remove_prefix(ext_string.length());
+        bits |= ext_bit;
+      }
+    }
+    if (!isa_string.empty()) {
+      *error_msg = StringPrintf("Unknown extension in ISA string: '%s'", features.front().c_str());
+      return nullptr;
+    }
+    DCHECK(bits & kExtGeneric);
+  }
+  return FromBitmap(bits);
 }
 
 }  // namespace art

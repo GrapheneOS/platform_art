@@ -80,8 +80,10 @@ class ReferenceQueue {
 
   // If applicable, disable the read barrier for the reference after its referent is handled (see
   // ConcurrentCopying::ProcessMarkStackRef.) This must be called for a reference that's dequeued
-  // from pending queue (DequeuePendingReference).
-  void DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref)
+  // from pending queue (DequeuePendingReference). 'order' is expected to be
+  // 'release' if called outside 'weak-ref access disabled' critical section.
+  // Otherwise 'relaxed' order will suffice.
+  void DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref, std::memory_order order)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to

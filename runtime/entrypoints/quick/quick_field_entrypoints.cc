@@ -106,8 +106,8 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
 //   art{Get,Set}<Kind>{Static,Instance}FromCode
 //   art{Get,Set}<Kind>{Static,Instance}FromCompiledCode
 //
-#define ART_GET_FIELD_FROM_CODE(Kind, PrimitiveType, RetType, SetType,         \
-                                PrimitiveOrObject, IsObject, Ptr)              \
+#define ART_GET_FIELD_FROM_CODE(Kind, RetType, SetType, PrimitiveOrObject,     \
+                                IsObject, Ptr)                                 \
   extern "C" RetType artGet ## Kind ## StaticFromCode(uint32_t field_idx,      \
                                                       ArtMethod* referrer,     \
                                                       Thread* self)            \
@@ -264,7 +264,7 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
 //   artSetByteStaticFromCompiledCode
 //   artSetByteInstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(Byte, int8_t, ssize_t, uint32_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Byte, ssize_t, uint32_t, Primitive, false, )
 
 // Define these functions:
 //
@@ -277,7 +277,7 @@ ART_GET_FIELD_FROM_CODE(Byte, int8_t, ssize_t, uint32_t, Primitive, false, )
 //   artSetBooleanStaticFromCompiledCode
 //   artSetBooleanInstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(Boolean, int8_t, size_t, uint32_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Boolean, size_t, uint32_t, Primitive, false, )
 
 // Define these functions:
 //
@@ -290,7 +290,7 @@ ART_GET_FIELD_FROM_CODE(Boolean, int8_t, size_t, uint32_t, Primitive, false, )
 //   artSetShortStaticFromCompiledCode
 //   artSetShortInstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(Short, int16_t, ssize_t, uint16_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Short, ssize_t, uint16_t, Primitive, false, )
 
 // Define these functions:
 //
@@ -303,7 +303,7 @@ ART_GET_FIELD_FROM_CODE(Short, int16_t, ssize_t, uint16_t, Primitive, false, )
 //   artSetCharStaticFromCompiledCode
 //   artSetCharInstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(Char, int16_t, size_t, uint16_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(Char, size_t, uint16_t, Primitive, false, )
 
 // Define these functions:
 //
@@ -316,7 +316,18 @@ ART_GET_FIELD_FROM_CODE(Char, int16_t, size_t, uint16_t, Primitive, false, )
 //   artSet32StaticFromCompiledCode
 //   artSet32InstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(32, int32_t, size_t, uint32_t, Primitive, false, )
+#if defined(__riscv)
+// On riscv64 we need to sign-extend `int` values to the full 64-bit register.
+// `ArtField::Get32()` returns a `uint32_t`, so let the getters return the same,
+// allowing the sign-extension specified by the RISC-V native calling convention:
+//     "[I]nteger scalars narrower than XLEN bits are widened according to the
+//     sign of their type up to 32 bits, then sign-extended to XLEN bits."
+// This is OK for `float` as the compiled code shall transfer it using FMV.W.X,
+// ignoring the upper 32 bits.
+ART_GET_FIELD_FROM_CODE(32, uint32_t, uint32_t, Primitive, false, )
+#else
+ART_GET_FIELD_FROM_CODE(32, size_t, uint32_t, Primitive, false, )
+#endif
 
 // Define these functions:
 //
@@ -329,7 +340,7 @@ ART_GET_FIELD_FROM_CODE(32, int32_t, size_t, uint32_t, Primitive, false, )
 //   artSet64StaticFromCompiledCode
 //   artSet64InstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(64, int64_t, uint64_t, uint64_t, Primitive, false, )
+ART_GET_FIELD_FROM_CODE(64, uint64_t, uint64_t, Primitive, false, )
 
 // Define these functions:
 //
@@ -342,8 +353,7 @@ ART_GET_FIELD_FROM_CODE(64, int64_t, uint64_t, uint64_t, Primitive, false, )
 //   artSetObjStaticFromCompiledCode
 //   artSetObjInstanceFromCompiledCode
 //
-ART_GET_FIELD_FROM_CODE(Obj, mirror::HeapReference<mirror::Object>, mirror::Object*,
-                        mirror::Object*, Object, true, .Ptr())
+ART_GET_FIELD_FROM_CODE(Obj, mirror::Object*, mirror::Object*, Object, true, .Ptr())
 
 #undef ART_GET_FIELD_FROM_CODE
 
