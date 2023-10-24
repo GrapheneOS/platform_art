@@ -58,6 +58,7 @@
 #include "thread_list.h"
 
 #ifdef ART_TARGET_ANDROID
+#include "android-modules-utils/sdk_level.h"
 #include "com_android_art.h"
 #endif
 
@@ -89,6 +90,7 @@ namespace {
 using ::android::base::GetBoolProperty;
 using ::android::base::ParseBool;
 using ::android::base::ParseBoolResult;
+using ::android::modules::sdklevel::IsAtLeastT;
 
 }  // namespace
 #endif
@@ -256,8 +258,12 @@ static bool SysPropSaysUffdGc() {
   // The phenotype flag can change at time time after boot, but it shouldn't take effect until a
   // reboot. Therefore, we read the phenotype flag from the cache info, which is generated on boot.
   std::unordered_map<std::string, std::string> cached_properties = GetCachedProperties();
-  return !GetCachedBoolProperty(
+  bool phenotype_enable = GetCachedBoolProperty(
+      cached_properties, "persist.device_config.runtime_native_boot.enable_uffd_gc_2", false);
+  bool phenotype_force_disable = GetCachedBoolProperty(
       cached_properties, "persist.device_config.runtime_native_boot.force_disable_uffd_gc", false);
+  bool build_enable = GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false);
+  return (phenotype_enable || build_enable || IsAtLeastT()) && !phenotype_force_disable;
 }
 #else
 // Never called.
