@@ -189,13 +189,14 @@ bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
 }
 
 ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data, DexFileContainer* container) {
+  // NB: This function must survive random data to pass fuzzing and testing.
   CHECK(container != nullptr);
   CHECK_GE(data, container->Begin());
   CHECK_LE(data, container->End());
   size_t size = container->End() - data;
   if (size >= sizeof(StandardDexFile::Header) && StandardDexFile::IsMagicValid(data)) {
     auto header = reinterpret_cast<const DexFile::Header*>(data);
-    size = std::min<size_t>(size, header->file_size_);
+    size = header->file_size_;
   } else if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(data)) {
     auto header = reinterpret_cast<const CompactDexFile::Header*>(data);
     // TODO: Remove. This is a hack. See comment of the Data method.
@@ -204,13 +205,11 @@ ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data, DexFileContai
       return separate_data;
     }
     // Shared compact dex data is located at the end after all dex files.
-    data += header->data_off_;
+    data += std::min<size_t>(header->data_off_, size);
     size = header->data_size_;
-  } else {
-    // Invalid dex file header.
-    // Some tests create dex files using just zeroed memory.
   }
-  return {data, size};
+  // The returned range is guaranteed to be in bounds of the container memory.
+  return {data, std::min<size_t>(size, container->End() - data)};
 }
 
 void DexFile::InitializeSectionsFromMapList() {
