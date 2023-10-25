@@ -1898,4 +1898,72 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, \
 GENERATE_FIELD_ENTRYPOINTS
 
 
-UNDEFINED art_quick_indexof
+// String's indexOf.
+//
+// TODO: Not very optimized. We should use the vector extension.
+// On entry:
+//    a0:   string object (known non-null)
+//    a1:   char to match (known <= 0xFFFF)
+//    a2:   Starting offset in string data
+ENTRY art_quick_indexof
+#if (STRING_COMPRESSION_FEATURE)
+    lwu   a4, MIRROR_STRING_COUNT_OFFSET(a0)
+#else
+    lwu   a3, MIRROR_STRING_COUNT_OFFSET(a0)
+#endif
+    addi  a0, a0, MIRROR_STRING_VALUE_OFFSET
+#if (STRING_COMPRESSION_FEATURE)
+    /* Split the count into length (a3) and compression flag (a4) */
+    srliw a3, a4, 1
+    andi  a4, a4, 1
+#endif
+    /* Clamp start to [0..count) */
+    sraiw a5, a2, 31
+    andn  a2, a2, a5
+    bge   a2, a3, .Lstring_indexof_nomatch
+
+#if (STRING_COMPRESSION_FEATURE)
+    beqz  a4, .Lstring_indexof_compressed
+#endif
+    /* Build pointers to start and end of the data to compare */
+    sh1add a2, a2, a0
+    sh1add a3, a3, a0
+
+    /*
+     * At this point we have:
+     *  a0: original start of string data
+     *  a1: char to compare
+     *  a2: start of the data to test
+     *  a3: end of the data to test
+     */
+
+.Lstring_indexof_loop:
+    lhu   a4, 0(a2)
+    beq   a4, a1, .Lstring_indexof_match
+    addi  a2, a2, 2
+    bne   a2, a3, .Lstring_indexof_loop
+.Lstring_indexof_nomatch:
+    li    a0, -1
+    ret
+.Lstring_indexof_match:
+    sub   a0, a2, a0
+    srli  a0, a0, 1
+    ret
+
+#if (STRING_COMPRESSION_FEATURE)
+   // Comparing compressed string one character at a time with the input character.
+.Lstring_indexof_compressed:
+    add   a2, a2, a0
+    add   a3, a3, a0
+.Lstring_indexof_compressed_loop:
+    lbu   a4, (a2)
+    beq   a4, a1, .Lstring_indexof_compressed_match
+    addi  a2, a2, 1
+    bne   a2, a3, .Lstring_indexof_compressed_loop
+    li    a0, -1
+    ret
+.Lstring_indexof_compressed_match:
+    sub   a0, a2, a0
+    ret
+#endif
+END art_quick_indexof

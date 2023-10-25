@@ -100,8 +100,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(StringCompareTo)                            \
   V(StringEquals)                               \
   V(StringGetCharsNoCheck)                      \
-  V(StringIndexOf)                              \
-  V(StringIndexOfAfter)                         \
   V(StringStringIndexOf)                        \
   V(StringStringIndexOfAfter)                   \
   V(StringNewStringFromBytes)                   \
