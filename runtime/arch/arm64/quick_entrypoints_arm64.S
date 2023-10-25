@@ -1212,7 +1212,7 @@ END \name
             \name, \entrypoint, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 .endm
 
-.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+.macro RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
     cbz w0, 1f                       // result zero branch over
     DEOPT_OR_RETURN x1, /*is_ref=*/1 // check for deopt or return
 1:
@@ -1438,7 +1438,7 @@ ENTRY \c_name
     bl     \cxx_name
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 END \c_name
 .endm
 
@@ -1488,7 +1488,7 @@ ENTRY \name
     bl     \entrypoint                         // (mirror::Class*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 END \name
 .endm
 
@@ -1568,7 +1568,7 @@ ENTRY \name
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 END \name
 .endm
 
@@ -2106,7 +2106,7 @@ ENTRY art_quick_string_builder_append
     bl     artStringBuilderAppend       // (uint32_t, const unit32_t*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 END art_quick_string_builder_append
 
     /*
