@@ -122,7 +122,16 @@ void InitEntryPoints(JniEntryPoints* jpoints,
   qpoints->SetShrLong(nullptr);
   qpoints->SetUshrLong(nullptr);
 
-  // TODO(riscv64): add other entrypoints
+  // TODO(riscv64): More math
+
+  // Intrinsics
+  qpoints->SetIndexOf(art_quick_indexof);
+  // TODO(riscv64): More intrinsics.
+
+  // Read barrier.
+  UpdateReadBarrierEntrypoints(qpoints, /*is_active=*/ false);
+  qpoints->SetReadBarrierSlow(artReadBarrierSlow);
+  qpoints->SetReadBarrierForRootSlow(artReadBarrierForRootSlow);
 }
 
 }  // namespace art
