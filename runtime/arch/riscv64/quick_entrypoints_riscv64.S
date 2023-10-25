@@ -561,12 +561,6 @@ END art_quick_do_long_jump
 .endm
 
 
-// TODO: Rename the macro used by the shared `arch/quick_alloc_entrypoints.S` and drop this macro.
-.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
-.endm
-
-
 .macro RETURN_OR_DEOPT_IF_RESULT_IS_ZERO_OR_DELIVER
     bnez  a0, 1f
     DEOPT_OR_RETURN a1
