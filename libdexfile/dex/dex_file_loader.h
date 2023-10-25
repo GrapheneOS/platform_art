@@ -180,17 +180,28 @@ class DexFileLoader {
 
   virtual ~DexFileLoader() {}
 
-  std::unique_ptr<const DexFile> Open(uint32_t location_checksum,
+  std::unique_ptr<const DexFile> Open(size_t header_offset,
+                                      uint32_t location_checksum,
                                       const OatDexFile* oat_dex_file,
                                       bool verify,
                                       bool verify_checksum,
                                       std::string* error_msg);
 
   std::unique_ptr<const DexFile> Open(uint32_t location_checksum,
+                                      const OatDexFile* oat_dex_file,
                                       bool verify,
                                       bool verify_checksum,
                                       std::string* error_msg) {
-    return Open(location_checksum,
+    return Open(
+        /*header_offset=*/0, location_checksum, oat_dex_file, verify, verify_checksum, error_msg);
+  }
+
+  std::unique_ptr<const DexFile> Open(uint32_t location_checksum,
+                                      bool verify,
+                                      bool verify_checksum,
+                                      std::string* error_msg) {
+    return Open(/*header_offset=*/0,
+                location_checksum,
                 /*oat_dex_file=*/nullptr,
                 verify,
                 verify_checksum,
@@ -243,7 +254,7 @@ class DexFileLoader {
  protected:
   static const File kInvalidFile;  // Used for "no file descriptor" (-1).
 
-  bool InitAndReadMagic(uint32_t* magic, std::string* error_msg);
+  bool InitAndReadMagic(size_t header_offset, uint32_t* magic, std::string* error_msg);
 
   // Ensure we have root container.  If we are backed by a file, memory-map it.
   // We can only do this for dex files since zip files might be too big to map.
