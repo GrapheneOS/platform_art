@@ -782,7 +782,7 @@ MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT, c_name, cxx_name)
     ONE_ARG_SAVE_EVERYTHING_DOWNCALL \c_name, \cxx_name, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 END_MACRO
 
-MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER)
+MACRO0(RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER)
     testl %eax, %eax                  // eax == 0 ?
     jz  1f                            // if eax == 0 goto 1
     DEOPT_OR_RETURN ebx, /*is_ref=*/1 // check if deopt is required
@@ -950,7 +950,7 @@ MACRO2(ART_QUICK_ALLOC_OBJECT_ROSALLOC, c_name, cxx_name)
     addl LITERAL(16), %esp                       // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                 // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER      // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER      // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
 
@@ -996,7 +996,7 @@ MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_SLOW_PATH, cxx_name)
     addl LITERAL(16), %esp
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                        // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER    // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER    // return or deliver exception
 END_MACRO
 
 MACRO2(ART_QUICK_ALLOC_OBJECT_TLAB, c_name, cxx_name)
@@ -1132,7 +1132,7 @@ MACRO3(GENERATE_ALLOC_ARRAY_TLAB, c_entrypoint, cxx_name, size_setup)
     addl LITERAL(16), %esp                              // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME                        // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER    // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER    // return or deliver exception
     END_FUNCTION VAR(c_entrypoint)
 END_MACRO
 
@@ -1883,7 +1883,7 @@ DEFINE_FUNCTION art_quick_string_builder_append
     call SYMBOL(artStringBuilderAppend)               // (uint32_t, const unit32_t*, Thread*)
     DECREASE_FRAME 16                                 // pop arguments
     RESTORE_SAVE_REFS_ONLY_FRAME                      // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER  // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER  // return or deliver exception
 END_FUNCTION art_quick_string_builder_append
 
 // Create a function `name` calling the ReadBarrier::Mark routine,

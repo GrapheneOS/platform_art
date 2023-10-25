@@ -16,27 +16,27 @@
 
 .macro GENERATE_ALLOC_ENTRYPOINTS c_suffix, cxx_suffix
 // Called by managed code to allocate an object of a resolved class.
-ONE_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate an object of an initialized class.
-ONE_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate an object when the caller doesn't know whether it has access
 // to the created type.
-ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks\c_suffix, artAllocObjectFromCodeWithChecks\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks\c_suffix, artAllocObjectFromCodeWithChecks\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate a string if it could not be removed by any optimizations
-ONE_ARG_DOWNCALL art_quick_alloc_string_object\c_suffix, artAllocStringObject\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_string_object\c_suffix, artAllocStringObject\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate an array of a resolve class.
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate a string from bytes
-FOUR_ARG_DOWNCALL art_quick_alloc_string_from_bytes\c_suffix, artAllocStringFromBytesFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+FOUR_ARG_DOWNCALL art_quick_alloc_string_from_bytes\c_suffix, artAllocStringFromBytesFromCode\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate a string from chars
-THREE_ARG_DOWNCALL art_quick_alloc_string_from_chars\c_suffix, artAllocStringFromCharsFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+THREE_ARG_DOWNCALL art_quick_alloc_string_from_chars\c_suffix, artAllocStringFromCharsFromCode\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 // Called by managed code to allocate a string from string
-ONE_ARG_DOWNCALL art_quick_alloc_string_from_string\c_suffix, artAllocStringFromStringFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+ONE_ARG_DOWNCALL art_quick_alloc_string_from_string\c_suffix, artAllocStringFromStringFromCode\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved8\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved16\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved32\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-TWO_ARG_DOWNCALL art_quick_alloc_array_resolved64\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_alloc_array_resolved8\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_alloc_array_resolved16\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_alloc_array_resolved32\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_alloc_array_resolved64\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 .endm
 
 .macro GENERATE_ALL_ALLOC_ENTRYPOINTS
@@ -58,29 +58,29 @@ GENERATE_ALLOC_ENTRYPOINTS _region_tlab_instrumented, RegionTLABInstrumented
 // GENERATE_ALL_ALLOC_ENTRYPOINTS for selectively implementing allocation fast paths in
 // hand-written assembly.
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(c_suffix, cxx_suffix) \
-  ONE_ARG_DOWNCALL art_quick_alloc_object_resolved ## c_suffix, artAllocObjectFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_resolved ## c_suffix, artAllocObjectFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(c_suffix, cxx_suffix) \
-  ONE_ARG_DOWNCALL art_quick_alloc_object_initialized ## c_suffix, artAllocObjectFromCodeInitialized ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_initialized ## c_suffix, artAllocObjectFromCodeInitialized ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(c_suffix, cxx_suffix) \
-  ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks ## c_suffix, artAllocObjectFromCodeWithChecks ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_object_with_checks ## c_suffix, artAllocObjectFromCodeWithChecks ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_OBJECT(c_suffix, cxx_suffix) \
-  ONE_ARG_DOWNCALL art_quick_alloc_string_object ## c_suffix, artAllocStringObject ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_string_object ## c_suffix, artAllocStringObject ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(c_suffix, cxx_suffix) \
-  FOUR_ARG_DOWNCALL art_quick_alloc_string_from_bytes ## c_suffix, artAllocStringFromBytesFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  FOUR_ARG_DOWNCALL art_quick_alloc_string_from_bytes ## c_suffix, artAllocStringFromBytesFromCode ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(c_suffix, cxx_suffix) \
-  THREE_ARG_DOWNCALL art_quick_alloc_string_from_chars ## c_suffix, artAllocStringFromCharsFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  THREE_ARG_DOWNCALL art_quick_alloc_string_from_chars ## c_suffix, artAllocStringFromCharsFromCode ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(c_suffix, cxx_suffix) \
-  ONE_ARG_DOWNCALL art_quick_alloc_string_from_string ## c_suffix, artAllocStringFromStringFromCode ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  ONE_ARG_DOWNCALL art_quick_alloc_string_from_string ## c_suffix, artAllocStringFromStringFromCode ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED8(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved8 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved8 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED16(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved16 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved16 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED32(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved32 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved32 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 #define GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED64(c_suffix, cxx_suffix) \
-  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved64 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+  TWO_ARG_DOWNCALL art_quick_alloc_array_resolved64 ## c_suffix, artAllocArrayFromCodeResolved ## cxx_suffix, RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER
 
 .macro GENERATE_ALLOC_ENTRYPOINTS_FOR_REGION_TLAB_ALLOCATOR
 // This is to be separately defined for each architecture to allow a hand-written assembly fast path.
