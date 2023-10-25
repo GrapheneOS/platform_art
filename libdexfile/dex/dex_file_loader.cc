@@ -164,7 +164,7 @@ bool DexFileLoader::GetMultiDexChecksum(std::optional<uint32_t>* checksum,
   checksum->reset();  // Return nullopt for an empty zip archive.
 
   uint32_t magic;
-  if (!InitAndReadMagic(&magic, error_msg)) {
+  if (!InitAndReadMagic(/*header_offset=*/0, &magic, error_msg)) {
     return false;
   }
 
@@ -252,7 +252,8 @@ DexFileLoader::DexFileLoader(std::vector<uint8_t>&& memory, const std::string& l
 DexFileLoader::DexFileLoader(MemMap&& mem_map, const std::string& location)
     : DexFileLoader(std::make_shared<MemMapContainer>(std::move(mem_map)), location) {}
 
-std::unique_ptr<const DexFile> DexFileLoader::Open(uint32_t location_checksum,
+std::unique_ptr<const DexFile> DexFileLoader::Open(size_t header_offset,
+                                                   uint32_t location_checksum,
                                                    const OatDexFile* oat_dex_file,
                                                    bool verify,
                                                    bool verify_checksum,
@@ -260,14 +261,15 @@ std::unique_ptr<const DexFile> DexFileLoader::Open(uint32_t location_checksum,
   DEXFILE_SCOPED_TRACE(std::string("Open dex file ") + location_);
 
   uint32_t magic;
-  if (!InitAndReadMagic(&magic, error_msg) || !MapRootContainer(error_msg)) {
+  if (!InitAndReadMagic(header_offset, &magic, error_msg) || !MapRootContainer(error_msg)) {
     DCHECK(!error_msg->empty());
     return {};
   }
   DCHECK(root_container_ != nullptr);
+  DCHECK_LE(header_offset, root_container_->Size());
   std::unique_ptr<const DexFile> dex_file = OpenCommon(root_container_,
-                                                       root_container_->Begin(),
-                                                       root_container_->Size(),
+                                                       root_container_->Begin() + header_offset,
+                                                       root_container_->Size() - header_offset,
                                                        location_,
                                                        location_checksum,
                                                        oat_dex_file,
@@ -278,13 +280,16 @@ std::unique_ptr<const DexFile> DexFileLoader::Open(uint32_t location_checksum,
   return dex_file;
 }
 
-bool DexFileLoader::InitAndReadMagic(uint32_t* magic, std::string* error_msg) {
+bool DexFileLoader::InitAndReadMagic(size_t header_offset,
+                                     uint32_t* magic,
+                                     std::string* error_msg) {
   if (root_container_ != nullptr) {
-    if (root_container_->Size() < sizeof(uint32_t)) {
+    if (root_container_->Size() < header_offset ||
+        root_container_->Size() - header_offset < sizeof(uint32_t)) {
       *error_msg = StringPrintf("Unable to open '%s' : Size is too small", location_.c_str());
       return false;
     }
-    *magic = *reinterpret_cast<const uint32_t*>(root_container_->Begin());
+    *magic = *reinterpret_cast<const uint32_t*>(root_container_->Begin() + header_offset);
   } else {
     // Open the file if we have not been given the file-descriptor directly before.
     if (!file_->IsValid()) {
@@ -296,6 +301,7 @@ bool DexFileLoader::InitAndReadMagic(uint32_t* magic, std::string* error_msg) {
       }
       file_ = &owned_file_.value();
     }
+    CHECK_EQ(header_offset, 0u);  // We always expect to read from the start of physical file.
     if (!ReadMagicAndReset(file_->Fd(), magic, error_msg)) {
       return false;
     }
@@ -347,7 +353,7 @@ bool DexFileLoader::Open(bool verify,
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
 
   uint32_t magic;
-  if (!InitAndReadMagic(&magic, error_msg)) {
+  if (!InitAndReadMagic(/*header_offset=*/0, &magic, error_msg)) {
     return false;
   }
 
@@ -416,7 +422,7 @@ bool DexFileLoader::Open(bool verify,
 
 std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::shared_ptr<DexFileContainer> container,
                                                    const uint8_t* base,
-                                                   size_t size,
+                                                   size_t app_compat_size,
                                                    const std::string& location,
                                                    std::optional<uint32_t> location_checksum,
                                                    const OatDexFile* oat_dex_file,
@@ -426,8 +432,11 @@ std::unique_ptr<DexFile> DexFileLoader::OpenCommon(std::shared_ptr<DexFileContai
                                                    DexFileLoaderErrorCode* error_code) {
   if (container == nullptr) {
     // We should never pass null here, but use reasonable default for app compat anyway.
-    container = std::make_shared<MemoryDexFileContainer>(base, size);
+    container = std::make_shared<MemoryDexFileContainer>(base, app_compat_size);
   }
+  CHECK_GE(base, container->Begin());
+  CHECK_LE(base, container->End());
+  const size_t size = container->End() - base;
   if (error_code != nullptr) {
     *error_code = DexFileLoaderErrorCode::kDexFileError;
   }

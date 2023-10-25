@@ -57,8 +57,9 @@ enum class Domain : char;
 // Owns the physical storage that backs one or more DexFiles (that is, it can be shared).
 // It frees the storage (e.g. closes file) when all DexFiles that use it are all closed.
 //
-// The Begin()-End() range represents exactly one DexFile (with the size from the header).
-// In particular, the End() does NOT include any shared cdex data from other DexFiles.
+// The memory range must include all data used by the DexFiles including any shared data.
+//
+// It might also include surrounding non-dex data (e.g. it might represent vdex file).
 class DexFileContainer {
  public:
   DexFileContainer() { }
@@ -845,9 +846,7 @@ class DexFile {
     return DataBegin() <= addr && addr < DataBegin() + DataSize();
   }
 
-  DexFileContainer* GetContainer() const {
-    return container_.get();
-  }
+  const std::shared_ptr<DexFileContainer>& GetContainer() const { return container_; }
 
   IterationRange<ClassIterator> GetClasses() const;
 
