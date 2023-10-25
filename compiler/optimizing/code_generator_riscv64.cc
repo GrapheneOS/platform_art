@@ -22,8 +22,11 @@
 #include "arch/riscv64/registers_riscv64.h"
 #include "base/arena_containers.h"
 #include "base/macros.h"
+#include "class_root-inl.h"
 #include "code_generator_utils.h"
 #include "dwarf/register.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "heap_poisoning.h"
 #include "intrinsics_list.h"
 #include "intrinsics_riscv64.h"
@@ -31,6 +34,8 @@
 #include "linker/linker_patch.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
+#include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack_map_stream.h"
 #include "trace.h"
 #include "utils/label.h"
@@ -959,6 +964,49 @@ void InstructionCodeGeneratorRISCV64::Store(
   }
 }
 
+void InstructionCodeGeneratorRISCV64::StoreSeqCst(Location value,
+                                                  XRegister rs1,
+                                                  int32_t offset,
+                                                  DataType::Type type,
+                                                  HInstruction* instruction) {
+  if (DataType::Size(type) >= 4u) {
+    // Use AMOSWAP for 32-bit and 64-bit data types.
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister swap_src = kNoXRegister;
+    if (kPoisonHeapReferences && type == DataType::Type::kReference && !value.IsConstant()) {
+      swap_src = srs.AllocateXRegister();
+      __ Mv(swap_src, value.AsRegister<XRegister>());
+      codegen_->PoisonHeapReference(swap_src);
+    } else if (DataType::IsFloatingPointType(type) && !value.IsConstant()) {
+      swap_src = srs.AllocateXRegister();
+      FMvX(swap_src, value.AsFpuRegister<FRegister>(), type);
+    } else {
+      swap_src = InputXRegisterOrZero(value);
+    }
+    XRegister addr = rs1;
+    if (offset != 0) {
+      addr = srs.AllocateXRegister();
+      __ AddConst64(addr, rs1, offset);
+    }
+    if (DataType::Is64BitType(type)) {
+      __ AmoSwapD(Zero, swap_src, addr, AqRl::kRelease);
+    } else {
+      __ AmoSwapW(Zero, swap_src, addr, AqRl::kRelease);
+    }
+    if (instruction != nullptr) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
+  } else {
+    // Use fences for smaller data types.
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+    Store(value, rs1, offset, type);
+    if (instruction != nullptr) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
+}
+
 void InstructionCodeGeneratorRISCV64::ShNAdd(
     XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type) {
   switch (type) {
@@ -1831,13 +1879,19 @@ void CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier(HInstructio
 
   XRegister reg = ref.AsRegister<XRegister>();
   if (index.IsValid()) {
-    DCHECK(instruction->IsArrayGet());
     DCHECK(!needs_null_check);
     DCHECK(index.IsRegister());
-    // /* HeapReference<Object> */ ref = *(obj + index * element_size + offset)
     DataType::Type type = DataType::Type::kReference;
     DCHECK_EQ(type, instruction->GetType());
-    instruction_visitor_.ShNAdd(reg, index.AsRegister<XRegister>(), obj, type);
+    if (instruction->IsArrayGet()) {
+      // /* HeapReference<Object> */ ref = *(obj + index * element_size + offset)
+      instruction_visitor_.ShNAdd(reg, index.AsRegister<XRegister>(), obj, type);
+    } else {
+      // /* HeapReference<Object> */ ref = *(obj + index + offset)
+      DCHECK(instruction->IsInvoke());
+      DCHECK(instruction->GetLocations()->Intrinsified());
+      __ Add(reg, index.AsRegister<XRegister>(), obj);
+    }
     __ Loadwu(reg, reg, offset);
   } else {
     // /* HeapReference<Object> */ ref = *(obj + offset)
@@ -2399,35 +2453,7 @@ void InstructionCodeGeneratorRISCV64::HandleFieldSet(HInstruction* instruction,
   }
 
   if (is_volatile) {
-    if (DataType::Size(type) >= 4u) {
-      // Use AMOSWAP for 32-bit and 64-bit data types.
-      ScratchRegisterScope srs(GetAssembler());
-      XRegister swap_src = kNoXRegister;
-      if (kPoisonHeapReferences && type == DataType::Type::kReference && !value.IsConstant()) {
-        swap_src = srs.AllocateXRegister();
-        __ Mv(swap_src, value.AsRegister<XRegister>());
-        codegen_->PoisonHeapReference(swap_src);
-      } else if (DataType::IsFloatingPointType(type) && !value.IsConstant()) {
-        swap_src = srs.AllocateXRegister();
-        FMvX(swap_src, value.AsFpuRegister<FRegister>(), type);
-      } else {
-        swap_src = InputXRegisterOrZero(value);
-      }
-      XRegister addr = srs.AllocateXRegister();
-      __ AddConst64(addr, obj, offset);
-      if (DataType::Is64BitType(type)) {
-        __ AmoSwapD(Zero, swap_src, addr, AqRl::kRelease);
-      } else {
-        __ AmoSwapW(Zero, swap_src, addr, AqRl::kRelease);
-      }
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-    } else {
-      // Use fences for smaller data types.
-      codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      Store(value, obj, offset, type);
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-      codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
+    StoreSeqCst(value, obj, offset, type, instruction);
   } else {
     Store(value, obj, offset, type);
     codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -2574,7 +2600,7 @@ void InstructionCodeGeneratorRISCV64::GenerateMethodEntryExitHook(HInstruction* 
 
   // Check if there is place in the buffer to store a new entry, if no, take the slow path.
   int32_t trace_buffer_index_offset =
-      Thread::TraceBufferIndexOffset<kArm64PointerSize>().Int32Value();
+      Thread::TraceBufferIndexOffset<kRiscv64PointerSize>().Int32Value();
   __ Loadd(tmp, TR, trace_buffer_index_offset);
   __ Addi(tmp, tmp, -dchecked_integral_cast<int32_t>(kNumEntriesForWallClock));
   __ Bltz(tmp, slow_path->GetEntryLabel());
@@ -2588,7 +2614,7 @@ void InstructionCodeGeneratorRISCV64::GenerateMethodEntryExitHook(HInstruction* 
 
   // Calculate the entry address in the buffer.
   // /*addr*/ tmp = TR->GetMethodTraceBuffer() + sizeof(void*) * /*index*/ tmp;
-  __ Loadd(tmp2, TR, Thread::TraceBufferPtrOffset<kArm64PointerSize>().SizeValue());
+  __ Loadd(tmp2, TR, Thread::TraceBufferPtrOffset<kRiscv64PointerSize>().SizeValue());
   __ Sh3Add(tmp, tmp, tmp2);
 
   // Record method pointer and trace action.
@@ -4066,10 +4092,17 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruc
 }
 
 void LocationsBuilderRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
+  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  if (intrinsic.TryDispatch(instruction)) {
+    return;
+  }
   HandleInvoke(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
+  if (TryGenerateIntrinsicCode(instruction, codegen_)) {
+    return;
+  }
   codegen_->GenerateInvokePolymorphicCall(instruction);
 }
 
@@ -4184,12 +4217,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction)
     case HLoadClass::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       uint32_t boot_image_offset = codegen_->GetBootImageOffset(instruction);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset);
-      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset, info_high);
-      codegen_->EmitPcRelativeLwuPlaceholder(info_low, out, out);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       break;
     }
     case HLoadClass::LoadKind::kBssEntry:
@@ -4321,12 +4349,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
     case HLoadString::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       uint32_t boot_image_offset = codegen_->GetBootImageOffset(instruction);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset);
-      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset, info_high);
-      codegen_->EmitPcRelativeLwuPlaceholder(info_low, out, out);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       return;
     }
     case HLoadString::LoadKind::kBssEntry: {
@@ -6470,6 +6493,46 @@ void CodeGeneratorRISCV64::EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* l
   DCHECK_EQ(size, linker_patches->size());
 }
 
+void CodeGeneratorRISCV64::LoadTypeForBootImageIntrinsic(XRegister dest,
+                                                         TypeReference target_type) {
+  // Load the type the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
+  DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
+  PcRelativePatchInfo* info_high =
+      NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex());
+  EmitPcRelativeAuipcPlaceholder(info_high, dest);
+  PcRelativePatchInfo* info_low =
+      NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex(), info_high);
+  EmitPcRelativeAddiPlaceholder(info_low, dest, dest);
+}
+
+void CodeGeneratorRISCV64::LoadBootImageRelRoEntry(XRegister dest, uint32_t boot_image_offset) {
+  PcRelativePatchInfo* info_high = NewBootImageRelRoPatch(boot_image_offset);
+  EmitPcRelativeAuipcPlaceholder(info_high, dest);
+  PcRelativePatchInfo* info_low = NewBootImageRelRoPatch(boot_image_offset, info_high);
+  // Note: Boot image is in the low 4GiB and the entry is always 32-bit, so emit a 32-bit load.
+  EmitPcRelativeLwuPlaceholder(info_low, dest, dest);
+}
+
+void CodeGeneratorRISCV64::LoadClassRootForIntrinsic(XRegister dest, ClassRoot class_root) {
+  if (GetCompilerOptions().IsBootImage()) {
+    ScopedObjectAccess soa(Thread::Current());
+    ObjPtr<mirror::Class> klass = GetClassRoot(class_root);
+    TypeReference target_type(&klass->GetDexFile(), klass->GetDexTypeIndex());
+    LoadTypeForBootImageIntrinsic(dest, target_type);
+  } else {
+    uint32_t boot_image_offset = GetBootImageOffset(class_root);
+    if (GetCompilerOptions().GetCompilePic()) {
+      LoadBootImageRelRoEntry(dest, boot_image_offset);
+    } else {
+      DCHECK(GetCompilerOptions().IsJitCompiler());
+      gc::Heap* heap = Runtime::Current()->GetHeap();
+      DCHECK(!heap->GetBootImageSpaces().empty());
+      const uint8_t* address = heap->GetBootImageSpaces()[0]->Begin() + boot_image_offset;
+      __ Loadwu(dest, DeduplicateBootImageAddressLiteral(reinterpret_cast<uintptr_t>(address)));
+    }
+  }
+}
+
 void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke) {
   switch (load_kind) {
     case MethodLoadKind::kBootImageLinkTimePcRelative: {
@@ -6485,12 +6548,7 @@ void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, H
     }
     case MethodLoadKind::kBootImageRelRo: {
       uint32_t boot_image_offset = GetBootImageOffset(invoke);
-      PcRelativePatchInfo* info_high = NewBootImageRelRoPatch(boot_image_offset);
-      EmitPcRelativeAuipcPlaceholder(info_high, temp.AsRegister<XRegister>());
-      PcRelativePatchInfo* info_low = NewBootImageRelRoPatch(boot_image_offset, info_high);
-      // Note: Boot image is in the low 4GiB and the entry is 32-bit, so emit a 32-bit load.
-      EmitPcRelativeLwuPlaceholder(
-          info_low, temp.AsRegister<XRegister>(), temp.AsRegister<XRegister>());
+      LoadBootImageRelRoEntry(temp.AsRegister<XRegister>(), boot_image_offset);
       break;
     }
     case MethodLoadKind::kBssEntry: {
@@ -6700,13 +6758,13 @@ void CodeGeneratorRISCV64::UnpoisonHeapReference(XRegister reg) {
   __ ZextW(reg, reg);      // Zero-extend the 32-bit ref.
 }
 
-inline void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
+void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
   if (kPoisonHeapReferences) {
     PoisonHeapReference(reg);
   }
 }
 
-inline void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
+void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
   if (kPoisonHeapReferences) {
     UnpoisonHeapReference(reg);
   }
