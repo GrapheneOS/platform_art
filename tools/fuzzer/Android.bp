@@ -85,10 +85,6 @@ cc_fuzz {
 // TODO(b/171429704): Remove this genrule and use the zip directly.
 genrule {
     name: "art_runtest_corpus",
-    defaults: [
-        // To allow the ART module to build correctly.
-        "art_module_source_build_defaults",
-    ],
     srcs: [":art-run-test-host-data-merged-tmp"],
     tool_files: ["create_corpus.py"],
     cmd: "$(location) $(in) $(genDir)",
