@@ -138,7 +138,7 @@ public class DexCacheSmash {
         try {
             Redefinition.doMultiClassRedefinition(TRANSFORM2_INVALID);
         } catch (Exception e) {
-            if (!e.getMessage().endsWith("JVMTI_ERROR_FAILS_VERIFICATION")) {
+            if (!e.getMessage().contains("JVMTI_ERROR_FAILS_VERIFICATION")) {
                 throw new Error(
                         "Unexpected error: Expected failure due to JVMTI_ERROR_FAILS_VERIFICATION",
                         e);
