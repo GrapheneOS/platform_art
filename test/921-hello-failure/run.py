@@ -16,4 +16,9 @@
 
 
 def run(ctx, args):
+  if args.jvm:
+    # On jvm we don't have a detailed reason for failure so the expected output
+    # is slightly different
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".jvm.txt")
+
   ctx.default_run(args, jvmti=True)
