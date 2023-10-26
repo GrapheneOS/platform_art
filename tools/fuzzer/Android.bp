@@ -23,13 +23,11 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_fuzz {
-    name: "libart_verify_dex_fuzzer",
+cc_defaults {
+    name: "libart_verify_dex_fuzzer-defaults",
     srcs: ["libart_verify_dex_fuzzer.cc"],
 
     defaults: [
-        // Run in release mode since debug is too slow.
-        "libart_static_defaults",
         // To allow the ART module to build correctly.
         "art_module_source_build_defaults",
     ],
@@ -62,6 +60,22 @@ cc_fuzz {
             "Santiago Aboy Solanes of Google",
         ],
     },
+}
+
+cc_fuzz {
+    name: "libart_verify_dex_fuzzer",
+    defaults: [
+        "libart_verify_dex_fuzzer-defaults",
+        "libart_static_defaults",
+    ],
+}
+
+cc_fuzz {
+    name: "libart_verify_dex_fuzzerd",
+    defaults: [
+        "libart_verify_dex_fuzzer-defaults",
+        "libartd_static_defaults",
+    ],
 }
 
 // Use run-test dex files to bootstrap the fuzzer.
