@@ -96,6 +96,15 @@ bool DexFile::DisableWrite() const {
   return container_->DisableWrite();
 }
 
+template <typename T>
+ALWAYS_INLINE const T* DexFile::GetSection(const uint32_t* offset, DexFileContainer* container) {
+  size_t size = container->End() - begin_;
+  if (size < sizeof(Header)) {
+    return nullptr;  // Invalid dex file.
+  }
+  return reinterpret_cast<const T*>(begin_ + *offset);
+}
+
 DexFile::DexFile(const uint8_t* base,
                  const std::string& location,
                  uint32_t location_checksum,
@@ -107,12 +116,12 @@ DexFile::DexFile(const uint8_t* base,
       location_(location),
       location_checksum_(location_checksum),
       header_(reinterpret_cast<const Header*>(base)),
-      string_ids_(reinterpret_cast<const StringId*>(base + header_->string_ids_off_)),
-      type_ids_(reinterpret_cast<const TypeId*>(base + header_->type_ids_off_)),
-      field_ids_(reinterpret_cast<const FieldId*>(base + header_->field_ids_off_)),
-      method_ids_(reinterpret_cast<const MethodId*>(base + header_->method_ids_off_)),
-      proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
-      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
+      string_ids_(GetSection<StringId>(&header_->string_ids_off_, container.get())),
+      type_ids_(GetSection<TypeId>(&header_->type_ids_off_, container.get())),
+      field_ids_(GetSection<FieldId>(&header_->field_ids_off_, container.get())),
+      method_ids_(GetSection<MethodId>(&header_->method_ids_off_, container.get())),
+      proto_ids_(GetSection<ProtoId>(&header_->proto_ids_off_, container.get())),
+      class_defs_(GetSection<ClassDef>(&header_->class_defs_off_, container.get())),
       method_handles_(nullptr),
       num_method_handles_(0),
       call_site_ids_(nullptr),
