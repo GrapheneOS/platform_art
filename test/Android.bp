@@ -920,6 +920,7 @@ java_library {
         "//art:__subpackages__",
         "//cts/hostsidetests/jvmti:__subpackages__",
     ],
+    javacflags: ["-g"],
     srcs: [
         // shim classes. We use one that exposes the common functionality.
         "jvmti-common/Redefinition.java",
