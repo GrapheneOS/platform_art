@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include <atomic>
 #include <cmath>
 #include <initializer_list>
 #include <limits>
@@ -2219,6 +2220,14 @@ void UnstartedRuntime::UnstartedJNIJdkUnsafePutObject(Thread* self,
   } else {
     obj->SetFieldObject<false>(MemberOffset(offset), new_value);
   }
+}
+
+void UnstartedRuntime::UnstartedJNIJdkUnsafeStoreFence(Thread* self ATTRIBUTE_UNUSED,
+                                                       ArtMethod* method ATTRIBUTE_UNUSED,
+                                                       mirror::Object* receiver ATTRIBUTE_UNUSED,
+                                                       uint32_t* args ATTRIBUTE_UNUSED,
+                                                       JValue* result ATTRIBUTE_UNUSED) {
+  std::atomic_thread_fence(std::memory_order_release);
 }
 
 void UnstartedRuntime::UnstartedJNIJdkUnsafeGetArrayBaseOffsetForComponentType(
