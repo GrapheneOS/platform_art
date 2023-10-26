@@ -594,8 +594,12 @@ std::vector<std::pair<std::string, art::mirror::Object*>> GetReferences(art::mir
   std::vector<std::pair<std::string, art::mirror::Object*>> referred_objects;
   ReferredObjectsFinder objf(&referred_objects, emit_field_ids);
 
-  if (klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
-      klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference) {
+  uint32_t klass_flags = klass->GetClassFlags();
+  if (klass_flags != art::mirror::kClassFlagNormal &&
+      klass_flags != art::mirror::kClassFlagSoftReference &&
+      klass_flags != art::mirror::kClassFlagWeakReference &&
+      klass_flags != art::mirror::kClassFlagFinalizerReference &&
+      klass_flags != art::mirror::kClassFlagPhantomReference) {
     obj->VisitReferences(objf, art::VoidFunctor());
   } else {
     for (art::mirror::Class* cls = klass; cls != nullptr; cls = cls->GetSuperClass().Ptr()) {
@@ -803,9 +807,13 @@ class HeapGraphDumper {
                       art::mirror::Class* klass,
                       perfetto::protos::pbzero::HeapGraphObject* object_proto)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    const bool emit_field_ids = klass->GetClassFlags() != art::mirror::kClassFlagObjectArray &&
-                                klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
-                                klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference;
+    const uint32_t klass_flags = klass->GetClassFlags();
+    const bool emit_field_ids = klass_flags != art::mirror::kClassFlagObjectArray &&
+                                klass_flags != art::mirror::kClassFlagNormal &&
+                                klass_flags != art::mirror::kClassFlagSoftReference &&
+                                klass_flags != art::mirror::kClassFlagWeakReference &&
+                                klass_flags != art::mirror::kClassFlagFinalizerReference &&
+                                klass_flags != art::mirror::kClassFlagPhantomReference;
     std::vector<std::pair<std::string, art::mirror::Object*>> referred_objects =
         GetReferences(obj, klass, emit_field_ids);
 
