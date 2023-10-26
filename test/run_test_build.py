@@ -88,7 +88,11 @@ class BuildTestContext:
     if "RBE_server_address" in os.environ and USE_RBE > (hash(self.test_name) % 100):
       self.rbe_exec_root = os.environ.get("RBE_exec_root")
       self.rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
-      if self.test_name not in RBE_D8_DISABLED_FOR:
+
+      # TODO(b/307932183) Regression: RBE produces wrong output for D8 in ART
+      disable_d8 = any((self.test_dir / n).exists() for n in ["classes", "src2", "src-art"])
+
+      if self.test_name not in RBE_D8_DISABLED_FOR and not disable_d8:
         self.d8 = functools.partial(self.rbe_d8, args.d8.absolute())
       self.javac = functools.partial(self.rbe_javac, self.javac_path)
       self.smali = functools.partial(self.rbe_smali, args.smali.absolute())
