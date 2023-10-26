@@ -1905,6 +1905,20 @@ void JitCodeCache::DumpAllCompiledMethods(std::ostream& os) {
     os << meth->PrettyMethod() << "@"  << std::hex
        << code_ptr << "-" << reinterpret_cast<uintptr_t>(code_ptr) + header->GetCodeSize() << '\n';
   }
+  os << "JNIStubs: \n";
+  for (auto it : jni_stubs_map_) {
+    const void* code_ptr = it.second.GetCode();
+    if (code_ptr == nullptr) {
+      continue;
+    }
+    OatQuickMethodHeader* header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+    os << std::hex << code_ptr << "-"
+       << reinterpret_cast<uintptr_t>(code_ptr) + header->GetCodeSize() << " ";
+    for (ArtMethod* m : it.second.GetMethods()) {
+      os << m->PrettyMethod() << ";";
+    }
+    os << "\n";
+  }
 }
 
 void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
