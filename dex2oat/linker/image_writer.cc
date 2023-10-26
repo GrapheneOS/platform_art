@@ -183,7 +183,7 @@ class ReferenceFieldVisitor {
  public:
   using VisitFunc = std::function<void(mirror::Object&, ArtField&)>;
 
-  explicit ReferenceFieldVisitor(VisitFunc visit_func) : visit_func_(visit_func) {}
+  explicit ReferenceFieldVisitor(VisitFunc visit_func) : visit_func_(std::move(visit_func)) {}
 
   void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
