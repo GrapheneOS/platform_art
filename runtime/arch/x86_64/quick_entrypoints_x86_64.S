@@ -18,6 +18,7 @@
 #include "interpreter/cfi_asm_support.h"
 
 #include "arch/quick_alloc_entrypoints.S"
+#include "arch/quick_field_entrypoints.S"
 
 MACRO0(ASSERT_USE_READ_BARRIER)
 #if !defined(USE_READ_BARRIER)
@@ -684,39 +685,6 @@ MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     END_FUNCTION VAR(c_name)
 END_MACRO
 
-MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_REFS_ONLY_FRAME
-                                        // arg0 is in rdi
-    movq %gs:THREAD_SELF_OFFSET, %rsi   // pass Thread::Current()
-    call CALLVAR(cxx_name)              // cxx_name(arg0, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
-    CALL_MACRO(return_macro)
-    END_FUNCTION VAR(c_name)
-END_MACRO
-
-MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_REFS_ONLY_FRAME
-                                        // arg0 and arg1 are in rdi/rsi
-    movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
-    call CALLVAR(cxx_name)              // (arg0, arg1, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
-    CALL_MACRO(return_macro)
-    END_FUNCTION VAR(c_name)
-END_MACRO
-
-MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_REFS_ONLY_FRAME
-                                        // arg0, arg1, and arg2 are in rdi/rsi/rdx
-    movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
-    CALL_MACRO(return_macro)            // return or deliver exception
-    END_FUNCTION VAR(c_name)
-END_MACRO
-
     /*
      * Macro for resolution and initialization of indexed DEX file
      * constants such as classes and strings.
@@ -740,7 +708,7 @@ MACRO2(ONE_ARG_SAVE_EVERYTHING_DOWNCALL_FOR_CLINIT, c_name, cxx_name)
     ONE_ARG_SAVE_EVERYTHING_DOWNCALL \c_name, \cxx_name, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 END_MACRO
 
-MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER)
+MACRO0(RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER)
     testq %rax, %rax               // rax == 0 ?
     jz  1f                         // if rax == 0 goto 1
     DEOPT_OR_RETURN /*is_ref=*/1   // Check if deopt is required
@@ -749,13 +717,17 @@ MACRO0(RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER)
 END_MACRO
 
 
-MACRO0(RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION)
+MACRO1(RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION, is_ref = 0)
     movq %gs:THREAD_EXCEPTION_OFFSET, %rcx // get exception field
     testq %rcx, %rcx               // rcx == 0 ?
     jnz 1f                         // if rcx != 0 goto 1
-    DEOPT_OR_RETURN                // Check if deopt is required
+    DEOPT_OR_RETURN \is_ref        // Check if deopt is required
 1:                                 // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
+END_MACRO
+
+MACRO0(RETURN_REF_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION)
+    RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION /*is_ref=*/1
 END_MACRO
 
 MACRO1(DEOPT_OR_RETURN, is_ref = 0)
@@ -793,7 +765,7 @@ END_MACRO
 
 
 
-MACRO0(RETURN_IF_EAX_ZERO)
+MACRO0(RETURN_OR_DEOPT_IF_INT_RESULT_IS_ZERO_OR_DELIVER)
     testl %eax, %eax               // eax == 0 ?
     jnz  1f                        // if eax != 0 goto 1
     DEOPT_OR_RETURN                // Check if we need a deopt
@@ -898,7 +870,7 @@ MACRO2(ART_QUICK_ALLOC_OBJECT_ROSALLOC, c_name, cxx_name)
     movq %gs:THREAD_SELF_OFFSET, %rsi                      // pass Thread::Current()
     call CALLVAR(cxx_name)                                 // cxx_name(arg0, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER       // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER       // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
 
@@ -968,7 +940,7 @@ MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
     movq %gs:THREAD_SELF_OFFSET, %rsi                      // pass Thread::Current()
     call CALLVAR(cxx_name)                                 // cxx_name(arg0, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER       // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER       // return or deliver exception
 END_MACRO
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB). May be
@@ -1056,7 +1028,7 @@ MACRO3(GENERATE_ALLOC_ARRAY_TLAB, c_entrypoint, cxx_name, size_setup)
     movq %gs:THREAD_SELF_OFFSET, %rdx                          // pass Thread::Current()
     call CALLVAR(cxx_name)                                     // cxx_name(arg0, arg1, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                               // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER           // return or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER           // return or deliver exception
     END_FUNCTION VAR(c_entrypoint)
 END_MACRO
 
@@ -1103,7 +1075,9 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_method_handle, artResolveMeth
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_method_type, artResolveMethodTypeFromCode
 ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromCode
 
-TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_DOWNCALL art_quick_handle_fill_data, \
+                 artHandleFillArrayDataFromCode, \
+                 RETURN_OR_DEOPT_IF_INT_RESULT_IS_ZERO_OR_DELIVER
 
     /*
      * Entry from managed code that tries to lock the object in a fast path and
@@ -1126,7 +1100,7 @@ DEFINE_FUNCTION art_quick_lock_object_no_inline
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
-    RETURN_IF_EAX_ZERO
+    RETURN_OR_DEOPT_IF_INT_RESULT_IS_ZERO_OR_DELIVER
 END_FUNCTION art_quick_lock_object_no_inline
 
     /*
@@ -1151,7 +1125,7 @@ DEFINE_FUNCTION art_quick_unlock_object_no_inline
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
-    RETURN_IF_EAX_ZERO
+    RETURN_OR_DEOPT_IF_INT_RESULT_IS_ZERO_OR_DELIVER
 END_FUNCTION art_quick_unlock_object_no_inline
 
 DEFINE_FUNCTION art_quick_check_instance_of
@@ -1304,38 +1278,7 @@ UNIMPLEMENTED art_quick_lshl
 UNIMPLEMENTED art_quick_lshr
 UNIMPLEMENTED art_quick_lushr
 
-// Note: Functions `art{Get,Set}<Kind>{Static,Instance}FromCompiledCode` are
-// defined with a macro in runtime/entrypoints/quick/quick_field_entrypoints.cc.
-
-THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCompiledCode, RETURN_IF_EAX_ZERO
-THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCompiledCode, RETURN_IF_EAX_ZERO
-
-TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-// FIXME: This is passing `is_ref = 0` to `DEOPT_OR_DELIVER` but we have a reference!
-TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-
-TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCompiledCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCompiledCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set32_static, artSet32StaticFromCompiledCode, RETURN_IF_EAX_ZERO
-TWO_ARG_REF_DOWNCALL art_quick_set64_static, artSet64StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_set_obj_static, artSetObjStaticFromCompiledCode, RETURN_IF_EAX_ZERO
-
-ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-// FIXME: This is passing `is_ref = 0` to `DEOPT_OR_DELIVER` but we have a reference!
-ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+GENERATE_FIELD_ENTRYPOINTS
 
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_RDI
@@ -1741,7 +1684,7 @@ DEFINE_FUNCTION art_quick_string_builder_append
     movq %gs:THREAD_SELF_OFFSET, %rdx         // pass Thread::Current()
     call artStringBuilderAppend               // (uint32_t, const unit32_t*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME              // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER  // return or deopt or deliver exception
+    RETURN_OR_DEOPT_IF_RESULT_IS_NON_NULL_OR_DELIVER  // return or deopt or deliver exception
 END_FUNCTION art_quick_string_builder_append
 
 // Create a function `name` calling the ReadBarrier::Mark routine,

@@ -633,6 +633,10 @@ class Riscv64Assembler final : public Assembler {
     UNIMPLEMENTED(FATAL) << "Do not use Jump for RISCV64";
   }
 
+  void Jump(Riscv64Label* label) {
+    J(label);
+  }
+
   void Bind(Riscv64Label* label);
 
   // Load label address using PC-relative loads.
