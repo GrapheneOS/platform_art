@@ -272,8 +272,9 @@ class BuildTestContext:
     def make_smali(dst_dex: Path, src_dir: Path) -> Optional[Path]:
       if not use_smali or not src_dir.exists():
         return None  # No sources to compile.
-      self.smali(["-JXmx512m", "assemble"] + smali_args + ["--api", str(api_level)] +
-                 ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
+      p = self.smali(["-JXmx512m", "assemble"] + smali_args + ["--api", str(api_level)] +
+                     ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
+      assert dst_dex.exists(), p.stdout  # NB: smali returns 0 exit code even on failure.
       return dst_dex
 
     def make_java(dst_dir: Path, *src_dirs: Path) -> Optional[Path]:
