@@ -178,7 +178,7 @@ uint8_t* GcVisitedArenaPool::AllocSingleObjArena(size_t size) {
         new TrackedArena(begin, size, /*pre_zygote_fork=*/true, /*single_obj_arena=*/true));
     arena = *insert_result.first;
   } else {
-    arena = AllocArena(size, /*single_obj_arena=*/true);
+    arena = AllocArena(size, /*need_first_obj_arr=*/true);
   }
   return arena->Begin();
 }
