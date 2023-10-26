@@ -869,6 +869,9 @@ class DexFile {
           std::shared_ptr<DexFileContainer> container,
           bool is_compact_dex);
 
+  template <typename T>
+  const T* GetSection(const uint32_t* offset, DexFileContainer* container);
+
   // Top-level initializer that calls other Init methods.
   bool Init(std::string* error_msg);
 
