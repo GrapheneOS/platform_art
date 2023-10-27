@@ -642,6 +642,9 @@ class Dex2Oat final {
     compiler_options_->compiler_type_ = CompilerOptions::CompilerType::kAotCompiler;
     compiler_options_->compile_pic_ = true;  // All AOT compilation is PIC.
 
+    // TODO: This should be a command line option for cross-compilation. b/289805127
+    compiler_options_->emit_read_barrier_ = gUseReadBarrier;
+
     if (android_root_.empty()) {
       const char* android_root_env_var = getenv("ANDROID_ROOT");
       if (android_root_env_var == nullptr) {
@@ -973,7 +976,7 @@ class Dex2Oat final {
                           compiler_options_->GetNativeDebuggable());
     key_value_store_->Put(OatHeader::kCompilerFilter,
                           CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
-    key_value_store_->Put(OatHeader::kConcurrentCopying, gUseReadBarrier);
+    key_value_store_->Put(OatHeader::kConcurrentCopying, compiler_options_->EmitReadBarrier());
     if (invocation_file_.get() != -1) {
       std::ostringstream oss;
       for (int i = 0; i < argc; ++i) {

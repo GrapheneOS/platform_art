@@ -187,6 +187,7 @@ class CommonCompilerTestImpl::OneCompiledMethodStorage final : public CompiledCo
 std::unique_ptr<CompilerOptions> CommonCompilerTestImpl::CreateCompilerOptions(
     InstructionSet instruction_set, const std::string& variant) {
   std::unique_ptr<CompilerOptions> compiler_options = std::make_unique<CompilerOptions>();
+  compiler_options->emit_read_barrier_ = gUseReadBarrier;
   compiler_options->instruction_set_ = instruction_set;
   std::string error_msg;
   compiler_options->instruction_set_features_ =
