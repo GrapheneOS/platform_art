@@ -3760,7 +3760,10 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
       grow_bytes = 0;
     }
   }
-  CHECK_LE(target_size, std::numeric_limits<size_t>::max());
+  CHECK_LE(target_size, std::numeric_limits<size_t>::max())
+      << " bytes_allocated:" << bytes_allocated
+      << " bytes_freed:" << current_gc_iteration_.GetFreedBytes()
+      << " large_obj_bytes_freed:" << current_gc_iteration_.GetFreedLargeObjectBytes();
   if (!ignore_target_footprint_) {
     SetIdealFootprint(target_size);
     // Store target size (computed with foreground heap growth multiplier) for updating
