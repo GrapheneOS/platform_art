@@ -118,6 +118,7 @@ cc_defaults {
                 "heapprofd_client_api",
             ],
             static_libs: [
+                "libmodules-utils-build",
                 "libstatslog_art",
             ],
         },
