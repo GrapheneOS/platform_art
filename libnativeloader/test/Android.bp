@@ -197,5 +197,8 @@ java_test_host {
         ":loadlibrarytest_data_app",
     ],
     test_config: "libnativeloader_e2e_tests.xml",
-    test_suites: ["general-tests"],
+    test_suites: [
+        "general-tests",
+        "mts-art",
+    ],
 }
