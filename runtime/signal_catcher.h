@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_SIGNAL_CATCHER_H_
 #define ART_RUNTIME_SIGNAL_CATCHER_H_
 
+#include <optional>
+
 #include "android-base/unique_fd.h"
 #include "base/mutex.h"
 
@@ -39,6 +41,7 @@ class SignalCatcher {
   void HandleSigQuit() REQUIRES(!Locks::mutator_lock_, !Locks::thread_list_lock_,
                                 !Locks::thread_suspend_count_lock_);
 
+  std::optional<uint64_t> SiqQuitNanoTime() const { return sigquit_nanotime_; }
 
  private:
   // NO_THREAD_SAFETY_ANALYSIS for static function calling into member function with excludes lock.
@@ -55,6 +58,7 @@ class SignalCatcher {
   bool halt_ GUARDED_BY(lock_);
   pthread_t pthread_ GUARDED_BY(lock_);
   Thread* thread_ GUARDED_BY(lock_);
+  std::optional<uint64_t> sigquit_nanotime_;
 };
 
 }  // namespace art

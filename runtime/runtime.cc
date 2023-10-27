@@ -2404,6 +2404,10 @@ void Runtime::DumpDeoptimizations(std::ostream& os) {
   }
 }
 
+std::optional<uint64_t> Runtime::SiqQuitNanoTime() const {
+  return signal_catcher_ != nullptr ? signal_catcher_->SiqQuitNanoTime() : std::nullopt;
+}
+
 void Runtime::DumpForSigQuit(std::ostream& os) {
   // Print backtraces first since they are important do diagnose ANRs,
   // and ANRs can often be trimmed to limit upload size.

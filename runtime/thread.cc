@@ -29,6 +29,7 @@
 #include <cerrno>
 #include <iostream>
 #include <list>
+#include <optional>
 #include <sstream>
 
 #include "android-base/file.h"
@@ -2362,6 +2363,7 @@ Thread::DumpOrder Thread::DumpStack(std::ostream& os,
   }
   DumpOrder dump_order = DumpOrder::kDefault;
   if (safe_to_dump || force_dump_stack) {
+    uint64_t nanotime = NanoTime();
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_native_stack && (dump_for_abort || force_dump_stack || ShouldShowNativeStack(this))) {
       ArtMethod* method =
@@ -2373,6 +2375,11 @@ Thread::DumpOrder Thread::DumpStack(std::ostream& os,
     dump_order = DumpJavaStack(os,
                                /*check_suspended=*/ !force_dump_stack,
                                /*dump_locks=*/ !force_dump_stack);
+    Runtime* runtime = Runtime::Current();
+    std::optional<uint64_t> start = runtime != nullptr ? runtime->SiqQuitNanoTime() : std::nullopt;
+    if (start.has_value()) {
+      os << "DumpLatencyMs: " << static_cast<float>(nanotime - start.value()) / 1000000.0 << "\n";
+    }
   } else {
     os << "Not able to dump stack of thread that isn't suspended";
   }
