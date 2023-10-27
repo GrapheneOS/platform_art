@@ -673,14 +673,15 @@ EncodedArrayValueIterator::EncodedArrayValueIterator(const DexFile& dex_file,
       type_(kByte) {
   array_size_ = (ptr_ != nullptr) ? DecodeUnsignedLeb128(&ptr_) : 0;
   if (array_size_ > 0) {
-    Next();
+    bool ok [[maybe_unused]] = MaybeNext();
   }
 }
 
-void EncodedArrayValueIterator::Next() {
+bool EncodedArrayValueIterator::MaybeNext() {
   pos_++;
   if (pos_ >= array_size_) {
-    return;
+    type_ = kEndOfInput;
+    return true;
   }
   uint8_t value_type = *ptr_++;
   uint8_t value_arg = value_type >> kEncodedValueArgShift;
@@ -726,17 +727,16 @@ void EncodedArrayValueIterator::Next() {
   case kEnum:
   case kArray:
   case kAnnotation:
-    UNIMPLEMENTED(FATAL) << ": type " << type_;
-    UNREACHABLE();
+    return false;
   case kNull:
     jval_.l = nullptr;
     width = 0;
     break;
   default:
-    LOG(FATAL) << "Unreached";
-    UNREACHABLE();
+    return false;
   }
   ptr_ += width;
+  return true;
 }
 
 namespace dex {

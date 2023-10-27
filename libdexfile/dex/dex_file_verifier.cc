@@ -1230,7 +1230,10 @@ bool DexFileVerifier::CheckStaticFieldTypes(const dex::ClassDef& class_def) {
         ErrorStringPrintf("unexpected static field initial value type: %x", array_type);
         return false;
     }
-    array_it.Next();
+    if (!array_it.MaybeNext()) {
+      ErrorStringPrintf("unexpected encoded value type: '%c'", array_it.GetValueType());
+      return false;
+    }
   }
 
   if (array_it.HasNext()) {
@@ -2922,7 +2925,10 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
   }
 
   // Check target method name.
-  it.Next();
+  if (!it.MaybeNext()) {
+    ErrorStringPrintf("unexpected encoded value type: '%c'", it.GetValueType());
+    return false;
+  }
   if (!it.HasNext() ||
       it.GetValueType() != EncodedArrayValueIterator::ValueType::kString) {
     ErrorStringPrintf("CallSiteArray missing target method name");
@@ -2936,7 +2942,10 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
   }
 
   // Check method type.
-  it.Next();
+  if (!it.MaybeNext()) {
+    ErrorStringPrintf("unexpected encoded value type: '%c'", it.GetValueType());
+    return false;
+  }
   if (!it.HasNext() ||
       it.GetValueType() != EncodedArrayValueIterator::ValueType::kMethodType) {
     ErrorStringPrintf("CallSiteArray missing method type");

@@ -607,6 +607,8 @@ static ObjPtr<mirror::Class> GetClassForBootstrapArgument(EncodedArrayValueItera
     case EncodedArrayValueIterator::ValueType::kAnnotation:
     case EncodedArrayValueIterator::ValueType::kNull:
       return nullptr;
+    case EncodedArrayValueIterator::ValueType::kEndOfInput:
+      UNREACHABLE();
   }
 }
 
@@ -689,6 +691,8 @@ static bool GetArgumentForBootstrapMethod(Thread* self,
       // determining the effect call site type based on the bootstrap
       // argument types.
       UNREACHABLE();
+    case EncodedArrayValueIterator::ValueType::kEndOfInput:
+      UNREACHABLE();
   }
 }
 
@@ -731,6 +735,8 @@ static bool PackArgumentForBootstrapMethod(Thread* self,
       // Unreachable - unsupported types that have been checked when
       // determining the effect call site type based on the bootstrap
       // argument types.
+      UNREACHABLE();
+    case EncodedArrayValueIterator::ValueType::kEndOfInput:
       UNREACHABLE();
   }
 }
