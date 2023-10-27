@@ -1582,14 +1582,14 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return true;
   }
 
-  // try_items are 4-byte aligned. Verify the spacer is 0.
-  if (((reinterpret_cast<uintptr_t>(&insns[insns_size]) & 3) != 0) && (insns[insns_size] != 0)) {
-    ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
+  const dex::TryItem* try_items = accessor.TryItems().begin();
+  if (!CheckListSize(try_items, try_items_size, sizeof(dex::TryItem), "try_items size")) {
     return false;
   }
 
-  const dex::TryItem* try_items = accessor.TryItems().begin();
-  if (!CheckListSize(try_items, try_items_size, sizeof(dex::TryItem), "try_items size")) {
+  // try_items are 4-byte aligned. Verify the spacer is 0.
+  if (((reinterpret_cast<uintptr_t>(&insns[insns_size]) & 3) != 0) && (insns[insns_size] != 0)) {
+    ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
     return false;
   }
 
