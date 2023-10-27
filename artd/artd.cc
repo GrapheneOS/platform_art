@@ -342,7 +342,8 @@ Result<void> CopyFile(const std::string& src_path, const NewFile& dst_file) {
 }
 
 Result<void> SetLogVerbosity() {
-  std::string options = android::base::GetProperty("dalvik.vm.artd-verbose", /*default_value=*/"");
+  std::string options =
+      android::base::GetProperty("dalvik.vm.artd-verbose", /*default_value=*/"oat");
   if (options.empty()) {
     return {};
   }
