@@ -55,7 +55,24 @@
 // Note: invoke-virtual is used to invoke a normal virtual method (a method that is not private,
 // static, or final, and is also not a constructor).
 %def op_invoke_virtual(range=""):
-   unimp
+   EXPORT_PC
+   FETCH s7, count=2                // s7 := F|E|D|C or CCCC (range)
+   FETCH_FROM_THREAD_CACHE a0, /*slow path*/2f, t0, t1
+                                    // a0 := method idx of resolved virtual method
+1:
+%  fetch_receiver(reg="a1", vreg="s7", range=range)
+                                    // a1 := fp[C] (this)
+   // Note: null case handled by SEGV handler.
+   lwu t0, MIRROR_OBJECT_CLASS_OFFSET(a1)
+                                    // t0 := klass object (32-bit addr)
+   // Entry address = entry's byte offset in vtable + vtable's byte offset in klass object.
+   sh3add a0, a0, t0                // a0 := entry's byte offset
+   ld a0, MIRROR_CLASS_VTABLE_OFFSET_64(a0)
+                                    // a0 := ArtMethod*
+   tail NterpInvokeVirtual${range}  // args a0, a1, s7
+2:
+%  resolve_method_into_a0()
+   j 1b
 
 
 // invoke-super {vC, vD, vE, vF, vG}, meth@BBBB
@@ -297,16 +314,19 @@
 // These asm blocks are positioned in main.S for visibility to stack walking.
 //
 
+
 // NterpInvokeVirtual
 // a0: ArtMethod*
 // a1: this
+// s7: vreg ids F|E|D|C
 %def nterp_invoke_virtual():
-   unimp
+%  nterp_invoke_direct(uniq="invoke_virtual")
 
 
 // NterpInvokeSuper
 // a0: ArtMethod*
 // a1: this
+// s7: vreg ids F|E|D|C
 %def nterp_invoke_super():
 %  nterp_invoke_direct(uniq="invoke_super")
 
@@ -965,7 +985,7 @@
    beq $z0, $z1, .L${uniq}_arg_4
 
    // A = 5
-   slliw $z0, xINST, 8
+   srliw $z0, xINST, 8
    andi $z0, $z0, 0xF         // z0 := G
    GET_VREG $z1, $z0          // z1 := xFP[G]
    sw $z1, (4*4)($z3)         // fp[G] := z1
