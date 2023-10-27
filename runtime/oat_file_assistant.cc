@@ -296,6 +296,7 @@ int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fil
                                       bool downgrade) {
   OatFileInfo& info = GetBestInfo();
   if (info.CheckDisableCompactDexExperiment()) {  // TODO(b/256664509): Clean this up.
+    VLOG(oat) << "Should recompile: disable cdex experiment";
     return kDex2OatFromScratch;
   }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(
