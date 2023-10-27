@@ -2362,7 +2362,7 @@ bool DexFileVerifier::CheckIntraSection() {
 }
 
 bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
-  DCHECK_NE(offset, 0u);
+  DCHECK(offset_to_type_map_.find(0) == offset_to_type_map_.end());
   auto it = offset_to_type_map_.find(offset);
   if (UNLIKELY(it == offset_to_type_map_.end())) {
     ErrorStringPrintf("No data map entry found @ %zx; expected %x", offset, type);
@@ -2903,7 +2903,7 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
 
   // Check call site referenced by item is in encoded array section.
   if (!CheckOffsetToTypeMap(item->data_off_, DexFile::kDexTypeEncodedArrayItem)) {
-    ErrorStringPrintf("Invalid offset in CallSideIdItem");
+    DCHECK(!failure_reason_.empty());  // Error already set.
     return false;
   }
 
