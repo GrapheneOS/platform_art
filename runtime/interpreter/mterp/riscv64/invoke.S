@@ -69,7 +69,20 @@
 // on that interface. The same method restrictions hold as for invoke-virtual. In Dex files prior to
 // version 037, having an interface method_id is illegal and undefined.
 %def op_invoke_super(range=""):
-   unimp
+   EXPORT_PC
+   FETCH s7, count=2              // s7 := F|E|D|C or CCCC (range)
+   FETCH_FROM_THREAD_CACHE a0, /*slow path*/2f, t0, t1
+                                  // a0 := ArtMethod*
+1:
+%  fetch_receiver(reg="a1", vreg="s7", range=range)
+                                  // a1 := fp[C] (this)
+   beqz a1, 3f                    // throw if null
+   tail NterpInvokeSuper${range}  // args a0, a1, s7
+2:
+%  resolve_method_into_a0()
+   j 1b
+3:
+   tail common_errNullObject
 
 
 // invoke-direct {vC, vD, vE, vF, vG}, meth@BBBB
@@ -295,7 +308,7 @@
 // a0: ArtMethod*
 // a1: this
 %def nterp_invoke_super():
-   unimp
+%  nterp_invoke_direct(uniq="invoke_super")
 
 
 // NterpInvokeDirect
@@ -848,6 +861,7 @@
    .cfi_startproc
    unimp
    .cfi_endproc
+
 
 // See runtime/nterp_helpers.cc for a diagram of the setup.
 // Hardcoded
