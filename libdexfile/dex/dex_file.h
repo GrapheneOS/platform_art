@@ -994,7 +994,12 @@ class EncodedArrayValueIterator {
 
   bool HasNext() const { return pos_ < array_size_; }
 
-  void Next();
+  WARN_UNUSED bool MaybeNext();
+
+  ALWAYS_INLINE void Next() {
+    bool ok = MaybeNext();
+    DCHECK(ok) << "Unknown type: " << GetValueType();
+  }
 
   enum ValueType {
     kByte         = 0x00,
@@ -1015,6 +1020,7 @@ class EncodedArrayValueIterator {
     kAnnotation   = 0x1d,
     kNull         = 0x1e,
     kBoolean      = 0x1f,
+    kEndOfInput   = 0xff,
   };
 
   ValueType GetValueType() const { return type_; }
