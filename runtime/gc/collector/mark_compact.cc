@@ -1063,8 +1063,6 @@ void MarkCompact::PrepareForCompaction() {
   post_compact_end_ = AlignUp(space_begin + total, kPageSize);
   CHECK_EQ(post_compact_end_, space_begin + moving_first_objs_count_ * kPageSize);
   black_objs_slide_diff_ = black_allocations_begin_ - post_compact_end_;
-  // We shouldn't be consuming more space after compaction than pre-compaction.
-  CHECK_GE(black_objs_slide_diff_, 0);
   // How do we handle compaction of heap portion used for allocations after the
   // marking-pause?
   // All allocations after the marking-pause are considered black (reachable)
@@ -1351,8 +1349,9 @@ void MarkCompact::MarkingPause() {
     // Align-up to page boundary so that black allocations happen from next page
     // onwards. Also, it ensures that 'end' is aligned for card-table's
     // ClearCardRange().
-    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize, heap_);
-    DCHECK_ALIGNED_PARAM(black_allocations_begin_, kPageSize);
+    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize);
+    DCHECK(IsAligned<kAlignment>(black_allocations_begin_));
+    black_allocations_begin_ = AlignUp(black_allocations_begin_, kPageSize);
 
     // Re-mark root set. Doesn't include thread-roots as they are already marked
     // above.
@@ -1413,11 +1412,11 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
     DCHECK(mark_stack_->IsEmpty());
   }
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsContinuousMemMapAllocSpace() && space != bump_pointer_space_ &&
-        !immune_spaces_.ContainsSpace(space)) {
+    if (space->IsContinuousMemMapAllocSpace() && space != bump_pointer_space_) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
       TimingLogger::ScopedTiming split(
-          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepMallocSpace", GetTimings());
+          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepMallocSpace",
+          GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
   }
@@ -2984,23 +2983,6 @@ void MarkCompact::CompactionPause() {
   }
 
   UpdateNonMovingSpace();
-
-  // TODO: Convert to DCHECK once b/305338634 is resolved.
-  size_t moving_space_size = bump_pointer_space_->Size();
-  size_t los_size = 0;
-  if (heap_->GetLargeObjectsSpace()) {
-    los_size = heap_->GetLargeObjectsSpace()->GetBytesAllocated();
-  }
-  // The moving-space size is already updated to post-compact size in
-  // UpdateMovingSpaceBlackAllocations() above. Also, bytes-allocated has already been
-  // adjusted with large-object space' freed-bytes in Sweep(), but not with moving-space
-  // freed-bytes.
-  CHECK_GE(heap_->GetBytesAllocated() - black_objs_slide_diff_, moving_space_size + los_size)
-      << " moving-space size:" << moving_space_size
-      << " moving-space bytes-freed:" << black_objs_slide_diff_
-      << " large-object-space size:" << los_size
-      << " large-object-space bytes-freed:" << GetCurrentIteration()->GetFreedLargeObjectBytes();
-
   // fallback mode
   if (uffd_ == kFallbackMode) {
     CompactMovingSpace<kFallbackMode>(nullptr);
