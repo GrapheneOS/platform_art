@@ -212,8 +212,8 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
 
   // Align end to the given alignment. This is done in MarkCompact GC when
   // mutators are suspended so that upcoming TLAB allocations start with a new
-  // page. Returns the aligned end.
-  uint8_t* AlignEnd(Thread* self, size_t alignment, Heap* heap) REQUIRES(Locks::mutator_lock_);
+  // page. Returns the pre-alignment end.
+  uint8_t* AlignEnd(Thread* self, size_t alignment) REQUIRES(Locks::mutator_lock_);
 
   friend class collector::MarkSweep;
   friend class collector::MarkCompact;
