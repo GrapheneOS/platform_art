@@ -1736,7 +1736,6 @@ class Heap {
   friend class ReferenceQueue;
   friend class ScopedGCCriticalSection;
   friend class ScopedInterruptibleGCCriticalSection;
-  friend class space::BumpPointerSpace;  // For num_bytes_allocated_
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
