@@ -253,7 +253,7 @@ size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* u
   return num_bytes;
 }
 
-uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment, Heap* heap) {
+uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment) {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   DCHECK(IsAligned<kAlignment>(alignment));
   uint8_t* end = end_.load(std::memory_order_relaxed);
@@ -261,7 +261,6 @@ uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment, Heap* heap) 
   ptrdiff_t diff = aligned_end - end;
   if (diff > 0) {
     end_.store(aligned_end, std::memory_order_relaxed);
-    heap->num_bytes_allocated_.fetch_add(diff, std::memory_order_relaxed);
     // If we have blocks after the main one. Then just add the diff to the last
     // block.
     MutexLock mu(self, lock_);
@@ -269,7 +268,7 @@ uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment, Heap* heap) 
       block_sizes_.back() += diff;
     }
   }
-  return aligned_end;
+  return end;
 }
 
 std::vector<size_t>* BumpPointerSpace::GetBlockSizes(Thread* self, size_t* main_block_size) {
