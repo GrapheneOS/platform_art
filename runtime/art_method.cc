@@ -640,7 +640,8 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
             << ", pc=" << std::hex << pc
             << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
             << ", copy=" << std::boolalpha << IsCopied()
-            << ", proxy=" << std::boolalpha << IsProxyMethod();
+            << ", proxy=" << std::boolalpha << IsProxyMethod()
+            << ", is_native=" << std::boolalpha << IsNative();
       }
     }
   }

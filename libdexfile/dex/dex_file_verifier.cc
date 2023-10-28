@@ -1230,7 +1230,10 @@ bool DexFileVerifier::CheckStaticFieldTypes(const dex::ClassDef& class_def) {
         ErrorStringPrintf("unexpected static field initial value type: %x", array_type);
         return false;
     }
-    array_it.Next();
+    if (!array_it.MaybeNext()) {
+      ErrorStringPrintf("unexpected encoded value type: '%c'", array_it.GetValueType());
+      return false;
+    }
   }
 
   if (array_it.HasNext()) {
@@ -1582,14 +1585,14 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return true;
   }
 
-  // try_items are 4-byte aligned. Verify the spacer is 0.
-  if (((reinterpret_cast<uintptr_t>(&insns[insns_size]) & 3) != 0) && (insns[insns_size] != 0)) {
-    ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
+  const dex::TryItem* try_items = accessor.TryItems().begin();
+  if (!CheckListSize(try_items, try_items_size, sizeof(dex::TryItem), "try_items size")) {
     return false;
   }
 
-  const dex::TryItem* try_items = accessor.TryItems().begin();
-  if (!CheckListSize(try_items, try_items_size, sizeof(dex::TryItem), "try_items size")) {
+  // try_items are 4-byte aligned. Verify the spacer is 0.
+  if (((reinterpret_cast<uintptr_t>(&insns[insns_size]) & 3) != 0) && (insns[insns_size] != 0)) {
+    ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
     return false;
   }
 
@@ -2362,7 +2365,7 @@ bool DexFileVerifier::CheckIntraSection() {
 }
 
 bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
-  DCHECK_NE(offset, 0u);
+  DCHECK(offset_to_type_map_.find(0) == offset_to_type_map_.end());
   auto it = offset_to_type_map_.find(offset);
   if (UNLIKELY(it == offset_to_type_map_.end())) {
     ErrorStringPrintf("No data map entry found @ %zx; expected %x", offset, type);
@@ -2903,7 +2906,7 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
 
   // Check call site referenced by item is in encoded array section.
   if (!CheckOffsetToTypeMap(item->data_off_, DexFile::kDexTypeEncodedArrayItem)) {
-    ErrorStringPrintf("Invalid offset in CallSideIdItem");
+    DCHECK(!failure_reason_.empty());  // Error already set.
     return false;
   }
 
@@ -2922,7 +2925,10 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
   }
 
   // Check target method name.
-  it.Next();
+  if (!it.MaybeNext()) {
+    ErrorStringPrintf("unexpected encoded value type: '%c'", it.GetValueType());
+    return false;
+  }
   if (!it.HasNext() ||
       it.GetValueType() != EncodedArrayValueIterator::ValueType::kString) {
     ErrorStringPrintf("CallSiteArray missing target method name");
@@ -2936,7 +2942,10 @@ bool DexFileVerifier::CheckInterCallSiteIdItem() {
   }
 
   // Check method type.
-  it.Next();
+  if (!it.MaybeNext()) {
+    ErrorStringPrintf("unexpected encoded value type: '%c'", it.GetValueType());
+    return false;
+  }
   if (!it.HasNext() ||
       it.GetValueType() != EncodedArrayValueIterator::ValueType::kMethodType) {
     ErrorStringPrintf("CallSiteArray missing method type");

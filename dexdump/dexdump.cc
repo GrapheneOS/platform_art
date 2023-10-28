@@ -1890,6 +1890,8 @@ static void dumpCallSite(const DexFile* pDexFile, u4 idx) {
         type = "boolean";
         value = it.GetJavaValue().z ? "true" : "false";
         break;
+      case EncodedArrayValueIterator::ValueType::kEndOfInput:
+        UNREACHABLE();
     }
 
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
