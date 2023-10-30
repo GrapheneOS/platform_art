@@ -391,8 +391,8 @@ void IntrinsicVisitor::CreateReferenceGetReferentLocations(HInvoke* invoke,
   locations->SetOut(Location::RequiresRegister());
 }
 
-void IntrinsicVisitor::CreateReferenceRefersToLocations(HInvoke* invoke) {
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+void IntrinsicVisitor::CreateReferenceRefersToLocations(HInvoke* invoke, CodeGenerator* codegen) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     // Unimplemented for non-Baker read barrier.
     return;
   }
