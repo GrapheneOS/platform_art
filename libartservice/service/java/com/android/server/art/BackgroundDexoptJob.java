@@ -117,7 +117,15 @@ public class BackgroundDexoptJob {
             throw new IllegalStateException("This job cannot be scheduled");
         }
 
-        start();
+        start().thenAcceptAsync(result -> {
+            DexoptResult dr = null;
+            long durationMs = 0L;
+            if (result instanceof CompletedResult r) {
+                dr = r.dexoptResult();
+                durationMs = r.durationMs();
+            }
+            mInjector.getPackageManagerLocal().onBgDexoptCompleted(dr, durationMs);
+        });
 
         if (SystemProperties.getBoolean("pm.dexopt.disable_bg_dexopt", false /* def */)) {
             Log.i(TAG, "Job is disabled by system property 'pm.dexopt.disable_bg_dexopt'");
@@ -184,17 +192,6 @@ public class BackgroundDexoptJob {
                 }
             }
         });
-
-        mRunningJob.thenAcceptAsync(result -> {
-            DexoptResult dr = null;
-            long durationMs = 0L;
-            if (result instanceof CompletedResult r) {
-                dr = r.dexoptResult();
-                durationMs = r.durationMs();
-            }
-            mInjector.getPackageManagerLocal().onBgDexoptCompleted(dr, durationMs);
-        });
-
         return mRunningJob;
     }
 
