@@ -1,6 +1,7 @@
 package com.android.server.art;
 
 import android.annotation.Nullable;
+import android.os.SystemClock;
 import android.util.Slog;
 
 import com.android.server.LocalManagerRegistry;
@@ -9,10 +10,13 @@ import com.android.server.art.model.OperationProgress;
 import com.android.server.pm.PackageManagerLocal;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 class DexoptHooks {
     static final String TAG = DexoptHooks.class.getSimpleName();
+    
+    static AtomicBoolean shouldWrapBgDexoptProgressCallback = new AtomicBoolean(true);
 
     @Nullable
     static Consumer<OperationProgress> maybeWrapDexoptProgressCallback(
@@ -20,8 +24,12 @@ class DexoptHooks {
 
         switch (params.getReason()) {
             case ReasonMapping.REASON_BOOT_AFTER_OTA:
-            case ReasonMapping.REASON_BG_DEXOPT:
                 break;
+            case ReasonMapping.REASON_BG_DEXOPT:
+                if (shouldWrapBgDexoptProgressCallback.getAndSet(false)) {
+                    break;
+                }
+                return orig;
             default:
                 return orig;
         }
