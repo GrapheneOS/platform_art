@@ -437,8 +437,8 @@ OAT_ENTRY ExecuteNterpWithClinitImpl
 .Linitializing_check:
     lui t2, MIRROR_CLASS_STATUS_INITIALIZING << (MIRROR_CLASS_STATUS_SHIFT - 12)
     bltu t1, t2, .Lresolution_trampoline
-    ld t1, MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(t0)
-    ld t0, THREAD_TID_OFFSET(xSELF)
+    lwu t1, MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(t0)
+    lwu t0, THREAD_TID_OFFSET(xSELF)
     beq t0, t1, ExecuteNterpImpl
 .Lresolution_trampoline:
     tail art_quick_resolution_trampoline
