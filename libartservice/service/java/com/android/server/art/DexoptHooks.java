@@ -34,6 +34,8 @@ class DexoptHooks {
                 return orig;
         }
 
+        final long start = SystemClock.elapsedRealtime();
+
         var pm = Objects.requireNonNull(LocalManagerRegistry.getManager(PackageManagerLocal.class));
 
         Consumer<OperationProgress> res = progress -> {
@@ -49,7 +51,7 @@ class DexoptHooks {
                 case ReasonMapping.REASON_BOOT_AFTER_OTA ->
                     pm.showDexoptProgressBootMessage(progress.getPercentage(), progress.getCurrent(), progress.getTotal());
                 case ReasonMapping.REASON_BG_DEXOPT ->
-                    pm.onBgDexoptProgressUpdate(progress.getPercentage(), progress.getCurrent(), progress.getTotal());
+                    pm.onBgDexoptProgressUpdate(start, progress.getPercentage(), progress.getCurrent(), progress.getTotal());
             }
         };
 
