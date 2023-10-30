@@ -142,6 +142,22 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
   return true;
 }
 
+bool CodeGenerator::EmitReadBarrier() const {
+  return GetCompilerOptions().EmitReadBarrier();
+}
+
+bool CodeGenerator::EmitBakerReadBarrier() const {
+  return kUseBakerReadBarrier && GetCompilerOptions().EmitReadBarrier();
+}
+
+bool CodeGenerator::EmitNonBakerReadBarrier() const {
+  return !kUseBakerReadBarrier && GetCompilerOptions().EmitReadBarrier();
+}
+
+ReadBarrierOption CodeGenerator::GetCompilerReadBarrierOption() const {
+  return EmitReadBarrier() ? kWithReadBarrier : kWithoutReadBarrier;
+}
+
 ScopedArenaAllocator* CodeGenerator::GetScopedAllocator() {
   DCHECK(code_generation_data_ != nullptr);
   return code_generation_data_->GetScopedAllocator();
@@ -1624,8 +1640,7 @@ void CodeGenerator::ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
              // When (non-Baker) read barriers are enabled, some instructions
              // use a slow path to emit a read barrier, which does not trigger
              // GC.
-             (gUseReadBarrier &&
-              !kUseBakerReadBarrier &&
+             (EmitNonBakerReadBarrier() &&
               (instruction->IsInstanceFieldGet() ||
                instruction->IsPredicatedInstanceFieldGet() ||
                instruction->IsStaticFieldGet() ||

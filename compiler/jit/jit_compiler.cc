@@ -66,6 +66,9 @@ void JitCompiler::ParseCompilerOptions() {
   // JIT is never PIC, no matter what the runtime compiler options specify.
   compiler_options_->SetNonPic();
 
+  // Set the appropriate read barrier option.
+  compiler_options_->emit_read_barrier_ = gUseReadBarrier;
+
   // If the options don't provide whether we generate debuggable code, set
   // debuggability based on the runtime value.
   if (!compiler_options_->GetDebuggable()) {
