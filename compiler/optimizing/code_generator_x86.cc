@@ -5768,7 +5768,7 @@ void CodeGeneratorX86::LoadBootImageAddress(Register reg,
 void CodeGeneratorX86::LoadIntrinsicDeclaringClass(Register reg, HInvokeStaticOrDirect* invoke) {
   DCHECK_NE(invoke->GetIntrinsic(), Intrinsics::kNone);
   if (GetCompilerOptions().IsBootImage()) {
-    // Load the class the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
+    // Load the type the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
     HX86ComputeBaseMethodAddress* method_address =
         invoke->InputAt(invoke->GetSpecialInputIndex())->AsX86ComputeBaseMethodAddress();
     DCHECK(method_address != nullptr);
