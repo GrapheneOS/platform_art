@@ -5212,7 +5212,7 @@ void CodeGeneratorARM64::LoadBootImageAddress(vixl::aarch64::Register reg,
 
 void CodeGeneratorARM64::LoadTypeForBootImageIntrinsic(vixl::aarch64::Register reg,
                                                        TypeReference target_type) {
-  // Load the class the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
+  // Load the type the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
   DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
   // Add ADRP with its PC-relative type patch.
   vixl::aarch64::Label* adrp_label =
