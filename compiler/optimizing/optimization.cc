@@ -300,7 +300,7 @@ ArenaVector<HOptimization*> ConstructOptimizations(
 #ifdef ART_ENABLE_CODEGEN_arm
       case OptimizationPass::kInstructionSimplifierArm:
         DCHECK(alt_name == nullptr) << "arch-specific pass does not support alternative name";
-        opt = new (allocator) arm::InstructionSimplifierArm(graph, stats);
+        opt = new (allocator) arm::InstructionSimplifierArm(graph, codegen, stats);
         break;
       case OptimizationPass::kCriticalNativeAbiFixupArm:
         DCHECK(alt_name == nullptr) << "arch-specific pass does not support alternative name";
@@ -310,7 +310,7 @@ ArenaVector<HOptimization*> ConstructOptimizations(
 #ifdef ART_ENABLE_CODEGEN_arm64
       case OptimizationPass::kInstructionSimplifierArm64:
         DCHECK(alt_name == nullptr) << "arch-specific pass does not support alternative name";
-        opt = new (allocator) arm64::InstructionSimplifierArm64(graph, stats);
+        opt = new (allocator) arm64::InstructionSimplifierArm64(graph, codegen, stats);
         break;
 #endif
 #ifdef ART_ENABLE_CODEGEN_riscv64

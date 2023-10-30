@@ -22,6 +22,8 @@
 
 namespace art HIDDEN {
 
+class CodeGenerator;
+
 namespace helpers {
 
 inline bool CanFitInShifterOperand(HInstruction* instruction) {
@@ -64,7 +66,8 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa);
 // a negated bitwise instruction.
 bool TryMergeNegatedInput(HBinaryOperation* op);
 
-bool TryExtractArrayAccessAddress(HInstruction* access,
+bool TryExtractArrayAccessAddress(CodeGenerator* codegen,
+                                  HInstruction* access,
                                   HInstruction* array,
                                   HInstruction* index,
                                   size_t data_offset);

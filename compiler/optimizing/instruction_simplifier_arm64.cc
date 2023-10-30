@@ -33,8 +33,9 @@ using helpers::ShifterOperandSupportsExtension;
 
 class InstructionSimplifierArm64Visitor final : public HGraphVisitor {
  public:
-  InstructionSimplifierArm64Visitor(HGraph* graph, OptimizingCompilerStats* stats)
-      : HGraphVisitor(graph), stats_(stats) {}
+  InstructionSimplifierArm64Visitor(
+      HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HGraphVisitor(graph), codegen_(codegen), stats_(stats) {}
 
  private:
   void RecordSimplification() {
@@ -84,6 +85,7 @@ class InstructionSimplifierArm64Visitor final : public HGraphVisitor {
   void VisitVecLoad(HVecLoad* instruction) override;
   void VisitVecStore(HVecStore* instruction) override;
 
+  CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
 };
 
@@ -198,7 +200,8 @@ void InstructionSimplifierArm64Visitor::VisitAnd(HAnd* instruction) {
 
 void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
   size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
-  if (TryExtractArrayAccessAddress(instruction,
+  if (TryExtractArrayAccessAddress(codegen_,
+                                   instruction,
                                    instruction->GetArray(),
                                    instruction->GetIndex(),
                                    data_offset)) {
@@ -209,7 +212,8 @@ void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
 void InstructionSimplifierArm64Visitor::VisitArraySet(HArraySet* instruction) {
   size_t access_size = DataType::Size(instruction->GetComponentType());
   size_t data_offset = mirror::Array::DataOffset(access_size).Uint32Value();
-  if (TryExtractArrayAccessAddress(instruction,
+  if (TryExtractArrayAccessAddress(codegen_,
+                                   instruction,
                                    instruction->GetArray(),
                                    instruction->GetIndex(),
                                    data_offset)) {
@@ -284,7 +288,7 @@ void InstructionSimplifierArm64Visitor::VisitVecLoad(HVecLoad* instruction) {
     size_t size = DataType::Size(instruction->GetPackedType());
     size_t offset = mirror::Array::DataOffset(size).Uint32Value();
     if (TryExtractArrayAccessAddress(
-            instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
+            codegen_, instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
       RecordSimplification();
     }
   }
@@ -298,14 +302,14 @@ void InstructionSimplifierArm64Visitor::VisitVecStore(HVecStore* instruction) {
     size_t size = DataType::Size(instruction->GetPackedType());
     size_t offset = mirror::Array::DataOffset(size).Uint32Value();
     if (TryExtractArrayAccessAddress(
-            instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
+            codegen_, instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
       RecordSimplification();
     }
   }
 }
 
 bool InstructionSimplifierArm64::Run() {
-  InstructionSimplifierArm64Visitor visitor(graph_, stats_);
+  InstructionSimplifierArm64Visitor visitor(graph_, codegen_, stats_);
   visitor.VisitReversePostOrder();
   return true;
 }

@@ -904,7 +904,7 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
             Location::RegisterLocation(target.object),
             field,
             ArtField::DeclaringClassOffset().Int32Value(),
-            GetCompilerReadBarrierOption());
+            codegen->GetCompilerReadBarrierOption());
       }
     }
   } else {
@@ -919,7 +919,8 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
   }
 }
 
-static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
+static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke,
+                                                       CodeGeneratorRISCV64* codegen) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DataType::Type return_type = invoke->GetType();
 
@@ -953,7 +954,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   }
 
   // Add a temporary for offset.
-  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
+  if (codegen->EmitNonBakerReadBarrier() &&
       GetExpectedVarHandleCoordinatesCount(invoke) == 0u) {  // For static fields.
     // To preserve the offset value across the non-Baker read barrier slow path
     // for loading the declaring class, use a fixed callee-save register.
@@ -970,13 +971,13 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   return locations;
 }
 
-static void CreateVarHandleGetLocations(HInvoke* invoke) {
+static void CreateVarHandleGetLocations(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
   VarHandleOptimizations optimizations(invoke);
   if (optimizations.GetDoNotIntrinsify()) {
     return;
   }
 
-  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
+  if (codegen->EmitNonBakerReadBarrier() &&
       invoke->GetType() == DataType::Type::kReference &&
       invoke->GetIntrinsic() != Intrinsics::kVarHandleGet &&
       invoke->GetIntrinsic() != Intrinsics::kVarHandleGetOpaque) {
@@ -986,7 +987,7 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
     return;
   }
 
-  CreateVarHandleCommonLocations(invoke);
+  CreateVarHandleCommonLocations(invoke, codegen);
 }
 
 static void GenerateVarHandleGet(HInvoke* invoke,
@@ -1019,7 +1020,7 @@ static void GenerateVarHandleGet(HInvoke* invoke,
   }
 
   // Load the value from the target location.
-  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && codegen->EmitBakerReadBarrier()) {
     // TODO(riscv64): Revisit when we add checking if the holder is black.
     Location index_and_temp_loc = Location::RegisterLocation(target.offset);
     codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
@@ -1064,7 +1065,7 @@ static void GenerateVarHandleGet(HInvoke* invoke,
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleGet(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGet(HInvoke* invoke) {
@@ -1072,7 +1073,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleGetOpaque(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGetOpaque(HInvoke* invoke) {
@@ -1080,7 +1081,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGetOpaque(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleGetAcquire(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGetAcquire(HInvoke* invoke) {
@@ -1088,20 +1089,20 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGetAcquire(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleGetVolatile(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleGetVolatile(HInvoke* invoke) {
   GenerateVarHandleGet(invoke, codegen_, std::memory_order_seq_cst);
 }
 
-static void CreateVarHandleSetLocations(HInvoke* invoke) {
+static void CreateVarHandleSetLocations(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
   VarHandleOptimizations optimizations(invoke);
   if (optimizations.GetDoNotIntrinsify()) {
     return;
   }
 
-  CreateVarHandleCommonLocations(invoke);
+  CreateVarHandleCommonLocations(invoke, codegen);
 }
 
 static void GenerateVarHandleSet(HInvoke* invoke,
@@ -1166,7 +1167,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleSet(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSet(HInvoke* invoke) {
@@ -1174,7 +1175,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleSetOpaque(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetOpaque(HInvoke* invoke) {
@@ -1182,7 +1183,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetOpaque(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleSetRelease(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetRelease(HInvoke* invoke) {
@@ -1190,7 +1191,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetRelease(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitVarHandleSetVolatile(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetVolatile(HInvoke* invoke) {

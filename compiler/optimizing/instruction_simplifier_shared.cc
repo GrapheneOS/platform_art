@@ -16,6 +16,7 @@
 
 #include "instruction_simplifier_shared.h"
 
+#include "code_generator.h"
 #include "mirror/array-inl.h"
 
 namespace art HIDDEN {
@@ -229,7 +230,8 @@ bool TryMergeNegatedInput(HBinaryOperation* op) {
 }
 
 
-bool TryExtractArrayAccessAddress(HInstruction* access,
+bool TryExtractArrayAccessAddress(CodeGenerator* codegen,
+                                  HInstruction* access,
                                   HInstruction* array,
                                   HInstruction* index,
                                   size_t data_offset) {
@@ -244,8 +246,7 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
     // The access may require a runtime call or the original array pointer.
     return false;
   }
-  if (gUseReadBarrier &&
-      !kUseBakerReadBarrier &&
+  if (codegen->EmitNonBakerReadBarrier() &&
       access->IsArrayGet() &&
       access->GetType() == DataType::Type::kReference) {
     // For object arrays, the non-Baker read barrier instrumentation requires
