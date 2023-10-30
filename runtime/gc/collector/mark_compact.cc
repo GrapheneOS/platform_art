@@ -1059,6 +1059,8 @@ void MarkCompact::PrepareForCompaction() {
   post_compact_end_ = AlignUp(space_begin + total, kPageSize);
   CHECK_EQ(post_compact_end_, space_begin + moving_first_objs_count_ * kPageSize);
   black_objs_slide_diff_ = black_allocations_begin_ - post_compact_end_;
+  // We shouldn't be consuming more space after compaction than pre-compaction.
+  CHECK_GE(black_objs_slide_diff_, 0);
   // How do we handle compaction of heap portion used for allocations after the
   // marking-pause?
   // All allocations after the marking-pause are considered black (reachable)
@@ -1345,9 +1347,8 @@ void MarkCompact::MarkingPause() {
     // Align-up to page boundary so that black allocations happen from next page
     // onwards. Also, it ensures that 'end' is aligned for card-table's
     // ClearCardRange().
-    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize);
-    DCHECK(IsAligned<kAlignment>(black_allocations_begin_));
-    black_allocations_begin_ = AlignUp(black_allocations_begin_, kPageSize);
+    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize, heap_);
+    DCHECK_ALIGNED_PARAM(black_allocations_begin_, kPageSize);
 
     // Re-mark root set. Doesn't include thread-roots as they are already marked
     // above.
@@ -1408,11 +1409,11 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
     DCHECK(mark_stack_->IsEmpty());
   }
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsContinuousMemMapAllocSpace() && space != bump_pointer_space_) {
+    if (space->IsContinuousMemMapAllocSpace() && space != bump_pointer_space_ &&
+        !immune_spaces_.ContainsSpace(space)) {
       space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
-      TimingLogger::ScopedTiming split(
-          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepMallocSpace",
-          GetTimings());
+      DCHECK(!alloc_space->IsZygoteSpace());
+      TimingLogger::ScopedTiming split("SweepMallocSpace", GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
   }
@@ -2431,6 +2432,9 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
   DCHECK_LE(begin, black_allocs);
   size_t consumed_blocks_count = 0;
   size_t first_block_size;
+  // Needed only for debug at the end of the function. Hopefully compiler will
+  // eliminate it otherwise.
+  size_t num_blocks = 0;
   // Get the list of all blocks allocated in the bump-pointer space.
   std::vector<size_t>* block_sizes = bump_pointer_space_->GetBlockSizes(thread_running_gc_,
                                                                         &first_block_size);
@@ -2441,6 +2445,7 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
     uint32_t remaining_chunk_size = 0;
     uint32_t first_chunk_size = 0;
     mirror::Object* first_obj = nullptr;
+    num_blocks = block_sizes->size();
     for (size_t block_size : *block_sizes) {
       block_end += block_size;
       // Skip the blocks that are prior to the black allocations. These will be
@@ -2545,6 +2550,24 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
   bump_pointer_space_->SetBlockSizes(thread_running_gc_,
                                      post_compact_end_ - begin,
                                      consumed_blocks_count);
+  if (kIsDebugBuild) {
+    size_t moving_space_size = bump_pointer_space_->Size();
+    size_t los_size = 0;
+    if (heap_->GetLargeObjectsSpace()) {
+      los_size = heap_->GetLargeObjectsSpace()->GetBytesAllocated();
+    }
+    // The moving-space size is already updated to post-compact size in SetBlockSizes above.
+    // Also, bytes-allocated has already been adjusted with large-object space' freed-bytes
+    // in Sweep(), but not with moving-space freed-bytes.
+    CHECK_GE(heap_->GetBytesAllocated() - black_objs_slide_diff_, moving_space_size + los_size)
+        << " moving-space size:" << moving_space_size
+        << " moving-space bytes-freed:" << black_objs_slide_diff_
+        << " large-object-space size:" << los_size
+        << " large-object-space bytes-freed:" << GetCurrentIteration()->GetFreedLargeObjectBytes()
+        << " num-tlabs-merged:" << consumed_blocks_count
+        << " main-block-size:" << (post_compact_end_ - begin)
+        << " total-tlabs-moving-space:" << num_blocks;
+  }
 }
 
 void MarkCompact::UpdateNonMovingSpaceBlackAllocations() {

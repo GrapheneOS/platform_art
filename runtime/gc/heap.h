@@ -550,6 +550,11 @@ class Heap {
     return num_bytes_allocated_.load(std::memory_order_relaxed);
   }
 
+  // Returns bytes_allocated before adding 'bytes' to it.
+  size_t AddBytesAllocated(size_t bytes) {
+    return num_bytes_allocated_.fetch_add(bytes, std::memory_order_relaxed);
+  }
+
   bool GetUseGenerationalCC() const {
     return use_generational_cc_;
   }
