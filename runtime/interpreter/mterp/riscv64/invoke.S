@@ -154,7 +154,52 @@
 // Note: invoke-interface is used to invoke an interface method, that is, on an object whose
 // concrete class isn't known, using a method_id that refers to an interface.
 %def op_invoke_interface(range=""):
-   unimp
+   EXPORT_PC
+   FETCH s7, count=2               // s7 := F|E|D|C or CCCC (range)
+   // T0 is eventually used to carry the "hidden argument" in the managed ABI.
+   // Here, T0 is one of
+   // (1) ArtMethod*
+   // (2) ArtMethod* with LSB #1 set (default method)
+   // (3) method index << 16 with LSB #0 set (j.l.Object method)
+   FETCH_FROM_THREAD_CACHE t0, /*slow path*/6f, t1, t2
+1:
+%  fetch_receiver(reg="a1", vreg="s7", range=range)
+                          // a1 := fp[C] (this)
+   // Note: null case handled by SEGV handler.
+   lwu t1, MIRROR_OBJECT_CLASS_OFFSET(a1)
+                          // t1 := klass object (32-bit addr)
+   slliw t2, t0, 30       // test LSB #0 and #1
+   bltz t2, 4f            // LSB #1 is set; handle default method
+   bgtz t2, 5f            // LSB #0 is set; handle object method
+   // no signal bits; it is a clean ArtMethod*
+   lh t2, ART_METHOD_IMT_INDEX_OFFSET(t0)
+                          // t2 := idx into interface method table (16-bit value)
+2:
+   ld t1, MIRROR_CLASS_IMT_PTR_OFFSET_64(t1)
+                          // t1 := base address of imt
+   sh3add t1, t2, t1      // t1 := entry's address in imt
+3:
+   ld a0, (t1)            // a0 := ArtMethod*
+   tail NterpInvokeInterface${range}  // args a0, a1, s7, t0
+4:
+   bclri t0, t0, 1        // t0 := method index, LSB #1 cleared
+   lh t2, ART_METHOD_METHOD_INDEX_OFFSET(t0)
+                          // t2 := method_index_ (16-bit value)
+   // Default methods have a contract with art::IMTable.
+   andi t2, t2, ART_METHOD_IMT_MASK
+                          // t2 := idx into interface method table
+   j 2b
+5:
+   // Interface methods on j.l.Object have a contract with NterpGetMethod.
+   srliw t0, t0, 16       // t0 := method index
+   lwu t1, MIRROR_CLASS_VTABLE_OFFSET_64(t1)
+                          // t1 := base address of vtable (32-bit addr)
+   sh3add t1, t0, t1      // t1 := entry's address in vtable
+   j 3b
+6:
+%  resolve_method_into_a0()
+   mv t0, a0              // t0 to match behavior of cache fetch
+   j 1b
 
 
 //
@@ -451,11 +496,51 @@
 // NterpInvokeInterface
 // a0: ArtMethod*
 // a1: this
-// a2: the target interface method
+// s7: vreg ids F|E|D|C
+// t0: the target interface method
 //     - ignored in nterp-to-nterp transfer
 //     - side-loaded into T0 as a "hidden argument" in managed ABI transfer
 %def nterp_invoke_interface(uniq="invoke_interface"):
-   unimp
+   ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
+                                 // s8 := quick code
+%  try_nterp(quick="s8", z0="t1", skip=f".L{uniq}_simple")
+   call NterpToNterpInstance     // args a0, a1
+   j .L${uniq}_next_op
+
+.L${uniq}_simple:
+   srliw t1, xINST, 12           // t1 := A
+%  try_simple_args(ins="t1", v_fedc="s7", z0="t2", skip=f".L{uniq}_01", uniq=uniq)
+                                 // a2, a3, a4, a5 := fp[D], fp[E], fp[F], fp[G]
+   jalr s8                       // args a0 - a5, and t0
+   j .L${uniq}_next_op
+
+.L${uniq}_01:
+   mv s9, zero                   // initialize shorty reg
+%  try_01_args(ins="t1", v_fedc="s7", z0="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
+   // Return value expected. Get shorty, stash in callee-save to be available on return.
+   // When getting shorty, stash this fast path's arg registers then restore.
+   // Unconditionally stores a2/fa0, even if extra arg not found.
+   mv s0, a2                    // skip fa0, bitwise equiv to a2
+%  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+   mv a2, s0
+   fmv.w.x fa0, s0
+.L${uniq}_01_call:
+   jalr s8                       // args a0, a1, and t0, and maybe a2, fa0
+   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
+                                 // a0 := fa0 if float return
+   j .L${uniq}_next_op
+
+.L${uniq}_slow:
+%  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
+%  slow_setup_args(shorty="s9", vregs="s7", z0="t1", z1="t2", z2="t3", z3="t4", uniq=uniq)
+   jalr s8                       // args a0-a5, fa0-fa4, and t0
+%  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
+                                 // a0 := fa0 if float return
+.L${uniq}_next_op:
+   FETCH_ADVANCE_INST 3
+   GET_INST_OPCODE t0
+   GOTO_OPCODE t0
 
 
 // NterpInvokePolymorphic
@@ -651,7 +736,7 @@
 // Hardcoded:
 // - a0: ArtMethod*
 // - a1: this
-// y0, y1 - callee-save
+// Callee-saves: y0, y1
 %def get_shorty_save_a0_a1(shorty="", y0="", y1=""):
    mv $y1, a1
    mv $y0, a0
@@ -662,12 +747,30 @@
 
 
 // Static variant.
-// y0 - callee-save
+// Hardcoded:
+// - a0: ArtMethod*
+// Callee-saves: y0
 %def get_shorty_save_a0(shorty="", y0=""):
    mv $y0, a0
    call NterpGetShorty  // arg a0
    mv $shorty, a0
    mv a0, $y0
+
+
+// Interface variant.
+// Hardcoded:
+// - a0: ArtMethod*
+// - a1: this
+// Callee-saves: y0, y1
+%def get_shorty_for_interface_save_a0_a1(shorty="", y0="", y1=""):
+   mv $y1, a1
+   mv $y0, a0
+   ld a0, (sp)            // a0 := caller ArtMethod*
+   FETCH reg=a1, count=1  // a1 := BBBB method idx
+   call NterpGetShortyFromMethodId
+   mv $shorty, a0
+   mv a0, $y0
+   mv a1, $y1
 
 
 // Hardcoded: xFP, xREFS
