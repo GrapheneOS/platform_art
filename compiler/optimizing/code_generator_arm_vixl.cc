@@ -9748,7 +9748,7 @@ void CodeGeneratorARMVIXL::LoadBootImageAddress(vixl32::Register reg,
 
 void CodeGeneratorARMVIXL::LoadTypeForBootImageIntrinsic(vixl::aarch32::Register reg,
                                                          TypeReference target_type) {
-  // Load the class the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
+  // Load the type the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
   DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
   PcRelativePatchInfo* labels =
       NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex());
