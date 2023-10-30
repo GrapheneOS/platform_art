@@ -33,8 +33,9 @@ namespace arm {
 
 class InstructionSimplifierArmVisitor final : public HGraphVisitor {
  public:
-  InstructionSimplifierArmVisitor(HGraph* graph, OptimizingCompilerStats* stats)
-      : HGraphVisitor(graph), stats_(stats) {}
+  InstructionSimplifierArmVisitor(
+      HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HGraphVisitor(graph), codegen_(codegen), stats_(stats) {}
 
  private:
   void RecordSimplification() {
@@ -78,6 +79,7 @@ class InstructionSimplifierArmVisitor final : public HGraphVisitor {
   void VisitTypeConversion(HTypeConversion* instruction) override;
   void VisitUShr(HUShr* instruction) override;
 
+  CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
 };
 
@@ -217,7 +219,8 @@ void InstructionSimplifierArmVisitor::VisitArrayGet(HArrayGet* instruction) {
     return;
   }
 
-  if (TryExtractArrayAccessAddress(instruction,
+  if (TryExtractArrayAccessAddress(codegen_,
+                                   instruction,
                                    instruction->GetArray(),
                                    instruction->GetIndex(),
                                    data_offset)) {
@@ -238,7 +241,8 @@ void InstructionSimplifierArmVisitor::VisitArraySet(HArraySet* instruction) {
     return;
   }
 
-  if (TryExtractArrayAccessAddress(instruction,
+  if (TryExtractArrayAccessAddress(codegen_,
+                                   instruction,
                                    instruction->GetArray(),
                                    instruction->GetIndex(),
                                    data_offset)) {
@@ -300,7 +304,7 @@ void InstructionSimplifierArmVisitor::VisitUShr(HUShr* instruction) {
 }
 
 bool InstructionSimplifierArm::Run() {
-  InstructionSimplifierArmVisitor visitor(graph_, stats_);
+  InstructionSimplifierArmVisitor visitor(graph_, codegen_, stats_);
   visitor.VisitReversePostOrder();
   return true;
 }

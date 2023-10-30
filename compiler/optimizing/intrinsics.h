@@ -136,7 +136,7 @@ class IntrinsicVisitor : public ValueObject {
   static MemberOffset GetReferenceDisableIntrinsicOffset();
   static MemberOffset GetReferenceSlowPathEnabledOffset();
   static void CreateReferenceGetReferentLocations(HInvoke* invoke, CodeGenerator* codegen);
-  static void CreateReferenceRefersToLocations(HInvoke* invoke);
+  static void CreateReferenceRefersToLocations(HInvoke* invoke, CodeGenerator* codegen);
 
  protected:
   IntrinsicVisitor() {}

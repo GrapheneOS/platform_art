@@ -52,6 +52,7 @@ CompilerOptions::CompilerOptions()
       image_type_(ImageType::kNone),
       multi_image_(false),
       compile_art_test_(false),
+      emit_read_barrier_(false),
       baseline_(false),
       debuggable_(false),
       generate_debug_info_(kDefaultGenerateDebugInfo),
