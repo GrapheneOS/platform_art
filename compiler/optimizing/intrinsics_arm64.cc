@@ -4695,21 +4695,21 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
       __ Mov(target.offset, target_field->GetOffset().Uint32Value());
     } else {
       // For static fields, we need to fill the `target.object` with the declaring class,
-      // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
-      // we do not need the declaring class, so we can forget the `ArtMethod*` when
-      // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
-      Register method = (expected_coordinates_count == 0) ? target.object : target.offset;
+      // so we can use `target.object` as temporary for the `ArtField*`. For instance fields,
+      // we do not need the declaring class, so we can forget the `ArtField*` when
+      // we load the `target.offset`, so use the `target.offset` to hold the `ArtField*`.
+      Register field = (expected_coordinates_count == 0) ? target.object : target.offset;
 
       const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
       const MemberOffset offset_offset = ArtField::OffsetOffset();
 
-      // Load the ArtField, the offset and, if needed, declaring class.
-      __ Ldr(method.X(), HeapOperand(varhandle, art_field_offset.Int32Value()));
-      __ Ldr(target.offset, MemOperand(method.X(), offset_offset.Int32Value()));
+      // Load the ArtField*, the offset and, if needed, declaring class.
+      __ Ldr(field.X(), HeapOperand(varhandle, art_field_offset.Int32Value()));
+      __ Ldr(target.offset, MemOperand(field.X(), offset_offset.Int32Value()));
       if (expected_coordinates_count == 0u) {
         codegen->GenerateGcRootFieldLoad(invoke,
                                          LocationFrom(target.object),
-                                         method.X(),
+                                         field.X(),
                                          ArtField::DeclaringClassOffset().Int32Value(),
                                          /*fixup_label=*/nullptr,
                                          GetCompilerReadBarrierOption());

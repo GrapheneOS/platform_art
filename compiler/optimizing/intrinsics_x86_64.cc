@@ -3510,7 +3510,7 @@ static void GenerateVarHandleAccessModeAndVarTypeChecks(HInvoke* invoke,
   __ movl(temp, Address(varhandle, var_type_offset));
   __ MaybeUnpoisonHeapReference(temp);
 
-  // Check check the varType.primitiveType field against the type we're trying to retrieve.
+  // Check the varType.primitiveType field against the type we're trying to use.
   __ cmpw(Address(temp, primitive_type_offset), Immediate(static_cast<uint16_t>(primitive_type)));
   __ j(kNotEqual, slow_path->GetEntryLabel());
 
@@ -3754,22 +3754,22 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
       __ movl(CpuRegister(target.offset), Immediate(target_field->GetOffset().Uint32Value()));
     } else {
       // For static fields, we need to fill the `target.object` with the declaring class,
-      // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
-      // we do not need the declaring class, so we can forget the `ArtMethod*` when
-      // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
-      CpuRegister method((expected_coordinates_count == 0) ? target.object : target.offset);
+      // so we can use `target.object` as temporary for the `ArtField*`. For instance fields,
+      // we do not need the declaring class, so we can forget the `ArtField*` when
+      // we load the `target.offset`, so use the `target.offset` to hold the `ArtField*`.
+      CpuRegister field((expected_coordinates_count == 0) ? target.object : target.offset);
 
       const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
       const MemberOffset offset_offset = ArtField::OffsetOffset();
 
-      // Load the ArtField, the offset and, if needed, declaring class.
-      __ movq(method, Address(varhandle, art_field_offset));
-      __ movl(CpuRegister(target.offset), Address(method, offset_offset));
+      // Load the ArtField*, the offset and, if needed, declaring class.
+      __ movq(field, Address(varhandle, art_field_offset));
+      __ movl(CpuRegister(target.offset), Address(field, offset_offset));
       if (expected_coordinates_count == 0u) {
         InstructionCodeGeneratorX86_64* instr_codegen = codegen->GetInstructionCodegen();
         instr_codegen->GenerateGcRootFieldLoad(invoke,
                                                Location::RegisterLocation(target.object),
-                                               Address(method, ArtField::DeclaringClassOffset()),
+                                               Address(field, ArtField::DeclaringClassOffset()),
                                                /*fixup_label=*/nullptr,
                                                GetCompilerReadBarrierOption());
       }

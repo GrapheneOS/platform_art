@@ -3768,7 +3768,7 @@ static Register GenerateVarHandleFieldReference(HInvoke* invoke,
   const uint32_t declaring_class_offset = ArtField::DeclaringClassOffset().Uint32Value();
   Register varhandle_object = locations->InAt(0).AsRegister<Register>();
 
-  // Load the ArtField and the offset
+  // Load the ArtField* and the offset.
   __ movl(temp, Address(varhandle_object, artfield_offset));
   __ movl(offset, Address(temp, offset_offset));
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
