@@ -1261,7 +1261,7 @@ static void GenerateCompareAndSet(CodeGeneratorARM64* codegen,
   // }
   //
   // Flag Z indicates whether `old_value == expected || old_value == expected2`.
-  // (Is `expected2` is not valid, the `old_value == expected2` part is not emitted.)
+  // (If `expected2` is not valid, the `old_value == expected2` part is not emitted.)
 
   vixl::aarch64::Label loop_head;
   if (strong) {
