@@ -329,6 +329,13 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                                                                            : targetCompilerFilter;
         }
 
+        String override = mInjector.getPackageManagerLocal()
+            .maybeOverrideCompilerFilter(targetCompilerFilter, mPkg, mParams);
+
+        if (override != null) {
+            return override;
+        }
+
         return targetCompilerFilter;
     }
 
