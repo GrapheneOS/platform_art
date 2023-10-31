@@ -756,6 +756,8 @@ class TestingTargetChecker:
     self._checker.check_art_test_data('art-gtest-jars-Dex2oatVdexPublicSdkDex.dex')
     self._checker.check_art_test_data('art-gtest-jars-SuperWithAccessChecks.dex')
 
+    # Fuzzer cases
+    self._checker.check_art_test_data("fuzzer_corpus.zip")
 
 class NoSuperfluousBinariesChecker:
   def __init__(self, checker):
