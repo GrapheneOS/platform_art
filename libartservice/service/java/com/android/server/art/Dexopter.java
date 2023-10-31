@@ -471,6 +471,17 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     "the user requests to ignore the profile", dexInfo.dexPath());
         }
 
+        // pre-reboot dexopt runs ART code from next OTA update, it doesn't have access to
+        // system_server code
+        if (!ReasonMapping.REASON_PRE_REBOOT_DEXOPT.equals(mParams.getReason())) {
+            String override = mInjector.getPackageManagerLocal()
+                    .maybeOverrideCompilerFilter(targetCompilerFilter, mPkg, mParams);
+
+            if (override != null) {
+                return override;
+            }
+        }
+
         return targetCompilerFilter;
     }
 
