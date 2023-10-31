@@ -415,7 +415,7 @@ void OptimizingCompiler::DumpInstructionSetFeaturesToCfg() const {
       std::string("isa:") + GetInstructionSetString(features->GetInstructionSet());
   std::string features_string = "isa_features:" + features->GetFeatureString();
   std::string read_barrier_type = "none";
-  if (gUseReadBarrier) {
+  if (compiler_options.EmitReadBarrier()) {
     if (art::kUseBakerReadBarrier)
       read_barrier_type = "baker";
     else if (art::kUseTableLookupReadBarrier)

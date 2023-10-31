@@ -611,6 +611,7 @@ java.io.ObjectStreamClass$5
 java.io.ObjectStreamClass$Caches
 java.io.ObjectStreamClass$ClassDataSlot
 java.io.ObjectStreamClass$DefaultSUIDCompatibilityListener
+java.io.ObjectStreamClass$DeserializationConstructorsCache
 java.io.ObjectStreamClass$EntryFuture$1
 java.io.ObjectStreamClass$EntryFuture
 java.io.ObjectStreamClass$ExceptionInfo

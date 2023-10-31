@@ -22,8 +22,11 @@
 #include "arch/riscv64/registers_riscv64.h"
 #include "base/arena_containers.h"
 #include "base/macros.h"
+#include "class_root-inl.h"
 #include "code_generator_utils.h"
 #include "dwarf/register.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "heap_poisoning.h"
 #include "intrinsics_list.h"
 #include "intrinsics_riscv64.h"
@@ -31,6 +34,8 @@
 #include "linker/linker_patch.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
+#include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack_map_stream.h"
 #include "trace.h"
 #include "utils/label.h"
@@ -482,10 +487,10 @@ class ReadBarrierForRootSlowPathRISCV64 : public SlowPathCodeRISCV64 {
  public:
   ReadBarrierForRootSlowPathRISCV64(HInstruction* instruction, Location out, Location root)
       : SlowPathCodeRISCV64(instruction), out_(out), root_(root) {
-    DCHECK(gUseReadBarrier);
   }
 
   void EmitNativeCode(CodeGenerator* codegen) override {
+    DCHECK(codegen->EmitReadBarrier());
     LocationSummary* locations = instruction_->GetLocations();
     DataType::Type type = DataType::Type::kReference;
     XRegister reg_out = out_.AsRegister<XRegister>();
@@ -674,13 +679,13 @@ class ReadBarrierMarkSlowPathRISCV64 : public SlowPathCodeRISCV64 {
  public:
   ReadBarrierMarkSlowPathRISCV64(HInstruction* instruction, Location ref, Location entrypoint)
       : SlowPathCodeRISCV64(instruction), ref_(ref), entrypoint_(entrypoint) {
-    DCHECK(gUseReadBarrier);
     DCHECK(entrypoint.IsRegister());
   }
 
   const char* GetDescription() const override { return "ReadBarrierMarkSlowPathRISCV64"; }
 
   void EmitNativeCode(CodeGenerator* codegen) override {
+    DCHECK(codegen->EmitReadBarrier());
     LocationSummary* locations = instruction_->GetLocations();
     XRegister ref_reg = ref_.AsRegister<XRegister>();
     DCHECK(locations->CanCall());
@@ -959,6 +964,49 @@ void InstructionCodeGeneratorRISCV64::Store(
   }
 }
 
+void InstructionCodeGeneratorRISCV64::StoreSeqCst(Location value,
+                                                  XRegister rs1,
+                                                  int32_t offset,
+                                                  DataType::Type type,
+                                                  HInstruction* instruction) {
+  if (DataType::Size(type) >= 4u) {
+    // Use AMOSWAP for 32-bit and 64-bit data types.
+    ScratchRegisterScope srs(GetAssembler());
+    XRegister swap_src = kNoXRegister;
+    if (kPoisonHeapReferences && type == DataType::Type::kReference && !value.IsConstant()) {
+      swap_src = srs.AllocateXRegister();
+      __ Mv(swap_src, value.AsRegister<XRegister>());
+      codegen_->PoisonHeapReference(swap_src);
+    } else if (DataType::IsFloatingPointType(type) && !value.IsConstant()) {
+      swap_src = srs.AllocateXRegister();
+      FMvX(swap_src, value.AsFpuRegister<FRegister>(), type);
+    } else {
+      swap_src = InputXRegisterOrZero(value);
+    }
+    XRegister addr = rs1;
+    if (offset != 0) {
+      addr = srs.AllocateXRegister();
+      __ AddConst64(addr, rs1, offset);
+    }
+    if (DataType::Is64BitType(type)) {
+      __ AmoSwapD(Zero, swap_src, addr, AqRl::kRelease);
+    } else {
+      __ AmoSwapW(Zero, swap_src, addr, AqRl::kRelease);
+    }
+    if (instruction != nullptr) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
+  } else {
+    // Use fences for smaller data types.
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+    Store(value, rs1, offset, type);
+    if (instruction != nullptr) {
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+    }
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
+}
+
 void InstructionCodeGeneratorRISCV64::ShNAdd(
     XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type) {
   switch (type) {
@@ -1142,7 +1190,7 @@ void InstructionCodeGeneratorRISCV64::GenerateReferenceLoadOneRegister(
     ReadBarrierOption read_barrier_option) {
   XRegister out_reg = out.AsRegister<XRegister>();
   if (read_barrier_option == kWithReadBarrier) {
-    CHECK(gUseReadBarrier);
+    DCHECK(codegen_->EmitReadBarrier());
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(out + offset)
@@ -1180,7 +1228,7 @@ void InstructionCodeGeneratorRISCV64::GenerateReferenceLoadTwoRegisters(
   XRegister out_reg = out.AsRegister<XRegister>();
   XRegister obj_reg = obj.AsRegister<XRegister>();
   if (read_barrier_option == kWithReadBarrier) {
-    CHECK(gUseReadBarrier);
+    DCHECK(codegen_->EmitReadBarrier());
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)
@@ -1213,7 +1261,7 @@ void InstructionCodeGeneratorRISCV64::GenerateGcRootFieldLoad(HInstruction* inst
   DCHECK_IMPLIES(label_low != nullptr, offset == kLinkTimeOffsetPlaceholderLow) << offset;
   XRegister root_reg = root.AsRegister<XRegister>();
   if (read_barrier_option == kWithReadBarrier) {
-    DCHECK(gUseReadBarrier);
+    DCHECK(codegen_->EmitReadBarrier());
     if (kUseBakerReadBarrier) {
       // Note that we do not actually check the value of `GetIsGcMarking()`
       // to decide whether to mark the loaded GC root or not.  Instead, we
@@ -1829,15 +1877,22 @@ void CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier(HInstructio
   // TODO(riscv64): Implement checking if the holder is black.
   UNUSED(temp);
 
+  DCHECK(EmitBakerReadBarrier());
   XRegister reg = ref.AsRegister<XRegister>();
   if (index.IsValid()) {
-    DCHECK(instruction->IsArrayGet());
     DCHECK(!needs_null_check);
     DCHECK(index.IsRegister());
-    // /* HeapReference<Object> */ ref = *(obj + index * element_size + offset)
     DataType::Type type = DataType::Type::kReference;
     DCHECK_EQ(type, instruction->GetType());
-    instruction_visitor_.ShNAdd(reg, index.AsRegister<XRegister>(), obj, type);
+    if (instruction->IsArrayGet()) {
+      // /* HeapReference<Object> */ ref = *(obj + index * element_size + offset)
+      instruction_visitor_.ShNAdd(reg, index.AsRegister<XRegister>(), obj, type);
+    } else {
+      // /* HeapReference<Object> */ ref = *(obj + index + offset)
+      DCHECK(instruction->IsInvoke());
+      DCHECK(instruction->GetLocations()->Intrinsified());
+      __ Add(reg, index.AsRegister<XRegister>(), obj);
+    }
     __ Loadwu(reg, reg, offset);
   } else {
     // /* HeapReference<Object> */ ref = *(obj + offset)
@@ -1883,7 +1938,7 @@ void CodeGeneratorRISCV64::MaybeGenerateReadBarrierSlow(HInstruction* instructio
                                                         Location obj,
                                                         uint32_t offset,
                                                         Location index) {
-  if (gUseReadBarrier) {
+  if (EmitReadBarrier()) {
     // Baker's read barriers shall be handled by the fast path
     // (CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier).
     DCHECK(!kUseBakerReadBarrier);
@@ -1898,7 +1953,7 @@ void CodeGeneratorRISCV64::MaybeGenerateReadBarrierSlow(HInstruction* instructio
 void CodeGeneratorRISCV64::GenerateReadBarrierForRootSlow(HInstruction* instruction,
                                                           Location out,
                                                           Location root) {
-  DCHECK(gUseReadBarrier);
+  DCHECK(EmitReadBarrier());
 
   // Insert a slow path based read barrier *after* the GC root load.
   //
@@ -2399,35 +2454,7 @@ void InstructionCodeGeneratorRISCV64::HandleFieldSet(HInstruction* instruction,
   }
 
   if (is_volatile) {
-    if (DataType::Size(type) >= 4u) {
-      // Use AMOSWAP for 32-bit and 64-bit data types.
-      ScratchRegisterScope srs(GetAssembler());
-      XRegister swap_src = kNoXRegister;
-      if (kPoisonHeapReferences && type == DataType::Type::kReference && !value.IsConstant()) {
-        swap_src = srs.AllocateXRegister();
-        __ Mv(swap_src, value.AsRegister<XRegister>());
-        codegen_->PoisonHeapReference(swap_src);
-      } else if (DataType::IsFloatingPointType(type) && !value.IsConstant()) {
-        swap_src = srs.AllocateXRegister();
-        FMvX(swap_src, value.AsFpuRegister<FRegister>(), type);
-      } else {
-        swap_src = InputXRegisterOrZero(value);
-      }
-      XRegister addr = srs.AllocateXRegister();
-      __ AddConst64(addr, obj, offset);
-      if (DataType::Is64BitType(type)) {
-        __ AmoSwapD(Zero, swap_src, addr, AqRl::kRelease);
-      } else {
-        __ AmoSwapW(Zero, swap_src, addr, AqRl::kRelease);
-      }
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-    } else {
-      // Use fences for smaller data types.
-      codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      Store(value, obj, offset, type);
-      codegen_->MaybeRecordImplicitNullCheck(instruction);
-      codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-    }
+    StoreSeqCst(value, obj, offset, type, instruction);
   } else {
     Store(value, obj, offset, type);
     codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -2454,7 +2481,7 @@ void LocationsBuilderRISCV64::HandleFieldGet(HInstruction* instruction) {
   bool is_predicated = instruction->IsPredicatedInstanceFieldGet();
 
   bool object_field_get_with_read_barrier =
-      gUseReadBarrier && (instruction->GetType() == DataType::Type::kReference);
+      (instruction->GetType() == DataType::Type::kReference) && codegen_->EmitReadBarrier();
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
       instruction,
       object_field_get_with_read_barrier
@@ -2511,7 +2538,7 @@ void InstructionCodeGeneratorRISCV64::HandleFieldGet(HInstruction* instruction,
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
   }
 
-  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && codegen_->EmitBakerReadBarrier()) {
     // /* HeapReference<Object> */ dst = *(obj + offset)
     Location temp_loc = locations->GetTemp(0);
     // Note that a potential implicit null check is handled in this
@@ -2531,7 +2558,7 @@ void InstructionCodeGeneratorRISCV64::HandleFieldGet(HInstruction* instruction,
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
   }
 
-  if (type == DataType::Type::kReference && !(gUseReadBarrier && kUseBakerReadBarrier)) {
+  if (type == DataType::Type::kReference && !codegen_->EmitBakerReadBarrier()) {
     // If read barriers are enabled, emit read barriers other than
     // Baker's using a slow path (and also unpoison the loaded
     // reference, if heap poisoning is enabled).
@@ -2574,7 +2601,7 @@ void InstructionCodeGeneratorRISCV64::GenerateMethodEntryExitHook(HInstruction* 
 
   // Check if there is place in the buffer to store a new entry, if no, take the slow path.
   int32_t trace_buffer_index_offset =
-      Thread::TraceBufferIndexOffset<kArm64PointerSize>().Int32Value();
+      Thread::TraceBufferIndexOffset<kRiscv64PointerSize>().Int32Value();
   __ Loadd(tmp, TR, trace_buffer_index_offset);
   __ Addi(tmp, tmp, -dchecked_integral_cast<int32_t>(kNumEntriesForWallClock));
   __ Bltz(tmp, slow_path->GetEntryLabel());
@@ -2588,7 +2615,7 @@ void InstructionCodeGeneratorRISCV64::GenerateMethodEntryExitHook(HInstruction* 
 
   // Calculate the entry address in the buffer.
   // /*addr*/ tmp = TR->GetMethodTraceBuffer() + sizeof(void*) * /*index*/ tmp;
-  __ Loadd(tmp2, TR, Thread::TraceBufferPtrOffset<kArm64PointerSize>().SizeValue());
+  __ Loadd(tmp2, TR, Thread::TraceBufferPtrOffset<kRiscv64PointerSize>().SizeValue());
   __ Sh3Add(tmp, tmp, tmp2);
 
   // Record method pointer and trace action.
@@ -2698,7 +2725,8 @@ void InstructionCodeGeneratorRISCV64::VisitAnd(HAnd* instruction) {
 
 void LocationsBuilderRISCV64::VisitArrayGet(HArrayGet* instruction) {
   DataType::Type type = instruction->GetType();
-  bool object_array_get_with_read_barrier = gUseReadBarrier && (type == DataType::Type::kReference);
+  bool object_array_get_with_read_barrier =
+      (type == DataType::Type::kReference) && codegen_->EmitReadBarrier();
   LocationSummary* locations = new (GetGraph()->GetAllocator())
       LocationSummary(instruction,
                       object_array_get_with_read_barrier ? LocationSummary::kCallOnSlowPath :
@@ -2761,7 +2789,7 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
     __ Bind(&uncompressed_load);
   }
 
-  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && codegen_->EmitBakerReadBarrier()) {
     static_assert(
         sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
         "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
@@ -2799,7 +2827,7 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (type == DataType::Type::kReference) {
-      DCHECK(!(gUseReadBarrier && kUseBakerReadBarrier));
+      DCHECK(!codegen_->EmitBakerReadBarrier());
       // If read barriers are enabled, emit read barriers other than Baker's using
       // a slow path (and also unpoison the loaded reference, if heap poisoning is enabled).
       codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
@@ -2813,7 +2841,7 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (type == DataType::Type::kReference) {
-      DCHECK(!(gUseReadBarrier && kUseBakerReadBarrier));
+      DCHECK(!codegen_->EmitBakerReadBarrier());
       // If read barriers are enabled, emit read barriers other than Baker's using
       // a slow path (and also unpoison the loaded reference, if heap poisoning is enabled).
       codegen_->MaybeGenerateReadBarrierSlow(
@@ -3083,8 +3111,8 @@ void InstructionCodeGeneratorRISCV64::VisitBoundType([[maybe_unused]] HBoundType
 }
 
 // Temp is used for read barrier.
-static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
-  if (gUseReadBarrier &&
+static size_t NumberOfInstanceOfTemps(bool emit_read_barrier, TypeCheckKind type_check_kind) {
+  if (emit_read_barrier &&
       (kUseBakerReadBarrier ||
        type_check_kind == TypeCheckKind::kAbstractClassCheck ||
        type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
@@ -3097,16 +3125,16 @@ static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
 // Interface case has 3 temps, one for holding the number of interfaces, one for the current
 // interface pointer, one for loading the current interface.
 // The other checks have one temp for loading the object's class and maybe a temp for read barrier.
-static size_t NumberOfCheckCastTemps(TypeCheckKind type_check_kind) {
-  if (type_check_kind == TypeCheckKind::kInterfaceCheck)
+static size_t NumberOfCheckCastTemps(bool emit_read_barrier, TypeCheckKind type_check_kind) {
+  if (type_check_kind == TypeCheckKind::kInterfaceCheck) {
     return 3;
-
-  return 1 + NumberOfInstanceOfTemps(type_check_kind);
+  }
+  return 1 + NumberOfInstanceOfTemps(emit_read_barrier, type_check_kind);
 }
 
 void LocationsBuilderRISCV64::VisitCheckCast(HCheckCast* instruction) {
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
-  LocationSummary::CallKind call_kind = CodeGenerator::GetCheckCastCallKind(instruction);
+  LocationSummary::CallKind call_kind = codegen_->GetCheckCastCallKind(instruction);
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
@@ -3117,7 +3145,7 @@ void LocationsBuilderRISCV64::VisitCheckCast(HCheckCast* instruction) {
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
-  locations->AddRegisterTemps(NumberOfCheckCastTemps(type_check_kind));
+  locations->AddRegisterTemps(NumberOfCheckCastTemps(codegen_->EmitReadBarrier(), type_check_kind));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitCheckCast(HCheckCast* instruction) {
@@ -3130,7 +3158,7 @@ TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
       : locations->InAt(1);
   Location temp_loc = locations->GetTemp(0);
   XRegister temp = temp_loc.AsRegister<XRegister>();
-  const size_t num_temps = NumberOfCheckCastTemps(type_check_kind);
+  const size_t num_temps = NumberOfCheckCastTemps(codegen_->EmitReadBarrier(), type_check_kind);
   DCHECK_GE(num_temps, 1u);
   DCHECK_LE(num_temps, 3u);
   Location maybe_temp2_loc = (num_temps >= 2) ? locations->GetTemp(1) : Location::NoLocation();
@@ -3145,7 +3173,7 @@ TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
       mirror::Array::DataOffset(kHeapReferenceSize).Uint32Value();
   Riscv64Label done;
 
-  bool is_type_check_slow_path_fatal = CodeGenerator::IsTypeCheckSlowPathFatal(instruction);
+  bool is_type_check_slow_path_fatal = codegen_->IsTypeCheckSlowPathFatal(instruction);
   SlowPathCodeRISCV64* slow_path =
       new (codegen_->GetScopedAllocator()) TypeCheckSlowPathRISCV64(
           instruction, is_type_check_slow_path_fatal);
@@ -3709,7 +3737,7 @@ void LocationsBuilderRISCV64::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kAbstractClassCheck:
     case TypeCheckKind::kClassHierarchyCheck:
     case TypeCheckKind::kArrayObjectCheck: {
-      bool needs_read_barrier = CodeGenerator::InstanceOfNeedsReadBarrier(instruction);
+      bool needs_read_barrier = codegen_->InstanceOfNeedsReadBarrier(instruction);
       call_kind = needs_read_barrier ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall;
       baker_read_barrier_slow_path = kUseBakerReadBarrier && needs_read_barrier;
       break;
@@ -3739,7 +3767,8 @@ void LocationsBuilderRISCV64::VisitInstanceOf(HInstanceOf* instruction) {
   // The output does overlap inputs.
   // Note that TypeCheckSlowPathRISCV64 uses this register too.
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-  locations->AddRegisterTemps(NumberOfInstanceOfTemps(type_check_kind));
+  locations->AddRegisterTemps(
+      NumberOfInstanceOfTemps(codegen_->EmitReadBarrier(), type_check_kind));
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) {
@@ -3752,7 +3781,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
       : locations->InAt(1);
   Location out_loc = locations->Out();
   XRegister out = out_loc.AsRegister<XRegister>();
-  const size_t num_temps = NumberOfInstanceOfTemps(type_check_kind);
+  const size_t num_temps = NumberOfInstanceOfTemps(codegen_->EmitReadBarrier(), type_check_kind);
   DCHECK_LE(num_temps, 1u);
   Location maybe_temp_loc = (num_temps >= 1) ? locations->GetTemp(0) : Location::NoLocation();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
@@ -3772,7 +3801,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck: {
       ReadBarrierOption read_barrier_option =
-          CodeGenerator::ReadBarrierOptionForInstanceOf(instruction);
+          codegen_->ReadBarrierOptionForInstanceOf(instruction);
       // /* HeapReference<Class> */ out = obj->klass_
       GenerateReferenceLoadTwoRegisters(
           instruction, out_loc, obj_loc, class_offset, maybe_temp_loc, read_barrier_option);
@@ -3784,7 +3813,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
 
     case TypeCheckKind::kAbstractClassCheck: {
       ReadBarrierOption read_barrier_option =
-          CodeGenerator::ReadBarrierOptionForInstanceOf(instruction);
+          codegen_->ReadBarrierOptionForInstanceOf(instruction);
       // /* HeapReference<Class> */ out = obj->klass_
       GenerateReferenceLoadTwoRegisters(
           instruction, out_loc, obj_loc, class_offset, maybe_temp_loc, read_barrier_option);
@@ -3804,7 +3833,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
 
     case TypeCheckKind::kClassHierarchyCheck: {
       ReadBarrierOption read_barrier_option =
-          CodeGenerator::ReadBarrierOptionForInstanceOf(instruction);
+          codegen_->ReadBarrierOptionForInstanceOf(instruction);
       // /* HeapReference<Class> */ out = obj->klass_
       GenerateReferenceLoadTwoRegisters(
           instruction, out_loc, obj_loc, class_offset, maybe_temp_loc, read_barrier_option);
@@ -3825,7 +3854,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
 
     case TypeCheckKind::kArrayObjectCheck: {
       ReadBarrierOption read_barrier_option =
-          CodeGenerator::ReadBarrierOptionForInstanceOf(instruction);
+          codegen_->ReadBarrierOptionForInstanceOf(instruction);
       // FIXME(riscv64): We currently have marking entrypoints for 29 registers.
       // We need to either store entrypoint for register `N` in entry `N-A` where
       // `A` can be up to 5 (Zero, RA, SP, GP, TP are not valid registers for
@@ -4066,10 +4095,17 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruc
 }
 
 void LocationsBuilderRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
+  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  if (intrinsic.TryDispatch(instruction)) {
+    return;
+  }
   HandleInvoke(instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
+  if (TryGenerateIntrinsicCode(instruction, codegen_)) {
+    return;
+  }
   codegen_->GenerateInvokePolymorphicCall(instruction);
 }
 
@@ -4111,7 +4147,7 @@ void LocationsBuilderRISCV64::VisitLoadClass(HLoadClass* instruction) {
             load_kind == HLoadClass::LoadKind::kBssEntryPublic ||
                 load_kind == HLoadClass::LoadKind::kBssEntryPackage);
 
-  const bool requires_read_barrier = gUseReadBarrier && !instruction->IsInBootImage();
+  const bool requires_read_barrier = !instruction->IsInBootImage() && codegen_->EmitReadBarrier();
   LocationSummary::CallKind call_kind = (instruction->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
@@ -4127,11 +4163,11 @@ void LocationsBuilderRISCV64::VisitLoadClass(HLoadClass* instruction) {
   if (load_kind == HLoadClass::LoadKind::kBssEntry ||
       load_kind == HLoadClass::LoadKind::kBssEntryPublic ||
       load_kind == HLoadClass::LoadKind::kBssEntryPackage) {
-    if (!gUseReadBarrier || kUseBakerReadBarrier) {
+    if (codegen_->EmitNonBakerReadBarrier()) {
+      // For non-Baker read barriers we have a temp-clobbering call.
+    } else {
       // Rely on the type resolution or initialization and marking to save everything we need.
       locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
-    } else {
-      // For non-Baker read barriers we have a temp-clobbering call.
     }
   }
 }
@@ -4153,7 +4189,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction)
   Location out_loc = locations->Out();
   XRegister out = out_loc.AsRegister<XRegister>();
   const ReadBarrierOption read_barrier_option =
-      instruction->IsInBootImage() ? kWithoutReadBarrier : GetCompilerReadBarrierOption();
+      instruction->IsInBootImage() ? kWithoutReadBarrier : codegen_->GetCompilerReadBarrierOption();
   bool generate_null_check = false;
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -4184,12 +4220,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction)
     case HLoadClass::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       uint32_t boot_image_offset = codegen_->GetBootImageOffset(instruction);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset);
-      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset, info_high);
-      codegen_->EmitPcRelativeLwuPlaceholder(info_low, out, out);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       break;
     }
     case HLoadClass::LoadKind::kBssEntry:
@@ -4277,7 +4308,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadMethodType(HLoadMethodType* instr
 
 void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
   HLoadString::LoadKind load_kind = instruction->GetLoadKind();
-  LocationSummary::CallKind call_kind = CodeGenerator::GetLoadStringCallKind(instruction);
+  LocationSummary::CallKind call_kind = codegen_->GetLoadStringCallKind(instruction);
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
   if (load_kind == HLoadString::LoadKind::kRuntimeCall) {
@@ -4287,11 +4318,11 @@ void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
   } else {
     locations->SetOut(Location::RequiresRegister());
     if (load_kind == HLoadString::LoadKind::kBssEntry) {
-      if (!gUseReadBarrier || kUseBakerReadBarrier) {
+      if (codegen_->EmitNonBakerReadBarrier()) {
+        // For non-Baker read barriers we have a temp-clobbering call.
+      } else {
         // Rely on the pResolveString and marking to save everything we need.
         locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
-      } else {
-        // For non-Baker read barriers we have a temp-clobbering call.
       }
     }
   }
@@ -4321,12 +4352,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
     case HLoadString::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
       uint32_t boot_image_offset = codegen_->GetBootImageOffset(instruction);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_high =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset);
-      codegen_->EmitPcRelativeAuipcPlaceholder(info_high, out);
-      CodeGeneratorRISCV64::PcRelativePatchInfo* info_low =
-          codegen_->NewBootImageRelRoPatch(boot_image_offset, info_high);
-      codegen_->EmitPcRelativeLwuPlaceholder(info_low, out, out);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       return;
     }
     case HLoadString::LoadKind::kBssEntry: {
@@ -4339,7 +4365,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
                               out_loc,
                               out,
                               /* offset= */ kLinkTimeOffsetPlaceholderLow,
-                              GetCompilerReadBarrierOption(),
+                              codegen_->GetCompilerReadBarrierOption(),
                               &info_low->label);
       SlowPathCodeRISCV64* slow_path =
           new (codegen_->GetScopedAllocator()) LoadStringSlowPathRISCV64(instruction);
@@ -4359,7 +4385,8 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
           out,
           codegen_->DeduplicateJitStringLiteral(
               instruction->GetDexFile(), instruction->GetStringIndex(), instruction->GetString()));
-      GenerateGcRootFieldLoad(instruction, out_loc, out, 0, GetCompilerReadBarrierOption());
+      GenerateGcRootFieldLoad(
+          instruction, out_loc, out, 0, codegen_->GetCompilerReadBarrierOption());
       return;
     default:
       break;
@@ -6470,6 +6497,46 @@ void CodeGeneratorRISCV64::EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* l
   DCHECK_EQ(size, linker_patches->size());
 }
 
+void CodeGeneratorRISCV64::LoadTypeForBootImageIntrinsic(XRegister dest,
+                                                         TypeReference target_type) {
+  // Load the type the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
+  DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
+  PcRelativePatchInfo* info_high =
+      NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex());
+  EmitPcRelativeAuipcPlaceholder(info_high, dest);
+  PcRelativePatchInfo* info_low =
+      NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex(), info_high);
+  EmitPcRelativeAddiPlaceholder(info_low, dest, dest);
+}
+
+void CodeGeneratorRISCV64::LoadBootImageRelRoEntry(XRegister dest, uint32_t boot_image_offset) {
+  PcRelativePatchInfo* info_high = NewBootImageRelRoPatch(boot_image_offset);
+  EmitPcRelativeAuipcPlaceholder(info_high, dest);
+  PcRelativePatchInfo* info_low = NewBootImageRelRoPatch(boot_image_offset, info_high);
+  // Note: Boot image is in the low 4GiB and the entry is always 32-bit, so emit a 32-bit load.
+  EmitPcRelativeLwuPlaceholder(info_low, dest, dest);
+}
+
+void CodeGeneratorRISCV64::LoadClassRootForIntrinsic(XRegister dest, ClassRoot class_root) {
+  if (GetCompilerOptions().IsBootImage()) {
+    ScopedObjectAccess soa(Thread::Current());
+    ObjPtr<mirror::Class> klass = GetClassRoot(class_root);
+    TypeReference target_type(&klass->GetDexFile(), klass->GetDexTypeIndex());
+    LoadTypeForBootImageIntrinsic(dest, target_type);
+  } else {
+    uint32_t boot_image_offset = GetBootImageOffset(class_root);
+    if (GetCompilerOptions().GetCompilePic()) {
+      LoadBootImageRelRoEntry(dest, boot_image_offset);
+    } else {
+      DCHECK(GetCompilerOptions().IsJitCompiler());
+      gc::Heap* heap = Runtime::Current()->GetHeap();
+      DCHECK(!heap->GetBootImageSpaces().empty());
+      const uint8_t* address = heap->GetBootImageSpaces()[0]->Begin() + boot_image_offset;
+      __ Loadwu(dest, DeduplicateBootImageAddressLiteral(reinterpret_cast<uintptr_t>(address)));
+    }
+  }
+}
+
 void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke) {
   switch (load_kind) {
     case MethodLoadKind::kBootImageLinkTimePcRelative: {
@@ -6485,12 +6552,7 @@ void CodeGeneratorRISCV64::LoadMethod(MethodLoadKind load_kind, Location temp, H
     }
     case MethodLoadKind::kBootImageRelRo: {
       uint32_t boot_image_offset = GetBootImageOffset(invoke);
-      PcRelativePatchInfo* info_high = NewBootImageRelRoPatch(boot_image_offset);
-      EmitPcRelativeAuipcPlaceholder(info_high, temp.AsRegister<XRegister>());
-      PcRelativePatchInfo* info_low = NewBootImageRelRoPatch(boot_image_offset, info_high);
-      // Note: Boot image is in the low 4GiB and the entry is 32-bit, so emit a 32-bit load.
-      EmitPcRelativeLwuPlaceholder(
-          info_low, temp.AsRegister<XRegister>(), temp.AsRegister<XRegister>());
+      LoadBootImageRelRoEntry(temp.AsRegister<XRegister>(), boot_image_offset);
       break;
     }
     case MethodLoadKind::kBssEntry: {
@@ -6700,13 +6762,13 @@ void CodeGeneratorRISCV64::UnpoisonHeapReference(XRegister reg) {
   __ ZextW(reg, reg);      // Zero-extend the 32-bit ref.
 }
 
-inline void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
+void CodeGeneratorRISCV64::MaybePoisonHeapReference(XRegister reg) {
   if (kPoisonHeapReferences) {
     PoisonHeapReference(reg);
   }
 }
 
-inline void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
+void CodeGeneratorRISCV64::MaybeUnpoisonHeapReference(XRegister reg) {
   if (kPoisonHeapReferences) {
     UnpoisonHeapReference(reg);
   }

@@ -75,11 +75,10 @@ class ReadBarrierSystemArrayCopySlowPathX86 : public SlowPathCode {
  public:
   explicit ReadBarrierSystemArrayCopySlowPathX86(HInstruction* instruction)
       : SlowPathCode(instruction) {
-    DCHECK(gUseReadBarrier);
-    DCHECK(kUseBakerReadBarrier);
   }
 
   void EmitNativeCode(CodeGenerator* codegen) override {
+    DCHECK(codegen->EmitBakerReadBarrier());
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(locations->CanCall());
@@ -1698,7 +1697,7 @@ static void GenUnsafeGet(HInvoke* invoke,
 
     case DataType::Type::kReference: {
       Register output = output_loc.AsRegister<Register>();
-      if (gUseReadBarrier) {
+      if (codegen->EmitReadBarrier()) {
         if (kUseBakerReadBarrier) {
           Address src(base, offset, ScaleFactor::TIMES_1, 0);
           codegen->GenerateReferenceLoadWithBakerReadBarrier(
@@ -1754,9 +1753,11 @@ static bool UnsafeGetIntrinsicOnCallList(Intrinsics intrinsic) {
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* allocator,
                                           HInvoke* invoke,
+                                          CodeGeneratorX86* codegen,
                                           DataType::Type type,
                                           bool is_volatile) {
-  bool can_call = gUseReadBarrier && UnsafeGetIntrinsicOnCallList(invoke->GetIntrinsic());
+  bool can_call =
+      codegen->EmitReadBarrier() && UnsafeGetIntrinsicOnCallList(invoke->GetIntrinsic());
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -1825,35 +1826,39 @@ void IntrinsicCodeGeneratorX86::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
 
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGet(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(
-      allocator_, invoke, DataType::Type::kInt32, /*is_volatile=*/ false);
+      allocator_, invoke, codegen_, DataType::Type::kInt32, /*is_volatile=*/ false);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, DataType::Type::kInt32, /*is_volatile=*/ true);
+  CreateIntIntIntToIntLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt32, /*is_volatile=*/ true);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAcquire(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, DataType::Type::kInt32, /*is_volatile=*/ true);
+  CreateIntIntIntToIntLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt32, /*is_volatile=*/ true);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetLong(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(
-      allocator_, invoke, DataType::Type::kInt64, /*is_volatile=*/ false);
+      allocator_, invoke, codegen_, DataType::Type::kInt64, /*is_volatile=*/ false);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, DataType::Type::kInt64, /*is_volatile=*/ true);
+  CreateIntIntIntToIntLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt64, /*is_volatile=*/ true);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetLongAcquire(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, DataType::Type::kInt64, /*is_volatile=*/ true);
+  CreateIntIntIntToIntLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt64, /*is_volatile=*/ true);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetObject(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(
-      allocator_, invoke, DataType::Type::kReference, /*is_volatile=*/ false);
+      allocator_, invoke, codegen_, DataType::Type::kReference, /*is_volatile=*/ false);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetObjectVolatile(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(
-      allocator_, invoke, DataType::Type::kReference, /*is_volatile=*/ true);
+      allocator_, invoke, codegen_, DataType::Type::kReference, /*is_volatile=*/ true);
 }
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetObjectAcquire(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(
-      allocator_, invoke, DataType::Type::kReference, /*is_volatile=*/ true);
+      allocator_, invoke, codegen_, DataType::Type::kReference, /*is_volatile=*/ true);
 }
 
 void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGet(HInvoke* invoke) {
@@ -2100,11 +2105,10 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
 }
 
 static void CreateIntIntIntIntIntToInt(ArenaAllocator* allocator,
+                                       CodeGeneratorX86* codegen,
                                        DataType::Type type,
                                        HInvoke* invoke) {
-  const bool can_call = gUseReadBarrier &&
-                        kUseBakerReadBarrier &&
-                        IsUnsafeCASObject(invoke);
+  const bool can_call = codegen->EmitBakerReadBarrier() && IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -2165,20 +2169,20 @@ void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kInt32, invoke);
+  CreateIntIntIntIntIntToInt(allocator_, codegen_, DataType::Type::kInt32, invoke);
 }
 
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kInt64, invoke);
+  CreateIntIntIntIntIntToInt(allocator_, codegen_, DataType::Type::kInt64, invoke);
 }
 
 void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen_->EmitNonBakerReadBarrier()) {
     return;
   }
 
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kReference, invoke);
+  CreateIntIntIntIntIntToInt(allocator_, codegen_, DataType::Type::kReference, invoke);
 }
 
 static void GenPrimitiveLockedCmpxchg(DataType::Type type,
@@ -2303,7 +2307,7 @@ static void GenReferenceCAS(HInvoke* invoke,
   DCHECK_EQ(expected, EAX);
   DCHECK_NE(temp, temp2);
 
-  if (gUseReadBarrier && kUseBakerReadBarrier) {
+  if (codegen->EmitBakerReadBarrier()) {
     // Need to make sure the reference stored in the field is a to-space
     // one before attempting the CAS or the CAS could fail incorrectly.
     codegen->GenerateReferenceLoadWithBakerReadBarrier(
@@ -2390,7 +2394,7 @@ static void GenCAS(DataType::Type type, HInvoke* invoke, CodeGeneratorX86* codeg
   if (type == DataType::Type::kReference) {
     // The only read barrier implementation supporting the
     // UnsafeCASObject intrinsic is the Baker-style read barriers.
-    DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+    DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
     Register temp = locations->GetTemp(0).AsRegister<Register>();
     Register temp2 = locations->GetTemp(1).AsRegister<Register>();
@@ -2412,7 +2416,7 @@ void IntrinsicCodeGeneratorX86::VisitUnsafeCASLong(HInvoke* invoke) {
 void IntrinsicCodeGeneratorX86::VisitUnsafeCASObject(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // UnsafeCASObject intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
@@ -2442,7 +2446,7 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke)
 
 void IntrinsicCodeGeneratorX86::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
@@ -2842,7 +2846,7 @@ static void GenSystemArrayCopyEndAddress(X86Assembler* assembler,
 void IntrinsicLocationsBuilderX86::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen_->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -2874,7 +2878,7 @@ void IntrinsicLocationsBuilderX86::VisitSystemArrayCopy(HInvoke* invoke) {
 void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -2994,7 +2998,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     // slow path.
 
     if (!optimizations.GetSourceIsNonPrimitiveArray()) {
-      if (gUseReadBarrier && kUseBakerReadBarrier) {
+      if (codegen_->EmitBakerReadBarrier()) {
         // /* HeapReference<Class> */ temp1 = src->klass_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
             invoke, temp1_loc, src, class_offset, /* needs_null_check= */ false);
@@ -3021,7 +3025,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
       __ j(kNotEqual, intrinsic_slow_path->GetEntryLabel());
     }
 
-    if (gUseReadBarrier && kUseBakerReadBarrier) {
+    if (codegen_->EmitBakerReadBarrier()) {
       if (length.Equals(Location::RegisterLocation(temp3))) {
         // When Baker read barriers are enabled, register `temp3`,
         // which in the present case contains the `length` parameter,
@@ -3119,7 +3123,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   } else if (!optimizations.GetSourceIsNonPrimitiveArray()) {
     DCHECK(optimizations.GetDestinationIsNonPrimitiveArray());
     // Bail out if the source is not a non primitive array.
-    if (gUseReadBarrier && kUseBakerReadBarrier) {
+    if (codegen_->EmitBakerReadBarrier()) {
       // /* HeapReference<Class> */ temp1 = src->klass_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
           invoke, temp1_loc, src, class_offset, /* needs_null_check= */ false);
@@ -3150,7 +3154,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   // Compute the base source address in `temp1`.
   GenSystemArrayCopyBaseAddress(GetAssembler(), type, src, src_pos, temp1);
 
-  if (gUseReadBarrier && kUseBakerReadBarrier) {
+  if (codegen_->EmitBakerReadBarrier()) {
     // If it is needed (in the case of the fast-path loop), the base
     // destination address is computed later, as `temp2` is used for
     // intermediate computations.
@@ -3376,7 +3380,7 @@ void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
   SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
   codegen_->AddSlowPath(slow_path);
 
-  if (gUseReadBarrier) {
+  if (codegen_->EmitReadBarrier()) {
     // Check self->GetWeakRefAccessEnabled().
     ThreadOffset32 offset = Thread::WeakRefAccessEnabledOffset<kX86PointerSize>();
     __ fs()->cmpl(Address::Absolute(offset),
@@ -3399,7 +3403,7 @@ void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
 
   // Load the value from the field.
   uint32_t referent_offset = mirror::Reference::ReferentOffset().Uint32Value();
-  if (gUseReadBarrier && kUseBakerReadBarrier) {
+  if (codegen_->EmitBakerReadBarrier()) {
     codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
                                                     out,
                                                     obj.AsRegister<Register>(),
@@ -3418,7 +3422,7 @@ void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitReferenceRefersTo(HInvoke* invoke) {
-  IntrinsicVisitor::CreateReferenceRefersToLocations(invoke);
+  IntrinsicVisitor::CreateReferenceRefersToLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitReferenceRefersTo(HInvoke* invoke) {
@@ -3441,7 +3445,7 @@ void IntrinsicCodeGeneratorX86::VisitReferenceRefersTo(HInvoke* invoke) {
   NearLabel end, return_true, return_false;
   __ cmpl(out, other);
 
-  if (gUseReadBarrier) {
+  if (codegen_->EmitReadBarrier()) {
     DCHECK(kUseBakerReadBarrier);
 
     __ j(kEqual, &return_true);
@@ -3768,7 +3772,7 @@ static Register GenerateVarHandleFieldReference(HInvoke* invoke,
   const uint32_t declaring_class_offset = ArtField::DeclaringClassOffset().Uint32Value();
   Register varhandle_object = locations->InAt(0).AsRegister<Register>();
 
-  // Load the ArtField and the offset
+  // Load the ArtField* and the offset.
   __ movl(temp, Address(varhandle_object, artfield_offset));
   __ movl(offset, Address(temp, offset_offset));
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
@@ -3780,7 +3784,7 @@ static Register GenerateVarHandleFieldReference(HInvoke* invoke,
                                            Location::RegisterLocation(temp),
                                            Address(temp, declaring_class_offset),
                                            /* fixup_label= */ nullptr,
-                                           GetCompilerReadBarrierOption());
+                                           codegen->GetCompilerReadBarrierOption());
     return temp;
   }
 
@@ -3790,10 +3794,10 @@ static Register GenerateVarHandleFieldReference(HInvoke* invoke,
   return locations->InAt(1).AsRegister<Register>();
 }
 
-static void CreateVarHandleGetLocations(HInvoke* invoke) {
+static void CreateVarHandleGetLocations(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -3835,7 +3839,7 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
 static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -3859,7 +3863,7 @@ static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   Address field_addr(ref, offset, TIMES_1, 0);
 
   // Load the value from the field
-  if (type == DataType::Type::kReference && GetCompilerReadBarrierOption() == kWithReadBarrier) {
+  if (type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
     codegen->GenerateReferenceLoadWithBakerReadBarrier(
         invoke, out, ref, field_addr, /* needs_null_check= */ false);
   } else if (type == DataType::Type::kInt64 &&
@@ -3882,7 +3886,7 @@ static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86* codegen) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGet(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGet(HInvoke* invoke) {
@@ -3890,7 +3894,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetVolatile(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetVolatile(HInvoke* invoke) {
@@ -3898,7 +3902,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetVolatile(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAcquire(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAcquire(HInvoke* invoke) {
@@ -3906,17 +3910,17 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAcquire(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetOpaque(HInvoke* invoke) {
-  CreateVarHandleGetLocations(invoke);
+  CreateVarHandleGetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetOpaque(HInvoke* invoke) {
   GenerateVarHandleGet(invoke, codegen_);
 }
 
-static void CreateVarHandleSetLocations(HInvoke* invoke) {
+static void CreateVarHandleSetLocations(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -3989,7 +3993,7 @@ static void CreateVarHandleSetLocations(HInvoke* invoke) {
 static void GenerateVarHandleSet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4055,7 +4059,7 @@ static void GenerateVarHandleSet(HInvoke* invoke, CodeGeneratorX86* codegen) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleSet(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleSet(HInvoke* invoke) {
@@ -4063,7 +4067,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleSet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleSetVolatile(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleSetVolatile(HInvoke* invoke) {
@@ -4071,7 +4075,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleSetVolatile(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleSetRelease(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleSetRelease(HInvoke* invoke) {
@@ -4079,17 +4083,17 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleSetRelease(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleSetOpaque(HInvoke* invoke) {
-  CreateVarHandleSetLocations(invoke);
+  CreateVarHandleSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleSetOpaque(HInvoke* invoke) {
   GenerateVarHandleSet(invoke, codegen_);
 }
 
-static void CreateVarHandleGetAndSetLocations(HInvoke* invoke) {
+static void CreateVarHandleGetAndSetLocations(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -4137,7 +4141,7 @@ static void CreateVarHandleGetAndSetLocations(HInvoke* invoke) {
 static void GenerateVarHandleGetAndSet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4196,7 +4200,7 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke, CodeGeneratorX86* codege
       __ movd(locations->Out().AsFpuRegister<XmmRegister>(), EAX);
       break;
     case DataType::Type::kReference: {
-      if (gUseReadBarrier && kUseBakerReadBarrier) {
+      if (codegen->EmitBakerReadBarrier()) {
         // Need to make sure the reference stored in the field is a to-space
         // one before attempting the CAS or the CAS could fail incorrectly.
         codegen->GenerateReferenceLoadWithBakerReadBarrier(
@@ -4234,7 +4238,7 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke, CodeGeneratorX86* codege
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndSet(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
+  CreateVarHandleGetAndSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndSet(HInvoke* invoke) {
@@ -4242,7 +4246,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndSet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
+  CreateVarHandleGetAndSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
@@ -4250,17 +4254,18 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
+  CreateVarHandleGetAndSetLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
   GenerateVarHandleGetAndSet(invoke, codegen_);
 }
 
-static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke) {
+static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
+                                                            CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -4324,7 +4329,7 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke) {
 static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4377,7 +4382,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke, CodeGenera
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleCompareAndSet(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndSet(HInvoke* invoke) {
@@ -4385,7 +4390,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndSet(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
@@ -4393,7 +4398,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSet(HInvoke* invoke)
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
@@ -4401,7 +4406,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetPlain(HInvoke* in
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
@@ -4409,7 +4414,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
@@ -4417,7 +4422,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleWeakCompareAndSetRelease(HInvoke* 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
@@ -4425,7 +4430,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndExchange(HInvoke* invoke
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
@@ -4433,17 +4438,17 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndExchangeAcquire(HInvoke*
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
-  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
   GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_);
 }
 
-static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
+static void CreateVarHandleGetAndAddLocations(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -4492,7 +4497,7 @@ static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
 static void GenerateVarHandleGetAndAdd(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4567,7 +4572,7 @@ static void GenerateVarHandleGetAndAdd(HInvoke* invoke, CodeGeneratorX86* codege
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndAdd(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
+  CreateVarHandleGetAndAddLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndAdd(HInvoke* invoke) {
@@ -4575,7 +4580,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndAdd(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
+  CreateVarHandleGetAndAddLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
@@ -4583,17 +4588,17 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
+  CreateVarHandleGetAndAddLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
   GenerateVarHandleGetAndAdd(invoke, codegen_);
 }
 
-static void CreateVarHandleGetAndBitwiseOpLocations(HInvoke* invoke) {
+static void CreateVarHandleGetAndBitwiseOpLocations(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  if (gUseReadBarrier && !kUseBakerReadBarrier) {
+  if (codegen->EmitNonBakerReadBarrier()) {
     return;
   }
 
@@ -4661,7 +4666,7 @@ static void GenerateBitwiseOp(HInvoke* invoke,
 static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke, CodeGeneratorX86* codegen) {
   // The only read barrier implementation supporting the
   // VarHandleGet intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(codegen->EmitReadBarrier(), kUseBakerReadBarrier);
 
   X86Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4722,7 +4727,7 @@ static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke, CodeGeneratorX86* 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseOr(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOr(HInvoke* invoke) {
@@ -4730,7 +4735,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOr(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseOrAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOrAcquire(HInvoke* invoke) {
@@ -4738,7 +4743,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOrAcquire(HInvoke* in
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseOrRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOrRelease(HInvoke* invoke) {
@@ -4746,7 +4751,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseOrRelease(HInvoke* in
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseXor(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXor(HInvoke* invoke) {
@@ -4754,7 +4759,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXor(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseXorAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXorAcquire(HInvoke* invoke) {
@@ -4762,7 +4767,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXorAcquire(HInvoke* i
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseXorRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXorRelease(HInvoke* invoke) {
@@ -4770,7 +4775,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseXorRelease(HInvoke* i
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseAnd(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAnd(HInvoke* invoke) {
@@ -4778,7 +4783,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAnd(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseAndAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAndAcquire(HInvoke* invoke) {
@@ -4786,7 +4791,7 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAndAcquire(HInvoke* i
 }
 
 void IntrinsicLocationsBuilderX86::VisitVarHandleGetAndBitwiseAndRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndBitwiseOpLocations(invoke);
+  CreateVarHandleGetAndBitwiseOpLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAndRelease(HInvoke* invoke) {

@@ -150,6 +150,10 @@ class CompilerOptions final {
     return top_k_profile_threshold_;
   }
 
+  bool EmitReadBarrier() const {
+    return emit_read_barrier_;
+  }
+
   bool GetDebuggable() const {
     return debuggable_;
   }
@@ -421,6 +425,7 @@ class CompilerOptions final {
   ImageType image_type_;
   bool multi_image_;
   bool compile_art_test_;
+  bool emit_read_barrier_;
   bool baseline_;
   bool debuggable_;
   bool generate_debug_info_;

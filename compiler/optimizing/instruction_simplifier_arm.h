@@ -22,16 +22,23 @@
 #include "optimization.h"
 
 namespace art HIDDEN {
+
+class CodeGenerator;
+
 namespace arm {
 
 class InstructionSimplifierArm : public HOptimization {
  public:
-  InstructionSimplifierArm(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, kInstructionSimplifierArmPassName, stats) {}
+  InstructionSimplifierArm(HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HOptimization(graph, kInstructionSimplifierArmPassName, stats),
+        codegen_(codegen) {}
 
   static constexpr const char* kInstructionSimplifierArmPassName = "instruction_simplifier_arm";
 
   bool Run() override;
+
+ private:
+  CodeGenerator* codegen_;
 };
 
 }  // namespace arm
