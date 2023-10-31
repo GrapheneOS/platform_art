@@ -40,6 +40,17 @@ class HDeadCodeElimination : public HOptimization {
  private:
   void MaybeRecordDeadBlock(HBasicBlock* block);
   void MaybeRecordSimplifyIf();
+  // Detects and remove ifs that are empty e.g. it turns
+  //     1
+  //    / \
+  //   2   3
+  //   \  /
+  //    4
+  // where 2 and 3 are single goto blocks and 4 doesn't contain a Phi into:
+  //    1
+  //    |
+  //    4
+  bool RemoveEmptyIfs();
   // If `force_recomputation` is true, we will recompute the dominance information even when we
   // didn't delete any blocks. `force_loop_recomputation` is similar but it also forces the loop
   // information recomputation.
