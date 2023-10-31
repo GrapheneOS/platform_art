@@ -230,15 +230,6 @@ cc_defaults {
     },
 }
 
-// TODO(b/303042202): remove from vixl
-cc_defaults {
-    name: "dex2oat-pgo-defaults",
-    defaults_visibility: [
-        "//art:__subpackages__",
-        "//external/vixl",
-    ],
-}
-
 art_cc_binary {
     name: "dex2oat",
     defaults: [
