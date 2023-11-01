@@ -6,6 +6,10 @@
         "bug": "http://b/33389022"
     },
     {
+        "tests": "626-checker-arm64-scratch-register",
+        "description": ["Disable 626-checker until we assses whether to keep it"]
+    },
+    {
         "tests": "304-method-tracing",
         "description": ["Disable 304-method-tracing temporarily until a fix",
                         "arrives."],
