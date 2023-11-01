@@ -186,13 +186,13 @@ class TraceWriter {
   uint16_t GetThreadEncoding(pid_t thread_id) REQUIRES(tracing_lock_);
 
   // Get the information about the method.
-  std::string GetMethodLine(std::string method_line, uint32_t method_id);
+  std::string GetMethodLine(const std::string& method_line, uint32_t method_id);
   std::string GetMethodInfoLine(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Helper function to record method information when processing the events. These are used by
   // streaming output mode. Non-streaming modes dump the methods and threads list at the end of
   // tracing.
-  void RecordMethodInfo(std::string method_line,
+  void RecordMethodInfo(const std::string& method_line,
                         uint32_t method_id,
                         size_t* index,
                         uint8_t* buf,
