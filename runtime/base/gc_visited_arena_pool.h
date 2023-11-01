@@ -313,7 +313,7 @@ class GcRootArenaAllocator : public TrackingAllocator<T, kTag> {
     using other = GcRootArenaAllocator<U, kTag>;
   };
 
-  pointer allocate(size_type n, [[maybe_unused]] const_pointer hint = 0) {
+  pointer allocate(size_type n, [[maybe_unused]] const_pointer hint = nullptr) {
     if (!gUseUserfaultfd) {
       return TrackingAllocator<T, kTag>::allocate(n);
     }
