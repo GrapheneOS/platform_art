@@ -2481,6 +2481,17 @@ bool ProfileCompilationInfo::IsProfileFile(int fd) {
 
 bool ProfileCompilationInfo::UpdateProfileKeys(
     const std::vector<std::unique_ptr<const DexFile>>& dex_files, /*out*/ bool* matched) {
+  // This check aligns with when dex2oat falls back from "speed-profile" to "verify".
+  //
+  // ART Service relies on the exit code of profman, which is determined by the value of `matched`,
+  // to judge whether it should re-dexopt for "speed-profile". Therefore, a misalignment will cause
+  // repeated dexopt.
+  if (IsEmpty()) {
+    *matched = false;
+    return true;
+  }
+  DCHECK(!info_.empty());
+
   *matched = true;
 
   // A map from the old base key to the new base key.
