@@ -2955,7 +2955,7 @@ void InstructionCodeGeneratorRISCV64::VisitArraySet(HArraySet* instruction) {
     if (instruction->GetWriteBarrierKind() != WriteBarrierKind::kDontEmit) {
       DCHECK_EQ(instruction->GetWriteBarrierKind(), WriteBarrierKind::kEmitNoNullCheck)
           << " Already null checked so we shouldn't do it again.";
-      codegen_->MarkGCCard(array, value.AsRegister<XRegister>(), /* emit_null_check= */ false);
+      codegen_->MarkGCCard(array, value.AsRegister<XRegister>(), /* value_can_be_null= */ false);
     }
 
     if (can_value_be_null) {
