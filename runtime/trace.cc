@@ -1033,7 +1033,7 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* ti
   }
 }
 
-std::string TraceWriter::GetMethodLine(std::string method_line, uint32_t method_index) {
+std::string TraceWriter::GetMethodLine(const std::string& method_line, uint32_t method_index) {
   return StringPrintf("%#x\t%s", (method_index << TraceActionBits), method_line.c_str());
 }
 
@@ -1104,7 +1104,7 @@ void TraceWriter::PreProcessTraceForMethodInfos(
   }
 }
 
-void TraceWriter::RecordMethodInfo(std::string method_info_line,
+void TraceWriter::RecordMethodInfo(const std::string& method_info_line,
                                    uint32_t method_id,
                                    size_t* current_index,
                                    uint8_t* buffer,
