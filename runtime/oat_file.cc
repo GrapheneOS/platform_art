@@ -1657,7 +1657,7 @@ bool ElfOatFile::InitializeFromElfFile(int zip_fd,
   SetBegin(elf_file->Begin() + offset);
   SetEnd(elf_file->Begin() + size + offset);
   // Ignore the optional .bss section when opening non-executable.
-  return Setup(zip_fd, dex_filenames, /*dex_fds=*/{}, error_msg);
+  return Setup(zip_fd, dex_filenames, /*dex_files=*/{}, error_msg);
 }
 
 bool ElfOatFile::Load(const std::string& elf_filename,

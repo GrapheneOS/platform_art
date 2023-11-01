@@ -150,7 +150,7 @@ class GcVisitedArenaPool final : public ArenaPool {
   // Use by arena allocator.
   Arena* AllocArena(size_t size) override REQUIRES(!lock_) {
     WriterMutexLock wmu(Thread::Current(), lock_);
-    return AllocArena(size, /*single_obj_arena=*/false);
+    return AllocArena(size, /*need_first_obj_arr=*/false);
   }
   void FreeArenaChain(Arena* first) override REQUIRES(!lock_);
   size_t GetBytesAllocated() const override REQUIRES(!lock_);
