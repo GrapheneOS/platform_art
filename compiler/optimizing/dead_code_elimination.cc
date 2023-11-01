@@ -770,6 +770,93 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
   }
 }
 
+bool HDeadCodeElimination::RemoveEmptyIfs() {
+  bool did_opt = false;
+  for (HBasicBlock* block : graph_->GetPostOrder()) {
+    if (!block->EndsWithIf()) {
+      continue;
+    }
+
+    HIf* if_instr = block->GetLastInstruction()->AsIf();
+    HBasicBlock* true_block = if_instr->IfTrueSuccessor();
+    HBasicBlock* false_block = if_instr->IfFalseSuccessor();
+
+    // We can use `visited_blocks` to detect cases like
+    //    1
+    //   / \
+    //  2  3
+    //  \ /
+    //   4  ...
+    //   | /
+    //   5
+    // where 2, 3, and 4 are single HGoto blocks, and block 5 has Phis.
+    ScopedArenaAllocator allocator(graph_->GetArenaStack());
+    ScopedArenaHashSet<HBasicBlock*> visited_blocks(allocator.Adapter(kArenaAllocDCE));
+    HBasicBlock* merge_true = true_block;
+    visited_blocks.insert(merge_true);
+    while (merge_true->IsSingleGoto()) {
+      merge_true = merge_true->GetSuccessors()[0];
+      visited_blocks.insert(merge_true);
+    }
+
+    HBasicBlock* merge_false = false_block;
+    while (visited_blocks.find(merge_false) == visited_blocks.end() &&
+           merge_false->IsSingleGoto()) {
+      merge_false = merge_false->GetSuccessors()[0];
+    }
+
+    if (visited_blocks.find(merge_false) == visited_blocks.end() ||
+        !merge_false->GetPhis().IsEmpty()) {
+      // TODO(solanes): We could allow Phis iff both branches have the same value for all Phis. This
+      // may not be covered by SsaRedundantPhiElimination in cases like `HPhi[A,A,B]` where the Phi
+      // itself is not redundant for the general case but it is for a pair of branches.
+      continue;
+    }
+
+    // Data structures to help remove now-dead instructions.
+    ScopedArenaQueue<HInstruction*> maybe_remove(allocator.Adapter(kArenaAllocDCE));
+    ScopedArenaHashSet<HInstruction*> visited(allocator.Adapter(kArenaAllocDCE));
+    maybe_remove.push(if_instr->InputAt(0));
+
+    // Swap HIf with HGoto
+    block->ReplaceAndRemoveInstructionWith(
+        if_instr, new (graph_->GetAllocator()) HGoto(if_instr->GetDexPc()));
+
+    // Reconnect blocks
+    block->RemoveSuccessor(true_block);
+    block->RemoveSuccessor(false_block);
+    true_block->RemovePredecessor(block);
+    false_block->RemovePredecessor(block);
+    block->AddSuccessor(merge_false);
+
+    // Remove now dead instructions e.g. comparisons that are only used as input to the if
+    // instruction. This can allow for further removal of other empty ifs.
+    while (!maybe_remove.empty()) {
+      HInstruction* instr = maybe_remove.front();
+      maybe_remove.pop();
+      if (visited.find(instr) != visited.end()) {
+        continue;
+      }
+      visited.insert(instr);
+      if (instr->IsDeadAndRemovable()) {
+        for (HInstruction* input : instr->GetInputs()) {
+          maybe_remove.push(input);
+        }
+        instr->GetBlock()->RemoveInstructionOrPhi(instr);
+        MaybeRecordStat(stats_, MethodCompilationStat::kRemovedDeadInstruction);
+      }
+    }
+  }
+
+  if (did_opt) {
+    graph_->ClearLoopInformation();
+    graph_->ClearDominanceInformation();
+    graph_->BuildDominatorTree();
+  }
+
+  return did_opt;
+}
+
 bool HDeadCodeElimination::RemoveDeadBlocks(bool force_recomputation,
                                             bool force_loop_recomputation) {
   DCHECK_IMPLIES(force_loop_recomputation, force_recomputation);
@@ -879,6 +966,7 @@ bool HDeadCodeElimination::Run() {
     bool did_any_simplification = false;
     did_any_simplification |= SimplifyAlwaysThrows();
     did_any_simplification |= SimplifyIfs();
+    did_any_simplification |= RemoveEmptyIfs();
     did_any_simplification |= RemoveDeadBlocks();
     // We call RemoveDeadBlocks before RemoveUnneededTries to remove the dead blocks from the
     // previous optimizations. Otherwise, we might detect that a try has throwing instructions but
