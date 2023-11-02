@@ -142,8 +142,9 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
   // TODO: Change this? Mainly used for compacting to a particular region of memory.
   BumpPointerSpace(const std::string& name, uint8_t* begin, uint8_t* limit);
 
-  // Allocate a new TLAB, returns false if the allocation failed.
-  bool AllocNewTlab(Thread* self, size_t bytes) REQUIRES(!lock_);
+  // Allocate a new TLAB and updates bytes_tl_bulk_allocated with the
+  // allocation-size, returns false if the allocation failed.
+  bool AllocNewTlab(Thread* self, size_t bytes, size_t* bytes_tl_bulk_allocated) REQUIRES(!lock_);
 
   BumpPointerSpace* AsBumpPointerSpace() override {
     return this;
@@ -212,8 +213,8 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
 
   // Align end to the given alignment. This is done in MarkCompact GC when
   // mutators are suspended so that upcoming TLAB allocations start with a new
-  // page. Returns the pre-alignment end.
-  uint8_t* AlignEnd(Thread* self, size_t alignment) REQUIRES(Locks::mutator_lock_);
+  // page. Adjust's heap's bytes_allocated accordingly. Returns the aligned end.
+  uint8_t* AlignEnd(Thread* self, size_t alignment, Heap* heap) REQUIRES(Locks::mutator_lock_);
 
   friend class collector::MarkSweep;
   friend class collector::MarkCompact;
