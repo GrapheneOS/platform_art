@@ -846,12 +846,12 @@ bool HDeadCodeElimination::RemoveEmptyIfs() {
         MaybeRecordStat(stats_, MethodCompilationStat::kRemovedDeadInstruction);
       }
     }
+
+    did_opt = true;
   }
 
   if (did_opt) {
-    graph_->ClearLoopInformation();
-    graph_->ClearDominanceInformation();
-    graph_->BuildDominatorTree();
+    graph_->RecomputeDominatorTree();
   }
 
   return did_opt;
