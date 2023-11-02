@@ -617,8 +617,7 @@
 // Temporaries: z0
 %def try_simple_args(ins="", v_fedc="", z0="", skip="", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
-   bexti $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT
-   beqz $z0, $skip
+   BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
    li $z0, 2
    blt $ins, $z0, .L${uniq}_simple_done  // A = 1: no further args.
    beq $ins, $z0, .L${uniq}_simple_2  // A = 2
@@ -647,8 +646,7 @@
 // Static variant.
 %def try_simple_args_static(ins="", v_fedc="", z0="", skip="", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
-   bexti $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT
-   beqz $z0, $skip
+   BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
    beqz $ins, .L${uniq}_simple_done   // A = 0: no further args.
    li $z0, 2
    blt $ins, $z0, .L${uniq}_simple_1  // A = 1
