@@ -35,9 +35,6 @@ namespace vixl32 = vixl::aarch32;
 
 namespace art HIDDEN {
 
-// Run the tests only on host.
-#ifndef ART_TARGET_ANDROID
-
 class OptimizingCFITest : public CFITest, public OptimizingUnitTestHelper {
  public:
   // Enable this flag to generate the expected outputs.
@@ -144,26 +141,15 @@ TEST_ISA(kThumb2)
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
-// Run the tests for ARM64 only with Baker read barriers, as the
+// Run the tests for ARM64 only if the Marking Register is reserved as the
 // expected generated code saves and restore X21 and X22 (instead of
 // X20 and X21), as X20 is used as Marking Register in the Baker read
 // barrier configuration, and as such is removed from the set of
 // callee-save registers in the ARM64 code generator of the Optimizing
 // compiler.
-//
-// We can't use compile-time macros for read-barrier as the introduction
-// of userfaultfd-GC has made it a runtime choice.
-TEST_F(OptimizingCFITest, kArm64) {
-  if (kUseBakerReadBarrier && gUseReadBarrier) {
-    std::vector<uint8_t> expected_asm(
-        expected_asm_kArm64,
-        expected_asm_kArm64 + arraysize(expected_asm_kArm64));
-    std::vector<uint8_t> expected_cfi(
-        expected_cfi_kArm64,
-        expected_cfi_kArm64 + arraysize(expected_cfi_kArm64));
-    TestImpl(InstructionSet::kArm64, "kArm64", expected_asm, expected_cfi);
-  }
-}
+#if defined(RESERVE_MARKING_REGISTER)
+TEST_ISA(kArm64)
+#endif
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_x86
@@ -198,7 +184,5 @@ TEST_F(OptimizingCFITest, kThumb2Adjust) {
   Check(InstructionSet::kThumb2, "kThumb2_adjust", expected_asm, expected_cfi);
 }
 #endif
-
-#endif  // ART_TARGET_ANDROID
 
 }  // namespace art
