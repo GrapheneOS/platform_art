@@ -130,6 +130,7 @@ class StandardDexFile : public DexFile {
 
   friend class DexFileLoader;
   friend class DexFileVerifierTest;
+  friend class FuzzerCorpusTest;  // for constructor
 
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for constructor
   friend class OptimizingUnitTestHelper;  // for constructor
