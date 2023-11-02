@@ -819,4 +819,18 @@
     ret
 .endm
 
+
+// Macros to branch based on the value of a specific bit.
+.macro BRANCH_IF_BIT_CLEAR tmp, reg, bit, dest
+    slli    \tmp, \reg, (63 - \bit) // tested bit => sign bit
+    bgez    \tmp, \dest
+.endm
+
+
+.macro BRANCH_IF_BIT_SET tmp, reg, bit, dest
+    slli    \tmp, \reg, (63 - \bit) // tested bit => sign bit
+    bltz    \tmp, \dest
+.endm
+
+
 #endif  // ART_RUNTIME_ARCH_RISCV64_ASM_SUPPORT_RISCV64_S_
