@@ -456,22 +456,22 @@ public class Main {
     }
 
     public static void $noinline$assertSameObject(Object lhs, Object rhs) {
-      if (lhs != rhs) {
-          throw new Error("Different objects: " + lhs + " and " + rhs);
-      }
-  }
+        if (lhs != rhs) {
+            throw new Error("Different objects: " + lhs + " and " + rhs);
+        }
+    }
 
     public static void $noinline$assertEqual(boolean expected, boolean actual) {
-      if (expected != actual) {
-        throw new Error("Expected " + expected +", got " + actual);
-      }
+        if (expected != actual) {
+            throw new Error("Expected " + expected +", got " + actual);
+        }
     }
 
     public static Unsafe getUnsafe() throws Exception {
-      Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-      Field f = unsafeClass.getDeclaredField("theUnsafe");
-      f.setAccessible(true);
-      return (Unsafe) f.get(null);
+        Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+        Field f = unsafeClass.getDeclaredField("theUnsafe");
+        f.setAccessible(true);
+        return (Unsafe) f.get(null);
     }
 
     public static void $noinline$allocateAtLeast1KiB() {
