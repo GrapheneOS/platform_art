@@ -278,12 +278,15 @@ apex_test {
         "s-launched-apex-module",
     ],
 
-    // Only include native libraries in this test APEX. Don't include
-    // binaries (and maybe other artifacts) for now, as they pull
-    // the "non-broken" `libart` module into this test APEX and
-    // overwrite `libart-broken`. Maybe consider creating "broken"
-    // variants of binaries (and other artifacts)?
+    // Only include native libraries in this test APEX. The intention
+    // was to not include binaries (and maybe other artifacts) for now,
+    // as they'd pull the "non-broken" `libart` module into this test
+    // APEX and overwrite `libart-broken`. However, with
+    // unwanted_transitive_deps we can ensure `libart` gets excluded
+    // anyway.
+    // TODO(mast): Add back the binaries and clean this up.
     native_shared_libs: art_runtime_base_broken_native_shared_libs,
+    unwanted_transitive_deps: ["libart"],
     compile_multilib: "both",
 
     key: "com.android.art.key",
