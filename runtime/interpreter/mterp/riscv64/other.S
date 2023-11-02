@@ -89,12 +89,12 @@
 // move-object/from16 vAA, vBBBB
 // Format 22x: AA|08 BBBB
 %def op_move_object_from16():
-%   op_move_16(is_object="1")
+%   op_move_from16(is_object="1")
 
 // move-object/16 vAAAA, vBBBB
 // Format 32x: 00|09 AAAA BBBB
 %def op_move_object_16():
-%   op_move_from16(is_object="1")
+%   op_move_16(is_object="1")
 
 // move-result vAA
 // Format 11x: AA|0a
