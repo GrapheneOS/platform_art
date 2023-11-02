@@ -128,8 +128,7 @@ END \name
 //   - \code_item: holds instruction array on exit
 .macro FETCH_CODE_ITEM_INFO code_item, regs, outs, ins
     // Check LSB of \code_item. If 1, it's a compact dex file.
-    bexti \regs, \code_item, 0x0
-    beqz \regs, 1f  // Regular dex.
+    BRANCH_IF_BIT_CLEAR \regs, \code_item, 0, 1f  // Regular dex.
     unimp  // Compact dex: unimplemented.
 1:
     // Unpack values from regular dex format.
@@ -267,9 +266,7 @@ END \name
 // Clobbers: t0
 .macro CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot, if_not_hot
     lw t0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
-    // Extract flag bit, branch if bit is unset.
-    bexti t0, t0, ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT
-    beqz t0, \if_hot
+    BRANCH_IF_BIT_CLEAR t0, t0, ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT, \if_hot
 
     lw t0, THREAD_SHARED_METHOD_HOTNESS_OFFSET(xSELF)
     beqz t0, \if_hot
@@ -470,8 +467,7 @@ OAT_ENTRY ExecuteNterpImpl
    // Fast path: all reference args.
    sh2add t0, s7, xFP       // t0 := &xFP[a1]
    sh2add t1, s7, xREFS     // t1 := &xREFS[a1]
-   bexti t2, s10, ART_METHOD_NTERP_ENTRY_POINT_FAST_PATH_FLAG_BIT
-   beqz t2, .Lentry_a1
+   BRANCH_IF_BIT_CLEAR t2, s10, ART_METHOD_NTERP_ENTRY_POINT_FAST_PATH_FLAG_BIT, .Lentry_a1
 %  setup_ref_args_and_go(fp="t0", refs="t1", refs_end="xFP", spills_sp="s9", z0="t2", z1="t3", done=".Lentry_go")
 
    // Fast path: instance with zero args.
