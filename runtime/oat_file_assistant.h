@@ -532,6 +532,9 @@ class OatFileAssistant {
   // skipped.
   ClassLoaderContext* context_;
 
+  // Whether or not the parent directory of the dex file is writable.
+  bool dex_parent_writable_ = false;
+
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
   const InstructionSet isa_ = InstructionSet::kNone;

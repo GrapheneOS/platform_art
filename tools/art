@@ -127,6 +127,34 @@ find_cp_in_args() {
   done
 }
 
+# Delete the 'oat' directories relative to the classpath's dex files.
+# e.g. (foo/classes.dex bar/classes.dex) would delete (foo/oat bar/oat) directories.
+cleanup_oat_directory() {
+  local classpath
+  classpath=("$@")
+
+  local dirpath
+
+  for path in "${classpath[@]}"; do
+    dirpath="$(dirname "$path")"
+    [[ -d "$dirpath" ]] && verbose_run rm -rf "$dirpath/oat"
+  done
+}
+
+# Parse -cp <CP>, -classpath <CP>, and $CLASSPATH to find the dex files.
+# Each dex file's directory will have an 'oat' file directory, delete it.
+# Input: Command line arguments to the art script.
+# e.g. -cp foo/classes.dex:bar/classes.dex would delete (foo/oat bar/oat) directories.
+cleanup_oat_directory_for_classpath() {
+  if [ "$CLEAN_OAT_FILES" = "yes" ]; then
+    # First try: Use $CLASSPATH environment variable.
+    parse_classpath "$CLASSPATH"
+    # Second try: Look for latest -cp or -classpath arg which will take precedence.
+    find_cp_in_args "$@"
+
+    cleanup_oat_directory "${PARSE_CLASSPATH_RESULT[@]}"
+  fi
+}
 
 # Attempt to find $ANDROID_ROOT/framework/<isa>/core.art' without knowing what <isa> is.
 function check_if_boot_image_file_exists() {
@@ -170,17 +198,11 @@ function run_dex2oat() {
     done
     # Create oat file directory.
     verbose_run mkdir -p $(dirname "$dex_file")/oat/$ISA
-    local oat_file="${dex_file:1}"
-    local oat_file="${oat_file//\//@}"
-    if [[ $dex_file != *.dex ]]; then
-      local oat_file=$ANDROID_DATA/dalvik-cache/$ISA/${oat_file}@classes.dex
-    else
-      local oat_file=$ANDROID_DATA/dalvik-cache/$ISA/${oat_file}
-    fi
+    local oat_file=$(basename "$dex_file")
+    local oat_file=$(dirname "$dex_file")/oat/$ISA/${oat_file%.*}.odex
     if [ "$GENERATE_APP_IMAGE" = "yes" ]; then
-      local art_file="${dex_file:1}"
-      local art_file="${art_file//\//@}"
-      local art_file=$ANDROID_DATA/dalvik-cache/$ISA/${art_file%.*}.art
+      local art_file=$(basename "$dex_file")
+      local art_file=$(dirname "$dex_file")/oat/$ISA/${art_file%.*}.art
       DEX2OAT_FLAGS+=("--app-image-file=$art_file")
     fi
 
@@ -536,7 +558,7 @@ if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
     # by default.
     ANDROID_DATA="$ANDROID_DATA/local/tmp/android-data$$"
   fi
-  mkdir -p "$ANDROID_DATA/dalvik-cache/$ISA"
+  mkdir -p "$ANDROID_DATA"
   DELETE_ANDROID_DATA="yes"
 fi
 
@@ -606,6 +628,9 @@ fi
 if [ "$ALLOW_DEFAULT_JDWP" = "no" ]; then
   EXTRA_OPTIONS+=(-XjdwpProvider:none)
 fi
+
+# First cleanup any left-over 'oat' files from the last time dalvikvm was run.
+cleanup_oat_directory_for_classpath "$@"
 
 # Protect additional arguments in quotes to preserve whitespaces (used by
 # run-jdwp-test.sh when running on device), '$' (may be used as part of
