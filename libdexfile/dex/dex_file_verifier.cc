@@ -940,6 +940,7 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx,
 bool DexFileVerifier::CheckPadding(size_t offset,
                                    uint32_t aligned_offset,
                                    DexFile::MapItemType type) {
+  DCHECK_EQ(offset, static_cast<size_t>(ptr_ - begin_));
   if (offset < aligned_offset) {
     if (!CheckListSize(OffsetToPtr(offset), aligned_offset - offset, sizeof(uint8_t), "section")) {
       return false;
@@ -2013,6 +2014,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t section_c
 
   // Iterate through the items in the section.
   for (uint32_t i = 0; i < section_count; i++) {
+    DCHECK_EQ(offset, static_cast<size_t>(ptr_ - begin_));
     size_t aligned_offset = (offset + alignment_mask) & ~alignment_mask;
 
     // Check the padding between items.
@@ -2264,16 +2266,19 @@ bool DexFileVerifier::CheckIntraSection() {
 
   // Check the items listed in the map.
   for (; count != 0u; --count) {
+    const uint8_t* initial_ptr = ptr_;
     const size_t current_offset = offset;
     uint32_t section_offset = item->offset_;
     uint32_t section_count = item->size_;
     DexFile::MapItemType type = static_cast<DexFile::MapItemType>(item->type_);
 
     // Check for padding and overlap between items.
-    if (!CheckPadding(offset, section_offset, type)) {
-      return false;
-    } else if (UNLIKELY(offset > section_offset)) {
+    DCHECK_EQ(offset, static_cast<size_t>(ptr_ - begin_));
+    if (UNLIKELY(offset > section_offset)) {
       ErrorStringPrintf("Section overlap or out-of-order map: %zx, %x", offset, section_offset);
+      return false;
+    }
+    if (!CheckPadding(offset, section_offset, type)) {
       return false;
     }
 
@@ -2354,9 +2359,11 @@ bool DexFileVerifier::CheckIntraSection() {
     }
 
     if (offset == current_offset) {
-        ErrorStringPrintf("Unknown map item type %x", type);
-        return false;
+      DCHECK_EQ(ptr_, initial_ptr);
+      ErrorStringPrintf("Unknown map item type %x", type);
+      return false;
     }
+    DCHECK_NE(ptr_, initial_ptr);
 
     item++;
   }
