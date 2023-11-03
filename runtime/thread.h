@@ -213,10 +213,10 @@ static constexpr size_t kSharedMethodHotnessThreshold = 0x1fff;
 // that is set mprotect(PROT_NONE).  Any attempt to read/write to this region will
 // result in a segmentation fault signal.  At any point, the thread's SP will be somewhere
 // between the stack_end and the highest address in stack memory.  An implicit stack
-// overflow check is a read of memory at a certain offset below the current SP (4K typically).
+// overflow check is a read of memory at a certain offset below the current SP (8K typically).
 // If the thread's SP is below the stack_end address this will be a read into the protected
 // region.  If the SP is above the stack_end address, the thread is guaranteed to have
-// at least 4K of space.  Because stack overflow checks are only performed in generated code,
+// at least 8K of space.  Because stack overflow checks are only performed in generated code,
 // if the thread makes a call out to a native function (through JNI), that native function
 // might only have 4K of memory (if the SP is adjacent to stack_end).
 
