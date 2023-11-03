@@ -17,6 +17,7 @@
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
+import java.util.concurrent.atomic.AtomicReference;
 import sun.misc.Unsafe;
 
 class Main {
@@ -31,6 +32,10 @@ class Main {
         $noinline$testUnsafeInts();
         $noinline$testUnsafeLongs();
         $noinline$testUnsafeReferences();
+
+        // Stress-test read-modify-write operations on the same memory locations.
+        // This is intended to uncover bugs with false-positive comparison in CAS.
+        $noinline$testAtomicReference();
     }
 
     public static void $noinline$testVarHandleBytes() throws Exception {
@@ -188,7 +193,7 @@ class Main {
             threads[i].start();
         }
         // Allocate memory to trigger some GCs
-        for (int i = 0; i != 64 * 1024; ++i) {
+        for (int i = 0; i != 640 * 1024; ++i) {
             $noinline$allocateAtLeast1KiB();
         }
         // Stop threads.
@@ -325,7 +330,7 @@ class Main {
             threads[i].start();
         }
         // Allocate memory to trigger some GCs
-        for (int i = 0; i != 10 * 64 * 1024; ++i) {
+        for (int i = 0; i != 640 * 1024; ++i) {
             $noinline$allocateAtLeast1KiB();
         }
         // Stop threads.
@@ -335,6 +340,76 @@ class Main {
         }
     }
 
+    // Instead of using a `VarHandle` directly, this test uses `AtomicReference` which is
+    // implemented using a `VarHandle`. This is because the normal `VarHandle` checks are
+    // done without read barrier which makes them likely to fail and take the slow-path to
+    // the runtime while the GC is marking (which is the case we're most interested in).
+    // The `AtomicReference` uses a boot-image `VarHandle` which is optimized to avoid
+    // those checks, making it more likely to hit bugs in the raw RMW operation.
+    public static void $noinline$testAtomicReference() throws Exception {
+        // Prepare `AtomicReference` object.
+        // D8 rewrites the bytecode with a workaround for CAS bug. To test the raw
+        // `AtomicReference.compareAndSet()` call, we implement the call in smali
+        // and wrap it in an indirect call.
+        final AtomicReferenceDispatch atomicReferenceDispatch =
+                (AtomicReferenceDispatch) Class.forName("AtomicReferenceWrapper").newInstance();
+        final AtomicReference aref = new AtomicReference(null);
+        // Prepare threads.
+        final Object[] objects = new Object[] {
+                null,
+                new Object(),
+                new Object(),
+                new Object()
+        };
+        final StopFlag stopFlag = new StopFlag();
+        Thread[] threads = new Thread[4];
+        for (int i = 0; i != 4; ++i) {
+            if (i == 0) {
+                threads[i] = new Thread() {
+                    public void run() {
+                        int index = 0;
+                        Object value = objects[index];
+                        while (!stopFlag.stop) {
+                            index = (index + 1) & 3;
+                            Object nextValue = objects[index];
+                            boolean success = atomicReferenceDispatch.compareAndSet(
+                                    aref, value, nextValue);
+                            assertTrue(success);
+                            value = nextValue;
+                        }
+                    }
+                };
+            } else {
+                final Object value = objects[i];
+                assertTrue(value != null);
+                threads[i] = new Thread() {
+                    public void run() {
+                        // This thread is trying to overwrite a value with the same value.
+                        // For a false-positive in CAS compare, it would actually change
+                        // the value and cause the thread `threads[0]` to fail.
+                        assertTrue(value != null);
+                        while (!stopFlag.stop) {
+                            // Do not check the return value.
+                            atomicReferenceDispatch.compareAndSet(aref, value, value);
+                        }
+                    }
+                };
+            }
+        };
+        // Start threads.
+        for (int i = 0; i != 4; ++i) {
+            threads[i].start();
+        }
+        // Allocate memory to trigger some GCs
+        for (int i = 0; i != 640 * 1024; ++i) {
+            $noinline$allocateAtLeast1KiB();
+        }
+        // Stop threads.
+        stopFlag.stop = true;
+        for (int i = 0; i != 4; ++i) {
+            threads[i].join();
+        }
+    }
 
     public static void assertTrue(boolean value) {
         if (!value) {
@@ -399,4 +474,8 @@ class FourReferences {
 abstract class UnsafeDispatch {
     public abstract boolean compareAndSwapObject(
             Unsafe unsafe, Object obj, long offset, Object expected, Object new_value);
+}
+
+abstract class AtomicReferenceDispatch {
+    public abstract boolean compareAndSet(AtomicReference aref, Object expected, Object new_value);
 }
