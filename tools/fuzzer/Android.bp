@@ -1274,3 +1274,14 @@ genrule {
         "host_998-redefine-use-after-free_classes.dex",
     ],
 }
+
+genrule {
+    name: "art-gtest-jars-DexFuzzerFolder",
+    // Zip the corpus folder. To get the folder, we grab the first file
+    // from `in` and use its directory.
+    cmd: "FILES=($(in)) &&" +
+         "$(location soong_zip) -j -L 0 -o $(out) -D $$(dirname $${FILES[0]})",
+    srcs: ["corpus/*"],
+    out: ["fuzzer_corpus.zip"],
+    tools: ["soong_zip"],
+}

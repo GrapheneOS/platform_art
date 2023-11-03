@@ -33,9 +33,6 @@
 
 namespace art HIDDEN {
 
-// Run the tests only on host.
-#ifndef ART_TARGET_ANDROID
-
 class JNICFITest : public CFITest {
  public:
   // Enable this flag to generate the expected outputs.
@@ -125,31 +122,20 @@ class JNICFITest : public CFITest {
     TestImpl(InstructionSet::isa, #isa, expected_asm, expected_cfi);  \
   }
 
-// We can't use compile-time macros for read-barrier as the introduction
-// of userfaultfd-GC has made it a runtime choice.
-#define TEST_ISA_ONLY_CC(isa)                                           \
-  TEST_F(JNICFITest, isa) {                                             \
-    if (kUseBakerReadBarrier && gUseReadBarrier) {                      \
-      std::vector<uint8_t> expected_asm(expected_asm_##isa,             \
-          expected_asm_##isa + arraysize(expected_asm_##isa));          \
-      std::vector<uint8_t> expected_cfi(expected_cfi_##isa,             \
-          expected_cfi_##isa + arraysize(expected_cfi_##isa));          \
-      TestImpl(InstructionSet::isa, #isa, expected_asm, expected_cfi);  \
-    }                                                                   \
-  }
-
 #ifdef ART_ENABLE_CODEGEN_arm
-// Run the tests for ARM only with Baker read barriers, as the
-// expected generated code contains a Marking Register refresh
-// instruction.
-TEST_ISA_ONLY_CC(kThumb2)
+// Run the tests for ARM only if the Marking Register is reserved as the
+// expected generated code contains a Marking Register refresh instruction.
+#if defined(RESERVE_MARKING_REGISTER)
+TEST_ISA(kThumb2)
+#endif
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
-// Run the tests for ARM64 only with Baker read barriers, as the
-// expected generated code contains a Marking Register refresh
-// instruction.
-TEST_ISA_ONLY_CC(kArm64)
+// Run the tests for ARM64 only if the Marking Register is reserved as the
+// expected generated code contains a Marking Register refresh instruction.
+#if defined(RESERVE_MARKING_REGISTER)
+TEST_ISA(kArm64)
+#endif
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_x86
@@ -159,7 +145,5 @@ TEST_ISA(kX86)
 #ifdef ART_ENABLE_CODEGEN_x86_64
 TEST_ISA(kX86_64)
 #endif
-
-#endif  // ART_TARGET_ANDROID
 
 }  // namespace art

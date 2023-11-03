@@ -1058,6 +1058,28 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkButNoMatch) {
   }
 }
 
+TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkButEmpty) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  dex_files.push_back(std::unique_ptr<const DexFile>(dex1_renamed));
+  dex_files.push_back(std::unique_ptr<const DexFile>(dex2_renamed));
+
+  // Empty profile.
+  ProfileCompilationInfo info;
+
+  // Update the profile keys based on the original dex files.
+  bool matched = false;
+  ASSERT_TRUE(info.UpdateProfileKeys(dex_files, &matched));
+  ASSERT_FALSE(matched);
+
+  // Verify that the updated profile is still empty.
+  EXPECT_TRUE(info.IsEmpty());
+
+  // Release the ownership as this is held by the test class;
+  for (std::unique_ptr<const DexFile>& dex : dex_files) {
+    UNUSED(dex.release());
+  }
+}
+
 TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyFail) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files.push_back(std::unique_ptr<const DexFile>(dex1_renamed));
