@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.class public LUnsafeWrapper;
-.super LUnsafeDispatch;
+.class public LAtomicReferenceWrapper;
+.super LAtomicReferenceDispatch;
 
 .method public constructor <init>()V
   .registers 1
-  invoke-direct {p0}, LUnsafeDispatch;-><init>()V
+  invoke-direct {p0}, LAtomicReferenceDispatch;-><init>()V
   return-void
 .end method
 
-.method public compareAndSwapObject(Lsun/misc/Unsafe;Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z
-  .registers 8
-  invoke-virtual/range {p1..p6}, Lsun/misc/Unsafe;->compareAndSwapObject(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z
+.method public compareAndSet(Ljava/util/concurrent/atomic/AtomicReference;Ljava/lang/Object;Ljava/lang/Object;)Z
+  .registers 5
+  invoke-virtual {p1, p2, p3}, Ljava/util/concurrent/atomic/AtomicReference;->compareAndSet(Ljava/lang/Object;Ljava/lang/Object;)Z
   move-result v0
   return v0
 .end method
