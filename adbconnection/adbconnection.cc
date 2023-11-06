@@ -548,18 +548,17 @@ void AdbConnectionState::RunPollLoop(art::Thread* self) {
     while (!shutting_down_ && control_ctx_) {
       bool should_listen_on_connection = !agent_has_socket_ && !sent_agent_fds_;
       struct pollfd pollfds[4] = {
-        { sleep_event_fd_, POLLIN, 0 },
-        // -1 as an fd causes it to be ignored by poll
-        { (agent_loaded_ ? local_agent_control_sock_ : -1), POLLIN, 0 },
-        // Check for the control_sock_ actually going away. Only do this if we don't have an active
-        // connection.
-        { (adb_connection_socket_ == -1 ? adbconnection_client_pollfd(control_ctx_.get()) : -1),
-          POLLIN | POLLRDHUP, 0 },
-        // if we have not loaded the agent either the adb_connection_socket_ is -1 meaning we don't
-        // have a real connection yet or the socket through adb needs to be listened to for incoming
-        // data that the agent or this plugin can handle.
-        { should_listen_on_connection ? adb_connection_socket_ : -1, POLLIN | POLLRDHUP, 0 }
-      };
+          {sleep_event_fd_, POLLIN, 0},
+          // -1 as an fd causes it to be ignored by poll
+          {(agent_loaded_ ? local_agent_control_sock_ : -1), POLLIN, 0},
+          // Check for the control_sock_ actually going away. We always monitor for POLLIN, even if
+          // we already have an adbd socket. This allows to reject incoming debugger connection if
+          // there is already have one connected.
+          {adbconnection_client_pollfd(control_ctx_.get()), POLLIN | POLLRDHUP, 0},
+          // if we have not loaded the agent either the adb_connection_socket_ is -1 meaning we
+          // don't have a real connection yet or the socket through adb needs to be listened to for
+          // incoming data that the agent or this plugin can handle.
+          {should_listen_on_connection ? adb_connection_socket_ : -1, POLLIN | POLLRDHUP, 0}};
       int res = TEMP_FAILURE_RETRY(poll(pollfds, 4, -1));
       if (res < 0) {
         PLOG(ERROR) << "Failed to poll!";
