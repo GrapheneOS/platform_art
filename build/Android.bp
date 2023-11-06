@@ -63,6 +63,7 @@ art_clang_tidy_disabled = [
     // We have lots of C-style variadic functions, and are OK with them. JNI ensures
     // that working around this warning would be extra-painful.
     "-cert-dcl50-cpp",
+    "-misc-redundant-expression",
     // "Modernization" we don't agree with.
     "-modernize-use-auto",
     "-modernize-return-braced-init-list",
