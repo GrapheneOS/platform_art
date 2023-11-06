@@ -29,7 +29,6 @@
 #include "base/systrace.h"
 #include "dex/dex_file_types.h"
 #include "dex/dex_instruction.h"
-#include "dex/dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -402,14 +401,6 @@ class DeoptimizeStackVisitor final : public StackVisitor {
     return single_frame_deopt_quick_method_header_;
   }
 
-  ShadowFrame* GetBottomShadowFrame() const {
-    ShadowFrame* result = prev_shadow_frame_;
-    while (result->GetLink() != nullptr) {
-      result = result->GetLink();
-    }
-    return result;
-  }
-
   void FinishStackWalk() REQUIRES_SHARED(Locks::mutator_lock_) {
     // This is the upcall, or the next full frame in single-frame deopt, or the
     // code isn't deoptimizeable. We remember the frame and last pc so that we
@@ -716,41 +707,12 @@ void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
   // When deoptimizing for debug support the optimized code is still valid and
   // can be reused when debugging support (like breakpoints) are no longer
   // needed fot this method.
-  Runtime* runtime = Runtime::Current();
-  if (runtime->UseJitCompilation() && (kind != DeoptimizationKind::kDebugging)) {
-    runtime->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
+  if (Runtime::Current()->UseJitCompilation() && (kind != DeoptimizationKind::kDebugging)) {
+    Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
         deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());
   } else {
-    runtime->GetInstrumentation()->InitializeMethodsCode(
+    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
         deopt_method, /*aot_code=*/ nullptr);
-  }
-
-  // If the deoptimization is due to an inline cache, update it with the type
-  // that made us deoptimize. This avoids pathological cases of never seeing
-  // that type while executing baseline generated code.
-  if (kind == DeoptimizationKind::kJitInlineCache || kind == DeoptimizationKind::kJitSameTarget) {
-    DCHECK(runtime->UseJitCompilation());
-    ShadowFrame* shadow_frame = visitor.GetBottomShadowFrame();
-    uint32_t dex_pc = shadow_frame->GetDexPC();
-    CodeItemDataAccessor accessor(shadow_frame->GetMethod()->DexInstructionData());
-    const uint16_t* const insns = accessor.Insns();
-    const Instruction* inst = Instruction::At(insns + dex_pc);
-    switch (inst->Opcode()) {
-      case Instruction::INVOKE_INTERFACE:
-      case Instruction::INVOKE_VIRTUAL:
-      case Instruction::INVOKE_INTERFACE_RANGE:
-      case Instruction::INVOKE_VIRTUAL_RANGE: {
-        runtime->GetJit()->GetCodeCache()->MaybeUpdateInlineCache(
-            shadow_frame->GetMethod(),
-            dex_pc,
-            shadow_frame->GetVRegReference(inst->VRegC())->GetClass(),
-            self_);
-        break;
-      }
-      default: {
-        LOG(FATAL) << "Unexpected instruction for inline cache: " << inst->Name();
-      }
-    }
   }
 
   PrepareForLongJumpToInvokeStubOrInterpreterBridge();
