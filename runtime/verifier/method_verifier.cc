@@ -2649,9 +2649,9 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
             !cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
             cast_type.HasClass() &&             // Could be conflict type, make sure it has a class.
             !cast_type.GetClass()->IsInterface() &&
-            (orig_type.IsZeroOrNull() ||
-                orig_type.IsStrictlyAssignableFrom(
-                    cast_type.Merge(orig_type, &reg_types_, this), this))) {
+            !orig_type.IsZeroOrNull() &&
+            orig_type.IsStrictlyAssignableFrom(
+                cast_type.Merge(orig_type, &reg_types_, this), this)) {
           RegisterLine* update_line = RegisterLine::Create(code_item_accessor_.RegistersSize(),
                                                            allocator_,
                                                            GetRegTypeCache());
