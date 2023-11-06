@@ -99,8 +99,9 @@ TEST_F(DeadCodeEliminationTest, AdditionAndConditionalJump) {
 
   // Expected difference after dead code elimination.
   diff_t expected_diff = {
-    { "  3: IntConstant [9, 8, 5]\n",  "  3: IntConstant [8, 5]\n" },
-    { "  8: Phi(4, 3) [9]\n",          "  8: Phi(4, 3)\n" },
+    { "  3: IntConstant [9, 8, 5]\n",  "  3: IntConstant [5]\n" },
+    { "  4: IntConstant [8, 5]\n",     "  4: IntConstant [5]\n" },
+    { "  8: Phi(4, 3) [9]\n",          removed },
     { "  9: Add(8, 3)\n",              removed }
   };
   std::string expected_after = Patch(expected_before, expected_diff);
