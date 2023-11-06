@@ -1030,6 +1030,7 @@
           "823-cha-inlining",
           "842-vdex-hard-failure",
           "850-checker-branches",
+          "852-invoke-super",
           "900-hello-plugin",
           "901-hello-ti-agent",
           "903-hello-tagging",
