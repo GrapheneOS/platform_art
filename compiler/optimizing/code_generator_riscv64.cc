@@ -3679,6 +3679,15 @@ void LocationsBuilderRISCV64::VisitIf(HIf* instruction) {
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
   if (IsBooleanValueOrMaterializedCondition(instruction->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
+    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+      DCHECK(instruction->InputAt(0)->IsCondition());
+      ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+      DCHECK(info != nullptr);
+      BranchCache* cache = info->GetBranchCache(instruction->GetDexPc());
+      if (cache != nullptr) {
+        locations->AddTemp(Location::RequiresRegister());
+      }
+    }
   }
 }
 
@@ -3691,6 +3700,41 @@ void InstructionCodeGeneratorRISCV64::VisitIf(HIf* instruction) {
   Riscv64Label* false_target = codegen_->GoesToNextBlock(instruction->GetBlock(), false_successor)
       ? nullptr
       : codegen_->GetLabelOf(false_successor);
+  if (IsBooleanValueOrMaterializedCondition(instruction->InputAt(0))) {
+    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+      DCHECK(instruction->InputAt(0)->IsCondition());
+      ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+      DCHECK(info != nullptr);
+      BranchCache* cache = info->GetBranchCache(instruction->GetDexPc());
+      // Currently, not all If branches are profiled.
+      if (cache != nullptr) {
+        uint64_t address =
+            reinterpret_cast64<uint64_t>(cache) + BranchCache::FalseOffset().Int32Value();
+        static_assert(
+            BranchCache::TrueOffset().Int32Value() - BranchCache::FalseOffset().Int32Value() == 2,
+            "Unexpected offsets for BranchCache");
+        Riscv64Label done;
+        XRegister condition = instruction->GetLocations()->InAt(0).AsRegister<XRegister>();
+        XRegister temp = instruction->GetLocations()->GetTemp(0).AsRegister<XRegister>();
+        __ LoadConst64(temp, address);
+        __ Sh1Add(temp, condition, temp);
+        ScratchRegisterScope srs(GetAssembler());
+        XRegister counter = srs.AllocateXRegister();
+        __ Loadhu(counter, temp, 0);
+        __ Addi(counter, counter, 1);
+        {
+          ScratchRegisterScope srs2(GetAssembler());
+          XRegister overflow = srs2.AllocateXRegister();
+          __ Srli(overflow, counter, 16);
+          __ Bnez(overflow, &done);
+        }
+        __ Storeh(counter, temp, 0);
+        __ Bind(&done);
+      }
+    }
+  } else {
+    DCHECK(!GetGraph()->IsCompilingBaseline()) << instruction->InputAt(0)->DebugName();
+  }
   GenerateTestAndBranch(instruction, /* condition_input_index= */ 0, true_target, false_target);
 }
 
