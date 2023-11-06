@@ -58,7 +58,6 @@ inline bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string
   map.AssignIfExists(Base::CompileArtTest, &options->compile_art_test_);
   map.AssignIfExists(Base::HugeMethodMaxThreshold, &options->huge_method_threshold_);
   map.AssignIfExists(Base::LargeMethodMaxThreshold, &options->large_method_threshold_);
-  map.AssignIfExists(Base::NumDexMethodsThreshold, &options->num_dex_methods_threshold_);
   map.AssignIfExists(Base::InlineMaxCodeUnitsThreshold, &options->inline_max_code_units_);
   map.AssignIfExists(Base::GenerateDebugInfo, &options->generate_debug_info_);
   map.AssignIfExists(Base::GenerateMiniDebugInfo, &options->generate_mini_debug_info_);
@@ -69,7 +68,6 @@ inline bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string
   if (map.Exists(Base::Baseline)) {
     options->baseline_ = true;
   }
-  map.AssignIfExists(Base::TopKProfileThreshold, &options->top_k_profile_threshold_);
   map.AssignIfExists(Base::AbortOnHardVerifierFailure, &options->abort_on_hard_verifier_failure_);
   map.AssignIfExists(Base::AbortOnSoftVerifierFailure, &options->abort_on_soft_verifier_failure_);
   if (map.Exists(Base::DumpInitFailures)) {
@@ -137,12 +135,6 @@ NO_INLINE void AddCompilerOptionsArgumentParserOptions(Builder& b) {
           .template WithType<unsigned int>()
           .WithHelp("threshold size for a large method for compiler filter tuning.")
           .IntoKey(Map::LargeMethodMaxThreshold)
-      .Define("--num-dex-methods=_")
-          .template WithType<unsigned int>()
-          .WithHelp("threshold size for a small dex file for compiler filter tuning. If the input\n"
-                    "has fewer than this many methods and the filter is not interpret-only or\n"
-                    "verify-none or verify-at-runtime, overrides the filter to use speed")
-          .IntoKey(Map::NumDexMethodsThreshold)
       .Define("--inline-max-code-units=_")
           .template WithType<unsigned int>()
           .WithHelp("the maximum code units that a methodcan have to be considered for inlining.\n"
@@ -206,10 +198,6 @@ NO_INLINE void AddCompilerOptionsArgumentParserOptions(Builder& b) {
           .WithHelp("Produce code using the baseline compilation")
           .IntoKey(Map::Baseline)
 
-      .Define("--top-k-profile-threshold=_")
-          .template WithType<double>().WithRange(0.0, 100.0)
-          .IntoKey(Map::TopKProfileThreshold)
-
       .Define({"--abort-on-hard-verifier-error", "--no-abort-on-hard-verifier-error"})
           .WithValues({true, false})
           .IntoKey(Map::AbortOnHardVerifierFailure)
@@ -256,7 +244,12 @@ NO_INLINE void AddCompilerOptionsArgumentParserOptions(Builder& b) {
       .Define("--max-image-block-size=_")
           .template WithType<unsigned int>()
           .WithHelp("Maximum solid block size for compressed images.")
-          .IntoKey(Map::MaxImageBlockSize);
+          .IntoKey(Map::MaxImageBlockSize)
+      // Obsolete flags
+      .Ignore({
+        "--num-dex-methods=_",
+        "--top-k-profile-threshold=_",
+      });
   // clang-format on
 }
 
