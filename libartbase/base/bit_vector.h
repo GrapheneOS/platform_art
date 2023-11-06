@@ -57,7 +57,7 @@ class BitVector {
     using value_type = uint32_t;
     using difference_type = ptrdiff_t;
     using pointer = void;
-    using reference = uint32_t;
+    using reference = void;
 
     bool operator==(const IndexIterator& other) const;
 
