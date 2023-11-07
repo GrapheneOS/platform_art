@@ -195,8 +195,8 @@ class CountIter {
   using iterator_category = std::forward_iterator_tag;
   using value_type = size_t;
   using difference_type = size_t;
-  using pointer = size_t;
-  using reference = size_t;
+  using pointer = void;
+  using reference = void;
 
   CountIter() : count_(0) {}
   explicit CountIter(size_t count) : count_(count) {}
@@ -251,10 +251,10 @@ template <typename RealIter, typename Filter>
 struct FilterIterator {
  public:
   using iterator_category = std::forward_iterator_tag;
-  using value_type = typename RealIter::value_type;
+  using value_type = typename std::iterator_traits<RealIter>::value_type;
   using difference_type = ptrdiff_t;
-  using pointer = typename RealIter::pointer;
-  using reference = typename RealIter::reference;
+  using pointer = typename std::iterator_traits<RealIter>::pointer;
+  using reference = typename std::iterator_traits<RealIter>::reference;
 
   FilterIterator(RealIter rl,
                  Filter cond,

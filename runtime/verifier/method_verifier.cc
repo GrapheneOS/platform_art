@@ -2649,9 +2649,9 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
             !cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
             cast_type.HasClass() &&             // Could be conflict type, make sure it has a class.
             !cast_type.GetClass()->IsInterface() &&
-            (orig_type.IsZeroOrNull() ||
-                orig_type.IsStrictlyAssignableFrom(
-                    cast_type.Merge(orig_type, &reg_types_, this), this))) {
+            !orig_type.IsZeroOrNull() &&
+            orig_type.IsStrictlyAssignableFrom(
+                cast_type.Merge(orig_type, &reg_types_, this), this)) {
           RegisterLine* update_line = RegisterLine::Create(code_item_accessor_.RegistersSize(),
                                                            allocator_,
                                                            GetRegTypeCache());
@@ -4147,12 +4147,14 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
       // We cannot differentiate on whether this is a class change error or just
       // a missing method. This will be handled at runtime.
       Fail(VERIFY_ERROR_NO_METHOD) << "Unable to find referenced class from invoke-super";
+      VerifyInvocationArgsUnresolvedMethod(inst, method_type, is_range);
       return nullptr;
     }
     if (reference_type.GetClass()->IsInterface()) {
       if (!GetDeclaringClass().HasClass()) {
         Fail(VERIFY_ERROR_NO_CLASS) << "Unable to resolve the full class of 'this' used in an"
                                     << "interface invoke-super";
+        VerifyInvocationArgsUnresolvedMethod(inst, method_type, is_range);
         return nullptr;
       } else if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this)) {
         Fail(VERIFY_ERROR_CLASS_CHANGE)
@@ -4161,6 +4163,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
             << dex_file_->PrettyMethod(dex_method_idx_) << " to method "
             << dex_file_->PrettyMethod(method_idx) << " references "
             << "non-super-interface type " << mirror::Class::PrettyClass(reference_type.GetClass());
+        VerifyInvocationArgsUnresolvedMethod(inst, method_type, is_range);
         return nullptr;
       }
     } else {
@@ -4169,6 +4172,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
         Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
                                     << dex_file_->PrettyMethod(dex_method_idx_)
                                     << " to super " << res_method->PrettyMethod();
+        VerifyInvocationArgsUnresolvedMethod(inst, method_type, is_range);
         return nullptr;
       }
       if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this) ||
@@ -4178,6 +4182,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
                                     << " to super " << super
                                     << "." << res_method->GetName()
                                     << res_method->GetSignature();
+        VerifyInvocationArgsUnresolvedMethod(inst, method_type, is_range);
         return nullptr;
       }
     }

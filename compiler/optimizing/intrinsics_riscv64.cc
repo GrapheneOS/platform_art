@@ -1300,6 +1300,27 @@ void VarHandleSlowPathRISCV64::EmitByteArrayViewCode(CodeGenerator* codegen_in) 
   __ J(GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderRISCV64::VisitThreadCurrentThread(HInvoke* invoke) {
+  LocationSummary* locations =
+    new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitThreadCurrentThread(HInvoke* invoke) {
+  Riscv64Assembler* assembler = GetAssembler();
+  XRegister out = invoke->GetLocations()->Out().AsRegister<XRegister>();
+
+  __ Loadwu(out, TR, Thread::PeerOffset<kRiscv64PointerSize>().Int32Value());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitReachabilityFence(HInvoke* invoke) {
+  LocationSummary* locations =
+    new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::Any());
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitReachabilityFence([[maybe_unused]] HInvoke* invoke) {}
+
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
 UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(MARK_UNIMPLEMENTED);
 #undef MARK_UNIMPLEMENTED

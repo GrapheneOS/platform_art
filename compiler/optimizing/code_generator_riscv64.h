@@ -84,7 +84,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(SystemArrayCopyChar)                        \
   V(SystemArrayCopyInt)                         \
   V(SystemArrayCopy)                            \
-  V(ThreadCurrentThread)                        \
   V(FP16Ceil)                                   \
   V(FP16Compare)                                \
   V(FP16Floor)                                  \
@@ -179,7 +178,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(ReferenceRefersTo)                          \
   V(IntegerValueOf)                             \
   V(ThreadInterrupted)                          \
-  V(ReachabilityFence)                          \
   V(CRC32Update)                                \
   V(CRC32UpdateBytes)                           \
   V(CRC32UpdateByteBuffer)                      \

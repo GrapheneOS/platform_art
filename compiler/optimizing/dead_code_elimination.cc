@@ -919,6 +919,16 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
         MaybeRecordStat(stats_, MethodCompilationStat::kRemovedDeadInstruction);
       }
     }
+
+    // Same for Phis.
+    for (HBackwardInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      DCHECK(phi_it.Current()->IsPhi());
+      HPhi* phi = phi_it.Current()->AsPhi();
+      if (phi->IsDeadAndRemovable()) {
+        block->RemovePhi(phi);
+        MaybeRecordStat(stats_, MethodCompilationStat::kRemovedDeadPhi);
+      }
+    }
   }
 }
 
