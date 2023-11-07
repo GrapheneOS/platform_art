@@ -1978,7 +1978,7 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
                                   /* rwx_memory_allowed= */ !is_system_server,
                                   is_zygote,
                                   &error_msg)) {
-    LOG(WARNING) << "Could not create private region after zygote fork: " << error_msg;
+    LOG(FATAL) << "Could not create private region after zygote fork: " << error_msg;
   }
   if (private_region_.HasCodeMapping()) {
     const MemMap* exec_pages = private_region_.GetExecPages();
