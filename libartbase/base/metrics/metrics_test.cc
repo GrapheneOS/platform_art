@@ -199,15 +199,18 @@ TEST_F(MetricsTest, ArtMetricsReport) {
     }
 
     void ReportCounter(DatumId counter_type, uint64_t value) override {
-      if (counter_type == DatumId::kClassVerificationTotalTime) {
-        EXPECT_EQ(value, verification_time)
-            << "Unexpected value for counter " << DatumName(counter_type);
-        found_counter_ = true;
-      } else if (counter_type == DatumId::kTimeElapsedDelta) {
-        // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
-        EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
-      } else {
-        EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+      switch (counter_type) {
+        case DatumId::kClassVerificationTotalTime:
+          EXPECT_EQ(value, verification_time)
+              << "Unexpected value for counter " << DatumName(counter_type);
+          found_counter_ = true;
+          break;
+        case DatumId::kTimeElapsedDelta:
+          // TimeElapsedData can be greater than 0 if the test takes more than 1ms to run
+          EXPECT_GE(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
+          break;
+        default:
+          EXPECT_EQ(value, 0u) << "Unexpected value for counter " << DatumName(counter_type);
       }
     }
 
