@@ -63,7 +63,11 @@ public abstract class DexoptResult {
     public @interface DexoptResultStatus {}
 
     // Possible values of {@link #DexoptResultExtendedStatusFlags}.
-    /** Dexopt is skipped because the remaining storage space is low. */
+    /**
+     * Dexopt is skipped because the remaining storage space is low.
+     *
+     * @hide
+     */
     public static final int EXTENDED_SKIPPED_STORAGE_LOW = 1 << 0;
     /**
      * Dexopt is skipped because the dex container file has no dex code while the manifest declares
@@ -72,6 +76,8 @@ public abstract class DexoptResult {
      * Note that this flag doesn't apply to dex container files that are not declared to have code.
      * Instead, those files are not listed in {@link
      * PackageDexoptResult#getDexContainerFileDexoptResults} in the first place.
+     *
+     * @hide
      */
     public static final int EXTENDED_SKIPPED_NO_DEX_CODE = 1 << 1;
     /**
@@ -82,6 +88,8 @@ public abstract class DexoptResult {
      *
      * This is not a critical error. Dexopt may still have succeeded after ignoring the bad external
      * profiles.
+     *
+     * @hide
      */
     public static final int EXTENDED_BAD_EXTERNAL_PROFILE = 1 << 2;
 
@@ -324,6 +332,8 @@ public abstract class DexoptResult {
          * skipped. Note that they don't cover all possible reasons. At most one `EXTENDED_SKIPPED_`
          * flag will be set, even if the situation meets multiple `EXTENDED_SKIPPED_` flags. The
          * order of precedence of those flags is undefined.
+         *
+         * @hide
          */
         public abstract @DexoptResultExtendedStatusFlags int getExtendedStatusFlags();
 
@@ -339,6 +349,8 @@ public abstract class DexoptResult {
          * that caused the errors.
          *
          * @see #EXTENDED_BAD_EXTERNAL_PROFILE.
+         *
+         * @hide
          */
         public abstract @NonNull List<String> getExternalProfileErrors();
 

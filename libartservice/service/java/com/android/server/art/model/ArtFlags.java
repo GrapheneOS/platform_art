@@ -84,6 +84,8 @@ public class ArtFlags {
      * one, such as "speed-profile", it will be adjusted to "verify". This option is especially
      * useful when the compiler filter is not explicitly specified (i.e., is inferred from the
      * compilation reason).
+     *
+     * @hide
      */
     @SuppressLint("UnflaggedApi") // Flag support for mainline is not available.
     public static final int FLAG_IGNORE_PROFILE = 1 << 7;

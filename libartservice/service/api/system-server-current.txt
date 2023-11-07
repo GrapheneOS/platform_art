@@ -80,7 +80,6 @@ package com.android.server.art.model {
     field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1
     field public static final int FLAG_FOR_SECONDARY_DEX = 2; // 0x2
     field public static final int FLAG_FOR_SINGLE_SPLIT = 32; // 0x20
-    field public static final int FLAG_IGNORE_PROFILE = 128; // 0x80
     field public static final int FLAG_SHOULD_DOWNGRADE = 8; // 0x8
     field public static final int FLAG_SHOULD_INCLUDE_DEPENDENCIES = 4; // 0x4
     field public static final int FLAG_SKIP_IF_STORAGE_LOW = 64; // 0x40
@@ -143,9 +142,6 @@ package com.android.server.art.model {
     field public static final int DEXOPT_FAILED = 30; // 0x1e
     field public static final int DEXOPT_PERFORMED = 20; // 0x14
     field public static final int DEXOPT_SKIPPED = 10; // 0xa
-    field public static final int EXTENDED_BAD_EXTERNAL_PROFILE = 4; // 0x4
-    field public static final int EXTENDED_SKIPPED_NO_DEX_CODE = 2; // 0x2
-    field public static final int EXTENDED_SKIPPED_STORAGE_LOW = 1; // 0x1
   }
 
   public abstract static class DexoptResult.DexContainerFileDexoptResult {
@@ -154,8 +150,6 @@ package com.android.server.art.model {
     method public abstract long getDex2oatCpuTimeMillis();
     method public abstract long getDex2oatWallTimeMillis();
     method @NonNull public abstract String getDexContainerFile();
-    method public abstract int getExtendedStatusFlags();
-    method @NonNull public abstract java.util.List<java.lang.String> getExternalProfileErrors();
     method public abstract long getSizeBeforeBytes();
     method public abstract long getSizeBytes();
     method public abstract int getStatus();
