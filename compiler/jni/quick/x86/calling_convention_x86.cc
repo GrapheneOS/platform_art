@@ -84,28 +84,21 @@ ArrayRef<const ManagedRegister> X86JniCallingConvention::CalleeSaveScratchRegist
 
 ArrayRef<const ManagedRegister> X86JniCallingConvention::ArgumentScratchRegisters() const {
   DCHECK(!IsCriticalNative());
-  // Exclude EAX or EAX/EDX if they are used as return registers.
-  // Due to the odd ordering of argument registers, use a re-ordered array (pull EDX forward).
-  static constexpr ManagedRegister kArgumentRegisters[] = {
-      X86ManagedRegister::FromCpuRegister(EAX),
-      X86ManagedRegister::FromCpuRegister(EDX),
+  // Exclude return registers (EAX/EDX) even if unused. Using the same scratch registers helps
+  // making more JNI stubs identical for better reuse, such as deduplicating them in oat files.
+  // Due to the odd ordering of argument registers, use a separate register array.
+  static constexpr ManagedRegister kArgumentScratchRegisters[] = {
       X86ManagedRegister::FromCpuRegister(ECX),
       X86ManagedRegister::FromCpuRegister(EBX),
   };
-  static_assert(arraysize(kArgumentRegisters) == kManagedCoreArgumentRegistersCount);
-  static_assert(kManagedCoreArgumentRegisters[0].Equals(kArgumentRegisters[0]));
-  static_assert(kManagedCoreArgumentRegisters[1].Equals(kArgumentRegisters[2]));
-  static_assert(kManagedCoreArgumentRegisters[2].Equals(kArgumentRegisters[1]));
-  static_assert(kManagedCoreArgumentRegisters[3].Equals(kArgumentRegisters[3]));
-  ArrayRef<const ManagedRegister> scratch_regs(kArgumentRegisters);
-  X86ManagedRegister return_reg = ReturnRegister().AsX86();
-  auto return_reg_overlaps = [return_reg](ManagedRegister reg) {
-    return return_reg.Overlaps(reg.AsX86());
-  };
-  if (return_reg_overlaps(scratch_regs[0])) {
-    scratch_regs = scratch_regs.SubArray(/*pos=*/ return_reg_overlaps(scratch_regs[1]) ? 2u : 1u);
-  }
-  DCHECK(std::none_of(scratch_regs.begin(), scratch_regs.end(), return_reg_overlaps));
+  static_assert(kManagedCoreArgumentRegisters[1].Equals(kArgumentScratchRegisters[0]));
+  static_assert(kManagedCoreArgumentRegisters[3].Equals(kArgumentScratchRegisters[1]));
+  ArrayRef<const ManagedRegister> scratch_regs(kArgumentScratchRegisters);
+  DCHECK(std::none_of(scratch_regs.begin(),
+                      scratch_regs.end(),
+                      [return_reg = ReturnRegister().AsX86()](ManagedRegister reg) {
+                        return return_reg.Overlaps(reg.AsX86());
+                      }));
   return scratch_regs;
 }
 
