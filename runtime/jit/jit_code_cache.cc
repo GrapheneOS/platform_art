@@ -1316,6 +1316,21 @@ ProfilingInfo* JitCodeCache::GetProfilingInfo(ArtMethod* method, Thread* self) {
   return it->second;
 }
 
+void JitCodeCache::MaybeUpdateInlineCache(ArtMethod* method,
+                                          uint32_t dex_pc,
+                                          ObjPtr<mirror::Class> cls,
+                                          Thread* self) {
+  ScopedDebugDisallowReadBarriers sddrb(self);
+  MutexLock mu(self, *Locks::jit_lock_);
+  auto it = profiling_infos_.find(method);
+  if (it == profiling_infos_.end()) {
+    return;
+  }
+  ProfilingInfo* info = it->second;
+  ScopedAssertNoThreadSuspension sants("ProfilingInfo");
+  info->AddInvokeInfo(dex_pc, cls.Ptr());
+}
+
 void JitCodeCache::ResetHotnessCounter(ArtMethod* method, Thread* self) {
   ScopedDebugDisallowReadBarriers sddrb(self);
   MutexLock mu(self, *Locks::jit_lock_);
