@@ -1371,6 +1371,60 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
   GenerateDivideUnsigned(invoke, codegen_);
 }
 
+void IntrinsicLocationsBuilderRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister n = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister m = locations->InAt(1).AsFpuRegister<FRegister>();
+  FRegister a = locations->InAt(2).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FMAddD(out, n, m, a);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister n = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister m = locations->InAt(1).AsFpuRegister<FRegister>();
+  FRegister a = locations->InAt(2).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FMAddS(out, n, m, a);
+}
+
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
 UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(MARK_UNIMPLEMENTED);
 #undef MARK_UNIMPLEMENTED
