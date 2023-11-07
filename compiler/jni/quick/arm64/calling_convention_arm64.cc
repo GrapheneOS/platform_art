@@ -254,17 +254,16 @@ ArrayRef<const ManagedRegister> Arm64JniCallingConvention::CalleeSaveScratchRegi
 
 ArrayRef<const ManagedRegister> Arm64JniCallingConvention::ArgumentScratchRegisters() const {
   DCHECK(!IsCriticalNative());
-  // Exclude x0 if it's used as a return register.
-  static_assert(kXArgumentRegisters[0].Equals(Arm64ManagedRegister::FromXRegister(X0)));
   ArrayRef<const ManagedRegister> scratch_regs(kXArgumentRegisters);
-  Arm64ManagedRegister return_reg = ReturnRegister().AsArm64();
-  auto return_reg_overlaps = [return_reg](ManagedRegister reg) {
-    return return_reg.Overlaps(reg.AsArm64());
-  };
-  if (return_reg_overlaps(scratch_regs[0])) {
-    scratch_regs = scratch_regs.SubArray(/*pos=*/ 1u);
-  }
-  DCHECK(std::none_of(scratch_regs.begin(), scratch_regs.end(), return_reg_overlaps));
+  // Exclude return register (X0) even if unused. Using the same scratch registers helps
+  // making more JNI stubs identical for better reuse, such as deduplicating them in oat files.
+  static_assert(kXArgumentRegisters[0].Equals(Arm64ManagedRegister::FromXRegister(X0)));
+  scratch_regs = scratch_regs.SubArray(/*pos=*/ 1u);
+  DCHECK(std::none_of(scratch_regs.begin(),
+                      scratch_regs.end(),
+                      [return_reg = ReturnRegister().AsArm64()](ManagedRegister reg) {
+                        return return_reg.Overlaps(reg.AsArm64());
+                      }));
   return scratch_regs;
 }
 
