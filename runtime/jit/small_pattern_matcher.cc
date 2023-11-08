@@ -99,7 +99,8 @@ static void ConstructorSetFieldObjectAt([[maybe_unused]] ArtMethod* method,
 }
 
 #define SWITCH_CASE(offset, func, type) \
-  case offset: return reinterpret_cast<void*>(&func<offset, type>);
+  case offset:                          \
+    return reinterpret_cast<void*>(&func<offset, type>);  // NOLINT [bugprone-macro-parentheses]
 
 #define DO_SWITCH_OFFSET(offset, F, T) \
   switch (offset) { \
@@ -123,33 +124,32 @@ static void ConstructorSetFieldObjectAt([[maybe_unused]] ArtMethod* method,
     default: return nullptr; \
   }
 
-#define DO_SWITCH(offset, O, P, K) \
-  DCHECK_EQ(is_object, K == Primitive::kPrimNot); \
-  switch (K) { \
-    case Primitive::kPrimBoolean: \
-      DO_SWITCH_OFFSET(offset, P, uint8_t); \
-    case Primitive::kPrimInt: \
-      DO_SWITCH_OFFSET(offset, P, int32_t); \
-    case Primitive::kPrimLong: \
-      DO_SWITCH_OFFSET(offset, P, int64_t); \
-    case Primitive::kPrimNot: \
+#define DO_SWITCH(offset, O, P, K)                  \
+  DCHECK_EQ(is_object, (K) == Primitive::kPrimNot); \
+  switch (K) {                                      \
+    case Primitive::kPrimBoolean:                   \
+      DO_SWITCH_OFFSET(offset, P, uint8_t);         \
+    case Primitive::kPrimInt:                       \
+      DO_SWITCH_OFFSET(offset, P, int32_t);         \
+    case Primitive::kPrimLong:                      \
+      DO_SWITCH_OFFSET(offset, P, int64_t);         \
+    case Primitive::kPrimNot:                       \
       DO_SWITCH_OFFSET(offset, O, mirror::Object*); \
-    case Primitive::kPrimFloat: \
-      if (kRuntimeISA == InstructionSet::kArm64) { \
-        DO_SWITCH_OFFSET(offset, P, float); \
-      } else { \
-        return nullptr; \
-      } \
-    case Primitive::kPrimDouble: \
-      if (kRuntimeISA == InstructionSet::kArm64) { \
-        DO_SWITCH_OFFSET(offset, P, double); \
-      } else { \
-        return nullptr; \
-      } \
-    default: \
-      return nullptr; \
+    case Primitive::kPrimFloat:                     \
+      if (kRuntimeISA == InstructionSet::kArm64) {  \
+        DO_SWITCH_OFFSET(offset, P, float);         \
+      } else {                                      \
+        return nullptr;                             \
+      }                                             \
+    case Primitive::kPrimDouble:                    \
+      if (kRuntimeISA == InstructionSet::kArm64) {  \
+        DO_SWITCH_OFFSET(offset, P, double);        \
+      } else {                                      \
+        return nullptr;                             \
+      }                                             \
+    default:                                        \
+      return nullptr;                               \
   }
-
 
 const void* SmallPatternMatcher::TryMatch(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   CodeItemDataAccessor accessor(*method->GetDexFile(), method->GetCodeItem());
@@ -371,7 +371,7 @@ const void* SmallPatternMatcher::TryMatch(ArtMethod* method) REQUIRES_SHARED(Loc
           }
           offset = field->GetOffset().Int32Value();
           if (is_static) {
-            // We substract the start of reference fields to share more stubs.
+            // We subtract the start of reference fields to share more stubs.
             MemberOffset first_field_offset =
                 field->GetDeclaringClass()->GetFirstReferenceStaticFieldOffset(kRuntimePointerSize);
             offset = offset - first_field_offset.Int32Value();
