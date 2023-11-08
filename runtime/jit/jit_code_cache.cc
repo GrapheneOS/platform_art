@@ -1316,6 +1316,21 @@ ProfilingInfo* JitCodeCache::GetProfilingInfo(ArtMethod* method, Thread* self) {
   return it->second;
 }
 
+void JitCodeCache::MaybeUpdateInlineCache(ArtMethod* method,
+                                          uint32_t dex_pc,
+                                          ObjPtr<mirror::Class> cls,
+                                          Thread* self) {
+  ScopedDebugDisallowReadBarriers sddrb(self);
+  MutexLock mu(self, *Locks::jit_lock_);
+  auto it = profiling_infos_.find(method);
+  if (it == profiling_infos_.end()) {
+    return;
+  }
+  ProfilingInfo* info = it->second;
+  ScopedAssertNoThreadSuspension sants("ProfilingInfo");
+  info->AddInvokeInfo(dex_pc, cls.Ptr());
+}
+
 void JitCodeCache::ResetHotnessCounter(ArtMethod* method, Thread* self) {
   ScopedDebugDisallowReadBarriers sddrb(self);
   MutexLock mu(self, *Locks::jit_lock_);
@@ -1963,7 +1978,7 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
                                   /* rwx_memory_allowed= */ !is_system_server,
                                   is_zygote,
                                   &error_msg)) {
-    LOG(WARNING) << "Could not create private region after zygote fork: " << error_msg;
+    LOG(FATAL) << "Could not create private region after zygote fork: " << error_msg;
   }
   if (private_region_.HasCodeMapping()) {
     const MemMap* exec_pages = private_region_.GetExecPages();

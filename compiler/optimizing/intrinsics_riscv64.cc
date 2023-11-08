@@ -1309,7 +1309,6 @@ void IntrinsicLocationsBuilderRISCV64::VisitThreadCurrentThread(HInvoke* invoke)
 void IntrinsicCodeGeneratorRISCV64::VisitThreadCurrentThread(HInvoke* invoke) {
   Riscv64Assembler* assembler = GetAssembler();
   XRegister out = invoke->GetLocations()->Out().AsRegister<XRegister>();
-
   __ Loadwu(out, TR, Thread::PeerOffset<kRiscv64PointerSize>().Int32Value());
 }
 
@@ -1320,6 +1319,111 @@ void IntrinsicLocationsBuilderRISCV64::VisitReachabilityFence(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitReachabilityFence([[maybe_unused]] HInvoke* invoke) {}
+
+static void GenerateDivideUnsigned(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  DataType::Type type = invoke->GetType();
+  DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64);
+
+  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+  XRegister divisor = locations->InAt(1).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+
+  // Check if divisor is zero, bail to managed implementation to handle.
+  SlowPathCodeRISCV64* slow_path =
+      new (codegen->GetScopedAllocator()) IntrinsicSlowPathRISCV64(invoke);
+  codegen->AddSlowPath(slow_path);
+  __ Beqz(divisor, slow_path->GetEntryLabel());
+
+  if (type == DataType::Type::kInt32) {
+    __ Divuw(out, dividend, divisor);
+  } else {
+    __ Divu(out, dividend, divisor);
+  }
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister n = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister m = locations->InAt(1).AsFpuRegister<FRegister>();
+  FRegister a = locations->InAt(2).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FMAddD(out, n, m, a);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister n = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister m = locations->InAt(1).AsFpuRegister<FRegister>();
+  FRegister a = locations->InAt(2).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FMAddS(out, n, m, a);
+}
 
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
 UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(MARK_UNIMPLEMENTED);
