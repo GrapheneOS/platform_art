@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <optional>
 #include <sstream>
 
 #include <android-base/file.h>
@@ -115,6 +116,7 @@ void SignalCatcher::Output(const std::string& s) {
 }
 
 void SignalCatcher::HandleSigQuit() {
+  sigquit_nanotime_ = NanoTime();
   Runtime* runtime = Runtime::Current();
   std::ostringstream os;
   os << "\n"
@@ -140,6 +142,7 @@ void SignalCatcher::HandleSigQuit() {
   }
   os << "----- end " << getpid() << " -----\n";
   Output(os.str());
+  sigquit_nanotime_ = std::nullopt;
 }
 
 void SignalCatcher::HandleSigUsr1() {
