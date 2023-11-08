@@ -122,7 +122,25 @@ void InitEntryPoints(JniEntryPoints* jpoints,
   qpoints->SetShrLong(nullptr);
   qpoints->SetUshrLong(nullptr);
 
-  // TODO(riscv64): More math
+  // More math.
+  qpoints->SetCos(cos);
+  qpoints->SetSin(sin);
+  qpoints->SetAcos(acos);
+  qpoints->SetAsin(asin);
+  qpoints->SetAtan(atan);
+  qpoints->SetAtan2(atan2);
+  qpoints->SetPow(pow);
+  qpoints->SetCbrt(cbrt);
+  qpoints->SetCosh(cosh);
+  qpoints->SetExp(exp);
+  qpoints->SetExpm1(expm1);
+  qpoints->SetHypot(hypot);
+  qpoints->SetLog(log);
+  qpoints->SetLog10(log10);
+  qpoints->SetNextAfter(nextafter);
+  qpoints->SetSinh(sinh);
+  qpoints->SetTan(tan);
+  qpoints->SetTanh(tanh);
 
   // Intrinsics
   qpoints->SetIndexOf(art_quick_indexof);
