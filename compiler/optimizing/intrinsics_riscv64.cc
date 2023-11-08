@@ -55,6 +55,34 @@ static void CreateIntToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   locations->SetOut(Location::RequiresFpuRegister());
 }
 
+static void CreateFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 1U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
+}
+
+static void CreateFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 2U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+
+  locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+  locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+  locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
+}
+
 void IntrinsicLocationsBuilderRISCV64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
   CreateFPToIntLocations(allocator_, invoke);
 }
@@ -1423,6 +1451,151 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
   FRegister out = locations->Out().AsFpuRegister<FRegister>();
 
   __ FMAddS(out, n, m, a);
+}
+
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathCos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathCos(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickCos, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathSin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathSin(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickSin, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathAcos(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathAcos(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickAcos, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathAsin(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathAsin(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickAsin, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathAtan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathAtan(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickAtan, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathAtan2(HInvoke* invoke) {
+  CreateFPFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathAtan2(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickAtan2, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathPow(HInvoke* invoke) {
+  CreateFPFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathPow(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickPow, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathCbrt(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathCbrt(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickCbrt, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathCosh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathCosh(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickCosh, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathExp(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathExp(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickExp, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathExpm1(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathExpm1(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickExpm1, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathHypot(HInvoke* invoke) {
+  CreateFPFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathHypot(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickHypot, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathLog(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathLog(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickLog, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathLog10(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathLog10(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickLog10, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathNextAfter(HInvoke* invoke) {
+  CreateFPFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathNextAfter(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickNextAfter, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathSinh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathSinh(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickSinh, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathTan(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathTan(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickTan, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathTanh(HInvoke* invoke) {
+  CreateFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathTanh(HInvoke* invoke) {
+  codegen_->InvokeRuntime(kQuickTanh, invoke, invoke->GetDexPc());
 }
 
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
