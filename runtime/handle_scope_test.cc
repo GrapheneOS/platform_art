@@ -97,15 +97,16 @@ class CollectVisitor {
 TEST_F(HandleScopeTest, VariableSized) {
   ScopedObjectAccess soa(Thread::Current());
   VariableSizedHandleScope hs(soa.Self());
+  std::vector<Handle<mirror::Object>> handles;
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> c =
       hs.NewHandle(class_linker->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
+  handles.push_back(c);
   // Test nested scopes.
   StackHandleScope<1> inner(soa.Self());
   inner.NewHandle(c->AllocObject(soa.Self()));
   // Add a bunch of handles and make sure callbacks work.
   static const size_t kNumHandles = 100;
-  std::vector<Handle<mirror::Object>> handles;
   for (size_t i = 0; i < kNumHandles; ++i) {
     BaseHandleScope* base = &hs;
     ObjPtr<mirror::Object> o = c->AllocObject(soa.Self());
@@ -116,7 +117,8 @@ TEST_F(HandleScopeTest, VariableSized) {
     EXPECT_EQ(hs.Capacity(), base->Capacity());
   }
   // Add one null handle.
-  hs.NewHandle<mirror::Object>(nullptr);
+  Handle<mirror::Object> null_handle = hs.NewHandle<mirror::Object>(nullptr);
+  handles.push_back(null_handle);
   CollectVisitor visitor;
   BaseHandleScope* base = &hs;
   base->VisitRoots(visitor);
@@ -124,6 +126,10 @@ TEST_F(HandleScopeTest, VariableSized) {
   EXPECT_EQ(visitor.total_visited, base->Size());
   for (StackReference<mirror::Object>* ref : visitor.visited) {
     EXPECT_TRUE(base->Contains(ref));
+  }
+  // Test `VariableSizedHandleScope::GetHandle<.>()`.
+  for (size_t i = 0, size = handles.size(); i != size; ++i) {
+    EXPECT_EQ(handles[i].GetReference(), hs.GetHandle<mirror::Object>(i).GetReference());
   }
 }
 

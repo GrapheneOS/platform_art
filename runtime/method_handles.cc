@@ -197,11 +197,10 @@ bool IsReturnTypeConvertible(ObjPtr<mirror::Class> from, ObjPtr<mirror::Class> t
 }
 
 bool ConvertJValueCommon(
-    Handle<mirror::MethodType> callsite_type,
-    Handle<mirror::MethodType> callee_type,
+    const ThrowWrongMethodTypeFunction& throw_wmt,
     ObjPtr<mirror::Class> from,
     ObjPtr<mirror::Class> to,
-    JValue* value) {
+    /*inout*/ JValue* value) {
   // The reader maybe concerned about the safety of the heap object
   // that may be in |value|. There is only one case where allocation
   // is obviously needed and that's for boxing. However, in the case
@@ -226,7 +225,7 @@ bool ConvertJValueCommon(
   if (IsPrimitiveType(from_type) && IsPrimitiveType(to_type)) {
     // The source and target types are both primitives.
     if (UNLIKELY(!ConvertPrimitiveValueNoThrow(from_type, to_type, src_value, value))) {
-      ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+      throw_wmt();
       return false;
     }
     return true;
@@ -258,18 +257,18 @@ bool ConvertJValueCommon(
       if (LIKELY(boxed_from_class->IsSubClass(to))) {
         type = from_type;
       } else {
-        ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+        throw_wmt();
         return false;
       }
     }
 
     if (UNLIKELY(from_type != type)) {
-      ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+      throw_wmt();
       return false;
     }
 
     if (UNLIKELY(!ConvertPrimitiveValueNoThrow(from_type, type, src_value, value))) {
-      ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+      throw_wmt();
       return false;
     }
 
@@ -300,7 +299,7 @@ bool ConvertJValueCommon(
     Primitive::Type unboxed_type;
     JValue unboxed_value;
     if (UNLIKELY(!GetUnboxedTypeAndValue(from_obj, &unboxed_type, &unboxed_value))) {
-      ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+      throw_wmt();
       return false;
     }
 
@@ -311,7 +310,7 @@ bool ConvertJValueCommon(
         ThrowClassCastException(from, to);
       } else {
         // CallSite is incompatible, e.g. Integer for a short.
-        ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
+        throw_wmt();
       }
       return false;
     }
