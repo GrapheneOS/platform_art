@@ -395,25 +395,26 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   template <typename PrintBcond>
   std::string EmitBcondForAllConditions(Riscv64Label* label,
                                         const std::string& target,
-                                        PrintBcond&& print_bcond) {
+                                        PrintBcond&& print_bcond,
+                                        bool is_bare) {
     XRegister rs = A0;
-    __ Beqz(rs, label);
-    __ Bnez(rs, label);
-    __ Blez(rs, label);
-    __ Bgez(rs, label);
-    __ Bltz(rs, label);
-    __ Bgtz(rs, label);
+    __ Beqz(rs, label, is_bare);
+    __ Bnez(rs, label, is_bare);
+    __ Blez(rs, label, is_bare);
+    __ Bgez(rs, label, is_bare);
+    __ Bltz(rs, label, is_bare);
+    __ Bgtz(rs, label, is_bare);
     XRegister rt = A1;
-    __ Beq(rs, rt, label);
-    __ Bne(rs, rt, label);
-    __ Ble(rs, rt, label);
-    __ Bge(rs, rt, label);
-    __ Blt(rs, rt, label);
-    __ Bgt(rs, rt, label);
-    __ Bleu(rs, rt, label);
-    __ Bgeu(rs, rt, label);
-    __ Bltu(rs, rt, label);
-    __ Bgtu(rs, rt, label);
+    __ Beq(rs, rt, label, is_bare);
+    __ Bne(rs, rt, label, is_bare);
+    __ Ble(rs, rt, label, is_bare);
+    __ Bge(rs, rt, label, is_bare);
+    __ Blt(rs, rt, label, is_bare);
+    __ Bgt(rs, rt, label, is_bare);
+    __ Bleu(rs, rt, label, is_bare);
+    __ Bgeu(rs, rt, label, is_bare);
+    __ Bltu(rs, rt, label, is_bare);
+    __ Bgtu(rs, rt, label, is_bare);
 
     return
         print_bcond("eq", "ne", "z a0", target) +
@@ -440,10 +441,11 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestBcondForward(const std::string& test_name,
                         size_t gap_size,
                         const std::string& target_label,
-                        PrintBcond&& print_bcond) {
+                        PrintBcond&& print_bcond,
+                        bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
-    expected += EmitBcondForAllConditions(&label, target_label + "f", print_bcond);
+    expected += EmitBcondForAllConditions(&label, target_label + "f", print_bcond, is_bare);
     expected += EmitNops(gap_size);
     __ Bind(&label);
     expected += target_label + ":\n";
@@ -456,13 +458,14 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestBcondBackward(const std::string& test_name,
                          size_t gap_size,
                          const std::string& target_label,
-                         PrintBcond&& print_bcond) {
+                         PrintBcond&& print_bcond,
+                         bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
     __ Bind(&label);
     expected += target_label + ":\n";
     expected += EmitNops(gap_size);
-    expected += EmitBcondForAllConditions(&label, target_label + "b", print_bcond);
+    expected += EmitBcondForAllConditions(&label, target_label + "b", print_bcond, is_bare);
     DriverStr(expected, test_name);
   }
 
@@ -488,10 +491,11 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestBeqA0A1Forward(const std::string& test_name,
                           size_t nops_size,
                           const std::string& target_label,
-                          PrintBcond&& print_bcond) {
+                          PrintBcond&& print_bcond,
+                          bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
-    __ Beq(A0, A1, &label);
+    __ Beq(A0, A1, &label, is_bare);
     expected += print_bcond("eq", "ne", " a0, a1", target_label + "f");
     expected += EmitNops(nops_size);
     __ Bind(&label);
@@ -503,13 +507,14 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestBeqA0A1Backward(const std::string& test_name,
                            size_t nops_size,
                            const std::string& target_label,
-                           PrintBcond&& print_bcond) {
+                           PrintBcond&& print_bcond,
+                           bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
     __ Bind(&label);
     expected += target_label + ":\n";
     expected += EmitNops(nops_size);
-    __ Beq(A0, A1, &label);
+    __ Beq(A0, A1, &label, is_bare);
     expected += print_bcond("eq", "ne", " a0, a1", target_label + "b");
     DriverStr(expected, test_name);
   }
@@ -562,11 +567,12 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestJalRdForward(const std::string& test_name,
                         size_t gap_size,
                         const std::string& label_name,
-                        PrintJalRd&& print_jalrd) {
+                        PrintJalRd&& print_jalrd,
+                        bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
     for (XRegister reg : GetRegisters()) {
-      __ Jal(reg, &label);
+      __ Jal(reg, &label, is_bare);
       expected += print_jalrd(reg, label_name + "f");
     }
     expected += EmitNops(gap_size);
@@ -579,21 +585,22 @@ class AssemblerRISCV64Test : public AssemblerTest<Riscv64Assembler,
   void TestJalRdBackward(const std::string& test_name,
                          size_t gap_size,
                          const std::string& label_name,
-                         PrintJalRd&& print_jalrd) {
+                         PrintJalRd&& print_jalrd,
+                         bool is_bare = false) {
     std::string expected;
     Riscv64Label label;
     __ Bind(&label);
     expected += label_name + ":\n";
     expected += EmitNops(gap_size);
     for (XRegister reg : GetRegisters()) {
-      __ Jal(reg, &label);
+      __ Jal(reg, &label, is_bare);
       expected += print_jalrd(reg, label_name + "b");
     }
     DriverStr(expected, test_name);
   }
 
-  auto GetEmitJ() {
-    return [=](Riscv64Label* label) { __ J(label); };
+  auto GetEmitJ(bool is_bare = false) {
+    return [=](Riscv64Label* label) { __ J(label, is_bare); };
   }
 
   auto GetEmitJal() {
@@ -2516,8 +2523,16 @@ TEST_F(AssemblerRISCV64Test, BcondForward3KiB) {
   TestBcondForward("BcondForward3KiB", 3 * KB, "1", GetPrintBcond());
 }
 
+TEST_F(AssemblerRISCV64Test, BcondForward3KiBBare) {
+  TestBcondForward("BcondForward3KiB", 3 * KB, "1", GetPrintBcond(), /*is_bare=*/ true);
+}
+
 TEST_F(AssemblerRISCV64Test, BcondBackward3KiB) {
   TestBcondBackward("BcondBackward3KiB", 3 * KB, "1", GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BcondBackward3KiBBare) {
+  TestBcondBackward("BcondBackward3KiB", 3 * KB, "1", GetPrintBcond(), /*is_bare=*/ true);
 }
 
 TEST_F(AssemblerRISCV64Test, BcondForward5KiB) {
@@ -2543,11 +2558,27 @@ TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13Forward) {
                      GetPrintBcond());
 }
 
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13ForwardBare) {
+  TestBeqA0A1Forward("BeqA0A1MaxOffset13ForwardBare",
+                     MaxOffset13ForwardDistance() - /*BEQ*/ 4u,
+                     "1",
+                     GetPrintBcond(),
+                      /*is_bare=*/ true);
+}
+
 TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13Backward) {
   TestBeqA0A1Backward("BeqA0A1MaxOffset13Forward",
                       MaxOffset13BackwardDistance(),
                       "1",
                       GetPrintBcond());
+}
+
+TEST_F(AssemblerRISCV64Test, BeqA0A1MaxOffset13BackwardBare) {
+  TestBeqA0A1Backward("BeqA0A1MaxOffset13ForwardBare",
+                      MaxOffset13BackwardDistance(),
+                      "1",
+                      GetPrintBcond(),
+                      /*is_bare=*/ true);
 }
 
 TEST_F(AssemblerRISCV64Test, BeqA0A1OverMaxOffset13Forward) {
@@ -2637,8 +2668,16 @@ TEST_F(AssemblerRISCV64Test, JalRdForward3KiB) {
   TestJalRdForward("JalRdForward3KiB", 3 * KB, "1", GetPrintJalRd());
 }
 
+TEST_F(AssemblerRISCV64Test, JalRdForward3KiBBare) {
+  TestJalRdForward("JalRdForward3KiB", 3 * KB, "1", GetPrintJalRd(), /*is_bare=*/ true);
+}
+
 TEST_F(AssemblerRISCV64Test, JalRdBackward3KiB) {
   TestJalRdBackward("JalRdBackward3KiB", 3 * KB, "1", GetPrintJalRd());
+}
+
+TEST_F(AssemblerRISCV64Test, JalRdBackward3KiBBare) {
+  TestJalRdBackward("JalRdBackward3KiB", 3 * KB, "1", GetPrintJalRd(), /*is_bare=*/ true);
 }
 
 TEST_F(AssemblerRISCV64Test, JalRdForward2MiB) {
@@ -2653,8 +2692,16 @@ TEST_F(AssemblerRISCV64Test, JForward3KiB) {
   TestBuncondForward("JForward3KiB", 3 * KB, "1", GetEmitJ(), GetPrintJ());
 }
 
+TEST_F(AssemblerRISCV64Test, JForward3KiBBare) {
+  TestBuncondForward("JForward3KiB", 3 * KB, "1", GetEmitJ(/*is_bare=*/ true), GetPrintJ());
+}
+
 TEST_F(AssemblerRISCV64Test, JBackward3KiB) {
   TestBuncondBackward("JBackward3KiB", 3 * KB, "1", GetEmitJ(), GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JBackward3KiBBare) {
+  TestBuncondBackward("JBackward3KiB", 3 * KB, "1", GetEmitJ(/*is_bare=*/ true), GetPrintJ());
 }
 
 TEST_F(AssemblerRISCV64Test, JForward2MiB) {
@@ -2673,11 +2720,27 @@ TEST_F(AssemblerRISCV64Test, JMaxOffset21Forward) {
                      GetPrintJ());
 }
 
+TEST_F(AssemblerRISCV64Test, JMaxOffset21ForwardBare) {
+  TestBuncondForward("JMaxOffset21Forward",
+                     MaxOffset21ForwardDistance() - /*J*/ 4u,
+                     "1",
+                     GetEmitJ(/*is_bare=*/ true),
+                     GetPrintJ());
+}
+
 TEST_F(AssemblerRISCV64Test, JMaxOffset21Backward) {
   TestBuncondBackward("JMaxOffset21Backward",
                       MaxOffset21BackwardDistance(),
                       "1",
                       GetEmitJ(),
+                      GetPrintJ());
+}
+
+TEST_F(AssemblerRISCV64Test, JMaxOffset21BackwardBare) {
+  TestBuncondBackward("JMaxOffset21Backward",
+                      MaxOffset21BackwardDistance(),
+                      "1",
+                      GetEmitJ(/*is_bare=*/ true),
                       GetPrintJ());
 }
 
