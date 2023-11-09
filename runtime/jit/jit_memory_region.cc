@@ -39,7 +39,7 @@ namespace jit {
 
 // Data cache will be half of the capacity
 // Code cache will be the other half of the capacity.
-// TODO: Make this variable?
+// TODO: Make this adjustable. Currently must be 2. JitCodeCache relies on that.
 static constexpr size_t kCodeAndDataCapacityDivider = 2;
 
 bool JitMemoryRegion::Initialize(size_t initial_capacity,
