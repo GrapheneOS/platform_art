@@ -141,8 +141,8 @@ bool DexFileLoader::IsVersionAndMagicValid(const uint8_t* magic) {
   return false;
 }
 
-bool DexFileLoader::IsMultiDexLocation(const char* location) {
-  return strrchr(location, kMultiDexSeparator) != nullptr;
+bool DexFileLoader::IsMultiDexLocation(std::string_view location) {
+  return location.find(kMultiDexSeparator) != std::string_view::npos;
 }
 
 std::string DexFileLoader::GetMultiDexClassesDexName(size_t index) {
