@@ -256,3 +256,13 @@ android_test {
     test_suites: ["general-tests"],
     test_config: "ArtServiceTests.xml",
 }
+
+filegroup {
+    name: "libartservice_protos",
+    srcs: [
+        "proto/**/*.proto",
+    ],
+    visibility: [
+        "//cts/hostsidetests/compilation",
+    ],
+}
