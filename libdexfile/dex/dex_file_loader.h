@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/os.h"
@@ -61,7 +62,7 @@ class DexFileLoader {
 
   // Check whether a location denotes a multidex dex file. This is a very simple check: returns
   // whether the string contains the separator character.
-  static bool IsMultiDexLocation(const char* location);
+  static bool IsMultiDexLocation(std::string_view location);
 
   // Return the name of the index-th classes.dex in a multidex zip file. This is classes.dex for
   // index == 0, and classes{index + 1}.dex else.
