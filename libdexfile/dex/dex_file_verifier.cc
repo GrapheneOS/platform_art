@@ -127,7 +127,7 @@ class DexFileVerifier {
  public:
   DexFileVerifier(const DexFile* dex_file, const char* location, bool verify_checksum)
       : dex_file_(dex_file),
-        begin_(dex_file->Begin()),
+        offset_base_address_(dex_file->Begin()),
         size_(0),  // Initialized after we verify the header.
         location_(location),
         verify_checksum_(verify_checksum),
@@ -151,21 +151,25 @@ class DexFileVerifier {
   template <class T = uint8_t>
   ALWAYS_INLINE const T* OffsetToPtr(size_t offset) {
     DCHECK_LE(offset, size_);
-    return reinterpret_cast<const T*>(begin_ + offset);
+    return reinterpret_cast<const T*>(offset_base_address_ + offset);
   }
 
   ALWAYS_INLINE size_t PtrToOffset(const void* ptr) {
-    DCHECK_GE(ptr, begin_);
-    DCHECK_LE(ptr, begin_ + size_);
-    return reinterpret_cast<const uint8_t*>(ptr) - begin_;
+    DCHECK_GE(ptr, dex_file_->Begin());
+    DCHECK_LE(ptr, EndOfFile());
+    return reinterpret_cast<const uint8_t*>(ptr) - offset_base_address_;
   }
 
   // Converts the pointer `ptr` into `offset`.
   // Returns `true` if the offset is within the bounds of the container.
   // TODO: Try to remove this overload. Avoid creating invalid pointers.
   ALWAYS_INLINE WARN_UNUSED bool PtrToOffset(const void* ptr, /*out*/ size_t* offset) {
-    *offset = reinterpret_cast<const uint8_t*>(ptr) - begin_;
+    *offset = reinterpret_cast<const uint8_t*>(ptr) - offset_base_address_;
     return *offset <= size_;
+  }
+
+  ALWAYS_INLINE const uint8_t* EndOfFile() {
+    return OffsetToPtr(size_);
   }
 
   // Helper functions to retrieve names from the dex file. We do not want to rely on DexFile
@@ -380,8 +384,9 @@ class DexFileVerifier {
   bool VerifyTypeDescriptor(dex::TypeIndex idx, const char* error_msg, ExtraCheckFn extra_check);
 
   const DexFile* const dex_file_;
-  const uint8_t* const begin_;
+  const uint8_t* const offset_base_address_;
   size_t size_;
+  ArrayRef<const uint8_t> data_;  // The "data" section of the dex file.
   const char* const location_;
   const bool verify_checksum_;
   const DexFile::Header* const header_;
@@ -638,7 +643,7 @@ bool DexFileVerifier::CheckHeader() {
   }
 
   // Check that all offsets are inside the file.
-  bool result =
+  bool ok =
       CheckValidOffsetAndSize(header_->link_off_,
                               header_->link_size_,
                               /* alignment= */ 0,
@@ -679,7 +684,11 @@ bool DexFileVerifier::CheckHeader() {
                               // is supposed to be a multiple of 4.
                               /* alignment= */ 0,
                               "data");
-  return result;
+
+  if (ok) {
+    data_ = ArrayRef<const uint8_t>(OffsetToPtr(header_->data_off_), header_->data_size_);
+  }
+  return ok;
 }
 
 bool DexFileVerifier::CheckMap() {
@@ -695,7 +704,7 @@ bool DexFileVerifier::CheckMap() {
   uint32_t last_offset = 0;
   uint32_t last_type = 0;
   uint32_t data_item_count = 0;
-  uint32_t data_items_left = header_->data_size_;
+  uint32_t data_items_left = data_.size();
   uint32_t used_bits = 0;
 
   // Check the validity of the size of the map list.
@@ -794,14 +803,14 @@ bool DexFileVerifier::CheckMap() {
 
 #define DECODE_UNSIGNED_CHECKED_FROM(ptr, var)                        \
   uint32_t var;                                                       \
-  if (!DecodeUnsignedLeb128Checked(&(ptr), begin_ + size_, &(var))) { \
+  if (!DecodeUnsignedLeb128Checked(&(ptr), EndOfFile(), &(var))) {    \
     ErrorStringPrintf("Read out of bounds");                          \
     return false;                                                     \
   }
 
 #define DECODE_SIGNED_CHECKED_FROM(ptr, var)                        \
   int32_t var;                                                      \
-  if (!DecodeSignedLeb128Checked(&(ptr), begin_ + size_, &(var))) { \
+  if (!DecodeSignedLeb128Checked(&(ptr), EndOfFile(), &(var))) {    \
     ErrorStringPrintf("Read out of bounds");                        \
     return false;                                                   \
   }
@@ -1417,13 +1426,12 @@ bool DexFileVerifier::CheckIntraClassDataItemFields(size_t count) {
 
   // We cannot use ClassAccessor::Field yet as it could read beyond the end of the data section.
   const uint8_t* ptr = ptr_;
-  const uint8_t* data_end = OffsetToPtr(header_->data_off_ + header_->data_size_);
 
   uint32_t prev_index = 0;
   for (size_t i = 0; i != count; ++i) {
     uint32_t field_idx_diff, access_flags;
-    if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &field_idx_diff)) ||
-        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &access_flags))) {
+    if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &field_idx_diff)) ||
+        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &access_flags))) {
       ErrorStringPrintf("encoded_field read out of bounds");
       return false;
     }
@@ -1457,7 +1465,6 @@ bool DexFileVerifier::CheckIntraClassDataItemMethods(size_t num_methods,
 
   // We cannot use ClassAccessor::Method yet as it could read beyond the end of the data section.
   const uint8_t* ptr = ptr_;
-  const uint8_t* data_end = OffsetToPtr(header_->data_off_ + header_->data_size_);
 
   // Load the first direct method for the check below.
   size_t remaining_direct_methods = num_direct_methods;
@@ -1469,9 +1476,9 @@ bool DexFileVerifier::CheckIntraClassDataItemMethods(size_t num_methods,
   uint32_t prev_index = 0;
   for (size_t i = 0; i != num_methods; ++i) {
     uint32_t method_idx_diff, access_flags, code_off;
-    if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &method_idx_diff)) ||
-        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &access_flags)) ||
-        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &code_off))) {
+    if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &method_idx_diff)) ||
+        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &access_flags)) ||
+        UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &code_off))) {
       ErrorStringPrintf("encoded_method read out of bounds");
       return false;
     }
@@ -1517,13 +1524,11 @@ bool DexFileVerifier::CheckIntraClassDataItemMethods(size_t num_methods,
 bool DexFileVerifier::CheckIntraClassDataItem() {
   // We cannot use ClassAccessor yet as it could read beyond the end of the data section.
   const uint8_t* ptr = ptr_;
-  const uint8_t* data_end = OffsetToPtr(header_->data_off_ + header_->data_size_);
-
   uint32_t static_fields_size, instance_fields_size, direct_methods_size, virtual_methods_size;
-  if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &static_fields_size)) ||
-      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &instance_fields_size)) ||
-      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &direct_methods_size)) ||
-      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_end, &virtual_methods_size))) {
+  if (UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &static_fields_size)) ||
+      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &instance_fields_size)) ||
+      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &direct_methods_size)) ||
+      UNLIKELY(!DecodeUnsignedLeb128Checked(&ptr, data_.end(), &virtual_methods_size))) {
     ErrorStringPrintf("class_data_item read out of bounds");
     return false;
   }
@@ -1668,7 +1673,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
 
 bool DexFileVerifier::CheckIntraStringDataItem() {
   DECODE_UNSIGNED_CHECKED_FROM(ptr_, size);
-  const uint8_t* file_end = begin_ + size_;
+  const uint8_t* file_end = EndOfFile();
 
   for (uint32_t i = 0; i < size; i++) {
     CHECK_LT(i, size);  // b/15014252 Prevents hitting the impossible case below
@@ -1771,7 +1776,7 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
   }
 
   while (true) {
-    if (UNLIKELY(ptr_ >= begin_ + size_)) {
+    if (UNLIKELY(ptr_ >= EndOfFile())) {
       // Went past the end.
       return false;
     }
@@ -2226,8 +2231,8 @@ bool DexFileVerifier::CheckIntraIdSection(size_t offset, uint32_t count) {
 
 template <DexFile::MapItemType kType>
 bool DexFileVerifier::CheckIntraDataSection(size_t offset, uint32_t count) {
-  size_t data_start = header_->data_off_;
-  size_t data_end = data_start + header_->data_size_;
+  size_t data_start = PtrToOffset(data_.begin());
+  size_t data_end = PtrToOffset(data_.end());
 
   // Check the validity of the offset of the section.
   if (UNLIKELY((offset < data_start) || (offset > data_end))) {
@@ -2257,7 +2262,7 @@ bool DexFileVerifier::CheckIntraSection() {
   const dex::MapList* map = OffsetToPtr<dex::MapList>(header_->map_off_);
   const dex::MapItem* item = map->list_;
   uint32_t count = map->size_;
-  ptr_ = begin_;
+  ptr_ = dex_file_->Begin();
 
   // Preallocate offset map to avoid some allocations. We can only guess from the list items,
   // not derived things.
