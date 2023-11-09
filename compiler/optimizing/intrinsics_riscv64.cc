@@ -83,6 +83,13 @@ static void CreateFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) 
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 }
 
+static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister());
+}
+
 void IntrinsicLocationsBuilderRISCV64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
   CreateFPToIntLocations(allocator_, invoke);
 }
@@ -2292,6 +2299,74 @@ void IntrinsicLocationsBuilderRISCV64::VisitMathTanh(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathTanh(HInvoke* invoke) {
   codegen_->InvokeRuntime(kQuickTanh, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathSqrt(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathSqrt(HInvoke* invoke) {
+  DCHECK_EQ(invoke->InputAt(0)->GetType(), DataType::Type::kFloat64);
+  DCHECK_EQ(invoke->GetType(), DataType::Type::kFloat64);
+
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FSqrtD(out, in);
+}
+
+static void GenDoubleRound(Riscv64Assembler* assembler, HInvoke* invoke, FPRoundingMode mode) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  ScratchRegisterScope srs(assembler);
+  XRegister tmp = srs.AllocateXRegister();
+  FRegister ftmp = srs.AllocateFRegister();
+  Riscv64Label done;
+
+  // Load 2^52
+  __ LoadConst64(tmp, 0x4330000000000000L);
+  __ FMvDX(ftmp, tmp);
+  __ FAbsD(out, in);
+  __ FLtD(tmp, out, ftmp);
+
+  // Set output as the input if input greater than the max
+  __ FMvD(out, in);
+  __ Beqz(tmp, &done);
+
+  // Convert with rounding mode
+  __ FCvtLD(tmp, in, mode);
+  __ FCvtDL(ftmp, tmp, mode);
+
+  // Set the signed bit
+  __ FSgnjD(out, ftmp, in);
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathFloor(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFloor(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRDN);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathCeil(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathCeil(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRUP);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathRint(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathRint(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRNE);
 }
 
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
