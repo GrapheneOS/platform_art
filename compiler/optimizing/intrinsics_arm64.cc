@@ -751,9 +751,9 @@ static bool UnsafeGetIntrinsicOnCallList(Intrinsics intrinsic) {
   return false;
 }
 
-static void CreateIntIntIntToIntLocations(ArenaAllocator* allocator,
-                                          HInvoke* invoke,
-                                          CodeGeneratorARM64* codegen) {
+static void CreateUnsafeGetLocations(ArenaAllocator* allocator,
+                                     HInvoke* invoke,
+                                     CodeGeneratorARM64* codegen) {
   bool can_call =
       codegen->EmitReadBarrier() && UnsafeGetIntrinsicOnCallList(invoke->GetIntrinsic());
   LocationSummary* locations =
@@ -795,31 +795,31 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeGetObjectVolatile(HInvoke* invok
 }
 
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGet(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetAcquire(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetLong(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetLongAcquire(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetObject(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetObjectAcquire(HInvoke* invoke) {
-  CreateIntIntIntToIntLocations(allocator_, invoke, codegen_);
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeGet(HInvoke* invoke) {
@@ -869,7 +869,7 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetObjectAcquire(HInvoke* invoke
   GenUnsafeGet(invoke, DataType::Type::kReference, /*is_volatile=*/ true, codegen_);
 }
 
-static void CreateIntIntIntIntToVoid(ArenaAllocator* allocator, HInvoke* invoke) {
+static void CreateUnsafePutLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
@@ -907,40 +907,40 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafePutLongVolatile(HInvoke* invoke)
 }
 
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePut(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutRelease(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutObject(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutObjectOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutObjectVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutObjectRelease(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLong(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLongOrdered(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLongVolatile(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
-  CreateIntIntIntIntToVoid(allocator_, invoke);
+  CreateUnsafePutLocations(allocator_, invoke);
 }
 
 static void GenUnsafePut(HInvoke* invoke,
@@ -2276,7 +2276,7 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invo
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 }
 
-static void CreateFPFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+static void CreateFPFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
@@ -4309,7 +4309,7 @@ static void GenerateMathFma(HInvoke* invoke, CodeGeneratorARM64* codegen) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathFmaDouble(HInvoke* invoke) {
-  CreateFPFPFPToFPCallLocations(allocator_, invoke);
+  CreateFPFPFPToFPLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathFmaDouble(HInvoke* invoke) {
@@ -4317,7 +4317,7 @@ void IntrinsicCodeGeneratorARM64::VisitMathFmaDouble(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathFmaFloat(HInvoke* invoke) {
-  CreateFPFPFPToFPCallLocations(allocator_, invoke);
+  CreateFPFPFPToFPLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathFmaFloat(HInvoke* invoke) {
