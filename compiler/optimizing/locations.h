@@ -79,7 +79,7 @@ class Location : public ValueObject {
     kUnallocated = 11,
   };
 
-  Location() : ValueObject(), value_(kInvalid) {
+  constexpr Location() : ValueObject(), value_(kInvalid) {
     // Verify that non-constant location kinds do not interfere with kConstant.
     static_assert((kInvalid & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kUnallocated & kLocationConstantMask) != kConstant, "TagError");
@@ -95,7 +95,7 @@ class Location : public ValueObject {
     DCHECK(!IsValid());
   }
 
-  Location(const Location& other) = default;
+  constexpr Location(const Location& other) = default;
 
   Location& operator=(const Location& other) = default;
 
@@ -126,24 +126,24 @@ class Location : public ValueObject {
   }
 
   // Empty location. Used if there the location should be ignored.
-  static Location NoLocation() {
+  static constexpr Location NoLocation() {
     return Location();
   }
 
   // Register locations.
-  static Location RegisterLocation(int reg) {
+  static constexpr Location RegisterLocation(int reg) {
     return Location(kRegister, reg);
   }
 
-  static Location FpuRegisterLocation(int reg) {
+  static constexpr Location FpuRegisterLocation(int reg) {
     return Location(kFpuRegister, reg);
   }
 
-  static Location RegisterPairLocation(int low, int high) {
+  static constexpr Location RegisterPairLocation(int low, int high) {
     return Location(kRegisterPair, low << 16 | high);
   }
 
-  static Location FpuRegisterPairLocation(int low, int high) {
+  static constexpr Location FpuRegisterPairLocation(int low, int high) {
     return Location(kFpuRegisterPair, low << 16 | high);
   }
 
@@ -423,7 +423,7 @@ class Location : public ValueObject {
 
   explicit Location(uintptr_t value) : value_(value) {}
 
-  Location(Kind kind, uintptr_t payload)
+  constexpr Location(Kind kind, uintptr_t payload)
       : value_(KindField::Encode(kind) | PayloadField::Encode(payload)) {}
 
   uintptr_t GetPayload() const {
