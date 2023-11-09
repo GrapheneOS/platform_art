@@ -692,7 +692,7 @@ bool OatFileBase::Setup(int zip_fd,
     // Location encoded in the oat file. We will use this for multidex naming.
     std::string_view oat_dex_file_location(dex_file_location_data, dex_file_location_size);
     std::string dex_file_location(oat_dex_file_location);
-    bool is_multidex = DexFileLoader::IsMultiDexLocation(dex_file_location.c_str());
+    bool is_multidex = DexFileLoader::IsMultiDexLocation(dex_file_location);
     // Check that `is_multidex` does not clash with other indicators. The first dex location
     // must be primary location and, if we're opening external dex files, the location must
     // be multi-dex if and only if we already have a dex file opened for it.

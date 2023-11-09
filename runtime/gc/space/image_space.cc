@@ -3470,7 +3470,7 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
     File& dex_file = dex_file_index < dex_files.size() ? dex_files[dex_file_index] : no_file;
     dex_file_index++;
 
-    if (DexFileLoader::IsMultiDexLocation(oat_dex_files[i]->GetDexFileLocation().c_str())) {
+    if (DexFileLoader::IsMultiDexLocation(oat_dex_files[i]->GetDexFileLocation())) {
       return false;  // Expected primary dex file.
     }
     uint32_t oat_checksum = DexFileLoader::GetMultiDexChecksum(oat_dex_files, &i);
@@ -3546,7 +3546,7 @@ std::string ImageSpace::GetBootClassPathChecksums(
   ArrayRef<const DexFile* const> boot_class_path_tail =
       ArrayRef<const DexFile* const>(boot_class_path).SubArray(bcp_pos);
   DCHECK(boot_class_path_tail.empty() ||
-         !DexFileLoader::IsMultiDexLocation(boot_class_path_tail.front()->GetLocation().c_str()));
+         !DexFileLoader::IsMultiDexLocation(boot_class_path_tail.front()->GetLocation()));
   for (size_t i = 0; i < boot_class_path_tail.size();) {
     uint32_t checksum = DexFileLoader::GetMultiDexChecksum(boot_class_path_tail, &i);
     if (!boot_image_checksum.empty()) {
@@ -3654,11 +3654,11 @@ bool ImageSpace::VerifyBootClassPathChecksums(
         CHECK_NE(num_dex_files, 0u);
         const std::string main_location = oat_file->GetOatDexFiles()[0]->GetDexFileLocation();
         CHECK_EQ(main_location, boot_class_path_locations[bcp_pos + space_index]);
-        CHECK(!DexFileLoader::IsMultiDexLocation(main_location.c_str()));
+        CHECK(!DexFileLoader::IsMultiDexLocation(main_location));
         size_t num_base_locations = 1u;
         for (size_t i = 1u; i != num_dex_files; ++i) {
           if (!DexFileLoader::IsMultiDexLocation(
-                  oat_file->GetOatDexFiles()[i]->GetDexFileLocation().c_str())) {
+                  oat_file->GetOatDexFiles()[i]->GetDexFileLocation())) {
             CHECK_EQ(image_space_count, 1u);  // We can find base locations only for --single-image.
             ++num_base_locations;
           }
