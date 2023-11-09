@@ -1581,7 +1581,7 @@ class Dex2Oat final {
           LOG(ERROR) << "Missing dex file for boot class component " << bcp_location;
           return dex2oat::ReturnCode::kOther;
         }
-        CHECK(!DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation().c_str()));
+        CHECK(!DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation()));
         ++bcp_df_pos;
         while (bcp_df_pos != bcp_df_end &&
             DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation().c_str())) {
