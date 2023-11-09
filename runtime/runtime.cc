@@ -3584,10 +3584,10 @@ bool Runtime::HasImageWithProfile() const {
 }
 
 void Runtime::AppendToBootClassPath(const std::string& filename, const std::string& location) {
-  DCHECK(!DexFileLoader::IsMultiDexLocation(filename.c_str()));
+  DCHECK(!DexFileLoader::IsMultiDexLocation(filename));
   boot_class_path_.push_back(filename);
   if (!boot_class_path_locations_.empty()) {
-    DCHECK(!DexFileLoader::IsMultiDexLocation(location.c_str()));
+    DCHECK(!DexFileLoader::IsMultiDexLocation(location));
     boot_class_path_locations_.push_back(location);
   }
 }
@@ -3600,7 +3600,7 @@ void Runtime::AppendToBootClassPath(
   ScopedObjectAccess soa(Thread::Current());
   for (const std::unique_ptr<const art::DexFile>& dex_file : dex_files) {
     // The first element must not be at a multi-dex location, while other elements must be.
-    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()),
+    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()),
               dex_file.get() == dex_files.begin()->get());
     GetClassLinker()->AppendToBootClassPath(Thread::Current(), dex_file.get());
   }
@@ -3613,7 +3613,7 @@ void Runtime::AppendToBootClassPath(const std::string& filename,
   ScopedObjectAccess soa(Thread::Current());
   for (const art::DexFile* dex_file : dex_files) {
     // The first element must not be at a multi-dex location, while other elements must be.
-    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()),
+    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()),
               dex_file == *dex_files.begin());
     GetClassLinker()->AppendToBootClassPath(Thread::Current(), dex_file);
   }
@@ -3628,7 +3628,7 @@ void Runtime::AppendToBootClassPath(
   ScopedObjectAccess soa(Thread::Current());
   for (const auto& [dex_file, dex_cache] : dex_files_and_cache) {
     // The first element must not be at a multi-dex location, while other elements must be.
-    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()),
+    DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()),
               dex_file == dex_files_and_cache.begin()->first);
     GetClassLinker()->AppendToBootClassPath(dex_file, dex_cache);
   }
@@ -3642,7 +3642,7 @@ void Runtime::AddExtraBootDexFiles(const std::string& filename,
   if (kIsDebugBuild) {
     for (const std::unique_ptr<const art::DexFile>& dex_file : dex_files) {
       // The first element must not be at a multi-dex location, while other elements must be.
-      DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()),
+      DCHECK_NE(DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()),
                 dex_file.get() == dex_files.begin()->get());
     }
   }
