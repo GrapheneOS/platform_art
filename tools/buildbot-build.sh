@@ -38,17 +38,20 @@ fi
 
 # On master-art, we need to copy ART-local riscv64 prebuilts for conscrypt and
 # statsd into their own repositories, as mainline doesn't support riscv64 yet.
-# Android.bp files are stored with as ArtThinBuild.bp to prevent Soong from
-# adding them to the build graph, so they must be renamed after copying.
+# Android.bp file changes are stored as patch files which need to be applied
+# afterwards.
 #
 # TODO(b/286551985): Remove this after riscv64 support is added to mainline.
 if [[ $TARGET_ARCH = "riscv64" && ! ( -d frameworks/base ) ]]; then
-  cp -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/conscrypt \
+  cp -u -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/conscrypt \
     prebuilts/module_sdk
-  cp -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/StatsD \
+  cp -u -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/StatsD \
     prebuilts/module_sdk
-  for f in $(find prebuilts/module_sdk -name ArtThinBuild.bp) ; do
-    mv "$f" "$(dirname $f)/Android.bp"
+  for patch_file in $(find prebuilts/module_sdk -name Android.bp.patch) ; do
+    bp_file=${patch_file%.patch}
+    # Only apply the patches if they haven't been applied already. Assume the
+    # patch files contain the bug number, and look for that.
+    grep -q b/286551985 $bp_file || patch -f $bp_file < $patch_file
   done
 fi
 

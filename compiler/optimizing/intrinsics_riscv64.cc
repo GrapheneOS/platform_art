@@ -83,6 +83,13 @@ static void CreateFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) 
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 }
 
+static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister());
+}
+
 void IntrinsicLocationsBuilderRISCV64::VisitDoubleDoubleToRawLongBits(HInvoke* invoke) {
   CreateFPToIntLocations(allocator_, invoke);
 }
@@ -521,6 +528,296 @@ void IntrinsicCodeGeneratorRISCV64::VisitStringIndexOfAfter(HInvoke* invoke) {
   GenerateVisitStringIndexOf(invoke, GetAssembler(), codegen_, /* start_at_zero= */ false);
 }
 
+static void EmitLoadReserved(Riscv64Assembler* assembler,
+                             DataType::Type type,
+                             XRegister ptr,
+                             XRegister old_value,
+                             AqRl aqrl) {
+  switch (type) {
+    case DataType::Type::kInt32:
+      __ LrW(old_value, ptr, aqrl);
+      break;
+    case DataType::Type::kReference:
+      __ LrW(old_value, ptr, aqrl);
+      // TODO(riscv64): The `ZextW()` macro currently emits `SLLI+SRLI` which are from the
+      // base "I" instruction set. When the assembler is updated to use a single-instruction
+      // `ZextW()` macro, either the ADD.UW, or the C.ZEXT.W (16-bit encoding), we need to
+      // rewrite this to avoid these non-"I" instructions. We could, for example, sign-extend
+      // the reference and do the CAS as `Int32`.
+      __ ZextW(old_value, old_value);
+      break;
+    case DataType::Type::kInt64:
+      __ LrD(old_value, ptr, aqrl);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected type: " << type;
+      UNREACHABLE();
+  }
+}
+
+static void EmitStoreConditional(Riscv64Assembler* assembler,
+                                 DataType::Type type,
+                                 XRegister ptr,
+                                 XRegister store_result,
+                                 XRegister to_store,
+                                 AqRl aqrl) {
+  switch (type) {
+    case DataType::Type::kInt32:
+    case DataType::Type::kReference:
+      __ ScW(store_result, to_store, ptr, aqrl);
+      break;
+    case DataType::Type::kInt64:
+      __ ScD(store_result, to_store, ptr, aqrl);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected type: " << type;
+      UNREACHABLE();
+  }
+}
+
+static void GenerateCompareAndSet(Riscv64Assembler* assembler,
+                                  DataType::Type type,
+                                  std::memory_order order,
+                                  bool strong,
+                                  Riscv64Label* cmp_failure,
+                                  XRegister ptr,
+                                  XRegister new_value,
+                                  XRegister old_value,
+                                  XRegister mask,
+                                  XRegister masked,
+                                  XRegister store_result,
+                                  XRegister expected,
+                                  XRegister expected2 = kNoXRegister) {
+  DCHECK(!DataType::IsFloatingPointType(type));
+  DCHECK_GE(DataType::Size(type), 4u);
+
+  // The `expected2` is valid only for reference slow path and represents the unmarked old value
+  // from the main path attempt to emit CAS when the marked old value matched `expected`.
+  DCHECK_IMPLIES(expected2 != kNoXRegister, type == DataType::Type::kReference);
+
+  AqRl load_aqrl = AqRl::kNone;
+  AqRl store_aqrl = AqRl::kNone;
+  if (order == std::memory_order_acquire) {
+    load_aqrl = AqRl::kAcquire;
+  } else if (order == std::memory_order_release) {
+    store_aqrl = AqRl::kRelease;
+  } else if (order == std::memory_order_seq_cst) {
+    load_aqrl = AqRl::kAqRl;
+    store_aqrl = AqRl::kRelease;
+  } else {
+    DCHECK(order == std::memory_order_relaxed);
+  }
+
+  // repeat: {
+  //   old_value = [ptr];  // Load exclusive.
+  //   cmp_value = old_value & mask;  // Extract relevant bits if applicable.
+  //   if (cmp_value != expected && cmp_value != expected2) goto cmp_failure;
+  //   store_result = failed([ptr] <- new_value);  // Store exclusive.
+  // }
+  // if (strong) {
+  //   if (store_result) goto repeat;  // Repeat until compare fails or store exclusive succeeds.
+  // } else {
+  //   store_result = store_result ^ 1;  // Report success as 1, failure as 0.
+  // }
+  //
+  // (If `mask` is not valid, `expected` is compared with `old_value` instead of `cmp_value`.)
+  // (If `expected2` is not valid, the `cmp_value == expected2` part is not emitted.)
+
+  // Note: We're using "bare" local branches to enforce that they shall not be expanded
+  // and the scrach register `TMP` shall not be clobbered if taken. Taking the branch to
+  // `cmp_failure` can theoretically clobber `TMP` (if outside the 1 MiB range).
+  Riscv64Label loop;
+  if (strong) {
+    __ Bind(&loop);
+  }
+  EmitLoadReserved(assembler, type, ptr, old_value, load_aqrl);
+  XRegister to_store = new_value;
+  if (mask != kNoXRegister) {
+    DCHECK_EQ(expected2, kNoXRegister);
+    DCHECK_NE(masked, kNoXRegister);
+    __ And(masked, old_value, mask);
+    __ Bne(masked, expected, cmp_failure);
+    // The `old_value` does not need to be preserved as the caller shall use `masked`
+    // to return the old value if needed.
+    to_store = old_value;
+    // TODO(riscv64): We could XOR the old and new value before the loop and use XOR here
+    // instead of the ANDN+OR. (The `new_value` is either Zero or a temporary we can clobber.)
+    __ Andn(to_store, old_value, mask);
+    __ Or(to_store, to_store, new_value);
+  } else if (expected2 != kNoXRegister) {
+    Riscv64Label match2;
+    __ Beq(old_value, expected2, &match2, /*is_bare=*/ true);
+    __ Bne(old_value, expected, cmp_failure);
+    __ Bind(&match2);
+  } else {
+    __ Bne(old_value, expected, cmp_failure);
+  }
+  EmitStoreConditional(assembler, type, ptr, store_result, to_store, store_aqrl);
+  if (strong) {
+    __ Bnez(store_result, &loop, /*is_bare=*/ true);
+  } else {
+    // Flip the `store_result` register to indicate success by 1 and failure by 0.
+    __ Xori(store_result, store_result, 1);
+  }
+}
+
+class ReadBarrierCasSlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  ReadBarrierCasSlowPathRISCV64(HInvoke* invoke,
+                                std::memory_order order,
+                                bool strong,
+                                XRegister base,
+                                XRegister offset,
+                                XRegister expected,
+                                XRegister new_value,
+                                XRegister old_value,
+                                XRegister old_value_temp,
+                                XRegister store_result,
+                                bool update_old_value,
+                                CodeGeneratorRISCV64* riscv64_codegen)
+      : SlowPathCodeRISCV64(invoke),
+        order_(order),
+        strong_(strong),
+        base_(base),
+        offset_(offset),
+        expected_(expected),
+        new_value_(new_value),
+        old_value_(old_value),
+        old_value_temp_(old_value_temp),
+        store_result_(store_result),
+        update_old_value_(update_old_value),
+        mark_old_value_slow_path_(nullptr),
+        update_old_value_slow_path_(nullptr) {
+    // We need to add slow paths now, it is too late when emitting slow path code.
+    Location old_value_loc = Location::RegisterLocation(old_value);
+    Location old_value_temp_loc = Location::RegisterLocation(old_value_temp);
+    if (kUseBakerReadBarrier) {
+      mark_old_value_slow_path_ = riscv64_codegen->AddGcRootBakerBarrierBarrierSlowPath(
+          invoke, old_value_temp_loc, kBakerReadBarrierTemp);
+      if (update_old_value_) {
+        update_old_value_slow_path_ = riscv64_codegen->AddGcRootBakerBarrierBarrierSlowPath(
+            invoke, old_value_loc, kBakerReadBarrierTemp);
+      }
+    } else {
+      Location base_loc = Location::RegisterLocation(base);
+      Location index = Location::RegisterLocation(offset);
+      mark_old_value_slow_path_ = riscv64_codegen->AddReadBarrierSlowPath(
+          invoke, old_value_temp_loc, old_value_loc, base_loc, /*offset=*/ 0u, index);
+      if (update_old_value_) {
+        update_old_value_slow_path_ = riscv64_codegen->AddReadBarrierSlowPath(
+            invoke, old_value_loc, old_value_temp_loc, base_loc, /*offset=*/ 0u, index);
+      }
+    }
+  }
+
+  const char* GetDescription() const override { return "ReadBarrierCasSlowPathRISCV64"; }
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    Riscv64Assembler* assembler = riscv64_codegen->GetAssembler();
+    __ Bind(GetEntryLabel());
+
+    // Mark the `old_value_` from the main path and compare with `expected_`.
+    DCHECK(mark_old_value_slow_path_ != nullptr);
+    if (kUseBakerReadBarrier) {
+      __ Mv(old_value_temp_, old_value_);
+      riscv64_codegen->EmitBakerReadBarierMarkingCheck(mark_old_value_slow_path_,
+                                                       Location::RegisterLocation(old_value_temp_),
+                                                       kBakerReadBarrierTemp);
+    } else {
+      __ J(mark_old_value_slow_path_->GetEntryLabel());
+      __ Bind(mark_old_value_slow_path_->GetExitLabel());
+    }
+    Riscv64Label move_marked_old_value;
+    __ Bne(old_value_temp_, expected_, update_old_value_ ? &move_marked_old_value : GetExitLabel());
+
+    // The `old_value` we have read did not match `expected` (which is always a to-space
+    // reference) but after the read barrier the marked to-space value matched, so the
+    // `old_value` must be a from-space reference to the same object. Do the same CAS loop
+    // as the main path but check for both `expected` and the unmarked old value
+    // representing the to-space and from-space references for the same object.
+
+    ScratchRegisterScope srs(assembler);
+    XRegister tmp_ptr = srs.AllocateXRegister();
+    XRegister store_result =
+        store_result_ != kNoXRegister ? store_result_ : srs.AllocateXRegister();
+
+    // Recalculate the `tmp_ptr` from main path potentially clobbered by the read barrier above
+    // or by an expanded conditional branch (clobbers `TMP` if beyond 1MiB).
+    __ Add(tmp_ptr, base_, offset_);
+
+    Riscv64Label mark_old_value;
+    GenerateCompareAndSet(riscv64_codegen->GetAssembler(),
+                          DataType::Type::kReference,
+                          order_,
+                          strong_,
+                          /*cmp_failure=*/ update_old_value_ ? &mark_old_value : GetExitLabel(),
+                          tmp_ptr,
+                          new_value_,
+                          /*old_value=*/ old_value_temp_,
+                          /*mask=*/ kNoXRegister,
+                          /*masked=*/ kNoXRegister,
+                          store_result,
+                          expected_,
+                          /*expected2=*/ old_value_);
+    if (update_old_value_) {
+      // To reach this point, the `old_value_temp_` must be either a from-space or a to-space
+      // reference of the `expected_` object. Update the `old_value_` to the to-space reference.
+      __ Mv(old_value_, expected_);
+    } else if (strong_) {
+      // Load success value to the result register.
+      // `GenerateCompareAndSet()` does not emit code to indicate success for a strong CAS.
+      // TODO(riscv64): We could just jump to an identical instruction in the fast-path.
+      // This would require an additional label as we would have two different slow path exits.
+      __ Li(store_result, 1);
+    }
+    __ J(GetExitLabel());
+
+    if (update_old_value_) {
+      // TODO(riscv64): If we initially saw a from-space reference and then saw
+      // a different reference, can the latter be also a from-space reference?
+      // (Shouldn't every reference write store a to-space reference?)
+      DCHECK(update_old_value_slow_path_ != nullptr);
+      __ Bind(&mark_old_value);
+      if (kUseBakerReadBarrier) {
+        DCHECK(update_old_value_slow_path_ == nullptr);
+        __ Mv(old_value_, old_value_temp_);
+        riscv64_codegen->EmitBakerReadBarierMarkingCheck(update_old_value_slow_path_,
+                                                         Location::RegisterLocation(old_value_),
+                                                         kBakerReadBarrierTemp);
+      } else {
+        // Note: We could redirect the `failure` above directly to the entry label and bind
+        // the exit label in the main path, but the main path would need to access the
+        // `update_old_value_slow_path_`. To keep the code simple, keep the extra jumps.
+        __ J(update_old_value_slow_path_->GetEntryLabel());
+        __ Bind(update_old_value_slow_path_->GetExitLabel());
+      }
+      __ J(GetExitLabel());
+
+      __ Bind(&move_marked_old_value);
+      __ Mv(old_value_, old_value_temp_);
+      __ J(GetExitLabel());
+    }
+  }
+
+ private:
+  // Use RA as temp. It is clobbered in the slow path anyway.
+  static constexpr Location kBakerReadBarrierTemp = Location::RegisterLocation(RA);
+
+  std::memory_order order_;
+  bool strong_;
+  XRegister base_;
+  XRegister offset_;
+  XRegister expected_;
+  XRegister new_value_;
+  XRegister old_value_;
+  XRegister old_value_temp_;
+  XRegister store_result_;
+  bool update_old_value_;
+  SlowPathCodeRISCV64* mark_old_value_slow_path_;
+  SlowPathCodeRISCV64* update_old_value_slow_path_;
+};
+
 enum class GetAndUpdateOp {
   kSet,
   kAdd,
@@ -611,21 +908,20 @@ static void GenerateSubTypeObjectCheckNoReadBarrier(CodeGeneratorRISCV64* codege
   ScratchRegisterScope srs(assembler);
   XRegister temp = srs.AllocateXRegister();
 
-  // Note: The `type` can be `TMP`. Taken branches to `success` and `loop` should be near and never
-  // expand. Only the branch to `slow_path` can theoretically expand and clobber `TMP` when taken.
-  // (`TMP` is clobbered only if the target distance is at least 1MiB.)
-  // FIXME(riscv64): Use "bare" branches. (And add some assembler tests for them.)
+  // Note: The `type` can be `TMP`. We're using "bare" local branches to enforce that they shall
+  // not be expanded and the scrach register `TMP` shall not be clobbered if taken. Taking the
+  // branch to the slow path can theoretically clobber `TMP` (if outside the 1 MiB range).
   __ Loadwu(temp, object, class_offset.Int32Value());
   codegen->MaybeUnpoisonHeapReference(temp);
   Riscv64Label loop;
   __ Bind(&loop);
-  __ Beq(type, temp, &success);
+  __ Beq(type, temp, &success, /*is_bare=*/ true);
   // We may not have another scratch register for `Loadwu()`. Use `Lwu()` directly.
   DCHECK(IsInt<12>(super_class_offset.Int32Value()));
   __ Lwu(temp, temp, super_class_offset.Int32Value());
   codegen->MaybeUnpoisonHeapReference(temp);
   __ Beqz(temp, slow_path->GetEntryLabel());
-  __ J(&loop);
+  __ J(&loop, /*is_bare=*/ true);
   __ Bind(&success);
 }
 
@@ -927,7 +1223,7 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
       __ Loadd(field, varhandle, art_field_offset.Int32Value());
       __ Loadwu(target.offset, field, offset_offset.Int32Value());
       if (expected_coordinates_count == 0u) {
-        codegen->GetInstructionVisitor()->GenerateGcRootFieldLoad(
+        codegen->GenerateGcRootFieldLoad(
             invoke,
             Location::RegisterLocation(target.object),
             field,
@@ -1018,6 +1314,11 @@ static void CreateVarHandleGetLocations(HInvoke* invoke, CodeGeneratorRISCV64* c
   CreateVarHandleCommonLocations(invoke, codegen);
 }
 
+DataType::Type IntTypeForFloatingPointType(DataType::Type fp_type) {
+  DCHECK(DataType::IsFloatingPointType(fp_type));
+  return (fp_type == DataType::Type::kFloat32) ? DataType::Type::kInt32 : DataType::Type::kInt64;
+}
+
 static void GenerateVarHandleGet(HInvoke* invoke,
                                  CodeGeneratorRISCV64* codegen,
                                  std::memory_order order,
@@ -1067,8 +1368,7 @@ static void GenerateVarHandleGet(HInvoke* invoke,
     DataType::Type load_type = type;
     if (byte_swap && DataType::IsFloatingPointType(type)) {
       load_loc = Location::RegisterLocation(target.offset);  // Load to the offset temporary.
-      load_type = (type == DataType::Type::kFloat32) ? DataType::Type::kInt32
-                                                     : DataType::Type::kInt64;
+      load_type = IntTypeForFloatingPointType(type);
     }
     codegen->GetInstructionVisitor()->Load(load_loc, address, /*offset=*/ 0, load_type);
     if (type == DataType::Type::kReference) {
@@ -1163,8 +1463,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
       // The offset is no longer needed, so reuse the offset temporary for the byte-swapped value.
       Location new_value = Location::RegisterLocation(target.offset);
       if (DataType::IsFloatingPointType(value_type)) {
-        value_type = (value_type == DataType::Type::kFloat32) ? DataType::Type::kInt32
-                                                              : DataType::Type::kInt64;
+        value_type = IntTypeForFloatingPointType(value_type);
         codegen->MoveLocation(new_value, value, value_type);
         value = new_value;
       }
@@ -1226,14 +1525,418 @@ void IntrinsicCodeGeneratorRISCV64::VisitVarHandleSetVolatile(HInvoke* invoke) {
   GenerateVarHandleSet(invoke, codegen_, std::memory_order_seq_cst);
 }
 
+static bool ScratchXRegisterNeeded(Location loc, DataType::Type type, bool byte_swap) {
+  if (loc.IsConstant()) {
+    DCHECK(loc.GetConstant()->IsZeroBitPattern());
+    return false;
+  }
+  return DataType::IsFloatingPointType(type) || DataType::Size(type) < 4u || byte_swap;
+}
+
+static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
+                                                            CodeGeneratorRISCV64* codegen,
+                                                            bool return_success) {
+  VarHandleOptimizations optimizations(invoke);
+  if (optimizations.GetDoNotIntrinsify()) {
+    return;
+  }
+
+  uint32_t expected_index = invoke->GetNumberOfArguments() - 2;
+  uint32_t new_value_index = invoke->GetNumberOfArguments() - 1;
+  DataType::Type value_type = GetDataTypeFromShorty(invoke, new_value_index);
+  DCHECK_EQ(value_type, GetDataTypeFromShorty(invoke, expected_index));
+
+  if (value_type == DataType::Type::kReference && codegen->EmitNonBakerReadBarrier()) {
+    // Unsupported for non-Baker read barrier because the artReadBarrierSlow() ignores
+    // the passed reference and reloads it from the field. This breaks the read barriers
+    // in slow path in different ways. The marked old value may not actually be a to-space
+    // reference to the same object as `old_value`, breaking slow path assumptions. And
+    // for CompareAndExchange, marking the old value after comparison failure may actually
+    // return the reference to `expected`, erroneously indicating success even though we
+    // did not set the new value. (And it also gets the memory visibility wrong.) b/173104084
+    return;
+  }
+
+  LocationSummary* locations = CreateVarHandleCommonLocations(invoke, codegen);
+  DCHECK_EQ(expected_index, 1u + GetExpectedVarHandleCoordinatesCount(invoke));
+
+  if (codegen->EmitNonBakerReadBarrier()) {
+    // We need callee-save registers for both the class object and offset instead of
+    // the temporaries reserved in CreateVarHandleCommonLocations().
+    static_assert(POPCOUNT(kRiscv64CalleeSaveRefSpills) >= 2u);
+    uint32_t first_callee_save = CTZ(kRiscv64CalleeSaveRefSpills);
+    uint32_t second_callee_save = CTZ(kRiscv64CalleeSaveRefSpills ^ (1u << first_callee_save));
+    if (expected_index == 1u) {  // For static fields.
+      DCHECK_EQ(locations->GetTempCount(), 2u);
+      DCHECK(locations->GetTemp(0u).Equals(Location::RequiresRegister()));
+      DCHECK(locations->GetTemp(1u).Equals(Location::RegisterLocation(first_callee_save)));
+      locations->SetTempAt(0u, Location::RegisterLocation(second_callee_save));
+    } else {
+      DCHECK_EQ(locations->GetTempCount(), 1u);
+      DCHECK(locations->GetTemp(0u).Equals(Location::RequiresRegister()));
+      locations->SetTempAt(0u, Location::RegisterLocation(first_callee_save));
+    }
+  }
+
+  if (value_type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
+    // Add a temporary for the `old_value_temp` in the slow path, `tmp_ptr` is scratch register.
+    locations->AddTemp(Location::RequiresRegister());
+  } else {
+    Location expected = locations->InAt(expected_index);
+    Location new_value = locations->InAt(new_value_index);
+    size_t data_size = DataType::Size(value_type);
+    bool small = (data_size < 4u);
+    bool byte_swap =
+        (expected_index == 3u) && (value_type != DataType::Type::kReference && data_size != 1u);
+    bool fp = DataType::IsFloatingPointType(value_type);
+    size_t temps_needed =
+        // The offset temp is used for the `tmp_ptr`.
+        1u +
+        // For small values, we need a temp for the `mask`, `masked` and maybe also for the `shift`.
+        (small ? (return_success ? 2u : 3u) : 0u) +
+        // Some cases need modified copies of `new_value` and `expected`.
+        (ScratchXRegisterNeeded(expected, value_type, byte_swap) ? 1u : 0u) +
+        (ScratchXRegisterNeeded(new_value, value_type, byte_swap) ? 1u : 0u) +
+        // We need a scratch register either for the old value or for the result of SC.
+        // If we need to return a floating point old value, we need a temp for each.
+        ((!return_success && fp) ? 2u : 1u);
+    size_t scratch_registers_available = 2u;
+    DCHECK_EQ(scratch_registers_available,
+              ScratchRegisterScope(codegen->GetAssembler()).AvailableXRegisters());
+    size_t old_temp_count = locations->GetTempCount();
+    DCHECK_EQ(old_temp_count, (expected_index == 1u) ? 2u : 1u);
+    if (temps_needed > old_temp_count + scratch_registers_available) {
+      locations->AddRegisterTemps(temps_needed - (old_temp_count + scratch_registers_available));
+    }
+  }
+}
+
+static XRegister PrepareXRegister(CodeGeneratorRISCV64* codegen,
+                                  Location loc,
+                                  DataType::Type type,
+                                  XRegister shift,
+                                  XRegister mask,
+                                  bool byte_swap,
+                                  ScratchRegisterScope* srs) {
+  DCHECK_EQ(shift == kNoXRegister, mask == kNoXRegister);
+  DCHECK_EQ(shift == kNoXRegister, DataType::Size(type) >= 4u);
+  if (loc.IsConstant()) {
+    // The `shift`/`mask` and `byte_swap` are irrelevant for zero input.
+    DCHECK(loc.GetConstant()->IsZeroBitPattern());
+    return Zero;
+  }
+
+  Location result = loc;
+  if (DataType::IsFloatingPointType(type)) {
+    type = IntTypeForFloatingPointType(type);
+    result = Location::RegisterLocation(srs->AllocateXRegister());
+    codegen->MoveLocation(result, loc, type);
+    loc = result;
+  } else if (byte_swap || shift != kNoXRegister) {
+    result = Location::RegisterLocation(srs->AllocateXRegister());
+  }
+  if (byte_swap) {
+    if (type == DataType::Type::kInt16) {
+      type = DataType::Type::kUint16;  // Do the masking as part of the byte swap.
+    }
+    GenerateReverseBytes(codegen->GetAssembler(), result, loc.AsRegister<XRegister>(), type);
+    loc = result;
+  }
+  if (shift != kNoXRegister) {
+    Riscv64Assembler* assembler = codegen->GetAssembler();
+    __ Sllw(result.AsRegister<XRegister>(), loc.AsRegister<XRegister>(), shift);
+    DCHECK_NE(type, DataType::Type::kUint8);
+    if (type != DataType::Type::kUint16 && type != DataType::Type::kBool) {
+      __ And(result.AsRegister<XRegister>(), result.AsRegister<XRegister>(), mask);
+    }
+  }
+  return result.AsRegister<XRegister>();
+}
+
 static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
                                                      CodeGeneratorRISCV64* codegen,
                                                      std::memory_order order,
                                                      bool return_success,
                                                      bool strong,
                                                      bool byte_swap = false) {
-  UNUSED(invoke, codegen, order, return_success, strong, byte_swap);
-  LOG(FATAL) << "Unimplemented!";
+  DCHECK(return_success || strong);
+
+  uint32_t expected_index = invoke->GetNumberOfArguments() - 2;
+  uint32_t new_value_index = invoke->GetNumberOfArguments() - 1;
+  DataType::Type value_type = GetDataTypeFromShorty(invoke, new_value_index);
+  DCHECK_EQ(value_type, GetDataTypeFromShorty(invoke, expected_index));
+
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  Location expected = locations->InAt(expected_index);
+  Location new_value = locations->InAt(new_value_index);
+  Location out = locations->Out();
+
+  VarHandleTarget target = GetVarHandleTarget(invoke);
+  VarHandleSlowPathRISCV64* slow_path = nullptr;
+  if (!byte_swap) {
+    slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
+    GenerateVarHandleTarget(invoke, target, codegen);
+    if (slow_path != nullptr) {
+      slow_path->SetCompareAndSetOrExchangeArgs(return_success, strong);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
+  }
+
+  // This needs to be before we allocate the scratch registers, as MarkGCCard also uses them.
+  if (CodeGenerator::StoreNeedsWriteBarrier(value_type, invoke->InputAt(new_value_index))) {
+    // Mark card for object assuming new value is stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(target.object, new_value.AsRegister<XRegister>(), new_value_can_be_null);
+  }
+
+  // Scratch registers may be needed for `new_value` and `expected`.
+  ScratchRegisterScope srs(assembler);
+  DCHECK_EQ(srs.AvailableXRegisters(), 2u);
+  size_t available_scratch_registers =
+      (ScratchXRegisterNeeded(expected, value_type, byte_swap) ? 0u : 1u) +
+      (ScratchXRegisterNeeded(new_value, value_type, byte_swap) ? 0u : 1u);
+
+  // Reuse the `offset` temporary for the pointer to the target location,
+  // except for references that need the offset for the read barrier.
+  DCHECK_EQ(target.offset, locations->GetTemp(0u).AsRegister<XRegister>());
+  size_t next_temp = 1u;
+  XRegister tmp_ptr = target.offset;
+  if (value_type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
+    DCHECK_EQ(available_scratch_registers, 2u);
+    available_scratch_registers -= 1u;
+    DCHECK_EQ(expected_index, 1u + GetExpectedVarHandleCoordinatesCount(invoke));
+    next_temp = expected_index == 1u ? 2u : 1u;  // Preserve the class register for static field.
+    tmp_ptr = srs.AllocateXRegister();
+  }
+  __ Add(tmp_ptr, target.object, target.offset);
+
+  auto get_temp = [&]() {
+    if (available_scratch_registers != 0u) {
+      available_scratch_registers -= 1u;
+      return srs.AllocateXRegister();
+    } else {
+      XRegister temp = locations->GetTemp(next_temp).AsRegister<XRegister>();
+      next_temp += 1u;
+      return temp;
+    }
+  };
+
+  XRegister shift = kNoXRegister;
+  XRegister mask = kNoXRegister;
+  XRegister masked = kNoXRegister;
+  size_t data_size = DataType::Size(value_type);
+  if (data_size < 4u) {
+    // When returning "success" and not the old value, we shall not need the `shift` after
+    // the raw CAS operation, so use the output register as a temporary here.
+    shift = return_success ? locations->Out().AsRegister<XRegister>() : get_temp();
+    mask = get_temp();
+    masked = get_temp();
+    __ Andi(shift, tmp_ptr, 3);
+    __ Andi(tmp_ptr, tmp_ptr, -4);
+    __ Slli(shift, shift, WhichPowerOf2(kBitsPerByte));
+    __ Li(mask, (1 << (data_size * kBitsPerByte)) - 1);
+    __ Sllw(mask, mask, shift);
+  }
+
+  // Move floating point values to scratch registers and apply shift, mask and byte swap if needed.
+  // Note that float/double CAS uses bitwise comparison, rather than the operator==.
+  XRegister expected_reg =
+      PrepareXRegister(codegen, expected, value_type, shift, mask, byte_swap, &srs);
+  XRegister new_value_reg =
+      PrepareXRegister(codegen, new_value, value_type, shift, mask, byte_swap, &srs);
+  DataType::Type cas_type = DataType::IsFloatingPointType(value_type)
+      ? IntTypeForFloatingPointType(value_type)
+      : (data_size >= 4u ? value_type : DataType::Type::kInt32);
+
+  // Prepare registers for old value and the result of the store conditional.
+  XRegister old_value;
+  XRegister store_result;
+  if (return_success) {
+    // Use a temp for the old value and the output register for the store conditional result.
+    old_value = get_temp();
+    store_result = out.AsRegister<XRegister>();
+  } else if (DataType::IsFloatingPointType(value_type)) {
+    // We need two temporary registers.
+    old_value = get_temp();
+    store_result = get_temp();
+  } else {
+    // Use the output register for the old value and a temp for the store conditional result.
+    old_value = out.AsRegister<XRegister>();
+    store_result = get_temp();
+  }
+
+  Riscv64Label exit_loop_label;
+  Riscv64Label* exit_loop = &exit_loop_label;
+  Riscv64Label* cmp_failure = &exit_loop_label;
+
+  if (value_type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
+    // The `old_value_temp` is used first for marking the `old_value` and then for the unmarked
+    // reloaded old value for subsequent CAS in the slow path. It cannot be a scratch register.
+    XRegister old_value_temp = locations->GetTemp(next_temp).AsRegister<XRegister>();
+    ++next_temp;
+    // If we are returning the old value rather than the success,
+    // use a scratch register for the store result in the slow path.
+    XRegister slow_path_store_result = return_success ? store_result : kNoXRegister;
+    ReadBarrierCasSlowPathRISCV64* rb_slow_path =
+        new (codegen->GetScopedAllocator()) ReadBarrierCasSlowPathRISCV64(
+            invoke,
+            order,
+            strong,
+            target.object,
+            target.offset,
+            expected_reg,
+            new_value_reg,
+            old_value,
+            old_value_temp,
+            slow_path_store_result,
+            /*update_old_value=*/ !return_success,
+            codegen);
+    codegen->AddSlowPath(rb_slow_path);
+    exit_loop = rb_slow_path->GetExitLabel();
+    cmp_failure = rb_slow_path->GetEntryLabel();
+  }
+
+  if (return_success) {
+    // Pre-populate the result register with failure for the case when the old value
+    // differs and we do not execute the store conditional.
+    __ Li(store_result, 0);
+  }
+  GenerateCompareAndSet(codegen->GetAssembler(),
+                        cas_type,
+                        order,
+                        strong,
+                        cmp_failure,
+                        tmp_ptr,
+                        new_value_reg,
+                        old_value,
+                        mask,
+                        masked,
+                        store_result,
+                        expected_reg);
+  if (return_success && strong) {
+    // Load success value to the result register.
+    // `GenerateCompareAndSet()` does not emit code to indicate success for a strong CAS.
+    __ Li(store_result, 1);
+  }
+  __ Bind(exit_loop);
+
+  if (return_success) {
+    // Nothing to do, the result register already contains 1 on success and 0 on failure.
+  } else if (byte_swap) {
+    // Do not apply shift in `GenerateReverseBytes()` for small types.
+    DataType::Type swap_type = data_size < 4u ? DataType::Type::kInt32 : value_type;
+    // Also handles moving to FP registers.
+    GenerateReverseBytes(assembler, out, old_value, swap_type);
+    if (data_size < 4u) {
+      DCHECK(Location::RegisterLocation(old_value).Equals(out));
+      __ Sllw(old_value, old_value, shift);
+      if (value_type == DataType::Type::kUint16) {
+        __ Srliw(old_value, old_value, 16);
+      } else {
+        DCHECK_EQ(value_type, DataType::Type::kInt16);
+        __ Sraiw(old_value, old_value, 16);
+      }
+    }
+  } else if (DataType::IsFloatingPointType(value_type)) {
+    codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
+  } else if (data_size < 4u) {
+    __ Srl(old_value, masked, shift);
+    if (value_type == DataType::Type::kInt8) {
+      __ SextB(old_value, old_value);
+    } else if (value_type == DataType::Type::kInt16) {
+      __ SextH(old_value, old_value);
+    }
+  }
+
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
+    __ Bind(slow_path->GetExitLabel());
+  }
+
+  // Check that we have allocated the right number of temps. We may need more registers
+  // for byte swapped CAS in the slow path, so skip this check for the main path in that case.
+  bool has_byte_swap =
+      (expected_index == 3u) && (value_type != DataType::Type::kReference && data_size != 1u);
+  if ((!has_byte_swap || byte_swap) && next_temp != locations->GetTempCount()) {
+    // We allocate a temporary register for the class object for a static field `VarHandle` but
+    // we do not update the `next_temp` if it's otherwise unused after the address calculation.
+    CHECK_EQ(expected_index, 1u);
+    CHECK_EQ(next_temp, 1u);
+    CHECK_EQ(locations->GetTempCount(), 2u);
+  }
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ false);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_seq_cst, /*return_success=*/ false, /*strong=*/ true);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ false);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_acquire, /*return_success=*/ false, /*strong=*/ true);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ false);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_release, /*return_success=*/ false, /*strong=*/ true);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleCompareAndSet(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ true);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleCompareAndSet(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_seq_cst, /*return_success=*/ true, /*strong=*/ true);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ true);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_seq_cst, /*return_success=*/ true, /*strong=*/ false);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ true);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_acquire, /*return_success=*/ true, /*strong=*/ false);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ true);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_relaxed, /*return_success=*/ true, /*strong=*/ false);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke, codegen_, /*return_success=*/ true);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(
+      invoke, codegen_, std::memory_order_release, /*return_success=*/ true, /*strong=*/ false);
 }
 
 static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
@@ -1596,6 +2299,74 @@ void IntrinsicLocationsBuilderRISCV64::VisitMathTanh(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathTanh(HInvoke* invoke) {
   codegen_->InvokeRuntime(kQuickTanh, invoke, invoke->GetDexPc());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathSqrt(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathSqrt(HInvoke* invoke) {
+  DCHECK_EQ(invoke->InputAt(0)->GetType(), DataType::Type::kFloat64);
+  DCHECK_EQ(invoke->GetType(), DataType::Type::kFloat64);
+
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+
+  __ FSqrtD(out, in);
+}
+
+static void GenDoubleRound(Riscv64Assembler* assembler, HInvoke* invoke, FPRoundingMode mode) {
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister out = locations->Out().AsFpuRegister<FRegister>();
+  ScratchRegisterScope srs(assembler);
+  XRegister tmp = srs.AllocateXRegister();
+  FRegister ftmp = srs.AllocateFRegister();
+  Riscv64Label done;
+
+  // Load 2^52
+  __ LoadConst64(tmp, 0x4330000000000000L);
+  __ FMvDX(ftmp, tmp);
+  __ FAbsD(out, in);
+  __ FLtD(tmp, out, ftmp);
+
+  // Set output as the input if input greater than the max
+  __ FMvD(out, in);
+  __ Beqz(tmp, &done);
+
+  // Convert with rounding mode
+  __ FCvtLD(tmp, in, mode);
+  __ FCvtDL(ftmp, tmp, mode);
+
+  // Set the signed bit
+  __ FSgnjD(out, ftmp, in);
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathFloor(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathFloor(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRDN);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathCeil(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathCeil(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRUP);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathRint(HInvoke* invoke) {
+  CreateFPToFPLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathRint(HInvoke* invoke) {
+  GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRNE);
 }
 
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
