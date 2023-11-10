@@ -57,8 +57,8 @@ class IntrinsicObjects {
   }
 
   // Functions for retrieving data for Integer.valueOf().
-  EXPORT static ObjPtr<mirror::ObjectArray<mirror::Object>> LookupIntegerCache(
-      Thread* self, ClassLinker* class_linker) REQUIRES_SHARED(Locks::mutator_lock_);
+  EXPORT static ObjPtr<mirror::ObjectArray<mirror::Object>> LookupIntegerCache()
+      REQUIRES_SHARED(Locks::mutator_lock_);
   EXPORT static ObjPtr<mirror::ObjectArray<mirror::Object>> GetIntegerValueOfCache(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects)
       REQUIRES_SHARED(Locks::mutator_lock_);
