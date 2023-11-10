@@ -162,6 +162,12 @@ ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
 ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
 ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
 
+ArtField* WellKnownClasses::java_lang_Byte_ByteCache_cache;
+ArtField* WellKnownClasses::java_lang_Character_CharacterCache_cache;
+ArtField* WellKnownClasses::java_lang_Short_ShortCache_cache;
+ArtField* WellKnownClasses::java_lang_Integer_IntegerCache_cache;
+ArtField* WellKnownClasses::java_lang_Long_LongCache_cache;
+
 static ObjPtr<mirror::Class> FindSystemClass(ClassLinker* class_linker,
                                              Thread* self,
                                              const char* descriptor)
@@ -224,6 +230,15 @@ static ArtMethod* CachePrimitiveBoxingMethod(ClassLinker* class_linker,
   PointerSize pointer_size = class_linker->GetImagePointerSize();
   std::string signature = android::base::StringPrintf("(%c)%s", prim_name, boxed_name);
   return CacheMethod(boxed_class, /*is_static=*/ true, "valueOf", signature.c_str(), pointer_size);
+}
+
+static ArtField* CacheBoxingCacheField(ClassLinker* class_linker,
+                                       Thread* self,
+                                       const char* class_name,
+                                       const char* cache_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> boxed_class = FindSystemClass(class_linker, self, class_name);
+  return CacheField(boxed_class, /*is_static=*/ true, "cache", cache_type);
 }
 
 #define STRING_INIT_LIST(V) \
@@ -361,6 +376,17 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       CachePrimitiveBoxingMethod(class_linker, self, 'J', "Ljava/lang/Long;");
   java_lang_Short_valueOf =
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
+
+  java_lang_Byte_ByteCache_cache = CacheBoxingCacheField(
+      class_linker, self, "Ljava/lang/Byte$ByteCache;", "[Ljava/lang/Byte;");
+  java_lang_Character_CharacterCache_cache = CacheBoxingCacheField(
+      class_linker, self, "Ljava/lang/Character$CharacterCache;", "[Ljava/lang/Character;");
+  java_lang_Short_ShortCache_cache = CacheBoxingCacheField(
+      class_linker, self, "Ljava/lang/Short$ShortCache;", "[Ljava/lang/Short;");
+  java_lang_Integer_IntegerCache_cache = CacheBoxingCacheField(
+      class_linker, self, "Ljava/lang/Integer$IntegerCache;", "[Ljava/lang/Integer;");
+  java_lang_Long_LongCache_cache = CacheBoxingCacheField(
+      class_linker, self, "Ljava/lang/Long$LongCache;", "[Ljava/lang/Long;");
 
   StackHandleScope<42u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
@@ -908,6 +934,12 @@ void WellKnownClasses::Clear() {
   org_apache_harmony_dalvik_ddmc_Chunk_length = nullptr;
   org_apache_harmony_dalvik_ddmc_Chunk_offset = nullptr;
   org_apache_harmony_dalvik_ddmc_Chunk_type = nullptr;
+
+  java_lang_Byte_ByteCache_cache = nullptr;
+  java_lang_Character_CharacterCache_cache = nullptr;
+  java_lang_Short_ShortCache_cache = nullptr;
+  java_lang_Integer_IntegerCache_cache = nullptr;
+  java_lang_Long_LongCache_cache = nullptr;
 }
 
 ObjPtr<mirror::Class> WellKnownClasses::ToClass(jclass global_jclass) {
