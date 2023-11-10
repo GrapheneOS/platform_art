@@ -45,11 +45,15 @@ class Object;
 class PACKED(4) BaseHandleScope {
  public:
   bool IsVariableSized() const {
-    return number_of_references_ == kNumReferencesVariableSized;
+    return capacity_ == kNumReferencesVariableSized;
   }
 
-  // Number of references contained within this handle scope.
-  ALWAYS_INLINE uint32_t NumberOfReferences() const;
+  // The current size of this handle scope.
+  ALWAYS_INLINE uint32_t Size() const;
+
+  // The current capacity of this handle scope.
+  // It can change (increase) only for a `VariableSizedHandleScope`.
+  ALWAYS_INLINE uint32_t Capacity() const;
 
   ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
@@ -70,14 +74,14 @@ class PACKED(4) BaseHandleScope {
   ALWAYS_INLINE const HandleScope* AsHandleScope() const;
 
  protected:
-  BaseHandleScope(BaseHandleScope* link, uint32_t num_references)
+  BaseHandleScope(BaseHandleScope* link, uint32_t capacity)
       : link_(link),
-        number_of_references_(num_references) {}
+        capacity_(capacity) {}
 
   // Variable sized constructor.
   explicit BaseHandleScope(BaseHandleScope* link)
       : link_(link),
-        number_of_references_(kNumReferencesVariableSized) {}
+        capacity_(kNumReferencesVariableSized) {}
 
   static constexpr int32_t kNumReferencesVariableSized = -1;
 
@@ -85,7 +89,7 @@ class PACKED(4) BaseHandleScope {
   BaseHandleScope* const link_;
 
   // Number of handlerized references. -1 for variable sized handle scopes.
-  const int32_t number_of_references_;
+  const int32_t capacity_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BaseHandleScope);
@@ -98,84 +102,18 @@ class PACKED(4) HandleScope : public BaseHandleScope {
  public:
   ~HandleScope() {}
 
-  // We have versions with and without explicit pointer size of the following. The first two are
-  // used at runtime, so OFFSETOF_MEMBER computes the right offsets automatically. The last one
-  // takes the pointer size explicitly so that at compile time we can cross-compile correctly.
-
-  // Returns the size of a HandleScope containing num_references handles.
-  static size_t SizeOf(uint32_t num_references);
-
-  // Returns the size of a HandleScope containing num_references handles.
-  static size_t SizeOf(PointerSize pointer_size, uint32_t num_references);
-
   ALWAYS_INLINE ObjPtr<mirror::Object> GetReference(size_t i) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE Handle<mirror::Object> GetHandle(size_t i);
+  template<class T>
+  ALWAYS_INLINE Handle<T> GetHandle(size_t i) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE MutableHandle<mirror::Object> GetMutableHandle(size_t i)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  template<class T>
+  ALWAYS_INLINE MutableHandle<T> GetMutableHandle(size_t i) REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetReference(size_t i, ObjPtr<mirror::Object> object)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
-
-  // Offset of link within HandleScope, used by generated code.
-  static constexpr size_t LinkOffset([[maybe_unused]] PointerSize pointer_size) { return 0; }
-
-  // Offset of length within handle scope, used by generated code.
-  static constexpr size_t NumberOfReferencesOffset(PointerSize pointer_size) {
-    return static_cast<size_t>(pointer_size);
-  }
-
-  // Offset of link within handle scope, used by generated code.
-  static constexpr size_t ReferencesOffset(PointerSize pointer_size) {
-    return NumberOfReferencesOffset(pointer_size) + sizeof(number_of_references_);
-  }
-
-  // Placement new creation.
-  static HandleScope* Create(void* storage, BaseHandleScope* link, uint32_t num_references)
-      WARN_UNUSED {
-    return new (storage) HandleScope(link, num_references);
-  }
-
-  // Number of references contained within this handle scope.
-  ALWAYS_INLINE uint32_t NumberOfReferences() const {
-    DCHECK_GE(number_of_references_, 0);
-    return static_cast<uint32_t>(number_of_references_);
-  }
-
-  template <typename Visitor>
-  ALWAYS_INLINE void VisitRoots(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <typename Visitor>
-  ALWAYS_INLINE void VisitHandles(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
- protected:
-  // Return backing storage used for references.
-  ALWAYS_INLINE StackReference<mirror::Object>* GetReferences() const {
-    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(kRuntimePointerSize);
-    return reinterpret_cast<StackReference<mirror::Object>*>(address);
-  }
-
-  explicit HandleScope(size_t number_of_references) : HandleScope(nullptr, number_of_references) {}
-
-  // Semi-hidden constructor. Construction expected by generated code and StackHandleScope.
-  HandleScope(BaseHandleScope* link, uint32_t num_references)
-      : BaseHandleScope(link, num_references) {}
-
-  // Storage for references.
-  // StackReference<mirror::Object> references_[number_of_references_]
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(HandleScope);
-};
-
-// Fixed size handle scope that is not necessarily linked in the thread.
-template<size_t kNumReferences>
-class PACKED(4) FixedSizeHandleScope : public HandleScope {
- public:
   template<class T>
   ALWAYS_INLINE MutableHandle<T> NewHandle(T* object) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -191,30 +129,74 @@ class PACKED(4) FixedSizeHandleScope : public HandleScope {
   ALWAYS_INLINE MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType> object)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void SetReference(size_t i, ObjPtr<mirror::Object> object)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
-  size_t RemainingSlots() const {
-    return kNumReferences - pos_;
+  // Offset of link within HandleScope, used by generated code.
+  static constexpr size_t LinkOffset([[maybe_unused]] PointerSize pointer_size) { return 0; }
+
+  // Offset of length within handle scope, used by generated code.
+  static constexpr size_t CapacityOffset(PointerSize pointer_size) {
+    return static_cast<size_t>(pointer_size);
   }
 
+  // Offset of link within handle scope, used by generated code.
+  static constexpr size_t ReferencesOffset(PointerSize pointer_size) {
+    return CapacityOffset(pointer_size) + sizeof(capacity_) + sizeof(size_);
+  }
+
+  // The current size of this handle scope.
+  ALWAYS_INLINE uint32_t Size() const {
+    return size_;
+  }
+
+  // The capacity of this handle scope, immutable.
+  ALWAYS_INLINE uint32_t Capacity() const {
+    DCHECK_GT(capacity_, 0);
+    return static_cast<uint32_t>(capacity_);
+  }
+
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitRoots(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <typename Visitor>
+  ALWAYS_INLINE void VisitHandles(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+ protected:
+  // Return backing storage used for references.
+  ALWAYS_INLINE StackReference<mirror::Object>* GetReferences() const {
+    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(kRuntimePointerSize);
+    return reinterpret_cast<StackReference<mirror::Object>*>(address);
+  }
+
+  explicit HandleScope(size_t capacity) : HandleScope(nullptr, capacity) {}
+
+  HandleScope(BaseHandleScope* link, uint32_t capacity)
+      : BaseHandleScope(link, capacity) {
+    // Handle scope should be created only if we have a code path that stores something in it.
+    // We may not take that code path and the handle scope may remain empty.
+    DCHECK_NE(capacity, 0u);
+  }
+
+  // Position new handles will be created.
+  uint32_t size_ = 0;
+
+  // Storage for references is in derived classes.
+  // StackReference<mirror::Object> references_[capacity_]
+
  private:
-  explicit ALWAYS_INLINE FixedSizeHandleScope(BaseHandleScope* link,
-                                              ObjPtr<mirror::Object> fill_value = nullptr)
+  DISALLOW_COPY_AND_ASSIGN(HandleScope);
+};
+
+// Fixed size handle scope that is not necessarily linked in the thread.
+template<size_t kNumReferences>
+class PACKED(4) FixedSizeHandleScope : public HandleScope {
+ private:
+  explicit ALWAYS_INLINE FixedSizeHandleScope(BaseHandleScope* link)
       REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE ~FixedSizeHandleScope() REQUIRES_SHARED(Locks::mutator_lock_) {}
 
-  template<class T>
-  ALWAYS_INLINE MutableHandle<T> GetHandle(size_t i) REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK_LT(i, kNumReferences);
-    return MutableHandle<T>(&GetReferences()[i]);
-  }
-
-  // Reference storage needs to be first as expected by the HandleScope layout.
+  // Reference storage.
   StackReference<mirror::Object> storage_[kNumReferences];
-
-  // Position new handles will be created.
-  uint32_t pos_ = 0;
 
   template<size_t kNumRefs> friend class StackHandleScope;
   friend class VariableSizedHandleScope;
@@ -224,8 +206,7 @@ class PACKED(4) FixedSizeHandleScope : public HandleScope {
 template<size_t kNumReferences>
 class PACKED(4) StackHandleScope final : public FixedSizeHandleScope<kNumReferences> {
  public:
-  explicit ALWAYS_INLINE StackHandleScope(Thread* self,
-                                          ObjPtr<mirror::Object> fill_value = nullptr)
+  explicit ALWAYS_INLINE StackHandleScope(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ~StackHandleScope() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -257,8 +238,11 @@ class VariableSizedHandleScope : public BaseHandleScope {
   MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType> ptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Number of references contained within this handle scope.
-  ALWAYS_INLINE uint32_t NumberOfReferences() const;
+  // The current size of this handle scope.
+  ALWAYS_INLINE uint32_t Size() const;
+
+  // The current capacity of this handle scope.
+  ALWAYS_INLINE uint32_t Capacity() const;
 
   ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
@@ -273,8 +257,8 @@ class VariableSizedHandleScope : public BaseHandleScope {
   static constexpr size_t kSizeOfReferencesPerScope =
       kLocalScopeSize
           - /* BaseHandleScope::link_ */ sizeof(BaseHandleScope*)
-          - /* BaseHandleScope::number_of_references_ */ sizeof(int32_t)
-          - /* FixedSizeHandleScope<>::pos_ */ sizeof(uint32_t);
+          - /* BaseHandleScope::capacity_ */ sizeof(int32_t)
+          - /* HandleScope<>::size_ */ sizeof(uint32_t);
   static constexpr size_t kNumReferencesPerScope =
       kSizeOfReferencesPerScope / sizeof(StackReference<mirror::Object>);
 
