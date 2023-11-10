@@ -1061,11 +1061,13 @@ TEST_F(InductionVarRangeTest, ConstantTripCountDown) {
       range_.CanGenerateRange(exit->GetBlock(), exit, &needs_finite_test, &needs_taken_test));
   EXPECT_FALSE(range_.CanGenerateLastValue(exit));
 
-  // Last value (unsimplified).
+  // Last value (unsimplified). We expect Sub(1000, Neg(-1000)) which is equivalent to Sub(1000,
+  // 1000) aka 0.
   HInstruction* last = range_.GenerateLastValue(phi, graph_, loop_preheader_);
   ASSERT_TRUE(last->IsSub());
   ExpectInt(1000, last->InputAt(0));
-  ExpectInt(1000, last->InputAt(1));
+  ASSERT_TRUE(last->InputAt(1)->IsNeg());
+  ExpectInt(-1000, last->InputAt(1)->AsNeg()->InputAt(0));
 
   // Loop logic.
   int64_t tc = 0;
