@@ -2369,6 +2369,68 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathRint(HInvoke* invoke) {
   GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRNE);
 }
 
+void IntrinsicLocationsBuilderRISCV64::VisitMathRoundDouble(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathRoundDouble(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  ScratchRegisterScope srs(assembler);
+  FRegister ftmp = srs.AllocateFRegister();
+  XRegister tmp = srs.AllocateXRegister();
+  Riscv64Label done;
+
+  // Check NaN
+  __ FClassD(tmp, in);
+  __ Andi(tmp, tmp, kSignalingNaN | kQuietNaN);
+  __ Li(out, 0);
+  __ Bnez(tmp, &done);
+
+  // Add 0.5(0x3fe0000000000000)
+  __ LoadConst64(out, 0x3fe0000000000000L);
+  __ FMvDX(ftmp, out);
+  __ FAddD(ftmp, ftmp, in, FPRoundingMode::kRDN);
+
+  // Convert with rounding mode(kRDN)
+  __ FCvtLD(out, ftmp, FPRoundingMode::kRDN);
+
+  __ Bind(&done);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitMathRoundFloat(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitMathRoundFloat(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  ScratchRegisterScope srs(assembler);
+  FRegister ftmp = srs.AllocateFRegister();
+  XRegister tmp = srs.AllocateXRegister();
+  Riscv64Label done;
+
+  // Check NaN
+  __ FClassS(tmp, in);
+  __ Andi(tmp, tmp, kSignalingNaN | kQuietNaN);
+  __ Li(out, 0);
+  __ Bnez(tmp, &done);
+
+  // Add 0.5(0x3f000000)
+  __ LoadConst32(out, 0x3f000000);
+  __ FMvWX(ftmp, out);
+  __ FAddS(ftmp, ftmp, in, FPRoundingMode::kRDN);
+
+  // Convert with rounding mode(kRDN)
+  __ FCvtWS(out, ftmp, FPRoundingMode::kRDN);
+
+  __ Bind(&done);
+}
+
 #define MARK_UNIMPLEMENTED(Name) UNIMPLEMENTED_INTRINSIC(RISCV64, Name)
 UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(MARK_UNIMPLEMENTED);
 #undef MARK_UNIMPLEMENTED
