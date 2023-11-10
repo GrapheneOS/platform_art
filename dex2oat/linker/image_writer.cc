@@ -360,7 +360,7 @@ static ObjPtr<mirror::ObjectArray<mirror::Object>> AllocateBootImageLiveObjects(
   // so the array we construct here shall keep them alive.
   StackHandleScope<1> hs(self);
   Handle<mirror::ObjectArray<mirror::Object>> integer_cache =
-      hs.NewHandle(IntrinsicObjects::LookupIntegerCache(self, class_linker));
+      hs.NewHandle(IntrinsicObjects::LookupIntegerCache());
   size_t live_objects_size =
       enum_cast<size_t>(ImageHeader::kIntrinsicObjectsStart) +
       ((integer_cache != nullptr) ? (/* cache */ 1u + integer_cache->GetLength()) : 0u);
