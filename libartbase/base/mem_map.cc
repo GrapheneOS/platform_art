@@ -1004,6 +1004,10 @@ void MemMap::Init() {
     // dex2oat calls MemMap::Init twice since its needed before the runtime is created.
     return;
   }
+
+  CHECK_GE(kPageSize, kMinPageSize);
+  CHECK_LE(kPageSize, kMaxPageSize);
+
   mem_maps_lock_ = new std::mutex();
   // Not for thread safety, but for the annotation that gMaps is GUARDED_BY(mem_maps_lock_).
   std::lock_guard<std::mutex> mu(*mem_maps_lock_);
