@@ -38,6 +38,17 @@ static constexpr size_t kStackAlignment = 16;
 // compile-time constant so the compiler can generate better code.
 static constexpr size_t kPageSize = 4096;
 
+// Minimum supported page size.
+static constexpr size_t kMinPageSize = 4096;
+
+#if defined(ART_PAGE_SIZE_AGNOSTIC)
+// Maximum supported page size.
+static constexpr size_t kMaxPageSize = 16384;
+#else
+// Maximum supported page size.
+static constexpr size_t kMaxPageSize = kMinPageSize;
+#endif
+
 // TODO: Kernels for arm and x86 in both, 32-bit and 64-bit modes use 512 entries per page-table
 // page. Find a way to confirm that in userspace.
 // Address range covered by 1 Page Middle Directory (PMD) entry in the page table
