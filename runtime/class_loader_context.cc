@@ -699,7 +699,7 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
   for (size_t k = 0; k < info.opened_dex_files.size();) {
     const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
     uint32_t checksum = DexFileLoader::GetMultiDexChecksum(info.opened_dex_files, &k);
-    CHECK(!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str()));
+    CHECK(!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()));
 
     if (for_dex2oat) {
       // De-duplicate locations.

@@ -296,6 +296,11 @@ int main(int argc, char** argv) {
       metrics.SetEnabled(exit_code != ExitCode::kOkay);
       return exit_code;
     }
+    if (config.GetSystemProperties().GetBool("dalvik.vm.disable-odrefresh",
+                                             /*default_value=*/false)) {
+      LOG(INFO) << "Compilation skipped because it's disabled by system property";
+      return ExitCode::kOkay;
+    }
     OdrCompilationLog compilation_log;
     if (!compilation_log.ShouldAttemptCompile(metrics.GetTrigger())) {
       LOG(INFO) << "Compilation skipped because it was attempted recently";

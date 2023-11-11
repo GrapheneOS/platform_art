@@ -1217,6 +1217,12 @@ void ClassLinker::RunRootClinits(Thread* self) {
       // Initialize empty arrays needed by `StackOverflowError`.
       WellKnownClasses::java_util_Collections_EMPTY_LIST,
       WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT,
+      // Initialize boxing caches needed by the compiler.
+      WellKnownClasses::java_lang_Byte_ByteCache_cache,
+      WellKnownClasses::java_lang_Character_CharacterCache_cache,
+      WellKnownClasses::java_lang_Integer_IntegerCache_cache,
+      WellKnownClasses::java_lang_Long_LongCache_cache,
+      WellKnownClasses::java_lang_Short_ShortCache_cache,
   };
   for (ArtField* field : fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
@@ -4000,7 +4006,12 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     }
   }
   if (all_parameters_are_reference_or_int && shorty[0] != 'F' && shorty[0] != 'D') {
-    access_flags |= kAccNterpInvokeFastPathFlag;
+    // FIXME(riscv64): This optimization is currently disabled because riscv64 needs
+    // to distinguish between zero-extended references and sign-extended integers.
+    // We should enable this for references only and fix corresponding nterp fast-paths.
+    if (kRuntimeISA != InstructionSet::kRiscv64) {
+      access_flags |= kAccNterpInvokeFastPathFlag;
+    }
   }
 
   if (UNLIKELY((access_flags & kAccNative) != 0u)) {

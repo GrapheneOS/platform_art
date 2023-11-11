@@ -382,9 +382,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
         // image. Otherwise, the app image will be nearly empty.
         dexoptOptions.generateAppImage = isProfileGuidedFilter && isAppImageEnabled();
         dexoptOptions.hiddenApiPolicyEnabled = isHiddenApiPolicyEnabled();
-        dexoptOptions.comments = String.format(
-                "app-version-name:%s,app-version-code:%d,art-version:%d", mPkg.getVersionName(),
-                mPkg.getLongVersionCode(), mInjector.getArtVersion());
+        dexoptOptions.comments =
+                String.format("app-name:%s,app-version-name:%s,app-version-code:%d,art-version:%d",
+                        mPkgState.getPackageName(), mPkg.getVersionName(),
+                        mPkg.getLongVersionCode(), mInjector.getArtVersion());
         return dexoptOptions;
     }
 
