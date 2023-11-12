@@ -168,6 +168,12 @@ ArtField* WellKnownClasses::java_lang_Short_ShortCache_cache;
 ArtField* WellKnownClasses::java_lang_Integer_IntegerCache_cache;
 ArtField* WellKnownClasses::java_lang_Long_LongCache_cache;
 
+ArtField* WellKnownClasses::java_lang_Byte_value;
+ArtField* WellKnownClasses::java_lang_Character_value;
+ArtField* WellKnownClasses::java_lang_Short_value;
+ArtField* WellKnownClasses::java_lang_Integer_value;
+ArtField* WellKnownClasses::java_lang_Long_value;
+
 static ObjPtr<mirror::Class> FindSystemClass(ClassLinker* class_linker,
                                              Thread* self,
                                              const char* descriptor)
@@ -239,6 +245,15 @@ static ArtField* CacheBoxingCacheField(ClassLinker* class_linker,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> boxed_class = FindSystemClass(class_linker, self, class_name);
   return CacheField(boxed_class, /*is_static=*/ true, "cache", cache_type);
+}
+
+static ArtField* CacheValueInBoxField(ClassLinker* class_linker,
+                                      Thread* self,
+                                      const char* class_name,
+                                      const char* cache_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> boxed_class = FindSystemClass(class_linker, self, class_name);
+  return CacheField(boxed_class, /*is_static=*/ false, "value", cache_type);
 }
 
 #define STRING_INIT_LIST(V) \
@@ -387,6 +402,17 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       class_linker, self, "Ljava/lang/Integer$IntegerCache;", "[Ljava/lang/Integer;");
   java_lang_Long_LongCache_cache = CacheBoxingCacheField(
       class_linker, self, "Ljava/lang/Long$LongCache;", "[Ljava/lang/Long;");
+
+  java_lang_Byte_value = CacheValueInBoxField(
+      class_linker, self, "Ljava/lang/Byte;", "B");
+  java_lang_Character_value = CacheValueInBoxField(
+      class_linker, self, "Ljava/lang/Character;", "C");
+  java_lang_Short_value = CacheValueInBoxField(
+      class_linker, self, "Ljava/lang/Short;", "S");
+  java_lang_Integer_value = CacheValueInBoxField(
+      class_linker, self, "Ljava/lang/Integer;", "I");
+  java_lang_Long_value = CacheValueInBoxField(
+      class_linker, self, "Ljava/lang/Long;", "J");
 
   StackHandleScope<42u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
@@ -940,6 +966,12 @@ void WellKnownClasses::Clear() {
   java_lang_Short_ShortCache_cache = nullptr;
   java_lang_Integer_IntegerCache_cache = nullptr;
   java_lang_Long_LongCache_cache = nullptr;
+
+  java_lang_Byte_value = nullptr;
+  java_lang_Character_value = nullptr;
+  java_lang_Short_value = nullptr;
+  java_lang_Integer_value = nullptr;
+  java_lang_Long_value = nullptr;
 }
 
 ObjPtr<mirror::Class> WellKnownClasses::ToClass(jclass global_jclass) {

@@ -115,11 +115,8 @@ bool IntrinsicVisitor::CheckIntegerCacheFields(ObjPtr<mirror::ObjectArray<mirror
   return true;
 }
 
-static bool CheckIntegerCache(ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
-                              ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_cache)
+static bool CheckIntegerCache(ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(boot_image_cache != nullptr);
-
   // Since we have a cache in the boot image, both java.lang.Integer and
   // java.lang.Integer$IntegerCache must be initialized in the boot image.
   ObjPtr<mirror::Class> cache_class = WellKnownClasses::java_lang_Integer_IntegerCache.Get();
@@ -127,12 +124,8 @@ static bool CheckIntegerCache(ObjPtr<mirror::ObjectArray<mirror::Object>> boot_i
   ObjPtr<mirror::Class> integer_class = WellKnownClasses::java_lang_Integer.Get();
   DCHECK(integer_class->IsInitialized());
 
-  // Check that the current cache is the same as the `boot_image_cache`.
-  ObjPtr<mirror::ObjectArray<mirror::Object>> current_cache = GetIntegerCacheArray(cache_class);
-  if (current_cache != boot_image_cache) {
-    return false;  // Messed up IntegerCache.cache.
-  }
-  if (!IntrinsicVisitor::CheckIntegerCacheFields(current_cache)) {
+  ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_cache = GetIntegerCacheArray(cache_class);
+  if (!IntrinsicVisitor::CheckIntegerCacheFields(boot_image_cache)) {
     return false;
   }
 
@@ -220,13 +213,7 @@ void IntrinsicVisitor::ComputeIntegerValueOfLocations(HInvoke* invoke,
   } else {
     ScopedObjectAccess soa(Thread::Current());
     ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects = GetBootImageLiveObjects();
-    ObjPtr<mirror::ObjectArray<mirror::Object>> cache =
-        IntrinsicObjects::GetIntegerValueOfCache(boot_image_live_objects);
-    if (cache == nullptr) {
-      return;  // No cache in the boot image.
-    }
-    DCHECK_IMPLIES(compiler_options.IsAotCompiler(),
-                   CheckIntegerCache(boot_image_live_objects, cache));
+    DCHECK_IMPLIES(compiler_options.IsAotCompiler(), CheckIntegerCache(boot_image_live_objects));
 
     if (input->IsIntConstant()) {
       if (kIsDebugBuild) {
@@ -314,8 +301,6 @@ IntrinsicVisitor::IntegerValueOfInfo IntrinsicVisitor::ComputeIntegerValueOfInfo
     ArtField* value_field = integer_class->FindDeclaredInstanceField(kValueFieldName, "I");
     DCHECK(value_field != nullptr);
     info.value_offset = value_field->GetOffset().Uint32Value();
-    DCHECK_EQ(info.length, dchecked_integral_cast<uint32_t>(
-        IntrinsicObjects::GetIntegerValueOfCache(boot_image_live_objects)->GetLength()));
 
     if (invoke->InputAt(0)->IsIntConstant()) {
       int32_t input_value = invoke->InputAt(0)->AsIntConstant()->GetValue();
