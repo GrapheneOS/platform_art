@@ -279,7 +279,8 @@ Result<std::string> BuildVdexPath(const VdexPath& vdex_path) {
 }
 
 bool PathStartsWith(std::string_view path, std::string_view prefix) {
-  CHECK(!prefix.empty() && !path.empty() && prefix[0] == '/' && path[0] == '/');
+  CHECK(!prefix.empty() && !path.empty() && prefix[0] == '/' && path[0] == '/')
+      << ART_FORMAT("path={}, prefix={}", path, prefix);
   android::base::ConsumeSuffix(&prefix, "/");
   return StartsWith(path, prefix) &&
          (path.length() == prefix.length() || path[prefix.length()] == '/');
@@ -292,6 +293,9 @@ Result<std::vector<FstabEntry>> GetProcMountsEntriesForPath(const std::string& p
   }
   std::vector<FstabEntry> entries;
   for (FstabEntry& entry : fstab) {
+    if (entry.fs_type == "swap") {
+      continue;
+    }
     if (PathStartsWith(path, entry.mount_point)) {
       entries.push_back(std::move(entry));
     }
