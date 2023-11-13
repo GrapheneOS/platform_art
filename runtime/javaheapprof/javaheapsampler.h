@@ -68,7 +68,7 @@ class HeapSampler {
   // of new Tlab after Reset.
   void AdjustSampleOffset(size_t adjustment);
   // Is heap sampler enabled?
-  bool IsEnabled();
+  bool IsEnabled() { return enabled_.load(std::memory_order_acquire); }
   // Set the sampling interval.
   void SetSamplingInterval(int sampling_interval) REQUIRES(!geo_dist_rng_lock_);
   // Return the sampling interval.
@@ -80,7 +80,7 @@ class HeapSampler {
   // possibly decreasing sample intervals by sample_adj_bytes.
   size_t PickAndAdjustNextSample(size_t sample_adj_bytes = 0) REQUIRES(!geo_dist_rng_lock_);
 
-  std::atomic<bool> enabled_;
+  std::atomic<bool> enabled_{false};
   // Default sampling interval is 4kb.
   // Writes guarded by geo_dist_rng_lock_.
   std::atomic<int> p_sampling_interval_{4 * 1024};
