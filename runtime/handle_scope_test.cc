@@ -57,7 +57,7 @@ TEST_F(HandleScopeTest, Offsets) {
   static const size_t kNumReferences = 0x9ABC;
   StackHandleScope<kNumReferences> test_table(soa.Self());
   ObjPtr<mirror::Class> c = class_linker->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
-  test_table.SetReference(0, c.Ptr());
+  test_table.NewHandle(c);
 
   uint8_t* table_base_ptr = reinterpret_cast<uint8_t*>(&test_table);
 
@@ -68,8 +68,8 @@ TEST_F(HandleScopeTest, Offsets) {
   }
 
   {
-    uint32_t* num_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::NumberOfReferencesOffset(kRuntimePointerSize));
+    uint32_t* num_ptr = reinterpret_cast<uint32_t*>(
+        table_base_ptr + HandleScope::CapacityOffset(kRuntimePointerSize));
     EXPECT_EQ(*num_ptr, static_cast<size_t>(kNumReferences));
   }
 
@@ -113,13 +113,15 @@ TEST_F(HandleScopeTest, VariableSized) {
     EXPECT_OBJ_PTR_EQ(o, handles.back().Get());
     EXPECT_TRUE(hs.Contains(handles.back().GetReference()));
     EXPECT_TRUE(base->Contains(handles.back().GetReference()));
-    EXPECT_EQ(hs.NumberOfReferences(), base->NumberOfReferences());
+    EXPECT_EQ(hs.Capacity(), base->Capacity());
   }
+  // Add one null handle.
+  hs.NewHandle<mirror::Object>(nullptr);
   CollectVisitor visitor;
   BaseHandleScope* base = &hs;
   base->VisitRoots(visitor);
-  EXPECT_LE(visitor.visited.size(), base->NumberOfReferences());
-  EXPECT_EQ(visitor.total_visited, base->NumberOfReferences());
+  EXPECT_EQ(visitor.visited.size() + /* null handle */ 1u, base->Size());
+  EXPECT_EQ(visitor.total_visited, base->Size());
   for (StackReference<mirror::Object>* ref : visitor.visited) {
     EXPECT_TRUE(base->Contains(ref));
   }
