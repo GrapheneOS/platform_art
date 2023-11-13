@@ -528,6 +528,8 @@ class OatDexFile final {
 
   DexFile::Magic GetMagic() const { return dex_file_magic_; }
 
+  uint32_t GetDexVersion() const;
+
   // Returns checksum of original DexFile that was the source of this OatDexFile;
   uint32_t GetDexFileLocationChecksum() const {
     return dex_file_location_checksum_;
