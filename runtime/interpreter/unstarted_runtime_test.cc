@@ -125,7 +125,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                                const StackHandleScope<3>& data)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK_EQ(array->GetLength(), 3);
-    CHECK_EQ(data.NumberOfReferences(), 3U);
+    CHECK_EQ(data.Size(), 3U);
     for (size_t i = 0; i < 3; ++i) {
       EXPECT_OBJ_PTR_EQ(data.GetReference(i), array->Get(static_cast<int32_t>(i))) << i;
     }
