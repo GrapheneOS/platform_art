@@ -336,8 +336,8 @@ static dex::TypeIndex FindClassIndexIn(ObjPtr<mirror::Class> cls,
 
 HInliner::InlineCacheType HInliner::GetInlineCacheType(
     const StackHandleScope<InlineCache::kIndividualCacheSize>& classes) {
-  DCHECK_EQ(classes.NumberOfReferences(), InlineCache::kIndividualCacheSize);
-  uint8_t number_of_types = InlineCache::kIndividualCacheSize - classes.RemainingSlots();
+  DCHECK_EQ(classes.Capacity(), InlineCache::kIndividualCacheSize);
+  uint8_t number_of_types = classes.Size();
   if (number_of_types == 0) {
     return kInlineCacheUninitialized;
   } else if (number_of_types == 1) {
@@ -669,8 +669,8 @@ HInliner::InlineCacheType HInliner::GetInlineCacheJIT(
 HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
     HInvoke* invoke_instruction,
     /*out*/StackHandleScope<InlineCache::kIndividualCacheSize>* classes) {
-  DCHECK_EQ(classes->NumberOfReferences(), InlineCache::kIndividualCacheSize);
-  DCHECK_EQ(classes->RemainingSlots(), InlineCache::kIndividualCacheSize);
+  DCHECK_EQ(classes->Capacity(), InlineCache::kIndividualCacheSize);
+  DCHECK_EQ(classes->Size(), 0u);
 
   const ProfileCompilationInfo* pci = codegen_->GetCompilerOptions().GetProfileCompilationInfo();
   if (pci == nullptr) {
@@ -716,7 +716,7 @@ HInliner::InlineCacheType HInliner::GetInlineCacheAOT(
           << descriptor;
       return kInlineCacheMissingTypes;
     }
-    DCHECK_NE(classes->RemainingSlots(), 0u);
+    DCHECK_LT(classes->Size(), classes->Capacity());
     classes->NewHandle(clazz);
   }
 
@@ -967,8 +967,8 @@ bool HInliner::TryInlinePolymorphicCall(
 
   bool all_targets_inlined = true;
   bool one_target_inlined = false;
-  DCHECK_EQ(classes.NumberOfReferences(), InlineCache::kIndividualCacheSize);
-  uint8_t number_of_types = InlineCache::kIndividualCacheSize - classes.RemainingSlots();
+  DCHECK_EQ(classes.Capacity(), InlineCache::kIndividualCacheSize);
+  uint8_t number_of_types = classes.Size();
   for (size_t i = 0; i != number_of_types; ++i) {
     DCHECK(classes.GetReference(i) != nullptr);
     Handle<mirror::Class> handle =
@@ -1154,8 +1154,8 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
 
   // Check whether we are actually calling the same method among
   // the different types seen.
-  DCHECK_EQ(classes.NumberOfReferences(), InlineCache::kIndividualCacheSize);
-  uint8_t number_of_types = InlineCache::kIndividualCacheSize - classes.RemainingSlots();
+  DCHECK_EQ(classes.Capacity(), InlineCache::kIndividualCacheSize);
+  uint8_t number_of_types = classes.Size();
   for (size_t i = 0; i != number_of_types; ++i) {
     DCHECK(classes.GetReference(i) != nullptr);
     ArtMethod* new_method = nullptr;
