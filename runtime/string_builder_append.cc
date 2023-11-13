@@ -396,7 +396,6 @@ inline int32_t StringBuilderAppend::Builder::CalculateLengthWithFlag() {
         UNREACHABLE();
     }
     ++current_arg;
-    DCHECK_LE(hs_.NumberOfReferences(), kMaxArgs);
   }
 
   if (UNLIKELY(has_fp_args)) {
@@ -430,6 +429,7 @@ inline void StringBuilderAppend::Builder::StoreData(ObjPtr<mirror::String> new_s
     DCHECK_LE(f & kArgMask, static_cast<uint32_t>(Argument::kLast));
     switch (static_cast<Argument>(f & kArgMask)) {
       case Argument::kString: {
+        DCHECK_LT(handle_index, hs_.Size());
         ObjPtr<mirror::String> str =
             ObjPtr<mirror::String>::DownCast(hs_.GetReference(handle_index));
         ++handle_index;
@@ -485,7 +485,6 @@ inline void StringBuilderAppend::Builder::StoreData(ObjPtr<mirror::String> new_s
         UNREACHABLE();
     }
     ++current_arg;
-    DCHECK_LE(handle_index, hs_.NumberOfReferences());
     DCHECK_LE(fp_arg_index, std::size(converted_fp_args_));
   }
   DCHECK_EQ(RemainingSpace(new_string, data), 0u) << std::hex << format_;
