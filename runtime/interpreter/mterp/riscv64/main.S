@@ -306,6 +306,7 @@ END \name
 .endm
 
 // Typed read, defaults to 32-bit read
+// Note: Incorrect for an object ref; it requires LWU, or LW;ZEXT.W.
 // Clobbers: \reg
 // Safe if \reg == \vreg.
 .macro GET_VREG reg, vreg, is_wide=0
@@ -318,6 +319,7 @@ END \name
 .endm
 
 // Typed write, defaults to 32-bit write.
+// Note: Incorrect for an object ref; it requires 2nd SW into xREFS.
 // Clobbers: z0
 .macro SET_VREG reg, vreg, z0, is_wide=0
     .if \is_wide
@@ -514,28 +516,29 @@ OAT_ENTRY ExecuteNterpImpl
    // We drained arg registers, so continue from caller stack's out array. Unlike the reference-only
    // fast-path, the continuation offset in the out array can vary, depending on the presence of
    // 64-bit values in the arg registers. \offset tracks this value as a byte offset.
-   addi t4, s9, (NTERP_SIZE_SAVE_CALLEE_SAVES + 8)
-                            // t4 := (caller) outs array base address, for here and fargs
-   add t0, t3, t0           // t0 := (callee) &FP[next]
+   addi t5, s9, (NTERP_SIZE_SAVE_CALLEE_SAVES + 8)
+                            // t5 := (caller) outs array base address
+   add t4, t3, t0           // t4 := (callee) &FP[next]
    add t1, t3, t1           // t1 := (callee) &REFS[next]
-   add t3, t3, t4           // t3 := (caller) &OUTS[next]
-%  store_outs_to_vregs(outs="t3", shorty="t2", fp="t0", refs="t1", z0="t5", z1="t6", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
-
+   add t3, t3, t5           // t3 := (caller) &OUTS[next]
+%  store_outs_to_vregs(outs="t3", shorty="t2", fp="t4", refs="t1", z0="t5", z1="t6", D="s0", F="s4", J="s5", L="s8", next=".Lentry_fargs")
+                            // t0 = &xFP[a1], unclobbered
 .Lentry_fargs:
-   sh2add t0, s7, xFP       // t0 := &FP[a1]
    addi t1, s11, 1          // t1 := shorty arg (skip return type)
    slliw t2, s10, 2         // t2 := starting byte offset for fp/outs, static and instance
    // linear scan through shorty: extract float args
-%  store_fpr_to_vreg(fpr="fa0", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa1", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa2", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa3", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa4", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa5", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa6", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
-%  store_fpr_to_vreg(fpr="fa7", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t5", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa0", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa1", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa2", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa3", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa4", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa5", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa6", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+%  store_fpr_to_vreg(fpr="fa7", offset="t2", shorty="t1", fp="t0", z0="t3", z1="t4", D="s0", F="s4", J="s5", next=".Lentry_go")
+   addi t3, s9, (NTERP_SIZE_SAVE_CALLEE_SAVES + 8)
+                            // t3 := (caller) outs array base address
    add t0, t2, t0           // t0 := (callee) &FP[next]
-   add t2, t2, t4           // t2 := (caller) &OUTS[next]
+   add t2, t2, t3           // t2 := (caller) &OUTS[next]
 %  store_float_outs_to_vregs(outs="t2", shorty="t1", fp="t0", z0="t3", D="s0", F="s4", J="s5", next=".Lentry_go")
 
 .Lentry_go:
@@ -613,10 +616,10 @@ NterpToNterpStatic:
 %  nterp_to_nterp_static()
 NterpToNterpInstanceRange:
 %  nterp_to_nterp_instance_range()
-NterpToNterpStaticRange:
-%  nterp_to_nterp_static_range()
 NterpToNterpStringInitRange:
 %  nterp_to_nterp_string_init_range()
+NterpToNterpStaticRange:
+%  nterp_to_nterp_static_range()
 
 NAME_END nterp_helper
 
