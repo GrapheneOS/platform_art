@@ -3136,43 +3136,6 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kVarHandleWeakCompareAndSetRelease:
       SimplifyVarHandleIntrinsic(instruction);
       break;
-    case Intrinsics::kIntegerRotateRight:
-    case Intrinsics::kLongRotateRight:
-    case Intrinsics::kIntegerRotateLeft:
-    case Intrinsics::kLongRotateLeft:
-    case Intrinsics::kIntegerCompare:
-    case Intrinsics::kLongCompare:
-    case Intrinsics::kIntegerSignum:
-    case Intrinsics::kLongSignum:
-    case Intrinsics::kFloatIsNaN:
-    case Intrinsics::kDoubleIsNaN:
-    case Intrinsics::kStringIsEmpty:
-    case Intrinsics::kUnsafeLoadFence:
-    case Intrinsics::kUnsafeStoreFence:
-    case Intrinsics::kUnsafeFullFence:
-    case Intrinsics::kJdkUnsafeLoadFence:
-    case Intrinsics::kJdkUnsafeStoreFence:
-    case Intrinsics::kJdkUnsafeFullFence:
-    case Intrinsics::kVarHandleFullFence:
-    case Intrinsics::kVarHandleAcquireFence:
-    case Intrinsics::kVarHandleReleaseFence:
-    case Intrinsics::kVarHandleLoadLoadFence:
-    case Intrinsics::kVarHandleStoreStoreFence:
-    case Intrinsics::kMathMinIntInt:
-    case Intrinsics::kMathMinLongLong:
-    case Intrinsics::kMathMinFloatFloat:
-    case Intrinsics::kMathMinDoubleDouble:
-    case Intrinsics::kMathMaxIntInt:
-    case Intrinsics::kMathMaxLongLong:
-    case Intrinsics::kMathMaxFloatFloat:
-    case Intrinsics::kMathMaxDoubleDouble:
-    case Intrinsics::kMathAbsInt:
-    case Intrinsics::kMathAbsLong:
-    case Intrinsics::kMathAbsFloat:
-    case Intrinsics::kMathAbsDouble:
-      // These are replaced by intermediate representation in the instruction builder.
-      LOG(FATAL) << "Unexpected " << static_cast<Intrinsics>(instruction->GetIntrinsic());
-      UNREACHABLE();
     default:
       break;
   }
