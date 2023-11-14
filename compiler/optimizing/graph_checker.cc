@@ -735,10 +735,59 @@ void GraphChecker::VisitInvoke(HInvoke* invoke) {
     }
     flag_info_.seen_always_throwing_invokes = true;
   }
+
+  // Check for intrinsics which should have been replaced by intermediate representation in the
+  // instruction builder.
+  switch (invoke->GetIntrinsic()) {
+    case Intrinsics::kIntegerRotateRight:
+    case Intrinsics::kLongRotateRight:
+    case Intrinsics::kIntegerRotateLeft:
+    case Intrinsics::kLongRotateLeft:
+    case Intrinsics::kIntegerCompare:
+    case Intrinsics::kLongCompare:
+    case Intrinsics::kIntegerSignum:
+    case Intrinsics::kLongSignum:
+    case Intrinsics::kFloatIsNaN:
+    case Intrinsics::kDoubleIsNaN:
+    case Intrinsics::kStringIsEmpty:
+    case Intrinsics::kUnsafeLoadFence:
+    case Intrinsics::kUnsafeStoreFence:
+    case Intrinsics::kUnsafeFullFence:
+    case Intrinsics::kJdkUnsafeLoadFence:
+    case Intrinsics::kJdkUnsafeStoreFence:
+    case Intrinsics::kJdkUnsafeFullFence:
+    case Intrinsics::kVarHandleFullFence:
+    case Intrinsics::kVarHandleAcquireFence:
+    case Intrinsics::kVarHandleReleaseFence:
+    case Intrinsics::kVarHandleLoadLoadFence:
+    case Intrinsics::kVarHandleStoreStoreFence:
+    case Intrinsics::kMathMinIntInt:
+    case Intrinsics::kMathMinLongLong:
+    case Intrinsics::kMathMinFloatFloat:
+    case Intrinsics::kMathMinDoubleDouble:
+    case Intrinsics::kMathMaxIntInt:
+    case Intrinsics::kMathMaxLongLong:
+    case Intrinsics::kMathMaxFloatFloat:
+    case Intrinsics::kMathMaxDoubleDouble:
+    case Intrinsics::kMathAbsInt:
+    case Intrinsics::kMathAbsLong:
+    case Intrinsics::kMathAbsFloat:
+    case Intrinsics::kMathAbsDouble:
+      AddError(
+          StringPrintf("The graph contains an instrinsic which should have been replaced in the "
+                       "instruction builder: %s:%d in block %d.",
+                       invoke->DebugName(),
+                       invoke->GetId(),
+                       invoke->GetBlock()->GetBlockId()));
+      break;
+    default:
+      break;
+  }
 }
 
 void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  // We call VisitInvoke and not VisitInstruction to de-duplicate the always throwing code check.
+  // We call VisitInvoke and not VisitInstruction to de-duplicate the common code: always throwing
+  // and instrinsic checks.
   VisitInvoke(invoke);
 
   if (invoke->IsStaticWithExplicitClinitCheck()) {
