@@ -279,6 +279,11 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::INVOKE_DIRECT:
         case Instruction::INVOKE_STATIC:
         case Instruction::INVOKE_INTERFACE:
+        case Instruction::INVOKE_VIRTUAL_RANGE:
+        case Instruction::INVOKE_SUPER_RANGE:
+        case Instruction::INVOKE_DIRECT_RANGE:
+        case Instruction::INVOKE_STATIC_RANGE:
+        case Instruction::INVOKE_INTERFACE_RANGE:
         case Instruction::NEG_INT:
         case Instruction::NOT_INT:
         case Instruction::NEG_LONG:
