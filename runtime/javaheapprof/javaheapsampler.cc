@@ -131,10 +131,6 @@ void HeapSampler::AdjustSampleOffset(size_t adjustment) {
              << " next_bytes_until_sample = " << next_bytes_until_sample;
 }
 
-bool HeapSampler::IsEnabled() {
-  return enabled_.load(std::memory_order_acquire);
-}
-
 int HeapSampler::GetSamplingInterval() {
   return p_sampling_interval_.load(std::memory_order_acquire);
 }
