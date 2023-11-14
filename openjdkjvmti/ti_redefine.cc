@@ -339,6 +339,29 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
   ObsoleteMap* obsolete_maps_;
 };
 
+namespace {
+// We need to make sure we only have one redefinition in progress. Redefining involves
+// re-verification and potentially new allocations among other things. So we only allow one
+// redefinition at a time.
+static art::Mutex redefinition_lock("JVMTI Redefinition lock", art::LockLevel::kGenericBottomLock);
+static bool redefinition_in_progress GUARDED_BY(redefinition_lock) = false;
+
+bool canHandleRedefinition(art::Thread* self) {
+  art::MutexLock mu(self, redefinition_lock);
+  if (redefinition_in_progress) {
+    return false;
+  }
+  redefinition_in_progress = true;
+  return true;
+}
+
+void finishRedefinition(art::Thread* self) {
+  art::MutexLock mu(self, redefinition_lock);
+  DCHECK_EQ(redefinition_in_progress, true);
+  redefinition_in_progress = false;
+}
+}  // namespace
+
 template <RedefinitionType kType>
 jvmtiError
 Redefiner::IsModifiableClassGeneric(jvmtiEnv* env, jclass klass, jboolean* is_redefinable) {
@@ -545,13 +568,9 @@ Redefiner::ClassRedefinition::ClassRedefinition(
       dex_file_(redefined_dex_file),
       class_sig_(class_sig),
       original_dex_file_(orig_dex_file) {
-  lock_acquired_ = GetMirrorClass()->MonitorTryEnter(driver_->self_) != nullptr;
 }
 
 Redefiner::ClassRedefinition::~ClassRedefinition() {
-  if (driver_ != nullptr && lock_acquired_) {
-    GetMirrorClass()->MonitorExit(driver_->self_);
-  }
   if (art::kIsDebugBuild) {
     if (dex_file_ != nullptr) {
       art::Thread* self = art::Thread::Current();
@@ -676,6 +695,11 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
   // no concurrent redefinitions of the same class at the same time. For simplicity and because
   // this is not expected to be a common occurrence we will just wrap the whole thing in a TOP-level
   // lock.
+  Redefiner r(env, runtime, self, type, error_msg);
+  if (!canHandleRedefinition(self)) {
+    r.RecordFailure(ERR(INTERNAL), "Another redefinition is in progress");
+    return r.result_;
+  }
 
   // Stop JIT for the duration of this redefine since the JIT might concurrently compile a method we
   // are going to redefine.
@@ -683,17 +707,19 @@ jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
   art::jit::ScopedJitSuspend suspend_jit;
   // Get shared mutator lock so we can lock all the classes.
   art::ScopedObjectAccess soa(self);
-  Redefiner r(env, runtime, self, type, error_msg);
   for (const ArtClassDefinition& def : definitions) {
     // Only try to transform classes that have been modified.
     if (def.IsModified()) {
       jvmtiError res = r.AddRedefinition(env, def);
       if (res != OK) {
+        finishRedefinition(self);
         return res;
       }
     }
   }
-  return r.Run();
+  jvmtiError res = r.Run();
+  finishRedefinition(self);
+  return res;
 }
 
 jvmtiError Redefiner::AddRedefinition(ArtJvmTiEnv* env, const ArtClassDefinition& def) {
@@ -1090,15 +1116,6 @@ bool Redefiner::ClassRedefinition::CheckClass() {
   const art::dex::ClassDef& def = dex_file_->GetClassDef(0);
   // Get the class as it is now.
   art::Handle<art::mirror::Class> current_class(hs.NewHandle(GetMirrorClass()));
-
-  // Check whether the class object has been successfully acquired.
-  if (!lock_acquired_) {
-      std::string storage;
-      RecordFailure(ERR(INTERNAL),
-                    StringPrintf("Failed to lock class object '%s'",
-                                 current_class->GetDescriptor(&storage)));
-      return false;
-  }
 
   // Check the access flags didn't change.
   if (def.GetJavaAccessFlags() != (current_class->GetAccessFlags() & art::kAccValidClassFlags)) {
