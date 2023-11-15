@@ -4005,13 +4005,12 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
       }
     }
   }
-  if (all_parameters_are_reference_or_int && shorty[0] != 'F' && shorty[0] != 'D') {
-    // FIXME(riscv64): This optimization is currently disabled because riscv64 needs
-    // to distinguish between zero-extended references and sign-extended integers.
-    // We should enable this for references only and fix corresponding nterp fast-paths.
-    if (kRuntimeISA != InstructionSet::kRiscv64) {
-      access_flags |= kAccNterpInvokeFastPathFlag;
-    }
+  if (kRuntimeISA != InstructionSet::kRiscv64 && all_parameters_are_reference_or_int &&
+      shorty[0] != 'F' && shorty[0] != 'D') {
+    access_flags |= kAccNterpInvokeFastPathFlag;
+  } else if (kRuntimeISA == InstructionSet::kRiscv64 && all_parameters_are_reference &&
+             shorty[0] != 'F' && shorty[0] != 'D') {
+    access_flags |= kAccNterpInvokeFastPathFlag;
   }
 
   if (UNLIKELY((access_flags & kAccNative) != 0u)) {
