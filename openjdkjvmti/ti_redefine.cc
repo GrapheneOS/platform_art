@@ -648,38 +648,6 @@ jvmtiError Redefiner::RedefineClasses(jvmtiEnv* jenv,
   return RedefineClassesGeneric<RedefinitionType::kNormal>(jenv, class_count, definitions);
 }
 
-jvmtiError Redefiner::StructurallyRedefineClassDirect(jvmtiEnv* env,
-                                                      jclass klass,
-                                                      const unsigned char* data,
-                                                      jint data_size) {
-  if (env == nullptr) {
-    return ERR(INVALID_ENVIRONMENT);
-  } else if (ArtJvmTiEnv::AsArtJvmTiEnv(env)->capabilities.can_redefine_classes != 1) {
-    JVMTI_LOG(INFO, env) << "Does not have can_redefine_classes cap!";
-    return ERR(MUST_POSSESS_CAPABILITY);
-  }
-  std::vector<ArtClassDefinition> acds;
-  ArtClassDefinition acd;
-  jvmtiError err = acd.Init(
-      art::Thread::Current(),
-      jvmtiClassDefinition{ .klass = klass, .class_byte_count = data_size, .class_bytes = data });
-  if (err != OK) {
-    return err;
-  }
-  acds.push_back(std::move(acd));
-  std::string err_msg;
-  err = RedefineClassesDirect(ArtJvmTiEnv::AsArtJvmTiEnv(env),
-                              art::Runtime::Current(),
-                              art::Thread::Current(),
-                              acds,
-                              RedefinitionType::kStructural,
-                              &err_msg);
-  if (err != OK) {
-    JVMTI_LOG(WARNING, env) << "Failed structural redefinition: " << err_msg;
-  }
-  return err;
-}
-
 jvmtiError Redefiner::RedefineClassesDirect(ArtJvmTiEnv* env,
                                             art::Runtime* runtime,
                                             art::Thread* self,
