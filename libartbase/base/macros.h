@@ -110,7 +110,17 @@ template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
 #define LOCKABLE CAPABILITY("mutex")
 #define SHARED_LOCKABLE SHARED_CAPABILITY("mutex")
 
+// Some of the libs (e.g. libarttest(d)) require more public symbols when built
+// in debug configuration.
+// Using symbol visibility only for release builds allows to reduce the list of
+// exported symbols and eliminates the need to check debug build configurations
+// when changing the exported symbols.
+#ifdef NDEBUG
 #define HIDDEN __attribute__((visibility("hidden")))
 #define EXPORT __attribute__((visibility("default")))
+#else
+#define HIDDEN
+#define EXPORT
+#endif
 
 #endif  // ART_LIBARTBASE_BASE_MACROS_H_
