@@ -31,7 +31,6 @@
 #include "mirror/object.h"
 #include "object-inl.h"
 #include "verify_object.h"
-#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
