@@ -106,8 +106,7 @@ jvmtiError ArtClassDefinition::Init(art::Thread* self, jclass klass) {
         dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
 
         const art::DexFile& cur_dex = m_klass->GetDexFile();
-        current_dex_file_ =
-            art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.SizeIncludingSharedData());
+        current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
         return OK;
       }
 
@@ -133,8 +132,7 @@ jvmtiError ArtClassDefinition::Init(art::Thread* self, jclass klass) {
         }
       }
       const art::DexFile& cur_dex = m_klass->GetDexFile();
-      current_dex_file_ =
-          art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.SizeIncludingSharedData());
+      current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
       return OK;
     }
   }
@@ -191,8 +189,8 @@ jvmtiError ArtClassDefinition::Init(const art::DexFile& dex_file) {
       }
     }
     // Keep the dex_data alive.
-    dex_data_memory_.resize(original_dex_file->SizeIncludingSharedData());
-    memcpy(dex_data_memory_.data(), original_dex_file->Begin(), dex_data_memory_.size());
+    dex_data_memory_.resize(original_dex_file->Size());
+    memcpy(dex_data_memory_.data(), original_dex_file->Begin(), original_dex_file->Size());
     dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
 
     // In case dex_data gets re-used for redefinition, keep the dex file live
@@ -202,8 +200,7 @@ jvmtiError ArtClassDefinition::Init(const art::DexFile& dex_file) {
     current_dex_file_ = art::ArrayRef<const unsigned char>(current_dex_memory_);
   } else {
     // Dex file will always stay live, use it directly.
-    dex_data_ =
-        art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.SizeIncludingSharedData());
+    dex_data_ = art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.Size());
     current_dex_file_ = dex_data_;
   }
   return OK;

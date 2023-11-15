@@ -127,8 +127,8 @@ class DexFileVerifier {
  public:
   DexFileVerifier(const DexFile* dex_file, const char* location, bool verify_checksum)
       : dex_file_(dex_file),
-        offset_base_address_(dex_file->DataBegin()),
-        size_(dex_file->DataSize()),
+        offset_base_address_(dex_file->Begin()),
+        size_(0),  // Initialized after we verify the header.
         location_(location),
         verify_checksum_(verify_checksum),
         header_(&dex_file->GetHeader()),
@@ -150,7 +150,6 @@ class DexFileVerifier {
  private:
   template <class T = uint8_t>
   ALWAYS_INLINE const T* OffsetToPtr(size_t offset) {
-    DCHECK_GE(offset, static_cast<size_t>(dex_file_->Begin() - offset_base_address_));
     DCHECK_LE(offset, size_);
     return reinterpret_cast<const T*>(offset_base_address_ + offset);
   }
@@ -386,12 +385,11 @@ class DexFileVerifier {
 
   const DexFile* const dex_file_;
   const uint8_t* const offset_base_address_;
-  const size_t size_;
+  size_t size_;
   ArrayRef<const uint8_t> data_;  // The "data" section of the dex file.
   const char* const location_;
   const bool verify_checksum_;
   const DexFile::Header* const header_;
-  uint32_t dex_version_ = 0;
 
   struct OffsetTypeMapEmptyFn {
     // Make a hash map slot empty by making the offset 0. Offset 0 is a valid dex file offset that
@@ -572,11 +570,6 @@ bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset,
       return false;
     }
   }
-  size_t hdr_offset = PtrToOffset(header_);
-  if (offset < hdr_offset) {
-    ErrorStringPrintf("Offset(%d) should be after header(%zu) for %s.", offset, hdr_offset, label);
-    return false;
-  }
   if (size_ <= offset) {
     ErrorStringPrintf("Offset(%d) should be within file size(%zu) for %s.", offset, size_, label);
     return false;
@@ -610,11 +603,10 @@ bool DexFileVerifier::CheckHeader() {
     ErrorStringPrintf("Unknown dex version");
     return false;
   }
-  dex_version_ = header_->GetVersion();
 
   // Check file size from the header.
   size_t file_size = header_->file_size_;
-  size_t header_size = (dex_version_ >= 41) ? sizeof(DexFile::HeaderV41) : sizeof(DexFile::Header);
+  size_t header_size = sizeof(DexFile::Header);
   if (file_size < header_size) {
     ErrorStringPrintf("Bad file size (%zu, expected at least %zu)", file_size, header_size);
     return false;
@@ -624,6 +616,7 @@ bool DexFileVerifier::CheckHeader() {
     return false;
   }
   CHECK_GE(size, header_size);  // Implied by the two checks above.
+  size_ = file_size;
 
   // Check header size.
   if (header_->header_size_ != header_size) {
@@ -646,22 +639,6 @@ bool DexFileVerifier::CheckHeader() {
     } else {
       LOG(WARNING) << StringPrintf(
           "Ignoring bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
-    }
-  }
-
-  if (dex_version_ >= 41) {
-    auto headerV41 = reinterpret_cast<const DexFile::HeaderV41*>(header_);
-    if (headerV41->container_size_ <= headerV41->header_offset_) {
-      ErrorStringPrintf("Dex container is too small: size=%ud header_offset=%ud",
-                        headerV41->container_size_,
-                        headerV41->header_offset_);
-      return false;
-    }
-    uint32_t remainder = headerV41->container_size_ - headerV41->header_offset_;
-    if (headerV41->file_size_ > remainder) {
-      ErrorStringPrintf(
-          "Header file_size(%ud) is past multi-dex size(%ud)", headerV41->file_size_, remainder);
-      return false;
     }
   }
 
@@ -709,9 +686,7 @@ bool DexFileVerifier::CheckHeader() {
                               "data");
 
   if (ok) {
-    data_ = (dex_version_ >= 41)
-        ? ArrayRef<const uint8_t>(dex_file_->Begin(), EndOfFile() - dex_file_->Begin())
-        : ArrayRef<const uint8_t>(OffsetToPtr(header_->data_off_), header_->data_size_);
+    data_ = ArrayRef<const uint8_t>(OffsetToPtr(header_->data_off_), header_->data_size_);
   }
   return ok;
 }
@@ -747,8 +722,9 @@ bool DexFileVerifier::CheckMap() {
                         last_type);
       return false;
     }
-    if (UNLIKELY(item->offset_ >= size_)) {
-      ErrorStringPrintf("Map item after end of file: %x, size %zx", item->offset_, size_);
+    if (UNLIKELY(item->offset_ >= header_->file_size_)) {
+      ErrorStringPrintf("Map item after end of file: %x, size %x",
+                        item->offset_, header_->file_size_);
       return false;
     }
 
@@ -984,10 +960,6 @@ bool DexFileVerifier::CheckPadding(uint32_t aligned_offset,
   if (offset < aligned_offset) {
     if (!CheckListSize(OffsetToPtr(offset), aligned_offset - offset, sizeof(uint8_t), "section")) {
       return false;
-    }
-    if (dex_version_ >= 41) {
-      ptr_ += aligned_offset - offset;
-      return true;
     }
     while (offset < aligned_offset) {
       if (UNLIKELY(*ptr_ != '\0')) {
@@ -2318,19 +2290,17 @@ bool DexFileVerifier::CheckIntraSection() {
 
     // Check each item based on its type.
     switch (type) {
-      case DexFile::kDexTypeHeaderItem: {
+      case DexFile::kDexTypeHeaderItem:
         if (UNLIKELY(section_count != 1)) {
           ErrorStringPrintf("Multiple header items");
           return false;
         }
-        uint32_t expected = dex_version_ >= 41 ? PtrToOffset(dex_file_->Begin()) : 0;
-        if (UNLIKELY(section_offset != expected)) {
-          ErrorStringPrintf("Header at %x, expected %x", section_offset, expected);
+        if (UNLIKELY(section_offset != 0)) {
+          ErrorStringPrintf("Header at %x, not at start of file", section_offset);
           return false;
         }
         ptr_ = OffsetToPtr(header_->header_size_);
         break;
-      }
 
 #define CHECK_INTRA_ID_SECTION_CASE(type)                                   \
       case type:                                                            \
