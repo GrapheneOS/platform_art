@@ -169,9 +169,12 @@ static void GetThreads(art::Handle<art::mirror::Object> thread_group,
                        std::vector<art::ObjPtr<art::mirror::Object>>* thread_peers)
     REQUIRES_SHARED(art::Locks::mutator_lock_) REQUIRES(!art::Locks::thread_list_lock_) {
   CHECK(thread_group != nullptr);
-
-  art::MutexLock mu(art::Thread::Current(), *art::Locks::thread_list_lock_);
-  for (art::Thread* t : art::Runtime::Current()->GetThreadList()->GetList()) {
+  std::list<art::Thread*> thread_list;
+  {
+    art::MutexLock mu(art::Thread::Current(), *art::Locks::thread_list_lock_);
+    thread_list = art::Runtime::Current()->GetThreadList()->GetList();
+  }
+  for (art::Thread* t : thread_list) {
     if (t->IsStillStarting()) {
       continue;
     }
