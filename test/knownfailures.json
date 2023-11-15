@@ -289,22 +289,13 @@
         "variant": "jit"
     },
     {
-        "tests": ["570-checker-select",
-                  "484-checker-register-hints"],
-        "description": ["These tests were based on the linear scan allocator,",
-                        "which makes different decisions than the graph",
-                        "coloring allocator. (These attempt to test for code",
-                        "quality, not correctness.)"],
-        "variant": "regalloc_gc"
-    },
-    {
         "tests": ["454-get-vreg",
                   "457-regs",
                   "602-deoptimizeable",
                   "685-deoptimizeable"],
         "description": ["Tests that should fail when the optimizing compiler ",
                         "compiles them non-debuggable."],
-        "variant": "optimizing & ndebuggable | regalloc_gc & ndebuggable | speed-profile & ndebuggable | jit & ndebuggable | jit-on-first-use & ndebuggable"
+        "variant": "optimizing & ndebuggable | speed-profile & ndebuggable | jit & ndebuggable | jit-on-first-use & ndebuggable"
     },
     {
         "tests": ["596-app-images", "597-app-images-same-classloader"],
@@ -328,7 +319,7 @@
     },
     {
         "tests": "055-enum-performance",
-        "variant": "optimizing | regalloc_gc",
+        "variant": "optimizing",
         "description": ["055: Exceeds run time limits due to heap poisoning ",
                         "instrumentation (on ARM and ARM64 devices)."]
     },
@@ -348,7 +339,7 @@
                   "595-profile-saving"],
         "description": "The doesn't compile anything",
         "env_vars": {"ART_TEST_BISECTION": "true"},
-        "variant": "optimizing | regalloc_gc"
+        "variant": "optimizing"
     },
     {
         "tests": ["018-stack-overflow",
@@ -358,21 +349,21 @@
                   "137-cfi"],
         "description": "The test run dalvikvm more than once.",
         "env_vars": {"ART_TEST_BISECTION": "true"},
-        "variant": "optimizing | regalloc_gc"
+        "variant": "optimizing"
     },
     {
         "tests": ["115-native-bridge",
                   "088-monitor-verification"],
         "description": "The test assume they are always compiled.",
         "env_vars": {"ART_TEST_BISECTION": "true"},
-        "variant": "optimizing | regalloc_gc"
+        "variant": "optimizing"
     },
     {
         "tests": "055-enum-performance",
         "description": ["The test tests performance which degrades during",
                         "bisecting."],
         "env_vars": {"ART_TEST_BISECTION": "true"},
-        "variant": "optimizing | regalloc_gc"
+        "variant": "optimizing"
     },
     {
         "tests": ["537-checker-arraycopy",

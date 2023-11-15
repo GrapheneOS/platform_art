@@ -126,7 +126,7 @@
    and t0, a0, 0x1                 // t0 := string-init bit
    beqz t0, 1b                     // not string init
    and a0, a0, ~0x1                // clear string-init bit
-   tail NterpInvokeStringInit      // args a0, a1, s7
+   tail NterpInvokeStringInit${range}  // args a0, s7
 3:
    tail common_errNullObject
 
@@ -379,25 +379,28 @@
 // NterpInvokeDirect
 // a0: ArtMethod*
 // a1: this
-// s7: vreg ids F|E|D|C
-%def nterp_invoke_direct(uniq="invoke_direct"):
+// s7: (regular) vreg ids F|E|D|C, (range) vreg id CCCC
+%def nterp_invoke_direct(uniq="invoke_direct", range=""):
    ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
                                  // s8 := quick code
 %  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_simple")
-   call NterpToNterpInstance     // args a0, a1
+   call NterpToNterpInstance${range}  // args a0, a1
    j .L${uniq}_next_op
 
 .L${uniq}_simple:
-   srliw t0, xINST, 12           // t0 := A
-%  try_simple_args(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_01", uniq=uniq)
-                                 // a2, a3, a4, a5 := fp[D], fp[E], fp[F], fp[G]
-   jalr s8                       // args a0 - a5
+%  if range == 'Range':
+%    try_simple_args_range(vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", skip=f".L{uniq}_01", uniq=uniq)
+%  else:
+%    try_simple_args(v_fedc="s7", z0="t0", z1="t1", skip=f".L{uniq}_01", uniq=uniq)
+%#:
+   jalr s8                       // (regular) args a0 - a5, (range) args a0 - a7 and stack
    j .L${uniq}_next_op
 
 .L${uniq}_01:
+   j .L${uniq}_slow  // TODO fix this fastpath
    mv s9, zero                   // initialize shorty reg
-%  try_01_args(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
-                                 // a2, fa0 := fp[D], maybe
+%  try_01_args(vreg="s7", z0="t1", z1="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                                 // a2, fa0 := (regular) fp[D] or (range) fp[CCCC + 1], maybe
    // Return value expected. Get shorty, stash in callee-save to be available on return.
    // When getting shorty, stash this fast path's arg registers then restore.
    // Unconditionally restores a2/fa0, even if extra arg not found.
@@ -414,7 +417,11 @@
 
 .L${uniq}_slow:
 %  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-%  slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
+%  if range == 'Range':
+%    slow_setup_args_range(shorty="s9", vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s10", uniq=uniq)
+%  else:
+%    slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", uniq=uniq)
+%#:
    jalr s8                       // args in a0-a5, fa0-fa4
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
                                  // a0 := fa0 if float return
@@ -426,23 +433,27 @@
 
 // NterpInvokeStringInit
 // a0: ArtMethod*
-// a1: this
-// s7: vreg ids F|E|D|C
-%def nterp_invoke_string_init(uniq="invoke_string_init"):
+// s7: (regular) vreg ids F|E|D|C, (range) vreg id CCCC
+%def nterp_invoke_string_init(uniq="invoke_string_init", range=""):
    ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
-                                 // s8 := quick code
+                        // s8 := quick code
 %  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_slow")
-   call NterpToNterpStringInit   // args a0, a1
+   call NterpToNterpStringInit${range}  // arg a0
    j .L${uniq}_next_op
 
 .L${uniq}_slow:
 %  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-%  slow_setup_args_string_init(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
-   mv s9, a1                     // save "this" in callee-save for return-time fixup
-   jalr s8                       // args in a0-a5, fa0-fa4
+%  if range == 'Range':
+%    slow_setup_args_string_init_range(shorty="s9", vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", uniq=uniq)
+%  else:
+%    slow_setup_args_string_init(shorty="s9", v_fedc="s7", z0="t0", z1="t1", z2="t2", uniq=uniq)
+%#:
+   jalr s8              // args (regular) a0 - a5, (range) a0 - a5
 
 .L${uniq}_next_op:
-%  subst_vreg_references(old="s9", new="a0", z0="t0", z1="t1", z2="t2", uniq=uniq)
+%  fetch_receiver(reg="t0", vreg="s7", range=range)
+                        // t0 := fp[C] (this)
+%  subst_vreg_references(old="t0", new="a0", z0="t1", z1="t2", z2="t3", uniq=uniq)
    FETCH_ADVANCE_INST 3
    GET_INST_OPCODE t0
    GOTO_OPCODE t0
@@ -450,43 +461,50 @@
 
 // NterpInvokeStatic
 // a0: ArtMethod*
-// s7: vreg ids F|E|D|C
-%def nterp_invoke_static(uniq="invoke_static"):
+// s7: (regular) vreg ids F|E|D|C, (range) vreg id CCCC
+%def nterp_invoke_static(uniq="invoke_static", range=""):
    ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
-                                 // s8 := quick code
+                               // s8 := quick code
 %  try_nterp(quick="s8", z0="t0", skip=f".L{uniq}_simple")
-   call NterpToNterpStatic       // arg a0
+   call NterpToNterpStatic${range}  // arg a0
    j .L${uniq}_next_op
 
 .L${uniq}_simple:
-   srliw t0, xINST, 12           // t0 := A
-%  try_simple_args_static(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_01", uniq=uniq)
-                                 // a1, a2, a3, a4, a5 := fp[C], fp[D], fp[E], fp[F], fp[G]
-   jalr s8                       // args a0 - a5
+%  if range == 'Range':
+%    try_simple_args_range(vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", arg_start="0", skip=f".L{uniq}_01", uniq=uniq)
+%  else:
+%    try_simple_args(v_fedc="s7", z0="t0", z1="t1", arg_start="0", skip=f".L{uniq}_01", uniq=uniq)
+%#:
+   jalr s8                     // args (regular) a0 - a5, (range) a0 - a7 and maybe stack
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   mv s9, zero                   // initialize shorty reg
-%  try_01_args_static(ins="t0", v_fedc="s7", z0="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
-                                 // a1, fa0 := fp[C], maybe
+   j .L${uniq}_slow  // TODO fix this fastpath
+   mv s9, zero                 // initialize shorty reg
+%  try_01_args_static(vreg="s7", z0="t0", z1="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                               // a1, fa0 := fp[C], maybe
    // Return value expected. Get shorty, stash in callee-save to be available on return.
    // When getting shorty, stash this fast path's arg registers then restore.
    // Unconditionally restores a1/fa0, even if extra arg not found.
 %  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
    fmv.w.x fa0, s11
 .L${uniq}_01_call:
-   jalr s8                       // args a0, and maybe a1, fa0
-   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+   jalr s8                     // args a0, and maybe a1, fa0
+   beqz s9, .L${uniq}_next_op  // no shorty, no return value
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
-                                 // a0 := fa0 if float return
+                               // a0 := fa0 if float return
    j .L${uniq}_next_op
 
 .L${uniq}_slow:
 %  get_shorty_save_a0(shorty="s9", y0="s10")
-%  slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", arg_start="0", uniq=uniq)
-   jalr s8                       // args in a0-a5, fa0-fa4
+%  if range == 'Range':
+%    slow_setup_args_range(shorty="s9", vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s10", arg_start="0", uniq=uniq)
+%  else:
+%    slow_setup_args(shorty="s9", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", arg_start="0", uniq=uniq)
+%#:
+   jalr s8                     // args (regular) a0 - a5 and fa0 - fa4, (range) a0 - a7 and fa0 - fa7 and maybe stack
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
-                                 // a0 := fa0 if float return
+                               // a0 := fa0 if float return
 .L${uniq}_next_op:
    FETCH_ADVANCE_INST 3
    GET_INST_OPCODE t0
@@ -499,44 +517,57 @@
 // s7: vreg ids F|E|D|C
 // t0: the target interface method
 //     - ignored in nterp-to-nterp transfer
-//     - side-loaded into T0 as a "hidden argument" in managed ABI transfer
-%def nterp_invoke_interface(uniq="invoke_interface"):
+//     - preserved through shorty calls
+//     - side-loaded as a "hidden argument" in managed ABI transfer
+%def nterp_invoke_interface(uniq="invoke_interface", range=""):
    ld s8, ART_METHOD_QUICK_CODE_OFFSET_64(a0)
-                                 // s8 := quick code
+                               // s8 := quick code
 %  try_nterp(quick="s8", z0="t1", skip=f".L{uniq}_simple")
-   call NterpToNterpInstance     // args a0, a1
+   call NterpToNterpInstance${range}  // args a0, a1
    j .L${uniq}_next_op
 
 .L${uniq}_simple:
-   srliw t1, xINST, 12           // t1 := A
-%  try_simple_args(ins="t1", v_fedc="s7", z0="t2", skip=f".L{uniq}_01", uniq=uniq)
-                                 // a2, a3, a4, a5 := fp[D], fp[E], fp[F], fp[G]
-   jalr s8                       // args a0 - a5, and t0
+%  if range == 'Range':
+%    try_simple_args_range(vC="s7", z0="t1", z1="t2", z2="t3", z3="t4", z4="t5", skip=f".L{uniq}_01", uniq=uniq)
+%  else:
+%    try_simple_args(v_fedc="s7", z0="t1", z1="t2", skip=f".L{uniq}_01", uniq=uniq)
+%#:
+   jalr s8                     // args (regular) a0 - a5 and t0, (range) a0 - a7 and t0 and maybe stack
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   mv s9, zero                   // initialize shorty reg
-%  try_01_args(ins="t1", v_fedc="s7", z0="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq)
+   j .L${uniq}_slow  // TODO fix this fastpath
+   mv s9, zero                 // initialize shorty reg
+%  try_01_args(vreg="s7", z0="t1", z1="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                               // a2, fa0 := (regular) fp[D] or (range) fp[CCCC + 1], maybe
    // Return value expected. Get shorty, stash in callee-save to be available on return.
    // When getting shorty, stash this fast path's arg registers then restore.
    // Unconditionally stores a2/fa0, even if extra arg not found.
-   mv s0, a2                    // skip fa0, bitwise equiv to a2
+   mv s7, a2                   // skip fa0, bitwise equiv to a2. vreg in s7 no longer needed.
+   mv s0, t0
 %  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-   mv a2, s0
-   fmv.w.x fa0, s0
+   mv t0, s0
+   mv a2, s7
+   fmv.w.x fa0, s7
 .L${uniq}_01_call:
-   jalr s8                       // args a0, a1, and t0, and maybe a2, fa0
-   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+   jalr s8                     // args a0, a1, and t0, and maybe a2, fa0
+   beqz s9, .L${uniq}_next_op  // no shorty, no return value
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
-                                 // a0 := fa0 if float return
+                               // a0 := fa0 if float return
    j .L${uniq}_next_op
 
 .L${uniq}_slow:
+   mv s0, t0
 %  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-%  slow_setup_args(shorty="s9", vregs="s7", z0="t1", z1="t2", z2="t3", z3="t4", uniq=uniq)
-   jalr s8                       // args a0-a5, fa0-fa4, and t0
+   mv t0, s0
+%  if range == 'Range':
+%    slow_setup_args_range(shorty="s9", vC="s7", z0="s10", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s11", uniq=uniq)
+%  else:
+%    slow_setup_args(shorty="s9", vregs="s7", z0="s10", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", uniq=uniq)
+%#:
+   jalr s8                     // args (regular) a0 - a5, fa0 - fa4, t0, (range) a0 - a7, fa0 - fa7, t0
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_1")
-                                 // a0 := fa0 if float return
+                               // a0 := fa0 if float return
 .L${uniq}_next_op:
    FETCH_ADVANCE_INST 3
    GET_INST_OPCODE t0
@@ -554,38 +585,54 @@
 
 
 // NterpInvokeVirtualRange
+// a0: ArtMethod*
+// a1: this
+// s7: vreg id CCCC
 %def nterp_invoke_virtual_range():
-%  nterp_invoke_direct_range(uniq="invoke_virtual_range")
+%  nterp_invoke_direct(uniq="invoke_virtual_range", range="Range")
 
 
 // NterpInvokeSuperRange
+// a0: ArtMethod*
+// a1: this
+// s7: vreg id CCCC
 %def nterp_invoke_super_range():
-%  nterp_invoke_direct_range(uniq="invoke_super_range")
+%  nterp_invoke_direct(uniq="invoke_super_range", range="Range")
 
 
 // NterpInvokeDirectRange
-%def nterp_invoke_direct_range(uniq="invoke_direct_range"):
-   unimp
+// Hardcoded:
+// a0: ArtMethod*
+// a1: this
+// s7: vreg id CCCC
+%def nterp_invoke_direct_range():
+%  nterp_invoke_direct(uniq="invoke_direct_range", range="Range")
 
 
 // NterpInvokeStringInitRange
-%def nterp_invoke_string_init_range(uniq="invoke_string_init_range"):
-   unimp
+// a0: ArtMethod*
+// s7: vreg id CCCC
+%def nterp_invoke_string_init_range():
+%  nterp_invoke_string_init(uniq="invoke_string_init_range", range="Range")
 
 
 // NterpInvokeStaticRange
-%def nterp_invoke_static_range(uniq="invoke_static_range"):
-   unimp
+// a0: ArtMethod*
+// s7: vreg id CCCC
+%def nterp_invoke_static_range():
+%  nterp_invoke_static(uniq="invoke_static_range", range="Range")
 
 
 // NterpInvokeInterfaceRange
 // a0: ArtMethod*
 // a1: this
-// a2: the target interface method
+// s7: vreg id CCCC
+// t0: the target interface method
 //     - ignored in nterp-to-nterp transfer
-//     - side-loaded into T0 as a "hidden argument" in managed ABI transfer
-%def nterp_invoke_interface_range(uniq="invoke_interface_range"):
-   unimp
+//     - preserved through shorty calls
+//     - side-loaded as a "hidden argument" in managed ABI transfer
+%def nterp_invoke_interface_range():
+%  nterp_invoke_interface(uniq="invoke_interface_range", range="Range")
 
 
 // NterpInvokePolymorphicRange
@@ -611,82 +658,137 @@
 
 // Hardcoded
 // - a0: ArtMethod*
+// - xINST
 // Input
-// - ins: arg count
 // - v_fedc: vreg ids F|E|D|C
-// Temporaries: z0
-%def try_simple_args(ins="", v_fedc="", z0="", skip="", uniq=""):
+// Temporaries: z0, z1
+%def try_simple_args(v_fedc="", z0="", z1="", arg_start="1", skip="", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
    BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
-   li $z0, 2
-   blt $ins, $z0, .L${uniq}_simple_done  // A = 1: no further args.
-   beq $ins, $z0, .L${uniq}_simple_2  // A = 2
-   li $z0, 4
-   blt $ins, $z0, .L${uniq}_simple_3  // A = 3
-   beq $ins, $z0, .L${uniq}_simple_4  // A = 4
-   // A = 5
-   srliw $z0, xINST, 8                // z0 := A|G
-   andi $z0, $z0, 0xF                 // z0 := G
-   GET_VREG a5, $z0
-.L${uniq}_simple_4:
-   srliw $z0, $v_fedc, 12             // z0 := F
-   GET_VREG a4, $z0
-.L${uniq}_simple_3:
-   srliw $z0, $v_fedc, 8              // z0 := F|E
-   andi $z0, $z0, 0xF                 // z0 := E
-   GET_VREG a3, $z0
-.L${uniq}_simple_2:
-   srliw $z0, $v_fedc, 4              // z0 := F|E|D
-   andi $z0, $z0, 0xF                 // z0 := D
-   GET_VREG a2, $z0
-.L${uniq}_simple_done:
-   // a1 already set to "this"
 
-
-// Static variant.
-%def try_simple_args_static(ins="", v_fedc="", z0="", skip="", uniq=""):
-   lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
-   BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
-   beqz $ins, .L${uniq}_simple_done   // A = 0: no further args.
-   li $z0, 2
-   blt $ins, $z0, .L${uniq}_simple_1  // A = 1
-   beq $ins, $z0, .L${uniq}_simple_2  // A = 2
-   li $z0, 4
-   blt $ins, $z0, .L${uniq}_simple_3  // A = 3
-   beq $ins, $z0, .L${uniq}_simple_4  // A = 4
+   srliw $z0, xINST, 12              // z0 := A
+%  if arg_start == "0":
+     beqz $z0, .L${uniq}_simple_done // A = 0: no further args.
+%#:
+   li $z1, 2
+   blt $z0, $z1, .L${uniq}_simple_1  // A = 1
+   beq $z0, $z1, .L${uniq}_simple_2  // A = 2
+   li $z1, 4
+   blt $z0, $z1, .L${uniq}_simple_3  // A = 3
+   beq $z0, $z1, .L${uniq}_simple_4  // A = 4
    // A = 5
-   srliw $z0, xINST, 8                // z0 := A|G
-   andi $z0, $z0, 0xF                 // z0 := G
-   GET_VREG a5, $z0
+   srliw $z1, xINST, 8               // z1 := A|G
+   andi $z1, $z1, 0xF                // z1 := G
+   GET_VREG a5, $z1
 .L${uniq}_simple_4:
-   srliw $z0, $v_fedc, 12             // z0 := F
-   GET_VREG a4, $z0
+   srliw $z1, $v_fedc, 12            // z1 := F
+   GET_VREG a4, $z1
 .L${uniq}_simple_3:
-   srliw $z0, $v_fedc , 8             // z0 := F|E
-   andi $z0, $z0, 0xF                 // z0 := E
-   GET_VREG a3, $z0
+   srliw $z1, $v_fedc, 8             // z1 := F|E
+   andi $z1, $z1, 0xF                // z1 := E
+   GET_VREG a3, $z1
 .L${uniq}_simple_2:
-   srliw $z0, $v_fedc, 4              // z0 := F|E|D
-   andi $z0, $z0, 0xF                 // z0 := D
-   GET_VREG a2, $z0
+   srliw $z1, $v_fedc, 4             // z1 := F|E|D
+   andi $z1, $z1, 0xF                // z1 := D
+   GET_VREG a2, $z1
 .L${uniq}_simple_1:
-   andi $z0, $v_fedc, 0xF             // z0 := C
-   GET_VREG a1, $z0
+%  if arg_start == "0":
+     andi $z1, $v_fedc, 0xF          // z1 := C
+     GET_VREG a1, $z1
+   // instance: a1 already set to "this"
+.L${uniq}_simple_done:
+
+
+// Range variant.
+%def try_simple_args_range(vC="", z0="", z1="", z2="", z3="", z4="", skip="", arg_start="1", uniq=""):
+   lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
+   BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
+
+   srliw $z0, xINST, 8                 // z0 := AA
+%  if arg_start == "0":  # static:
+     beqz $z0, .L${uniq}_simple_done   // AA = 0: no further args.
+     sh2add $z1, $vC, xFP              // z1 := &FP[CCCC]
+     li $z2, 2
+     blt $z0, $z2, .L${uniq}_simple_1  // AA = 1
+%  else:  # instance:
+     li $z2, 2
+     blt $z0, $z2, .L${uniq}_simple_done  // AA = 1, and a1 already loaded.
+     sh2add $z1, $vC, xFP               // z1 := &FP[CCCC]
+%#:
+   // Here: z0, z1, z2 same values for static vs instance.
+   beq $z0, $z2, .L${uniq}_simple_2  // AA = 2
+   li $z2, 4
+   blt $z0, $z2, .L${uniq}_simple_3  // AA = 3
+   beq $z0, $z2, .L${uniq}_simple_4  // AA = 4
+   li $z2, 6
+   blt $z0, $z2, .L${uniq}_simple_5  // AA = 5
+   beq $z0, $z2, .L${uniq}_simple_6  // AA = 6
+   li $z2, 7
+   beq $z0, $z2, .L${uniq}_simple_7  // AA = 7
+
+   // AA >= 8: store in stack. Load/store from FP[CCCC + 7] upwards.
+   slli $z2, $z0, 63                 // z2 := negative if z0 bit #0 is set (odd)
+   sh2add $z0, $z0, $z1              // z0 := loop guard at top of stack
+   addi $z3, $z1, 7*4                // z3 := &FP[CCCC + 7]
+   addi $z4, sp, __SIZEOF_POINTER__ + 7*4
+                                     // z4 := &OUT[CCCC + 7]
+   bltz $z2, .L${uniq}_simple_loop_wide
+                                     // if AA odd, branch to wide-copy
+   lw $z2, ($z3)
+   sw $z2, ($z4)
+   addi $z3, $z3, 4
+   addi $z4, $z4, 4
+
+.L${uniq}_simple_loop_wide:
+   // TODO: Consider ensuring 64-bit stores are aligned.
+   beq $z3, $z0, .L${uniq}_simple_7
+   ld $z2, ($z3)
+   sd $z2, ($z4)
+   addi $z3, $z3, 8
+   addi $z4, $z4, 8
+   j .L${uniq}_simple_loop_wide
+
+   // Bottom 7 slots of OUT array never written; first args are passed with a1-a7.
+.L${uniq}_simple_7:
+   lw a7, 6*4($z1)
+.L${uniq}_simple_6:
+   lw a6, 5*4($z1)
+.L${uniq}_simple_5:
+   lw a5, 4*4($z1)
+.L${uniq}_simple_4:
+   lw a4, 3*4($z1)
+.L${uniq}_simple_3:
+   lw a3, 2*4($z1)
+.L${uniq}_simple_2:
+   lw a2, 1*4($z1)
+.L${uniq}_simple_1:
+%  if arg_start == "0":  # static:
+     lw a1, 0*4($z1)
+%#:
 .L${uniq}_simple_done:
 
 
 // Check if a 0/1 arg invoke form is possible, set up a2 and fa0 if needed.
 // If a return value expected, move possible float return to a0.
 // zN are temporaries
-// yN are callee-saved
-%def try_01_args(ins="", v_fedc="", z0="", skip="", call="", uniq=""):
-   li $z0, 2                    // z0 := 2
-   blt $ins, $z0, .L${uniq}_01_peek_next  // A = 1
-   bgt $ins, $z0, $skip         // A >= 3
-   // A = 2: this, plus one arg
-   srliw $z0, $v_fedc, 4        // z0 := F|E|D
-   andi $z0, $z0, 0xF           // z0 := D
-   GET_VREG a2, $z0
+%def try_01_args(vreg="", z0="", z1="", skip="", call="", uniq="", range=""):
+%  if range == 'Range':
+     srliw $z0, xINST, 8   // z0 := AA
+%  else:
+     srliw $z0, xINST, 12  // z0 := A
+%#:
+   li $z1, 2               // z1 := 2
+   blt $z0, $z1, .L${uniq}_01_peek_next  // ins = 1
+   bgt $z0, $z1, $skip     // ins >= 3
+   // ins = 2: this, plus one arg
+%  if range == 'Range':
+     addi $z1, $vreg, 1    // z1 := CCCC + 1
+     GET_VREG a2, $z1      // a2 := fp[CCCC + 1]
+%  else:
+     srliw $z1, $vreg, 4   // z1 := F|E|D
+     andi $z1, $z1, 0xF    // z1 := D
+     GET_VREG a2, $z1      // a2 := fp[D]
+%#:
    fmv.w.x fa0, a2
 .L${uniq}_01_peek_next:
 %  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
@@ -694,13 +796,22 @@
 
 
 // Static variant.
-%def try_01_args_static(ins="", v_fedc="", z0="", skip="", call="", uniq=""):
-   beqz $ins, .L${uniq}_01_peek_next  // A = 0
-   li $z0, 1                    // z0 := imm 1
-   bgt $ins, $z0, $skip         // A >= 2
-   // A = 1
-   andi $z0, $v_fedc, 0xF       // z0 := C
-   GET_VREG a1, $z0
+%def try_01_args_static(vreg="", z0="", z1="", skip="", call="", uniq="", range=""):
+%  if range == 'Range':
+     srliw $z0, xINST, 8     // z0 := AA
+%  else:
+     srliw $z0, xINST, 12    // z0 := A
+%#:
+   beqz $z0, .L${uniq}_01_peek_next  // ins = 0
+   li $z1, 1                 // z1 := 1
+   bgt $z0, $z1, $skip       // ins >= 2
+   // ins = 1: one arg
+%  if range == 'Range':
+     GET_VREG a1, $vreg      // a1 := fp[CCCC]
+%  else:
+     andi $z1, $vreg, 0xF    // z1 := C
+     GET_VREG a1, $z1        // a1 := fp[C]
+%#:
    fmv.w.x fa0, a1
 .L${uniq}_01_peek_next:
 %  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
@@ -791,8 +902,8 @@
 // - a0: ArtMethod*
 // - a1: this
 // Input
-// - vregs: F|E|D|C
-%def slow_setup_args(shorty="", vregs="", z0="", z1="", z2="", z3="", arg_start="1", uniq=""):
+// - vregs: F|E|D|C from dex
+%def slow_setup_args(shorty="", vregs="", z0="", z1="", z2="", z3="", z4="", z5="", z6="", arg_start="1", uniq=""):
    srliw $z0, xINST, 12     // z0 := A
    li $z1, 5
    blt $z0, $z1, .L${uniq}_slow_gpr
@@ -806,77 +917,178 @@
    addi $z0, $shorty, 1     // z0 := first arg of shorty
    srliw $z1, $vregs, 4*$arg_start
                             // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
+   li $z2, 'D'              // double
+   li $z3, 'F'              // float
+   li $z4, 'J'              // long
+   li $z5, 'L'              // ref
    // linear scan through shorty: extract non-float vregs
 %  if arg_start == "0":  # static can place vC into a1; instance already loaded "this" into a1.
-%    load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
-%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
-%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
-%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
-%  load_vreg_in_gpr(gpr="a5", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_4")
+%    load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, L=z5, z0=z6, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
+%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, L=z5, z0=z6, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
+%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, L=z5, z0=z6, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
+%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, L=z5, z0=z6, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
+%  load_vreg_in_gpr(gpr="a5", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, L=z5, z0=z6, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_4")
 
 .L${uniq}_slow_fpr:
    addi $z0, $shorty, 1     // z0 := first arg of shorty
    srliw $z1, $vregs, 4*$arg_start
                             // z1 := (instance) F|E|D or G|F|E|D, (static) F|E|D|C or G|F|E|D|C
    // linear scan through shorty: extract float/double vregs
-%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
-%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
-%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
-%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
+%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, z0=z5, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
+%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, z0=z5, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
+%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, z0=z5, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
+%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, z0=z5, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
 %  if arg_start == "0":  # static can place G into fa4; instance has only 4 args.
-%    load_vreg_in_fpr(fpr="fa4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_4")
+%    load_vreg_in_fpr(fpr="fa4", shorty=z0, vregs=z1, D=z2, F=z3, J=z4, z0=z5, done=f".L{uniq}_slow_done", uniq=f"{uniq}_4")
 %#:
 .L${uniq}_slow_done:
 
 
-// string-init variant
-%def slow_setup_args_string_init(shorty="", vregs="", z0="", z1="", z2="", z3="", uniq=""):
-   srliw $z0, xINST, 12     // z0 := A
-   li $z1, 5
-   blt $z0, $z1, .L${uniq}_slow_gpr
-   // A = 5: need vreg G
-   srliw $z1, xINST, 8      // z1 := A|G
-   andi $z1, $z1, 0xF       // z1 := G
-   slliw $z1, $z1, 16       // z1 := G0000
-   add $vregs, $z1, $vregs  // vregs := G|F|E|D|C
+// String-init variant: up to 4 args, no long/double/float args.
+// Ref args ('L') loaded with LW *must* apply ZEXT.W to avoid subtle address bugs.
+%def slow_setup_args_string_init(shorty="", v_fedc="", z0="", z1="", z2="", uniq=""):
+   srliw $z0, xINST, 12            // z0 := A; possible values 1-5
+   li $z1, 2
+   blt $z0, $z1, .L${uniq}_slow_1  // A = 1
+   li $z2, 'L'                     // z2 := ref type
+   beq $z0, $z1, .L${uniq}_slow_2  // A = 2
+   li $z1, 4
+   blt $z0, $z1, .L${uniq}_slow_3  // A = 3
+   beq $z0, $z1, .L${uniq}_slow_4  // A = 4
 
-.L${uniq}_slow_gpr:
-   addi $z0, $shorty, 1     // z0 := first arg of shorty
-   srliw $z1, $vregs, 4     // z1 := (instance) F|E|D or G|F|E|D
+   // A = 5
+   srliw $z0, xINST, 8             // z0 := A|G
+   andi $z0, $z0, 0xF              // z0 := G
+   GET_VREG a4, $z0
+   lb $z1, 4($shorty)              // shorty RDEFG
+   bne $z1, $z2, .L${uniq}_slow_4
+   zext.w a4, a4
+.L${uniq}_slow_4:
+   srliw $z1, $v_fedc, 12          // z1 := F
+   GET_VREG a3, $z1
+   lb $z1, 3($shorty)              // shorty RDEF
+   bne $z1, $z2, .L${uniq}_slow_3
+   zext.w a3, a3
+.L${uniq}_slow_3:
+   srliw $z1, $v_fedc, 8           // z1 := F|E
+   andi $z1, $z1, 0xF              // z1 := E
+   GET_VREG a2, $z1
+   lb $z1, 2($shorty)              // shorty RDE
+   bne $z1, $z2, .L${uniq}_slow_2
+   zext.w a2, a2
+.L${uniq}_slow_2:
+   srliw $z1, $v_fedc, 4           // z1 := F|E|D
+   andi $z1, $z1, 0xF              // z1 := D
+   GET_VREG a1, $z1
+   lb $z1, 1($shorty)              // shorty RD
+   bne $z1, $z2, .L${uniq}_slow_1
+   zext.w a1, a1
+.L${uniq}_slow_1:
+   // "this" never read in string-init
+
+
+// Range and static-range variant.
+// Hardcoded
+// - (caller) xPC, xINST, xFP
+// - (callee) sp
+// Input
+// - vC: CCCC from dex
+%def slow_setup_args_range(shorty="", vC="", z0="", z1="", z2="", z3="", z4="", z5="", z6="", z7="", arg_start="1", uniq=""):
+   addi $z0, $shorty, 1       // z0 := first arg of shorty
+   addi $z1, $vC, $arg_start  // z1 := (instance) CCCC+1, (static) CCCC
+   mv $z2, zero               // z2 := is_out_stack_needed false
+   li $z3, 'D'                // double
+   li $z4, 'F'                // float
+   li $z5, 'J'                // long
+   li $z6, 'L'                // ref
+
    // linear scan through shorty: extract non-float vregs
-%  load_vreg_in_gpr(gpr="a1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_0")
-%  load_vreg_in_gpr(gpr="a2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
-%  load_vreg_in_gpr(gpr="a3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
-%  load_vreg_in_gpr(gpr="a4", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
+%  if arg_start == "0":  # static can place vCCCC into a1; instance already loaded "this" into a1.
+%    load_vreg_in_gpr_range(gpr="a1", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_1")
+%  load_vreg_in_gpr_range(gpr="a2", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_2")
+%  load_vreg_in_gpr_range(gpr="a3", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_3")
+%  load_vreg_in_gpr_range(gpr="a4", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_4")
+%  load_vreg_in_gpr_range(gpr="a5", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_5")
+%  load_vreg_in_gpr_range(gpr="a6", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_6")
+%  load_vreg_in_gpr_range(gpr="a7", shorty=z0, idx=z1, D=z3, F=z4, J=z5, L=z6, z0=z7, done=f".L{uniq}_slow_fpr", uniq=f"{uniq}_7")
+%  is_out_stack_needed(needed=z2, shorty=z0, D=z3, F=z4, z0=z1, uniq=uniq)
 
-   // TODO: java.lang.StringFactory methods don't have floating point args; skip FPR loads.
 .L${uniq}_slow_fpr:
-   addi $z0, $shorty, 1     // z0 := first arg of shorty
-   srliw $z1, $vregs, 4     // z1 := (instance) F|E|D or G|F|E|D
+   addi $z0, $shorty, 1       // z0 := first arg of shorty
+   addi $z1, $vC, $arg_start  // z1 := (instance) CCCC+1, (static) CCCC
    // linear scan through shorty: extract float/double vregs
-%  load_vreg_in_fpr(fpr="fa0", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_0")
-%  load_vreg_in_fpr(fpr="fa1", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_1")
-%  load_vreg_in_fpr(fpr="fa2", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_2")
-%  load_vreg_in_fpr(fpr="fa3", shorty=z0, vregs=z1, z0=z2, z1=z3, done=f".L{uniq}_slow_done", uniq=f"{uniq}_3")
+%  load_vreg_in_fpr_range(fpr="fa0", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_0")
+%  load_vreg_in_fpr_range(fpr="fa1", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_1")
+%  load_vreg_in_fpr_range(fpr="fa2", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_2")
+%  load_vreg_in_fpr_range(fpr="fa3", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_3")
+%  load_vreg_in_fpr_range(fpr="fa4", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_4")
+%  load_vreg_in_fpr_range(fpr="fa5", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_5")
+%  load_vreg_in_fpr_range(fpr="fa6", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_6")
+%  load_vreg_in_fpr_range(fpr="fa7", shorty=z0, idx=z1, D=z3, F=z4, J=z5, z0=z6, done=f".L{uniq}_slow_stack", uniq=f"{uniq}_7")
+%  is_out_stack_needed_float(needed=z2, shorty=z0, D=z3, F=z4, z0=z1, uniq=uniq)
+
+.L${uniq}_slow_stack:
+   beqz $z2, .L${uniq}_slow_done  // No stack needed, skip it. Otherwise copy-paste it all with LD/SD.
+   addi $z0, sp, 8            // z0 := base addr of out array
+   sh2add $z1, $vC, xFP       // z1 := base addr of FP[CCCC]
+   srliw $z2, xINST, 8        // z2 := AA, vreg count
+   sh2add $z2, $z2, $z1       // z2 := loop guard, addr of one slot past top of xFP array
+%  copy_vregs_to_out(out=z0, fp=z1, fp_top=z2, z0=z3, uniq=uniq)
 .L${uniq}_slow_done:
+
+
+// String-init variant: up to 4 args, no long/float/double args.
+// Ref args ('L') loaded with LW *must* apply ZEXT.W to avoid subtle address bugs.
+%def slow_setup_args_string_init_range(shorty="", vC="", z0="", z1="", z2="", z3="", uniq=""):
+   srliw $z0, xINST, 8             // z0 := AA; possible values 1-5
+   li $z1, 2
+   blt $z0, $z1, .L${uniq}_slow_1  // A = 1
+   sh2add $z2, $vC, xFP            // z2 := &fp[CCCC]
+   li $z3, 'L'                     // z3 := ref type
+   beq $z0, $z1, .L${uniq}_slow_2  // A = 2
+   li $z1, 4
+   blt $z0, $z1, .L${uniq}_slow_3  // A = 3
+   beq $z0, $z1, .L${uniq}_slow_4  // A = 4
+   // A = 5
+   lw a4, 4*4($z2)
+   lb $z1, 4($shorty)
+   bne $z1, $z3, .L${uniq}_slow_4
+   zext.w a4, a4
+.L${uniq}_slow_4:
+   lw a3, 3*4($z2)
+   lb $z1, 3($shorty)
+   bne $z1, $z3, .L${uniq}_slow_3
+   zext.w a3, a3
+.L${uniq}_slow_3:
+   lw a2, 2*4($z2)
+   lb $z1, 2($shorty)
+   bne $z1, $z3, .L${uniq}_slow_2
+   zext.w a2, a2
+.L${uniq}_slow_2:
+   lw a1, 1*4($z2)
+   lb $z1, 1($shorty)
+   bne $z1, $z3, .L${uniq}_slow_1
+   zext.w a1, a1
+.L${uniq}_slow_1:
+   // "this" never read in string-init
 
 
 // Iterate through 4-bit vreg ids in the "vregs" register, load a non-FP value
 // into one argument register.
-%def load_vreg_in_gpr(gpr="", shorty="", vregs="", z0="", z1="", done="", uniq=""):
+%def load_vreg_in_gpr(gpr="", shorty="", vregs="", D="", F="", J="", L="", z0="", done="", uniq=""):
 .L${uniq}_gpr_find:
     lb $z0, ($shorty)         // z0 := next shorty arg spec
     addi $shorty, $shorty, 1  // increment char ptr
     beqz $z0, $done           // z0 == \0
-    li $z1, 'F'               // float
-    beq $z0, $z1, .L${uniq}_gpr_skip_4_bytes
-    li $z1, 'D'               // double
-    beq $z0, $z1, .L${uniq}_gpr_skip_8_bytes
+    beq $z0, $F, .L${uniq}_gpr_skip_4_bytes
+    beq $z0, $D, .L${uniq}_gpr_skip_8_bytes
 
-    li $z1, 'J'               // long
     andi $gpr, $vregs, 0xF    // gpr := vreg id
-    beq $z0, $z1, .L${uniq}_gpr_load_8_bytes
+    beq $z0, $J, .L${uniq}_gpr_load_8_bytes
     GET_VREG $gpr, $gpr       // gpr := 32-bit load
+    bne $z0, $L, .L${uniq}_gpr_load_common
+    zext.w $gpr, $gpr
+.L${uniq}_gpr_load_common:
     srliw $vregs, $vregs, 4   // shift out the processed arg, one vreg
     j .L${uniq}_gpr_set       // and exit
 .L${uniq}_gpr_load_8_bytes:
@@ -894,32 +1106,127 @@
 
 // Iterate through 4-bit vreg ids in the "vregs" register, load a float or double
 // value into one floating point argument register.
-%def load_vreg_in_fpr(fpr="", shorty="", vregs="", z0="", z1="", done="", uniq=""):
+%def load_vreg_in_fpr(fpr="", shorty="", vregs="", D="", F="", J="", z0="", done="", uniq=""):
 .L${uniq}_fpr_find:
     lb $z0, ($shorty)         // z0 := next shorty arg spec
     addi $shorty, $shorty, 1  // increment char ptr
     beqz $z0, $done           // z0 == \0
-    li $z1, 'F'               // float
-    beq $z0, $z1, .L${uniq}_fpr_load_4_bytes
-    li $z1, 'D'               // double
-    beq $z0, $z1, .L${uniq}_fpr_load_8_bytes
+    beq $z0, $F, .L${uniq}_fpr_load_4_bytes
+    beq $z0, $D, .L${uniq}_fpr_load_8_bytes
 
-    li $z1, 'J'               // long
     srliw $vregs, $vregs, 4   // shift out a skipped arg, one vreg
-    bne $z0, $z1, .L${uniq}_fpr_find
+    bne $z0, $J, .L${uniq}_fpr_find
     srliw $vregs, $vregs, 4   // shift out one more skipped arg, for J
     j .L${uniq}_fpr_find
 
 .L${uniq}_fpr_load_4_bytes:
-    andi $z1, $vregs, 0xF
-    GET_VREG_FLOAT $fpr, $z1
+    andi $z0, $vregs, 0xF
+    GET_VREG_FLOAT $fpr, $z0
     srliw $vregs, $vregs, 4   // shift out the processed arg, one vreg
     j .L${uniq}_fpr_set
 .L${uniq}_fpr_load_8_bytes:
-    andi $z1, $vregs, 0xF
-    GET_VREG_DOUBLE $fpr, $z1
+    andi $z0, $vregs, 0xF
+    GET_VREG_DOUBLE $fpr, $z0
     srliw $vregs, $vregs, 8   // shift out the processed arg, a vreg pair
 .L${uniq}_fpr_set:
+
+
+// Range variant
+%def load_vreg_in_gpr_range(gpr="", shorty="", idx="", D="", F="", J="", L="", z0="", done="", uniq=""):
+.L${uniq}_gpr_range_find:
+    lb $z0, ($shorty)           // z0 := next shorty arg
+    addi $shorty, $shorty, 1    // increment char ptr
+    beqz $z0, $done             // z0 == \0
+    beq $z0, $F, .L${uniq}_gpr_range_skip_1_vreg
+    beq $z0, $D, .L${uniq}_gpr_range_skip_2_vreg
+
+    beq $z0, $J, .L${uniq}_gpr_range_load_2_vreg
+    GET_VREG $gpr, $idx
+    bne $z0, $L, .L${uniq}_gpr_range_load_common
+    zext.w $gpr, $gpr
+.L${uniq}_gpr_range_load_common:
+    addi $idx, $idx, 1
+    j .L${uniq}_gpr_range_done
+.L${uniq}_gpr_range_load_2_vreg:
+    GET_VREG_WIDE $gpr, $idx
+    addi $idx, $idx, 2
+    j .L${uniq}_gpr_range_done
+
+.L${uniq}_gpr_range_skip_2_vreg:
+    addi $idx, $idx, 1
+.L${uniq}_gpr_range_skip_1_vreg:
+    addi $idx, $idx, 1
+    j .L${uniq}_gpr_range_find
+.L${uniq}_gpr_range_done:
+
+
+// Range variant.
+%def load_vreg_in_fpr_range(fpr="", shorty="", idx="", D="", F="", J="", z0="", done="", uniq=""):
+.L${uniq}_fpr_range_find:
+    lb $z0, ($shorty)         // z0 := next shorty arg
+    addi $shorty, $shorty, 1  // increment char ptr
+    beqz $z0, $done           // z0 == \0
+    beq $z0, $F, .L${uniq}_fpr_range_load_4_bytes
+    beq $z0, $D, .L${uniq}_fpr_range_load_8_bytes
+
+    addi $idx, $idx, 1        // increment idx
+    bne $z0, $J, .L${uniq}_fpr_range_find
+    addi $idx, $idx, 1        // increment once more for J
+    j .L${uniq}_fpr_range_find
+
+.L${uniq}_fpr_range_load_4_bytes:
+    mv $z0, $idx
+    GET_VREG_FLOAT $fpr, $z0
+    addi $idx, $idx, 1
+    j .L${uniq}_fpr_range_set
+.L${uniq}_fpr_range_load_8_bytes:
+    mv $z0, $idx
+    GET_VREG_DOUBLE $fpr, $z0
+    addi $idx, $idx, 2
+.L${uniq}_fpr_range_set:
+
+
+%def is_out_stack_needed(needed="", shorty="", D="", F="", z0="", uniq=""):
+.L${uniq}_scan_arg:
+   lb $z0, ($shorty)
+   addi $shorty, $shorty, 1
+   beqz $z0, .L${uniq}_scan_done
+   beq $z0, $F, .L${uniq}_scan_arg
+   beq $z0, $D, .L${uniq}_scan_arg
+   li $needed, 1
+.L${uniq}_scan_done:
+
+
+%def is_out_stack_needed_float(needed="", shorty="", D="", F="", z0="", uniq=""):
+   bnez $needed, .L${uniq}_scan_float_done
+.L${uniq}_scan_float_arg:
+   lb $z0, ($shorty)
+   addi $shorty, $shorty, 1
+   beqz $z0, .L${uniq}_scan_float_done
+   beq $z0, $F, .L${uniq}_scan_float_found
+   beq $z0, $D, .L${uniq}_scan_float_found
+   j .L${uniq}_scan_float_arg
+.L${uniq}_scan_float_found:
+   li $needed, 1
+.L${uniq}_scan_float_done:
+
+
+%def copy_vregs_to_out(out="", fp="", fp_top="", z0="", uniq=""):
+   sub $z0, $fp_top, $fp  // z0 := byte range
+   BRANCH_IF_BIT_CLEAR $z0, $z0, 2, .L${uniq}_copy_wide
+                          // branch if odd count of slots
+   lwu $z0, ($fp)
+   sw $z0, ($out)
+   addi $fp, $fp, 4
+   addi $out, $out, 4
+.L${uniq}_copy_wide:
+   beq $fp, $fp_top, .L${uniq}_copy_done
+   ld $z0, ($fp)
+   sd $z0, ($out)
+   addi $fp, $fp, 8
+   addi $out, $out, 8
+   j .L${uniq}_copy_wide
+.L${uniq}_copy_done:
 
 
 // NterpToNterpInstance
@@ -931,9 +1238,8 @@
 
 // NterpToNterpStringInit
 // a0: ArtMethod*
-// a1: this
 %def nterp_to_nterp_string_init():
-%  nterp_to_nterp(how_vC="in_a1", uniq="n2n_string_init")
+%  nterp_to_nterp(how_vC="skip", uniq="n2n_string_init")
 
 
 // NterpToNterpStatic
@@ -944,22 +1250,23 @@
 
 // NterpToNterpInstanceRange
 %def nterp_to_nterp_instance_range():
-%  nterp_to_nterp_range()
+%  nterp_to_nterp(how_vC="in_a1", uniq="n2n_instance_range", range="Range")
 
 
 // NterpToNterpStringInitRange
 %def nterp_to_nterp_string_init_range():
-%  nterp_to_nterp_range()
+%  nterp_to_nterp(how_vC="skip", uniq="n2n_string_init_range", range="Range")
 
 
 // NterpToNterpStaticRange
 %def nterp_to_nterp_static_range():
-%  nterp_to_nterp_range()
+%  nterp_to_nterp(a1_instance=False, how_vC="load", uniq="n2n_static_range", range="Range")
 
 
 // helpers
 
-%def nterp_to_nterp(a1_instance=True, how_vC="", uniq=""):
+
+%def nterp_to_nterp(a1_instance=True, how_vC="", uniq="", range=""):
    .cfi_startproc
 %  setup_nterp_frame(cfi_refs="23", refs="s8", fp="s9", pc="s10", regs="s11", spills_sp="t0", z0="t1", z1="t2", z2="t3", z3="t4", uniq=uniq)
        // s8  := callee xREFS
@@ -968,19 +1275,17 @@
        // s11 := fp/refs vreg count
        // t0  := post-spills pre-frame sp (unused here)
        // sp  := post-frame callee sp
-%  n2n_arg_move(refs="s8", fp="s9", pc="s10", regs="s11", v_fedc="s7", z0="t0", z1="t1", z2="t2", z3="t3", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
+%  if range == 'Range':
+%    n2n_arg_move_range(refs="s8", fp="s9", regs="s11", vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
+%  else:
+%    n2n_arg_move(refs="s8", fp="s9", pc="s10", regs="s11", v_fedc="s7", z0="t0", z1="t1", z2="t2", z3="t3", a1_instance=a1_instance, how_vC=how_vC, uniq=uniq)
+%#:
    mv xREFS, s8
    mv xFP, s9
    mv xPC, s10
    CFI_DEFINE_DEX_PC_WITH_OFFSET(/*tmpReg*/CFI_TMP, /*dexReg*/CFI_DEX, /*dexOffset*/0)
 
    START_EXECUTING_INSTRUCTIONS
-   .cfi_endproc
-
-
-%def nterp_to_nterp_range(a1_instance=True, how_vC="", uniq=""):
-   .cfi_startproc
-   unimp
    .cfi_endproc
 
 
@@ -1128,6 +1433,52 @@
      sw $z0, (0*4)($z2)       // refs[C] := z0
 %#:
 .L${uniq}_arg_done:
+
+
+%def n2n_arg_move_range(refs="", fp="", regs="", vC="", z0="", z1="", z2="", z3="", z4="", z5="", a1_instance=True, how_vC="", uniq=""):
+   srliw $z0, xINST, 8     // z0 := AA (arg count)
+
+%  if not a1_instance:
+     beqz $z0, .L${uniq}_arg_range_done
+%#:
+   // AA >= 1, iterator setup
+   sub $z4, $regs, $z0     // z4 := regs - AA; starting idx in fp and refs
+   sh2add $z1, $vC, xREFS  // z1 := addr of xREFS[CCCC]
+   sh2add $z2, $vC, xFP    // z2 := addr of xFP[CCCC]
+   sh2add $z3, $z4, $refs  // z3 := addr of refs[z4]
+   sh2add $z4, $z4, $fp    // z4 := addr of fp[z4]
+
+   BRANCH_IF_BIT_CLEAR $z0, $z0, 0, .L${uniq}_arg_range_copy_wide
+                           // branch if AA is even
+   // AA is odd, transfer one slot. Apply some optimizations.
+%  if how_vC == "in_a1":
+     sw a1, ($z3)
+     sw a1, ($z4)
+%  elif how_vC == "skip":
+     // string init doesn't read "this"
+%  elif how_vC == "load":
+     lw $z0, ($z1)
+     lw $z5, ($z2)
+     sw $z0, ($z3)
+     sw $z5, ($z4)
+%#:
+   addi $z1, $z1, 4
+   addi $z2, $z2, 4
+   addi $z3, $z3, 4
+   addi $z4, $z4, 4
+.L${uniq}_arg_range_copy_wide:
+   // Even count of vreg slots, apply LD/SD.
+   beq $z3, $fp, .L${uniq}_arg_range_done  // terminate loop if refs[regs] == fp[0]
+   ld $z0, ($z1)
+   ld $z5, ($z2)
+   sd $z0, ($z3)
+   sd $z5, ($z4)
+   addi $z1, $z1, 8
+   addi $z2, $z2, 8
+   addi $z3, $z3, 8
+   addi $z4, $z4, 8
+   j .L${uniq}_arg_range_copy_wide
+.L${uniq}_arg_range_done:
 
 
 //
