@@ -1584,7 +1584,7 @@ class Dex2Oat final {
         CHECK(!DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation()));
         ++bcp_df_pos;
         while (bcp_df_pos != bcp_df_end &&
-            DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation())) {
+            DexFileLoader::IsMultiDexLocation(bcp_dex_files[bcp_df_pos]->GetLocation().c_str())) {
           ++bcp_df_pos;
         }
       }
