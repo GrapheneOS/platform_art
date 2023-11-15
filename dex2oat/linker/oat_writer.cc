@@ -3145,15 +3145,6 @@ bool OatWriter::WriteDexFiles(File* file,
     }
   }
 
-  // Compact dex reader/writer does not understand dex containers,
-  // which is ok since dex containers replace compat-dex.
-  for (OatDexFile& oat_dex_file : oat_dex_files_) {
-    const DexFile* dex_file = oat_dex_file.GetDexFile();
-    if (dex_file->HasDexContainer()) {
-      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
-    }
-  }
-
   if (extract_dex_files_into_vdex_) {
     vdex_dex_files_offset_ = vdex_size_;
 
