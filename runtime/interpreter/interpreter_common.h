@@ -63,7 +63,6 @@
 #include "thread-inl.h"
 #include "unstarted_runtime.h"
 #include "verifier/method_verifier.h"
-#include "well_known_classes.h"
 
 namespace art {
 namespace interpreter {
