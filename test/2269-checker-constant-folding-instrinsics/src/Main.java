@@ -16,6 +16,11 @@
 
 public class Main {
     public static void main(String[] args) {
+        $noinline$testReverseInt();
+        $noinline$testReverseLong();
+        $noinline$testReverseBytesInt();
+        $noinline$testReverseBytesLong();
+        $noinline$testReverseBytesShort();
         $noinline$testHighestOneBitInt();
         $noinline$testHighestOneBitLong();
         $noinline$testLowestOneBitInt();
@@ -24,6 +29,369 @@ public class Main {
         $noinline$testLeadingZerosLong();
         $noinline$testTrailingZerosInt();
         $noinline$testTrailingZerosLong();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseInt() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerReverse
+
+    /// CHECK-START: void Main.$noinline$testReverseInt() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerReverse
+    private static void $noinline$testReverseInt() {
+        $noinline$assertIntEquals(-2, Integer.reverse(Integer.MAX_VALUE));
+        $noinline$assertIntEquals(1, Integer.reverse(Integer.MIN_VALUE));
+        $noinline$assertIntEquals(0, Integer.reverse(0));
+        // 0101... to 1010....
+        $noinline$assertIntEquals(0x55555555, Integer.reverse(0xAAAAAAAA));
+        // 1010.... to 0101...
+        $noinline$assertIntEquals(0xAAAAAAAA, Integer.reverse(0x55555555));
+        $noinline$testReverseInt_powerOfTwo();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseInt_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerReverse
+
+    /// CHECK-START: void Main.$noinline$testReverseInt_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerReverse
+    private static void $noinline$testReverseInt_powerOfTwo() {
+        $noinline$assertIntEquals(1 << 31, Integer.reverse(1 << 0));
+        $noinline$assertIntEquals(1 << 30, Integer.reverse(1 << 1));
+        $noinline$assertIntEquals(1 << 29, Integer.reverse(1 << 2));
+        $noinline$assertIntEquals(1 << 28, Integer.reverse(1 << 3));
+        $noinline$assertIntEquals(1 << 27, Integer.reverse(1 << 4));
+        $noinline$assertIntEquals(1 << 26, Integer.reverse(1 << 5));
+        $noinline$assertIntEquals(1 << 25, Integer.reverse(1 << 6));
+        $noinline$assertIntEquals(1 << 24, Integer.reverse(1 << 7));
+        $noinline$assertIntEquals(1 << 23, Integer.reverse(1 << 8));
+        $noinline$assertIntEquals(1 << 22, Integer.reverse(1 << 9));
+        $noinline$assertIntEquals(1 << 21, Integer.reverse(1 << 10));
+        $noinline$assertIntEquals(1 << 20, Integer.reverse(1 << 11));
+        $noinline$assertIntEquals(1 << 19, Integer.reverse(1 << 12));
+        $noinline$assertIntEquals(1 << 18, Integer.reverse(1 << 13));
+        $noinline$assertIntEquals(1 << 17, Integer.reverse(1 << 14));
+        $noinline$assertIntEquals(1 << 16, Integer.reverse(1 << 15));
+        $noinline$assertIntEquals(1 << 15, Integer.reverse(1 << 16));
+        $noinline$assertIntEquals(1 << 14, Integer.reverse(1 << 17));
+        $noinline$assertIntEquals(1 << 13, Integer.reverse(1 << 18));
+        $noinline$assertIntEquals(1 << 12, Integer.reverse(1 << 19));
+        $noinline$assertIntEquals(1 << 11, Integer.reverse(1 << 20));
+        $noinline$assertIntEquals(1 << 10, Integer.reverse(1 << 21));
+        $noinline$assertIntEquals(1 << 9, Integer.reverse(1 << 22));
+        $noinline$assertIntEquals(1 << 8, Integer.reverse(1 << 23));
+        $noinline$assertIntEquals(1 << 7, Integer.reverse(1 << 24));
+        $noinline$assertIntEquals(1 << 6, Integer.reverse(1 << 25));
+        $noinline$assertIntEquals(1 << 5, Integer.reverse(1 << 26));
+        $noinline$assertIntEquals(1 << 4, Integer.reverse(1 << 27));
+        $noinline$assertIntEquals(1 << 3, Integer.reverse(1 << 28));
+        $noinline$assertIntEquals(1 << 2, Integer.reverse(1 << 29));
+        $noinline$assertIntEquals(1 << 1, Integer.reverse(1 << 30));
+        $noinline$assertIntEquals(1 << 0, Integer.reverse(1 << 31));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseLong() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverse
+
+    /// CHECK-START: void Main.$noinline$testReverseLong() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverse
+    private static void $noinline$testReverseLong() {
+        $noinline$assertLongEquals(-2L, Long.reverse(Long.MAX_VALUE));
+        $noinline$assertLongEquals(1L, Long.reverse(Long.MIN_VALUE));
+        $noinline$assertLongEquals(0L, Long.reverse(0L));
+        // 0101... to 1010....
+        $noinline$assertLongEquals(0x5555555555555555L, Long.reverse(0xAAAAAAAAAAAAAAAAL));
+        // 1010.... to 0101...
+        $noinline$assertLongEquals(0xAAAAAAAAAAAAAAAAL, Long.reverse(0x5555555555555555L));
+        $noinline$testReverseLongFirst32_powerOfTwo();
+        $noinline$testReverseLongLast32_powerOfTwo();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseLongFirst32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverse
+
+    /// CHECK-START: void Main.$noinline$testReverseLongFirst32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverse
+    private static void $noinline$testReverseLongFirst32_powerOfTwo() {
+        $noinline$assertLongEquals(1L << 63, Long.reverse(1L << 0));
+        $noinline$assertLongEquals(1L << 62, Long.reverse(1L << 1));
+        $noinline$assertLongEquals(1L << 61, Long.reverse(1L << 2));
+        $noinline$assertLongEquals(1L << 60, Long.reverse(1L << 3));
+        $noinline$assertLongEquals(1L << 59, Long.reverse(1L << 4));
+        $noinline$assertLongEquals(1L << 58, Long.reverse(1L << 5));
+        $noinline$assertLongEquals(1L << 57, Long.reverse(1L << 6));
+        $noinline$assertLongEquals(1L << 56, Long.reverse(1L << 7));
+        $noinline$assertLongEquals(1L << 55, Long.reverse(1L << 8));
+        $noinline$assertLongEquals(1L << 54, Long.reverse(1L << 9));
+        $noinline$assertLongEquals(1L << 53, Long.reverse(1L << 10));
+        $noinline$assertLongEquals(1L << 52, Long.reverse(1L << 11));
+        $noinline$assertLongEquals(1L << 51, Long.reverse(1L << 12));
+        $noinline$assertLongEquals(1L << 50, Long.reverse(1L << 13));
+        $noinline$assertLongEquals(1L << 49, Long.reverse(1L << 14));
+        $noinline$assertLongEquals(1L << 48, Long.reverse(1L << 15));
+        $noinline$assertLongEquals(1L << 47, Long.reverse(1L << 16));
+        $noinline$assertLongEquals(1L << 46, Long.reverse(1L << 17));
+        $noinline$assertLongEquals(1L << 45, Long.reverse(1L << 18));
+        $noinline$assertLongEquals(1L << 44, Long.reverse(1L << 19));
+        $noinline$assertLongEquals(1L << 43, Long.reverse(1L << 20));
+        $noinline$assertLongEquals(1L << 42, Long.reverse(1L << 21));
+        $noinline$assertLongEquals(1L << 41, Long.reverse(1L << 22));
+        $noinline$assertLongEquals(1L << 40, Long.reverse(1L << 23));
+        $noinline$assertLongEquals(1L << 39, Long.reverse(1L << 24));
+        $noinline$assertLongEquals(1L << 38, Long.reverse(1L << 25));
+        $noinline$assertLongEquals(1L << 37, Long.reverse(1L << 26));
+        $noinline$assertLongEquals(1L << 36, Long.reverse(1L << 27));
+        $noinline$assertLongEquals(1L << 35, Long.reverse(1L << 28));
+        $noinline$assertLongEquals(1L << 34, Long.reverse(1L << 29));
+        $noinline$assertLongEquals(1L << 33, Long.reverse(1L << 30));
+        $noinline$assertLongEquals(1L << 32, Long.reverse(1L << 31));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseLongLast32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverse
+
+    /// CHECK-START: void Main.$noinline$testReverseLongLast32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverse
+    private static void $noinline$testReverseLongLast32_powerOfTwo() {
+        $noinline$assertLongEquals(1L << 31, Long.reverse(1L << 32));
+        $noinline$assertLongEquals(1L << 30, Long.reverse(1L << 33));
+        $noinline$assertLongEquals(1L << 29, Long.reverse(1L << 34));
+        $noinline$assertLongEquals(1L << 28, Long.reverse(1L << 35));
+        $noinline$assertLongEquals(1L << 27, Long.reverse(1L << 36));
+        $noinline$assertLongEquals(1L << 26, Long.reverse(1L << 37));
+        $noinline$assertLongEquals(1L << 25, Long.reverse(1L << 38));
+        $noinline$assertLongEquals(1L << 24, Long.reverse(1L << 39));
+        $noinline$assertLongEquals(1L << 23, Long.reverse(1L << 40));
+        $noinline$assertLongEquals(1L << 22, Long.reverse(1L << 41));
+        $noinline$assertLongEquals(1L << 21, Long.reverse(1L << 42));
+        $noinline$assertLongEquals(1L << 20, Long.reverse(1L << 43));
+        $noinline$assertLongEquals(1L << 19, Long.reverse(1L << 44));
+        $noinline$assertLongEquals(1L << 18, Long.reverse(1L << 45));
+        $noinline$assertLongEquals(1L << 17, Long.reverse(1L << 46));
+        $noinline$assertLongEquals(1L << 16, Long.reverse(1L << 47));
+        $noinline$assertLongEquals(1L << 15, Long.reverse(1L << 48));
+        $noinline$assertLongEquals(1L << 14, Long.reverse(1L << 49));
+        $noinline$assertLongEquals(1L << 13, Long.reverse(1L << 50));
+        $noinline$assertLongEquals(1L << 12, Long.reverse(1L << 51));
+        $noinline$assertLongEquals(1L << 11, Long.reverse(1L << 52));
+        $noinline$assertLongEquals(1L << 10, Long.reverse(1L << 53));
+        $noinline$assertLongEquals(1L << 9, Long.reverse(1L << 54));
+        $noinline$assertLongEquals(1L << 8, Long.reverse(1L << 55));
+        $noinline$assertLongEquals(1L << 7, Long.reverse(1L << 56));
+        $noinline$assertLongEquals(1L << 6, Long.reverse(1L << 57));
+        $noinline$assertLongEquals(1L << 5, Long.reverse(1L << 58));
+        $noinline$assertLongEquals(1L << 4, Long.reverse(1L << 59));
+        $noinline$assertLongEquals(1L << 3, Long.reverse(1L << 60));
+        $noinline$assertLongEquals(1L << 2, Long.reverse(1L << 61));
+        $noinline$assertLongEquals(1L << 1, Long.reverse(1L << 62));
+        $noinline$assertLongEquals(1L << 0, Long.reverse(1L << 63));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesInt() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesInt() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerReverseBytes
+    private static void $noinline$testReverseBytesInt() {
+        $noinline$assertIntEquals(-129, Integer.reverseBytes(Integer.MAX_VALUE));
+        $noinline$assertIntEquals(128, Integer.reverseBytes(Integer.MIN_VALUE));
+        $noinline$assertIntEquals(0, Integer.reverseBytes(0));
+        // 0101... to 0101....
+        $noinline$assertIntEquals(0x55555555, Integer.reverseBytes(0x55555555));
+        // 1010.... to 1010...
+        $noinline$assertIntEquals(0xAAAAAAAA, Integer.reverseBytes(0xAAAAAAAA));
+        // Going up/down the hex digits.
+        $noinline$assertIntEquals(0x01234567, Integer.reverseBytes(0x67452301));
+        $noinline$assertIntEquals(0x89ABCDEF, Integer.reverseBytes(0xEFCDAB89));
+        $noinline$assertIntEquals(0xFEDCBA98, Integer.reverseBytes(0x98BADCFE));
+        $noinline$assertIntEquals(0x76543210, Integer.reverseBytes(0x10325476));
+        $noinline$testReverseBytesInt_powerOfTwo();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesInt_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesInt_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerReverseBytes
+    private static void $noinline$testReverseBytesInt_powerOfTwo() {
+        $noinline$assertIntEquals(1 << 24, Integer.reverseBytes(1 << 0));
+        $noinline$assertIntEquals(1 << 25, Integer.reverseBytes(1 << 1));
+        $noinline$assertIntEquals(1 << 26, Integer.reverseBytes(1 << 2));
+        $noinline$assertIntEquals(1 << 27, Integer.reverseBytes(1 << 3));
+        $noinline$assertIntEquals(1 << 28, Integer.reverseBytes(1 << 4));
+        $noinline$assertIntEquals(1 << 29, Integer.reverseBytes(1 << 5));
+        $noinline$assertIntEquals(1 << 30, Integer.reverseBytes(1 << 6));
+        $noinline$assertIntEquals(1 << 31, Integer.reverseBytes(1 << 7));
+        $noinline$assertIntEquals(1 << 16, Integer.reverseBytes(1 << 8));
+        $noinline$assertIntEquals(1 << 17, Integer.reverseBytes(1 << 9));
+        $noinline$assertIntEquals(1 << 18, Integer.reverseBytes(1 << 10));
+        $noinline$assertIntEquals(1 << 19, Integer.reverseBytes(1 << 11));
+        $noinline$assertIntEquals(1 << 20, Integer.reverseBytes(1 << 12));
+        $noinline$assertIntEquals(1 << 21, Integer.reverseBytes(1 << 13));
+        $noinline$assertIntEquals(1 << 22, Integer.reverseBytes(1 << 14));
+        $noinline$assertIntEquals(1 << 23, Integer.reverseBytes(1 << 15));
+        $noinline$assertIntEquals(1 << 8, Integer.reverseBytes(1 << 16));
+        $noinline$assertIntEquals(1 << 9, Integer.reverseBytes(1 << 17));
+        $noinline$assertIntEquals(1 << 10, Integer.reverseBytes(1 << 18));
+        $noinline$assertIntEquals(1 << 11, Integer.reverseBytes(1 << 19));
+        $noinline$assertIntEquals(1 << 12, Integer.reverseBytes(1 << 20));
+        $noinline$assertIntEquals(1 << 13, Integer.reverseBytes(1 << 21));
+        $noinline$assertIntEquals(1 << 14, Integer.reverseBytes(1 << 22));
+        $noinline$assertIntEquals(1 << 15, Integer.reverseBytes(1 << 23));
+        $noinline$assertIntEquals(1 << 0, Integer.reverseBytes(1 << 24));
+        $noinline$assertIntEquals(1 << 1, Integer.reverseBytes(1 << 25));
+        $noinline$assertIntEquals(1 << 2, Integer.reverseBytes(1 << 26));
+        $noinline$assertIntEquals(1 << 3, Integer.reverseBytes(1 << 27));
+        $noinline$assertIntEquals(1 << 4, Integer.reverseBytes(1 << 28));
+        $noinline$assertIntEquals(1 << 5, Integer.reverseBytes(1 << 29));
+        $noinline$assertIntEquals(1 << 6, Integer.reverseBytes(1 << 30));
+        $noinline$assertIntEquals(1 << 7, Integer.reverseBytes(1 << 31));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLong() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLong() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverseBytes
+    private static void $noinline$testReverseBytesLong() {
+        $noinline$assertLongEquals(-129L, Long.reverseBytes(Long.MAX_VALUE));
+        $noinline$assertLongEquals(128L, Long.reverseBytes(Long.MIN_VALUE));
+        $noinline$assertLongEquals(0L, Long.reverseBytes(0L));
+        // 0101... to 0101....
+        $noinline$assertLongEquals(0x5555555555555555L, Long.reverseBytes(0x5555555555555555L));
+        // 1010.... to 1010...
+        $noinline$assertLongEquals(0xAAAAAAAAAAAAAAAAL, Long.reverseBytes(0xAAAAAAAAAAAAAAAAL));
+        // Going up/down the hex digits.
+        $noinline$assertLongEquals(0x0123456789ABCDEFL, Long.reverseBytes(0xEFCDAB8967452301L));
+        $noinline$assertLongEquals(0xFEDCBA9876543210L, Long.reverseBytes(0x1032547698BADCFEL));
+        $noinline$testReverseBytesLongFirst32_powerOfTwo();
+        $noinline$testReverseBytesLongLast32_powerOfTwo();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLongFirst32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLongFirst32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverseBytes
+    private static void $noinline$testReverseBytesLongFirst32_powerOfTwo() {
+        $noinline$assertLongEquals(1L << 56, Long.reverseBytes(1L << 0));
+        $noinline$assertLongEquals(1L << 57, Long.reverseBytes(1L << 1));
+        $noinline$assertLongEquals(1L << 58, Long.reverseBytes(1L << 2));
+        $noinline$assertLongEquals(1L << 59, Long.reverseBytes(1L << 3));
+        $noinline$assertLongEquals(1L << 60, Long.reverseBytes(1L << 4));
+        $noinline$assertLongEquals(1L << 61, Long.reverseBytes(1L << 5));
+        $noinline$assertLongEquals(1L << 62, Long.reverseBytes(1L << 6));
+        $noinline$assertLongEquals(1L << 63, Long.reverseBytes(1L << 7));
+        $noinline$assertLongEquals(1L << 48, Long.reverseBytes(1L << 8));
+        $noinline$assertLongEquals(1L << 49, Long.reverseBytes(1L << 9));
+        $noinline$assertLongEquals(1L << 50, Long.reverseBytes(1L << 10));
+        $noinline$assertLongEquals(1L << 51, Long.reverseBytes(1L << 11));
+        $noinline$assertLongEquals(1L << 52, Long.reverseBytes(1L << 12));
+        $noinline$assertLongEquals(1L << 53, Long.reverseBytes(1L << 13));
+        $noinline$assertLongEquals(1L << 54, Long.reverseBytes(1L << 14));
+        $noinline$assertLongEquals(1L << 55, Long.reverseBytes(1L << 15));
+        $noinline$assertLongEquals(1L << 40, Long.reverseBytes(1L << 16));
+        $noinline$assertLongEquals(1L << 41, Long.reverseBytes(1L << 17));
+        $noinline$assertLongEquals(1L << 42, Long.reverseBytes(1L << 18));
+        $noinline$assertLongEquals(1L << 43, Long.reverseBytes(1L << 19));
+        $noinline$assertLongEquals(1L << 44, Long.reverseBytes(1L << 20));
+        $noinline$assertLongEquals(1L << 45, Long.reverseBytes(1L << 21));
+        $noinline$assertLongEquals(1L << 46, Long.reverseBytes(1L << 22));
+        $noinline$assertLongEquals(1L << 47, Long.reverseBytes(1L << 23));
+        $noinline$assertLongEquals(1L << 32, Long.reverseBytes(1L << 24));
+        $noinline$assertLongEquals(1L << 33, Long.reverseBytes(1L << 25));
+        $noinline$assertLongEquals(1L << 34, Long.reverseBytes(1L << 26));
+        $noinline$assertLongEquals(1L << 35, Long.reverseBytes(1L << 27));
+        $noinline$assertLongEquals(1L << 36, Long.reverseBytes(1L << 28));
+        $noinline$assertLongEquals(1L << 37, Long.reverseBytes(1L << 29));
+        $noinline$assertLongEquals(1L << 38, Long.reverseBytes(1L << 30));
+        $noinline$assertLongEquals(1L << 39, Long.reverseBytes(1L << 31));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLongLast32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesLongLast32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongReverseBytes
+    private static void $noinline$testReverseBytesLongLast32_powerOfTwo() {
+        $noinline$assertLongEquals(1L << 24, Long.reverseBytes(1L << 32));
+        $noinline$assertLongEquals(1L << 25, Long.reverseBytes(1L << 33));
+        $noinline$assertLongEquals(1L << 26, Long.reverseBytes(1L << 34));
+        $noinline$assertLongEquals(1L << 27, Long.reverseBytes(1L << 35));
+        $noinline$assertLongEquals(1L << 28, Long.reverseBytes(1L << 36));
+        $noinline$assertLongEquals(1L << 29, Long.reverseBytes(1L << 37));
+        $noinline$assertLongEquals(1L << 30, Long.reverseBytes(1L << 38));
+        $noinline$assertLongEquals(1L << 31, Long.reverseBytes(1L << 39));
+        $noinline$assertLongEquals(1L << 16, Long.reverseBytes(1L << 40));
+        $noinline$assertLongEquals(1L << 17, Long.reverseBytes(1L << 41));
+        $noinline$assertLongEquals(1L << 18, Long.reverseBytes(1L << 42));
+        $noinline$assertLongEquals(1L << 19, Long.reverseBytes(1L << 43));
+        $noinline$assertLongEquals(1L << 20, Long.reverseBytes(1L << 44));
+        $noinline$assertLongEquals(1L << 21, Long.reverseBytes(1L << 45));
+        $noinline$assertLongEquals(1L << 22, Long.reverseBytes(1L << 46));
+        $noinline$assertLongEquals(1L << 23, Long.reverseBytes(1L << 47));
+        $noinline$assertLongEquals(1L << 8, Long.reverseBytes(1L << 48));
+        $noinline$assertLongEquals(1L << 9, Long.reverseBytes(1L << 49));
+        $noinline$assertLongEquals(1L << 10, Long.reverseBytes(1L << 50));
+        $noinline$assertLongEquals(1L << 11, Long.reverseBytes(1L << 51));
+        $noinline$assertLongEquals(1L << 12, Long.reverseBytes(1L << 52));
+        $noinline$assertLongEquals(1L << 13, Long.reverseBytes(1L << 53));
+        $noinline$assertLongEquals(1L << 14, Long.reverseBytes(1L << 54));
+        $noinline$assertLongEquals(1L << 15, Long.reverseBytes(1L << 55));
+        $noinline$assertLongEquals(1L << 0, Long.reverseBytes(1L << 56));
+        $noinline$assertLongEquals(1L << 1, Long.reverseBytes(1L << 57));
+        $noinline$assertLongEquals(1L << 2, Long.reverseBytes(1L << 58));
+        $noinline$assertLongEquals(1L << 3, Long.reverseBytes(1L << 59));
+        $noinline$assertLongEquals(1L << 4, Long.reverseBytes(1L << 60));
+        $noinline$assertLongEquals(1L << 5, Long.reverseBytes(1L << 61));
+        $noinline$assertLongEquals(1L << 6, Long.reverseBytes(1L << 62));
+        $noinline$assertLongEquals(1L << 7, Long.reverseBytes(1L << 63));
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesShort() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:ShortReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesShort() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:ShortReverseBytes
+    private static void $noinline$testReverseBytesShort() {
+        $noinline$assertShortEquals((short) (-129), Short.reverseBytes(Short.MAX_VALUE));
+        $noinline$assertShortEquals((short) (128), Short.reverseBytes(Short.MIN_VALUE));
+        $noinline$assertShortEquals((short) (0), Short.reverseBytes((short) 0));
+        // 0101... to 0101....
+        $noinline$assertShortEquals((short) (0x5555), Short.reverseBytes((short) 0x5555));
+        // 1010.... to 1010...
+        $noinline$assertShortEquals((short) (0xAAAA), Short.reverseBytes((short) 0xAAAA));
+        // Going up/down the hex digits.
+        $noinline$assertShortEquals((short) (0x0123), Short.reverseBytes((short) 0x2301));
+        $noinline$assertShortEquals((short) (0x4567), Short.reverseBytes((short) 0x6745));
+        $noinline$assertShortEquals((short) (0x89AB), Short.reverseBytes((short) 0xAB89));
+        $noinline$assertShortEquals((short) (0xCDEF), Short.reverseBytes((short) 0xEFCD));
+        $noinline$assertShortEquals((short) (0xFEDC), Short.reverseBytes((short) 0xDCFE));
+        $noinline$assertShortEquals((short) (0xBA98), Short.reverseBytes((short) 0x98BA));
+        $noinline$assertShortEquals((short) (0x7654), Short.reverseBytes((short) 0x5476));
+        $noinline$assertShortEquals((short) (0x3210), Short.reverseBytes((short) 0x1032));
+        $noinline$testReverseBytesShort_powerOfTwo();
+    }
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesShort_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:ShortReverseBytes
+
+    /// CHECK-START: void Main.$noinline$testReverseBytesShort_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:ShortReverseBytes
+    private static void $noinline$testReverseBytesShort_powerOfTwo() {
+        $noinline$assertShortEquals((short) (1 << 8), Short.reverseBytes((short) (1 << 0)));
+        $noinline$assertShortEquals((short) (1 << 9), Short.reverseBytes((short) (1 << 1)));
+        $noinline$assertShortEquals((short) (1 << 10), Short.reverseBytes((short) (1 << 2)));
+        $noinline$assertShortEquals((short) (1 << 11), Short.reverseBytes((short) (1 << 3)));
+        $noinline$assertShortEquals((short) (1 << 12), Short.reverseBytes((short) (1 << 4)));
+        $noinline$assertShortEquals((short) (1 << 13), Short.reverseBytes((short) (1 << 5)));
+        $noinline$assertShortEquals((short) (1 << 14), Short.reverseBytes((short) (1 << 6)));
+        $noinline$assertShortEquals((short) (1 << 15), Short.reverseBytes((short) (1 << 7)));
+        $noinline$assertShortEquals((short) (1 << 0), Short.reverseBytes((short) (1 << 8)));
+        $noinline$assertShortEquals((short) (1 << 1), Short.reverseBytes((short) (1 << 9)));
+        $noinline$assertShortEquals((short) (1 << 2), Short.reverseBytes((short) (1 << 10)));
+        $noinline$assertShortEquals((short) (1 << 3), Short.reverseBytes((short) (1 << 11)));
+        $noinline$assertShortEquals((short) (1 << 4), Short.reverseBytes((short) (1 << 12)));
+        $noinline$assertShortEquals((short) (1 << 5), Short.reverseBytes((short) (1 << 13)));
+        $noinline$assertShortEquals((short) (1 << 6), Short.reverseBytes((short) (1 << 14)));
+        $noinline$assertShortEquals((short) (1 << 7), Short.reverseBytes((short) (1 << 15)));
     }
 
     /// CHECK-START: void Main.$noinline$testHighestOneBitInt() constant_folding (before)
@@ -845,6 +1213,12 @@ public class Main {
     }
 
     public static void $noinline$assertLongEquals(long expected, long result) {
+        if (expected != result) {
+            throw new Error("Expected: " + expected + ", found: " + result);
+        }
+    }
+
+    public static void $noinline$assertShortEquals(short expected, short result) {
         if (expected != result) {
             throw new Error("Expected: " + expected + ", found: " + result);
         }
