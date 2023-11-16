@@ -521,7 +521,8 @@ class Thread {
   // This function will force a flip for the other thread if necessary.
   // Since we hold a shared mutator lock, a new flip function cannot be concurrently
   // installed
-  mirror::Object* GetPeerFromOtherThread() REQUIRES_SHARED(Locks::mutator_lock_);
+  mirror::Object* GetPeerFromOtherThread() REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::thread_list_lock_);
 
   bool HasPeer() const {
     return tlsPtr_.jpeer != nullptr || tlsPtr_.opeer != nullptr;
