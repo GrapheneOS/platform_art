@@ -378,7 +378,7 @@ Redefiner::IsModifiableClassGeneric(jvmtiEnv* env, jclass klass, jboolean* is_re
   art::Handle<art::mirror::Class> h_klass(hs.NewHandle(obj->AsClass()));
   std::string err_unused;
   *is_redefinable =
-      Redefiner::GetClassRedefinitionError<kType>(h_klass, &err_unused) != ERR(UNMODIFIABLE_CLASS)
+      Redefiner::CanRedefineClass<kType>(h_klass, &err_unused) != ERR(UNMODIFIABLE_CLASS)
           ? JNI_TRUE
           : JNI_FALSE;
   return OK;
@@ -395,7 +395,7 @@ jvmtiError Redefiner::IsModifiableClass(jvmtiEnv* env, jclass klass, jboolean* i
 }
 
 template <RedefinitionType kType>
-jvmtiError Redefiner::GetClassRedefinitionError(jclass klass, /*out*/ std::string* error_msg) {
+jvmtiError Redefiner::CanRedefineClass(jclass klass, /*out*/ std::string* error_msg) {
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   art::StackHandleScope<1> hs(self);
@@ -404,12 +404,12 @@ jvmtiError Redefiner::GetClassRedefinitionError(jclass klass, /*out*/ std::strin
     return ERR(INVALID_CLASS);
   }
   art::Handle<art::mirror::Class> h_klass(hs.NewHandle(obj->AsClass()));
-  return Redefiner::GetClassRedefinitionError<kType>(h_klass, error_msg);
+  return Redefiner::CanRedefineClass<kType>(h_klass, error_msg);
 }
 
 template <RedefinitionType kType>
-jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> klass,
-                                                /*out*/ std::string* error_msg) {
+jvmtiError Redefiner::CanRedefineClass(art::Handle<art::mirror::Class> klass,
+                                       /*out*/ std::string* error_msg) {
   art::Thread* self = art::Thread::Current();
   if (!klass->IsResolved()) {
     // It's only a problem to try to retransform/redefine a unprepared class if it's happening on
@@ -526,9 +526,9 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
   return OK;
 }
 
-template jvmtiError Redefiner::GetClassRedefinitionError<RedefinitionType::kNormal>(
+template jvmtiError Redefiner::CanRedefineClass<RedefinitionType::kNormal>(
     art::Handle<art::mirror::Class> klass, /*out*/ std::string* error_msg);
-template jvmtiError Redefiner::GetClassRedefinitionError<RedefinitionType::kStructural>(
+template jvmtiError Redefiner::CanRedefineClass<RedefinitionType::kStructural>(
     art::Handle<art::mirror::Class> klass, /*out*/ std::string* error_msg);
 
 // Moves dex data to an anonymous, read-only mmap'd region.
@@ -604,8 +604,8 @@ jvmtiError Redefiner::RedefineClassesGeneric(jvmtiEnv* jenv,
   std::vector<ArtClassDefinition> def_vector;
   def_vector.reserve(class_count);
   for (jint i = 0; i < class_count; i++) {
-    jvmtiError res = Redefiner::GetClassRedefinitionError<RedefinitionType::kNormal>(
-        definitions[i].klass, &error_msg);
+    jvmtiError res =
+        Redefiner::CanRedefineClass<RedefinitionType::kNormal>(definitions[i].klass, &error_msg);
     if (res != OK) {
       JVMTI_LOG(WARNING, env) << "FAILURE TO REDEFINE " << error_msg;
       return res;
@@ -618,11 +618,12 @@ jvmtiError Redefiner::RedefineClassesGeneric(jvmtiEnv* jenv,
     }
     def_vector.push_back(std::move(def));
   }
-  // Call all the transformation events.
-  Transformer::RetransformClassesDirect<kType>(self, &def_vector);
-  if (kType == RedefinitionType::kStructural) {
-    Transformer::RetransformClassesDirect<RedefinitionType::kNormal>(self, &def_vector);
-  }
+
+  // Call necessary hooks. According to the spec we should send class file load hooks here. We
+  // handle it slightly differently to support structural redefinition. Look at the comments
+  // in Transformer::CallClassFileLoadHooks for more details.
+  Transformer::CallClassFileLoadHooks<kType>(self, &def_vector);
+
   jvmtiError res = RedefineClassesDirect(env, runtime, self, def_vector, kType, &error_msg);
   if (res != OK) {
     JVMTI_LOG(WARNING, env) << "FAILURE TO REDEFINE " << error_msg;
@@ -1155,9 +1156,9 @@ bool Redefiner::ClassRedefinition::CheckRedefinable() {
   art::Handle<art::mirror::Class> h_klass(hs.NewHandle(GetMirrorClass()));
   jvmtiError res;
   if (driver_->type_ == RedefinitionType::kStructural && this->IsStructuralRedefinition()) {
-    res = Redefiner::GetClassRedefinitionError<RedefinitionType::kStructural>(h_klass, &err);
+    res = Redefiner::CanRedefineClass<RedefinitionType::kStructural>(h_klass, &err);
   } else {
-    res = Redefiner::GetClassRedefinitionError<RedefinitionType::kNormal>(h_klass, &err);
+    res = Redefiner::CanRedefineClass<RedefinitionType::kNormal>(h_klass, &err);
   }
   if (res != OK) {
     RecordFailure(res, err);
