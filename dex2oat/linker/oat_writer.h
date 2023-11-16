@@ -147,7 +147,8 @@ class OatWriter {
       const char* location);
   // Add dex file source from raw memory.
   bool AddRawDexFileSource(
-      const ArrayRef<const uint8_t>& data,
+      std::shared_ptr<DexFileContainer> container,
+      const uint8_t* dex_file_begin,
       const char* location,
       uint32_t location_checksum);
   // Add dex file source(s) from a vdex file.
