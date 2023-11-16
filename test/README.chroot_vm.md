@@ -47,7 +47,7 @@ export ART_TEST_SSH_PORT=10001
 export ART_TEST_ON_VM=true
 
 . ./build/envsetup.sh
-lunch armv8-eng  # or aosp_riscv64-userdebug, etc.
+lunch armv8-trunk_staging-eng  # or aosp_riscv64-trunk_staging-userdebug, etc.
 art/tools/buildbot-build.sh --target # --installclean
 
 art/tools/buildbot-cleanup-device.sh
