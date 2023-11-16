@@ -43,6 +43,7 @@ fi
 #
 # TODO(b/286551985): Remove this after riscv64 support is added to mainline.
 if [[ $TARGET_ARCH = "riscv64" && ! ( -d frameworks/base ) ]]; then
+  msginfo "Copying prebuilt dependencies for riscv64"
   cp -u -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/conscrypt \
     prebuilts/module_sdk
   cp -u -r prebuilts/runtime/mainline/local_riscv64/prebuilts/module_sdk/StatsD \
@@ -51,7 +52,11 @@ if [[ $TARGET_ARCH = "riscv64" && ! ( -d frameworks/base ) ]]; then
     bp_file=${patch_file%.patch}
     # Only apply the patches if they haven't been applied already. Assume the
     # patch files contain the bug number, and look for that.
-    grep -q b/286551985 $bp_file || patch -f $bp_file < $patch_file
+    if grep -q b/286551985 $bp_file ; then
+      msginfo "Patch for riscv64 already present in $bp_file"
+    else
+      patch -f $bp_file < $patch_file
+    fi
   done
 fi
 
