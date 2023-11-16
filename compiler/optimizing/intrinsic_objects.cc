@@ -20,6 +20,7 @@
 #include "base/casts.h"
 #include "base/logging.h"
 #include "image.h"
+#include "intrinsics.h"
 #include "obj_ptr-inl.h"
 #include "well_known_classes.h"
 
@@ -36,6 +37,7 @@ ObjPtr<mirror::ObjectArray<mirror::Object>> IntrinsicObjects::LookupIntegerCache
       ObjPtr<mirror::ObjectArray<mirror::Object>>::DownCast(
           cache_field->GetObject(integer_cache_class));
   CHECK(integer_cache != nullptr);
+  DCHECK(IntrinsicVisitor::CheckIntegerCacheFields(integer_cache));
   return integer_cache;
 }
 
