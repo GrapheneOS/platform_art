@@ -451,38 +451,6 @@ jvmtiError ExtensionUtil::GetExtensionFunctions(jvmtiEnv* env,
       return error;
     }
 
-    // StructurallyRedefineClassDirect
-    error = add_extension(
-        reinterpret_cast<jvmtiExtensionFunction>(Redefiner::StructurallyRedefineClassDirect),
-        "com.android.art.UNSAFE.class.structurally_redefine_class_direct",
-        "Temporary prototype entrypoint for redefining a single class structurally. Currently this"
-        " only supports adding new static fields to a class without any instances."
-        " ClassFileLoadHook events will NOT be triggered. This does not currently support creating"
-        " obsolete methods. This function only has rudimentary error checking. This should not be"
-        " used except for testing.",
-        {
-          { "klass", JVMTI_KIND_IN, JVMTI_TYPE_JCLASS, false },
-          { "new_def", JVMTI_KIND_IN_BUF, JVMTI_TYPE_CCHAR, false },
-          { "new_def_len", JVMTI_KIND_IN, JVMTI_TYPE_JINT, false },
-        },
-        {
-          ERR(CLASS_LOADER_UNSUPPORTED),
-          ERR(FAILS_VERIFICATION),
-          ERR(ILLEGAL_ARGUMENT),
-          ERR(INVALID_CLASS),
-          ERR(MUST_POSSESS_CAPABILITY),
-          ERR(MUST_POSSESS_CAPABILITY),
-          ERR(NULL_POINTER),
-          ERR(OUT_OF_MEMORY),
-          ERR(UNMODIFIABLE_CLASS),
-          ERR(UNSUPPORTED_REDEFINITION_HIERARCHY_CHANGED),
-          ERR(UNSUPPORTED_REDEFINITION_METHOD_ADDED),
-          ERR(UNSUPPORTED_REDEFINITION_METHOD_DELETED),
-          ERR(UNSUPPORTED_REDEFINITION_SCHEMA_CHANGED),
-        });
-    if (error != ERR(NONE)) {
-      return error;
-    }
   } else {
     LOG(INFO) << "debuggable & jni-type indices are required to implement structural "
               << "class redefinition extensions.";
