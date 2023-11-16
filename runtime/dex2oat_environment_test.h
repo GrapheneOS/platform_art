@@ -131,14 +131,8 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     ASSERT_EQ(multi1[0]->GetHeader().checksum_, multi2[0]->GetHeader().checksum_);
     ASSERT_NE(multi1[1]->GetHeader().checksum_, multi2[1]->GetHeader().checksum_);
 
-    if (multi1[0]->HasDexContainer()) {
-      // Checksum is the CRC of the whole container, so both of them should differ.
-      ASSERT_NE(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
-      ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
-    } else {
-      ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
-      ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
-    }
+    ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
+    ASSERT_NE(multi1[1]->GetLocationChecksum(), multi2[1]->GetLocationChecksum());
   }
 
   void SetUpRuntimeOptions(RuntimeOptions* options) override {

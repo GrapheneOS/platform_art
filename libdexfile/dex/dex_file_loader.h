@@ -93,19 +93,13 @@ class DexFileLoader {
     CHECK_LT(*i, dex_files.size()) << "No dex files";
     std::optional<uint32_t> checksum;
     for (; *i < dex_files.size(); ++(*i)) {
-      const auto* dex_file = &*dex_files[*i];
-      bool is_primary_dex = !IsMultiDexLocation(dex_file->GetLocation().c_str());
+      const char* location = dex_files[*i]->GetLocation().c_str();
       if (!checksum.has_value()) {                         // First dex file.
-        CHECK(is_primary_dex) << dex_file->GetLocation();  // Expect primary dex.
-      } else if (is_primary_dex) {                         // Later dex file.
+        CHECK(!IsMultiDexLocation(location)) << location;  // Expect primary dex.
+      } else if (!IsMultiDexLocation(location)) {          // Later dex file.
         break;  // Found another primary dex file, terminate iteration.
       }
-      if (!is_primary_dex && dex_file->GetDexVersion() >= DexFile::kDexContainerVersion) {
-        if (dex_file->GetLocationChecksum() == dex_files[*i - 1]->GetLocationChecksum() + 1) {
-          continue;
-        }
-      }
-      checksum = checksum.value_or(kEmptyMultiDexChecksum) ^ dex_file->GetLocationChecksum();
+      checksum = checksum.value_or(kEmptyMultiDexChecksum) ^ dex_files[*i]->GetLocationChecksum();
     }
     CHECK(checksum.has_value());
     return checksum.value();
@@ -199,18 +193,16 @@ class DexFileLoader {
                                       bool verify,
                                       bool verify_checksum,
                                       std::string* error_msg) {
-    std::unique_ptr<const DexFile> dex_file = Open(
+    return Open(
         /*header_offset=*/0, location_checksum, oat_dex_file, verify, verify_checksum, error_msg);
-    // This API returns only singe DEX file, so check there is just single dex in the container.
-    CHECK(dex_file == nullptr || dex_file->IsDexContainerLastEntry()) << location_;
-    return dex_file;
   }
 
   std::unique_ptr<const DexFile> Open(uint32_t location_checksum,
                                       bool verify,
                                       bool verify_checksum,
                                       std::string* error_msg) {
-    return Open(location_checksum,
+    return Open(/*header_offset=*/0,
+                location_checksum,
                 /*oat_dex_file=*/nullptr,
                 verify,
                 verify_checksum,
@@ -312,10 +304,9 @@ class DexFileLoader {
                         const std::string& location,
                         bool verify,
                         bool verify_checksum,
-                        /*inout*/ size_t* multidex_count,
-                        /*out*/ DexFileLoaderErrorCode* error_code,
-                        /*out*/ std::string* error_msg,
-                        /*out*/ std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
+                        DexFileLoaderErrorCode* error_code,
+                        std::string* error_msg,
+                        std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
   // The DexFileLoader can be backed either by file or by memory (i.e. DexFileContainer).
   // We can not just mmap the file since APKs might be unreasonably large for 32-bit system.

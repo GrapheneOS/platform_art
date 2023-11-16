@@ -155,13 +155,6 @@ ADexFile_Error ADexFile_create(const void* _Nonnull address,
   }
 
   const art::DexFile::Header* header = reinterpret_cast<const art::DexFile::Header*>(address);
-  if (size < header->header_size_) {
-    if (new_size != nullptr) {
-      *new_size = header->header_size_;
-    }
-    return ADEXFILE_ERROR_NOT_ENOUGH_DATA;
-  }
-
   uint32_t dex_size = header->file_size_;  // Size of "one dex file" excluding any shared data.
   uint32_t full_size = dex_size;           // Includes referenced shared data past the end of dex.
   if (art::CompactDexFile::IsMagicValid(header->magic_)) {
@@ -176,9 +169,7 @@ ADexFile_Error ADexFile_create(const void* _Nonnull address,
     if (computed_file_size > full_size) {
       full_size = computed_file_size;
     }
-  } else if (art::StandardDexFile::IsMagicValid(header->magic_)) {
-    full_size = header->ContainerSize() - header->HeaderOffset();
-  } else {
+  } else if (!art::StandardDexFile::IsMagicValid(header->magic_)) {
     return ADEXFILE_ERROR_INVALID_HEADER;
   }
 

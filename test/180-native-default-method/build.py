@@ -14,7 +14,7 @@
 # limitations under the License.
 
 def build(ctx):
-  ctx.default_build(d8_dex_container=False)
+  ctx.default_build()
   if ctx.jvm:
     return
   # Change the generated dex file to have a v35 magic number if it is version 38
