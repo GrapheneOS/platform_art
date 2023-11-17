@@ -21,6 +21,9 @@
 #include "base/scoped_arena_containers.h"
 #include "optimizing/nodes.h"
 
+// TODO(b/310755375, solanes): Disable WBE while we investigate crashes.
+constexpr bool kWBEEnabled = false;
+
 namespace art HIDDEN {
 
 class WBEVisitor final : public HGraphVisitor {
@@ -153,8 +156,10 @@ class WBEVisitor final : public HGraphVisitor {
 };
 
 bool WriteBarrierElimination::Run() {
-  WBEVisitor wbe_visitor(graph_, stats_);
-  wbe_visitor.VisitReversePostOrder();
+  if (kWBEEnabled) {
+    WBEVisitor wbe_visitor(graph_, stats_);
+    wbe_visitor.VisitReversePostOrder();
+  }
   return true;
 }
 

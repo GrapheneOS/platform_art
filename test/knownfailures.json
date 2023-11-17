@@ -1,5 +1,10 @@
 [
     {
+        "tests": "2247-checker-write-barrier-elimination",
+        "description": ["Disable 2247- until we fix the WBE issue."],
+        "bug": "http://b/310755375"
+    },
+    {
         "tests": "153-reference-stress",
         "description": ["Disable 153-reference-stress temporarily until a fix",
                         "arrives."],
