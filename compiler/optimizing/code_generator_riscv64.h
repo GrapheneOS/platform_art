@@ -147,7 +147,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(JdkUnsafeGetAndSetObject)                   \
   V(ReferenceGetReferent)                       \
   V(ReferenceRefersTo)                          \
-  V(IntegerValueOf)                             \
   V(ThreadInterrupted)                          \
   V(CRC32Update)                                \
   V(CRC32UpdateBytes)                           \
@@ -168,7 +167,11 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(VarHandleGetAndBitwiseXorRelease)           \
   V(VarHandleGetAndSet)                         \
   V(VarHandleGetAndSetAcquire)                  \
-  V(VarHandleGetAndSetRelease)
+  V(VarHandleGetAndSetRelease)                  \
+  V(ByteValueOf)                                \
+  V(ShortValueOf)                               \
+  V(CharacterValueOf)                           \
+  V(IntegerValueOf)                             \
 
 // Method register on invoke.
 static const XRegister kArtMethodRegister = A0;

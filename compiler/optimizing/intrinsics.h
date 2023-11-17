@@ -95,17 +95,18 @@ class IntrinsicVisitor : public ValueObject {
     codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
   }
 
-  static void ComputeIntegerValueOfLocations(HInvoke* invoke,
-                                             CodeGenerator* codegen,
-                                             Location return_location,
-                                             Location first_argument_location);
+  static void ComputeValueOfLocations(HInvoke* invoke,
+                                      CodeGenerator* codegen,
+                                      int32_t low,
+                                      int32_t length,
+                                      Location return_location,
+                                      Location first_argument_location);
 
-  // Temporary data structure for holding Integer.valueOf data for generating code.
-  // We only use it if the boot image contains the IntegerCache objects.
-  struct IntegerValueOfInfo {
+  // Temporary data structure for holding BoxedType.valueOf data for generating code.
+  struct ValueOfInfo {
     static constexpr uint32_t kInvalidReference = static_cast<uint32_t>(-1);
 
-    IntegerValueOfInfo();
+    ValueOfInfo();
 
     // Offset of the Integer.value field for initializing a newly allocated instance.
     uint32_t value_offset;
@@ -130,10 +131,13 @@ class IntrinsicVisitor : public ValueObject {
     };
   };
 
-  static IntegerValueOfInfo ComputeIntegerValueOfInfo(
-      HInvoke* invoke, const CompilerOptions& compiler_options);
-  static bool CheckIntegerCacheFields(ObjPtr<mirror::ObjectArray<mirror::Object>> cache)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ValueOfInfo ComputeValueOfInfo(
+      HInvoke* invoke,
+      const CompilerOptions& compiler_options,
+      ArtField* value_field,
+      int32_t low,
+      int32_t length,
+      size_t base);
 
   static MemberOffset GetReferenceDisableIntrinsicOffset();
   static MemberOffset GetReferenceSlowPathEnabledOffset();
