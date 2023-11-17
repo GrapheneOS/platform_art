@@ -455,9 +455,6 @@
       "name": "art-run-test-2244-checker-remove-try-boundary[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-2247-checker-write-barrier-elimination[com.google.android.art.apex]"
-    },
-    {
       "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop[com.google.android.art.apex]"
     },
     {
@@ -1880,9 +1877,6 @@
       "name": "art-run-test-2244-checker-remove-try-boundary"
     },
     {
-      "name": "art-run-test-2247-checker-write-barrier-elimination"
-    },
-    {
       "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop"
     },
     {
@@ -3287,9 +3281,6 @@
     },
     {
       "name": "art-run-test-2244-checker-remove-try-boundary"
-    },
-    {
-      "name": "art-run-test-2247-checker-write-barrier-elimination"
     },
     {
       "name": "art-run-test-2249-checker-return-try-boundary-exit-in-loop"

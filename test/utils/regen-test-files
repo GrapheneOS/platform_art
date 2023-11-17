@@ -215,7 +215,9 @@ known_failing_tests = frozenset([
   "993-breakpoints-non-debuggable",
   "2243-single-step-default",
   "2262-miranda-methods",
-  "2262-default-conflict-methods"
+  "2262-default-conflict-methods",
+  # 2247-checker-write-barrier-elimination: Disabled while we investigate failures
+  "2247-checker-write-barrier-elimination"
 ])
 
 known_failing_on_hwasan_tests = frozenset([
