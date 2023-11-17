@@ -696,20 +696,17 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
     }
   }
 
-  for (size_t k = 0; k < info.opened_dex_files.size();) {
-    const std::unique_ptr<const DexFile>& dex_file = info.opened_dex_files[k];
-    uint32_t checksum = DexFileLoader::GetMultiDexChecksum(info.opened_dex_files, &k);
-    CHECK(!DexFileLoader::IsMultiDexLocation(dex_file->GetLocation()));
-
+  DCHECK_EQ(info.classpath.size(), info.checksums.size());
+  for (size_t i = 0; i < info.classpath.size(); i++) {
     if (for_dex2oat) {
       // De-duplicate locations.
-      bool new_insert = seen_locations.insert(dex_file->GetLocation()).second;
+      bool new_insert = seen_locations.insert(info.classpath[i]).second;
       if (!new_insert) {
         continue;
       }
     }
 
-    std::string location = dex_file->GetLocation();
+    std::string location = info.classpath[i];
     // If there is a stored class loader remap, fix up the multidex strings.
     if (!remap.empty()) {
       auto it = remap.find(location);
@@ -720,7 +717,7 @@ void ClassLoaderContext::EncodeContextInternal(const ClassLoaderInfo& info,
 
     // dex2oat does not need the checksums.
     if (!for_dex2oat) {
-      checksums.push_back(checksum);
+      checksums.push_back(info.checksums[i]);
     }
   }
   EncodeClassPath(base_dir, locations, checksums, info.type, out);
