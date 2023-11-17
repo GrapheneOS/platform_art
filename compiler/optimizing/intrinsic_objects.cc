@@ -29,16 +29,41 @@ namespace art HIDDEN {
 static constexpr size_t kIntrinsicObjectsOffset =
     enum_cast<size_t>(ImageHeader::kIntrinsicObjectsStart);
 
-ObjPtr<mirror::ObjectArray<mirror::Object>> IntrinsicObjects::LookupIntegerCache() {
-  ArtField* cache_field = WellKnownClasses::java_lang_Integer_IntegerCache_cache;
-  ObjPtr<mirror::Class> integer_cache_class = cache_field->GetDeclaringClass();
-  DCHECK(integer_cache_class->IsInitialized());
-  ObjPtr<mirror::ObjectArray<mirror::Object>> integer_cache =
+template <typename T>
+static void FillIntrinsicsObjects(
+    ArtField* cache_field,
+    ObjPtr<mirror::ObjectArray<mirror::Object>> live_objects,
+    int32_t expected_low,
+    int32_t expected_high,
+    T type_check,
+    size_t& index)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::ObjectArray<mirror::Object>> cache =
       ObjPtr<mirror::ObjectArray<mirror::Object>>::DownCast(
-          cache_field->GetObject(integer_cache_class));
-  CHECK(integer_cache != nullptr);
-  DCHECK(IntrinsicVisitor::CheckIntegerCacheFields(integer_cache));
-  return integer_cache;
+          cache_field->GetObject(cache_field->GetDeclaringClass()));
+  DCHECK_EQ(expected_high - expected_low + 1, cache->GetLength());
+  for (int32_t i = 0, length = cache->GetLength(); i != length; ++i) {
+    live_objects->Set(index++, cache->Get(i));
+    type_check(cache->Get(i), expected_low++);
+  }
+}
+
+void IntrinsicObjects::FillIntrinsicObjects(
+    ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects, size_t start_index) {
+  DCHECK_EQ(start_index, ImageHeader::kIntrinsicObjectsStart);
+  size_t index = start_index;
+#define FILL_OBJECTS(name, low, high, type, offset) \
+  FillIntrinsicsObjects( \
+      WellKnownClasses::java_lang_ ##name ##_ ##name ##Cache_cache, \
+      boot_image_live_objects, \
+      low, \
+      high, \
+      [](ObjPtr<mirror::Object> obj, int32_t expected) REQUIRES_SHARED(Locks::mutator_lock_) { \
+        CHECK_EQ(expected, WellKnownClasses::java_lang_ ##name ##_value->Get ##name(obj)); \
+      }, \
+      index);
+  BOXED_TYPES(FILL_OBJECTS)
+#undef FILL_OBJECTS
 }
 
 static bool HasIntrinsicObjects(
@@ -50,43 +75,26 @@ static bool HasIntrinsicObjects(
   return length != kIntrinsicObjectsOffset;
 }
 
-ObjPtr<mirror::ObjectArray<mirror::Object>> IntrinsicObjects::GetIntegerValueOfCache(
-    ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects) {
-  if (!HasIntrinsicObjects(boot_image_live_objects)) {
-    return nullptr;  // No intrinsic objects.
-  }
-  // No need for read barrier for boot image object or for verifying the value that was just stored.
-  ObjPtr<mirror::Object> result =
-      boot_image_live_objects->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(
-          kIntrinsicObjectsOffset);
-  DCHECK(result != nullptr);
-  DCHECK(result->IsObjectArray());
-  DCHECK(result->GetClass()->DescriptorEquals("[Ljava/lang/Integer;"));
-  return ObjPtr<mirror::ObjectArray<mirror::Object>>::DownCast(result);
-}
-
-ObjPtr<mirror::Object> IntrinsicObjects::GetIntegerValueOfObject(
+ObjPtr<mirror::Object> IntrinsicObjects::GetValueOfObject(
     ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
+    size_t start_index,
     uint32_t index) {
   DCHECK(HasIntrinsicObjects(boot_image_live_objects));
-  DCHECK_LT(index,
-            static_cast<uint32_t>(GetIntegerValueOfCache(boot_image_live_objects)->GetLength()));
-
   // No need for read barrier for boot image object or for verifying the value that was just stored.
   ObjPtr<mirror::Object> result =
       boot_image_live_objects->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(
-          kIntrinsicObjectsOffset + /* skip the IntegerCache.cache */ 1u + index);
+          kIntrinsicObjectsOffset + start_index + index);
   DCHECK(result != nullptr);
-  DCHECK(result->GetClass()->DescriptorEquals("Ljava/lang/Integer;"));
   return result;
 }
 
-MemberOffset IntrinsicObjects::GetIntegerValueOfArrayDataOffset(
-    ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects) {
+MemberOffset IntrinsicObjects::GetValueOfArrayDataOffset(
+    ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
+    size_t start_index) {
   DCHECK(HasIntrinsicObjects(boot_image_live_objects));
   MemberOffset result =
-      mirror::ObjectArray<mirror::Object>::OffsetOfElement(kIntrinsicObjectsOffset + 1u);
-  DCHECK_EQ(GetIntegerValueOfObject(boot_image_live_objects, 0u),
+      mirror::ObjectArray<mirror::Object>::OffsetOfElement(kIntrinsicObjectsOffset + start_index);
+  DCHECK_EQ(GetValueOfObject(boot_image_live_objects, start_index, 0u),
             (boot_image_live_objects
                  ->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(result)));
   return result;
