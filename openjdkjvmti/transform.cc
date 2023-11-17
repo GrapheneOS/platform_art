@@ -76,20 +76,23 @@ void Transformer::Register(EventHandler* eh) {
 }
 
 // Initialize templates.
-template
-void Transformer::TransformSingleClassDirect<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
-    EventHandler* event_handler, art::Thread* self, /*in-out*/ArtClassDefinition* def);
-template
-void Transformer::TransformSingleClassDirect<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
-    EventHandler* event_handler, art::Thread* self, /*in-out*/ArtClassDefinition* def);
-template
-void Transformer::TransformSingleClassDirect<ArtJvmtiEvent::kStructuralDexFileLoadHook>(
-    EventHandler* event_handler, art::Thread* self, /*in-out*/ArtClassDefinition* def);
+template void Transformer::CallClassFileLoadHooksSingleClass<
+    ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(EventHandler* event_handler,
+                                                         art::Thread* self,
+                                                         /*in-out*/ ArtClassDefinition* def);
+template void Transformer::CallClassFileLoadHooksSingleClass<
+    ArtJvmtiEvent::kClassFileLoadHookRetransformable>(EventHandler* event_handler,
+                                                      art::Thread* self,
+                                                      /*in-out*/ ArtClassDefinition* def);
+template void Transformer::CallClassFileLoadHooksSingleClass<
+    ArtJvmtiEvent::kStructuralDexFileLoadHook>(EventHandler* event_handler,
+                                               art::Thread* self,
+                                               /*in-out*/ ArtClassDefinition* def);
 
-template<ArtJvmtiEvent kEvent>
-void Transformer::TransformSingleClassDirect(EventHandler* event_handler,
-                                             art::Thread* self,
-                                             /*in-out*/ArtClassDefinition* def) {
+template <ArtJvmtiEvent kEvent>
+void Transformer::CallClassFileLoadHooksSingleClass(EventHandler* event_handler,
+                                                    art::Thread* self,
+                                                    /*in-out*/ ArtClassDefinition* def) {
   static_assert(kEvent == ArtJvmtiEvent::kClassFileLoadHookNonRetransformable ||
                 kEvent == ArtJvmtiEvent::kClassFileLoadHookRetransformable ||
                 kEvent == ArtJvmtiEvent::kStructuralDexFileLoadHook,
@@ -115,21 +118,41 @@ void Transformer::TransformSingleClassDirect(EventHandler* event_handler,
 }
 
 template <RedefinitionType kType>
-void Transformer::RetransformClassesDirect(
-    art::Thread* self,
-    /*in-out*/ std::vector<ArtClassDefinition>* definitions) {
-  constexpr ArtJvmtiEvent kEvent = kType == RedefinitionType::kNormal
-                                       ? ArtJvmtiEvent::kClassFileLoadHookRetransformable
-                                       : ArtJvmtiEvent::kStructuralDexFileLoadHook;
-  for (ArtClassDefinition& def : *definitions) {
-    TransformSingleClassDirect<kEvent>(gEventHandler, self, &def);
+void Transformer::CallClassFileLoadHooks(art::Thread* self,
+                                         /*in-out*/ std::vector<ArtClassDefinition>* definitions) {
+  if (kType == RedefinitionType::kNormal) {
+    // For normal redefinition we have to call ClassFileLoadHook according to the spec. We use an
+    // internal event "ClassFileLoadHookRetransformable" for agents that can redefine and a
+    // "ClassFileLoadHookNonRetransformable" for agents that cannot redefine. When an agent is
+    // attached to a non-debuggable environment, we cannot redefine any classes. Splitting the
+    // ClassFileLoadHooks allows us to differentiate between these two cases. This method is only
+    // called when redefinition is allowed so just run ClassFileLoadHookRetransformable hooks.
+    for (ArtClassDefinition& def : *definitions) {
+      CallClassFileLoadHooksSingleClass<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+          gEventHandler, self, &def);
+    }
+  } else {
+    // For structural redefinition we call StructualDexFileLoadHook in addition to the
+    // ClassFileLoadHooks. This let's us specify if structural modifications are allowed.
+    // TODO(mythria): The spec only specifies we need to call ClassFileLoadHooks, the
+    // StructuralDexFileLoadHooks is internal to ART. It is not clear if we need to run all
+    // StructuralDexFileHooks before ClassFileLoadHooks. Doing it this way to keep the existing
+    // behaviour.
+    for (ArtClassDefinition& def : *definitions) {
+      CallClassFileLoadHooksSingleClass<ArtJvmtiEvent::kStructuralDexFileLoadHook>(
+          gEventHandler, self, &def);
+    }
+    for (ArtClassDefinition& def : *definitions) {
+      CallClassFileLoadHooksSingleClass<ArtJvmtiEvent::kClassFileLoadHookRetransformable>(
+          gEventHandler, self, &def);
+    }
   }
 }
 
-template void Transformer::RetransformClassesDirect<RedefinitionType::kNormal>(
-      art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
-template void Transformer::RetransformClassesDirect<RedefinitionType::kStructural>(
-      art::Thread* self, /*in-out*/std::vector<ArtClassDefinition>* definitions);
+template void Transformer::CallClassFileLoadHooks<RedefinitionType::kNormal>(
+    art::Thread* self, /*in-out*/ std::vector<ArtClassDefinition>* definitions);
+template void Transformer::CallClassFileLoadHooks<RedefinitionType::kStructural>(
+    art::Thread* self, /*in-out*/ std::vector<ArtClassDefinition>* definitions);
 
 jvmtiError Transformer::RetransformClasses(jvmtiEnv* env,
                                            jint class_count,
@@ -151,7 +174,7 @@ jvmtiError Transformer::RetransformClasses(jvmtiEnv* env,
   std::vector<ArtClassDefinition> definitions;
   jvmtiError res = OK;
   for (jint i = 0; i < class_count; i++) {
-    res = Redefiner::GetClassRedefinitionError<RedefinitionType::kNormal>(classes[i], &error_msg);
+    res = Redefiner::CanRedefineClass<RedefinitionType::kNormal>(classes[i], &error_msg);
     if (res != OK) {
       JVMTI_LOG(WARNING, env) << "FAILURE TO RETRANSFORM " << error_msg;
       return res;
@@ -164,8 +187,8 @@ jvmtiError Transformer::RetransformClasses(jvmtiEnv* env,
     }
     definitions.push_back(std::move(def));
   }
-  RetransformClassesDirect<RedefinitionType::kStructural>(self, &definitions);
-  RetransformClassesDirect<RedefinitionType::kNormal>(self, &definitions);
+
+  CallClassFileLoadHooks<RedefinitionType::kStructural>(self, &definitions);
   RedefinitionType redef_type =
       std::any_of(definitions.cbegin(),
                   definitions.cend(),
