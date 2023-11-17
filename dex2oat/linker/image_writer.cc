@@ -355,15 +355,13 @@ HashMap<mirror::Object*, uint32_t> MatchDirtyObjectPaths(
 static ObjPtr<mirror::ObjectArray<mirror::Object>> AllocateBootImageLiveObjects(
     Thread* self, Runtime* runtime) REQUIRES_SHARED(Locks::mutator_lock_) {
   ClassLinker* class_linker = runtime->GetClassLinker();
-  // The objects used for the Integer.valueOf() intrinsic must remain live even if references
+  // The objects used for intrinsics must remain live even if references
   // to them are removed using reflection. Image roots are not accessible through reflection,
   // so the array we construct here shall keep them alive.
   StackHandleScope<1> hs(self);
-  Handle<mirror::ObjectArray<mirror::Object>> integer_cache =
-      hs.NewHandle(IntrinsicObjects::LookupIntegerCache());
   size_t live_objects_size =
       enum_cast<size_t>(ImageHeader::kIntrinsicObjectsStart) +
-      ((integer_cache != nullptr) ? (/* cache */ 1u + integer_cache->GetLength()) : 0u);
+      IntrinsicObjects::GetNumberOfIntrinsicObjects();
   ObjPtr<mirror::ObjectArray<mirror::Object>> live_objects =
       mirror::ObjectArray<mirror::Object>::Alloc(
           self, GetClassRoot<mirror::ObjectArray<mirror::Object>>(class_linker), live_objects_size);
@@ -387,21 +385,7 @@ static ObjPtr<mirror::ObjectArray<mirror::Object>> AllocateBootImageLiveObjects(
   set_entry(ImageHeader::kClearedJniWeakSentinel, runtime->GetSentinel().Read());
 
   DCHECK_EQ(index, enum_cast<int32_t>(ImageHeader::kIntrinsicObjectsStart));
-  if (integer_cache != nullptr) {
-    live_objects->Set(index++, integer_cache.Get());
-    for (int32_t i = 0, length = integer_cache->GetLength(); i != length; ++i) {
-      live_objects->Set(index++, integer_cache->Get(i));
-    }
-  }
-  CHECK_EQ(index, live_objects->GetLength());
-
-  if (kIsDebugBuild && integer_cache != nullptr) {
-    CHECK_EQ(integer_cache.Get(), IntrinsicObjects::GetIntegerValueOfCache(live_objects));
-    for (int32_t i = 0, len = integer_cache->GetLength(); i != len; ++i) {
-      CHECK_EQ(integer_cache->GetWithoutChecks(i),
-               IntrinsicObjects::GetIntegerValueOfObject(live_objects, i));
-    }
-  }
+  IntrinsicObjects::FillIntrinsicObjects(live_objects, index);
   return live_objects;
 }
 
