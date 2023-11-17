@@ -467,7 +467,7 @@ void ConcurrentCopying::InitializePhase() {
   if (use_generational_cc_ && !young_gen_) {
     region_space_bitmap_->Clear(ShouldEagerlyReleaseMemoryToOS());
   }
-  mark_stack_mode_.store(ConcurrentCopying::kMarkStackModeThreadLocal, std::memory_order_relaxed);
+  mark_stack_mode_.store(ConcurrentCopying::kMarkStackModeThreadLocal, std::memory_order_release);
   // Mark all of the zygote large objects without graying them.
   MarkZygoteLargeObjects();
 }
@@ -776,7 +776,7 @@ void ConcurrentCopying::FlipThreadRoots() {
     gc_barrier_->Increment(self, barrier_count);
   }
   is_asserting_to_space_invariant_ = true;
-  QuasiAtomic::ThreadFenceForConstructor();
+  QuasiAtomic::ThreadFenceForConstructor();  // TODO: Remove?
   if (kVerboseMode) {
     LOG(INFO) << "time=" << region_space_->Time();
     region_space_->DumpNonFreeRegions(LOG_STREAM(INFO));
@@ -1809,8 +1809,10 @@ void ConcurrentCopying::DisableMarking() {
     heap_->rb_table_->ClearAll();
     DCHECK(heap_->rb_table_->IsAllCleared());
   }
-  is_mark_stack_push_disallowed_.store(1, std::memory_order_seq_cst);
-  mark_stack_mode_.store(kMarkStackModeOff, std::memory_order_seq_cst);
+  if (kIsDebugBuild) {
+    is_mark_stack_push_disallowed_.store(1, std::memory_order_relaxed);
+  }
+  mark_stack_mode_.store(kMarkStackModeOff, std::memory_order_release);
 }
 
 void ConcurrentCopying::IssueEmptyCheckpoint() {
@@ -1835,10 +1837,10 @@ void ConcurrentCopying::ExpandGcMarkStack() {
 }
 
 void ConcurrentCopying::PushOntoMarkStack(Thread* const self, mirror::Object* to_ref) {
-  CHECK_EQ(is_mark_stack_push_disallowed_.load(std::memory_order_relaxed), 0)
+  DCHECK_EQ(is_mark_stack_push_disallowed_.load(std::memory_order_relaxed), 0)
       << " " << to_ref << " " << mirror::Object::PrettyTypeOf(to_ref);
   CHECK(thread_running_gc_ != nullptr);
-  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_relaxed);
+  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_acquire);
   if (LIKELY(mark_stack_mode == kMarkStackModeThreadLocal)) {
     if (LIKELY(self == thread_running_gc_)) {
       // If GC-running thread, use the GC mark stack instead of a thread-local mark stack.
@@ -2141,7 +2143,7 @@ bool ConcurrentCopying::ProcessMarkStackOnce() {
   DCHECK(self == thread_running_gc_);
   DCHECK(thread_running_gc_->GetThreadLocalMarkStack() == nullptr);
   size_t count = 0;
-  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_relaxed);
+  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_acquire);
   if (mark_stack_mode == kMarkStackModeThreadLocal) {
     // Process the thread-local mark stacks and the GC mark stack.
     count += ProcessThreadLocalMarkStacks(/* disable_weak_ref_access= */ false,
@@ -2424,10 +2426,9 @@ void ConcurrentCopying::SwitchToSharedMarkStackMode() {
   DCHECK(thread_running_gc_ != nullptr);
   DCHECK(self == thread_running_gc_);
   DCHECK(thread_running_gc_->GetThreadLocalMarkStack() == nullptr);
-  MarkStackMode before_mark_stack_mode = mark_stack_mode_.load(std::memory_order_relaxed);
-  CHECK_EQ(static_cast<uint32_t>(before_mark_stack_mode),
+  CHECK_EQ(static_cast<uint32_t>(mark_stack_mode_.load(std::memory_order_relaxed)),
            static_cast<uint32_t>(kMarkStackModeThreadLocal));
-  mark_stack_mode_.store(kMarkStackModeShared, std::memory_order_relaxed);
+  mark_stack_mode_.store(kMarkStackModeShared, std::memory_order_release);
   DisableWeakRefAccessCallback dwrac(this);
   // Process the thread local mark stacks one last time after switching to the shared mark stack
   // mode and disable weak ref accesses.
@@ -2447,11 +2448,9 @@ void ConcurrentCopying::SwitchToGcExclusiveMarkStackMode() {
   DCHECK(thread_running_gc_ != nullptr);
   DCHECK(self == thread_running_gc_);
   DCHECK(thread_running_gc_->GetThreadLocalMarkStack() == nullptr);
-  MarkStackMode before_mark_stack_mode = mark_stack_mode_.load(std::memory_order_relaxed);
-  CHECK_EQ(static_cast<uint32_t>(before_mark_stack_mode),
+  CHECK_EQ(static_cast<uint32_t>(mark_stack_mode_.load(std::memory_order_relaxed)),
            static_cast<uint32_t>(kMarkStackModeShared));
-  mark_stack_mode_.store(kMarkStackModeGcExclusive, std::memory_order_relaxed);
-  QuasiAtomic::ThreadFenceForConstructor();
+  mark_stack_mode_.store(kMarkStackModeGcExclusive, std::memory_order_release);
   if (kVerboseMode) {
     LOG(INFO) << "Switched to GC exclusive mark stack mode";
   }
@@ -2462,7 +2461,7 @@ void ConcurrentCopying::CheckEmptyMarkStack() {
   DCHECK(thread_running_gc_ != nullptr);
   DCHECK(self == thread_running_gc_);
   DCHECK(thread_running_gc_->GetThreadLocalMarkStack() == nullptr);
-  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_relaxed);
+  MarkStackMode mark_stack_mode = mark_stack_mode_.load(std::memory_order_acquire);
   if (mark_stack_mode == kMarkStackModeThreadLocal) {
     // Thread-local mark stack mode.
     RevokeThreadLocalMarkStacks(false, nullptr);
@@ -2732,13 +2731,15 @@ void ConcurrentCopying::ReclaimPhase() {
     // Double-check that the mark stack is empty.
     // Note: need to set this after VerifyNoFromSpaceRef().
     is_asserting_to_space_invariant_ = false;
-    QuasiAtomic::ThreadFenceForConstructor();
+    QuasiAtomic::ThreadFenceForConstructor();  // TODO: Remove?
     if (kVerboseMode) {
       LOG(INFO) << "Issue an empty check point. ";
     }
     IssueEmptyCheckpoint();
     // Disable the check.
-    is_mark_stack_push_disallowed_.store(0, std::memory_order_seq_cst);
+    if (kIsDebugBuild) {
+      is_mark_stack_push_disallowed_.store(0, std::memory_order_relaxed);
+    }
     if (kUseBakerReadBarrier) {
       updated_all_immune_objects_.store(false, std::memory_order_seq_cst);
     }

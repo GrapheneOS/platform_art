@@ -391,7 +391,7 @@ class ConcurrentCopying : public GarbageCollector {
   accounting::HeapBitmap* heap_mark_bitmap_;
   size_t live_stack_freeze_size_;
   size_t from_space_num_bytes_at_first_pause_;  // Computed if kEnableFromSpaceAccountingCheck
-  Atomic<int> is_mark_stack_push_disallowed_;
+  Atomic<int> is_mark_stack_push_disallowed_;   // Debug only.
   enum MarkStackMode {
     kMarkStackModeOff = 0,      // Mark stack is off.
     kMarkStackModeThreadLocal,  // All threads except for the GC-running thread push refs onto
@@ -401,6 +401,11 @@ class ConcurrentCopying : public GarbageCollector {
     kMarkStackModeGcExclusive   // The GC-running thread pushes onto and pops from the GC mark stack
                                 // without a lock. Other threads won't access the mark stack.
   };
+  // mark_stack_mode_ is updated asynchronoulsy by the GC. We cannot assume that another thread
+  // has seen it until it has run some kind of checkpoint.  We generally access this using
+  // acquire/release ordering, to ensure that any relevant prior changes are visible to readers of
+  // the flag, and to ensure that CHECKs prior to a state change cannot be delayed past the state
+  // change.
   Atomic<MarkStackMode> mark_stack_mode_;
   bool weak_ref_access_enabled_ GUARDED_BY(Locks::thread_list_lock_);
 
