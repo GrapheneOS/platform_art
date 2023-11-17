@@ -2197,6 +2197,14 @@ bool DexLayout::ProcessDexFile(const char* file_name,
                                                                GetOptions()));
   SetHeader(header.get());
 
+  // Dexlayout does not support containers, but allow it if it has just single dex file.
+  const DexFile::Header& hdr = dex_file->GetHeader();
+  if (hdr.HeaderOffset() != 0u || hdr.ContainerSize() != hdr.file_size_) {
+    *error_msg = "DEX containers are not supported in dexlayout";
+    DCHECK(false) << *error_msg;
+    return false;
+  }
+
   if (options_.verbose_) {
     fprintf(out_file_,
             "Opened '%s', DEX version '%.3s'\n",

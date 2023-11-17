@@ -24,18 +24,20 @@
 namespace art {
 
 const uint8_t StandardDexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
-const uint8_t StandardDexFile::kDexMagicVersions[StandardDexFile::kNumDexVersions]
-                                                [StandardDexFile::kDexVersionLen] = {
-  {'0', '3', '5', '\0'},
-  // Dex version 036 skipped because of an old dalvik bug on some versions of android where dex
-  // files with that version number would erroneously be accepted and run.
-  {'0', '3', '7', '\0'},
-  // Dex version 038: Android "O" and beyond.
-  {'0', '3', '8', '\0'},
-  // Dex version 039: Android "P" and beyond.
-  {'0', '3', '9', '\0'},
-  // Dex version 040: beyond Android "10" (previously known as Android "Q").
-  {'0', '4', '0', '\0'},
+const uint8_t StandardDexFile::kDexMagicVersions
+    [StandardDexFile::kNumDexVersions][StandardDexFile::kDexVersionLen] = {
+        {'0', '3', '5', '\0'},
+        // Dex version 036 skipped because of an old dalvik bug on some versions of android where
+        // dex files with that version number would erroneously be accepted and run.
+        {'0', '3', '7', '\0'},
+        // Dex version 038: Android "O" and beyond.
+        {'0', '3', '8', '\0'},
+        // Dex version 039: Android "P" and beyond.
+        {'0', '3', '9', '\0'},
+        // Dex version 040: Android "Q" and beyond (aka Android 10).
+        {'0', '4', '0', '\0'},
+        // Dex version 041: Android "V" and beyond (aka Android 15).
+        {'0', '4', '1', '\0'},
 };
 
 void StandardDexFile::WriteMagic(uint8_t* magic) {
