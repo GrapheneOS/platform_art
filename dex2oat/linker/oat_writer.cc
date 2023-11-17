@@ -421,6 +421,7 @@ bool OatWriter::AddDexFileSource(File&& dex_file_fd, const char* location) {
 bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* location) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   DCHECK(vdex_file.HasDexSection());
+  auto container = std::make_shared<MemoryDexFileContainer>(vdex_file.Begin(), vdex_file.End());
   const uint8_t* current_dex_data = nullptr;
   size_t i = 0;
   for (; i < vdex_file.GetNumberOfDexFiles(); ++i) {
@@ -436,8 +437,8 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* loc
     }
     // We used `zipped_dex_file_locations_` to keep the strings in memory.
     std::string multidex_location = DexFileLoader::GetMultiDexLocation(i, location);
-    const UnalignedDexFileHeader* header = AsUnalignedDexFileHeader(current_dex_data);
-    if (!AddRawDexFileSource({current_dex_data, header->file_size_},
+    if (!AddRawDexFileSource(container,
+                             current_dex_data,
                              multidex_location.c_str(),
                              vdex_file.GetLocationChecksum(i))) {
       return false;
@@ -457,13 +458,17 @@ bool OatWriter::AddVdexDexFilesSource(const VdexFile& vdex_file, const char* loc
 }
 
 // Add dex file source from raw memory.
-bool OatWriter::AddRawDexFileSource(const ArrayRef<const uint8_t>& data,
+bool OatWriter::AddRawDexFileSource(std::shared_ptr<DexFileContainer> container,
+                                    const uint8_t* dex_file_begin,
                                     const char* location,
                                     uint32_t location_checksum) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   std::string error_msg;
-  ArtDexFileLoader loader(data.data(), data.size(), location);
-  auto dex_file = loader.Open(location_checksum,
+  ArtDexFileLoader loader(container->Begin(), container->Size(), location);
+  CHECK_GE(dex_file_begin, container->Begin());
+  CHECK_LE(dex_file_begin, container->End());
+  auto dex_file = loader.Open(dex_file_begin - container->Begin(),
+                              location_checksum,
                               nullptr,
                               /*verify=*/false,
                               /*verify_checksum=*/false,
@@ -3142,6 +3147,15 @@ bool OatWriter::WriteDexFiles(File* file,
         LOG(ERROR) << "Failed to verify " << dex_file->GetLocation() << ": " << error_msg;
         return false;
       }
+    }
+  }
+
+  // Compact dex reader/writer does not understand dex containers,
+  // which is ok since dex containers replace compat-dex.
+  for (OatDexFile& oat_dex_file : oat_dex_files_) {
+    const DexFile* dex_file = oat_dex_file.GetDexFile();
+    if (dex_file->HasDexContainer()) {
+      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
     }
   }
 
