@@ -1215,6 +1215,23 @@ TEST_F(ClassLoaderContextTest, EncodeInOatFile) {
   ASSERT_EQ(expected_encoding, context->EncodeContextForOatFile(""));
 }
 
+// Same as above, but passes `only_read_checksums=true` to `OpenDexFiles`.
+TEST_F(ClassLoaderContextTest, EncodeInOatFileOnlyReadChecksums) {
+  std::string dex1_name = GetTestDexFileName("Main");
+  std::string dex2_name = GetTestDexFileName("MyClass");
+  std::unique_ptr<ClassLoaderContext> context =
+      ClassLoaderContext::Create("PCL[" + dex1_name + ":" + dex2_name + "]");
+  ASSERT_TRUE(context->OpenDexFiles(
+      /*classpath_dir=*/"", /*context_fds=*/{}, /*only_read_checksums=*/true));
+
+  std::vector<std::unique_ptr<const DexFile>> dex1 = OpenTestDexFiles("Main");
+  std::vector<std::unique_ptr<const DexFile>> dex2 = OpenTestDexFiles("MyClass");
+  std::string encoding = context->EncodeContextForOatFile("");
+  std::string expected_encoding =
+      "PCL[" + CreateClassPathWithChecksums(dex1) + ":" + CreateClassPathWithChecksums(dex2) + "]";
+  ASSERT_EQ(expected_encoding, context->EncodeContextForOatFile(""));
+}
+
 TEST_F(ClassLoaderContextTest, EncodeInOatFileIMC) {
   jobject class_loader_a = LoadDexInPathClassLoader("Main", nullptr);
   jobject class_loader_b = LoadDexInInMemoryDexClassLoader("MyClass", class_loader_a);
