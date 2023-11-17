@@ -213,6 +213,12 @@ struct WellKnownClasses {
   static ArtField* java_lang_Integer_IntegerCache_cache;
   static ArtField* java_lang_Long_LongCache_cache;
 
+  static ArtField* java_lang_Byte_value;
+  static ArtField* java_lang_Character_value;
+  static ArtField* java_lang_Short_value;
+  static ArtField* java_lang_Integer_value;
+  static ArtField* java_lang_Long_value;
+
   static constexpr ClassFromField<&dalvik_system_BaseDexClassLoader_pathList>
       dalvik_system_BaseDexClassLoader;
   static constexpr ClassFromMethod<&dalvik_system_DelegateLastClassLoader_init>
