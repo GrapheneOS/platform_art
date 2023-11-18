@@ -247,10 +247,8 @@ inline void ImageTest::DoCompile(ImageHeader::StorageMode storage_mode,
       for (size_t i = 0, size = oat_writers.size(); i != size; ++i) {
         const DexFile* dex_file = class_path[i];
         rodata.push_back(elf_writers[i]->StartRoData());
-        ArrayRef<const uint8_t> raw_dex_file(
-            reinterpret_cast<const uint8_t*>(&dex_file->GetHeader()),
-            dex_file->GetHeader().file_size_);
-        oat_writers[i]->AddRawDexFileSource(raw_dex_file,
+        oat_writers[i]->AddRawDexFileSource(dex_file->GetContainer(),
+                                            dex_file->Begin(),
                                             dex_file->GetLocation().c_str(),
                                             dex_file->GetLocationChecksum());
 

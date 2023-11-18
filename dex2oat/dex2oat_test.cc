@@ -1320,6 +1320,10 @@ TEST_F(Dex2oatTest, LayoutSections) {
   ASSERT_EQ(oat_dex_files.size(), 1u);
   // Check that the code sections match what we expect.
   for (const OatDexFile* oat_dex : oat_dex_files) {
+    if (oat_dex->GetDexVersion() >= DexFile::kDexContainerVersion) {
+      continue;  // Compact dex isn't supported together with dex container.
+    }
+
     const DexLayoutSections* const sections = oat_dex->GetDexLayoutSections();
     // Testing of logging the sections.
     ASSERT_TRUE(sections != nullptr);
@@ -1433,6 +1437,10 @@ TEST_F(Dex2oatTest, GenerateCompactDex) {
   std::vector<std::unique_ptr<const CompactDexFile>> compact_dex_files;
   for (const OatDexFile* oat_dex : oat_dex_files) {
     std::unique_ptr<const DexFile> dex_file(oat_dex->OpenDexFile(&error_msg));
+    if (dex_file->HasDexContainer()) {
+      ASSERT_FALSE(dex_file->IsCompactDexFile());
+      continue;  // Compact dex isn't supported together with dex container.
+    }
     ASSERT_TRUE(dex_file != nullptr) << error_msg;
     ASSERT_TRUE(dex_file->IsCompactDexFile());
     compact_dex_files.push_back(
@@ -1891,7 +1899,6 @@ TEST_F(Dex2oatTest, CompactDexInZip) {
   CompactDexFile::WriteMagic(header.magic_.data());
   CompactDexFile::WriteCurrentVersion(header.magic_.data());
   header.file_size_ = sizeof(CompactDexFile::Header);
-  header.data_off_ = 10 * MB;
   header.map_off_ = 10 * MB;
   header.class_defs_off_ = 10 * MB;
   header.class_defs_size_ = 10000;
@@ -2011,7 +2018,7 @@ TEST_F(Dex2oatWithExpectedFilterTest, AppImageEmptyDex) {
       ASSERT_GT(header->file_size_,
                 sizeof(*header) + sizeof(dex::MapList) + sizeof(dex::MapItem) * 2);
       // Move map list to be right after the header.
-      header->map_off_ = sizeof(DexFile::Header);
+      header->map_off_ = header->header_size_;
       dex::MapList* map_list = const_cast<dex::MapList*>(dex->GetMapList());
       map_list->list_[0].type_ = DexFile::kDexTypeHeaderItem;
       map_list->list_[0].size_ = 1u;
@@ -2022,6 +2029,7 @@ TEST_F(Dex2oatWithExpectedFilterTest, AppImageEmptyDex) {
       map_list->size_ = 2;
       header->data_off_ = header->map_off_;
       header->data_size_ = map_list->Size();
+      header->SetDexContainer(0, header->file_size_);
     });
   }
   std::unique_ptr<const DexFile> dex_file(OpenDexFile(temp_dex.GetFilename().c_str()));
