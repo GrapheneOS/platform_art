@@ -56,13 +56,6 @@ constexpr uint32_t kLinkTimeOffsetPlaceholderLow = 0x678;
 // We switch to the table-based method starting with 6 entries.
 static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 6;
 
-// FCLASS returns a 10-bit classification mask with the two highest bits marking NaNs
-// (signaling and quiet). To detect a NaN, we can compare (either BGE or BGEU, the sign
-// bit is always clear) the result with the `kFClassNaNMinValue`.
-static_assert(kSignalingNaN == 0x100);
-static_assert(kQuietNaN == 0x200);
-static constexpr int32_t kFClassNaNMinValue = 0x100;
-
 static constexpr XRegister kCoreCalleeSaves[] = {
     // S1(TR) is excluded as the ART thread register.
     S0, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, RA
@@ -872,7 +865,7 @@ inline void InstructionCodeGeneratorRISCV64::FMvX(
   FpUnOp<XRegister, &Riscv64Assembler::FMvXW, &Riscv64Assembler::FMvXD>(rd, rs1, type);
 }
 
-inline void InstructionCodeGeneratorRISCV64::FClass(
+void InstructionCodeGeneratorRISCV64::FClass(
     XRegister rd, FRegister rs1, DataType::Type type) {
   FpUnOp<XRegister, &Riscv64Assembler::FClassS, &Riscv64Assembler::FClassD>(rd, rs1, type);
 }
