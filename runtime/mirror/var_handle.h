@@ -43,6 +43,7 @@ class ShadowFrameGetter;
 namespace mirror {
 
 class MethodType;
+class RawMethodType;
 class VarHandleTest;
 
 // C++ mirror of java.lang.invoke.VarHandle
@@ -128,12 +129,21 @@ class MANAGED VarHandle : public Object {
   // 'access_mode' and the provided 'method_type'.
   MatchKind GetMethodTypeMatchForAccessMode(AccessMode access_mode, ObjPtr<MethodType> method_type)
         REQUIRES_SHARED(Locks::mutator_lock_);
+  MatchKind GetMethodTypeMatchForAccessMode(AccessMode access_mode, Handle<MethodType> method_type)
+        REQUIRES_SHARED(Locks::mutator_lock_);
+  MatchKind GetMethodTypeMatchForAccessMode(AccessMode access_mode, RawMethodType method_type)
+        REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Allocates and returns the MethodType associated with the
   // AccessMode. No check is made for whether the AccessMode is a
   // supported operation so the MethodType can be used when raising a
   // WrongMethodTypeException exception.
-  ObjPtr<MethodType> GetMethodTypeForAccessMode(Thread* self, AccessMode accessMode)
+  ObjPtr<MethodType> GetMethodTypeForAccessMode(Thread* self, AccessMode access_mode)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Overload that fills a handle scope with the return type and argument types
+  // instead of creating an actual `MethodType`.
+  void GetMethodTypeForAccessMode(AccessMode access_mode, /*out*/ RawMethodType method_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a string representing the descriptor of the MethodType associated with
@@ -193,10 +203,11 @@ class MANAGED VarHandle : public Object {
   ObjPtr<Class> GetCoordinateType1() REQUIRES_SHARED(Locks::mutator_lock_);
   int32_t GetAccessModesBitMask() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static ObjPtr<MethodType> GetMethodTypeForAccessMode(Thread* self,
+  template <typename MethodTypeType>
+  static MatchKind GetMethodTypeMatchForAccessModeImpl(AccessMode access_mode,
                                                        ObjPtr<VarHandle> var_handle,
-                                                       AccessMode access_mode)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+                                                       MethodTypeType method_type)
+        REQUIRES_SHARED(Locks::mutator_lock_);
 
   HeapReference<mirror::Class> coordinate_type0_;
   HeapReference<mirror::Class> coordinate_type1_;
