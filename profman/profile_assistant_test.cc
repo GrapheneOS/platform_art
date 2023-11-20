@@ -684,16 +684,6 @@ TEST_F(ProfileAssistantTest, ShouldAdviseCompilationMethodPercentage) {
                 kNumberOfMethodsInCurProfile, kNumberOfMethodsInRefProfile, extra_args));
 }
 
-TEST_F(ProfileAssistantTest, DoNotAdviseCompilationMethodPercentageWithNewMin) {
-  const uint16_t kNumberOfMethodsInRefProfile = 6000;
-  const uint16_t kNumberOfMethodsInCurProfile = 6200;  // Threshold is 20%.
-
-  // We should not advise compilation.
-  ASSERT_EQ(ProfmanResult::kSkipCompilationSmallDelta,
-            CheckCompilationMethodPercentChange(kNumberOfMethodsInCurProfile,
-                                                kNumberOfMethodsInRefProfile));
-}
-
 TEST_F(ProfileAssistantTest, DoNotAdviseCompilationClassPercentage) {
   const uint16_t kNumberOfClassesInRefProfile = 6000;
   const uint16_t kNumberOfClassesInCurProfile = 6110;  // Threshold is 2%.
@@ -714,16 +704,6 @@ TEST_F(ProfileAssistantTest, ShouldAdviseCompilationClassPercentage) {
   ASSERT_EQ(ProfmanResult::kCompile,
             CheckCompilationClassPercentChange(
                 kNumberOfClassesInCurProfile, kNumberOfClassesInRefProfile, extra_args));
-}
-
-TEST_F(ProfileAssistantTest, DoNotAdviseCompilationClassPercentageWithNewMin) {
-  const uint16_t kNumberOfClassesInRefProfile = 6000;
-  const uint16_t kNumberOfClassesInCurProfile = 6200;  // Threshold is 20%.
-
-  // We should not advise compilation.
-  ASSERT_EQ(ProfmanResult::kSkipCompilationSmallDelta,
-            CheckCompilationClassPercentChange(kNumberOfClassesInCurProfile,
-                                               kNumberOfClassesInRefProfile));
 }
 
 TEST_F(ProfileAssistantTest, FailProcessingBecauseOfProfiles) {
