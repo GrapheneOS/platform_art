@@ -124,21 +124,21 @@ static bool CheckIntegerCache(ObjPtr<mirror::ObjectArray<mirror::Object>> boot_i
   ObjPtr<mirror::Class> integer_class = WellKnownClasses::java_lang_Integer.Get();
   DCHECK(integer_class->IsInitialized());
 
-  ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_cache = GetIntegerCacheArray(cache_class);
-  if (!IntrinsicVisitor::CheckIntegerCacheFields(boot_image_cache)) {
+  ObjPtr<mirror::ObjectArray<mirror::Object>> current_cache = GetIntegerCacheArray(cache_class);
+  if (!IntrinsicVisitor::CheckIntegerCacheFields(current_cache)) {
     return false;
   }
 
   // Check that the elements match the boot image intrinsic objects and check their values as well.
   ArtField* value_field = integer_class->FindDeclaredInstanceField(kValueFieldName, "I");
   DCHECK(value_field != nullptr);
-  for (int32_t i = 0, len = boot_image_cache->GetLength(); i != len; ++i) {
+  for (int32_t i = 0, len = current_cache->GetLength(); i != len; ++i) {
     ObjPtr<mirror::Object> boot_image_object =
         IntrinsicObjects::GetIntegerValueOfObject(boot_image_live_objects, i);
     DCHECK(Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(boot_image_object));
     // No need for read barrier for comparison with a boot image object.
     ObjPtr<mirror::Object> current_object =
-        boot_image_cache->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(i);
+        current_cache->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(i);
     if (boot_image_object != current_object) {
       return false;  // Messed up IntegerCache.cache[i]
     }
