@@ -23,27 +23,23 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_defaults {
-    // This library contains low-level interfaces used to call dex2oat and related tools. This will
-    // allow other libraries or programs besides the ART Service to make use of this functionality.
-
-    name: "libarttools_defaults",
+// This library contains low-level interfaces used to call dex2oat and related tools. This will
+// allow other libraries or programs besides the ART Service to make use of this functionality.
+cc_library {
+    name: "libarttools",
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
-        "tools/tools.cc",
+        "tools.cc",
     ],
-    export_include_dirs: ["."],
+    export_include_dirs: ["include"],
     header_libs: ["art_libartbase_headers"],
     shared_libs: [
         "libbase",
     ],
-    export_shared_lib_headers: ["libbase"],
-}
-
-cc_library {
-    name: "libarttools",
-    defaults: ["libarttools_defaults"],
+    export_shared_lib_headers: [
+        "libbase",
+    ],
     whole_static_libs: [
         // TODO(b/270049598): Investigate the cost of libc++fs compared to its utility.
         "libc++fs",
@@ -56,14 +52,14 @@ cc_library {
 
 art_cc_defaults {
     name: "art_libarttools_tests_defaults",
-    defaults: ["libarttools_defaults"],
     srcs: [
-        "tools/art_exec_test.cc",
-        "tools/cmdline_builder_test.cc",
-        "tools/system_properties_test.cc",
-        "tools/tools_test.cc",
+        "art_exec_test.cc",
+        "cmdline_builder_test.cc",
+        "system_properties_test.cc",
+        "tools_test.cc",
     ],
     shared_libs: [
+        "libarttools",
         "libbase",
     ],
     static_libs: [
@@ -102,7 +98,7 @@ cc_binary {
         "art_defaults",
     ],
     srcs: [
-        "tools/art_exec.cc",
+        "art_exec.cc",
     ],
     shared_libs: [
         "libartbase",

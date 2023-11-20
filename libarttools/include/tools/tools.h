@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_LIBARTTOOLS_TOOLS_TOOLS_H_
-#define ART_LIBARTTOOLS_TOOLS_TOOLS_H_
+#ifndef ART_LIBARTTOOLS_INCLUDE_TOOLS_TOOLS_H_
+#define ART_LIBARTTOOLS_INCLUDE_TOOLS_TOOLS_H_
 
 #include <string>
 #include <string_view>
@@ -43,4 +43,4 @@ std::string EscapeGlob(const std::string& str);
 }  // namespace tools
 }  // namespace art
 
-#endif  // ART_LIBARTTOOLS_TOOLS_TOOLS_H_
+#endif  // ART_LIBARTTOOLS_INCLUDE_TOOLS_TOOLS_H_
