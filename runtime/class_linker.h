@@ -97,6 +97,7 @@ class MethodHandle;
 class MethodHandlesLookup;
 class MethodType;
 template<class T> class ObjectArray;
+class RawMethodType;
 class StackTraceElement;
 }  // namespace mirror
 
@@ -447,6 +448,14 @@ class ClassLinker {
                                                dex::ProtoIndex proto_idx,
                                                ArtMethod* referrer)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  bool ResolveMethodType(Thread* self,
+                         dex::ProtoIndex proto_idx,
+                         Handle<mirror::DexCache> dex_cache,
+                         Handle<mirror::ClassLoader> class_loader,
+                         /*out*/ mirror::RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
   // Resolve a method handle with a given ID from the DexFile. The
   // result is not cached in the DexCache as the instance will only be

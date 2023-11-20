@@ -199,6 +199,7 @@ struct WellKnownClasses {
   static ArtField* java_nio_ByteBuffer_isReadOnly;
   static ArtField* java_nio_ByteBuffer_offset;
   static ArtField* java_util_Collections_EMPTY_LIST;
+  static ArtField* java_util_concurrent_ThreadLocalRandom_seeder;
   static ArtField* jdk_internal_math_FloatingDecimal_BinaryToASCIIBuffer_buffer;
   static ArtField* jdk_internal_math_FloatingDecimal_ExceptionalBinaryToASCIIBuffer_image;
   static ArtField* libcore_util_EmptyArray_STACK_TRACE_ELEMENT;

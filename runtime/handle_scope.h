@@ -244,6 +244,11 @@ class VariableSizedHandleScope : public BaseHandleScope {
   // The current capacity of this handle scope.
   ALWAYS_INLINE uint32_t Capacity() const;
 
+  // Retrieve a `Handle<>` based on the slot index (in handle creation order).
+  // Note: This is linear in the size of the scope, so it should be used carefully.
+  template<class T>
+  ALWAYS_INLINE Handle<T> GetHandle(size_t i) REQUIRES_SHARED(Locks::mutator_lock_);
+
   ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
   template <typename Visitor>
