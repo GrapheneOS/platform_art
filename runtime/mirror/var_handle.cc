@@ -1335,13 +1335,13 @@ int32_t VarHandle::GetAccessModesBitMask() {
   return GetField32(AccessModesBitMaskOffset());
 }
 
-VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(AccessMode access_mode,
-                                                                ObjPtr<MethodType> method_type) {
+template <typename MethodTypeType>
+VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessModeImpl(
+    AccessMode access_mode, ObjPtr<VarHandle> var_handle, MethodTypeType method_type) {
   MatchKind match = MatchKind::kExact;
 
-  ObjPtr<VarHandle> vh = this;
-  ObjPtr<Class> var_type = vh->GetVarType();
-  ObjPtr<Class> mt_rtype = method_type->GetRType();
+  ObjPtr<Class> var_type = var_handle->GetVarType();
+  ObjPtr<Class> mt_rtype = MethodType::GetRType(method_type);
   ObjPtr<Class> void_type = WellKnownClasses::ToClass(WellKnownClasses::java_lang_Void);
   AccessModeTemplate access_mode_template = GetAccessModeTemplate(access_mode);
 
@@ -1358,28 +1358,28 @@ VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(AccessMode acces
   }
 
   // Check the number of parameters matches.
-  ObjPtr<Class> vh_ptypes[VarHandle::kMaxAccessorParameters];
+  ObjPtr<Class> vh_ptypes[kMaxAccessorParameters];
   const int32_t vh_ptypes_count = BuildParameterArray(vh_ptypes,
                                                       access_mode_template,
                                                       var_type,
-                                                      GetCoordinateType0(),
-                                                      GetCoordinateType1());
-  if (vh_ptypes_count != method_type->GetPTypes()->GetLength()) {
+                                                      var_handle->GetCoordinateType0(),
+                                                      var_handle->GetCoordinateType1());
+  auto mt_ptypes = MethodType::GetPTypes(method_type);
+  if (vh_ptypes_count != mt_ptypes.GetLength()) {
     return MatchKind::kNone;
   }
 
   // Check the parameter types are compatible.
-  ObjPtr<ObjectArray<Class>> mt_ptypes = method_type->GetPTypes();
   for (int32_t i = 0; i < vh_ptypes_count; ++i) {
-    if (vh_ptypes[i]->IsAssignableFrom(mt_ptypes->Get(i))) {
+    if (vh_ptypes[i]->IsAssignableFrom(mt_ptypes.Get(i))) {
       continue;
     }
-    if (mt_ptypes->Get(i) == void_type && !vh_ptypes[i]->IsPrimitive()) {
+    if (mt_ptypes.Get(i) == void_type && !vh_ptypes[i]->IsPrimitive()) {
       // The expected parameter is a reference and the parameter type from the call site is j.l.Void
       // which means the value is null. It is always valid for a reference parameter to be null.
       continue;
     }
-    if (!IsParameterTypeConvertible(mt_ptypes->Get(i), vh_ptypes[i])) {
+    if (!IsParameterTypeConvertible(mt_ptypes.Get(i), vh_ptypes[i])) {
       return MatchKind::kNone;
     }
     match = MatchKind::kWithConversions;
@@ -1387,39 +1387,46 @@ VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(AccessMode acces
   return match;
 }
 
-ObjPtr<MethodType> VarHandle::GetMethodTypeForAccessMode(Thread* self,
-                                                         ObjPtr<VarHandle> var_handle,
-                                                         AccessMode access_mode) {
-  // This is a static method as the var_handle might be moved by the GC during it's execution.
-  AccessModeTemplate access_mode_template = GetAccessModeTemplate(access_mode);
+VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(
+    AccessMode access_mode, ObjPtr<MethodType> method_type) {
+  return GetMethodTypeMatchForAccessModeImpl(access_mode, this, method_type);
+}
 
-  StackHandleScope<3> hs(self);
-  Handle<VarHandle> vh = hs.NewHandle(var_handle);
-  Handle<Class> rtype = hs.NewHandle(GetReturnType(access_mode_template, vh->GetVarType()));
-  const int32_t ptypes_count = GetNumberOfParameters(access_mode_template,
-                                                     vh->GetCoordinateType0(),
-                                                     vh->GetCoordinateType1());
-  ObjPtr<Class> array_of_class = GetClassRoot<ObjectArray<Class>>();
-  Handle<ObjectArray<Class>> ptypes =
-      hs.NewHandle(ObjectArray<Class>::Alloc(Thread::Current(), array_of_class, ptypes_count));
-  if (ptypes == nullptr) {
-    return nullptr;
-  }
+VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(
+    AccessMode access_mode, Handle<MethodType> method_type) {
+  return GetMethodTypeMatchForAccessMode(access_mode, method_type.Get());
+}
 
-  ObjPtr<Class> ptypes_array[VarHandle::kMaxAccessorParameters];
-  BuildParameterArray(ptypes_array,
-                      access_mode_template,
-                      vh->GetVarType(),
-                      vh->GetCoordinateType0(),
-                      vh->GetCoordinateType1());
-  for (int32_t i = 0; i < ptypes_count; ++i) {
-    ptypes->Set(i, ptypes_array[i]);
-  }
-  return MethodType::Create(self, rtype, ptypes);
+VarHandle::MatchKind VarHandle::GetMethodTypeMatchForAccessMode(
+    AccessMode access_mode, RawMethodType method_type) {
+  return GetMethodTypeMatchForAccessModeImpl(access_mode, this, method_type);
 }
 
 ObjPtr<MethodType> VarHandle::GetMethodTypeForAccessMode(Thread* self, AccessMode access_mode) {
-  return GetMethodTypeForAccessMode(self, this, access_mode);
+  VariableSizedHandleScope method_type_hs(self);
+  RawMethodType method_type(&method_type_hs);
+  GetMethodTypeForAccessMode(access_mode, method_type);
+  return MethodType::Create(self, method_type);
+}
+
+void VarHandle::GetMethodTypeForAccessMode(AccessMode access_mode,
+                                           /*out*/ RawMethodType method_type) {
+  DCHECK(!method_type.IsValid());
+  AccessModeTemplate access_mode_template = GetAccessModeTemplate(access_mode);
+
+  // Store return type in `method_type`.
+  method_type.SetRType(GetReturnType(access_mode_template, GetVarType()));
+
+  // Store parameter types in `method_type`.
+  ObjPtr<Class> ptypes_array[kMaxAccessorParameters];
+  int32_t ptypes_count = BuildParameterArray(ptypes_array,
+                                             access_mode_template,
+                                             GetVarType(),
+                                             GetCoordinateType0(),
+                                             GetCoordinateType1());
+  for (int32_t i = 0; i < ptypes_count; ++i) {
+    method_type.AddPType(ptypes_array[i]);
+  }
 }
 
 std::string VarHandle::PrettyDescriptorForAccessMode(AccessMode access_mode) {
