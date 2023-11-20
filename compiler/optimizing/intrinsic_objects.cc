@@ -30,30 +30,33 @@ static constexpr size_t kIntrinsicObjectsOffset =
     enum_cast<size_t>(ImageHeader::kIntrinsicObjectsStart);
 
 template <typename T>
-static void FillIntrinsicsObjects(
+static int32_t FillIntrinsicsObjects(
     ArtField* cache_field,
     ObjPtr<mirror::ObjectArray<mirror::Object>> live_objects,
     int32_t expected_low,
     int32_t expected_high,
     T type_check,
-    size_t& index)
+    int32_t index)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::ObjectArray<mirror::Object>> cache =
       ObjPtr<mirror::ObjectArray<mirror::Object>>::DownCast(
           cache_field->GetObject(cache_field->GetDeclaringClass()));
-  DCHECK_EQ(expected_high - expected_low + 1, cache->GetLength());
-  for (int32_t i = 0, length = cache->GetLength(); i != length; ++i) {
-    live_objects->Set(index++, cache->Get(i));
-    type_check(cache->Get(i), expected_low++);
+  int32_t length = expected_high - expected_low + 1;
+  DCHECK_EQ(length, cache->GetLength());
+  for (int32_t i = 0; i != length; ++i) {
+    ObjPtr<mirror::Object> value = cache->GetWithoutChecks(i);
+    live_objects->Set(index + i, value);
+    type_check(value, expected_low + i);
   }
+  return index + length;
 }
 
 void IntrinsicObjects::FillIntrinsicObjects(
     ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects, size_t start_index) {
   DCHECK_EQ(start_index, ImageHeader::kIntrinsicObjectsStart);
-  size_t index = start_index;
+  int32_t index = dchecked_integral_cast<int32_t>(start_index);
 #define FILL_OBJECTS(name, low, high, type, offset) \
-  FillIntrinsicsObjects( \
+  index = FillIntrinsicsObjects( \
       WellKnownClasses::java_lang_ ##name ##_ ##name ##Cache_cache, \
       boot_image_live_objects, \
       low, \
@@ -64,6 +67,7 @@ void IntrinsicObjects::FillIntrinsicObjects(
       index);
   BOXED_TYPES(FILL_OBJECTS)
 #undef FILL_OBJECTS
+  DCHECK_EQ(dchecked_integral_cast<size_t>(index), start_index + GetNumberOfIntrinsicObjects());
 }
 
 static bool HasIntrinsicObjects(

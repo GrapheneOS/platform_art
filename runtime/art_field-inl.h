@@ -202,6 +202,10 @@ inline uint16_t ArtField::GetChar(ObjPtr<mirror::Object> object) {
   FIELD_GET(object, Char);
 }
 
+inline uint16_t ArtField::GetCharacter(ObjPtr<mirror::Object> object) {
+  return GetChar(object);
+}
+
 template<bool kTransactionActive>
 inline void ArtField::SetChar(ObjPtr<mirror::Object> object, uint16_t c) {
   if (kIsDebugBuild) {
@@ -234,6 +238,10 @@ inline int32_t ArtField::GetInt(ObjPtr<mirror::Object> object) {
     CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField();
   }
   return Get32(object);
+}
+
+inline int32_t ArtField::GetInteger(ObjPtr<mirror::Object> object) {
+  return GetInt(object);
 }
 
 template<bool kTransactionActive>
