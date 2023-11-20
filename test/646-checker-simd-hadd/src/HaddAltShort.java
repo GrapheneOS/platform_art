@@ -73,7 +73,7 @@ public class HaddAltShort {
   /// CHECK-DAG: <<Get1:s\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:s\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<And1:i\d+>> And [<<Get1>>,<<UMAX>>]             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<And2:i\d+>> And [<<UMAX>>,<<Get2>>]             loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<And2:i\d+>> And [<<Get2>>,<<UMAX>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add:i\d+>>  Add [<<And1>>,<<And2>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<UShr:i\d+>> UShr [<<Add>>,<<I1>>]               loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Cnv:s\d+>>  TypeConversion [<<UShr>>]           loop:<<Loop>>      outer_loop:none
@@ -163,7 +163,7 @@ public class HaddAltShort {
   /// CHECK-DAG: <<Get1:s\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:s\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<And1:i\d+>> And [<<Get1>>,<<UMAX>>]             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<And2:i\d+>> And [<<UMAX>>,<<Get2>>]             loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<And2:i\d+>> And [<<Get2>>,<<UMAX>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add1:i\d+>> Add [<<And1>>,<<And2>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add2:i\d+>> Add [<<Add1>>,<<I1>>]               loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<UShr:i\d+>> UShr [<<Add2>>,<<I1>>]              loop:<<Loop>>      outer_loop:none
