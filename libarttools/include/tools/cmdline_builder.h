@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_LIBARTTOOLS_TOOLS_CMDLINE_BUILDER_H_
-#define ART_LIBARTTOOLS_TOOLS_CMDLINE_BUILDER_H_
+#ifndef ART_LIBARTTOOLS_INCLUDE_TOOLS_CMDLINE_BUILDER_H_
+#define ART_LIBARTTOOLS_INCLUDE_TOOLS_CMDLINE_BUILDER_H_
 
 #include <algorithm>
 #include <iterator>
@@ -153,4 +153,4 @@ class CmdlineBuilder {
 }  // namespace tools
 }  // namespace art
 
-#endif  // ART_LIBARTTOOLS_TOOLS_CMDLINE_BUILDER_H_
+#endif  // ART_LIBARTTOOLS_INCLUDE_TOOLS_CMDLINE_BUILDER_H_

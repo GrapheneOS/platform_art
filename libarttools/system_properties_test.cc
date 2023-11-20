@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "system_properties.h"
+#include "tools/system_properties.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
