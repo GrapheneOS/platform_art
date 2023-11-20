@@ -24,26 +24,52 @@
 namespace art {
 
 struct MethodTypeOffsets;
+class VariableSizedHandleScope;
 
 namespace mirror {
+
+// We use a wrapped `VariableSizedHandleScope` as a raw method type without allocating a managed
+// object.  It must contain the return type followed by argument types and no other handles.
+// The data is filled by calling `SetRType()` followed by `AddPType()` for each argument.
+class RawMethodType {
+ public:
+  explicit RawMethodType(VariableSizedHandleScope* hs);
+
+  bool IsValid() const;
+
+  void SetRType(ObjPtr<mirror::Class> rtype) REQUIRES_SHARED(Locks::mutator_lock_);
+  void AddPType(ObjPtr<mirror::Class> ptype) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  int32_t GetNumberOfPTypes() const REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Class> GetPType(int32_t i) const REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Class> GetRType() const REQUIRES_SHARED(Locks::mutator_lock_);
+  Handle<mirror::Class> GetRTypeHandle() const REQUIRES_SHARED(Locks::mutator_lock_);
+
+ private:
+  VariableSizedHandleScope* hs_;
+};
 
 // C++ mirror of java.lang.invoke.MethodType
 class MANAGED MethodType : public Object {
  public:
   MIRROR_CLASS("Ljava/lang/invoke/MethodType;");
 
-  static ObjPtr<MethodType> Create(Thread* const self,
+  static ObjPtr<MethodType> Create(Thread* self,
                                    Handle<Class> return_type,
                                    Handle<ObjectArray<Class>> param_types)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  static ObjPtr<MethodType> CloneWithoutLeadingParameter(Thread* const self,
+  // Create a `MethodType` from a `RawMethodType`.
+  static ObjPtr<MethodType> Create(Thread* self, RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
+  static ObjPtr<MethodType> CloneWithoutLeadingParameter(Thread* self,
                                                          ObjPtr<MethodType> method_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Collects trailing parameter types into an array. Assumes caller
   // has checked trailing arguments are all of the same type.
-  static ObjPtr<MethodType> CollectTrailingArguments(Thread* const self,
+  static ObjPtr<MethodType> CollectTrailingArguments(Thread* self,
                                                      ObjPtr<MethodType> method_type,
                                                      ObjPtr<Class> collector_array_class,
                                                      int32_t start_index)
@@ -75,6 +101,71 @@ class MANAGED MethodType : public Object {
   // Returns the pretty descriptor for this method type, suitable for display in
   // exception messages and the like.
   std::string PrettyDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // The `PTypesType` is either `ObjPtr<>` or `Handle<>`.
+  template <typename PTypesType>
+  class PTypesAccessor {
+   public:
+    explicit PTypesAccessor(PTypesType p_types) REQUIRES_SHARED(Locks::mutator_lock_);
+
+    int32_t GetLength() const REQUIRES_SHARED(Locks::mutator_lock_);
+    ObjPtr<mirror::Class> Get(int32_t i) const REQUIRES_SHARED(Locks::mutator_lock_);
+
+   private:
+    static_assert(std::is_same_v<PTypesType, ObjPtr<ObjectArray<Class>>> ||
+                  std::is_same_v<PTypesType, Handle<ObjectArray<Class>>>);
+
+    const PTypesType p_types_;
+  };
+
+  using ObjPtrPTypesAccessor = PTypesAccessor<ObjPtr<ObjectArray<Class>>>;
+  using HandlePTypesAccessor = PTypesAccessor<Handle<ObjectArray<Class>>>;
+
+  class RawPTypesAccessor {
+   public:
+    explicit RawPTypesAccessor(RawMethodType method_type);
+
+    int32_t GetLength() const REQUIRES_SHARED(Locks::mutator_lock_);
+    ObjPtr<mirror::Class> Get(int32_t i) const REQUIRES_SHARED(Locks::mutator_lock_);
+
+   private:
+    RawMethodType method_type_;
+  };
+
+  template <typename HandleScopeType>
+  static HandlePTypesAccessor NewHandlePTypes(Handle<MethodType> method_type, HandleScopeType* hs)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  template <typename HandleScopeType>
+  static RawPTypesAccessor NewHandlePTypes(RawMethodType method_type, HandleScopeType* hs)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static ObjPtrPTypesAccessor GetPTypes(ObjPtr<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ObjPtrPTypesAccessor GetPTypes(Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static RawPTypesAccessor GetPTypes(RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static ObjPtr<mirror::Class> GetRType(ObjPtr<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ObjPtr<mirror::Class> GetRType(Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ObjPtr<mirror::Class> GetRType(RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static size_t NumberOfVRegs(ObjPtr<mirror::MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static size_t NumberOfVRegs(Handle<mirror::MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static size_t NumberOfVRegs(RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static std::string PrettyDescriptor(ObjPtr<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static std::string PrettyDescriptor(Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static std::string PrettyDescriptor(RawMethodType method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static MemberOffset FormOffset() {
