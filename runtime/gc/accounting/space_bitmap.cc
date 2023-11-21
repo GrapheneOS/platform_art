@@ -250,7 +250,7 @@ void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitm
 }
 
 template class SpaceBitmap<kObjectAlignment>;
-template class SpaceBitmap<kPageSize>;
+template class SpaceBitmap<kLargeObjectAlignment>;
 
 }  // namespace accounting
 }  // namespace gc
