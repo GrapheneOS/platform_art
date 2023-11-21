@@ -558,7 +558,7 @@ public class Main {
   /// CHECK-DAG:                  ArraySet [<<Array>>,<<PhiI>>,<<AddArr>>]  loop:<<Loop>>      outer_loop:none
   //
   /// CHECK-DAG: <<STAdd:i\d+>>   Add [<<PhiS>>,<<PhiT>>]                   loop:none
-  /// CHECK-DAG: <<ZCheck:i\d+>>  DivZeroCheck [<<STAdd>>] env:[[<<PhiS>>,<<PhiT>>,<<STAdd>>,<<Const1>>,_,<<Array>>]] loop:none
+  /// CHECK-DAG: <<ZCheck:i\d+>>  DivZeroCheck [<<STAdd>>] env:[[<<Const1>>,<<PhiS>>,<<PhiT>>,<<STAdd>>,<<Limit>>,_,<<Array>>]] loop:none
   /// CHECK-DAG: <<Div:i\d+>>     Div [<<Const1>>,<<ZCheck>>]               loop:none
   /// CHECK-DAG:                  Return [<<Div>>]                          loop:none
 
@@ -603,7 +603,7 @@ public class Main {
   /// CHECK-DAG: <<RetPhiS:i\d+>> Phi [<<PhiS>>,<<AddS>>]                   loop:none
   /// CHECK-DAG: <<RetPhiT:i\d+>> Phi [<<PhiT>>,<<AddT>>]                   loop:none
   /// CHECK-DAG: <<STAdd:i\d+>>   Add [<<RetPhiS>>,<<RetPhiT>>]             loop:none
-  /// CHECK-DAG: <<ZCheck:i\d+>>  DivZeroCheck [<<STAdd>>] env:[[<<RetPhiS>>,<<RetPhiT>>,<<STAdd>>,<<Const1>>,_,<<Array>>]] loop:none
+  /// CHECK-DAG: <<ZCheck:i\d+>>  DivZeroCheck [<<STAdd>>] env:[[<<Const1>>,<<RetPhiS>>,<<RetPhiT>>,<<STAdd>>,<<Limit>>,_,<<Array>>]] loop:none
   /// CHECK-DAG: <<Div:i\d+>>     Div [<<Const1>>,<<ZCheck>>]               loop:none
   /// CHECK-DAG:                  Return [<<Div>>]                          loop:none
 
