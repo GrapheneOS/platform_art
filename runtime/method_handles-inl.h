@@ -105,20 +105,18 @@ class ShadowFrameSetter {
   size_t arg_index_;
 };
 
-inline bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
-                                 Handle<mirror::MethodType> callee_type,
-                                 ObjPtr<mirror::Class> from_class,
-                                 ObjPtr<mirror::Class> to_class,
-                                 JValue* value) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (from_class == to_class) {
+inline bool ConvertArgumentValue(const ThrowWrongMethodTypeFunction& throw_wmt,
+                                 ObjPtr<mirror::Class> from,
+                                 ObjPtr<mirror::Class> to,
+                                 /*inout*/ JValue* value) {
+  if (from == to) {
     return true;
   }
 
-  // |value| may contain a bare heap pointer which is generally
-  // |unsafe. ConvertJValueCommon() saves |value|, |from_class|, and
-  // |to_class| to Handles where necessary to avoid issues if the heap
-  // changes.
-  if (ConvertJValueCommon(callsite_type, callee_type, from_class, to_class, value)) {
+  // `*value` may contain a bare heap pointer which is generally unsafe.
+  // `ConvertJValueCommon()` saves `*value`, `from`, and `to` to Handles
+  // where necessary to avoid issues if the heap changes.
+  if (ConvertJValueCommon(throw_wmt, from, to, value)) {
     DCHECK(!Thread::Current()->IsExceptionPending());
     return true;
   } else {
@@ -128,31 +126,18 @@ inline bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
   }
 }
 
-inline bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
-                                 Handle<mirror::MethodType> callee_type,
-                                 int index,
-                                 JValue* value) REQUIRES_SHARED(Locks::mutator_lock_) {
-  return ConvertArgumentValue(callsite_type,
-                              callee_type,
-                              callsite_type->GetPTypes()->GetWithoutChecks(index),
-                              callee_type->GetPTypes()->GetWithoutChecks(index),
-                              value);
-}
-
-inline bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
-                               Handle<mirror::MethodType> callee_type,
-                               JValue* value)  REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Class> from_class(callee_type->GetRType());
-  ObjPtr<mirror::Class> to_class(callsite_type->GetRType());
-  if (to_class->GetPrimitiveType() == Primitive::kPrimVoid || from_class == to_class) {
+inline bool ConvertReturnValue(const ThrowWrongMethodTypeFunction& throw_wmt,
+                               ObjPtr<mirror::Class> from,
+                               ObjPtr<mirror::Class> to,
+                               /*inout*/ JValue* value) {
+  if (to->GetPrimitiveType() == Primitive::kPrimVoid || from == to) {
     return true;
   }
 
-  // |value| may contain a bare heap pointer which is generally
-  // unsafe. ConvertJValueCommon() saves |value|, |from_class|, and
-  // |to_class| to Handles where necessary to avoid issues if the heap
-  // changes.
-  if (ConvertJValueCommon(callsite_type, callee_type, from_class, to_class, value)) {
+  // `*value` may contain a bare heap pointer which is generally unsafe.
+  // `ConvertJValueCommon()` saves `*value`, `from`, and `to` to Handles
+  // where necessary to avoid issues if the heap changes.
+  if (ConvertJValueCommon(throw_wmt, from, to, value)) {
     DCHECK(!Thread::Current()->IsExceptionPending());
     return true;
   } else {
@@ -162,21 +147,16 @@ inline bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
   }
 }
 
-template <typename G, typename S>
-bool PerformConversions(Thread* self,
-                        Handle<mirror::MethodType> callsite_type,
-                        Handle<mirror::MethodType> callee_type,
+template <typename FromPTypes, typename ToPTypes, typename G, typename S>
+bool PerformConversions(const ThrowWrongMethodTypeFunction& throw_wmt,
+                        FromPTypes from_types,
+                        ToPTypes to_types,
                         G* getter,
-                        S* setter,
-                        int32_t start_index,
-                        int32_t end_index) REQUIRES_SHARED(Locks::mutator_lock_) {
-  StackHandleScope<2> hs(self);
-  Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(callsite_type->GetPTypes()));
-  Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
-
-  for (int32_t i = start_index; i < end_index; ++i) {
-    ObjPtr<mirror::Class> from(from_types->GetWithoutChecks(i));
-    ObjPtr<mirror::Class> to(to_types->GetWithoutChecks(i - start_index));
+                        S* setter) {
+  DCHECK_EQ(from_types.GetLength(), to_types.GetLength());
+  for (int32_t i = 0, length = to_types.GetLength(); i != length; ++i) {
+    ObjPtr<mirror::Class> from = from_types.Get(i);
+    ObjPtr<mirror::Class> to = to_types.Get(i);
     const Primitive::Type from_type = from->GetPrimitiveType();
     const Primitive::Type to_type = to->GetPrimitiveType();
     if (from == to) {
@@ -199,8 +179,8 @@ bool PerformConversions(Thread* self,
         value.SetI(getter->Get());
       }
       // Caveat emptor - ObjPtr's not guaranteed valid after this call.
-      if (!ConvertArgumentValue(callsite_type, callee_type, from, to, &value)) {
-        DCHECK(self->IsExceptionPending());
+      if (!ConvertArgumentValue(throw_wmt, from, to, &value)) {
+        DCHECK(Thread::Current()->IsExceptionPending());
         return false;
       }
       if (Primitive::Is64BitType(to_type)) {
@@ -213,28 +193,6 @@ bool PerformConversions(Thread* self,
     }
   }
   return true;
-}
-
-template <typename G, typename S>
-bool PerformConversions(Thread* self,
-                        Handle<mirror::MethodType> callsite_type,
-                        Handle<mirror::MethodType> callee_type,
-                        G* getter,
-                        S* setter,
-                        int32_t num_conversions)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  return PerformConversions(self, callsite_type, callee_type, getter, setter, 0, num_conversions);
-}
-
-template <typename G, typename S>
-bool PerformConversions(Thread* self,
-                        Handle<mirror::MethodType> callsite_type,
-                        Handle<mirror::MethodType> callee_type,
-                        G* getter,
-                        S* setter)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  int32_t num_conversions = callee_type->GetPTypes()->GetLength();
-  return PerformConversions(self, callsite_type, callee_type, getter, setter, 0, num_conversions);
 }
 
 template <typename G, typename S>

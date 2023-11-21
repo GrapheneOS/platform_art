@@ -19,6 +19,7 @@
 
 #include "handle_scope.h"
 
+#include "base/casts.h"
 #include "base/mutex.h"
 #include "handle.h"
 #include "handle_wrapper.h"
@@ -246,12 +247,12 @@ inline uint32_t VariableSizedHandleScope::Size() const {
   DCHECK(cur != nullptr);
   // The linked list of local scopes starts from the latest which may not be fully filled.
   uint32_t sum = cur->Size();
-  cur = reinterpret_cast<const LocalScopeType*>(cur->GetLink());
+  cur = down_cast<const LocalScopeType*>(cur->GetLink());
   while (cur != nullptr) {
     // All other local scopes are fully filled.
     DCHECK_EQ(cur->Size(), kNumReferencesPerScope);
     sum += kNumReferencesPerScope;
-    cur = reinterpret_cast<const LocalScopeType*>(cur->GetLink());
+    cur = down_cast<const LocalScopeType*>(cur->GetLink());
   }
   return sum;
 }
@@ -262,7 +263,7 @@ inline uint32_t VariableSizedHandleScope::Capacity() const {
   while (cur != nullptr) {
     DCHECK_EQ(cur->Capacity(), kNumReferencesPerScope);
     sum += kNumReferencesPerScope;
-    cur = reinterpret_cast<const LocalScopeType*>(cur->GetLink());
+    cur = down_cast<const LocalScopeType*>(cur->GetLink());
   }
   return sum;
 }
@@ -274,9 +275,33 @@ inline bool VariableSizedHandleScope::Contains(StackReference<mirror::Object>* h
     if (cur->Contains(handle_scope_entry)) {
       return true;
     }
-    cur = reinterpret_cast<const LocalScopeType*>(cur->GetLink());
+    cur = down_cast<const LocalScopeType*>(cur->GetLink());
   }
   return false;
+}
+
+template<class T>
+Handle<T> VariableSizedHandleScope::GetHandle(size_t i) {
+  // Handle the most common path efficiently.
+  if (i < kNumReferencesPerScope) {
+    return first_scope_.GetHandle<T>(i);
+  }
+
+  uint32_t size = Size();
+  DCHECK_GT(size, kNumReferencesPerScope);
+  DCHECK_LT(i, size);
+  LocalScopeType* cur = current_scope_;
+  DCHECK(cur != &first_scope_);
+  // The linked list of local scopes starts from the latest which may not be fully filled.
+  uint32_t cur_start = size - cur->Size();
+  DCHECK_EQ(cur_start % kNumReferencesPerScope, 0u);  // All other local scopes are fully filled.
+  while (i < cur_start) {
+    cur = down_cast<LocalScopeType*>(cur->GetLink());
+    DCHECK(cur != nullptr);
+    DCHECK_EQ(cur->Size(), kNumReferencesPerScope);
+    cur_start -= kNumReferencesPerScope;
+  }
+  return cur->GetHandle<T>(i - cur_start);
 }
 
 template <typename Visitor>
@@ -284,7 +309,7 @@ inline void VariableSizedHandleScope::VisitRoots(Visitor& visitor) {
   LocalScopeType* cur = current_scope_;
   while (cur != nullptr) {
     cur->VisitRoots(visitor);
-    cur = reinterpret_cast<LocalScopeType*>(cur->GetLink());
+    cur = down_cast<LocalScopeType*>(cur->GetLink());
   }
 }
 
@@ -293,7 +318,7 @@ inline void VariableSizedHandleScope::VisitHandles(Visitor& visitor) {
   LocalScopeType* cur = current_scope_;
   while (cur != nullptr) {
     cur->VisitHandles(visitor);
-    cur = reinterpret_cast<LocalScopeType*>(cur->GetLink());
+    cur = down_cast<LocalScopeType*>(cur->GetLink());
   }
 }
 

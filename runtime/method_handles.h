@@ -44,42 +44,47 @@ bool IsParameterTypeConvertible(ObjPtr<mirror::Class> from,
 bool IsReturnTypeConvertible(ObjPtr<mirror::Class> from,
                              ObjPtr<mirror::Class> to);
 
-// Performs a conversion from type |from| to a distinct type |to| as
-// part of conversion of |caller_type| to |callee_type|. The value to
-// be converted is in |value|. Returns true on success and updates
-// |value| with the converted value, false otherwise.
-bool ConvertJValueCommon(Handle<mirror::MethodType> callsite_type,
-                         Handle<mirror::MethodType> callee_type,
+// Interface for throwing `WrongMethodTypeException` by conversion functions.
+class ThrowWrongMethodTypeFunction {
+ public:
+  virtual void operator()() const REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+
+ protected:
+  ~ThrowWrongMethodTypeFunction() {}
+};
+
+// Performs a conversion from type `from` to a distinct type `to`.
+// The value to be converted is in `*value`. Returns true on success
+// and updates `*value` with the converted value, false otherwise.
+bool ConvertJValueCommon(const ThrowWrongMethodTypeFunction& throw_wmt,
                          ObjPtr<mirror::Class> from,
                          ObjPtr<mirror::Class> to,
-                         JValue* value)
+                         /*inout*/ JValue* value)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Converts the value of the argument at position |index| from type
-// expected by |callee_type| to type used by |callsite_type|. |value|
-// represents the value to be converted. Returns true on success and
-// updates |value|, false otherwise.
-ALWAYS_INLINE bool ConvertArgumentValue(Handle<mirror::MethodType> callsite_type,
-                                        Handle<mirror::MethodType> callee_type,
-                                        int index,
-                                        JValue* value)
+// Converts the value of the argument from type `from` to type `to`.
+// `*value` represents the value to be converted. Returns true on success
+// and updates `*value`, false otherwise.
+ALWAYS_INLINE bool ConvertArgumentValue(const ThrowWrongMethodTypeFunction& throw_wmt,
+                                        ObjPtr<mirror::Class> from,
+                                        ObjPtr<mirror::Class> to,
+                                        /*inout*/ JValue* value)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Converts the return value from return type yielded by
-// |callee_type| to the return type yielded by
-// |callsite_type|. |value| represents the value to be
-// converted. Returns true on success and updates |value|, false
-// otherwise.
-ALWAYS_INLINE bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
-                                      Handle<mirror::MethodType> callee_type,
-                                      JValue* value)
+// Converts the return value from return type `from` to the return type `to`.
+// `*value` represents the value to be converted. Returns true on success and
+// updates `*value`, false otherwise.
+ALWAYS_INLINE bool ConvertReturnValue(const ThrowWrongMethodTypeFunction& throw_wmt,
+                                      ObjPtr<mirror::Class> from,
+                                      ObjPtr<mirror::Class> to,
+                                      /*inout*/ JValue* value)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Perform argument conversions between |callsite_type| (the type of the
-// incoming arguments) and |callee_type| (the type of the method being
-// invoked). These include widening and narrowing conversions as well as
-// boxing and unboxing. Returns true on success, on false on failure. A
-// pending exception will always be set on failure.
+// Perform argument conversions between `from_types` (the types of the incoming
+// arguments) and `to_types` (the parameter types of the method being invoked).
+// These include widening and narrowing conversions as well as boxing and
+// unboxing. Returns true on success, false on failure. A pending exception
+// will always be set on failure.
 //
 // The values to be converted are read from an input source (of type G)
 // that provides three methods :
@@ -119,14 +124,12 @@ ALWAYS_INLINE bool ConvertReturnValue(Handle<mirror::MethodType> callsite_type,
 // TODO(narayan): If we find that the instantiations of this function take
 // up too much space, we can make G / S abstract base classes that are
 // overridden by concrete classes.
-template <typename G, typename S>
-bool PerformConversions(Thread* self,
-                        Handle<mirror::MethodType> callsite_type,
-                        Handle<mirror::MethodType> callee_type,
+template <typename FromPTypes, typename ToPTypes, typename G, typename S>
+bool PerformConversions(const ThrowWrongMethodTypeFunction& throw_wmt,
+                        FromPTypes from_types,
+                        ToPTypes to_types,
                         G* getter,
-                        S* setter,
-                        int32_t start_index,
-                        int32_t end_index) REQUIRES_SHARED(Locks::mutator_lock_);
+                        S* setter) REQUIRES_SHARED(Locks::mutator_lock_);
 
 template <typename G, typename S>
 bool CopyArguments(Thread* self,

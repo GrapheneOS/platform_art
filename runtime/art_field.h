@@ -124,9 +124,7 @@ class ArtField final {
   void SetByte(ObjPtr<mirror::Object> object, int8_t b) REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint16_t GetChar(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_);
-  uint16_t GetCharacter(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetChar(object);
-  }
+  uint16_t GetCharacter(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
   void SetChar(ObjPtr<mirror::Object> object, uint16_t c) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -137,9 +135,7 @@ class ArtField final {
   void SetShort(ObjPtr<mirror::Object> object, int16_t s) REQUIRES_SHARED(Locks::mutator_lock_);
 
   int32_t GetInt(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_);
-  int32_t GetInteger(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetInt(object);
-  }
+  int32_t GetInteger(ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
   void SetInt(ObjPtr<mirror::Object> object, int32_t i) REQUIRES_SHARED(Locks::mutator_lock_);

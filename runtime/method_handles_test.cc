@@ -46,28 +46,15 @@ namespace {
     return throwable->GetClass()->DescriptorEquals("Ljava/lang/invoke/WrongMethodTypeException;");
   }
 
-  static ObjPtr<mirror::MethodType> CreateVoidMethodType(Thread* self,
-                                                         Handle<mirror::Class> parameter_type)
-        REQUIRES_SHARED(Locks::mutator_lock_) {
-    ClassLinker* cl = Runtime::Current()->GetClassLinker();
-    StackHandleScope<2> hs(self);
-    ObjPtr<mirror::Class> class_array_type = GetClassRoot<mirror::ObjectArray<mirror::Class>>(cl);
-    auto parameter_types = hs.NewHandle(
-        mirror::ObjectArray<mirror::Class>::Alloc(self, class_array_type, 1));
-    parameter_types->Set(0, parameter_type.Get());
-    Handle<mirror::Class> void_class = hs.NewHandle(GetClassRoot(ClassRoot::kPrimitiveVoid, cl));
-    return mirror::MethodType::Create(self, void_class, parameter_types);
-  }
-
-  static bool TryConversion(Thread* self,
-                            Handle<mirror::Class> from,
-                            Handle<mirror::Class> to,
-                            JValue* value)
+  static bool TryConversion(Handle<mirror::Class> from, Handle<mirror::Class> to, JValue* value)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    StackHandleScope<2> hs(self);
-    Handle<mirror::MethodType> from_mt = hs.NewHandle(CreateVoidMethodType(self, from));
-    Handle<mirror::MethodType> to_mt = hs.NewHandle(CreateVoidMethodType(self, to));
-    return ConvertJValueCommon(from_mt, to_mt, from.Get(), to.Get(), value);
+    class ThrowWrongMethodTypeFunctionImpl final : public ThrowWrongMethodTypeFunction {
+      void operator()() const override REQUIRES_SHARED(Locks::mutator_lock_) {
+        ThrowWrongMethodTypeException("<callee-descriptor>", "<callsite-descriptor>");
+      }
+    };
+    ThrowWrongMethodTypeFunctionImpl throw_wmt;
+    return ConvertJValueCommon(throw_wmt, from.Get(), to.Get(), value);
   }
 }  // namespace
 
@@ -89,7 +76,7 @@ TEST_F(MethodHandlesTest, SupportedPrimitiveWideningBI) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('B'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('I'));
   JValue value = JValue::FromPrimitive(static_cast<int8_t>(3));
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_EQ(3, value.GetI());
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
@@ -102,7 +89,7 @@ TEST_F(MethodHandlesTest, SupportedPrimitiveWideningCJ) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('J'));
   uint16_t raw_value = 0x8000;
   JValue value = JValue::FromPrimitive(raw_value);
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   ASSERT_EQ(static_cast<int64_t>(raw_value), value.GetJ());
 }
@@ -114,7 +101,7 @@ TEST_F(MethodHandlesTest, SupportedPrimitiveWideningIF) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('F'));
   JValue value = JValue::FromPrimitive(-16);
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   ASSERT_FLOAT_EQ(-16.0f, value.GetF());
 }
@@ -127,7 +114,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveWideningBC) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('C'));
   JValue value;
   value.SetB(0);
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -141,7 +128,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveWideningSC) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('C'));
   JValue value;
   value.SetS(0x1234);
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -155,7 +142,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveWideningDJ) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('J'));
   JValue value;
   value.SetD(1e72);
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -169,7 +156,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveWideningZI) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('I'));
   JValue value;
   value.SetZ(true);
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -189,7 +176,7 @@ TEST_F(MethodHandlesTest, SupportedReferenceCast) {
   Handle<mirror::Class> from = hs.NewHandle(boxed_value->GetClass());
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Number;"));
   value.SetL(boxed_value.Get());
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   JValue unboxed_value;
   ASSERT_TRUE(UnboxPrimitiveForResult(value.GetL(), cl->FindPrimitiveClass('I'), &unboxed_value));
@@ -206,7 +193,7 @@ TEST_F(MethodHandlesTest, UnsupportedReferenceCast) {
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
   value.SetL(boxed_value.Get());
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsClassCastException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -224,7 +211,7 @@ TEST_F(MethodHandlesTest, SupportedPrimitiveConversionPrimitiveToBoxed) {
   JValue value = JValue::FromPrimitive(kInitialValue);
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   JValue unboxed_to_value;
   ASSERT_TRUE(UnboxPrimitiveForResult(value.GetL(), from.Get(), &unboxed_to_value));
@@ -239,7 +226,7 @@ TEST_F(MethodHandlesTest, SupportedPrimitiveConversionPrimitiveToBoxedSuper) {
   JValue value = JValue::FromPrimitive(kInitialValue);
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Number;"));
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   JValue unboxed_to_value;
   ASSERT_TRUE(UnboxPrimitiveForResult(value.GetL(), from.Get(), &unboxed_to_value));
@@ -254,7 +241,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveConversionNotBoxable) {
   JValue value = JValue::FromPrimitive(kInitialValue);
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Runtime;"));
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -268,7 +255,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveConversionPrimitiveToBoxedWider) {
   JValue value = JValue::FromPrimitive(kInitialValue);
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Long;"));
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -282,7 +269,7 @@ TEST_F(MethodHandlesTest, UnsupportedPrimitiveConversionPrimitiveToBoxedNarrower
   JValue value = JValue::FromPrimitive(kInitialValue);
   Handle<mirror::Class> from = hs.NewHandle(cl->FindPrimitiveClass('I'));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Byte;"));
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -302,7 +289,7 @@ TEST_F(MethodHandlesTest, SupportedBoxedToPrimitiveConversion) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('I'));
   value.SetL(boxed_value.Get());
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
   ASSERT_EQ(kInitialValue, value.GetI());
 }
@@ -317,7 +304,7 @@ TEST_F(MethodHandlesTest, SupportedBoxedToWiderPrimitiveConversion) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('J'));
   value.SetL(boxed_value.Get());
-  ASSERT_TRUE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_TRUE(TryConversion(from, to, &value));
   ASSERT_EQ(kInitialValue, value.GetJ());
 }
 
@@ -330,7 +317,7 @@ TEST_F(MethodHandlesTest, UnsupportedNullBoxedToPrimitiveConversion) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('I'));
   value.SetL(boxed_value.Get());
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsNullPointerException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -345,7 +332,7 @@ TEST_F(MethodHandlesTest, UnsupportedNotBoxReferenceToPrimitiveConversion) {
   // Set value to be converted as some non-primitive type.
   JValue value;
   value.SetL(cl->FindPrimitiveClass('V'));
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsClassCastException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -361,7 +348,7 @@ TEST_F(MethodHandlesTest, UnsupportedBoxedToNarrowerPrimitiveConversionNoCast) {
   Handle<mirror::Class> from = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Integer;"));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('S'));
   value.SetL(boxed_value.Get());
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsWrongMethodTypeException(soa.Self()->GetException()));
   soa.Self()->ClearException();
@@ -377,7 +364,7 @@ TEST_F(MethodHandlesTest, UnsupportedBoxedToNarrowerPrimitiveConversionWithCast)
   Handle<mirror::Class> from = hs.NewHandle(cl->FindSystemClass(soa.Self(), "Ljava/lang/Number;"));
   Handle<mirror::Class> to = hs.NewHandle(cl->FindPrimitiveClass('F'));
   value.SetL(boxed_value.Get());
-  ASSERT_FALSE(TryConversion(soa.Self(), from, to, &value));
+  ASSERT_FALSE(TryConversion(from, to, &value));
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
   ASSERT_TRUE(IsClassCastException(soa.Self()->GetException()));
   soa.Self()->ClearException();
