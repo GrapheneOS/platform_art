@@ -1224,7 +1224,7 @@ bool ConcurrentCopying::TestAndSetMarkBitForRef(mirror::Object* ref) {
   } else {
     // Should be a large object. Must be page aligned and the LOS must exist.
     if (kIsDebugBuild
-        && (!IsAligned<kPageSize>(ref) || heap_->GetLargeObjectsSpace() == nullptr)) {
+        && (!IsAligned<kLargeObjectAlignment>(ref) || heap_->GetLargeObjectsSpace() == nullptr)) {
       // It must be heap corruption. Remove memory protection and dump data.
       region_space_->Unprotect();
       heap_->GetVerification()->LogHeapCorruption(/* obj */ nullptr,
@@ -1253,7 +1253,7 @@ bool ConcurrentCopying::TestMarkBitmapForRef(mirror::Object* ref) {
   } else {
     // Should be a large object. Must be page aligned and the LOS must exist.
     if (kIsDebugBuild
-        && (!IsAligned<kPageSize>(ref) || heap_->GetLargeObjectsSpace() == nullptr)) {
+        && (!IsAligned<kLargeObjectAlignment>(ref) || heap_->GetLargeObjectsSpace() == nullptr)) {
       // It must be heap corruption. Remove memory protection and dump data.
       region_space_->Unprotect();
       heap_->GetVerification()->LogHeapCorruption(/* obj */ nullptr,
@@ -2310,7 +2310,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
             heap_->GetNonMovingSpace()->GetMarkBitmap();
         const bool is_los = !mark_bitmap->HasAddress(to_ref);
         if (is_los) {
-          if (!IsAligned<kPageSize>(to_ref)) {
+          if (!IsAligned<kLargeObjectAlignment>(to_ref)) {
             // Ref is a large object that is not aligned, it must be heap
             // corruption. Remove memory protection and dump data before
             // AtomicSetReadBarrierState since it will fault if the address is not
@@ -3685,7 +3685,7 @@ mirror::Object* ConcurrentCopying::MarkNonMoving(Thread* const self,
   accounting::LargeObjectBitmap* los_bitmap = nullptr;
   const bool is_los = !mark_bitmap->HasAddress(ref);
   if (is_los) {
-    if (!IsAligned<kPageSize>(ref)) {
+    if (!IsAligned<kLargeObjectAlignment>(ref)) {
       // Ref is a large object that is not aligned, it must be heap
       // corruption. Remove memory protection and dump data before
       // AtomicSetReadBarrierState since it will fault if the address is not

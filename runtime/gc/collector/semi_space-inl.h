@@ -63,7 +63,7 @@ inline void SemiSpace::MarkObject(CompressedReferenceType* obj_ptr) {
     auto slow_path = [this](const mirror::Object* ref) {
       CHECK(!to_space_->HasAddress(ref)) << "Marking " << ref << " in to_space_";
       // Marking a large object, make sure its aligned as a consistency check.
-      CHECK_ALIGNED(ref, kPageSize);
+      CHECK_ALIGNED(ref, kLargeObjectAlignment);
     };
     if (!mark_bitmap_->Set(obj, slow_path)) {
       // This object was not previously marked.
