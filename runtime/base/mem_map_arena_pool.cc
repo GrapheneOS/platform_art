@@ -46,8 +46,8 @@ class MemMapArena final : public Arena {
 MemMapArena::MemMapArena(size_t size, bool low_4gb, const char* name)
     : map_(Allocate(size, low_4gb, name)) {
   memory_ = map_.Begin();
-  static_assert(ArenaAllocator::kArenaAlignment <= kPageSize,
-                "Arena should not need stronger alignment than kPageSize.");
+  static_assert(ArenaAllocator::kArenaAlignment <= kMinPageSize,
+                "Arena should not need stronger alignment than kMinPageSize.");
   DCHECK_ALIGNED(memory_, ArenaAllocator::kArenaAlignment);
   size_ = map_.Size();
 }
