@@ -70,7 +70,7 @@ public class HaddChar {
   /// CHECK-DAG: <<Get1:c\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:c\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<And1:i\d+>> And [<<Get1>>,<<IMAX>>]             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<And2:i\d+>> And [<<IMAX>>,<<Get2>>]             loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<And2:i\d+>> And [<<Get2>>,<<IMAX>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add:i\d+>>  Add [<<And1>>,<<And2>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Shr:i\d+>>  Shr [<<Add>>,<<I1>>]                loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Cnv:c\d+>>  TypeConversion [<<Shr>>]            loop:<<Loop>>      outer_loop:none
@@ -161,7 +161,7 @@ public class HaddChar {
   /// CHECK-DAG: <<Get1:c\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Get2:c\d+>> ArrayGet                            loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<And1:i\d+>> And [<<Get1>>,<<IMAX>>]             loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: <<And2:i\d+>> And [<<IMAX>>,<<Get2>>]             loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<And2:i\d+>> And [<<Get2>>,<<IMAX>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add1:i\d+>> Add [<<And1>>,<<And2>>]             loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Add2:i\d+>> Add [<<Add1>>,<<I1>>]               loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<Shr:i\d+>>  Shr [<<Add2>>,<<I1>>]               loop:<<Loop>>      outer_loop:none
