@@ -25,6 +25,7 @@
 #include "data_type-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "heap_poisoning.h"
+#include "intrinsic_objects.h"
 #include "intrinsics.h"
 #include "intrinsics_utils.h"
 #include "lock_word.h"
@@ -37,6 +38,7 @@
 #include "thread-current-inl.h"
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86/constants_x86.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 
@@ -3282,21 +3284,36 @@ static void RequestBaseMethodAddressInRegister(HInvoke* invoke) {
   }
 }
 
-void IntrinsicLocationsBuilderX86::VisitIntegerValueOf(HInvoke* invoke) {
-  DCHECK(invoke->IsInvokeStaticOrDirect());
-  InvokeRuntimeCallingConvention calling_convention;
-  IntrinsicVisitor::ComputeIntegerValueOfLocations(
-      invoke,
-      codegen_,
-      Location::RegisterLocation(EAX),
-      Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  RequestBaseMethodAddressInRegister(invoke);
-}
+#define VISIT_INTRINSIC(name, low, high, type, start_index) \
+  void IntrinsicLocationsBuilderX86::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    InvokeRuntimeCallingConvention calling_convention; \
+    IntrinsicVisitor::ComputeValueOfLocations( \
+        invoke, \
+        codegen_, \
+        low, \
+        high - low + 1, \
+        Location::RegisterLocation(EAX), \
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0))); \
+    RequestBaseMethodAddressInRegister(invoke); \
+  } \
+  void IntrinsicCodeGeneratorX86::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    IntrinsicVisitor::ValueOfInfo info = \
+      IntrinsicVisitor::ComputeValueOfInfo( \
+          invoke, \
+          codegen_->GetCompilerOptions(), \
+          WellKnownClasses::java_lang_ ##name ##_value, \
+          low, \
+          high - low + 1, \
+          start_index); \
+    HandleValueOf(invoke, info, type); \
+  }
+  BOXED_TYPES(VISIT_INTRINSIC)
+#undef VISIT_INTRINSIC
 
-void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
+void IntrinsicCodeGeneratorX86::HandleValueOf(HInvoke* invoke,
+                                              const IntrinsicVisitor::ValueOfInfo& info,
+                                              DataType::Type primitive_type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
-  IntrinsicVisitor::IntegerValueOfInfo info =
-      IntrinsicVisitor::ComputeIntegerValueOfInfo(invoke, codegen_->GetCompilerOptions());
   LocationSummary* locations = invoke->GetLocations();
   X86Assembler* assembler = GetAssembler();
 
@@ -3310,17 +3327,22 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
   if (invoke->InputAt(0)->IsConstant()) {
     int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
-      // Just embed the j.l.Integer in the code.
-      DCHECK_NE(info.value_boot_image_reference, IntegerValueOfInfo::kInvalidReference);
+      // Just embed the object in the code.
+      DCHECK_NE(info.value_boot_image_reference, ValueOfInfo::kInvalidReference);
       codegen_->LoadBootImageAddress(
           out, info.value_boot_image_reference, invoke->AsInvokeStaticOrDirect());
     } else {
       DCHECK(locations->CanCall());
       // Allocate and initialize a new j.l.Integer.
-      // TODO: If we JIT, we could allocate the j.l.Integer now, and store it in the
+      // TODO: If we JIT, we could allocate the object now, and store it in the
       // JIT object table.
       allocate_instance();
-      __ movl(Address(out, info.value_offset), Immediate(value));
+      codegen_->MoveToMemory(primitive_type,
+                             Location::ConstantLocation(invoke->InputAt(0)->AsIntConstant()),
+                             out,
+                             /* dst_index= */ Register::kNoRegister,
+                             /* dst_scale= */ TIMES_1,
+                             /* dst_disp= */ info.value_offset);
     }
   } else {
     DCHECK(locations->CanCall());
@@ -3330,7 +3352,7 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
     __ cmpl(out, Immediate(info.length));
     NearLabel allocate, done;
     __ j(kAboveEqual, &allocate);
-    // If the value is within the bounds, load the j.l.Integer directly from the array.
+    // If the value is within the bounds, load the object directly from the array.
     constexpr size_t kElementSize = sizeof(mirror::HeapReference<mirror::Object>);
     static_assert((1u << TIMES_4) == sizeof(mirror::HeapReference<mirror::Object>),
                   "Check heap reference size.");
@@ -3358,9 +3380,14 @@ void IntrinsicCodeGeneratorX86::VisitIntegerValueOf(HInvoke* invoke) {
     __ MaybeUnpoisonHeapReference(out);
     __ jmp(&done);
     __ Bind(&allocate);
-    // Otherwise allocate and initialize a new j.l.Integer.
+    // Otherwise allocate and initialize a new object.
     allocate_instance();
-    __ movl(Address(out, info.value_offset), in);
+    codegen_->MoveToMemory(primitive_type,
+                           Location::RegisterLocation(in),
+                           out,
+                           /* dst_index= */ Register::kNoRegister,
+                           /* dst_scale= */ TIMES_1,
+                           /* dst_disp= */ info.value_offset);
     __ Bind(&done);
   }
 }
