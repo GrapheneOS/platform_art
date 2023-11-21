@@ -211,7 +211,8 @@ static_assert(enum_cast<uint32_t>(IndirectRefKind::kLastKind) < alignof(LrtEntry
 static constexpr size_t kInitialLrtBytes = 512;  // Number of bytes in an initial local table.
 static constexpr size_t kSmallLrtEntries = kInitialLrtBytes / sizeof(LrtEntry);
 static_assert(IsPowerOfTwo(kInitialLrtBytes));
-static_assert(kPageSize % kInitialLrtBytes == 0);
+
+static_assert(kMinPageSize % kInitialLrtBytes == 0);
 static_assert(kInitialLrtBytes % sizeof(LrtEntry) == 0);
 
 // A minimal stopgap allocator for initial small local LRT tables.

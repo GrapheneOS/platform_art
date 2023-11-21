@@ -787,7 +787,7 @@ TEST_F(MemMapTest, Reservation) {
 
   // Map first part of the reservation.
   constexpr size_t kChunk1Size = kPageSize - 1u;
-  static_assert(kChunk1Size < kMapSize, "We want to split the reservation.");
+  ASSERT_LT(kChunk1Size, kMapSize) << "We want to split the reservation.";
   uint8_t* addr1 = reservation.Begin();
   MemMap map1 = MemMap::MapFileAtAddress(addr1,
                                          /*byte_count=*/ kChunk1Size,
