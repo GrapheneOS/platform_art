@@ -17,6 +17,12 @@
 #include "mem_map.h"
 
 #include <windows.h>
+// This include needs to be here due to the coding conventions.  Unfortunately
+// it drags in the definition of the ERROR macro. Similarly to base/utils.cc,
+// undefine the macro here. See also, the comment at android-base/logging.h.
+#ifdef ERROR
+#undef ERROR
+#endif
 
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
