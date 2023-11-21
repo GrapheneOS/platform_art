@@ -68,7 +68,7 @@ static void CreateFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 }
 
-static void CreateFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+static void CreateFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   DCHECK_EQ(invoke->GetNumberOfArguments(), 2U);
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
@@ -81,6 +81,22 @@ static void CreateFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) 
   locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
   locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
+}
+
+static void CreateFpFpFpToFpNoOverlapLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
@@ -156,7 +172,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitFloatIsInfinite(HInvoke* invoke) {
   __ Snez(out, out);
 }
 
-static void CreateIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+static void CreateIntToIntNoOverlapLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
@@ -170,7 +186,7 @@ void EmitMemoryPeek(HInvoke* invoke, EmitOp&& emit_op) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMemoryPeekByte(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekByte(HInvoke* invoke) {
@@ -179,7 +195,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekByte(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMemoryPeekIntNative(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekIntNative(HInvoke* invoke) {
@@ -188,7 +204,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekIntNative(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMemoryPeekLongNative(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekLongNative(HInvoke* invoke) {
@@ -197,7 +213,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekLongNative(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMemoryPeekShortNative(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMemoryPeekShortNative(HInvoke* invoke) {
@@ -210,6 +226,15 @@ static void CreateIntIntToVoidLocations(ArenaAllocator* allocator, HInvoke* invo
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+}
+
+static void CreateIntIntToIntSlowPathCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
 template <typename EmitOp>
@@ -303,7 +328,7 @@ static void GenerateReverseBytes(Riscv64Assembler* assembler,
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
@@ -311,7 +336,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
@@ -319,7 +344,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitShortReverseBytes(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitShortReverseBytes(HInvoke* invoke) {
@@ -333,7 +358,7 @@ void EmitIntegralUnOp(HInvoke* invoke, EmitOp&& emit_op) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerBitCount(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerBitCount(HInvoke* invoke) {
@@ -342,7 +367,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongBitCount(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongBitCount(HInvoke* invoke) {
@@ -351,7 +376,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongBitCount(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerHighestOneBit(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerHighestOneBit(HInvoke* invoke) {
@@ -368,7 +393,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerHighestOneBit(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongHighestOneBit(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongHighestOneBit(HInvoke* invoke) {
@@ -385,7 +410,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongHighestOneBit(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerLowestOneBit(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerLowestOneBit(HInvoke* invoke) {
@@ -399,7 +424,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerLowestOneBit(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongLowestOneBit(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongLowestOneBit(HInvoke* invoke) {
@@ -413,7 +438,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongLowestOneBit(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerNumberOfLeadingZeros(HInvoke* invoke) {
@@ -422,7 +447,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerNumberOfLeadingZeros(HInvoke* in
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongNumberOfLeadingZeros(HInvoke* invoke) {
@@ -431,7 +456,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongNumberOfLeadingZeros(HInvoke* invok
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerNumberOfTrailingZeros(HInvoke* invoke) {
@@ -440,7 +465,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerNumberOfTrailingZeros(HInvoke* i
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
-  CreateIntToIntLocations(allocator_, invoke);
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
@@ -2033,7 +2058,7 @@ void VarHandleSlowPathRISCV64::EmitByteArrayViewCode(CodeGenerator* codegen_in) 
 
 void IntrinsicLocationsBuilderRISCV64::VisitThreadCurrentThread(HInvoke* invoke) {
   LocationSummary* locations =
-    new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -2045,7 +2070,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitThreadCurrentThread(HInvoke* invoke) {
 
 void IntrinsicLocationsBuilderRISCV64::VisitReachabilityFence(HInvoke* invoke) {
   LocationSummary* locations =
-    new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
   locations->SetInAt(0, Location::Any());
 }
 
@@ -2077,12 +2102,7 @@ static void GenerateDivideUnsigned(HInvoke* invoke, CodeGeneratorRISCV64* codege
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
@@ -2090,12 +2110,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
@@ -2103,19 +2118,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
-  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
-
-  LocationSummary* const locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
-
-  locations->SetInAt(0, Location::RequiresFpuRegister());
-  locations->SetInAt(1, Location::RequiresFpuRegister());
-  locations->SetInAt(2, Location::RequiresFpuRegister());
-  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  CreateFpFpFpToFpNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
@@ -2130,19 +2133,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
-  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
-  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
-
-  LocationSummary* const locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
-
-  locations->SetInAt(0, Location::RequiresFpuRegister());
-  locations->SetInAt(1, Location::RequiresFpuRegister());
-  locations->SetInAt(2, Location::RequiresFpuRegister());
-  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+  CreateFpFpFpToFpNoOverlapLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathFmaFloat(HInvoke* invoke) {
@@ -2198,7 +2189,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathAtan(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathAtan2(HInvoke* invoke) {
-  CreateFPFPToFPLocations(allocator_, invoke);
+  CreateFPFPToFPCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathAtan2(HInvoke* invoke) {
@@ -2206,7 +2197,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathAtan2(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathPow(HInvoke* invoke) {
-  CreateFPFPToFPLocations(allocator_, invoke);
+  CreateFPFPToFPCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathPow(HInvoke* invoke) {
@@ -2246,7 +2237,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathExpm1(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathHypot(HInvoke* invoke) {
-  CreateFPFPToFPLocations(allocator_, invoke);
+  CreateFPFPToFPCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathHypot(HInvoke* invoke) {
@@ -2270,7 +2261,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathLog10(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathNextAfter(HInvoke* invoke) {
-  CreateFPFPToFPLocations(allocator_, invoke);
+  CreateFPFPToFPCallLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathNextAfter(HInvoke* invoke) {
@@ -2369,35 +2360,47 @@ void IntrinsicCodeGeneratorRISCV64::VisitMathRint(HInvoke* invoke) {
   GenDoubleRound(GetAssembler(), invoke, FPRoundingMode::kRNE);
 }
 
+void GenMathRound(CodeGeneratorRISCV64* codegen, HInvoke* invoke, DataType::Type type) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  ScratchRegisterScope srs(assembler);
+  FRegister ftmp = srs.AllocateFRegister();
+  Riscv64Label done;
+
+  // Check NaN
+  codegen->GetInstructionVisitor()->FClass(out, in, type);
+  __ Slti(out, out, kFClassNaNMinValue);
+  __ Beqz(out, &done);
+
+  if (type == DataType::Type::kFloat64) {
+    // Add 0.5 (0x3fe0000000000000), rounding down (towards negative infinity).
+    __ LoadConst64(out, 0x3fe0000000000000L);
+    __ FMvDX(ftmp, out);
+    __ FAddD(ftmp, ftmp, in, FPRoundingMode::kRDN);
+
+    // Convert to managed `long`, rounding down (towards negative infinity).
+    __ FCvtLD(out, ftmp, FPRoundingMode::kRDN);
+  } else {
+    // Add 0.5 (0x3f000000), rounding down (towards negative infinity).
+    __ LoadConst32(out, 0x3f000000);
+    __ FMvWX(ftmp, out);
+    __ FAddS(ftmp, ftmp, in, FPRoundingMode::kRDN);
+
+    // Convert to managed `int`, rounding down (towards negative infinity).
+    __ FCvtWS(out, ftmp, FPRoundingMode::kRDN);
+  }
+
+  __ Bind(&done);
+}
+
 void IntrinsicLocationsBuilderRISCV64::VisitMathRoundDouble(HInvoke* invoke) {
   CreateFPToIntLocations(allocator_, invoke);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathRoundDouble(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  Riscv64Assembler* assembler = GetAssembler();
-  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
-  XRegister out = locations->Out().AsRegister<XRegister>();
-  ScratchRegisterScope srs(assembler);
-  FRegister ftmp = srs.AllocateFRegister();
-  XRegister tmp = srs.AllocateXRegister();
-  Riscv64Label done;
-
-  // Check NaN
-  __ FClassD(tmp, in);
-  __ Andi(tmp, tmp, kSignalingNaN | kQuietNaN);
-  __ Li(out, 0);
-  __ Bnez(tmp, &done);
-
-  // Add 0.5(0x3fe0000000000000)
-  __ LoadConst64(out, 0x3fe0000000000000L);
-  __ FMvDX(ftmp, out);
-  __ FAddD(ftmp, ftmp, in, FPRoundingMode::kRDN);
-
-  // Convert with rounding mode(kRDN)
-  __ FCvtLD(out, ftmp, FPRoundingMode::kRDN);
-
-  __ Bind(&done);
+  GenMathRound(codegen_, invoke, DataType::Type::kFloat64);
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathRoundFloat(HInvoke* invoke) {
@@ -2405,30 +2408,7 @@ void IntrinsicLocationsBuilderRISCV64::VisitMathRoundFloat(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMathRoundFloat(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  Riscv64Assembler* assembler = GetAssembler();
-  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
-  XRegister out = locations->Out().AsRegister<XRegister>();
-  ScratchRegisterScope srs(assembler);
-  FRegister ftmp = srs.AllocateFRegister();
-  XRegister tmp = srs.AllocateXRegister();
-  Riscv64Label done;
-
-  // Check NaN
-  __ FClassS(tmp, in);
-  __ Andi(tmp, tmp, kSignalingNaN | kQuietNaN);
-  __ Li(out, 0);
-  __ Bnez(tmp, &done);
-
-  // Add 0.5(0x3f000000)
-  __ LoadConst32(out, 0x3f000000);
-  __ FMvWX(ftmp, out);
-  __ FAddS(ftmp, ftmp, in, FPRoundingMode::kRDN);
-
-  // Convert with rounding mode(kRDN)
-  __ FCvtWS(out, ftmp, FPRoundingMode::kRDN);
-
-  __ Bind(&done);
+  GenMathRound(codegen_, invoke, DataType::Type::kFloat32);
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathMultiplyHigh(HInvoke* invoke) {
