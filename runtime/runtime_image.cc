@@ -112,13 +112,14 @@ class RuntimeImageHelper {
     // size, relocate native pointers inside classes and ImTables.
     RelocateNativePointers();
 
-    // Generate the bitmap section, stored page aligned after the sections data
-    // and of size `object_section_size_` page aligned.
+    // Generate the bitmap section, stored page aligned after the sections data and of size
+    // `object_section_size_` rounded up to kCardSize to match the bitmap size expected by
+    // Loader::Init at art::gc::space::ImageSpace.
     size_t sections_end = sections_[ImageHeader::kSectionMetadata].End();
     image_bitmap_ = gc::accounting::ContinuousSpaceBitmap::Create(
         "image bitmap",
         reinterpret_cast<uint8_t*>(image_begin_),
-        RoundUp(object_section_size_, kPageSize));
+        RoundUp(object_section_size_, gc::accounting::CardTable::kCardSize));
     for (uint32_t offset : object_offsets_) {
       DCHECK(IsAligned<kObjectAlignment>(image_begin_ + sizeof(ImageHeader) + offset));
       image_bitmap_.Set(
@@ -126,8 +127,10 @@ class RuntimeImageHelper {
     }
     const size_t bitmap_bytes = image_bitmap_.Size();
     auto* bitmap_section = &sections_[ImageHeader::kSectionImageBitmap];
-    *bitmap_section = ImageSection(RoundUp(sections_end, kPageSize),
-                                   RoundUp(bitmap_bytes, kPageSize));
+    // Bitmap section size doesn't have to be rounded up as it is located at the end of the file.
+    // When mapped to memory, if the last page of the mapping is only partially filled with data,
+    // the rest will be zero-filled.
+    *bitmap_section = ImageSection(RoundUp(sections_end, kPageSize), bitmap_bytes);
 
     // Compute boot image checksum and boot image components, to be stored in
     // the header.
