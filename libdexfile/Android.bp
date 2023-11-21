@@ -173,6 +173,7 @@ art_cc_library {
         // dependency - see comment for libdexfile_support. It shouldn't be used
         // for any other purpose.
         "//external/perfetto",
+        "//frameworks/base/services/core/jni",
         "//system/core/debuggerd",
         "//system/extras/simpleperf",
         "//system/unwinding/libunwindstack",
