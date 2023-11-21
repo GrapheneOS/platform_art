@@ -92,6 +92,8 @@ art_module_art_global_defaults {
 
     name: "art_defaults",
 
+    cpp_std: "gnu++17", // TODO(b/311052584): fix C++20 build and revert this line
+
     // Disable all ART Soong modules by default when ART prebuilts are in use.
     // TODO(b/172480617): Clean up when sources are gone from the platform tree
     // and we no longer need to support sources present when prebuilts are used.
