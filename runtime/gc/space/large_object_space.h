@@ -188,8 +188,6 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 // A continuous large object space with a free-list to handle holes.
 class FreeListSpace final : public LargeObjectSpace {
  public:
-  static constexpr size_t kAlignment = kPageSize;
-
   virtual ~FreeListSpace();
   static FreeListSpace* Create(const std::string& name, size_t capacity);
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) override
@@ -208,13 +206,13 @@ class FreeListSpace final : public LargeObjectSpace {
   FreeListSpace(const std::string& name, MemMap&& mem_map, uint8_t* begin, uint8_t* end);
   size_t GetSlotIndexForAddress(uintptr_t address) const {
     DCHECK(Contains(reinterpret_cast<mirror::Object*>(address)));
-    return (address - reinterpret_cast<uintptr_t>(Begin())) / kAlignment;
+    return (address - reinterpret_cast<uintptr_t>(Begin())) / kLargeObjectAlignment;
   }
   size_t GetSlotIndexForAllocationInfo(const AllocationInfo* info) const;
   AllocationInfo* GetAllocationInfoForAddress(uintptr_t address);
   const AllocationInfo* GetAllocationInfoForAddress(uintptr_t address) const;
   uintptr_t GetAllocationAddressForSlot(size_t slot) const {
-    return reinterpret_cast<uintptr_t>(Begin()) + slot * kAlignment;
+    return reinterpret_cast<uintptr_t>(Begin()) + slot * kLargeObjectAlignment;
   }
   uintptr_t GetAddressForAllocationInfo(const AllocationInfo* info) const {
     return GetAllocationAddressForSlot(GetSlotIndexForAllocationInfo(info));

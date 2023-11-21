@@ -440,7 +440,7 @@ class MarkSweep::MarkObjectSlowPath {
       ++mark_sweep_->large_object_mark_;
     }
     space::LargeObjectSpace* large_object_space = mark_sweep_->GetHeap()->GetLargeObjectsSpace();
-    if (UNLIKELY(obj == nullptr || !IsAligned<kPageSize>(obj) ||
+    if (UNLIKELY(obj == nullptr || !IsAligned<kLargeObjectAlignment>(obj) ||
                  (kIsDebugBuild && large_object_space != nullptr &&
                      !large_object_space->Contains(obj)))) {
       // Lowest priority logging first:
