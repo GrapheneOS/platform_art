@@ -235,6 +235,9 @@ class PCRelativeHandlerVisitor final : public HGraphVisitor {
         LOG(FATAL) << "Unreachable min/max/abs: intrinsics should have been lowered "
                       "to IR nodes by instruction simplifier";
         UNREACHABLE();
+      case Intrinsics::kByteValueOf:
+      case Intrinsics::kShortValueOf:
+      case Intrinsics::kCharacterValueOf:
       case Intrinsics::kIntegerValueOf:
         // This intrinsic can be call free if it loads the address of the boot image object.
         // If we're compiling PIC, we need the address base for loading from .data.bimg.rel.ro.

@@ -79,6 +79,10 @@ class IntrinsicCodeGeneratorARM64 final : public IntrinsicVisitor {
 
   ArenaAllocator* GetAllocator();
 
+  void HandleValueOf(HInvoke* invoke,
+                     const IntrinsicVisitor::ValueOfInfo& info,
+                     DataType::Type primitive_type);
+
   CodeGeneratorARM64* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicCodeGeneratorARM64);

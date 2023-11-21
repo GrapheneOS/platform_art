@@ -69,6 +69,10 @@ class IntrinsicCodeGeneratorARMVIXL final : public IntrinsicVisitor {
   ArenaAllocator* GetAllocator();
   ArmVIXLAssembler* GetAssembler();
 
+  void HandleValueOf(HInvoke* invoke,
+                     const IntrinsicVisitor::ValueOfInfo& info,
+                     DataType::Type primitive_type);
+
   CodeGeneratorARMVIXL* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicCodeGeneratorARMVIXL);

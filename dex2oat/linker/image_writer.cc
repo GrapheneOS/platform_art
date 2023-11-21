@@ -2810,17 +2810,18 @@ ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
 const void* ImageWriter::GetIntrinsicReferenceAddress(uint32_t intrinsic_data) {
   DCHECK(compiler_options_.IsBootImage());
   switch (IntrinsicObjects::DecodePatchType(intrinsic_data)) {
-    case IntrinsicObjects::PatchType::kIntegerValueOfArray: {
+    case IntrinsicObjects::PatchType::kValueOfArray: {
+      uint32_t index = IntrinsicObjects::DecodePatchIndex(intrinsic_data);
       const uint8_t* base_address =
           reinterpret_cast<const uint8_t*>(GetImageAddress(boot_image_live_objects_));
       MemberOffset data_offset =
-          IntrinsicObjects::GetIntegerValueOfArrayDataOffset(boot_image_live_objects_);
+          IntrinsicObjects::GetValueOfArrayDataOffset(boot_image_live_objects_, index);
       return base_address + data_offset.Uint32Value();
     }
-    case IntrinsicObjects::PatchType::kIntegerValueOfObject: {
+    case IntrinsicObjects::PatchType::kValueOfObject: {
       uint32_t index = IntrinsicObjects::DecodePatchIndex(intrinsic_data);
       ObjPtr<mirror::Object> value =
-          IntrinsicObjects::GetIntegerValueOfObject(boot_image_live_objects_, index);
+          IntrinsicObjects::GetValueOfObject(boot_image_live_objects_, /* start_index= */ 0u, index);
       return GetImageAddress(value.Ptr());
     }
   }
