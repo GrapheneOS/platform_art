@@ -25,6 +25,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "heap_poisoning.h"
 #include "intrinsics.h"
+#include "intrinsic_objects.h"
 #include "intrinsics_utils.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
@@ -35,6 +36,7 @@
 #include "thread-current-inl.h"
 #include "utils/x86_64/assembler_x86_64.h"
 #include "utils/x86_64/constants_x86_64.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 
@@ -3054,18 +3056,60 @@ void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long= */ true);
 }
 
-void IntrinsicLocationsBuilderX86_64::VisitIntegerValueOf(HInvoke* invoke) {
-  InvokeRuntimeCallingConvention calling_convention;
-  IntrinsicVisitor::ComputeIntegerValueOfLocations(
-      invoke,
-      codegen_,
-      Location::RegisterLocation(RAX),
-      Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+#define VISIT_INTRINSIC(name, low, high, type, start_index) \
+  void IntrinsicLocationsBuilderX86_64::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    InvokeRuntimeCallingConvention calling_convention; \
+    IntrinsicVisitor::ComputeValueOfLocations( \
+        invoke, \
+        codegen_, \
+        low, \
+        high - low + 1, \
+        Location::RegisterLocation(RAX), \
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0))); \
+  } \
+  void IntrinsicCodeGeneratorX86_64::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    IntrinsicVisitor::ValueOfInfo info = \
+      IntrinsicVisitor::ComputeValueOfInfo( \
+          invoke, \
+          codegen_->GetCompilerOptions(), \
+          WellKnownClasses::java_lang_ ##name ##_value, \
+          low, \
+          high - low + 1, \
+          start_index); \
+    HandleValueOf(invoke, info, type); \
+  }
+  BOXED_TYPES(VISIT_INTRINSIC)
+#undef VISIT_INTRINSIC
+
+template <typename T>
+static void Store(X86_64Assembler* assembler,
+                  DataType::Type primitive_type,
+                  const Address& address,
+                  const T& operand) {
+  switch (primitive_type) {
+    case DataType::Type::kInt8:
+    case DataType::Type::kUint8: {
+      __ movb(address, operand);
+      break;
+    }
+    case DataType::Type::kInt16:
+    case DataType::Type::kUint16: {
+      __ movw(address, operand);
+      break;
+    }
+    case DataType::Type::kInt32: {
+      __ movl(address, operand);
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unrecognized ValueOf type " << primitive_type;
+    }
+  }
 }
 
-void IntrinsicCodeGeneratorX86_64::VisitIntegerValueOf(HInvoke* invoke) {
-  IntrinsicVisitor::IntegerValueOfInfo info =
-      IntrinsicVisitor::ComputeIntegerValueOfInfo(invoke, codegen_->GetCompilerOptions());
+void IntrinsicCodeGeneratorX86_64::HandleValueOf(HInvoke* invoke,
+                                                 const IntrinsicVisitor::ValueOfInfo& info,
+                                                 DataType::Type primitive_type) {
   LocationSummary* locations = invoke->GetLocations();
   X86_64Assembler* assembler = GetAssembler();
 
@@ -3077,19 +3121,19 @@ void IntrinsicCodeGeneratorX86_64::VisitIntegerValueOf(HInvoke* invoke) {
     codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
-  if (invoke->InputAt(0)->IsIntConstant()) {
+  if (invoke->InputAt(0)->IsConstant()) {
     int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
       // Just embed the j.l.Integer in the code.
-      DCHECK_NE(info.value_boot_image_reference, IntegerValueOfInfo::kInvalidReference);
+      DCHECK_NE(info.value_boot_image_reference, ValueOfInfo::kInvalidReference);
       codegen_->LoadBootImageAddress(out, info.value_boot_image_reference);
     } else {
       DCHECK(locations->CanCall());
       // Allocate and initialize a new j.l.Integer.
-      // TODO: If we JIT, we could allocate the j.l.Integer now, and store it in the
+      // TODO: If we JIT, we could allocate the boxed value now, and store it in the
       // JIT object table.
       allocate_instance();
-      __ movl(Address(out, info.value_offset), Immediate(value));
+      Store(assembler, primitive_type, Address(out, info.value_offset), Immediate(value));
     }
   } else {
     DCHECK(locations->CanCall());
@@ -3099,7 +3143,7 @@ void IntrinsicCodeGeneratorX86_64::VisitIntegerValueOf(HInvoke* invoke) {
     __ cmpl(out, Immediate(info.length));
     NearLabel allocate, done;
     __ j(kAboveEqual, &allocate);
-    // If the value is within the bounds, load the j.l.Integer directly from the array.
+    // If the value is within the bounds, load the boxed value directly from the array.
     DCHECK_NE(out.AsRegister(), argument.AsRegister());
     codegen_->LoadBootImageAddress(argument, info.array_data_boot_image_reference);
     static_assert((1u << TIMES_4) == sizeof(mirror::HeapReference<mirror::Object>),
@@ -3108,9 +3152,9 @@ void IntrinsicCodeGeneratorX86_64::VisitIntegerValueOf(HInvoke* invoke) {
     __ MaybeUnpoisonHeapReference(out);
     __ jmp(&done);
     __ Bind(&allocate);
-    // Otherwise allocate and initialize a new j.l.Integer.
+    // Otherwise allocate and initialize a new object.
     allocate_instance();
-    __ movl(Address(out, info.value_offset), in);
+    Store(assembler, primitive_type, Address(out, info.value_offset), in);
     __ Bind(&done);
   }
 }

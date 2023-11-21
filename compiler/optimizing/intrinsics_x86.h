@@ -71,6 +71,10 @@ class IntrinsicCodeGeneratorX86 final : public IntrinsicVisitor {
 
   ArenaAllocator* GetAllocator();
 
+  void HandleValueOf(HInvoke* invoke,
+                     const IntrinsicVisitor::ValueOfInfo& info,
+                     DataType::Type primitive_type);
+
   CodeGeneratorX86* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicCodeGeneratorX86);

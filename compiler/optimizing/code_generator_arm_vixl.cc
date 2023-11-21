@@ -297,31 +297,6 @@ static LoadOperandType GetLoadOperandType(DataType::Type type) {
   }
 }
 
-static StoreOperandType GetStoreOperandType(DataType::Type type) {
-  switch (type) {
-    case DataType::Type::kReference:
-      return kStoreWord;
-    case DataType::Type::kBool:
-    case DataType::Type::kUint8:
-    case DataType::Type::kInt8:
-      return kStoreByte;
-    case DataType::Type::kUint16:
-    case DataType::Type::kInt16:
-      return kStoreHalfword;
-    case DataType::Type::kInt32:
-      return kStoreWord;
-    case DataType::Type::kInt64:
-      return kStoreWordPair;
-    case DataType::Type::kFloat32:
-      return kStoreSWord;
-    case DataType::Type::kFloat64:
-      return kStoreDWord;
-    default:
-      LOG(FATAL) << "Unreachable type " << type;
-      UNREACHABLE();
-  }
-}
-
 void SlowPathCodeARMVIXL::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
   size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
   size_t orig_offset = stack_offset;
