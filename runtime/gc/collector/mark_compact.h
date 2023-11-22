@@ -182,7 +182,7 @@ class MarkCompact final : public GarbageCollector {
   // consider using 128-bit in order to halve the chunk-info size.
   static constexpr uint32_t kBitsPerVectorWord = kBitsPerIntPtrT;
   static constexpr uint32_t kOffsetChunkSize = kBitsPerVectorWord * kAlignment;
-  static_assert(kOffsetChunkSize < kPageSize);
+  static_assert(kOffsetChunkSize < kMinPageSize);
   // Bitmap with bits corresponding to every live word set. For an object
   // which is 4 words in size will have the corresponding 4 bits set. This is
   // required for efficient computation of new-address (post-compaction) from

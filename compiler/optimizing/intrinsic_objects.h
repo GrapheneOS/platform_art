@@ -52,14 +52,13 @@ template <class T> class ObjectArray;
 class IntrinsicObjects {
  public:
   enum class PatchType {
-    kIntegerValueOfObject,
-    kIntegerValueOfArray,
+    kValueOfObject,
+    kValueOfArray,
 
-    kLast = kIntegerValueOfArray
+    kLast = kValueOfArray
   };
 
   static uint32_t EncodePatch(PatchType patch_type, uint32_t index = 0u) {
-    DCHECK(patch_type == PatchType::kIntegerValueOfObject || index == 0u);
     return PatchTypeField::Encode(static_cast<uint32_t>(patch_type)) | IndexField::Encode(index);
   }
 
@@ -94,13 +93,6 @@ class IntrinsicObjects {
     return kNumberOfBoxedCaches;
   }
 
- private:
-  static constexpr size_t kPatchTypeBits =
-      MinimumBitsToStore(static_cast<uint32_t>(PatchType::kLast));
-  static constexpr size_t kIndexBits = BitSizeOf<uint32_t>() - kPatchTypeBits;
-  using PatchTypeField = BitField<uint32_t, 0u, kPatchTypeBits>;
-  using IndexField = BitField<uint32_t, kPatchTypeBits, kIndexBits>;
-
   EXPORT static ObjPtr<mirror::Object> GetValueOfObject(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
       size_t start_index,
@@ -109,6 +101,13 @@ class IntrinsicObjects {
   EXPORT static MemberOffset GetValueOfArrayDataOffset(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
       size_t start_index) REQUIRES_SHARED(Locks::mutator_lock_);
+
+ private:
+  static constexpr size_t kPatchTypeBits =
+      MinimumBitsToStore(static_cast<uint32_t>(PatchType::kLast));
+  static constexpr size_t kIndexBits = BitSizeOf<uint32_t>() - kPatchTypeBits;
+  using PatchTypeField = BitField<uint32_t, 0u, kPatchTypeBits>;
+  using IndexField = BitField<uint32_t, kPatchTypeBits, kIndexBits>;
 };
 
 }  // namespace art

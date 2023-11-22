@@ -32,8 +32,8 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork, bo
       first_obj_array_(nullptr),
       pre_zygote_fork_(pre_zygote_fork),
       waiting_for_deletion_(false) {
-  static_assert(ArenaAllocator::kArenaAlignment <= kPageSize,
-                "Arena should not need stronger alignment than kPageSize.");
+  static_assert(ArenaAllocator::kArenaAlignment <= kMinPageSize,
+                "Arena should not need stronger alignment than kMinPageSize.");
   memory_ = start;
   size_ = size;
   if (single_obj_arena) {

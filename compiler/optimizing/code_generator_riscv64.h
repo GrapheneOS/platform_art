@@ -48,6 +48,13 @@ static constexpr FRegister kRuntimeParameterFpuRegisters[] = {
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
+// FCLASS returns a 10-bit classification mask with the two highest bits marking NaNs
+// (signaling and quiet). To detect a NaN, we can compare (either BGE or BGEU, the sign
+// bit is always clear) the result with the `kFClassNaNMinValue`.
+static_assert(kSignalingNaN == 0x100);
+static_assert(kQuietNaN == 0x200);
+static constexpr int32_t kFClassNaNMinValue = 0x100;
+
 #define UNIMPLEMENTED_INTRINSIC_LIST_RISCV64(V) \
   V(IntegerReverse)                             \
   V(LongReverse)                                \
@@ -147,7 +154,6 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(JdkUnsafeGetAndSetObject)                   \
   V(ReferenceGetReferent)                       \
   V(ReferenceRefersTo)                          \
-  V(IntegerValueOf)                             \
   V(ThreadInterrupted)                          \
   V(CRC32Update)                                \
   V(CRC32UpdateBytes)                           \
@@ -168,7 +174,11 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(VarHandleGetAndBitwiseXorRelease)           \
   V(VarHandleGetAndSet)                         \
   V(VarHandleGetAndSetAcquire)                  \
-  V(VarHandleGetAndSetRelease)
+  V(VarHandleGetAndSetRelease)                  \
+  V(ByteValueOf)                                \
+  V(ShortValueOf)                               \
+  V(CharacterValueOf)                           \
+  V(IntegerValueOf)                             \
 
 // Method register on invoke.
 static const XRegister kArtMethodRegister = A0;
@@ -357,7 +367,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
 
   void GenerateMemoryBarrier(MemBarrierKind kind);
 
-  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
+  void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
   void Store(Location value, XRegister rs1, int32_t offset, DataType::Type type);
@@ -370,6 +380,8 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
                    int32_t offset,
                    DataType::Type type,
                    HInstruction* instruction = nullptr);
+
+  void ShNAdd(XRegister rd, XRegister rs1, XRegister rs2, DataType::Type type);
 
  protected:
   void GenerateClassInitializationCheck(SlowPathCodeRISCV64* slow_path, XRegister class_reg);
@@ -479,7 +491,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
   void FNeg(FRegister rd, FRegister rs1, DataType::Type type);
   void FMv(FRegister rd, FRegister rs1, DataType::Type type);
   void FMvX(XRegister rd, FRegister rs1, DataType::Type type);
-  void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   Riscv64Assembler* const assembler_;
   CodeGeneratorRISCV64* const codegen_;

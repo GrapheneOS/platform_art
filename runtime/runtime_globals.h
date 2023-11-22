@@ -33,7 +33,8 @@ static inline bool CanDoImplicitNullCheckOn(uintptr_t offset) {
 // Required object alignment
 static constexpr size_t kObjectAlignmentShift = 3;
 static constexpr size_t kObjectAlignment = 1u << kObjectAlignmentShift;
-static constexpr size_t kLargeObjectAlignment = kPageSize;
+static constexpr size_t kLargeObjectAlignment = kMaxPageSize;
+static_assert(kLargeObjectAlignment <= 16 * KB, "Consider redesign if more than 16K is required.");
 
 // Garbage collector constants.
 static constexpr bool kMovingCollector = true;

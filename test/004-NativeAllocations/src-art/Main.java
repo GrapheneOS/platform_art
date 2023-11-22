@@ -17,6 +17,7 @@
 import java.lang.Runtime;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.PhantomReference;
+import java.util.concurrent.atomic.AtomicInteger;
 import dalvik.system.VMRuntime;
 
 public class Main {
@@ -36,11 +37,23 @@ public class Main {
         }
     }
 
-    private static void allocateDeadlockingFinalizer() {
+    private static void $noinline$allocateDeadlockingFinalizer() {
         new DeadlockingFinalizer();
     }
 
-    public static PhantomReference allocPhantom(ReferenceQueue<Object> queue) {
+    static AtomicInteger finalizeCounter = new AtomicInteger(0);
+
+    static class IncrementingFinalizer {
+        protected void finalize() throws Exception {
+            finalizeCounter.incrementAndGet();
+        }
+    }
+
+    private static void $noinline$allocateIncrementingFinalizer() {
+        new IncrementingFinalizer();
+    }
+
+    public static PhantomReference $noinline$allocPhantom(ReferenceQueue<Object> queue) {
         return new PhantomReference(new Object(), queue);
     }
 
@@ -52,13 +65,18 @@ public class Main {
         int allocationCount = 256;
         final long startTime = System.currentTimeMillis();
 
+        int initialFinalizeCount = finalizeCounter.get();
         ReferenceQueue<Object> queue = new ReferenceQueue<Object>();
-        ref = allocPhantom(queue);
+        ref = $noinline$allocPhantom(queue);
         long total = 0;
         int i;
         for (i = 0; !ref.isEnqueued() && i < allocationCount; ++i) {
             runtime.registerNativeAllocation(size);
             total += size;
+
+            // Allocate a new finalizable object each time, so that we can see if anything
+            // was finalized while we were running.
+            $noinline$allocateIncrementingFinalizer();
 
             // Sleep a little bit to ensure not all of the calls to
             // registerNativeAllocation complete while GC is in the process of
@@ -73,12 +91,20 @@ public class Main {
         if (queue.remove(MAX_EXPECTED_GC_DURATION_MS) == null) {
             System.out.println("GC failed to complete after " + i
                 + " iterations, is_enqueued = " + ref.isEnqueued());
-            System.out.println("size = " + size + ", elapsed msecs = "
+            System.out.println("  size = " + size + ", elapsed msecs = "
                 + (System.currentTimeMillis() - startTime));
-            Thread.sleep(MAX_EXPECTED_GC_DURATION_MS);
-            System.out.println("After delay, queue.poll() = " + queue.poll()
+            System.out.println("  original maxMemory() = " + maxMem + " current maxMemory() = "
+                + Runtime.getRuntime().maxMemory());
+            System.out.println("  Initial finalize count = " + initialFinalizeCount
+                + " current finalize count = " + finalizeCounter.get());
+            Thread.sleep(2 * MAX_EXPECTED_GC_DURATION_MS);
+            System.out.println("  After delay, queue.poll() = " + queue.poll()
                 + " is_enqueued = " + ref.isEnqueued());
-            System.out.println("elapsed msecs = " + (System.currentTimeMillis() - startTime));
+            System.out.println("    elapsed msecs = " + (System.currentTimeMillis() - startTime));
+            Runtime.getRuntime().gc();
+            System.runFinalization();
+            System.out.println("  After GC, queue.poll() = " + queue.poll()
+                + " is_enqueued = " + ref.isEnqueued());
         }
 
         while (total > 0) {
@@ -121,7 +147,7 @@ public class Main {
         // Test that we don't get a deadlock if we call
         // registerNativeAllocation with a blocked finalizer.
         synchronized (deadlockLock) {
-            allocateDeadlockingFinalizer();
+            $noinline$allocateDeadlockingFinalizer();
             while (!aboutToDeadlock) {
                 Runtime.getRuntime().gc();
             }

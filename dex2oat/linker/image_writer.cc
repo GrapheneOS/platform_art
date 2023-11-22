@@ -885,9 +885,12 @@ bool ImageWriter::AllocMemory() {
     }
 
     // Create the image bitmap, only needs to cover mirror object section which is up to image_end_.
+    // The covered size is rounded up to kCardSize to match the bitmap size expected by Loader::Init
+    // at art::gc::space::ImageSpace.
     CHECK_LE(image_info.image_end_, length);
-    image_info.image_bitmap_ = gc::accounting::ContinuousSpaceBitmap::Create(
-        "image bitmap", image_info.image_.Begin(), RoundUp(image_info.image_end_, kPageSize));
+    image_info.image_bitmap_ = gc::accounting::ContinuousSpaceBitmap::Create("image bitmap",
+        image_info.image_.Begin(),
+        RoundUp(image_info.image_end_, gc::accounting::CardTable::kCardSize));
     if (!image_info.image_bitmap_.IsValid()) {
       LOG(ERROR) << "Failed to allocate memory for image bitmap";
       return false;
@@ -2755,7 +2758,10 @@ void ImageWriter::CreateHeader(size_t oat_index, size_t component_count) {
   // Finally bitmap section.
   const size_t bitmap_bytes = image_info.image_bitmap_.Size();
   auto* bitmap_section = &sections[ImageHeader::kSectionImageBitmap];
-  *bitmap_section = ImageSection(RoundUp(image_end, kPageSize), RoundUp(bitmap_bytes, kPageSize));
+  // Bitmap section size doesn't have to be rounded up as it is located at the end of the file.
+  // When mapped to memory, if the last page of the mapping is only partially filled with data,
+  // the rest will be zero-filled.
+  *bitmap_section = ImageSection(RoundUp(image_end, kPageSize), bitmap_bytes);
   if (VLOG_IS_ON(compiler)) {
     LOG(INFO) << "Creating header for " << oat_filenames_[oat_index];
     size_t idx = 0;
@@ -2804,17 +2810,18 @@ ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
 const void* ImageWriter::GetIntrinsicReferenceAddress(uint32_t intrinsic_data) {
   DCHECK(compiler_options_.IsBootImage());
   switch (IntrinsicObjects::DecodePatchType(intrinsic_data)) {
-    case IntrinsicObjects::PatchType::kIntegerValueOfArray: {
+    case IntrinsicObjects::PatchType::kValueOfArray: {
+      uint32_t index = IntrinsicObjects::DecodePatchIndex(intrinsic_data);
       const uint8_t* base_address =
           reinterpret_cast<const uint8_t*>(GetImageAddress(boot_image_live_objects_));
       MemberOffset data_offset =
-          IntrinsicObjects::GetIntegerValueOfArrayDataOffset(boot_image_live_objects_);
+          IntrinsicObjects::GetValueOfArrayDataOffset(boot_image_live_objects_, index);
       return base_address + data_offset.Uint32Value();
     }
-    case IntrinsicObjects::PatchType::kIntegerValueOfObject: {
+    case IntrinsicObjects::PatchType::kValueOfObject: {
       uint32_t index = IntrinsicObjects::DecodePatchIndex(intrinsic_data);
       ObjPtr<mirror::Object> value =
-          IntrinsicObjects::GetIntegerValueOfObject(boot_image_live_objects_, index);
+          IntrinsicObjects::GetValueOfObject(boot_image_live_objects_, /* start_index= */ 0u, index);
       return GetImageAddress(value.Ptr());
     }
   }

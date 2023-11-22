@@ -137,11 +137,9 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
                                            size_t* bytes_allocated, size_t* usable_size,
                                            size_t* bytes_tl_bulk_allocated) {
   std::string error_msg;
-  MemMap mem_map = MemMap::MapAnonymous("large object space allocation",
-                                        num_bytes,
-                                        PROT_READ | PROT_WRITE,
-                                        /*low_4gb=*/ true,
-                                        &error_msg);
+  MemMap mem_map = MemMap::MapAnonymousAligned<kLargeObjectAlignment>(
+      "large object space allocation", num_bytes, PROT_READ | PROT_WRITE,
+      /*low_4gb=*/ true, &error_msg);
   if (UNLIKELY(!mem_map.IsValid())) {
     LOG(WARNING) << "Large object allocation failed: " << error_msg;
     return nullptr;
@@ -263,19 +261,19 @@ class AllocationInfo {
  public:
   AllocationInfo() : prev_free_(0), alloc_size_(0) {
   }
-  // Return the number of pages that the allocation info covers.
+  // Return the number of kLargeObjectAlignment-sized blocks that the allocation info covers.
   size_t AlignSize() const {
     return alloc_size_ & kFlagsMask;
   }
   // Returns the allocation size in bytes.
   size_t ByteSize() const {
-    return AlignSize() * FreeListSpace::kAlignment;
+    return AlignSize() * kLargeObjectAlignment;
   }
   // Updates the allocation size and whether or not it is free.
   void SetByteSize(size_t size, bool free) {
     DCHECK_EQ(size & ~kFlagsMask, 0u);
-    DCHECK_ALIGNED(size, FreeListSpace::kAlignment);
-    alloc_size_ = (size / FreeListSpace::kAlignment) | (free ? kFlagFree : 0u);
+    DCHECK_ALIGNED(size, kLargeObjectAlignment);
+    alloc_size_ = (size / kLargeObjectAlignment) | (free ? kFlagFree : 0u);
   }
   // Returns true if the block is free.
   bool IsFree() const {
@@ -308,29 +306,29 @@ class AllocationInfo {
   mirror::Object* GetObjectAddress() {
     return reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(this) + sizeof(*this));
   }
-  // Return how many kAlignment units there are before the free block.
+  // Return how many kLargeObjectAlignment units there are before the free block.
   size_t GetPrevFree() const {
     return prev_free_;
   }
-  // Returns how many free bytes there is before the block.
+  // Returns how many free bytes there are before the block.
   size_t GetPrevFreeBytes() const {
-    return GetPrevFree() * FreeListSpace::kAlignment;
+    return GetPrevFree() * kLargeObjectAlignment;
   }
   // Update the size of the free block prior to the allocation.
   void SetPrevFreeBytes(size_t bytes) {
-    DCHECK_ALIGNED(bytes, FreeListSpace::kAlignment);
-    prev_free_ = bytes / FreeListSpace::kAlignment;
+    DCHECK_ALIGNED(bytes, kLargeObjectAlignment);
+    prev_free_ = bytes / kLargeObjectAlignment;
   }
 
  private:
   static constexpr uint32_t kFlagFree = 0x80000000;  // If block is free.
   static constexpr uint32_t kFlagZygote = 0x40000000;  // If the large object is a zygote object.
   static constexpr uint32_t kFlagsMask = ~(kFlagFree | kFlagZygote);  // Combined flags for masking.
-  // Contains the size of the previous free block with kAlignment as the unit. If 0 then the
-  // allocation before us is not free.
+  // Contains the size of the previous free block with kLargeObjectAlignment as the unit. If 0 then
+  // the allocation before us is not free.
   // These variables are undefined in the middle of allocations / free blocks.
   uint32_t prev_free_;
-  // Allocation size of this object in kAlignment as the unit.
+  // Allocation size of this object in kLargeObjectAlignment as the unit.
   uint32_t alloc_size_;
 };
 
@@ -358,13 +356,10 @@ inline bool FreeListSpace::SortByPrevFree::operator()(const AllocationInfo* a,
 }
 
 FreeListSpace* FreeListSpace::Create(const std::string& name, size_t size) {
-  CHECK_EQ(size % kAlignment, 0U);
+  CHECK_EQ(size % kLargeObjectAlignment, 0U);
   std::string error_msg;
-  MemMap mem_map = MemMap::MapAnonymous(name.c_str(),
-                                        size,
-                                        PROT_READ | PROT_WRITE,
-                                        /*low_4gb=*/ true,
-                                        &error_msg);
+  MemMap mem_map = MemMap::MapAnonymousAligned<kLargeObjectAlignment>(
+      name.c_str(), size, PROT_READ | PROT_WRITE, /*low_4gb=*/ true, &error_msg);
   CHECK(mem_map.IsValid()) << "Failed to allocate large object space mem map: " << error_msg;
   return new FreeListSpace(name, std::move(mem_map), mem_map.Begin(), mem_map.End());
 }
@@ -377,8 +372,8 @@ FreeListSpace::FreeListSpace(const std::string& name,
       mem_map_(std::move(mem_map)) {
   const size_t space_capacity = end - begin;
   free_end_ = space_capacity;
-  CHECK_ALIGNED(space_capacity, kAlignment);
-  const size_t alloc_info_size = sizeof(AllocationInfo) * (space_capacity / kAlignment);
+  CHECK_ALIGNED(space_capacity, kLargeObjectAlignment);
+  const size_t alloc_info_size = sizeof(AllocationInfo) * (space_capacity / kLargeObjectAlignment);
   std::string error_msg;
   allocation_info_map_ =
       MemMap::MapAnonymous("large object free list space allocation info map",
@@ -392,7 +387,7 @@ FreeListSpace::FreeListSpace(const std::string& name,
 
 void FreeListSpace::ClampGrowthLimit(size_t new_capacity) {
   MutexLock mu(Thread::Current(), lock_);
-  new_capacity = RoundUp(new_capacity, kAlignment);
+  new_capacity = RoundUp(new_capacity, kLargeObjectAlignment);
   CHECK_LE(new_capacity, Size());
   size_t diff = Size() - new_capacity;
   // If we don't have enough free-bytes at the end to clamp, then do the best
@@ -402,7 +397,7 @@ void FreeListSpace::ClampGrowthLimit(size_t new_capacity) {
     diff = free_end_;
   }
 
-  size_t alloc_info_size = sizeof(AllocationInfo) * (new_capacity / kAlignment);
+  size_t alloc_info_size = sizeof(AllocationInfo) * (new_capacity / kLargeObjectAlignment);
   allocation_info_map_.SetSize(alloc_info_size);
   mem_map_.SetSize(new_capacity);
   // We don't need to change anything in 'free_blocks_' as the free block at
@@ -448,12 +443,12 @@ void FreeListSpace::RemoveFreePrev(AllocationInfo* info) {
 size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
   DCHECK(Contains(obj)) << reinterpret_cast<void*>(Begin()) << " " << obj << " "
                         << reinterpret_cast<void*>(End());
-  DCHECK_ALIGNED(obj, kAlignment);
+  DCHECK_ALIGNED(obj, kLargeObjectAlignment);
   AllocationInfo* info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(obj));
   DCHECK(!info->IsFree());
   const size_t allocation_size = info->ByteSize();
   DCHECK_GT(allocation_size, 0U);
-  DCHECK_ALIGNED(allocation_size, kAlignment);
+  DCHECK_ALIGNED(allocation_size, kLargeObjectAlignment);
 
   // madvise the pages without lock
   madvise(obj, allocation_size, MADV_DONTNEED);
@@ -493,7 +488,7 @@ size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
       AllocationInfo* next_next_info = next_info->GetNextInfo();
       // Next next info can't be free since we always coalesce.
       DCHECK(!next_next_info->IsFree());
-      DCHECK_ALIGNED(next_next_info->ByteSize(), kAlignment);
+      DCHECK_ALIGNED(next_next_info->ByteSize(), kLargeObjectAlignment);
       new_free_info = next_next_info;
       new_free_size += next_next_info->GetPrevFreeBytes();
       RemoveFreePrev(next_next_info);
@@ -525,7 +520,7 @@ size_t FreeListSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
 mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                      size_t* usable_size, size_t* bytes_tl_bulk_allocated) {
   MutexLock mu(self, lock_);
-  const size_t allocation_size = RoundUp(num_bytes, kAlignment);
+  const size_t allocation_size = RoundUp(num_bytes, kLargeObjectAlignment);
   AllocationInfo temp_info;
   temp_info.SetPrevFreeBytes(allocation_size);
   temp_info.SetByteSize(0, false);
