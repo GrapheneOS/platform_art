@@ -800,11 +800,6 @@ art::mirror::Object* Redefiner::ClassRedefinition::AllocateOrGetOriginalDexFile(
 
   // return the current dex_cache which has the dex file in it.
   art::ObjPtr<art::mirror::DexCache> current_dex_cache(GetMirrorClass()->GetDexCache());
-  // TODO Handle this or make it so it cannot happen.
-  if (current_dex_cache->GetDexFile()->NumClassDefs() != 1) {
-    LOG(WARNING) << "Current dex file has more than one class in it. Calling RetransformClasses "
-                 << "on this class might fail if no transformations are applied to it!";
-  }
   return current_dex_cache.Ptr();
 }
 
