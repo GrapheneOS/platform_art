@@ -73,7 +73,7 @@ class IntrinsicCodeGeneratorX86 final : public IntrinsicVisitor {
 
   void HandleValueOf(HInvoke* invoke,
                      const IntrinsicVisitor::ValueOfInfo& info,
-                     DataType::Type primitive_type);
+                     DataType::Type type);
 
   CodeGeneratorX86* const codegen_;
 
