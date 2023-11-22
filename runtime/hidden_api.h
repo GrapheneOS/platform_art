@@ -332,6 +332,7 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kJdkUnsafeCompareAndSetInt:
       case Intrinsics::kJdkUnsafeCompareAndSetLong:
       case Intrinsics::kJdkUnsafeCompareAndSetObject:
+      case Intrinsics::kJdkUnsafeCompareAndSetReference:
       case Intrinsics::kJdkUnsafeGetAndAddInt:
       case Intrinsics::kJdkUnsafeGetAndAddLong:
       case Intrinsics::kJdkUnsafeGetAndSetInt:

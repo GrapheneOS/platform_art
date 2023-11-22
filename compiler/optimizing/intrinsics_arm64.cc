@@ -1551,6 +1551,9 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* 
     }
   }
 }
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeCASInt(HInvoke* invoke) {
   VisitJdkUnsafeCASInt(invoke);
@@ -1586,6 +1589,9 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* inv
   DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
+}
+void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 enum class GetAndUpdateOp {
