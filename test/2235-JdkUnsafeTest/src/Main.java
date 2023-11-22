@@ -303,6 +303,31 @@ public class Main {
       System.out.println("Unexpectedly not succeeding compareAndSetObject(t, objectOffset, 1, 1)");
     }
     check(t.objectVar, objectValue3, "Unsafe.compareAndSetObject(Object, long, Object, Object) - gets set to same");
+
+    // Reset and now try with `compareAndSetReference` which replaced `compareAndSetObject`.
+    unsafe.putObject(t, objectOffset, objectValue);
+
+    if (unsafe.compareAndSetReference(t, objectOffset, new Object(), new Object())) {
+      System.out.println("Unexpectedly succeeding compareAndSetReference(t, objectOffset, 0, 1)");
+    }
+    check(t.objectVar, objectValue, "Unsafe.compareAndSetReference(Object, long, Object, Object) - not set");
+    objectValue2 = new Object();
+    if (!unsafe.compareAndSetReference(t, objectOffset, objectValue, objectValue2)) {
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSetReference(t, objectOffset, objectValue, 0)");
+    }
+    check(t.objectVar, objectValue2, "Unsafe.compareAndSetReference(Object, long, Object, Object) - gets set");
+    objectValue3 = new Object();
+    if (!unsafe.compareAndSetReference(t, objectOffset, objectValue2, objectValue3)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetReference(t, objectOffset, 0, 1)");
+    }
+    check(t.objectVar, objectValue3, "Unsafe.compareAndSetReference(Object, long, Object, Object) - gets re-set");
+    // Exercise jdk.internal.misc.Unsafe.compareAndSetReference using the same
+    // object for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSetReference(t, objectOffset, objectValue3, objectValue3)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetReference(t, objectOffset, 1, 1)");
+    }
+    check(t.objectVar, objectValue3, "Unsafe.compareAndSetReference(Object, long, Object, Object) - gets set to same");
  }
 
   private static void testGetAndPutVolatile(Unsafe unsafe) throws NoSuchFieldException {
