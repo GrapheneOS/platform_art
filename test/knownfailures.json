@@ -439,6 +439,7 @@
     },
     {
         "test_patterns": [
+            ".*const-method-type.*",
             ".*invoke-custom.*",
             ".*invoke-polymorphic.*",
             ".*methodhandle.*",
