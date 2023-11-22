@@ -93,7 +93,7 @@ void IntrinsicVisitor::ComputeValueOfLocations(HInvoke* invoke,
     return;
   }
   HInstruction* const input = invoke->InputAt(0);
-  if (input->IsConstant()) {
+  if (input->IsIntConstant()) {
     int32_t value = input->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value) - static_cast<uint32_t>(low) < static_cast<uint32_t>(length)) {
       // No call, we shall use direct pointer to the boxed object.
@@ -131,7 +131,7 @@ IntrinsicVisitor::ValueOfInfo IntrinsicVisitor::ComputeValueOfInfo(
   info.length = length;
   info.value_offset = value_field->GetOffset().Uint32Value();
   if (compiler_options.IsBootImage()) {
-    if (invoke->InputAt(0)->IsConstant()) {
+    if (invoke->InputAt(0)->IsIntConstant()) {
       int32_t input_value = invoke->InputAt(0)->AsIntConstant()->GetValue();
       uint32_t index = static_cast<uint32_t>(input_value) - static_cast<uint32_t>(info.low);
       if (index < static_cast<uint32_t>(info.length)) {
