@@ -476,10 +476,6 @@ static bool DoVarHandleInvokeCommon(Thread* self,
   NoReceiverInstructionOperands operands(all_operands);
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
 
-  // TODO: The "`MethodType` caching" comment below refers to code implemented by
-  // https://android-review.googlesource.com/2768053 which has been reverted.
-  // Reland that CL and remove this part of the comment when doing so.
-  //
   // If the `ThreadLocalRandom` class is not yet initialized, do the `VarHandle` operation
   // without creating a managed `MethodType` object. This avoids a circular initialization
   // issue when `ThreadLocalRandom.<clinit>` indirectly calls `AtomicLong.compareAndSet()`
