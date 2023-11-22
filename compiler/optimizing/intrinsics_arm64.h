@@ -81,7 +81,7 @@ class IntrinsicCodeGeneratorARM64 final : public IntrinsicVisitor {
 
   void HandleValueOf(HInvoke* invoke,
                      const IntrinsicVisitor::ValueOfInfo& info,
-                     DataType::Type primitive_type);
+                     DataType::Type type);
 
   CodeGeneratorARM64* const codegen_;
 
