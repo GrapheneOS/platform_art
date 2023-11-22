@@ -2110,7 +2110,7 @@ void UnstartedRuntime::UnstartedJNIUnsafePutObject(Thread* self,
                                                    mirror::Object* receiver,
                                                    uint32_t* args,
                                                    JValue* result) {
-  UnstartedJNIJdkUnsafePutObject(self, method, receiver, args, result);
+  UnstartedJNIJdkUnsafePutReference(self, method, receiver, args, result);
 }
 
 void UnstartedRuntime::UnstartedJNIUnsafeGetArrayBaseOffsetForComponentType(
@@ -2199,11 +2199,11 @@ void UnstartedRuntime::UnstartedJNIJdkUnsafeGetIntVolatile(
   result->SetI(obj->GetField32Volatile(MemberOffset(offset)));
 }
 
-void UnstartedRuntime::UnstartedJNIJdkUnsafePutObject(Thread* self,
-                                                      [[maybe_unused]] ArtMethod* method,
-                                                      [[maybe_unused]] mirror::Object* receiver,
-                                                      uint32_t* args,
-                                                      [[maybe_unused]] JValue* result) {
+void UnstartedRuntime::UnstartedJNIJdkUnsafePutReference(Thread* self,
+                                                         [[maybe_unused]] ArtMethod* method,
+                                                         [[maybe_unused]] mirror::Object* receiver,
+                                                         uint32_t* args,
+                                                         [[maybe_unused]] JValue* result) {
   ObjPtr<mirror::Object> obj = reinterpret_cast32<mirror::Object*>(args[0]);
   if (obj == nullptr) {
     AbortTransactionOrFail(self, "Unsafe.putObject with null object.");
