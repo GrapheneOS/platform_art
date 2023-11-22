@@ -6581,6 +6581,38 @@ void CodeGeneratorRISCV64::LoadBootImageRelRoEntry(XRegister dest, uint32_t boot
   EmitPcRelativeLwuPlaceholder(info_low, dest, dest);
 }
 
+void CodeGeneratorRISCV64::LoadBootImageAddress(XRegister dest, uint32_t boot_image_reference) {
+  if (GetCompilerOptions().IsBootImage()) {
+    PcRelativePatchInfo* info_high = NewBootImageIntrinsicPatch(boot_image_reference);
+    EmitPcRelativeAuipcPlaceholder(info_high, dest);
+    PcRelativePatchInfo* info_low = NewBootImageIntrinsicPatch(boot_image_reference, info_high);
+    EmitPcRelativeAddiPlaceholder(info_low, dest, dest);
+  } else if (GetCompilerOptions().GetCompilePic()) {
+    LoadBootImageRelRoEntry(dest, boot_image_reference);
+  } else {
+    DCHECK(GetCompilerOptions().IsJitCompiler());
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    DCHECK(!heap->GetBootImageSpaces().empty());
+    const uint8_t* address = heap->GetBootImageSpaces()[0]->Begin() + boot_image_reference;
+    // Note: Boot image is in the low 4GiB (usually the low 2GiB, requiring just LUI+ADDI).
+    // We may not have an available scratch register for `LoadConst64()` but it never
+    // emits better code than `Li()` for 32-bit unsigned constants anyway.
+    __ Li(dest, reinterpret_cast32<uint32_t>(address));
+  }
+}
+
+void CodeGeneratorRISCV64::LoadIntrinsicDeclaringClass(XRegister dest, HInvoke* invoke) {
+  DCHECK_NE(invoke->GetIntrinsic(), Intrinsics::kNone);
+  if (GetCompilerOptions().IsBootImage()) {
+    MethodReference target_method = invoke->GetResolvedMethodReference();
+    dex::TypeIndex type_idx = target_method.dex_file->GetMethodId(target_method.index).class_idx_;
+    LoadTypeForBootImageIntrinsic(dest, TypeReference(target_method.dex_file, type_idx));
+  } else {
+    uint32_t boot_image_offset = GetBootImageOffsetOfIntrinsicDeclaringClass(invoke);
+    LoadBootImageAddress(dest, boot_image_offset);
+  }
+}
+
 void CodeGeneratorRISCV64::LoadClassRootForIntrinsic(XRegister dest, ClassRoot class_root) {
   if (GetCompilerOptions().IsBootImage()) {
     ScopedObjectAccess soa(Thread::Current());
@@ -6589,15 +6621,7 @@ void CodeGeneratorRISCV64::LoadClassRootForIntrinsic(XRegister dest, ClassRoot c
     LoadTypeForBootImageIntrinsic(dest, target_type);
   } else {
     uint32_t boot_image_offset = GetBootImageOffset(class_root);
-    if (GetCompilerOptions().GetCompilePic()) {
-      LoadBootImageRelRoEntry(dest, boot_image_offset);
-    } else {
-      DCHECK(GetCompilerOptions().IsJitCompiler());
-      gc::Heap* heap = Runtime::Current()->GetHeap();
-      DCHECK(!heap->GetBootImageSpaces().empty());
-      const uint8_t* address = heap->GetBootImageSpaces()[0]->Begin() + boot_image_offset;
-      __ Loadwu(dest, DeduplicateBootImageAddressLiteral(reinterpret_cast<uintptr_t>(address)));
-    }
+    LoadBootImageAddress(dest, boot_image_offset);
   }
 }
 

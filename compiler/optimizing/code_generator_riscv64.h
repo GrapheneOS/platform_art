@@ -160,10 +160,6 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(CRC32UpdateByteBuffer)                      \
   V(MethodHandleInvokeExact)                    \
   V(MethodHandleInvoke)                         \
-  V(ByteValueOf)                                \
-  V(ShortValueOf)                               \
-  V(CharacterValueOf)                           \
-  V(IntegerValueOf)                             \
 
 // Method register on invoke.
 static const XRegister kArtMethodRegister = A0;
@@ -690,6 +686,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   void LoadTypeForBootImageIntrinsic(XRegister dest, TypeReference target_type);
   void LoadBootImageRelRoEntry(XRegister dest, uint32_t boot_image_offset);
+  void LoadBootImageAddress(XRegister dest, uint32_t boot_image_reference);
+  void LoadIntrinsicDeclaringClass(XRegister dest, HInvoke* invoke);
   void LoadClassRootForIntrinsic(XRegister dest, ClassRoot class_root);
 
   void LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke);
