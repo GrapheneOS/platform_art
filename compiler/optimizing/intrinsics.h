@@ -108,7 +108,7 @@ class IntrinsicVisitor : public ValueObject {
 
     ValueOfInfo();
 
-    // Offset of the Integer.value field for initializing a newly allocated instance.
+    // Offset of the value field of the boxed object for initializing a newly allocated instance.
     uint32_t value_offset;
     // The low value in the cache.
     int32_t low;
