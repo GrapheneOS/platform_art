@@ -126,6 +126,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafeCompareAndSetInt)                  \
   V(JdkUnsafeCompareAndSetLong)                 \
   V(JdkUnsafeCompareAndSetObject)               \
+  V(JdkUnsafeCompareAndSetReference)            \
   V(JdkUnsafeGet)                               \
   V(JdkUnsafeGetVolatile)                       \
   V(JdkUnsafeGetAcquire)                        \
