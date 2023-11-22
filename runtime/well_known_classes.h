@@ -142,6 +142,7 @@ struct WellKnownClasses {
   static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
   static ArtMethod* java_lang_invoke_MethodHandles_lookup;
   static ArtMethod* java_lang_invoke_MethodHandles_Lookup_findConstructor;
+  static ArtMethod* java_lang_invoke_MethodType_makeImpl;
   static ArtMethod* java_lang_ref_FinalizerReference_add;
   static ArtMethod* java_lang_ref_ReferenceQueue_add;
   static ArtMethod* java_lang_reflect_InvocationTargetException_init;
