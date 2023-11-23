@@ -42,9 +42,11 @@ static constexpr size_t kPageSize = 4096;
 static constexpr size_t kMinPageSize = 4096;
 
 #if defined(ART_PAGE_SIZE_AGNOSTIC)
+static constexpr bool kPageSizeAgnostic = true;
 // Maximum supported page size.
 static constexpr size_t kMaxPageSize = 16384;
 #else
+static constexpr bool kPageSizeAgnostic = false;
 // Maximum supported page size.
 static constexpr size_t kMaxPageSize = kMinPageSize;
 #endif

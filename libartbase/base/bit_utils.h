@@ -175,6 +175,15 @@ constexpr T RoundUp(T x, std::remove_reference_t<T> n) {
   return RoundDown(x + n - 1, n);
 }
 
+template<bool kRoundUp, typename T>
+constexpr T CondRoundUp(T x, std::remove_reference_t<T> n) {
+  if (kRoundUp) {
+    return RoundUp(x, n);
+  } else {
+    return x;
+  }
+}
+
 // For aligning pointers.
 template<typename T>
 inline T* AlignDown(T* x, uintptr_t n) WARN_UNUSED;
