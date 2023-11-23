@@ -50,7 +50,7 @@ MultiOatRelativePatcher::MultiOatRelativePatcher(InstructionSet instruction_set,
 }
 
 void MultiOatRelativePatcher::StartOatFile(uint32_t adjustment) {
-  DCHECK_ALIGNED(adjustment, kPageSize);
+  DCHECK_ALIGNED(adjustment, kElfSegmentAlignment);
   adjustment_ = adjustment;
 
   start_size_code_alignment_ = relative_patcher_->CodeAlignmentSize();
