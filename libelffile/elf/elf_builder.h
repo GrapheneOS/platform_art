@@ -202,7 +202,7 @@ class ElfBuilder final {
         std::vector<Section*>& sections = owner_->sections_;
         Elf_Word last = sections.empty() ? PF_R : sections.back()->phdr_flags_;
         if (phdr_flags_ != last) {
-          header_.sh_addralign = kPageSize;  // Page-align if R/W/X flags changed.
+          header_.sh_addralign = kElfSegmentAlignment;  // Page-align if R/W/X flags changed.
         }
         sections.push_back(this);
         section_index_ = sections.size();  // First ELF section has index 1.
@@ -460,16 +460,18 @@ class ElfBuilder final {
   ElfBuilder(InstructionSet isa, OutputStream* output)
       : isa_(isa),
         stream_(output),
-        rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-        text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0, kPageSize, 0),
-        data_bimg_rel_ro_(
-            this, ".data.bimg.rel.ro", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-        bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-        dex_(this, ".dex", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kPageSize, 0),
-        dynstr_(this, ".dynstr", SHF_ALLOC, kPageSize),
+        rodata_(this, ".rodata", SHT_PROGBITS, SHF_ALLOC, nullptr, 0, kElfSegmentAlignment, 0),
+        text_(this, ".text", SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, nullptr, 0,
+            kElfSegmentAlignment, 0),
+        data_bimg_rel_ro_(this, ".data.bimg.rel.ro", SHT_PROGBITS, SHF_ALLOC, nullptr, 0,
+            kElfSegmentAlignment, 0),
+        bss_(this, ".bss", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kElfSegmentAlignment, 0),
+        dex_(this, ".dex", SHT_NOBITS, SHF_ALLOC, nullptr, 0, kElfSegmentAlignment, 0),
+        dynstr_(this, ".dynstr", SHF_ALLOC, kElfSegmentAlignment),
         dynsym_(this, ".dynsym", SHT_DYNSYM, SHF_ALLOC, &dynstr_),
         hash_(this, ".hash", SHT_HASH, SHF_ALLOC, &dynsym_, 0, sizeof(Elf_Word), sizeof(Elf_Word)),
-        dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kPageSize, sizeof(Elf_Dyn)),
+        dynamic_(this, ".dynamic", SHT_DYNAMIC, SHF_ALLOC, &dynstr_, 0, kElfSegmentAlignment,
+            sizeof(Elf_Dyn)),
         strtab_(this, ".strtab", 0, 1),
         symtab_(this, ".symtab", SHT_SYMTAB, 0, &strtab_),
         debug_frame_(this, ".debug_frame", SHT_PROGBITS, 0, nullptr, 0, sizeof(Elf_Addr), 0),
@@ -540,7 +542,7 @@ class ElfBuilder final {
 
     // Note: loaded_size_ == 0 for tests that don't write .rodata, .text, .bss,
     // .dynstr, dynsym, .hash and .dynamic. These tests should not read loaded_size_.
-    CHECK(loaded_size_ == 0 || loaded_size_ == RoundUp(virtual_address_, kPageSize))
+    CHECK(loaded_size_ == 0 || loaded_size_ == RoundUp(virtual_address_, kElfSegmentAlignment))
         << loaded_size_ << " " << virtual_address_;
 
     // Write section names and finish the section headers.
@@ -615,7 +617,8 @@ class ElfBuilder final {
         section->section_index_ = 0;
       } else {
         if (section->header_.sh_type != SHT_NOBITS) {
-          DCHECK_LE(section->header_.sh_offset, end + kPageSize) << "Large gap between sections";
+          DCHECK_LE(section->header_.sh_offset, end + kElfSegmentAlignment)
+              << "Large gap between sections";
           end = std::max<off_t>(end, section->header_.sh_offset + section->header_.sh_size);
         }
         non_debug_sections.push_back(section);
@@ -767,7 +770,7 @@ class ElfBuilder final {
     dynamic_.Add(&dyns, sizeof(dyns));
     dynamic_.AllocateVirtualMemory(dynamic_.GetCacheSize());
 
-    loaded_size_ = RoundUp(virtual_address_, kPageSize);
+    loaded_size_ = RoundUp(virtual_address_, kElfSegmentAlignment);
   }
 
   void WriteDynamicSection() {
@@ -906,7 +909,7 @@ class ElfBuilder final {
       load.p_flags   = PF_R;
       load.p_offset  = load.p_vaddr = load.p_paddr = 0;
       load.p_filesz  = load.p_memsz = sizeof(Elf_Ehdr) + sizeof(Elf_Phdr) * kMaxProgramHeaders;
-      load.p_align   = kPageSize;
+      load.p_align   = kElfSegmentAlignment;
       phdrs.push_back(load);
     }
     // Create program headers for sections.
@@ -936,7 +939,7 @@ class ElfBuilder final {
           prev.p_memsz  = size;
         } else {
           // If we are adding new load, it must be aligned.
-          CHECK_EQ(shdr.sh_addralign, (Elf_Word)kPageSize);
+          CHECK_EQ(shdr.sh_addralign, (Elf_Word)kElfSegmentAlignment);
           phdrs.push_back(load);
         }
       }

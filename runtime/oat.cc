@@ -100,7 +100,7 @@ bool OatHeader::IsValid() const {
   if (version_ != kOatVersion) {
     return false;
   }
-  if (!IsAligned<kPageSize>(executable_offset_)) {
+  if (!IsAligned<kElfSegmentAlignment>(executable_offset_)) {
     return false;
   }
   if (!IsValidInstructionSet(instruction_set_)) {
@@ -122,8 +122,8 @@ std::string OatHeader::GetValidationErrorMessage() const {
                         kOatVersion[0], kOatVersion[1], kOatVersion[2], kOatVersion[3],
                         version_[0], version_[1], version_[2], version_[3]);
   }
-  if (!IsAligned<kPageSize>(executable_offset_)) {
-    return "Executable offset not page-aligned.";
+  if (!IsAligned<kElfSegmentAlignment>(executable_offset_)) {
+    return "Executable offset not properly aligned.";
   }
   if (!IsValidInstructionSet(instruction_set_)) {
     return StringPrintf("Invalid instruction set, %d.", static_cast<int>(instruction_set_));
@@ -199,13 +199,13 @@ void OatHeader::SetBcpBssInfoOffset(uint32_t bcp_info_offset) {
 
 uint32_t OatHeader::GetExecutableOffset() const {
   DCHECK(IsValid());
-  DCHECK_ALIGNED(executable_offset_, kPageSize);
+  DCHECK_ALIGNED(executable_offset_, kElfSegmentAlignment);
   CHECK_GT(executable_offset_, sizeof(OatHeader));
   return executable_offset_;
 }
 
 void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
-  DCHECK_ALIGNED(executable_offset, kPageSize);
+  DCHECK_ALIGNED(executable_offset, kElfSegmentAlignment);
   CHECK_GT(executable_offset, sizeof(OatHeader));
   DCHECK(IsValid());
   DCHECK_EQ(executable_offset_, 0U);
