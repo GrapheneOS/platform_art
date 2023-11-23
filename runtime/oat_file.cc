@@ -1423,8 +1423,8 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
       // PROT_NONE. We need to unmap the memory when destroying this oat file.
       // The reserved memory size is aligned up to kElfSegmentAlignment to ensure
       // that the next reserved area will be aligned to the value.
-      dlopen_mmaps_.push_back(reservation->TakeReservedMemory(RoundUp(context.max_size,
-          kElfSegmentAlignment)));
+      dlopen_mmaps_.push_back(reservation->TakeReservedMemory(
+          CondRoundUp<kPageSizeAgnostic>(context.max_size, kElfSegmentAlignment)));
     }
 #else
     static_assert(!kIsTargetBuild || kIsTargetLinux || kIsTargetFuchsia,
