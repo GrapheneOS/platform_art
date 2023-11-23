@@ -114,8 +114,8 @@ class Dex2oatImageTest : public CommonRuntimeTest {
     // Extend to both directions for maximum relocation difference.
     static_assert(ART_BASE_ADDRESS_MIN_DELTA < 0);
     static_assert(ART_BASE_ADDRESS_MAX_DELTA > 0);
-    static_assert(IsAligned<kPageSize>(ART_BASE_ADDRESS_MIN_DELTA));
-    static_assert(IsAligned<kPageSize>(ART_BASE_ADDRESS_MAX_DELTA));
+    static_assert(IsAligned<kElfSegmentAlignment>(ART_BASE_ADDRESS_MIN_DELTA));
+    static_assert(IsAligned<kElfSegmentAlignment>(ART_BASE_ADDRESS_MAX_DELTA));
     constexpr size_t kExtra = ART_BASE_ADDRESS_MAX_DELTA - ART_BASE_ADDRESS_MIN_DELTA;
     uint32_t min_relocated_address = kBaseAddress + ART_BASE_ADDRESS_MIN_DELTA;
     return MemMap::MapAnonymous("Reservation",
