@@ -1002,7 +1002,8 @@ class ImageSpace::Loader {
       // The reserved memory size is aligned up to kElfSegmentAlignment to ensure
       // that the next reserved area will be aligned to the value.
       return MemMap::MapFileAtAddress(address,
-                                      RoundUp(image_header.GetImageSize(), kElfSegmentAlignment),
+                                      CondRoundUp<kPageSizeAgnostic>(image_header.GetImageSize(),
+                                                                     kElfSegmentAlignment),
                                       PROT_READ | PROT_WRITE,
                                       MAP_PRIVATE,
                                       fd,
@@ -1018,7 +1019,8 @@ class ImageSpace::Loader {
     // The reserved memory size is aligned up to kElfSegmentAlignment to ensure
     // that the next reserved area will be aligned to the value.
     MemMap map = MemMap::MapAnonymous(image_location,
-                                      RoundUp(image_header.GetImageSize(), kElfSegmentAlignment),
+                                      CondRoundUp<kPageSizeAgnostic>(image_header.GetImageSize(),
+                                                                     kElfSegmentAlignment),
                                       PROT_READ | PROT_WRITE,
                                       /*low_4gb=*/ true,
                                       image_reservation,
