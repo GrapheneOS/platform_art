@@ -112,8 +112,8 @@ class RuntimeImageHelper {
     // size, relocate native pointers inside classes and ImTables.
     RelocateNativePointers();
 
-    // Generate the bitmap section, stored page aligned after the sections data and of size
-    // `object_section_size_` rounded up to kCardSize to match the bitmap size expected by
+    // Generate the bitmap section, stored kElfSegmentAlignment-aligned after the sections data and
+    // of size `object_section_size_` rounded up to kCardSize to match the bitmap size expected by
     // Loader::Init at art::gc::space::ImageSpace.
     size_t sections_end = sections_[ImageHeader::kSectionMetadata].End();
     image_bitmap_ = gc::accounting::ContinuousSpaceBitmap::Create(
@@ -127,10 +127,11 @@ class RuntimeImageHelper {
     }
     const size_t bitmap_bytes = image_bitmap_.Size();
     auto* bitmap_section = &sections_[ImageHeader::kSectionImageBitmap];
-    // Bitmap section size doesn't have to be rounded up as it is located at the end of the file.
-    // When mapped to memory, if the last page of the mapping is only partially filled with data,
-    // the rest will be zero-filled.
-    *bitmap_section = ImageSection(RoundUp(sections_end, kPageSize), bitmap_bytes);
+    // The offset of the bitmap section should be aligned to kElfSegmentAlignment to enable mapping
+    // the section from file to memory. However the section size doesn't have to be rounded up as
+    // it is located at the end of the file. When mapping file contents to memory, if the last page
+    // of the mapping is only partially filled with data, the rest will be zero-filled.
+    *bitmap_section = ImageSection(RoundUp(sections_end, kElfSegmentAlignment), bitmap_bytes);
 
     // Compute boot image checksum and boot image components, to be stored in
     // the header.
@@ -147,7 +148,7 @@ class RuntimeImageHelper {
     }
 
     header_ = ImageHeader(
-        /* image_reservation_size= */ RoundUp(sections_end, kPageSize),
+        /* image_reservation_size= */ RoundUp(sections_end, kElfSegmentAlignment),
         /* component_count= */ 1,
         image_begin_,
         sections_end,

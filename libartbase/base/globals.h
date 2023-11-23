@@ -49,6 +49,12 @@ static constexpr size_t kMaxPageSize = 16384;
 static constexpr size_t kMaxPageSize = kMinPageSize;
 #endif
 
+// Targets can have different page size (eg. 4kB or 16kB). Because Art can crosscompile, it needs
+// to be able to generate OAT (ELF) and other image files with alignment other than the host page
+// size. kElfSegmentAlignment needs to be equal to the largest page size supported. Effectively,
+// this is the value to be used in images files for aligning contents to page size.
+static constexpr size_t kElfSegmentAlignment = kMaxPageSize;
+
 // TODO: Kernels for arm and x86 in both, 32-bit and 64-bit modes use 512 entries per page-table
 // page. Find a way to confirm that in userspace.
 // Address range covered by 1 Page Middle Directory (PMD) entry in the page table
