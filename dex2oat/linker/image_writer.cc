@@ -2820,8 +2820,9 @@ const void* ImageWriter::GetIntrinsicReferenceAddress(uint32_t intrinsic_data) {
     }
     case IntrinsicObjects::PatchType::kValueOfObject: {
       uint32_t index = IntrinsicObjects::DecodePatchIndex(intrinsic_data);
-      ObjPtr<mirror::Object> value =
-          IntrinsicObjects::GetValueOfObject(boot_image_live_objects_, /* start_index= */ 0u, index);
+      ObjPtr<mirror::Object> value = IntrinsicObjects::GetValueOfObject(boot_image_live_objects_,
+                                                                        /* start_index= */ 0u,
+                                                                        index);
       return GetImageAddress(value.Ptr());
     }
   }

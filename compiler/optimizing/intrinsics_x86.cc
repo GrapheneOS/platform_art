@@ -2187,6 +2187,10 @@ void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCompareAndSetObject(HInvoke* in
   CreateIntIntIntIntIntToInt(allocator_, codegen_, DataType::Type::kReference, invoke);
 }
 
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
+
 static void GenPrimitiveLockedCmpxchg(DataType::Type type,
                                       CodeGeneratorX86* codegen,
                                       Location expected_value,
@@ -2451,6 +2455,10 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafeCompareAndSetObject(HInvoke* invok
   DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenCAS(DataType::Type::kReference, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 void IntrinsicLocationsBuilderX86::VisitIntegerReverse(HInvoke* invoke) {
@@ -3298,13 +3306,13 @@ static void RequestBaseMethodAddressInRegister(HInvoke* invoke) {
   } \
   void IntrinsicCodeGeneratorX86::Visit ##name ##ValueOf(HInvoke* invoke) { \
     IntrinsicVisitor::ValueOfInfo info = \
-      IntrinsicVisitor::ComputeValueOfInfo( \
-          invoke, \
-          codegen_->GetCompilerOptions(), \
-          WellKnownClasses::java_lang_ ##name ##_value, \
-          low, \
-          high - low + 1, \
-          start_index); \
+        IntrinsicVisitor::ComputeValueOfInfo( \
+            invoke, \
+            codegen_->GetCompilerOptions(), \
+            WellKnownClasses::java_lang_ ##name ##_value, \
+            low, \
+            high - low + 1, \
+            start_index); \
     HandleValueOf(invoke, info, type); \
   }
   BOXED_TYPES(VISIT_INTRINSIC)
@@ -3312,7 +3320,7 @@ static void RequestBaseMethodAddressInRegister(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorX86::HandleValueOf(HInvoke* invoke,
                                               const IntrinsicVisitor::ValueOfInfo& info,
-                                              DataType::Type primitive_type) {
+                                              DataType::Type type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
   LocationSummary* locations = invoke->GetLocations();
   X86Assembler* assembler = GetAssembler();
@@ -3324,7 +3332,7 @@ void IntrinsicCodeGeneratorX86::HandleValueOf(HInvoke* invoke,
     codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
-  if (invoke->InputAt(0)->IsConstant()) {
+  if (invoke->InputAt(0)->IsIntConstant()) {
     int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
       // Just embed the object in the code.
@@ -3337,7 +3345,7 @@ void IntrinsicCodeGeneratorX86::HandleValueOf(HInvoke* invoke,
       // TODO: If we JIT, we could allocate the object now, and store it in the
       // JIT object table.
       allocate_instance();
-      codegen_->MoveToMemory(primitive_type,
+      codegen_->MoveToMemory(type,
                              Location::ConstantLocation(invoke->InputAt(0)->AsIntConstant()),
                              out,
                              /* dst_index= */ Register::kNoRegister,
@@ -3382,7 +3390,7 @@ void IntrinsicCodeGeneratorX86::HandleValueOf(HInvoke* invoke,
     __ Bind(&allocate);
     // Otherwise allocate and initialize a new object.
     allocate_instance();
-    codegen_->MoveToMemory(primitive_type,
+    codegen_->MoveToMemory(type,
                            Location::RegisterLocation(in),
                            out,
                            /* dst_index= */ Register::kNoRegister,

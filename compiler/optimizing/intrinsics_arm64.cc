@@ -1551,6 +1551,9 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* 
     }
   }
 }
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeCASInt(HInvoke* invoke) {
   VisitJdkUnsafeCASInt(invoke);
@@ -1586,6 +1589,9 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* inv
   DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
+}
+void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 enum class GetAndUpdateOp {
@@ -3484,13 +3490,13 @@ void IntrinsicCodeGeneratorARM64::VisitDoubleIsInfinite(HInvoke* invoke) {
   } \
   void IntrinsicCodeGeneratorARM64::Visit ##name ##ValueOf(HInvoke* invoke) { \
     IntrinsicVisitor::ValueOfInfo info = \
-      IntrinsicVisitor::ComputeValueOfInfo( \
-          invoke, \
-          codegen_->GetCompilerOptions(), \
-          WellKnownClasses::java_lang_ ##name ##_value, \
-          low, \
-          high - low + 1, \
-          start_index); \
+        IntrinsicVisitor::ComputeValueOfInfo( \
+            invoke, \
+            codegen_->GetCompilerOptions(), \
+            WellKnownClasses::java_lang_ ##name ##_value, \
+            low, \
+            high - low + 1, \
+            start_index); \
     HandleValueOf(invoke, info, type); \
   }
   BOXED_TYPES(VISIT_INTRINSIC)
@@ -3498,7 +3504,7 @@ void IntrinsicCodeGeneratorARM64::VisitDoubleIsInfinite(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorARM64::HandleValueOf(HInvoke* invoke,
                                                 const IntrinsicVisitor::ValueOfInfo& info,
-                                                DataType::Type primitive_type) {
+                                                DataType::Type type) {
   LocationSummary* locations = invoke->GetLocations();
   MacroAssembler* masm = GetVIXLAssembler();
 
@@ -3511,10 +3517,10 @@ void IntrinsicCodeGeneratorARM64::HandleValueOf(HInvoke* invoke,
     codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
-  if (invoke->InputAt(0)->IsConstant()) {
+  if (invoke->InputAt(0)->IsIntConstant()) {
     int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
-      // Just embed the j.l.Integer in the code.
+      // Just embed the object in the code.
       DCHECK_NE(info.value_boot_image_reference, ValueOfInfo::kInvalidReference);
       codegen_->LoadBootImageAddress(out, info.value_boot_image_reference);
     } else {
@@ -3524,7 +3530,7 @@ void IntrinsicCodeGeneratorARM64::HandleValueOf(HInvoke* invoke,
       // JIT object table.
       allocate_instance();
       __ Mov(temp.W(), value);
-      codegen_->Store(primitive_type, temp.W(), HeapOperand(out.W(), info.value_offset));
+      codegen_->Store(type, temp.W(), HeapOperand(out.W(), info.value_offset));
       // Class pointer and `value` final field stores require a barrier before publication.
       codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
     }
@@ -3546,7 +3552,7 @@ void IntrinsicCodeGeneratorARM64::HandleValueOf(HInvoke* invoke,
     __ Bind(&allocate);
     // Otherwise allocate and initialize a new object.
     allocate_instance();
-    codegen_->Store(primitive_type, in.W(), HeapOperand(out.W(), info.value_offset));
+    codegen_->Store(type, in.W(), HeapOperand(out.W(), info.value_offset));
     // Class pointer and `value` final field stores require a barrier before publication.
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
     __ Bind(&done);

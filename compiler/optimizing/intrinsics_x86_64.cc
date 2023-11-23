@@ -2307,6 +2307,9 @@ void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetObject(HInvoke*
 
   CreateUnsafeCASLocations(allocator_, invoke, codegen_, DataType::Type::kReference);
 }
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
 
 // Convert ZF into the Boolean result.
 static inline void GenZFlagToResult(X86_64Assembler* assembler, CpuRegister out) {
@@ -2630,6 +2633,10 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetObject(HInvoke* in
   DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
 
   GenCAS(DataType::Type::kReference, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitIntegerReverse(HInvoke* invoke) {
@@ -3069,13 +3076,13 @@ void IntrinsicCodeGeneratorX86_64::VisitLongNumberOfTrailingZeros(HInvoke* invok
   } \
   void IntrinsicCodeGeneratorX86_64::Visit ##name ##ValueOf(HInvoke* invoke) { \
     IntrinsicVisitor::ValueOfInfo info = \
-      IntrinsicVisitor::ComputeValueOfInfo( \
-          invoke, \
-          codegen_->GetCompilerOptions(), \
-          WellKnownClasses::java_lang_ ##name ##_value, \
-          low, \
-          high - low + 1, \
-          start_index); \
+        IntrinsicVisitor::ComputeValueOfInfo( \
+            invoke, \
+            codegen_->GetCompilerOptions(), \
+            WellKnownClasses::java_lang_ ##name ##_value, \
+            low, \
+            high - low + 1, \
+            start_index); \
     HandleValueOf(invoke, info, type); \
   }
   BOXED_TYPES(VISIT_INTRINSIC)
@@ -3109,7 +3116,7 @@ static void Store(X86_64Assembler* assembler,
 
 void IntrinsicCodeGeneratorX86_64::HandleValueOf(HInvoke* invoke,
                                                  const IntrinsicVisitor::ValueOfInfo& info,
-                                                 DataType::Type primitive_type) {
+                                                 DataType::Type type) {
   LocationSummary* locations = invoke->GetLocations();
   X86_64Assembler* assembler = GetAssembler();
 
@@ -3121,19 +3128,19 @@ void IntrinsicCodeGeneratorX86_64::HandleValueOf(HInvoke* invoke,
     codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
   };
-  if (invoke->InputAt(0)->IsConstant()) {
+  if (invoke->InputAt(0)->IsIntConstant()) {
     int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
     if (static_cast<uint32_t>(value - info.low) < info.length) {
-      // Just embed the j.l.Integer in the code.
+      // Just embed the object in the code.
       DCHECK_NE(info.value_boot_image_reference, ValueOfInfo::kInvalidReference);
       codegen_->LoadBootImageAddress(out, info.value_boot_image_reference);
     } else {
       DCHECK(locations->CanCall());
-      // Allocate and initialize a new j.l.Integer.
+      // Allocate and initialize a new object.
       // TODO: If we JIT, we could allocate the boxed value now, and store it in the
       // JIT object table.
       allocate_instance();
-      Store(assembler, primitive_type, Address(out, info.value_offset), Immediate(value));
+      Store(assembler, type, Address(out, info.value_offset), Immediate(value));
     }
   } else {
     DCHECK(locations->CanCall());
@@ -3154,7 +3161,7 @@ void IntrinsicCodeGeneratorX86_64::HandleValueOf(HInvoke* invoke,
     __ Bind(&allocate);
     // Otherwise allocate and initialize a new object.
     allocate_instance();
-    Store(assembler, primitive_type, Address(out, info.value_offset), in);
+    Store(assembler, type, Address(out, info.value_offset), in);
     __ Bind(&done);
   }
 }

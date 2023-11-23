@@ -171,6 +171,7 @@ static inline bool IsUnsafeCASObject(HInvoke* invoke) {
     case Intrinsics::kUnsafeCASObject:
     case Intrinsics::kJdkUnsafeCASObject:
     case Intrinsics::kJdkUnsafeCompareAndSetObject:
+    case Intrinsics::kJdkUnsafeCompareAndSetReference:
       return true;
     default:
       return false;

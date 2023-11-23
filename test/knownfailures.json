@@ -439,6 +439,7 @@
     },
     {
         "test_patterns": [
+            ".*const-method-type.*",
             ".*invoke-custom.*",
             ".*invoke-polymorphic.*",
             ".*methodhandle.*",
@@ -1546,7 +1547,7 @@
     },
     {
         "tests": ["1921-suspend-native-recursive-monitor"],
-        "description": ["Change of behavior when used with JDK 17."],
+        "description": ["RawMonitorEnter behaves differently on ART and RI since JDK17"],
         "bug": "b/242985234",
         "variant": "jvm"
     },
