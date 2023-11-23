@@ -125,14 +125,13 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafeCASObject)                         \
   V(JdkUnsafeCompareAndSetInt)                  \
   V(JdkUnsafeCompareAndSetLong)                 \
-  V(JdkUnsafeCompareAndSetObject)               \
   V(JdkUnsafeCompareAndSetReference)            \
   V(JdkUnsafeGet)                               \
   V(JdkUnsafeGetVolatile)                       \
   V(JdkUnsafeGetAcquire)                        \
-  V(JdkUnsafeGetObject)                         \
-  V(JdkUnsafeGetObjectVolatile)                 \
-  V(JdkUnsafeGetObjectAcquire)                  \
+  V(JdkUnsafeGetReference)                      \
+  V(JdkUnsafeGetReferenceVolatile)              \
+  V(JdkUnsafeGetReferenceAcquire)               \
   V(JdkUnsafeGetLong)                           \
   V(JdkUnsafeGetLongVolatile)                   \
   V(JdkUnsafeGetLongAcquire)                    \
@@ -140,10 +139,10 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafePutOrdered)                        \
   V(JdkUnsafePutRelease)                        \
   V(JdkUnsafePutVolatile)                       \
-  V(JdkUnsafePutObject)                         \
+  V(JdkUnsafePutReference)                      \
   V(JdkUnsafePutObjectOrdered)                  \
-  V(JdkUnsafePutObjectVolatile)                 \
-  V(JdkUnsafePutObjectRelease)                  \
+  V(JdkUnsafePutReferenceVolatile)              \
+  V(JdkUnsafePutReferenceRelease)               \
   V(JdkUnsafePutLong)                           \
   V(JdkUnsafePutLongOrdered)                    \
   V(JdkUnsafePutLongVolatile)                   \
@@ -152,7 +151,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafeGetAndAddLong)                     \
   V(JdkUnsafeGetAndSetInt)                      \
   V(JdkUnsafeGetAndSetLong)                     \
-  V(JdkUnsafeGetAndSetObject)                   \
+  V(JdkUnsafeGetAndSetReference)                \
   V(ReferenceGetReferent)                       \
   V(ReferenceRefersTo)                          \
   V(ThreadInterrupted)                          \

@@ -121,7 +121,7 @@
   V(JdkUnsafeCompareAndSetInt, "Ljdk/internal/misc/Unsafe;", "compareAndSetInt", "(Ljava/lang/Object;JII)Z") \
   V(JdkUnsafeCompareAndSwapInt, "Ljdk/internal/misc/Unsafe;", "compareAndSwapInt", "(Ljava/lang/Object;JII)Z") \
   V(JdkUnsafeGetIntVolatile, "Ljdk/internal/misc/Unsafe;", "getIntVolatile", "(Ljava/lang/Object;J)I") \
-  V(JdkUnsafePutObject, "Ljdk/internal/misc/Unsafe;", "putObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
+  V(JdkUnsafePutReference, "Ljdk/internal/misc/Unsafe;", "putReference", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(JdkUnsafeStoreFence, "Ljdk/internal/misc/Unsafe;", "storeFence", "()V") \
   V(JdkUnsafeGetArrayBaseOffsetForComponentType, "Ljdk/internal/misc/Unsafe;", "getArrayBaseOffsetForComponentType", "(Ljava/lang/Class;)I") \
   V(JdkUnsafeGetArrayIndexScaleForComponentType, "Ljdk/internal/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I") \
