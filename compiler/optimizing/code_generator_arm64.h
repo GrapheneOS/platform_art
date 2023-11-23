@@ -156,7 +156,7 @@ Location ARM64ReturnLocation(DataType::Type return_type);
   V(JdkUnsafeGetAndAddLong)                   \
   V(JdkUnsafeGetAndSetInt)                    \
   V(JdkUnsafeGetAndSetLong)                   \
-  V(JdkUnsafeGetAndSetObject)
+  V(JdkUnsafeGetAndSetReference)
 
 class SlowPathCodeARM64 : public SlowPathCode {
  public:

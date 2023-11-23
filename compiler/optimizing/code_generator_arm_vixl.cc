@@ -817,7 +817,9 @@ class ReadBarrierForHeapReferenceSlowPathARMVIXL : public SlowPathCodeARMVIXL {
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
         HInvoke* invoke = instruction_->AsInvoke();
-        DCHECK(IsUnsafeGetObject(invoke) || IsVarHandleGet(invoke) || IsVarHandleCASFamily(invoke))
+        DCHECK(IsUnsafeGetReference(invoke) ||
+               IsVarHandleGet(invoke) ||
+               IsVarHandleCASFamily(invoke))
             << invoke->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
         // Though UnsafeGet's offset location is a register pair, we only pass the low

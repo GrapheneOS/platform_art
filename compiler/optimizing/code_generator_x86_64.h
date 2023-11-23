@@ -99,7 +99,7 @@ static constexpr FloatRegister non_volatile_xmm_regs[] = { XMM12, XMM13, XMM14, 
   V(JdkUnsafeGetAndAddLong)                    \
   V(JdkUnsafeGetAndSetInt)                     \
   V(JdkUnsafeGetAndSetLong)                    \
-  V(JdkUnsafeGetAndSetObject)
+  V(JdkUnsafeGetAndSetReference)
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:

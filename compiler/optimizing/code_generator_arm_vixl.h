@@ -175,7 +175,7 @@ using VIXLUInt32Literal = vixl::aarch32::Literal<uint32_t>;
   V(JdkUnsafeGetAndAddLong)                                                \
   V(JdkUnsafeGetAndSetInt)                                                 \
   V(JdkUnsafeGetAndSetLong)                                                \
-  V(JdkUnsafeGetAndSetObject)                                              \
+  V(JdkUnsafeGetAndSetReference)                                           \
   V(JdkUnsafeCompareAndSetLong)
 
 ALWAYS_INLINE inline StoreOperandType GetStoreOperandType(DataType::Type type) {
