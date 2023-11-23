@@ -247,7 +247,7 @@ static void VerifyBootImagesContiguity(const std::vector<gc::space::ImageSpace*>
       const ImageHeader& current_header = image_spaces[i + j]->GetImageHeader();
       CHECK_EQ(current_heap, image_spaces[i + j]->Begin());
       CHECK_EQ(current_oat, current_header.GetOatFileBegin());
-      current_heap += RoundUp(current_header.GetImageSize(), kPageSize);
+      current_heap += RoundUp(current_header.GetImageSize(), kElfSegmentAlignment);
       CHECK_GT(current_header.GetOatFileEnd(), current_header.GetOatFileBegin());
       current_oat = current_header.GetOatFileEnd();
     }

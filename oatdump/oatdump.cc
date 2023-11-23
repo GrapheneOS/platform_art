@@ -1950,7 +1950,7 @@ class ImageDumper {
     CHECK_ALIGNED(image_header_.GetFieldsSection().Offset(), 4);
     CHECK_ALIGNED_PARAM(image_header_.GetMethodsSection().Offset(), pointer_size);
     CHECK_ALIGNED(image_header_.GetInternedStringsSection().Offset(), 8);
-    CHECK_ALIGNED(image_header_.GetImageBitmapSection().Offset(), kPageSize);
+    CHECK_ALIGNED(image_header_.GetImageBitmapSection().Offset(), kElfSegmentAlignment);
 
     for (size_t i = 0; i < ImageHeader::ImageSections::kSectionCount; i++) {
       ImageHeader::ImageSections index = ImageHeader::ImageSections(i);
