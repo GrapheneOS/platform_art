@@ -1552,12 +1552,6 @@
         "variant": "jvm"
     },
     {
-        "tests": ["2246-trace-stream"],
-        "env_vars": {"ART_TEST_DEBUG_GC": "true"},
-        "bug": "b/264844668",
-        "description": ["Test timing out on debug gc."]
-    },
-    {
         "tests": ["845-data-image", "846-multidex-data-image"],
         "variant": "debuggable | trace | stream",
         "description": ["Runtime app images are not supported with debuggable."]
