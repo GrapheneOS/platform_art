@@ -17,7 +17,9 @@
 #include "intrinsics_riscv64.h"
 
 #include "code_generator_riscv64.h"
+#include "intrinsic_objects.h"
 #include "intrinsics_utils.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 namespace riscv64 {
@@ -471,6 +473,88 @@ void IntrinsicLocationsBuilderRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* i
 void IntrinsicCodeGeneratorRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
   Riscv64Assembler* assembler = GetAssembler();
   EmitIntegralUnOp(invoke, [&](XRegister rd, XRegister rs1) { __ Ctz(rd, rs1); });
+}
+
+#define VISIT_INTRINSIC(name, low, high, type, start_index) \
+  void IntrinsicLocationsBuilderRISCV64::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    InvokeRuntimeCallingConvention calling_convention; \
+    IntrinsicVisitor::ComputeValueOfLocations( \
+        invoke, \
+        codegen_, \
+        low, \
+        high - low + 1, \
+        calling_convention.GetReturnLocation(DataType::Type::kReference), \
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0))); \
+  } \
+  void IntrinsicCodeGeneratorRISCV64::Visit ##name ##ValueOf(HInvoke* invoke) { \
+    IntrinsicVisitor::ValueOfInfo info = \
+        IntrinsicVisitor::ComputeValueOfInfo( \
+            invoke, \
+            codegen_->GetCompilerOptions(), \
+            WellKnownClasses::java_lang_ ##name ##_value, \
+            low, \
+            high - low + 1, \
+            start_index); \
+    HandleValueOf(invoke, info, type); \
+  }
+  BOXED_TYPES(VISIT_INTRINSIC)
+#undef VISIT_INTRINSIC
+
+void IntrinsicCodeGeneratorRISCV64::HandleValueOf(HInvoke* invoke,
+                                                  const IntrinsicVisitor::ValueOfInfo& info,
+                                                  DataType::Type type) {
+  Riscv64Assembler* assembler = codegen_->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  ScratchRegisterScope srs(assembler);
+  XRegister temp = srs.AllocateXRegister();
+  auto allocate_instance = [&]() {
+    DCHECK_EQ(out, InvokeRuntimeCallingConvention().GetRegisterAt(0));
+    codegen_->LoadIntrinsicDeclaringClass(out, invoke);
+    codegen_->InvokeRuntime(kQuickAllocObjectInitialized, invoke, invoke->GetDexPc());
+    CheckEntrypointTypes<kQuickAllocObjectWithChecks, void*, mirror::Class*>();
+  };
+  if (invoke->InputAt(0)->IsIntConstant()) {
+    int32_t value = invoke->InputAt(0)->AsIntConstant()->GetValue();
+    if (static_cast<uint32_t>(value - info.low) < info.length) {
+      // Just embed the object in the code.
+      DCHECK_NE(info.value_boot_image_reference, ValueOfInfo::kInvalidReference);
+      codegen_->LoadBootImageAddress(out, info.value_boot_image_reference);
+    } else {
+      DCHECK(locations->CanCall());
+      // Allocate and initialize a new object.
+      // TODO: If we JIT, we could allocate the object now, and store it in the
+      // JIT object table.
+      allocate_instance();
+      __ Li(temp, value);
+      codegen_->GetInstructionVisitor()->Store(
+          Location::RegisterLocation(temp), out, info.value_offset, type);
+      // Class pointer and `value` final field stores require a barrier before publication.
+      codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    }
+  } else {
+    DCHECK(locations->CanCall());
+    XRegister in = locations->InAt(0).AsRegister<XRegister>();
+    Riscv64Label allocate, done;
+    // Check bounds of our cache.
+    __ AddConst32(out, in, -info.low);
+    __ Li(temp, info.length);
+    __ Bgeu(out, temp, &allocate);
+    // If the value is within the bounds, load the object directly from the array.
+    codegen_->LoadBootImageAddress(temp, info.array_data_boot_image_reference);
+    __ Sh2Add(temp, out, temp);
+    __ Loadwu(out, temp, 0);
+    codegen_->MaybeUnpoisonHeapReference(out);
+    __ J(&done);
+    __ Bind(&allocate);
+    // Otherwise allocate and initialize a new object.
+    allocate_instance();
+    codegen_->GetInstructionVisitor()->Store(
+        Location::RegisterLocation(in), out, info.value_offset, type);
+    // Class pointer and `value` final field stores require a barrier before publication.
+    codegen_->GenerateMemoryBarrier(MemBarrierKind::kStoreStore);
+    __ Bind(&done);
+  }
 }
 
 static void GenerateVisitStringIndexOf(HInvoke* invoke,
