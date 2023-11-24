@@ -1066,11 +1066,11 @@ bool InductionVarRange::GenerateRangeOrLastValue(const HBasicBlock* context,
         if (*stride_value > 0) {
           lower = nullptr;
           return GenerateLastValueLinear(
-              context, loop, info, trip, graph, block, /*is_min=*/false, upper);
+              context, loop, info, trip, graph, block, /*is_min=*/false, upper, needs_taken_test);
         } else {
           upper = nullptr;
           return GenerateLastValueLinear(
-              context, loop, info, trip, graph, block, /*is_min=*/true, lower);
+              context, loop, info, trip, graph, block, /*is_min=*/true, lower, needs_taken_test);
         }
       case HInductionVarAnalysis::kPolynomial:
         return GenerateLastValuePolynomial(context, loop, info, trip, graph, block, lower);
@@ -1124,7 +1124,8 @@ bool InductionVarRange::GenerateLastValueLinear(const HBasicBlock* context,
                                                 HGraph* graph,
                                                 HBasicBlock* block,
                                                 bool is_min,
-                                                /*out*/ HInstruction** result) const {
+                                                /*out*/ HInstruction** result,
+                                                /*inout*/ bool* needs_taken_test) const {
   DataType::Type type = info->type;
   // Avoid any narrowing linear induction or any type mismatch between the linear induction and the
   // trip count expression.
@@ -1172,6 +1173,15 @@ bool InductionVarRange::GenerateLastValueLinear(const HBasicBlock* context,
     }
     *result = Insert(block, oper);
   }
+
+  if (*needs_taken_test) {
+    if (TryGenerateTakenTest(context, loop, trip->op_b, graph, block, result, opb)) {
+      *needs_taken_test = false;  // taken care of
+    } else {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1308,8 +1318,8 @@ bool InductionVarRange::GenerateLastValuePeriodic(const HBasicBlock* context,
                                                   HInductionVarAnalysis::InductionInfo* trip,
                                                   HGraph* graph,
                                                   HBasicBlock* block,
-                                                  /*out*/HInstruction** result,
-                                                  /*out*/bool* needs_taken_test) const {
+                                                  /*out*/ HInstruction** result,
+                                                  /*inout*/ bool* needs_taken_test) const {
   DCHECK(info != nullptr);
   DCHECK_EQ(info->induction_class, HInductionVarAnalysis::kPeriodic);
   // Count period and detect all-invariants.
@@ -1384,21 +1394,9 @@ bool InductionVarRange::GenerateLastValuePeriodic(const HBasicBlock* context,
           Insert(block, new (allocator) HEqual(msk, graph->GetConstant(type, 0), kNoDexPc));
       *result = Insert(block, new (graph->GetAllocator()) HSelect(is_even, x, y, kNoDexPc));
     }
-    // Guard select with taken test if needed.
+
     if (*needs_taken_test) {
-      HInstruction* is_taken = nullptr;
-      if (GenerateCode(context,
-                       loop,
-                       trip->op_b,
-                       /*trip=*/ nullptr,
-                       graph,
-                       block,
-                       /*is_min=*/ false,
-                       graph ? &is_taken : nullptr)) {
-        if (graph != nullptr) {
-          ArenaAllocator* allocator = graph->GetAllocator();
-          *result = Insert(block, new (allocator) HSelect(is_taken, *result, x, kNoDexPc));
-        }
+      if (TryGenerateTakenTest(context, loop, trip->op_b, graph, block, result, x)) {
         *needs_taken_test = false;  // taken care of
       } else {
         return false;
@@ -1551,7 +1549,8 @@ bool InductionVarRange::GenerateCode(const HBasicBlock* context,
                 *result = graph->GetConstant(type, 0);
               }
               return true;
-            } else if (IsContextInBody(context, loop)) {
+            } else if (IsContextInBody(context, loop) ||
+                       (context == loop->GetHeader() && !allow_potential_overflow)) {
               if (GenerateCode(context,
                                loop,
                                info->op_a,
@@ -1562,9 +1561,19 @@ bool InductionVarRange::GenerateCode(const HBasicBlock* context,
                                &opb,
                                allow_potential_overflow)) {
                 if (graph != nullptr) {
-                  ArenaAllocator* allocator = graph->GetAllocator();
-                  *result =
-                      Insert(block, new (allocator) HSub(type, opb, graph->GetConstant(type, 1)));
+                  if (IsContextInBody(context, loop)) {
+                    ArenaAllocator* allocator = graph->GetAllocator();
+                    *result =
+                        Insert(block, new (allocator) HSub(type, opb, graph->GetConstant(type, 1)));
+                  } else {
+                    // We want to generate the full trip count since we want the last value. This
+                    // will be combined with an `is_taken` test so we don't want to subtract one.
+                    DCHECK(context == loop->GetHeader());
+                    // TODO(solanes): Remove the !allow_potential_overflow restriction and allow
+                    // other parts e.g. BCE to take advantage of this.
+                    DCHECK(!allow_potential_overflow);
+                    *result = opb;
+                  }
                 }
                 return true;
               }
@@ -1729,6 +1738,33 @@ bool InductionVarRange::TryGenerateSubWithoutOverflow(const HBasicBlock* context
 
   // Couldn't safely calculate the subtraction.
   return false;
+}
+
+bool InductionVarRange::TryGenerateTakenTest(const HBasicBlock* context,
+                                             const HLoopInformation* loop,
+                                             HInductionVarAnalysis::InductionInfo* info,
+                                             HGraph* graph,
+                                             HBasicBlock* block,
+                                             /*inout*/ HInstruction** result,
+                                             /*inout*/ HInstruction* not_taken_result) const {
+  HInstruction* is_taken = nullptr;
+  if (GenerateCode(context,
+                   loop,
+                   info,
+                   /*trip=*/nullptr,
+                   graph,
+                   block,
+                   /*is_min=*/false,
+                   graph != nullptr ? &is_taken : nullptr)) {
+    if (graph != nullptr) {
+      ArenaAllocator* allocator = graph->GetAllocator();
+      *result =
+          Insert(block, new (allocator) HSelect(is_taken, *result, not_taken_result, kNoDexPc));
+    }
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void InductionVarRange::ReplaceInduction(HInductionVarAnalysis::InductionInfo* info,
