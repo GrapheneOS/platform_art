@@ -197,18 +197,7 @@ void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
 
   // Pop core callee saves.
   if (core_spill_mask != 0u) {
-    if (IsPowerOfTwo(core_spill_mask) &&
-        core_spill_mask != (1u << pc.GetCode()) &&
-        WhichPowerOf2(core_spill_mask) >= 8) {
-      // FIXME(vixl): vixl fails to transform a pop with single high register
-      // to a post-index STR (also known as POP encoding T3) and emits the LDMIA
-      // (also known as POP encoding T2) which is UNPREDICTABLE for 1 register.
-      // So we have to explicitly do the transformation here. Bug: 178048807
-      vixl32::Register reg(WhichPowerOf2(core_spill_mask));
-      ___ Ldr(reg, MemOperand(sp, kFramePointerSize, PostIndex));
-    } else {
-      ___ Pop(RegisterList(core_spill_mask));
-    }
+    ___ Pop(RegisterList(core_spill_mask));
     if ((core_spill_mask & (1u << pc.GetCode())) == 0u) {
       cfi().AdjustCFAOffset(-kFramePointerSize * POPCOUNT(core_spill_mask));
       cfi().RestoreMany(DWARFReg(r0), core_spill_mask);
