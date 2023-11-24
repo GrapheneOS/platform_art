@@ -69,10 +69,10 @@ ImageHeader::ImageHeader(uint32_t image_reservation_size,
     boot_image_checksum_(boot_image_checksum),
     image_roots_(image_roots),
     pointer_size_(pointer_size) {
-  CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
+  CHECK_EQ(image_begin, RoundUp(image_begin, kElfSegmentAlignment));
   if (oat_checksum != 0u) {
-    CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
-    CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
+    CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kElfSegmentAlignment));
+    CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kElfSegmentAlignment));
     CHECK_LT(image_roots, oat_file_begin);
     CHECK_LE(oat_file_begin, oat_data_begin);
     CHECK_LT(oat_data_begin, oat_data_end);
@@ -85,6 +85,26 @@ ImageHeader::ImageHeader(uint32_t image_reservation_size,
 }
 
 void ImageHeader::RelocateImageReferences(int64_t delta) {
+  // App Images can be relocated to a page aligned address.
+  // Unlike with the Boot Image, for which the memory is reserved in advance of
+  // loading and is aligned to kElfSegmentAlignment, the App Images can be mapped
+  // without reserving memory i.e. via direct file mapping in which case the
+  // memory range is aligned by the kernel and the only guarantee is that it is
+  // aligned to the page sizes.
+  //
+  // NOTE: While this might be less than alignment required via information in
+  //       the ELF header, it should be sufficient in practice as the only reason
+  //       for the ELF segment alignment to be more than one page size is the
+  //       compatibility of the ELF with system configurations that use larger
+  //       page size.
+  //
+  //       Adding preliminary memory reservation would introduce certain overhead.
+  //
+  //       However, technically the alignment requirement isn't fulfilled and that
+  //       might be worth addressing even if it adds certain overhead. This will have
+  //       to be done in alignment with the dynamic linker's ELF loader as
+  //       otherwise inconsistency would still be possible e.g. when using
+  //       `dlopen`-like calls to load OAT files.
   CHECK_ALIGNED(delta, kPageSize) << "relocation delta must be page aligned";
   oat_file_begin_ += delta;
   oat_data_begin_ += delta;
@@ -95,7 +115,7 @@ void ImageHeader::RelocateImageReferences(int64_t delta) {
 }
 
 void ImageHeader::RelocateBootImageReferences(int64_t delta) {
-  CHECK_ALIGNED(delta, kPageSize) << "relocation delta must be page aligned";
+  CHECK_ALIGNED(delta, kElfSegmentAlignment) << "relocation delta must be Elf segment aligned";
   DCHECK_EQ(boot_image_begin_ != 0u, boot_image_size_ != 0u);
   if (boot_image_begin_ != 0u) {
     boot_image_begin_ += delta;
@@ -108,8 +128,8 @@ void ImageHeader::RelocateBootImageReferences(int64_t delta) {
 bool ImageHeader::IsAppImage() const {
   // Unlike boot image and boot image extensions which include address space for
   // oat files in their reservation size, app images are loaded separately from oat
-  // files and their reservation size is the image size rounded up to full page.
-  return image_reservation_size_ == RoundUp(image_size_, kPageSize);
+  // files and their reservation size is the image size rounded up to Elf alignment.
+  return image_reservation_size_ == RoundUp(image_size_, kElfSegmentAlignment);
 }
 
 uint32_t ImageHeader::GetImageSpaceCount() const {
@@ -127,7 +147,7 @@ bool ImageHeader::IsValid() const {
   if (memcmp(version_, kImageVersion, sizeof(kImageVersion)) != 0) {
     return false;
   }
-  if (!IsAligned<kPageSize>(image_reservation_size_)) {
+  if (!IsAligned<kElfSegmentAlignment>(image_reservation_size_)) {
     return false;
   }
   // Unsigned so wraparound is well defined.
@@ -402,7 +422,7 @@ bool ImageHeader::WriteData(const ImageFileGuard& image_file,
   // possibly compressed image.
   ImageSection& bitmap_section = GetImageSection(ImageHeader::kSectionImageBitmap);
   // Align up since data size may be unaligned if the image is compressed.
-  out_offset = RoundUp(out_offset, kPageSize);
+  out_offset = RoundUp(out_offset, kElfSegmentAlignment);
   bitmap_section = ImageSection(out_offset, bitmap_section.Size());
 
   if (!image_file->PwriteFully(bitmap_data,

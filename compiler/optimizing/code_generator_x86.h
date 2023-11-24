@@ -101,7 +101,7 @@ static constexpr size_t kRuntimeParameterFpuRegistersLength =
   V(JdkUnsafeGetAndAddLong)                 \
   V(JdkUnsafeGetAndSetInt)                  \
   V(JdkUnsafeGetAndSetLong)                 \
-  V(JdkUnsafeGetAndSetObject)
+  V(JdkUnsafeGetAndSetReference)
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:

@@ -102,13 +102,13 @@ void ImageWriteReadTest::TestWriteRead(ImageHeader::StorageMode storage_mode,
     if (storage_mode == ImageHeader::kStorageModeUncompressed) {
       // Uncompressed, image should be smaller than file.
       ASSERT_LE(image_space->GetImageHeader().GetImageSize(), image_file_size);
-    } else if (image_file_size > 16 * KB) {
+    } else if (image_file_size > 4 * kElfSegmentAlignment) {
       // Compressed, file should be smaller than image. Not really valid for small images.
       ASSERT_LE(image_file_size, image_space->GetImageHeader().GetImageSize());
       // TODO: Actually validate the blocks, this is hard since the blocks are not copied over for
-      // compressed images. Add kPageSize since image_size is rounded up to this.
+      // compressed images. Add kElfSegmentAlignment since image_size is rounded up to this.
       ASSERT_GT(image_space->GetImageHeader().GetBlockCount() * max_image_block_size,
-                image_space->GetImageHeader().GetImageSize() - kPageSize);
+                image_space->GetImageHeader().GetImageSize() - kElfSegmentAlignment);
     }
 
     image_space->VerifyImageAllocations();
