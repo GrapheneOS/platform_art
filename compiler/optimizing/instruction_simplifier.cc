@@ -22,6 +22,7 @@
 #include "data_type-inl.h"
 #include "driver/compiler_options.h"
 #include "escape.h"
+#include "intrinsic_objects.h"
 #include "intrinsics.h"
 #include "intrinsics_utils.h"
 #include "mirror/class-inl.h"
@@ -30,6 +31,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "sharpening.h"
 #include "string_builder_append.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 
@@ -114,6 +116,7 @@ class InstructionSimplifierVisitor final : public HGraphDelegateVisitor {
   void VisitDeoptimize(HDeoptimize* deoptimize) override;
   void VisitVecMul(HVecMul* instruction) override;
   void VisitPredicatedInstanceFieldGet(HPredicatedInstanceFieldGet* instruction) override;
+  void SimplifyBoxUnbox(HInvoke* instruction, ArtField* field, DataType::Type type);
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyFP2Int(HInvoke* invoke);
@@ -2407,6 +2410,29 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
   TryHandleAssociativeAndCommutativeOperation(instruction);
 }
 
+void InstructionSimplifierVisitor::SimplifyBoxUnbox(
+    HInvoke* instruction, ArtField* field, DataType::Type type) {
+  DCHECK(instruction->GetIntrinsic() == Intrinsics::kByteValueOf ||
+         instruction->GetIntrinsic() == Intrinsics::kShortValueOf ||
+         instruction->GetIntrinsic() == Intrinsics::kCharacterValueOf ||
+         instruction->GetIntrinsic() == Intrinsics::kIntegerValueOf);
+  const HUseList<HInstruction*>& uses = instruction->GetUses();
+  for (auto it = uses.begin(), end = uses.end(); it != end;) {
+    HInstruction* user = it->GetUser();
+    ++it;  // Increment the iterator before we potentially remove the node from the list.
+    if (user->IsInstanceFieldGet() &&
+        user->AsInstanceFieldGet()->GetFieldInfo().GetField() == field &&
+        // Note: Due to other simplifications, we may have an `HInstanceFieldGet` with
+        // a different type (Int8 vs. Uint8, Int16 vs. Uint16) for the same field.
+        // Do not optimize that case for now. (We would need to insert a `HTypeConversion`.)
+        user->GetType() == type) {
+      user->ReplaceWith(instruction->InputAt(0));
+      RecordSimplification();
+      // Do not remove `user` while we're iterating over the block's instructions. Let DCE do it.
+    }
+  }
+}
+
 void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
   HInstruction* argument = instruction->InputAt(1);
   HInstruction* receiver = instruction->InputAt(0);
@@ -3058,6 +3084,12 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
 
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   switch (instruction->GetIntrinsic()) {
+#define SIMPLIFY_BOX_UNBOX(name, low, high, type, start_index) \
+    case Intrinsics::k ## name ## ValueOf: \
+      SimplifyBoxUnbox(instruction, WellKnownClasses::java_lang_##name##_value, type); \
+      break;
+    BOXED_TYPES(SIMPLIFY_BOX_UNBOX)
+#undef SIMPLIFY_BOX_UNBOX
     case Intrinsics::kStringEquals:
       SimplifyStringEquals(instruction);
       break;
