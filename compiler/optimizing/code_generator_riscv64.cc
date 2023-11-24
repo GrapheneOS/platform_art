@@ -786,7 +786,7 @@ inline void InstructionCodeGeneratorRISCV64::FpBinOp(
   }
 }
 
-inline void InstructionCodeGeneratorRISCV64::FAdd(
+void InstructionCodeGeneratorRISCV64::FAdd(
     FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type) {
   FpBinOp<FRegister, &Riscv64Assembler::FAddS, &Riscv64Assembler::FAddD>(rd, rs1, rs2, type);
 }
