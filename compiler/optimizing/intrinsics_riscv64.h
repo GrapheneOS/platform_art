@@ -70,8 +70,11 @@ class IntrinsicCodeGeneratorRISCV64 final : public IntrinsicVisitor {
 
  private:
   Riscv64Assembler* GetAssembler();
-
   ArenaAllocator* GetAllocator();
+
+  void HandleValueOf(HInvoke* invoke,
+                     const IntrinsicVisitor::ValueOfInfo& info,
+                     DataType::Type type);
 
   CodeGeneratorRISCV64* const codegen_;
 
