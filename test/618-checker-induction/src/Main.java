@@ -331,7 +331,26 @@ public class Main {
         return closed;  // only needs last-value
     }
 
-    // TODO: taken test around closed form?
+    // closedFormInductionUpN turns into `if n < 0 then 12345 else 12345 + n * 5`.
+
+    /// CHECK-START: int Main.closedFormInductionUpN(int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormInductionUpN(int) loop_optimization (after)
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormInductionUpN(int) loop_optimization (after)
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<Int5:i\d+>>     IntConstant 5
+    /// CHECK-DAG: <<Int12345:i\d+>> IntConstant 12345
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Mul:i\d+>>      Mul [<<Int5>>,<<N>>]
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<Mul>>,<<Int12345>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Int12345>>,<<Add>>,<<LT>>]
+    /// CHECK-DAG:                   Return [<<Sel>>]
     static int closedFormInductionUpN(int n) {
         int closed = 12345;
         for (int i = 0; i < n; i++) {
@@ -340,7 +359,26 @@ public class Main {
         return closed;  // only needs last value
     }
 
-    // TODO: taken test around closed form?
+    // closedFormInductionInAndDownN turns into `if n < 0 then closed else closed - n * 5`.
+
+    /// CHECK-START: int Main.closedFormInductionInAndDownN(int, int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormInductionInAndDownN(int, int) loop_optimization (after)
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormInductionInAndDownN(int, int) loop_optimization (after)
+    /// CHECK-DAG: <<Closed:i\d+>>   ParameterValue
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<IntNeg5:i\d+>>  IntConstant -5
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Mul:i\d+>>      Mul [<<IntNeg5>>,<<N>>]
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<Mul>>,<<Closed>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Closed>>,<<Add>>,<<LT>>]
+    /// CHECK-DAG:                   Return [<<Sel>>]
     static int closedFormInductionInAndDownN(int closed, int n) {
         for (int i = 0; i < n; i++) {
             closed -= 5;
@@ -348,7 +386,27 @@ public class Main {
         return closed;  // only needs last value
     }
 
-    // TODO: move closed form even further out?
+    // closedFormNestedN turns into `if (n < 0) then 0 else n * 10`
+
+    /// CHECK-START: int Main.closedFormNestedN(int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedN(int) loop_optimization (after)
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedN(int) loop_optimization (after)
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<Int10:i\d+>>    IntConstant 10
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Mul:i\d+>>      Mul [<<Int10>>,<<N>>]
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<Mul>>,<<Int0>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Int0>>,<<Add>>,<<LT>>]
+    /// CHECK-DAG:                   Return [<<Sel>>]
     static int closedFormNestedN(int n) {
         int closed = 0;
         for (int i = 0; i < n; i++) {
@@ -359,7 +417,28 @@ public class Main {
         return closed;  // only needs last-value
     }
 
-    // TODO: move closed form even further out?
+    // closedFormNestedNAlt turns into `if (n < 0) then 12345 else 12345 + n * 161`
+
+    /// CHECK-START: int Main.closedFormNestedNAlt(int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedNAlt(int) loop_optimization (after)
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedNAlt(int) loop_optimization (after)
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<Int161:i\d+>>   IntConstant 161
+    /// CHECK-DAG: <<Int12345:i\d+>> IntConstant 12345
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Mul:i\d+>>      Mul [<<Int161>>,<<N>>]
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<Mul>>,<<Int12345>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Int12345>>,<<Add>>,<<LT>>]
+    /// CHECK-DAG:                   Return [<<Sel>>]
     static int closedFormNestedNAlt(int n) {
         int closed = 12345;
         for (int i = 0; i < n; i++) {
@@ -370,7 +449,30 @@ public class Main {
         return closed;  // only needs last-value
     }
 
-    // TODO: move closed form even further out?
+    // We optimize only the inner loop. It turns into `if (n < 0) then closed else closed + n`.
+    // Potentially we can also update the outer loop turning into if (m < 0) then 0 else if (n < 0)
+    // then 0 else m * n`.
+    /// CHECK-START: int Main.closedFormNestedMN(int, int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedMN(int, int) loop_optimization (after)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    // Inner loop optimization
+    /// CHECK-START: int Main.closedFormNestedMN(int, int) loop_optimization (after)
+    /// CHECK-DAG: <<M:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Phi:i\d+>>      Phi
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<N>>,<<Phi>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Phi>>,<<Add>>,<<LT>>]
     static int closedFormNestedMN(int m, int n) {
         int closed = 0;
         for (int i = 0; i < m; i++) {
@@ -381,10 +483,36 @@ public class Main {
         return closed;  // only needs last-value
     }
 
-    // TODO: move closed form even further out?
+    // We optimize only the inner loop. It turns into `if (n < 0) then closed else closed + n * 7`.
+    // Potentially we can also update the outer loop turning into if (m < 0) then 0 else if (n < 0)
+    // then 1245 else 12345 + m * n * 7`.
+    /// CHECK-START: int Main.closedFormNestedMNAlt(int, int) loop_optimization (before)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    /// CHECK-START: int Main.closedFormNestedMNAlt(int, int) loop_optimization (after)
+    /// CHECK:                       Phi
+    /// CHECK:                       Phi
+    /// CHECK-NOT:                   Phi
+    //
+    // Inner loop optimization
+    /// CHECK-START: int Main.closedFormNestedMNAlt(int, int) loop_optimization (after)
+    /// CHECK-DAG: <<M:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<N:i\d+>>        ParameterValue
+    /// CHECK-DAG: <<Int7:i\d+>>     IntConstant 7
+    /// CHECK-DAG: <<Int0:i\d+>>     IntConstant 0
+    /// CHECK-DAG: <<Phi:i\d+>>      Phi
+    /// CHECK-DAG: <<Mul:i\d+>>      Mul [<<Int7>>,<<N>>]
+    /// CHECK-DAG: <<Add:i\d+>>      Add [<<Mul>>,<<Phi>>]
+    /// CHECK-DAG: <<LT:z\d+>>       LessThan [<<Int0>>,<<N>>]
+    /// CHECK-DAG: <<Sel:i\d+>>      Select [<<Phi>>,<<Add>>,<<LT>>]
     static int closedFormNestedMNAlt(int m, int n) {
         int closed = 12345;
         for (int i = 0; i < m; i++) {
+            // if n < 0 then closed else closed + n * 7
             for (int j = 0; j < n; j++) {
                 closed += 7;
             }
@@ -481,21 +609,48 @@ public class Main {
         return sum;
     }
 
-    // TODO: handle as closed/empty eventually?
+    // We can generate a select, which then DCE detects it is redundant. Therefore, we eliminate
+    // these loops.
+
+    /// CHECK-START: int Main.mainIndexReturnedN(int) loop_optimization (before)
+    /// CHECK:     Phi
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexReturnedN(int) loop_optimization (after)
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexReturnedN(int) loop_optimization (after)
+    /// CHECK: Select
     static int mainIndexReturnedN(int n) {
         int i;
         for (i = 0; i < n; i++);
         return i;
     }
 
-    // TODO: handle as closed/empty eventually?
+    /// CHECK-START: int Main.mainIndexShort1(short) loop_optimization (before)
+    /// CHECK:     Phi
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexShort1(short) loop_optimization (after)
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexShort1(short) loop_optimization (after)
+    /// CHECK: Select
     static int mainIndexShort1(short s) {
         int i = 0;
         for (i = 0; i < s; i++) { }
         return i;
     }
 
-    // TODO: handle as closed/empty eventually?
+    /// CHECK-START: int Main.mainIndexShort2(short) loop_optimization (before)
+    /// CHECK:     Phi
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexShort2(short) loop_optimization (after)
+    /// CHECK-NOT: Phi
+    //
+    /// CHECK-START: int Main.mainIndexShort2(short) loop_optimization (after)
+    /// CHECK: Select
     static int mainIndexShort2(short s) {
         int i = 0;
         for (i = 0; s > i; i++) { }

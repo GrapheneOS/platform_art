@@ -160,28 +160,12 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(CRC32UpdateByteBuffer)                      \
   V(MethodHandleInvokeExact)                    \
   V(MethodHandleInvoke)                         \
-  V(VarHandleGetAndAdd)                         \
-  V(VarHandleGetAndAddAcquire)                  \
-  V(VarHandleGetAndAddRelease)                  \
-  V(VarHandleGetAndBitwiseAnd)                  \
-  V(VarHandleGetAndBitwiseAndAcquire)           \
-  V(VarHandleGetAndBitwiseAndRelease)           \
-  V(VarHandleGetAndBitwiseOr)                   \
-  V(VarHandleGetAndBitwiseOrAcquire)            \
-  V(VarHandleGetAndBitwiseOrRelease)            \
-  V(VarHandleGetAndBitwiseXor)                  \
-  V(VarHandleGetAndBitwiseXorAcquire)           \
-  V(VarHandleGetAndBitwiseXorRelease)           \
-  V(VarHandleGetAndSet)                         \
-  V(VarHandleGetAndSetAcquire)                  \
-  V(VarHandleGetAndSetRelease)                  \
-  V(ByteValueOf)                                \
-  V(ShortValueOf)                               \
-  V(CharacterValueOf)                           \
-  V(IntegerValueOf)                             \
 
 // Method register on invoke.
 static const XRegister kArtMethodRegister = A0;
+
+// Helper used by codegen as well as intrinsics.
+XRegister InputXRegisterOrZero(Location location);
 
 class CodeGeneratorRISCV64;
 
@@ -367,6 +351,7 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
 
   void GenerateMemoryBarrier(MemBarrierKind kind);
 
+  void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FClass(XRegister rd, FRegister rs1, DataType::Type type);
 
   void Load(Location out, XRegister rs1, int32_t offset, DataType::Type type);
@@ -473,7 +458,6 @@ class InstructionCodeGeneratorRISCV64 : public InstructionCodeGenerator {
             void (Riscv64Assembler::*opS)(Reg, FRegister, FRegister),
             void (Riscv64Assembler::*opD)(Reg, FRegister, FRegister)>
   void FpBinOp(Reg rd, FRegister rs1, FRegister rs2, DataType::Type type);
-  void FAdd(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FSub(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FDiv(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
   void FMul(FRegister rd, FRegister rs1, FRegister rs2, DataType::Type type);
@@ -702,6 +686,8 @@ class CodeGeneratorRISCV64 : public CodeGenerator {
 
   void LoadTypeForBootImageIntrinsic(XRegister dest, TypeReference target_type);
   void LoadBootImageRelRoEntry(XRegister dest, uint32_t boot_image_offset);
+  void LoadBootImageAddress(XRegister dest, uint32_t boot_image_reference);
+  void LoadIntrinsicDeclaringClass(XRegister dest, HInvoke* invoke);
   void LoadClassRootForIntrinsic(XRegister dest, ClassRoot class_root);
 
   void LoadMethod(MethodLoadKind load_kind, Location temp, HInvoke* invoke);
