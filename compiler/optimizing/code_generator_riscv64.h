@@ -100,23 +100,6 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(UnsafeCASInt)                               \
   V(UnsafeCASLong)                              \
   V(UnsafeCASObject)                            \
-  V(UnsafeGet)                                  \
-  V(UnsafeGetVolatile)                          \
-  V(UnsafeGetObject)                            \
-  V(UnsafeGetObjectVolatile)                    \
-  V(UnsafeGetLong)                              \
-  V(UnsafeGetLongVolatile)                      \
-  V(UnsafeGetByte)                              \
-  V(UnsafePut)                                  \
-  V(UnsafePutOrdered)                           \
-  V(UnsafePutVolatile)                          \
-  V(UnsafePutObject)                            \
-  V(UnsafePutObjectOrdered)                     \
-  V(UnsafePutObjectVolatile)                    \
-  V(UnsafePutLong)                              \
-  V(UnsafePutLongOrdered)                       \
-  V(UnsafePutLongVolatile)                      \
-  V(UnsafePutByte)                              \
   V(UnsafeGetAndAddInt)                         \
   V(UnsafeGetAndAddLong)                        \
   V(UnsafeGetAndSetInt)                         \
@@ -128,29 +111,6 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafeCompareAndSetInt)                  \
   V(JdkUnsafeCompareAndSetLong)                 \
   V(JdkUnsafeCompareAndSetReference)            \
-  V(JdkUnsafeGet)                               \
-  V(JdkUnsafeGetVolatile)                       \
-  V(JdkUnsafeGetAcquire)                        \
-  V(JdkUnsafeGetReference)                      \
-  V(JdkUnsafeGetReferenceVolatile)              \
-  V(JdkUnsafeGetReferenceAcquire)               \
-  V(JdkUnsafeGetLong)                           \
-  V(JdkUnsafeGetLongVolatile)                   \
-  V(JdkUnsafeGetLongAcquire)                    \
-  V(JdkUnsafeGetByte)                           \
-  V(JdkUnsafePut)                               \
-  V(JdkUnsafePutOrdered)                        \
-  V(JdkUnsafePutRelease)                        \
-  V(JdkUnsafePutVolatile)                       \
-  V(JdkUnsafePutReference)                      \
-  V(JdkUnsafePutObjectOrdered)                  \
-  V(JdkUnsafePutReferenceVolatile)              \
-  V(JdkUnsafePutReferenceRelease)               \
-  V(JdkUnsafePutLong)                           \
-  V(JdkUnsafePutByte)                           \
-  V(JdkUnsafePutLongOrdered)                    \
-  V(JdkUnsafePutLongVolatile)                   \
-  V(JdkUnsafePutLongRelease)                    \
   V(JdkUnsafeGetAndAddInt)                      \
   V(JdkUnsafeGetAndAddLong)                     \
   V(JdkUnsafeGetAndSetInt)                      \
