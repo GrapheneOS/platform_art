@@ -584,8 +584,17 @@ class ArtMethod final {
     AddAccessFlags(kAccNterpEntryPointFastPathFlag);
   }
 
+  void ClearNterpEntryPointFastPathFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(!IsNative());
+    ClearAccessFlags(kAccNterpEntryPointFastPathFlag);
+  }
+
   void SetNterpInvokeFastPathFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
     AddAccessFlags(kAccNterpInvokeFastPathFlag);
+  }
+
+  void ClearNterpInvokeFastPathFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
+    ClearAccessFlags(kAccNterpInvokeFastPathFlag);
   }
 
   // Returns whether the method is a string constructor. The method must not
