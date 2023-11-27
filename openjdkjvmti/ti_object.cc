@@ -105,15 +105,13 @@ jvmtiError ObjectUtil::GetObjectMonitorUsage(
       notify_wait.push_back(jni->AddLocalReference<jthread>(thd->GetPeerFromOtherThread()));
       wait.push_back(jni->AddLocalReference<jthread>(thd->GetPeerFromOtherThread()));
     }
-    // Scan all threads to see which are waiting on this particular monitor.
-    std::list<art::Thread*> thread_list;
     {
+      // Scan all threads to see which are waiting on this particular monitor.
       art::MutexLock tll(self, *art::Locks::thread_list_lock_);
-      thread_list = art::Runtime::Current()->GetThreadList()->GetList();
-    }
-    for (art::Thread* thd : thread_list) {
-      if (thd != info.owner_ && target.Ptr() == thd->GetMonitorEnterObject()) {
-        wait.push_back(jni->AddLocalReference<jthread>(thd->GetPeerFromOtherThread()));
+      for (art::Thread* thd : art::Runtime::Current()->GetThreadList()->GetList()) {
+        if (thd != info.owner_ && target.Ptr() == thd->GetMonitorEnterObject()) {
+          wait.push_back(jni->AddLocalReference<jthread>(thd->GetPeerFromOtherThread()));
+        }
       }
     }
   }
