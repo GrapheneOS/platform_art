@@ -265,13 +265,12 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
+  art::MutexLock mu(self, *art::Locks::thread_list_lock_);
+
   art::Thread* target;
   jvmtiError err = ERR(INTERNAL);
-  {
-    art::MutexLock mu(self, *art::Locks::thread_list_lock_);
-    if (!GetNativeThread(thread, soa, &target, &err)) {
-      return err;
-    }
+  if (!GetNativeThread(thread, soa, &target, &err)) {
+    return err;
   }
 
   JvmtiUniquePtr<char[]> name_uptr;
@@ -638,11 +637,10 @@ jvmtiError ThreadUtil::GetAllThreads(jvmtiEnv* env,
   art::Thread* current = art::Thread::Current();
 
   art::ScopedObjectAccess soa(current);
-  std::list<art::Thread*> thread_list;
-  {
-    art::MutexLock mu(current, *art::Locks::thread_list_lock_);
-    thread_list = art::Runtime::Current()->GetThreadList()->GetList();
-  }
+
+  art::MutexLock mu(current, *art::Locks::thread_list_lock_);
+  std::list<art::Thread*> thread_list = art::Runtime::Current()->GetThreadList()->GetList();
+
   std::vector<art::ObjPtr<art::mirror::Object>> peers;
 
   for (art::Thread* thread : thread_list) {
