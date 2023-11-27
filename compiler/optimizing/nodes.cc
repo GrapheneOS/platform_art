@@ -35,6 +35,7 @@
 #include "class_root-inl.h"
 #include "code_generator.h"
 #include "common_dominator.h"
+#include "intrinsic_objects.h"
 #include "intrinsics.h"
 #include "intrinsics_list.h"
 #include "mirror/class-inl.h"
@@ -3360,6 +3361,21 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
     default:
       LOG(FATAL) << "Unknown ClinitCheckRequirement: " << static_cast<int>(rhs);
       UNREACHABLE();
+  }
+}
+
+bool HInvokeStaticOrDirect::CanBeNull() const {
+  if (GetType() != DataType::Type::kReference || IsStringInit()) {
+    return false;
+  }
+  switch (GetIntrinsic()) {
+#define DEFINE_BOXED_CASE(name, unused1, unused2, unused3, unused4) \
+    case Intrinsics::k##name##ValueOf: \
+      return false;
+    BOXED_TYPES(DEFINE_BOXED_CASE)
+#undef DEFINE_BOXED_CASE
+    default:
+      return true;
   }
 }
 
