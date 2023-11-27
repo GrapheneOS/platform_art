@@ -460,8 +460,13 @@ def get_vogar_command(test_name):
   cmd.extend("--classpath " + get_jar_filename(cp) for cp in CLASSPATH)
   cmd.append(test_name)
 
-  cmd.append("--")
-  cmd.append("--exclude-filter libcore.test.annotation.NonMts")
+  # vogar target options
+  if not os.path.exists('frameworks/base'):
+    cmd.append("--")
+    # Skip @NonMts test in thin manifest which uses prebuilt Conscrypt and ICU.
+    # It's similar to running libcore tests on the older platforms.
+    # @NonMts means that the test doesn't pass on a older platform version.
+    cmd.append("--exclude-filter libcore.test.annotation.NonMts")
   return cmd
 
 def get_target_cpu_count():
