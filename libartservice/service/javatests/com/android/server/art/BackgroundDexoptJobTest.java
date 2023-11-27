@@ -17,6 +17,8 @@
 package com.android.server.art;
 
 import static com.android.server.art.model.Config.Callback;
+import static com.android.server.art.model.DexoptResult.DexoptResultStatus;
+import static com.android.server.art.model.DexoptResult.PackageDexoptResult;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -25,6 +27,7 @@ import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
@@ -56,6 +59,9 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -74,12 +80,12 @@ public class BackgroundDexoptJobTest {
     @Mock private PackageManagerLocal mPackageManagerLocal;
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
     @Mock private JobScheduler mJobScheduler;
-    @Mock private DexoptResult mDexoptResult;
     @Mock private BackgroundDexoptJobService mJobService;
     @Mock private JobParameters mJobParameters;
     private Config mConfig;
     private BackgroundDexoptJob mBackgroundDexoptJob;
     private Semaphore mJobFinishedCalled = new Semaphore(0);
+    private Map<Integer, DexoptResult> mDexoptResultByPass;
 
     @Before
     public void setUp() throws Exception {
@@ -110,17 +116,19 @@ public class BackgroundDexoptJobTest {
         lenient()
                 .when(mJobParameters.getStopReason())
                 .thenReturn(JobParameters.STOP_REASON_UNDEFINED);
+
+        mDexoptResultByPass = new HashMap<>();
     }
 
     @Test
     public void testStart() {
         when(mArtManagerLocal.dexoptPackages(
                      same(mSnapshot), eq(ReasonMapping.REASON_BG_DEXOPT), any(), any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mDexoptResultByPass);
 
         Result result = Utils.getFuture(mBackgroundDexoptJob.start());
         assertThat(result).isInstanceOf(CompletedResult.class);
-        assertThat(((CompletedResult) result).dexoptResult()).isSameInstanceAs(mDexoptResult);
+        assertThat(((CompletedResult) result).dexoptResultByPass()).isEqualTo(mDexoptResultByPass);
 
         verify(mArtManagerLocal).cleanup(same(mSnapshot));
     }
@@ -131,7 +139,7 @@ public class BackgroundDexoptJobTest {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> {
                     assertThat(dexoptDone.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
-                    return mDexoptResult;
+                    return mDexoptResultByPass;
                 });
 
         Future<Result> future1 = mBackgroundDexoptJob.start();
@@ -147,7 +155,7 @@ public class BackgroundDexoptJobTest {
     @Test
     public void testStartAnother() {
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mDexoptResultByPass);
 
         Future<Result> future1 = mBackgroundDexoptJob.start();
         Utils.getFuture(future1);
@@ -172,7 +180,7 @@ public class BackgroundDexoptJobTest {
                 .thenReturn(true);
 
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mDexoptResultByPass);
 
         // The `start` method should ignore the system property. The system property is for
         // `schedule`.
@@ -187,7 +195,7 @@ public class BackgroundDexoptJobTest {
                     assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
                     var cancellationSignal = invocation.<CancellationSignal>getArgument(2);
                     assertThat(cancellationSignal.isCanceled()).isTrue();
-                    return mDexoptResult;
+                    return mDexoptResultByPass;
                 });
 
         Future<Result> future = mBackgroundDexoptJob.start();
@@ -273,9 +281,12 @@ public class BackgroundDexoptJobTest {
 
     @Test
     public void testWantsRescheduleFalsePerformed() throws Exception {
-        when(mDexoptResult.getFinalStatus()).thenReturn(DexoptResult.DEXOPT_PERFORMED);
+        DexoptResult downgradeResult = createDexoptResultWithStatus(DexoptResult.DEXOPT_PERFORMED);
+        mDexoptResultByPass.put(ArtFlags.PASS_DOWNGRADE, downgradeResult);
+        DexoptResult mainResult = createDexoptResultWithStatus(DexoptResult.DEXOPT_PERFORMED);
+        mDexoptResultByPass.put(ArtFlags.PASS_MAIN, mainResult);
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mDexoptResultByPass);
 
         mBackgroundDexoptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
@@ -296,13 +307,22 @@ public class BackgroundDexoptJobTest {
 
     @Test
     public void testWantsRescheduleTrue() throws Exception {
-        when(mDexoptResult.getFinalStatus()).thenReturn(DexoptResult.DEXOPT_CANCELLED);
+        DexoptResult downgradeResult = createDexoptResultWithStatus(DexoptResult.DEXOPT_PERFORMED);
+        mDexoptResultByPass.put(ArtFlags.PASS_DOWNGRADE, downgradeResult);
+        DexoptResult mainResult = createDexoptResultWithStatus(DexoptResult.DEXOPT_CANCELLED);
+        mDexoptResultByPass.put(ArtFlags.PASS_MAIN, mainResult);
         when(mArtManagerLocal.dexoptPackages(any(), any(), any(), any(), any()))
-                .thenReturn(mDexoptResult);
+                .thenReturn(mDexoptResultByPass);
 
         mBackgroundDexoptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
         verify(mJobService).jobFinished(any(), eq(true) /* wantsReschedule */);
+    }
+
+    private DexoptResult createDexoptResultWithStatus(@DexoptResultStatus int status) {
+        return DexoptResult.create("compiler-filter", "reason",
+                List.of(PackageDexoptResult.create(
+                        "package-name", List.of() /* dexContainerFileDexoptResults */, status)));
     }
 }
