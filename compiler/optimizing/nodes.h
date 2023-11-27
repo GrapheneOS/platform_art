@@ -5065,9 +5065,7 @@ class HInvokeStaticOrDirect final : public HInvoke {
     return false;
   }
 
-  bool CanBeNull() const override {
-    return GetType() == DataType::Type::kReference && !IsStringInit();
-  }
+  bool CanBeNull() const override;
 
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const {
