@@ -44,8 +44,8 @@ class TrackedArena final : public Arena {
   void VisitRoots(PageVisitor& visitor) const REQUIRES_SHARED(Locks::mutator_lock_) {
     uint8_t* page_begin = Begin();
     if (first_obj_array_.get() != nullptr) {
-      DCHECK_ALIGNED(Size(), kPageSize);
-      DCHECK_ALIGNED(Begin(), kPageSize);
+      DCHECK_ALIGNED_PARAM(Size(), kPageSize);
+      DCHECK_ALIGNED_PARAM(Begin(), kPageSize);
       for (int i = 0, nr_pages = Size() / kPageSize; i < nr_pages; i++, page_begin += kPageSize) {
         uint8_t* first = first_obj_array_[i];
         if (first != nullptr) {
@@ -71,8 +71,8 @@ class TrackedArena final : public Arena {
     // by arena-allocator. This helps in reducing loop iterations below.
     uint8_t* last_byte = AlignUp(Begin() + GetBytesAllocated(), kPageSize);
     if (first_obj_array_.get() != nullptr) {
-      DCHECK_ALIGNED(Begin(), kPageSize);
-      DCHECK_ALIGNED(End(), kPageSize);
+      DCHECK_ALIGNED_PARAM(Begin(), kPageSize);
+      DCHECK_ALIGNED_PARAM(End(), kPageSize);
       DCHECK_LE(last_byte, End());
     } else {
       DCHECK_EQ(last_byte, End());
