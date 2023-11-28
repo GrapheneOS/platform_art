@@ -24,7 +24,6 @@
 
 #if defined(__BIONIC__)
 #include <bionic/macros.h>
-#include <malloc.h>
 #endif
 
 #include <algorithm>
@@ -520,13 +519,6 @@ static int __sigaction(int signal, const SigactionType* new_action,
     return -1;
   }
 
-#if defined(__BIONIC__)
-  if (signal == SIGSEGV && mallopt(M_BIONIC_SHOULD_IGNORE_NEW_SIGSEGV_HANDLERS, 0) == 1) {
-    log("M_BIONIC_SHOULD_IGNORE_NEW_SIGSEGV_HANDLERS is set, ignoring SEGV sigaction");
-    new_action = nullptr;
-  }
-#endif
-
   if (chains[signal].IsClaimed()) {
     SigactionType saved_action = chains[signal].GetAction<SigactionType>();
     if (new_action != nullptr) {
@@ -564,13 +556,6 @@ extern "C" sighandler_t signal(int signo, sighandler_t handler) {
     errno = EINVAL;
     return SIG_ERR;
   }
-
-#if defined(__BIONIC__)
-  if (signo == SIGSEGV && mallopt(M_BIONIC_SHOULD_IGNORE_NEW_SIGSEGV_HANDLERS, 0) == 1) {
-    log("M_BIONIC_SHOULD_IGNORE_NEW_SIGSEGV_HANDLERS is set, ignoring SEGV sighandler");
-    return SIG_DFL;
-  }
-#endif
 
   struct sigaction sa = {};
   sigemptyset(&sa.sa_mask);
