@@ -84,6 +84,9 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 		cflags = append(cflags, "-DART_USE_TLAB=1")
 	}
 
+	cdexLevel := ctx.Config().GetenvWithDefault("ART_DEFAULT_COMPACT_DEX_LEVEL", "fast")
+	cflags = append(cflags, "-DART_DEFAULT_COMPACT_DEX_LEVEL="+cdexLevel)
+
 	// We need larger stack overflow guards for ASAN, as the compiled code will have
 	// larger frame sizes. For simplicity, just use global not-target-specific cflags.
 	// Note: We increase this for both debug and non-debug, as the overflow gap will
