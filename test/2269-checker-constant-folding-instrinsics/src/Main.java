@@ -21,6 +21,8 @@ public class Main {
         $noinline$testReverseBytesInt();
         $noinline$testReverseBytesLong();
         $noinline$testReverseBytesShort();
+        $noinline$testBitCountInt();
+        $noinline$testBitCountLong();
         $noinline$testHighestOneBitInt();
         $noinline$testHighestOneBitLong();
         $noinline$testLowestOneBitInt();
@@ -393,6 +395,284 @@ public class Main {
         $noinline$assertShortEquals((short) (1 << 6), Short.reverseBytes((short) (1 << 14)));
         $noinline$assertShortEquals((short) (1 << 7), Short.reverseBytes((short) (1 << 15)));
     }
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerBitCount
+    private static void $noinline$testBitCountInt() {
+        $noinline$assertIntEquals(31, Integer.bitCount(Integer.MAX_VALUE));
+        $noinline$assertIntEquals(1, Integer.bitCount(Integer.MIN_VALUE));
+        // 0101... and 1010...
+        $noinline$assertIntEquals(16, Integer.bitCount(0x55555555));
+        $noinline$assertIntEquals(16, Integer.bitCount(0xAAAAAAAA));
+        // 0000... and 1111...
+        $noinline$assertIntEquals(0, Integer.bitCount(0));
+        $noinline$assertIntEquals(32, Integer.bitCount(0xFFFFFFFF));
+        $noinline$testBitCountInt_powerOfTwo();
+        $noinline$testBitCountInt_powerOfTwoMinusOne();
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerBitCount
+    private static void $noinline$testBitCountInt_powerOfTwo() {
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 0));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 1));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 2));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 3));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 4));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 5));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 6));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 7));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 8));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 9));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 10));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 11));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 12));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 13));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 14));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 15));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 16));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 17));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 18));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 19));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 20));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 21));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 22));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 23));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 24));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 25));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 26));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 27));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 28));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 29));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 30));
+        $noinline$assertIntEquals(1, Integer.bitCount(1 << 31));
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt_powerOfTwoMinusOne() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountInt_powerOfTwoMinusOne() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerBitCount
+    private static void $noinline$testBitCountInt_powerOfTwoMinusOne() {
+        // We start on `(1 << 2) - 1` (i.e. `3`) as the other values are already being tested.
+        $noinline$assertIntEquals(2, Integer.bitCount((1 << 2) - 1));
+        $noinline$assertIntEquals(3, Integer.bitCount((1 << 3) - 1));
+        $noinline$assertIntEquals(4, Integer.bitCount((1 << 4) - 1));
+        $noinline$assertIntEquals(5, Integer.bitCount((1 << 5) - 1));
+        $noinline$assertIntEquals(6, Integer.bitCount((1 << 6) - 1));
+        $noinline$assertIntEquals(7, Integer.bitCount((1 << 7) - 1));
+        $noinline$assertIntEquals(8, Integer.bitCount((1 << 8) - 1));
+        $noinline$assertIntEquals(9, Integer.bitCount((1 << 9) - 1));
+        $noinline$assertIntEquals(10, Integer.bitCount((1 << 10) - 1));
+        $noinline$assertIntEquals(11, Integer.bitCount((1 << 11) - 1));
+        $noinline$assertIntEquals(12, Integer.bitCount((1 << 12) - 1));
+        $noinline$assertIntEquals(13, Integer.bitCount((1 << 13) - 1));
+        $noinline$assertIntEquals(14, Integer.bitCount((1 << 14) - 1));
+        $noinline$assertIntEquals(15, Integer.bitCount((1 << 15) - 1));
+        $noinline$assertIntEquals(16, Integer.bitCount((1 << 16) - 1));
+        $noinline$assertIntEquals(17, Integer.bitCount((1 << 17) - 1));
+        $noinline$assertIntEquals(18, Integer.bitCount((1 << 18) - 1));
+        $noinline$assertIntEquals(19, Integer.bitCount((1 << 19) - 1));
+        $noinline$assertIntEquals(20, Integer.bitCount((1 << 20) - 1));
+        $noinline$assertIntEquals(21, Integer.bitCount((1 << 21) - 1));
+        $noinline$assertIntEquals(22, Integer.bitCount((1 << 22) - 1));
+        $noinline$assertIntEquals(23, Integer.bitCount((1 << 23) - 1));
+        $noinline$assertIntEquals(24, Integer.bitCount((1 << 24) - 1));
+        $noinline$assertIntEquals(25, Integer.bitCount((1 << 25) - 1));
+        $noinline$assertIntEquals(26, Integer.bitCount((1 << 26) - 1));
+        $noinline$assertIntEquals(27, Integer.bitCount((1 << 27) - 1));
+        $noinline$assertIntEquals(28, Integer.bitCount((1 << 28) - 1));
+        $noinline$assertIntEquals(29, Integer.bitCount((1 << 29) - 1));
+        $noinline$assertIntEquals(30, Integer.bitCount((1 << 30) - 1));
+        $noinline$assertIntEquals(31, Integer.bitCount((1 << 31) - 1));
+    }
+
+
+    /// CHECK-START: void Main.$noinline$testBitCountLong() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountLong() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongBitCount
+    private static void $noinline$testBitCountLong() {
+        $noinline$assertLongEquals(63L, Long.bitCount(Long.MAX_VALUE));
+        $noinline$assertLongEquals(1L, Long.bitCount(Long.MIN_VALUE));
+        // 0101... and 1010...
+        $noinline$assertLongEquals(32L, Long.bitCount(0x5555555555555555L));
+        $noinline$assertLongEquals(32L, Long.bitCount(0xAAAAAAAAAAAAAAAAL));
+        // 0000... and 1111...
+        $noinline$assertLongEquals(0L, Long.bitCount(0L));
+        $noinline$assertLongEquals(64L, Long.bitCount(0xFFFFFFFFFFFFFFFFL));
+        $noinline$testBitCountLongFirst32_powerOfTwo();
+        $noinline$testBitCountLongLast32_powerOfTwo();
+        $noinline$testBitCountLongFirst32_powerOfTwoMinusOne();
+        $noinline$testBitCountLongLast32_powerOfTwoMinusOne();
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongFirst32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongFirst32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongBitCount
+    private static void $noinline$testBitCountLongFirst32_powerOfTwo() {
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 0L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 1L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 2L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 3L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 4L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 5L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 6L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 7L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 8L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 9L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 10L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 11L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 12L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 13L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 14L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 15L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 16L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 17L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 18L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 19L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 20L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 21L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 22L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 23L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 24L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 25L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 26L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 27L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 28L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 29L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 30L));
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongLast32_powerOfTwo() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongLast32_powerOfTwo() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongBitCount
+    private static void $noinline$testBitCountLongLast32_powerOfTwo() {
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 31L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 32L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 33L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 34L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 35L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 36L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 37L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 38L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 39L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 40L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 41L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 42L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 43L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 44L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 45L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 46L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 47L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 48L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 49L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 50L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 51L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 52L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 53L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 54L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 55L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 56L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 57L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 58L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 59L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 60L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 61L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 62L));
+        $noinline$assertLongEquals(1L, Long.bitCount(1L << 63L));
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongFirst32_powerOfTwoMinusOne() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongFirst32_powerOfTwoMinusOne() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongBitCount
+    private static void $noinline$testBitCountLongFirst32_powerOfTwoMinusOne() {
+        // We start on `(1L << 2) - 1` (i.e. `3L`) as the other values are already being tested.
+        $noinline$assertLongEquals(2L, Long.bitCount((1L << 2) - 1L));
+        $noinline$assertLongEquals(3L, Long.bitCount((1L << 3) - 1L));
+        $noinline$assertLongEquals(4L, Long.bitCount((1L << 4) - 1L));
+        $noinline$assertLongEquals(5L, Long.bitCount((1L << 5) - 1L));
+        $noinline$assertLongEquals(6L, Long.bitCount((1L << 6) - 1L));
+        $noinline$assertLongEquals(7L, Long.bitCount((1L << 7) - 1L));
+        $noinline$assertLongEquals(8L, Long.bitCount((1L << 8) - 1L));
+        $noinline$assertLongEquals(9L, Long.bitCount((1L << 9) - 1L));
+        $noinline$assertLongEquals(10L, Long.bitCount((1L << 10) - 1L));
+        $noinline$assertLongEquals(11L, Long.bitCount((1L << 11) - 1L));
+        $noinline$assertLongEquals(12L, Long.bitCount((1L << 12) - 1L));
+        $noinline$assertLongEquals(13L, Long.bitCount((1L << 13) - 1L));
+        $noinline$assertLongEquals(14L, Long.bitCount((1L << 14) - 1L));
+        $noinline$assertLongEquals(15L, Long.bitCount((1L << 15) - 1L));
+        $noinline$assertLongEquals(16L, Long.bitCount((1L << 16) - 1L));
+        $noinline$assertLongEquals(17L, Long.bitCount((1L << 17) - 1L));
+        $noinline$assertLongEquals(18L, Long.bitCount((1L << 18) - 1L));
+        $noinline$assertLongEquals(19L, Long.bitCount((1L << 19) - 1L));
+        $noinline$assertLongEquals(20L, Long.bitCount((1L << 20) - 1L));
+        $noinline$assertLongEquals(21L, Long.bitCount((1L << 21) - 1L));
+        $noinline$assertLongEquals(22L, Long.bitCount((1L << 22) - 1L));
+        $noinline$assertLongEquals(23L, Long.bitCount((1L << 23) - 1L));
+        $noinline$assertLongEquals(24L, Long.bitCount((1L << 24) - 1L));
+        $noinline$assertLongEquals(25L, Long.bitCount((1L << 25) - 1L));
+        $noinline$assertLongEquals(26L, Long.bitCount((1L << 26) - 1L));
+        $noinline$assertLongEquals(27L, Long.bitCount((1L << 27) - 1L));
+        $noinline$assertLongEquals(28L, Long.bitCount((1L << 28) - 1L));
+        $noinline$assertLongEquals(29L, Long.bitCount((1L << 29) - 1L));
+        $noinline$assertLongEquals(30L, Long.bitCount((1L << 30) - 1L));
+    }
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongLast32_powerOfTwoMinusOne() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongBitCount
+
+    /// CHECK-START: void Main.$noinline$testBitCountLongLast32_powerOfTwoMinusOne() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongBitCount
+    private static void $noinline$testBitCountLongLast32_powerOfTwoMinusOne() {
+        $noinline$assertLongEquals(31L, Long.bitCount((1L << 31) - 1L));
+        $noinline$assertLongEquals(32L, Long.bitCount((1L << 32) - 1L));
+        $noinline$assertLongEquals(33L, Long.bitCount((1L << 33) - 1L));
+        $noinline$assertLongEquals(34L, Long.bitCount((1L << 34) - 1L));
+        $noinline$assertLongEquals(35L, Long.bitCount((1L << 35) - 1L));
+        $noinline$assertLongEquals(36L, Long.bitCount((1L << 36) - 1L));
+        $noinline$assertLongEquals(37L, Long.bitCount((1L << 37) - 1L));
+        $noinline$assertLongEquals(38L, Long.bitCount((1L << 38) - 1L));
+        $noinline$assertLongEquals(39L, Long.bitCount((1L << 39) - 1L));
+        $noinline$assertLongEquals(40L, Long.bitCount((1L << 40) - 1L));
+        $noinline$assertLongEquals(41L, Long.bitCount((1L << 41) - 1L));
+        $noinline$assertLongEquals(42L, Long.bitCount((1L << 42) - 1L));
+        $noinline$assertLongEquals(43L, Long.bitCount((1L << 43) - 1L));
+        $noinline$assertLongEquals(44L, Long.bitCount((1L << 44) - 1L));
+        $noinline$assertLongEquals(45L, Long.bitCount((1L << 45) - 1L));
+        $noinline$assertLongEquals(46L, Long.bitCount((1L << 46) - 1L));
+        $noinline$assertLongEquals(47L, Long.bitCount((1L << 47) - 1L));
+        $noinline$assertLongEquals(48L, Long.bitCount((1L << 48) - 1L));
+        $noinline$assertLongEquals(49L, Long.bitCount((1L << 49) - 1L));
+        $noinline$assertLongEquals(50L, Long.bitCount((1L << 50) - 1L));
+        $noinline$assertLongEquals(51L, Long.bitCount((1L << 51) - 1L));
+        $noinline$assertLongEquals(52L, Long.bitCount((1L << 52) - 1L));
+        $noinline$assertLongEquals(53L, Long.bitCount((1L << 53) - 1L));
+        $noinline$assertLongEquals(54L, Long.bitCount((1L << 54) - 1L));
+        $noinline$assertLongEquals(55L, Long.bitCount((1L << 55) - 1L));
+        $noinline$assertLongEquals(56L, Long.bitCount((1L << 56) - 1L));
+        $noinline$assertLongEquals(57L, Long.bitCount((1L << 57) - 1L));
+        $noinline$assertLongEquals(58L, Long.bitCount((1L << 58) - 1L));
+        $noinline$assertLongEquals(59L, Long.bitCount((1L << 59) - 1L));
+        $noinline$assertLongEquals(60L, Long.bitCount((1L << 60) - 1L));
+        $noinline$assertLongEquals(61L, Long.bitCount((1L << 61) - 1L));
+        $noinline$assertLongEquals(62L, Long.bitCount((1L << 62) - 1L));
+        $noinline$assertLongEquals(63L, Long.bitCount((1L << 63) - 1L));
+    }
+
 
     /// CHECK-START: void Main.$noinline$testHighestOneBitInt() constant_folding (before)
     /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerHighestOneBit
