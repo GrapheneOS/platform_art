@@ -39,8 +39,8 @@ void Thread::MadviseAwayAlternateSignalStack() {
   // create different arbitrary alternate signal stacks and we do not want to erroneously
   // `madvise()` away pages that may hold data other than the alternate signal stack.
   if ((old_ss.ss_flags & SS_DISABLE) == 0 &&
-      IsAligned<kPageSize>(old_ss.ss_sp) &&
-      IsAligned<kPageSize>(old_ss.ss_size)) {
+      IsAlignedParam(old_ss.ss_sp, kPageSize) &&
+      IsAlignedParam(old_ss.ss_size, kPageSize)) {
     CHECK_EQ(old_ss.ss_flags & SS_ONSTACK, 0);
     // Note: We're testing and benchmarking ART on devices with old kernels
     // which may not support `MADV_FREE`, so we do not check the result.
