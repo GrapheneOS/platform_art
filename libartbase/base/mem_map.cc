@@ -1247,8 +1247,8 @@ void MemMap::TryReadable() {
   CHECK_NE(prot_ & PROT_READ, 0);
   volatile uint8_t* begin = reinterpret_cast<volatile uint8_t*>(base_begin_);
   volatile uint8_t* end = begin + base_size_;
-  DCHECK(IsAligned<kPageSize>(begin));
-  DCHECK(IsAligned<kPageSize>(end));
+  DCHECK(IsAlignedParam(begin, kPageSize));
+  DCHECK(IsAlignedParam(end, kPageSize));
   // Read the first byte of each page. Use volatile to prevent the compiler from optimizing away the
   // reads.
   for (volatile uint8_t* ptr = begin; ptr < end; ptr += kPageSize) {
@@ -1264,8 +1264,8 @@ static void inline RawClearMemory(uint8_t* begin, uint8_t* end) {
 
 #if defined(__linux__)
 static inline void ClearMemory(uint8_t* page_begin, size_t size, bool resident) {
-  DCHECK(IsAligned<kPageSize>(page_begin));
-  DCHECK(IsAligned<kPageSize>(page_begin + size));
+  DCHECK(IsAlignedParam(page_begin, kPageSize));
+  DCHECK(IsAlignedParam(page_begin + size, kPageSize));
   if (resident) {
     RawClearMemory(page_begin, page_begin + size);
     // Note we check madvise return value against -1, as it seems old kernels
