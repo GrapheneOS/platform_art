@@ -41,8 +41,8 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork, bo
     // entire arena.
     bytes_allocated_ = size;
   } else {
-    DCHECK_ALIGNED(size, kPageSize);
-    DCHECK_ALIGNED(start, kPageSize);
+    DCHECK_ALIGNED_PARAM(size, kPageSize);
+    DCHECK_ALIGNED_PARAM(start, kPageSize);
     size_t arr_size = size / kPageSize;
     first_obj_array_.reset(new uint8_t*[arr_size]);
     std::fill_n(first_obj_array_.get(), arr_size, nullptr);
@@ -50,7 +50,7 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork, bo
 }
 
 void TrackedArena::ReleasePages(uint8_t* begin, size_t size, bool pre_zygote_fork) {
-  DCHECK_ALIGNED(begin, kPageSize);
+  DCHECK_ALIGNED_PARAM(begin, kPageSize);
   // Userfaultfd GC uses MAP_SHARED mappings for linear-alloc and therefore
   // MADV_DONTNEED will not free the pages from page cache. Therefore use
   // MADV_REMOVE instead, which is meant for this purpose.

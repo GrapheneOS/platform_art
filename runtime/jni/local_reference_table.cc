@@ -628,8 +628,8 @@ void LocalReferenceTable::Trim() {
       uint8_t* release_end = reinterpret_cast<uint8_t*>(&table[table_size]);
       DCHECK_GE(reinterpret_cast<uintptr_t>(release_end),
                 reinterpret_cast<uintptr_t>(release_start));
-      DCHECK_ALIGNED(release_end, kPageSize);
-      DCHECK_ALIGNED(release_end - release_start, kPageSize);
+      DCHECK_ALIGNED_PARAM(release_end, kPageSize);
+      DCHECK_ALIGNED_PARAM(release_end - release_start, kPageSize);
       if (release_start != release_end) {
         madvise(release_start, release_end - release_start, MADV_DONTNEED);
       }

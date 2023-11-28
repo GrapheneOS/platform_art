@@ -56,7 +56,7 @@ class RosAlloc {
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
       size_t byte_size = rosalloc->free_page_run_size_map_[pm_idx];
       DCHECK_GE(byte_size, static_cast<size_t>(0));
-      DCHECK_ALIGNED(byte_size, kPageSize);
+      DCHECK_ALIGNED_PARAM(byte_size, kPageSize);
       return byte_size;
     }
     void SetByteSize(RosAlloc* rosalloc, size_t byte_size)
