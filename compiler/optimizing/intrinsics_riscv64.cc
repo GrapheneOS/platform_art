@@ -637,6 +637,24 @@ void IntrinsicCodeGeneratorRISCV64::VisitStringIndexOfAfter(HInvoke* invoke) {
   GenerateVisitStringIndexOf(invoke, GetAssembler(), codegen_, /* start_at_zero= */ false);
 }
 
+static void GenerateSet(CodeGeneratorRISCV64* codegen,
+                        std::memory_order order,
+                        Location value,
+                        XRegister rs1,
+                        int32_t offset,
+                        DataType::Type type) {
+  if (order == std::memory_order_seq_cst) {
+    codegen->GetInstructionVisitor()->StoreSeqCst(value, rs1, offset, type);
+  } else {
+    if (order == std::memory_order_release) {
+      codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+    } else {
+      DCHECK(order == std::memory_order_relaxed);
+    }
+    codegen->GetInstructionVisitor()->Store(value, rs1, offset, type);
+  }
+}
+
 std::pair<AqRl, AqRl> GetLrScAqRl(std::memory_order order) {
   AqRl load_aqrl = AqRl::kNone;
   AqRl store_aqrl = AqRl::kNone;
@@ -1049,6 +1067,430 @@ static void GenerateGetAndUpdate(CodeGeneratorRISCV64* codegen,
       }
       break;
   }
+}
+
+static void CreateUnsafeGetLocations(ArenaAllocator* allocator,
+                                     HInvoke* invoke,
+                                     CodeGeneratorRISCV64* codegen) {
+  bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetReference(invoke);
+  LocationSummary* locations = new (allocator) LocationSummary(
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(),
+                    (can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+}
+
+static void GenUnsafeGet(HInvoke* invoke,
+                         CodeGeneratorRISCV64* codegen,
+                         std::memory_order order,
+                         DataType::Type type) {
+  DCHECK((type == DataType::Type::kInt8) ||
+         (type == DataType::Type::kInt32) ||
+         (type == DataType::Type::kInt64) ||
+         (type == DataType::Type::kReference));
+  LocationSummary* locations = invoke->GetLocations();
+  Location object_loc = locations->InAt(1);
+  XRegister object = object_loc.AsRegister<XRegister>();  // Object pointer.
+  Location offset_loc = locations->InAt(2);
+  XRegister offset = offset_loc.AsRegister<XRegister>();  // Long offset.
+  Location out_loc = locations->Out();
+  XRegister out = out_loc.AsRegister<XRegister>();
+
+  bool seq_cst_barrier = (order == std::memory_order_seq_cst);
+  bool acquire_barrier = seq_cst_barrier || (order == std::memory_order_acquire);
+  DCHECK(acquire_barrier || order == std::memory_order_relaxed);
+
+  if (seq_cst_barrier) {
+    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
+
+  if (type == DataType::Type::kReference && codegen->EmitBakerReadBarrier()) {
+    // JdkUnsafeGetReference/JdkUnsafeGetReferenceVolatile with Baker's read barrier case.
+    // TODO(riscv64): Revisit when we add checking if the holder is black.
+    Location temp = Location::NoLocation();
+    codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
+                                                       out_loc,
+                                                       object,
+                                                       /*offset=*/ 0,
+                                                       /*index=*/ offset_loc,
+                                                       temp,
+                                                       /*needs_null_check=*/ false);
+  } else {
+    // Other cases.
+    Riscv64Assembler* assembler = codegen->GetAssembler();
+    __ Add(out, object, offset);
+    codegen->GetInstructionVisitor()->Load(out_loc, out, /*offset=*/ 0, type);
+
+    if (type == DataType::Type::kReference) {
+      codegen->MaybeGenerateReadBarrierSlow(
+          invoke, out_loc, out_loc, object_loc, /*offset=*/ 0u, /*index=*/ offset_loc);
+    }
+  }
+
+  if (acquire_barrier) {
+    codegen->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+  }
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGet(HInvoke* invoke) {
+  VisitJdkUnsafeGet(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGet(HInvoke* invoke) {
+  VisitJdkUnsafeGet(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetReferenceVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetReferenceVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetLongVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
+  VisitJdkUnsafeGetLongVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetByte(HInvoke* invoke) {
+  VisitJdkUnsafeGetByte(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetByte(HInvoke* invoke) {
+  VisitJdkUnsafeGetByte(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGet(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGet(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAcquire(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAcquire(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_acquire, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetVolatile(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetReference(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetReference(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetReferenceAcquire(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetReferenceAcquire(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_acquire, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetReferenceVolatile(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetReferenceVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetLong(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetLong(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetLongAcquire(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetLongAcquire(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_acquire, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetLongVolatile(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetLongVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetByte(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetByte(HInvoke* invoke) {
+  GenUnsafeGet(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt8);
+}
+
+static void CreateUnsafePutLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+}
+
+static void GenUnsafePut(HInvoke* invoke,
+                         CodeGeneratorRISCV64* codegen,
+                         std::memory_order order,
+                         DataType::Type type) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister base = locations->InAt(1).AsRegister<XRegister>();    // Object pointer.
+  XRegister offset = locations->InAt(2).AsRegister<XRegister>();  // Long offset.
+  Location value = locations->InAt(3);
+
+  {
+    // We use a block to end the scratch scope before the write barrier, thus
+    // freeing the temporary registers so they can be used in `MarkGCCard()`.
+    ScratchRegisterScope srs(assembler);
+    XRegister address = srs.AllocateXRegister();
+    __ Add(address, base, offset);
+    GenerateSet(codegen, order, value, address, /*offset=*/ 0, type);
+  }
+
+  if (type == DataType::Type::kReference) {
+    bool value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, value.AsRegister<XRegister>(), value_can_be_null);
+  }
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePut(HInvoke* invoke) {
+  VisitJdkUnsafePut(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePut(HInvoke* invoke) {
+  VisitJdkUnsafePut(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutOrdered(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutOrdered(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutObject(HInvoke* invoke) {
+  VisitJdkUnsafePutReference(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutObject(HInvoke* invoke) {
+  VisitJdkUnsafePutReference(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutObjectOrdered(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutObjectOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutObjectOrdered(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutReferenceVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutObjectVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutReferenceVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutLong(HInvoke* invoke) {
+  VisitJdkUnsafePutLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutLong(HInvoke* invoke) {
+  VisitJdkUnsafePutLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutLongOrdered(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
+  VisitJdkUnsafePutLongOrdered(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutLongVolatile(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
+  VisitJdkUnsafePutLongVolatile(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafePutByte(HInvoke* invoke) {
+  VisitJdkUnsafePutByte(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafePutByte(HInvoke* invoke) {
+  VisitJdkUnsafePutByte(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePut(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePut(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutOrdered(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutRelease(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutRelease(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutVolatile(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutReference(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutReference(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutObjectOrdered(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutObjectOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutReferenceRelease(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutReferenceRelease(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutReferenceVolatile(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutReferenceVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kReference);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutLong(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutLong(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutLongOrdered(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutLongOrdered(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_release, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutLongVolatile(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutLongVolatile(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_seq_cst, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafePutByte(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutByte(HInvoke* invoke) {
+  GenUnsafePut(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt8);
 }
 
 class VarHandleSlowPathRISCV64 : public IntrinsicSlowPathRISCV64 {
@@ -1574,14 +2016,15 @@ static void GenerateVarHandleGet(HInvoke* invoke,
 
   // Load the value from the target location.
   if (type == DataType::Type::kReference && codegen->EmitBakerReadBarrier()) {
+    Location index = Location::RegisterLocation(target.offset);
     // TODO(riscv64): Revisit when we add checking if the holder is black.
-    Location index_and_temp_loc = Location::RegisterLocation(target.offset);
+    Location temp = Location::NoLocation();
     codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
                                                        out,
                                                        target.object,
                                                        /*offset=*/ 0,
-                                                       index_and_temp_loc,
-                                                       index_and_temp_loc,
+                                                       index,
+                                                       temp,
                                                        /*needs_null_check=*/ false);
     DCHECK(!byte_swap);
   } else {
@@ -1695,16 +2138,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
       value = new_value;
     }
 
-    if (order == std::memory_order_seq_cst) {
-      codegen->GetInstructionVisitor()->StoreSeqCst(value, address, /*offset=*/ 0, value_type);
-    } else {
-      if (order == std::memory_order_release) {
-        codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-      } else {
-        DCHECK(order == std::memory_order_relaxed);
-      }
-      codegen->GetInstructionVisitor()->Store(value, address, /*offset=*/ 0, value_type);
-    }
+    GenerateSet(codegen, order, value, address, /*offset=*/ 0, value_type);
   }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(value_type, invoke->InputAt(value_index))) {
