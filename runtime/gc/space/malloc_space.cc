@@ -186,8 +186,8 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   SetEnd(reinterpret_cast<uint8_t*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
   DCHECK_ALIGNED(begin_, accounting::CardTable::kCardSize);
   DCHECK_ALIGNED(End(), accounting::CardTable::kCardSize);
-  DCHECK_ALIGNED(begin_, kPageSize);
-  DCHECK_ALIGNED(End(), kPageSize);
+  DCHECK_ALIGNED_PARAM(begin_, kPageSize);
+  DCHECK_ALIGNED_PARAM(End(), kPageSize);
   size_t size = RoundUp(Size(), kPageSize);
   // Trimming the heap should be done by the caller since we may have invalidated the accounting
   // stored in between objects.

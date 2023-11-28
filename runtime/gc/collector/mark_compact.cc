@@ -554,8 +554,8 @@ MarkCompact::MarkCompact(Heap* heap)
 }
 
 void MarkCompact::AddLinearAllocSpaceData(uint8_t* begin, size_t len) {
-  DCHECK_ALIGNED(begin, kPageSize);
-  DCHECK_ALIGNED(len, kPageSize);
+  DCHECK_ALIGNED_PARAM(begin, kPageSize);
+  DCHECK_ALIGNED_PARAM(len, kPageSize);
   DCHECK_GE(len, kPMDSize);
   size_t alignment = BestPageTableAlignment(len);
   bool is_shared = false;
@@ -1950,7 +1950,7 @@ void MarkCompact::MapProcessedPages(uint8_t* to_space_start,
                                     size_t arr_len) {
   DCHECK(minor_fault_initialized_);
   DCHECK_LT(arr_idx, arr_len);
-  DCHECK_ALIGNED(to_space_start, kPageSize);
+  DCHECK_ALIGNED_PARAM(to_space_start, kPageSize);
   // Claim all the contiguous pages, which are ready to be mapped, and then do
   // so in a single ioctl. This helps avoid the overhead of invoking syscall
   // several times and also maps the already-processed pages, avoiding
@@ -1997,7 +1997,7 @@ void MarkCompact::MapProcessedPages(uint8_t* to_space_start,
       // Bail out by setting the remaining pages' state back to kProcessed and
       // then waking up any waiting threads.
       DCHECK_GE(uffd_continue.mapped, 0);
-      DCHECK_ALIGNED(uffd_continue.mapped, kPageSize);
+      DCHECK_ALIGNED_PARAM(uffd_continue.mapped, kPageSize);
       DCHECK_LT(uffd_continue.mapped, static_cast<ssize_t>(length));
       if (kFirstPageMapping) {
         // In this case the first page must be mapped.
@@ -2193,8 +2193,8 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx, int mode) {
   }
 
   DCHECK_NE(reclaim_begin, nullptr);
-  DCHECK_ALIGNED(reclaim_begin, kPageSize);
-  DCHECK_ALIGNED(last_reclaimed_page_, kPageSize);
+  DCHECK_ALIGNED_PARAM(reclaim_begin, kPageSize);
+  DCHECK_ALIGNED_PARAM(last_reclaimed_page_, kPageSize);
   // Check if the 'class_after_obj_map_' map allows pages to be freed.
   for (; class_after_obj_iter_ != class_after_obj_ordered_map_.rend(); class_after_obj_iter_++) {
     mirror::Object* klass = class_after_obj_iter_->first.AsMirrorPtr();
@@ -2663,7 +2663,7 @@ class MarkCompact::LinearAllocPageUpdater {
   void MultiObjectArena(uint8_t* page_begin, uint8_t* first_obj)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(first_obj != nullptr);
-    DCHECK_ALIGNED(page_begin, kPageSize);
+    DCHECK_ALIGNED_PARAM(page_begin, kPageSize);
     uint8_t* page_end = page_begin + kPageSize;
     uint32_t obj_size;
     for (uint8_t* byte = first_obj; byte < page_end;) {
@@ -3634,7 +3634,7 @@ void MarkCompact::ProcessLinearAlloc() {
         continue;
       }
       uint8_t* last_byte = pair.second;
-      DCHECK_ALIGNED(last_byte, kPageSize);
+      DCHECK_ALIGNED_PARAM(last_byte, kPageSize);
       others_processing = false;
       arena_begin = arena->Begin();
       arena_size = arena->Size();

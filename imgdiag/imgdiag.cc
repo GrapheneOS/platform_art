@@ -1603,8 +1603,8 @@ class ImgDiagDumper {
     auto read_contents = [&](File* mem_file,
                              /*out*/ MemMap* map,
                              /*out*/ ArrayRef<uint8_t>* contents) {
-      DCHECK_ALIGNED(boot_map.start, kPageSize);
-      DCHECK_ALIGNED(boot_map_size, kPageSize);
+      DCHECK_ALIGNED_PARAM(boot_map.start, kPageSize);
+      DCHECK_ALIGNED_PARAM(boot_map_size, kPageSize);
       std::string name = "Contents of " + mem_file->GetPath();
       std::string local_error_msg;
       // We need to use low 4 GiB memory so that we can walk the objects using standard

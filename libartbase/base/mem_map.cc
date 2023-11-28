@@ -236,7 +236,7 @@ bool MemMap::CheckReservation(uint8_t* expected_ptr,
     *error_msg = StringPrintf("Invalid reservation for %s", name);
     return false;
   }
-  DCHECK_ALIGNED(reservation.Begin(), kPageSize);
+  DCHECK_ALIGNED_PARAM(reservation.Begin(), kPageSize);
   if (reservation.Begin() != expected_ptr) {
     *error_msg = StringPrintf("Bad image reservation start for %s: %p instead of %p",
                               name,
@@ -765,10 +765,10 @@ MemMap MemMap::RemapAtEnd(uint8_t* new_end,
   DCHECK_GE(new_end, Begin());
   DCHECK_LE(new_end, End());
   DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
-  DCHECK_ALIGNED(begin_, kPageSize);
-  DCHECK_ALIGNED(base_begin_, kPageSize);
-  DCHECK_ALIGNED(reinterpret_cast<uint8_t*>(base_begin_) + base_size_, kPageSize);
-  DCHECK_ALIGNED(new_end, kPageSize);
+  DCHECK_ALIGNED_PARAM(begin_, kPageSize);
+  DCHECK_ALIGNED_PARAM(base_begin_, kPageSize);
+  DCHECK_ALIGNED_PARAM(reinterpret_cast<uint8_t*>(base_begin_) + base_size_, kPageSize);
+  DCHECK_ALIGNED_PARAM(new_end, kPageSize);
   uint8_t* old_end = begin_ + size_;
   uint8_t* old_base_end = reinterpret_cast<uint8_t*>(base_begin_) + base_size_;
   uint8_t* new_base_end = new_end;
@@ -783,7 +783,7 @@ MemMap MemMap::RemapAtEnd(uint8_t* new_end,
   uint8_t* tail_base_begin = new_base_end;
   size_t tail_base_size = old_base_end - new_base_end;
   DCHECK_EQ(tail_base_begin + tail_base_size, old_base_end);
-  DCHECK_ALIGNED(tail_base_size, kPageSize);
+  DCHECK_ALIGNED_PARAM(tail_base_size, kPageSize);
 
   MEMORY_TOOL_MAKE_UNDEFINED(tail_base_begin, tail_base_size);
   // Note: Do not explicitly unmap the tail region, mmap() with MAP_FIXED automatically
@@ -834,8 +834,8 @@ void MemMap::ReleaseReservedMemory(size_t byte_count) {
   DCHECK_EQ(redzone_size_, 0u);
   DCHECK_EQ(begin_, base_begin_);
   DCHECK_EQ(size_, base_size_);
-  DCHECK_ALIGNED(begin_, kPageSize);
-  DCHECK_ALIGNED(size_, kPageSize);
+  DCHECK_ALIGNED_PARAM(begin_, kPageSize);
+  DCHECK_ALIGNED_PARAM(size_, kPageSize);
 
   // Check and round up the `byte_count`.
   DCHECK_NE(byte_count, 0u);
@@ -955,7 +955,7 @@ void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
     size_t num_gaps = 0;
     size_t num = 1u;
     size_t size = map->BaseSize();
-    CHECK_ALIGNED(size, kPageSize);
+    CHECK_ALIGNED_PARAM(size, kPageSize);
     void* end = map->BaseEnd();
     while (it != maps_end &&
         it->second->GetProtect() == map->GetProtect() &&
@@ -969,12 +969,12 @@ void MemMap::DumpMapsLocked(std::ostream& os, bool terse) {
         }
         size_t gap =
             reinterpret_cast<uintptr_t>(it->second->BaseBegin()) - reinterpret_cast<uintptr_t>(end);
-        CHECK_ALIGNED(gap, kPageSize);
+        CHECK_ALIGNED_PARAM(gap, kPageSize);
         os << "~0x" << std::hex << (gap / kPageSize) << "P";
         num = 0u;
         size = 0u;
       }
-      CHECK_ALIGNED(it->second->BaseSize(), kPageSize);
+      CHECK_ALIGNED_PARAM(it->second->BaseSize(), kPageSize);
       ++num;
       size += it->second->BaseSize();
       end = it->second->BaseEnd();
@@ -1092,7 +1092,7 @@ void* MemMap::MapInternalArtLow4GBAllocator(size_t length,
       --before_it;
       // Start at the end of the map before the upper bound.
       ptr = std::max(ptr, reinterpret_cast<uintptr_t>(before_it->second->BaseEnd()));
-      CHECK_ALIGNED(ptr, kPageSize);
+      CHECK_ALIGNED_PARAM(ptr, kPageSize);
     }
     while (it != gMaps->end()) {
       // How much space do we have until the next map?
@@ -1103,7 +1103,7 @@ void* MemMap::MapInternalArtLow4GBAllocator(size_t length,
       }
       // Otherwise, skip to the end of the map.
       ptr = reinterpret_cast<uintptr_t>(it->second->BaseEnd());
-      CHECK_ALIGNED(ptr, kPageSize);
+      CHECK_ALIGNED_PARAM(ptr, kPageSize);
       ++it;
     }
 
@@ -1188,7 +1188,7 @@ void* MemMap::MapInternal(void* addr,
 #else
   UNUSED(low_4gb);
 #endif
-  DCHECK_ALIGNED(length, kPageSize);
+  DCHECK_ALIGNED_PARAM(length, kPageSize);
   // TODO:
   // A page allocator would be a useful abstraction here, as
   // 1) It is doubtful that MAP_32BIT on x86_64 is doing the right job for us
@@ -1347,7 +1347,7 @@ void MemMap::AlignBy(size_t alignment, bool align_both_ends) {
   CHECK_EQ(begin_, base_begin_) << "Unsupported";
   CHECK_EQ(size_, base_size_) << "Unsupported";
   CHECK_GT(alignment, static_cast<size_t>(kPageSize));
-  CHECK_ALIGNED(alignment, kPageSize);
+  CHECK_ALIGNED_PARAM(alignment, kPageSize);
   CHECK(!reuse_);
   if (IsAlignedParam(reinterpret_cast<uintptr_t>(base_begin_), alignment) &&
       (!align_both_ends || IsAlignedParam(base_size_, alignment))) {
