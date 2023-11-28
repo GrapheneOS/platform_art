@@ -291,8 +291,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
     @Test
     public void testDexoptMergesProfiles() throws Exception {
-        when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
-        when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
+        setPackageInstalledForUserIds(0, 2);
 
         when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(true);
 
@@ -336,8 +335,7 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
     @Test
     public void testDexoptMergesProfilesMergeFailed() throws Exception {
-        when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
-        when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
+        setPackageInstalledForUserIds(0, 2);
 
         when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(false);
 
@@ -361,6 +359,28 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
 
         verify(mArtd, never()).deleteProfile(any());
         verify(mArtd, never()).commitTmpProfile(any());
+    }
+
+    @Test
+    public void testDexoptMergesProfilesForceMerge() throws Exception {
+        mDexoptParams = mDexoptParams.toBuilder()
+                                .setFlags(ArtFlags.FLAG_FORCE_MERGE_PROFILE,
+                                        ArtFlags.FLAG_FORCE_MERGE_PROFILE)
+                                .build();
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+
+        setPackageInstalledForUserIds(0, 2);
+
+        mMergeProfileOptions.forceMerge = true;
+        when(mArtd.mergeProfiles(any(), any(), any(), any(), deepEq(mMergeProfileOptions)))
+                .thenReturn(true);
+
+        makeProfileUsable(mRefProfile);
+        when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+
+        mPrimaryDexopter.dexopt();
     }
 
     @Test
@@ -756,6 +776,14 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
             assertThat(result.getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
             assertThat(result.getExtendedStatusFlags()).isEqualTo(0);
             assertThat(result.getExternalProfileErrors()).isEmpty();
+        }
+    }
+
+    /** Dexopter relies on this information to determine which current profiles to check. */
+    private void setPackageInstalledForUserIds(int... userIds) {
+        for (int userId : userIds) {
+            when(mPkgState.getStateForUser(eq(UserHandle.of(userId))))
+                    .thenReturn(mPkgUserStateInstalled);
         }
     }
 }
