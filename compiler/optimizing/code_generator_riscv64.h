@@ -106,6 +106,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(UnsafeGetObjectVolatile)                    \
   V(UnsafeGetLong)                              \
   V(UnsafeGetLongVolatile)                      \
+  V(UnsafeGetByte)                              \
   V(UnsafePut)                                  \
   V(UnsafePutOrdered)                           \
   V(UnsafePutVolatile)                          \
@@ -115,6 +116,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(UnsafePutLong)                              \
   V(UnsafePutLongOrdered)                       \
   V(UnsafePutLongVolatile)                      \
+  V(UnsafePutByte)                              \
   V(UnsafeGetAndAddInt)                         \
   V(UnsafeGetAndAddLong)                        \
   V(UnsafeGetAndSetInt)                         \
@@ -135,6 +137,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafeGetLong)                           \
   V(JdkUnsafeGetLongVolatile)                   \
   V(JdkUnsafeGetLongAcquire)                    \
+  V(JdkUnsafeGetByte)                           \
   V(JdkUnsafePut)                               \
   V(JdkUnsafePutOrdered)                        \
   V(JdkUnsafePutRelease)                        \
@@ -144,6 +147,7 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(JdkUnsafePutReferenceVolatile)              \
   V(JdkUnsafePutReferenceRelease)               \
   V(JdkUnsafePutLong)                           \
+  V(JdkUnsafePutByte)                           \
   V(JdkUnsafePutLongOrdered)                    \
   V(JdkUnsafePutLongVolatile)                   \
   V(JdkUnsafePutLongRelease)                    \
