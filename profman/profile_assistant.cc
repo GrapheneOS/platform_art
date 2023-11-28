@@ -54,7 +54,7 @@ ProfmanResult::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
     ProfileCompilationInfo cur_info(options.IsBootImageMerge());
     if (!cur_info.Load(profile_files[i]->Fd(), /*merge_classes=*/ true, filter_fn)) {
       LOG(WARNING) << "Could not load profile file at index " << i;
-      if (options.IsForceMerge()) {
+      if (options.IsForceMerge() || options.IsForceMergeAndAnalyze()) {
         // If we have to merge forcefully, ignore load failures.
         // This is useful for boot image profiles to ignore stale profiles which are
         // cleared lazily.
@@ -79,17 +79,30 @@ ProfmanResult::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
     if (info.IsEmpty()) {
       return ProfmanResult::kSkipCompilationEmptyProfiles;
     }
-    uint32_t min_change_in_methods_for_compilation = std::max(
-        (options.GetMinNewMethodsPercentChangeForCompilation() * number_of_methods) / 100,
-        kMinNewMethodsForCompilation);
-    uint32_t min_change_in_classes_for_compilation = std::max(
-        (options.GetMinNewClassesPercentChangeForCompilation() * number_of_classes) / 100,
-        kMinNewClassesForCompilation);
-    // Check if there is enough new information added by the current profiles.
-    if (((info.GetNumberOfMethods() - number_of_methods) < min_change_in_methods_for_compilation) &&
-        ((info.GetNumberOfResolvedClasses() - number_of_classes)
-            < min_change_in_classes_for_compilation)) {
-      return ProfmanResult::kSkipCompilationSmallDelta;
+
+    if (options.IsForceMergeAndAnalyze()) {
+      // When we force merge and analyze, we want to always recompile unless there is absolutely no
+      // difference between before and after the merge (i.e., the classes and methods in the
+      // reference profile were already a superset of those in all current profiles before the
+      // merge.)
+      if (info.GetNumberOfMethods() == number_of_methods &&
+          info.GetNumberOfResolvedClasses() == number_of_classes) {
+        return ProfmanResult::kSkipCompilationSmallDelta;
+      }
+    } else {
+      uint32_t min_change_in_methods_for_compilation = std::max(
+          (options.GetMinNewMethodsPercentChangeForCompilation() * number_of_methods) / 100,
+          kMinNewMethodsForCompilation);
+      uint32_t min_change_in_classes_for_compilation = std::max(
+          (options.GetMinNewClassesPercentChangeForCompilation() * number_of_classes) / 100,
+          kMinNewClassesForCompilation);
+      // Check if there is enough new information added by the current profiles.
+      if (((info.GetNumberOfMethods() - number_of_methods) <
+           min_change_in_methods_for_compilation) &&
+          ((info.GetNumberOfResolvedClasses() - number_of_classes) <
+           min_change_in_classes_for_compilation)) {
+        return ProfmanResult::kSkipCompilationSmallDelta;
+      }
     }
   }
 

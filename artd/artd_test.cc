@@ -1863,7 +1863,7 @@ TEST_F(ArtdTest, mergeProfiles) {
                           Contains(Flag("--reference-profile-file-fd=", FdHasContent("abc"))),
                           Contains(Flag("--apk-fd=", FdOf(dex_file_1))),
                           Contains(Flag("--apk-fd=", FdOf(dex_file_2))),
-                          Not(Contains("--force-merge")),
+                          Not(Contains("--force-merge-and-analyze")),
                           Not(Contains("--boot-image-merge")))),
                 HasKeepFdsFor("--profile-file-fd=", "--reference-profile-file-fd=", "--apk-fd=")),
           _,
@@ -1979,13 +1979,14 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsForceMerge) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(
-          WhenSplitBy("--", _, AllOf(Contains("--force-merge"), Contains("--boot-image-merge"))),
-          _,
-          _))
-      .WillOnce(Return(ProfmanResult::kSuccess));
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy("--",
+                                              _,
+                                              AllOf(Contains("--force-merge-and-analyze"),
+                                                    Contains("--boot-image-merge"))),
+                                  _,
+                                  _))
+      .WillOnce(Return(ProfmanResult::kCompile));
 
   bool result;
   EXPECT_TRUE(artd_
