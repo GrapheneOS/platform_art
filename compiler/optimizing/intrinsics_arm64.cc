@@ -701,7 +701,8 @@ static void GenUnsafeGet(HInvoke* invoke,
                          bool is_volatile,
                          CodeGeneratorARM64* codegen) {
   LocationSummary* locations = invoke->GetLocations();
-  DCHECK((type == DataType::Type::kInt32) ||
+  DCHECK((type == DataType::Type::kInt8) ||
+         (type == DataType::Type::kInt32) ||
          (type == DataType::Type::kInt64) ||
          (type == DataType::Type::kReference));
   Location base_loc = locations->InAt(1);
@@ -780,6 +781,9 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeGetObject(HInvoke* invoke) {
 void IntrinsicLocationsBuilderARM64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
   VisitJdkUnsafeGetReferenceVolatile(invoke);
 }
+void IntrinsicLocationsBuilderARM64::VisitUnsafeGetByte(HInvoke* invoke) {
+  VisitJdkUnsafeGetByte(invoke);
+}
 
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGet(HInvoke* invoke) {
   CreateUnsafeGetLocations(allocator_, invoke, codegen_);
@@ -808,6 +812,9 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetReferenceVolatile(HInvoke*
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetReferenceAcquire(HInvoke* invoke) {
   CreateUnsafeGetLocations(allocator_, invoke, codegen_);
 }
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeGetByte(HInvoke* invoke) {
+  CreateUnsafeGetLocations(allocator_, invoke, codegen_);
+}
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeGet(HInvoke* invoke) {
   VisitJdkUnsafeGet(invoke);
@@ -826,6 +833,9 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeGetObject(HInvoke* invoke) {
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
   VisitJdkUnsafeGetReferenceVolatile(invoke);
+}
+void IntrinsicCodeGeneratorARM64::VisitUnsafeGetByte(HInvoke* invoke) {
+  VisitJdkUnsafeGetByte(invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGet(HInvoke* invoke) {
@@ -854,6 +864,9 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetReferenceVolatile(HInvoke* in
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetReferenceAcquire(HInvoke* invoke) {
   GenUnsafeGet(invoke, DataType::Type::kReference, /*is_volatile=*/ true, codegen_);
+}
+void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetByte(HInvoke* invoke) {
+  GenUnsafeGet(invoke, DataType::Type::kInt8, /*is_volatile=*/ false, codegen_);
 }
 
 static void CreateUnsafePutLocations(ArenaAllocator* allocator, HInvoke* invoke) {
@@ -892,6 +905,9 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafePutLongOrdered(HInvoke* invoke) 
 void IntrinsicLocationsBuilderARM64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
   VisitJdkUnsafePutLongVolatile(invoke);
 }
+void IntrinsicLocationsBuilderARM64::VisitUnsafePutByte(HInvoke* invoke) {
+  VisitJdkUnsafePutByte(invoke);
+}
 
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePut(HInvoke* invoke) {
   CreateUnsafePutLocations(allocator_, invoke);
@@ -927,6 +943,9 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLongVolatile(HInvoke* invo
   CreateUnsafePutLocations(allocator_, invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
+  CreateUnsafePutLocations(allocator_, invoke);
+}
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafePutByte(HInvoke* invoke) {
   CreateUnsafePutLocations(allocator_, invoke);
 }
 
@@ -996,6 +1015,9 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafePutLongOrdered(HInvoke* invoke) {
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
   VisitJdkUnsafePutLongVolatile(invoke);
+}
+void IntrinsicCodeGeneratorARM64::VisitUnsafePutByte(HInvoke* invoke) {
+  VisitJdkUnsafePutByte(invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafePut(HInvoke* invoke) {
@@ -1079,6 +1101,13 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) 
   GenUnsafePut(invoke,
                DataType::Type::kInt64,
                /*is_volatile=*/ true,
+               /*is_ordered=*/ false,
+               codegen_);
+}
+void IntrinsicCodeGeneratorARM64::VisitJdkUnsafePutByte(HInvoke* invoke) {
+  GenUnsafePut(invoke,
+               DataType::Type::kInt8,
+               /*is_volatile=*/ false,
                /*is_ordered=*/ false,
                codegen_);
 }
