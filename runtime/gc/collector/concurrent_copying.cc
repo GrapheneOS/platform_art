@@ -2662,14 +2662,14 @@ void ConcurrentCopying::CaptureRssAtPeak() {
     };
 
     // region space
-    DCHECK(IsAligned<kPageSize>(region_space_->Limit()));
+    DCHECK(IsAlignedParam(region_space_->Limit(), kPageSize));
     gc_ranges.emplace_back(range_t(region_space_->Begin(), region_space_->Limit()));
     // mark bitmap
     add_gc_range(region_space_bitmap_->Begin(), region_space_bitmap_->Size());
 
     // non-moving space
     {
-      DCHECK(IsAligned<kPageSize>(heap_->non_moving_space_->Limit()));
+      DCHECK(IsAlignedParam(heap_->non_moving_space_->Limit(), kPageSize));
       gc_ranges.emplace_back(range_t(heap_->non_moving_space_->Begin(),
                                      heap_->non_moving_space_->Limit()));
       // mark bitmap
@@ -2689,7 +2689,7 @@ void ConcurrentCopying::CaptureRssAtPeak() {
     // large-object space
     if (heap_->GetLargeObjectsSpace()) {
       heap_->GetLargeObjectsSpace()->ForEachMemMap([&add_gc_range](const MemMap& map) {
-        DCHECK(IsAligned<kPageSize>(map.BaseSize()));
+        DCHECK(IsAlignedParam(map.BaseSize(), kPageSize));
         add_gc_range(map.BaseBegin(), map.BaseSize());
       });
       // mark bitmap

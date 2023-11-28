@@ -1764,7 +1764,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
                                  uint8_t* const pre_compact_page,
                                  uint8_t* dest,
                                  bool needs_memset_zero) {
-  DCHECK(IsAligned<kPageSize>(pre_compact_page));
+  DCHECK(IsAlignedParam(pre_compact_page, kPageSize));
   size_t bytes_copied;
   uint8_t* src_addr = reinterpret_cast<uint8_t*>(GetFromSpaceAddr(first_obj));
   uint8_t* pre_compact_addr = reinterpret_cast<uint8_t*>(first_obj);
@@ -1792,7 +1792,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     size_t offset = pre_compact_page - pre_compact_addr;
     pre_compact_addr = pre_compact_page;
     src_addr += offset;
-    DCHECK(IsAligned<kPageSize>(src_addr));
+    DCHECK(IsAlignedParam(src_addr, kPageSize));
   }
   // Copy the first chunk of live words
   std::memcpy(dest, src_addr, first_chunk_size);
@@ -2043,7 +2043,7 @@ void MarkCompact::MapProcessedPages(uint8_t* to_space_start,
 
 void MarkCompact::ZeropageIoctl(void* addr, bool tolerate_eexist, bool tolerate_enoent) {
   struct uffdio_zeropage uffd_zeropage;
-  DCHECK(IsAligned<kPageSize>(addr));
+  DCHECK(IsAlignedParam(addr, kPageSize));
   uffd_zeropage.range.start = reinterpret_cast<uintptr_t>(addr);
   uffd_zeropage.range.len = kPageSize;
   uffd_zeropage.mode = 0;
@@ -2277,7 +2277,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
   }
   uint8_t* pre_compact_page = black_allocations_begin_ + (black_page_count_ * kPageSize);
 
-  DCHECK(IsAligned<kPageSize>(pre_compact_page));
+  DCHECK(IsAlignedParam(pre_compact_page, kPageSize));
 
   UpdateClassAfterObjMap();
   // These variables are maintained by FreeFromSpacePages().
@@ -3326,7 +3326,7 @@ void MarkCompact::ConcurrentlyProcessMovingPage(uint8_t* fault_page,
 
   uint8_t* unused_space_begin =
       bump_pointer_space_->Begin() + nr_moving_space_used_pages * kPageSize;
-  DCHECK(IsAligned<kPageSize>(unused_space_begin));
+  DCHECK(IsAlignedParam(unused_space_begin, kPageSize));
   DCHECK(kMode == kCopyMode || fault_page < unused_space_begin);
   if (kMode == kCopyMode && fault_page >= unused_space_begin) {
     // There is a race which allows more than one thread to install a
@@ -3395,7 +3395,7 @@ void MarkCompact::ConcurrentlyProcessMovingPage(uint8_t* fault_page,
             if (page_idx + 1 < moving_first_objs_count_ + black_page_count_) {
               next_page_first_obj = first_objs_moving_space_[page_idx + 1].AsMirrorPtr();
             }
-            DCHECK(IsAligned<kPageSize>(pre_compact_page));
+            DCHECK(IsAlignedParam(pre_compact_page, kPageSize));
             SlideBlackPage(first_obj,
                            next_page_first_obj,
                            first_chunk_size,
@@ -3842,7 +3842,7 @@ void MarkCompact::CompactionPhase() {
       count &= ~kSigbusCounterCompactionDoneMask;
     }
   } else {
-    DCHECK(IsAligned<kPageSize>(conc_compaction_termination_page_));
+    DCHECK(IsAlignedParam(conc_compaction_termination_page_, kPageSize));
     // We will only iterate once if gKernelHasFaultRetry is true.
     do {
       // madvise the page so that we can get userfaults on it.
