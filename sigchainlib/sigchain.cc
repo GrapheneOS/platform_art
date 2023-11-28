@@ -297,6 +297,7 @@ class SignalChain {
 
 #if defined(__BIONIC__)
     linked_sigaction64(signo, &handler_action, &action_);
+    orig_action_ = action_;
     linked_sigaction64(signo, nullptr, &handler_action);
 #else
     linked_sigaction(signo, &handler_action, &action_);
@@ -409,6 +410,7 @@ class SignalChain {
   int kernel_supported_flags_;
 #if defined(__BIONIC__)
   struct sigaction64 action_;
+  struct sigaction64 orig_action_;
 #else
   struct sigaction action_;
 #endif
@@ -490,15 +492,30 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
     return;
   }
 
+#if defined(__BIONIC__)
+  struct sigaction64 *action = &chains[signo].action_;
+#else
+  struct sigaction *action = &chains[signo].action_;
+#endif
+
+#if defined(__BIONIC__)
+  if (signo == SIGSEGV && (siginfo->si_code == SEGV_MTEAERR || siginfo->si_code == SEGV_MTESERR)
+        && mallopt(M_BIONIC_SIGCHAINLIB_SHOULD_INTERCEPT_MTE_SIGSEGV, 0) == 1)
+  {
+    LogError("reverting to orig_action_ for MTE SEGV, si_code %d", siginfo->si_code);
+    action = &chains[SIGSEGV].orig_action_;
+  }
+#endif
+
   // Forward to the user's signal handler.
-  int handler_flags = chains[signo].action_.sa_flags;
+  int handler_flags = action->sa_flags;
   ucontext_t* ucontext = static_cast<ucontext_t*>(ucontext_raw);
 #if defined(__BIONIC__)
   sigset64_t mask;
-  sigorset(&mask, &ucontext->uc_sigmask64, &chains[signo].action_.sa_mask);
+  sigorset(&mask, &ucontext->uc_sigmask64, &action->sa_mask);
 #else
   sigset_t mask;
-  sigorset(&mask, &ucontext->uc_sigmask, &chains[signo].action_.sa_mask);
+  sigorset(&mask, &ucontext->uc_sigmask, &action->sa_mask);
 #endif
   if (!(handler_flags & SA_NODEFER)) {
     sigaddset(&mask, signo);
@@ -522,9 +539,9 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
       siginfo->si_addr = untag_address(siginfo->si_addr);
     }
 #endif
-    chains[signo].action_.sa_sigaction(signo, siginfo, ucontext_raw);
+    action->sa_sigaction(signo, siginfo, ucontext_raw);
   } else {
-    auto handler = chains[signo].action_.sa_handler;
+    auto handler = action->sa_handler;
     if (handler == SIG_IGN) {
       return;
     } else if (handler == SIG_DFL) {
