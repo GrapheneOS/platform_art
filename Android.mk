@@ -752,6 +752,10 @@ use-art-verify-none:
 # Clear locally used variables.
 TEST_ART_TARGET_SYNC_DEPS :=
 
+# These files only exist if this flag is off. WITH_DEXPREOPT_ART_BOOT_IMG_ONLY is the
+# minimal dexpreopt mode we use on eng builds for build speed.
+ifneq ($(WITH_DEXPREOPT_ART_BOOT_IMG_ONLY),true)
+
 # Helper target that depends on boot image creation.
 #
 # Can be used, for example, to dump initialization failures:
@@ -766,6 +770,8 @@ art-job-images: \
   $(HOST_OUT_EXECUTABLES)/dex2oats \
   $(HOST_OUT_EXECUTABLES)/dex2oatds \
   $(HOST_OUT_EXECUTABLES)/profman
+
+endif # TARGET_BUILD_VARIANT == eng
 
 ########################################################################
 
