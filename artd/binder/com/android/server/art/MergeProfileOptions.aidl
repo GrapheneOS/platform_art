@@ -28,7 +28,7 @@ package com.android.server.art;
  * @hide
  */
 parcelable MergeProfileOptions {
-    /** --force-merge */
+    /** --force-merge-and-analyze */
     boolean forceMerge;
     /** --boot-image-merge */
     boolean forBootImage;

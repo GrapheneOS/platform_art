@@ -190,7 +190,10 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --boot-image-merge: indicates that this merge is for a boot image profile.");
   UsageError("      In this case, the reference profile must have a boot profile version.");
   UsageError("  --force-merge: performs a forced merge, without analyzing if there is a");
-  UsageError("      significant difference between the current profile and the reference profile.");
+  UsageError("      significant difference between before and after the merge.");
+  UsageError("      Deprecated. Use --force-merge-and-analyze instead.");
+  UsageError("  --force-merge-and-analyze: performs a forced merge and analyzes if there is any");
+  UsageError("      difference between before and after the merge.");
   UsageError("  --min-new-methods-percent-change=percentage between 0 and 100 (default 2)");
   UsageError("      the min percent of new methods to trigger a compilation.");
   UsageError("  --min-new-classes-percent-change=percentage between 0 and 100 (default 2)");
@@ -469,7 +472,11 @@ class ProfMan final {
       } else if (option == "--boot-image-merge") {
         profile_assistant_options_.SetBootImageMerge(true);
       } else if (option == "--force-merge") {
+        // For backward compatibility only.
+        // TODO(jiakaiz): Remove this when S and T are no longer supported.
         profile_assistant_options_.SetForceMerge(true);
+      } else if (option == "--force-merge-and-analyze") {
+        profile_assistant_options_.SetForceMergeAndAnalyze(true);
       } else {
         Usage("Unknown argument '%s'", raw_option);
       }
