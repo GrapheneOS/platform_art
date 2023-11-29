@@ -9085,7 +9085,7 @@ void CodeGeneratorARMVIXL::GenerateGcRootFieldLoad(
   MaybeGenerateMarkingRegisterCheck(/* code= */ 20);
 }
 
-void CodeGeneratorARMVIXL::GenerateIntrinsicCasMoveWithBakerReadBarrier(
+void CodeGeneratorARMVIXL::GenerateIntrinsicMoveWithBakerReadBarrier(
     vixl::aarch32::Register marked_old_value,
     vixl::aarch32::Register old_value) {
   DCHECK(EmitBakerReadBarrier());

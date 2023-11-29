@@ -162,20 +162,10 @@ using VIXLUInt32Literal = vixl::aarch32::Literal<uint32_t>;
   /* 1.8 */                                                                \
   V(MathFmaDouble)                                                         \
   V(MathFmaFloat)                                                          \
-  V(UnsafeGetAndAddInt)                                                    \
-  V(UnsafeGetAndAddLong)                                                   \
-  V(UnsafeGetAndSetInt)                                                    \
-  V(UnsafeGetAndSetLong)                                                   \
-  V(UnsafeGetAndSetObject)                                                 \
   V(MethodHandleInvokeExact)                                               \
   V(MethodHandleInvoke)                                                    \
   /* OpenJDK 11 */                                                         \
   V(JdkUnsafeCASLong) /* High register pressure */                         \
-  V(JdkUnsafeGetAndAddInt)                                                 \
-  V(JdkUnsafeGetAndAddLong)                                                \
-  V(JdkUnsafeGetAndSetInt)                                                 \
-  V(JdkUnsafeGetAndSetLong)                                                \
-  V(JdkUnsafeGetAndSetReference)                                           \
   V(JdkUnsafeCompareAndSetLong)
 
 ALWAYS_INLINE inline StoreOperandType GetStoreOperandType(DataType::Type type) {
@@ -750,9 +740,9 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                vixl::aarch32::Register obj,
                                uint32_t offset,
                                ReadBarrierOption read_barrier_option);
-  // Generate MOV for an intrinsic CAS to mark the old value with Baker read barrier.
-  void GenerateIntrinsicCasMoveWithBakerReadBarrier(vixl::aarch32::Register marked_old_value,
-                                                    vixl::aarch32::Register old_value);
+  // Generate MOV for an intrinsic to mark the old value with Baker read barrier.
+  void GenerateIntrinsicMoveWithBakerReadBarrier(vixl::aarch32::Register marked_old_value,
+                                                 vixl::aarch32::Register old_value);
   // Fast path implementation of ReadBarrier::Barrier for a heap
   // reference field load when Baker's read barriers are used.
   // Overload suitable for Unsafe.getObject/-Volatile() intrinsic.
