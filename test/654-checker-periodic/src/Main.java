@@ -50,6 +50,21 @@ public class Main {
     return lI;
   }
 
+  /// CHECK-START: int Main.doitDownInt2(int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi:i\d+>> Phi  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:              Phi  loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: int Main.doitDownInt2(int) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  static int doitDownInt2(int n) {
+    // Complete loop is replaced by last-value.
+    int lI = 1;
+    for (int i1 = n; i1 > 0; i1--) {
+      lI = (1486662021 - lI);
+    }
+    return lI;
+  }
+
   /// CHECK-START: float Main.doitUpFloat(int) loop_optimization (before)
   /// CHECK-DAG: <<Phi:i\d+>> Phi  loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:              Phi  loop:<<Loop>>      outer_loop:none
@@ -122,6 +137,25 @@ public class Main {
     return lF;
   }
 
+  /// CHECK-START: float Main.doitDownFloatAlt2(int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi:i\d+>> Phi  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG:              Phi  loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: float Main.doitDownFloatAlt2(int) loop_optimization (after)
+  /// CHECK-NOT: Phi
+  static float doitDownFloatAlt2(int n) {
+    // Complete loop is replaced by last-value
+    // since the values are now precise.
+    float lF = 1.0f;
+    float l2 = 1486662020.0f;
+    for (int i1 = n; i1 > 0; i1--) {
+      float old = lF;
+      lF = l2;
+      l2 = old;
+    }
+    return lF;
+  }
+
   // Main driver.
   public static void main(String[] args) {
     for (int i = 0; i < 10; i++) {
@@ -132,6 +166,11 @@ public class Main {
     for (int i = 0; i < 10; i++) {
       int ei = (i & 1) == 0 ? 1 : 1486662020;
       int ci = doitDownInt(i);
+      expectEquals(ei, ci);
+    }
+    for (int i = 0; i < 10; i++) {
+      int ei = (i & 1) == 0 ? 1 : 1486662020;
+      int ci = doitDownInt2(i);
       expectEquals(ei, ci);
     }
     for (int i = 0; i < 10; i++) {
@@ -152,6 +191,11 @@ public class Main {
     for (int i = 0; i < 10; i++) {
       float ef = (i & 1) == 0 ? 1.0f : 1486662020.0f;
       float cf = doitDownFloatAlt(i);
+      expectEquals(ef, cf);
+    }
+    for (int i = 0; i < 10; i++) {
+      float ef = (i & 1) == 0 ? 1.0f : 1486662020.0f;
+      float cf = doitDownFloatAlt2(i);
       expectEquals(ef, cf);
     }
     System.out.println("passed");
