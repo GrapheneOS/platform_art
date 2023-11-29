@@ -103,6 +103,10 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 			"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
 	}
 
+	if (ctx.Config().PageSizeAgnostic()) {
+		cflags = append(cflags, "-DART_PAGE_SIZE_AGNOSTIC=1")
+	}
+
 	if ctx.Config().IsEnvTrue("ART_ENABLE_ADDRESS_SANITIZER") {
 		// Used to enable full sanitization, i.e., user poisoning, under ASAN.
 		cflags = append(cflags, "-DART_ENABLE_ADDRESS_SANITIZER=1")
