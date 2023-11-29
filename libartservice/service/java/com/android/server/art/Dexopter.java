@@ -98,6 +98,11 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
      */
     @NonNull
     public final List<DexContainerFileDexoptResult> dexopt() throws RemoteException {
+        if (SystemProperties.getBoolean("dalvik.vm.disable-art-service-dexopt", false /* def */)) {
+            Log.i(TAG, "Dexopt skipped because it's disabled by system property");
+            return List.of();
+        }
+
         List<DexContainerFileDexoptResult> results = new ArrayList<>();
 
         boolean isInDalvikCache = isInDalvikCache();
