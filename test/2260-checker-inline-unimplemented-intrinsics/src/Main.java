@@ -53,20 +53,21 @@ public class Main {
     }
 
     // UnsafeGetAndAddInt/Long are part of core-oj and we will not inline on host.
+    // And they are actually implemented on arm64.
 
-    /// CHECK-START-{ARM,ARM64}: int Main.$noinline$add(java.lang.Object, long, int) inliner (before)
+    /// CHECK-START: int Main.$noinline$add(java.lang.Object, long, int) inliner (before)
     /// CHECK:     InvokeVirtual intrinsic:UnsafeGetAndAddInt
 
-    /// CHECK-START-{ARM,ARM64}: int Main.$noinline$add(java.lang.Object, long, int) inliner (after)
+    /// CHECK-START-ARM: int Main.$noinline$add(java.lang.Object, long, int) inliner (after)
     /// CHECK-NOT: InvokeVirtual intrinsic:UnsafeGetAndAddInt
     private static int $noinline$add(Object o, long offset, int delta) {
         return unsafe.getAndAddInt(o, offset, delta);
     }
 
-    /// CHECK-START-{ARM,ARM64}: long Main.$noinline$add(java.lang.Object, long, long) inliner (before)
+    /// CHECK-START: long Main.$noinline$add(java.lang.Object, long, long) inliner (before)
     /// CHECK:     InvokeVirtual intrinsic:UnsafeGetAndAddLong
 
-    /// CHECK-START-{ARM,ARM64}: long Main.$noinline$add(java.lang.Object, long, long) inliner (after)
+    /// CHECK-START-ARM: long Main.$noinline$add(java.lang.Object, long, long) inliner (after)
     /// CHECK-NOT: InvokeVirtual intrinsic:UnsafeGetAndAddLong
     private static long $noinline$add(Object o, long offset, long delta) {
         return unsafe.getAndAddLong(o, offset, delta);
