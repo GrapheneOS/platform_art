@@ -75,9 +75,11 @@ class BuildTestContext:
     self.javac_args = "-g -Xlint:-options"
 
     # Helper functions to execute tools.
+    self.d8_path = args.d8.absolute()
     self.d8 = functools.partial(self.run, args.d8.absolute())
     self.jasmin = functools.partial(self.run, args.jasmin.absolute())
     self.javac = functools.partial(self.run, self.javac_path)
+    self.smali_path = args.smali.absolute()
     self.smali = functools.partial(self.run, args.smali.absolute())
     self.soong_zip = functools.partial(self.run, args.soong_zip.absolute())
     self.zipalign = functools.partial(self.run, args.zipalign.absolute())
@@ -189,12 +191,38 @@ class BuildTestContext:
       d8_path] + args, inputs)
 
   def rbe_smali(self, smali_path:Path, args):
-    inputs = set([smali_path.parent.parent / "framework/smali.jar"])
-    output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
-    return self.rbe_wrap([
-      "--output_files", output,
+    # The output of smali is non-deterministic, so create wrapper script,
+    # which runs D8 on the output to normalize it.
+    api = args[args.index("--api") + 1]
+    output = Path(args[args.index("--output") + 1])
+    wrapper = output.with_suffix(".sh")
+    wrapper.write_text('''
+      set -e
+      {smali} $@
+      mkdir dex_normalize
+      {d8} --min-api {api} --output dex_normalize {output}
+      cp dex_normalize/classes.dex {output}
+      rm -rf dex_normalize
+    '''.strip().format(
+      smali=relpath(self.smali_path, self.test_dir),
+      d8=relpath(self.d8_path, self.test_dir),
+      api=api,
+      output=relpath(output, self.test_dir),
+    ))
+
+    inputs = set([
+      wrapper,
+      self.smali_path,
+      self.smali_path.parent.parent / "framework/smali.jar",
+      self.d8_path,
+      self.d8_path.parent.parent / "framework/d8.jar",
+    ])
+    res = self.rbe_wrap([
+      "--output_files", relpath(output, self.rbe_exec_root),
       "--toolchain_inputs=prebuilts/jdk/jdk17/linux-x86/bin/java",
-      smali_path] + args, inputs)
+      "/bin/bash", wrapper] + args, inputs)
+    wrapper.unlink()
+    return res
 
   def build(self) -> None:
     script = self.test_dir / "build.py"
