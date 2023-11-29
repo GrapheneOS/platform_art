@@ -672,6 +672,40 @@ public class Main {
         return k;
     }
 
+    /// CHECK-START: int Main.periodicOverflowTripCountNotOptimized() loop_optimization (before)
+    /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+    /// CHECK-DAG: {{i\d+}}      Phi               loop:<<Loop>>      outer_loop:none
+    /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+    //
+    /// CHECK-START: int Main.periodicOverflowTripCountNotOptimized() loop_optimization (after)
+    /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+    /// CHECK-DAG: {{i\d+}}      Phi               loop:<<Loop>>      outer_loop:none
+    /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+    static int periodicOverflowTripCountNotOptimized() {
+        int k = 0;
+        for (int i = Integer.MIN_VALUE; i < Integer.MAX_VALUE - 81; i += 80) {
+            k = 1 - k;
+        }
+        return k;
+    }
+
+    /// CHECK-START: int Main.periodicCouldOverflowTripCountNotOptimized(int) loop_optimization (before)
+    /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+    /// CHECK-DAG: {{i\d+}}      Phi               loop:<<Loop>>      outer_loop:none
+    /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+    //
+    /// CHECK-START: int Main.periodicCouldOverflowTripCountNotOptimized(int) loop_optimization (after)
+    /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+    /// CHECK-DAG: {{i\d+}}      Phi               loop:<<Loop>>      outer_loop:none
+    /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+    static int periodicCouldOverflowTripCountNotOptimized(int start) {
+        int k = 0;
+        for (int i = start; i < Integer.MAX_VALUE - 81; i += 80) {
+            k = 1 - k;
+        }
+        return k;
+    }
+
     // If ever replaced by closed form, last value should be correct!
     private static int getSumN(int n) {
         int k = 0;
@@ -1137,6 +1171,9 @@ public class Main {
             expectEquals(tc & 1, periodicReturnedN(n));
             expectEquals((tc * (tc + 1)) / 2, getSumN(n));
         }
+
+        expectEquals(1, periodicOverflowTripCountNotOptimized());
+        expectEquals(1, periodicCouldOverflowTripCountNotOptimized(Integer.MIN_VALUE));
 
         expectEquals(10, closedTwice());
         expectEquals(20, closedFeed());
