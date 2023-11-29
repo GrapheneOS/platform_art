@@ -177,6 +177,16 @@ static inline bool IsUnsafeCASReference(HInvoke* invoke) {
   }
 }
 
+static inline bool IsUnsafeGetAndSetReference(HInvoke* invoke) {
+  switch (invoke->GetIntrinsic()) {
+    case Intrinsics::kUnsafeGetAndSetObject:
+    case Intrinsics::kJdkUnsafeGetAndSetReference:
+      return true;
+    default:
+      return false;
+  }
+}
+
 static inline bool IsVarHandleCASFamily(HInvoke* invoke) {
   mirror::VarHandle::AccessModeTemplate access_mode =
       mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
