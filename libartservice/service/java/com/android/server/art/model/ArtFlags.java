@@ -29,6 +29,7 @@ import com.android.server.pm.PackageManagerLocal;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.List;
 
 /** @hide */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
@@ -227,6 +228,37 @@ public class ArtFlags {
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
     public @interface ScheduleStatus {}
+
+    /**
+     * The downgrade pass, run before the main pass, only applicable to bg-dexopt.
+     *
+     * @hide
+     */
+    public static final int PASS_DOWNGRADE = 0;
+
+    /**
+     * The main pass.
+     *
+     * @hide
+     */
+    public static final int PASS_MAIN = 1;
+
+    /**
+     * Indicates the pass of a batch dexopt run.
+     *
+     * @hide
+     */
+    // clang-format off
+    @IntDef(prefix = "PASS_", value = {
+        PASS_DOWNGRADE,
+        PASS_MAIN,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface BatchDexoptPass {}
+
+    /** @hide */
+    public static final List<Integer> BATCH_DEXOPT_PASSES = List.of(PASS_DOWNGRADE, PASS_MAIN);
 
     private ArtFlags() {}
 }
