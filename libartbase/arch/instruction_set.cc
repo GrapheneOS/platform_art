@@ -133,7 +133,7 @@ static_assert(IsAligned<kPageSize>(kX86_64StackOverflowReservedBytes),
 #error "ART frame size limit missing"
 #endif
 
-// TODO: Should we require an extra page (RoundUp(SIZE) + kPageSize)?
+// TODO: Should we require an extra page (RoundUp(SIZE) + gPageSize)?
 static_assert(ART_FRAME_SIZE_LIMIT < kArmStackOverflowReservedBytes, "Frame size limit too large");
 static_assert(ART_FRAME_SIZE_LIMIT < kArm64StackOverflowReservedBytes,
               "Frame size limit too large");

@@ -189,7 +189,7 @@ class Heap {
 
   // Starting size of DlMalloc/RosAlloc spaces.
   static size_t GetDefaultStartingSize() {
-    return kPageSize;
+    return gPageSize;
   }
 
   // Whether the transition-GC heap threshold condition applies or not for non-low memory devices.

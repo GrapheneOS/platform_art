@@ -25,7 +25,7 @@ namespace gc {
 namespace space {
 
 BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capacity) {
-  capacity = RoundUp(capacity, kPageSize);
+  capacity = RoundUp(capacity, gPageSize);
   std::string error_msg;
   MemMap mem_map = MemMap::MapAnonymous(name.c_str(),
                                         capacity,

@@ -72,8 +72,8 @@ class ImmuneSpacesTest : public CommonArtTest {
     for (size_t i = 0; i < kMaxBitmaps; ++i) {
       accounting::ContinuousSpaceBitmap bitmap(
           accounting::ContinuousSpaceBitmap::Create("bitmap",
-                                                    reinterpret_cast<uint8_t*>(kPageSize),
-                                                    kPageSize));
+                                                    reinterpret_cast<uint8_t*>(gPageSize),
+                                                    gPageSize));
       CHECK(bitmap.IsValid());
       live_bitmaps_.push_back(std::move(bitmap));
     }
