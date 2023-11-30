@@ -105,6 +105,13 @@ public abstract class DexoptResult {
         return new AutoValue_DexoptResult(requestedCompilerFilter, reason, packageDexoptResult);
     }
 
+    /** @hide */
+    @VisibleForTesting
+    public static @NonNull DexoptResult create() {
+        return new AutoValue_DexoptResult(
+                "compiler-filter", "reason", List.of() /* packageDexoptResult */);
+    }
+
     /**
      * The requested compiler filter. Note that the compiler filter might be adjusted before the
      * execution based on factors like dexopt flags, whether the profile is available, or whether
