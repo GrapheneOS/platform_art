@@ -1495,7 +1495,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   using Opt = RuntimeArgumentMap;
   Opt runtime_options(std::move(runtime_options_in));
   ScopedTrace trace(__FUNCTION__);
-  CHECK_EQ(static_cast<size_t>(sysconf(_SC_PAGE_SIZE)), kPageSize);
+  CHECK_EQ(static_cast<size_t>(sysconf(_SC_PAGE_SIZE)), gPageSize);
 
   // Reload all the flags value (from system properties and device configs).
   ReloadAllFlags(__FUNCTION__);
@@ -1526,10 +1526,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   //       leading to logspam.
   {
     const uintptr_t sentinel_addr =
-        RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), kPageSize);
+        RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), gPageSize);
     protected_fault_page_ = MemMap::MapAnonymous("Sentinel fault page",
                                                  reinterpret_cast<uint8_t*>(sentinel_addr),
-                                                 kPageSize,
+                                                 gPageSize,
                                                  PROT_NONE,
                                                  /*low_4gb=*/ true,
                                                  /*reuse=*/ false,
@@ -3517,8 +3517,8 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
                                   const uint8_t* map_begin,
                                   const uint8_t* map_end,
                                   const std::string& file_name) {
-  map_begin = AlignDown(map_begin, kPageSize);
-  map_size_bytes = RoundUp(map_size_bytes, kPageSize);
+  map_begin = AlignDown(map_begin, gPageSize);
+  map_size_bytes = RoundUp(map_size_bytes, gPageSize);
 #ifdef ART_TARGET_ANDROID
   // Short-circuit the madvise optimization for background processes. This
   // avoids IO and memory contention with foreground processes, particularly

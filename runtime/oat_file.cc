@@ -626,7 +626,7 @@ bool OatFileBase::Setup(int zip_fd,
   // however not aligned to kElfSegmentAlignment. While technically this isn't
   // correct as per requirement in the ELF header, it has to be supported for
   // now. See also the comment at ImageHeader::RelocateImageReferences.
-  if (!IsAlignedParam(bss_begin_, kPageSize) ||
+  if (!IsAlignedParam(bss_begin_, gPageSize) ||
       !IsAlignedParam(bss_methods_, static_cast<size_t>(pointer_size)) ||
       !IsAlignedParam(bss_roots_, static_cast<size_t>(pointer_size)) ||
       !IsAligned<alignof(GcRoot<mirror::Object>)>(bss_end_)) {

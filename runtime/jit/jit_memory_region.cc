@@ -52,8 +52,8 @@ bool JitMemoryRegion::Initialize(size_t initial_capacity,
   CHECK_GE(max_capacity, initial_capacity);
   CHECK(max_capacity <= 1 * GB) << "The max supported size for JIT code cache is 1GB";
   // Align both capacities to page size, as that's the unit mspaces use.
-  initial_capacity_ = RoundDown(initial_capacity, 2 * kPageSize);
-  max_capacity_ = RoundDown(max_capacity, 2 * kPageSize);
+  initial_capacity_ = RoundDown(initial_capacity, 2 * gPageSize);
+  max_capacity_ = RoundDown(max_capacity, 2 * gPageSize);
   current_capacity_ = initial_capacity,
   data_end_ = initial_capacity / kCodeAndDataCapacityDivider;
   exec_end_ = initial_capacity - data_end_;
@@ -276,7 +276,7 @@ bool JitMemoryRegion::Initialize(size_t initial_capacity,
 
   // Allow mspace to use the full data capacity.
   // It will still only use as litle memory as possible and ask for MoreCore as needed.
-  CHECK(IsAlignedParam(data_capacity, kPageSize));
+  CHECK(IsAlignedParam(data_capacity, gPageSize));
   mspace_set_footprint_limit(data_mspace_, data_capacity);
 
   // Initialize the code heap.
@@ -304,7 +304,7 @@ bool JitMemoryRegion::Initialize(size_t initial_capacity,
 
 void JitMemoryRegion::SetFootprintLimit(size_t new_footprint) {
   size_t data_space_footprint = new_footprint / kCodeAndDataCapacityDivider;
-  DCHECK(IsAlignedParam(data_space_footprint, kPageSize));
+  DCHECK(IsAlignedParam(data_space_footprint, gPageSize));
   DCHECK_EQ(data_space_footprint * kCodeAndDataCapacityDivider, new_footprint);
   if (HasCodeMapping()) {
     ScopedCodeCacheWrite scc(*this);

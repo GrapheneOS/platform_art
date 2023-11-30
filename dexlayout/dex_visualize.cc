@@ -70,7 +70,7 @@ class Dumper {
         if (printed_one) {
           fprintf(out_file_, ", ");
         }
-        fprintf(out_file_, "\"%s\" %" PRIuPTR, s.name.c_str(), s.offset / kPageSize);
+        fprintf(out_file_, "\"%s\" %" PRIuPTR, s.name.c_str(), s.offset / gPageSize);
         printed_one = true;
       }
     }
@@ -98,8 +98,8 @@ class Dumper {
   }
 
   void DumpAddressRange(uint32_t from, uint32_t size, int class_index) {
-    const uint32_t low_page = from / kPageSize;
-    const uint32_t high_page = (size > 0) ? (from + size - 1) / kPageSize : low_page;
+    const uint32_t low_page = from / gPageSize;
+    const uint32_t high_page = (size > 0) ? (from + size - 1) / gPageSize : low_page;
     const uint32_t size_delta = high_page - low_page;
     fprintf(out_file_, "%d %d %d 0 %d\n", low_page, class_index, size_delta, GetColor(from));
   }
@@ -336,7 +336,7 @@ void ShowDexSectionStatistics(dex_ir::Header* header, size_t dex_file_index) {
             file_section.offset,
             file_section.size,
             bytes,
-            RoundUp(bytes, kPageSize) / kPageSize,
+            RoundUp(bytes, gPageSize) / gPageSize,
             100 * bytes / header->FileSize());
   }
   fprintf(stdout, "\n");

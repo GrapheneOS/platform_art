@@ -102,8 +102,8 @@ MemMap MallocSpace::CreateMemMap(const std::string& name,
   }
 
   // Page align growth limit and capacity which will be used to manage mmapped storage
-  *growth_limit = RoundUp(*growth_limit, kPageSize);
-  *capacity = RoundUp(*capacity, kPageSize);
+  *growth_limit = RoundUp(*growth_limit, gPageSize);
+  *capacity = RoundUp(*capacity, gPageSize);
 
   std::string error_msg;
   MemMap mem_map = MemMap::MapAnonymous(name.c_str(),
@@ -140,7 +140,7 @@ void MallocSpace::RegisterRecentFree(mirror::Object* ptr) {
 }
 
 void MallocSpace::SetGrowthLimit(size_t growth_limit) {
-  growth_limit = RoundUp(growth_limit, kPageSize);
+  growth_limit = RoundUp(growth_limit, gPageSize);
   growth_limit_ = growth_limit;
   if (Size() > growth_limit_) {
     SetEnd(begin_ + growth_limit);
@@ -183,12 +183,12 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // alloc space so that we won't mix thread local runs from different
   // alloc spaces.
   RevokeAllThreadLocalBuffers();
-  SetEnd(reinterpret_cast<uint8_t*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
+  SetEnd(reinterpret_cast<uint8_t*>(RoundUp(reinterpret_cast<uintptr_t>(End()), gPageSize)));
   DCHECK_ALIGNED(begin_, accounting::CardTable::kCardSize);
   DCHECK_ALIGNED(End(), accounting::CardTable::kCardSize);
-  DCHECK_ALIGNED_PARAM(begin_, kPageSize);
-  DCHECK_ALIGNED_PARAM(End(), kPageSize);
-  size_t size = RoundUp(Size(), kPageSize);
+  DCHECK_ALIGNED_PARAM(begin_, gPageSize);
+  DCHECK_ALIGNED_PARAM(End(), gPageSize);
+  size_t size = RoundUp(Size(), gPageSize);
   // Trimming the heap should be done by the caller since we may have invalidated the accounting
   // stored in between objects.
   // Remaining size is for the new alloc space.
@@ -200,7 +200,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
              << "Size " << size << "\n"
              << "GrowthLimit " << growth_limit_ << "\n"
              << "Capacity " << Capacity();
-  SetGrowthLimit(RoundUp(size, kPageSize));
+  SetGrowthLimit(RoundUp(size, gPageSize));
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
   VLOG(heap) << "Creating new AllocSpace: ";
