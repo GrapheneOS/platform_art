@@ -40,9 +40,13 @@ class ProfmanResult {
     kSuccess = 0,
     // A merge has been performed, meaning the reference profile has been changed.
     kCompile = 1,
-    // `--profile-file(-fd)` is not specified, or the specified profiles are outdated (i.e., APK
-    // filename or checksum mismatch), empty, or don't contain enough number of new classes and
-    // methods that meets the threshold to trigger a merge.
+    // One of the following conditions is met:
+    // - `--profile-file(-fd)` is not specified.
+    // - The specified profiles are outdated (i.e., APK filename or checksum mismatch).
+    // - The specified profiles are empty.
+    // - The specified profiles don't contain any new class or method.
+    // - The specified profiles don't contain enough number of new classes and methods that meets
+    //   the threshold to trigger a merge, and `--force-merge-and-analyze` is not set.
     kSkipCompilationSmallDelta = 2,
     // All the input profiles (including the reference profile) are either outdated (i.e., APK
     // filename or checksum mismatch) or empty.

@@ -44,7 +44,9 @@ class ProfileAssistant {
               kMinNewClassesPercentChangeForCompilation) {
     }
 
+    // Only for S and T uses. U+ should use `IsForceMergeAndAnalyze`.
     bool IsForceMerge() const { return force_merge_; }
+    bool IsForceMergeAndAnalyze() const { return force_merge_and_analyze_; }
     bool IsBootImageMerge() const { return boot_image_merge_; }
     uint32_t GetMinNewMethodsPercentChangeForCompilation() const {
         return min_new_methods_percent_change_for_compilation_;
@@ -54,6 +56,7 @@ class ProfileAssistant {
     }
 
     void SetForceMerge(bool value) { force_merge_ = value; }
+    void SetForceMergeAndAnalyze(bool value) { force_merge_and_analyze_ = value; }
     void SetBootImageMerge(bool value) { boot_image_merge_ = value; }
     void SetMinNewMethodsPercentChangeForCompilation(uint32_t value) {
       min_new_methods_percent_change_for_compilation_ = value;
@@ -63,10 +66,15 @@ class ProfileAssistant {
     }
 
    private:
-    // If true, performs a forced merge, without analyzing if there is a
-    // significant difference between the current profile and the reference profile.
+    // If true, performs a forced merge, without analyzing if there is a significant difference
+    // between before and after the merge.
     // See ProfileAssistant#ProcessProfile.
+    // Only for S and T uses. U+ should use `force_merge_and_analyze_`.
     bool force_merge_;
+    // If true, performs a forced merge and analyzes if there is any difference between before and
+    // after the merge.
+    // See ProfileAssistant#ProcessProfile.
+    bool force_merge_and_analyze_;
     // Signals that the merge is for boot image profiles. It will ignore differences
     // in profile versions (instead of aborting).
     bool boot_image_merge_;
