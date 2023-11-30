@@ -346,7 +346,7 @@ TEST_F(MemMapTest, MapAnonymousFailNullError) {
   CommonInit();
   // Test that we don't crash with a null error_str when mapping at an invalid location.
   MemMap map = MemMap::MapAnonymous("MapAnonymousInvalid",
-                                    reinterpret_cast<uint8_t*>(gPageSize),
+                                    reinterpret_cast<uint8_t*>(static_cast<size_t>(gPageSize)),
                                     0x20000,
                                     PROT_READ | PROT_WRITE,
                                     /*low_4gb=*/ false,
