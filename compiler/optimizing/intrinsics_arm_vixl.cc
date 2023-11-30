@@ -3615,7 +3615,7 @@ class ReadBarrierCasSlowPathARMVIXL : public SlowPathCodeARMVIXL {
     // Mark the `old_value_` from the main path and compare with `expected_`.
     if (kUseBakerReadBarrier) {
       DCHECK(mark_old_value_slow_path_ == nullptr);
-      arm_codegen->GenerateIntrinsicCasMoveWithBakerReadBarrier(old_value_temp_, old_value_);
+      arm_codegen->GenerateIntrinsicMoveWithBakerReadBarrier(old_value_temp_, old_value_);
     } else {
       DCHECK(mark_old_value_slow_path_ != nullptr);
       __ B(mark_old_value_slow_path_->GetEntryLabel());
@@ -3668,7 +3668,7 @@ class ReadBarrierCasSlowPathARMVIXL : public SlowPathCodeARMVIXL {
       __ Bind(&mark_old_value);
       if (kUseBakerReadBarrier) {
         DCHECK(update_old_value_slow_path_ == nullptr);
-        arm_codegen->GenerateIntrinsicCasMoveWithBakerReadBarrier(old_value_, old_value_temp_);
+        arm_codegen->GenerateIntrinsicMoveWithBakerReadBarrier(old_value_, old_value_temp_);
       } else {
         // Note: We could redirect the `failure` above directly to the entry label and bind
         // the exit label in the main path, but the main path would need to access the
@@ -3695,10 +3695,9 @@ class ReadBarrierCasSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   SlowPathCodeARMVIXL* update_old_value_slow_path_;
 };
 
-static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
-                                     HInvoke* invoke,
-                                     CodeGeneratorARMVIXL* codegen) {
+static void CreateUnsafeCASLocations(HInvoke* invoke, CodeGeneratorARMVIXL* codegen) {
   const bool can_call = codegen->EmitReadBarrier() && IsUnsafeCASReference(invoke);
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -3809,7 +3808,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCASObject(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke, codegen_);
+  CreateUnsafeCASLocations(invoke, codegen_);
 }
 void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers (b/173104084).
@@ -3817,7 +3816,7 @@ void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetReference(HInv
     return;
   }
 
-  CreateUnsafeCASLocations(allocator_, invoke, codegen_);
+  CreateUnsafeCASLocations(invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -3985,6 +3984,172 @@ static void GenerateGetAndUpdate(CodeGeneratorARMVIXL* codegen,
   EmitStoreExclusive(codegen, load_store_type, ptr, store_result, new_value);
   __ Cmp(store_result, 0);
   __ B(ne, &loop_label);
+}
+
+static void CreateUnsafeGetAndUpdateLocations(HInvoke* invoke,
+                                              CodeGeneratorARMVIXL* codegen,
+                                              DataType::Type type,
+                                              GetAndUpdateOp get_and_update_op) {
+  const bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetAndSetReference(invoke);
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke,
+                                      can_call
+                                          ? LocationSummary::kCallOnSlowPath
+                                          : LocationSummary::kNoCall,
+                                      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+
+  size_t num_temps = 1u;  // We always need `tmp_ptr`.
+  if (get_and_update_op == GetAndUpdateOp::kAdd) {
+    // Add `maybe_temp` used for the new value in `GenerateGetAndUpdate()`.
+    num_temps += (type == DataType::Type::kInt64) ? 2u : 1u;
+    if (type == DataType::Type::kInt64) {
+      // There are enough available registers but the register allocator can fail to allocate
+      // them correctly because it can block register pairs by single-register inputs and temps.
+      // To work around this limitation, use a fixed register pair for both the output as well
+      // as the offset which is not needed anymore after the address calculation.
+      // (Alternatively, we could set up distinct fixed locations for `offset`, `arg` and `out`.)
+      locations->SetInAt(2, LocationFrom(r0, r1));
+      locations->UpdateOut(LocationFrom(r0, r1));
+    }
+  }
+  locations->AddRegisterTemps(num_temps);
+}
+
+static void GenUnsafeGetAndUpdate(HInvoke* invoke,
+                                  CodeGeneratorARMVIXL* codegen,
+                                  DataType::Type type,
+                                  GetAndUpdateOp get_and_update_op) {
+  ArmVIXLAssembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  Location out = locations->Out();                                  // Result.
+  vixl32::Register base = InputRegisterAt(invoke, 1);               // Object pointer.
+  vixl32::Register offset = LowRegisterFrom(locations->InAt(2));    // Offset (discard high 4B).
+  Location arg = locations->InAt(3);                                // New value or addend.
+  vixl32::Register tmp_ptr = RegisterFrom(locations->GetTemp(0));   // Pointer to actual memory.
+  Location maybe_temp = Location::NoLocation();
+  if (get_and_update_op == GetAndUpdateOp::kAdd) {
+    maybe_temp = (type == DataType::Type::kInt64)
+        ? LocationFrom(RegisterFrom(locations->GetTemp(1)), RegisterFrom(locations->GetTemp(2)))
+        : locations->GetTemp(1);
+  }
+
+  UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
+  vixl32::Register temp = temps.Acquire();
+
+  if (type == DataType::Type::kReference) {
+    DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+    // Mark card for object as a new value shall be stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    vixl32::Register card = tmp_ptr;  // Use the `tmp_ptr` also as the `card` temporary.
+    codegen->MarkGCCard(temp, card, base, /*value=*/ RegisterFrom(arg), new_value_can_be_null);
+  }
+
+  // Note: UnsafeGetAndUpdate operations are sequentially consistent, requiring
+  // a barrier before and after the raw load/store-exclusive operation.
+
+  __ Add(tmp_ptr, base, Operand(offset));
+  codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  GenerateGetAndUpdate(codegen,
+                       get_and_update_op,
+                       type,
+                       tmp_ptr,
+                       arg,
+                       /*old_value=*/ out,
+                       /*store_result=*/ temp,
+                       maybe_temp,
+                       /*maybe_vreg_temp=*/ Location::NoLocation());
+  codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+
+  if (type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
+    DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+    if (kUseBakerReadBarrier) {
+      codegen->GenerateIntrinsicMoveWithBakerReadBarrier(RegisterFrom(out), RegisterFrom(out));
+    } else {
+      codegen->GenerateReadBarrierSlow(
+          invoke,
+          out,
+          out,
+          Location::RegisterLocation(base.GetCode()),
+          /*offset=*/ 0u,
+          /*index=*/ Location::RegisterLocation(offset.GetCode()));
+    }
+  }
+}
+
+void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kAdd);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kAdd);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kSet);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kSet);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(
+      invoke, codegen_, DataType::Type::kReference, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kAdd);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kAdd);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kSet);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kSet);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, codegen_, DataType::Type::kReference, GetAndUpdateOp::kSet);
 }
 
 class VarHandleSlowPathARMVIXL : public IntrinsicSlowPathARMVIXL {
@@ -5342,8 +5507,8 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     }
   } else if (value_type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
     if (kUseBakerReadBarrier) {
-      codegen->GenerateIntrinsicCasMoveWithBakerReadBarrier(RegisterFrom(out),
-                                                            RegisterFrom(old_value));
+      codegen->GenerateIntrinsicMoveWithBakerReadBarrier(RegisterFrom(out),
+                                                         RegisterFrom(old_value));
     } else {
       codegen->GenerateReadBarrierSlow(
           invoke,
