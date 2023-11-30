@@ -57,7 +57,7 @@ class CommonCompilerTestImpl::CodeAndMetadata {
         : sizeof(OatQuickMethodHeader) + vmap_table.size();
     OatQuickMethodHeader method_header(vmap_table_offset);
     const size_t code_alignment = GetInstructionSetCodeAlignment(instruction_set);
-    DCHECK_ALIGNED_PARAM(gPageSize, code_alignment);
+    DCHECK_ALIGNED_PARAM(static_cast<size_t>(gPageSize), code_alignment);
     const uint32_t code_offset = RoundUp(vmap_table.size() + sizeof(method_header), code_alignment);
     const uint32_t capacity = RoundUp(code_offset + code_size, gPageSize);
 
