@@ -35,22 +35,28 @@ public class VendorAppTest {
         TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_extpub.oem2"));
         TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_extpub1.oem1"));
         TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_extpub_nouses.oem2"));
-        System.loadLibrary("product_extpub.product1");
-        System.loadLibrary("product_extpub1.product1");
+        if (!TestUtils.skipPublicProductLibTests()) {
+            System.loadLibrary("product_extpub.product1");
+            System.loadLibrary("product_extpub1.product1");
+        }
     }
 
     @Test
     public void testLoadPrivateLibraries() {
         TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_private1"));
         TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("systemext_private1"));
-        TestUtils.assertLibraryNotFound(() -> System.loadLibrary("product_private1"));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            TestUtils.assertLibraryNotFound(() -> System.loadLibrary("product_private1"));
+        }
         System.loadLibrary("vendor_private1");
     }
 
     @Test
     public void testLoadExtendedPublicLibrariesViaSystemSharedLib() {
         SystemSharedLib.loadLibrary("system_extpub2.oem1");
-        SystemSharedLib.loadLibrary("product_extpub2.product1");
+        if (!TestUtils.skipPublicProductLibTests()) {
+            SystemSharedLib.loadLibrary("product_extpub2.product1");
+        }
     }
 
     @Test
@@ -59,7 +65,9 @@ public class VendorAppTest {
         // ought to work.
         // SystemSharedLib.loadLibrary("system_private2");
         // SystemSharedLib.loadLibrary("systemext_private2");
-        TestUtils.assertLibraryNotFound(() -> SystemSharedLib.loadLibrary("product_private2"));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            TestUtils.assertLibraryNotFound(() -> SystemSharedLib.loadLibrary("product_private2"));
+        }
         TestUtils.assertLibraryNotFound(() -> SystemSharedLib.loadLibrary("vendor_private2"));
     }
 
@@ -69,7 +77,10 @@ public class VendorAppTest {
         // ought to work.
         // SystemExtSharedLib.loadLibrary("system_private3");
         // SystemExtSharedLib.loadLibrary("systemext_private3");
-        TestUtils.assertLibraryNotFound(() -> SystemExtSharedLib.loadLibrary("product_private3"));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            TestUtils.assertLibraryNotFound(
+                    () -> SystemExtSharedLib.loadLibrary("product_private3"));
+        }
         TestUtils.assertLibraryNotFound(() -> SystemExtSharedLib.loadLibrary("vendor_private3"));
     }
 
@@ -78,7 +89,9 @@ public class VendorAppTest {
         TestUtils.assertLinkerNamespaceError(() -> ProductSharedLib.loadLibrary("system_private4"));
         TestUtils.assertLinkerNamespaceError(
                 () -> ProductSharedLib.loadLibrary("systemext_private4"));
-        ProductSharedLib.loadLibrary("product_private4");
+        if (!TestUtils.skipPublicProductLibTests()) {
+            ProductSharedLib.loadLibrary("product_private4");
+        }
         TestUtils.assertLibraryNotFound(() -> ProductSharedLib.loadLibrary("vendor_private4"));
     }
 
@@ -87,7 +100,9 @@ public class VendorAppTest {
         TestUtils.assertLinkerNamespaceError(() -> VendorSharedLib.loadLibrary("system_private5"));
         TestUtils.assertLinkerNamespaceError(
                 () -> VendorSharedLib.loadLibrary("systemext_private5"));
-        TestUtils.assertLibraryNotFound(() -> VendorSharedLib.loadLibrary("product_private5"));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            TestUtils.assertLibraryNotFound(() -> VendorSharedLib.loadLibrary("product_private5"));
+        }
         VendorSharedLib.loadLibrary("vendor_private5");
     }
 
@@ -95,7 +110,9 @@ public class VendorAppTest {
     public void testLoadExtendedPublicLibrariesWithAbsolutePaths() {
         TestUtils.assertLinkerNamespaceError(
                 () -> System.load(TestUtils.libPath("/system", "system_extpub3.oem1")));
-        System.load(TestUtils.libPath("/product", "product_extpub3.product1"));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            System.load(TestUtils.libPath("/product", "product_extpub3.product1"));
+        }
     }
 
     @Test
@@ -104,8 +121,10 @@ public class VendorAppTest {
                 () -> System.load(TestUtils.libPath("/system", "system_private6")));
         TestUtils.assertLinkerNamespaceError(
                 () -> System.load(TestUtils.libPath("/system_ext", "systemext_private6")));
-        TestUtils.assertLinkerNamespaceError(
-                () -> System.load(TestUtils.libPath("/product", "product_private6")));
+        if (!TestUtils.skipPublicProductLibTests()) {
+            TestUtils.assertLinkerNamespaceError(
+                    () -> System.load(TestUtils.libPath("/product", "product_private6")));
+        }
         System.load(TestUtils.libPath("/vendor", "vendor_private6"));
     }
 }
