@@ -40,6 +40,9 @@ namespace jni {
 static constexpr bool kDumpStackOnNonLocalReference = false;
 static constexpr bool kDebugLRT = false;
 
+// Number of free lists in the allocator.
+static const size_t kNumLrtSlots = WhichPowerOf2(kPageSize / kInitialLrtBytes);
+
 // Mmap an "indirect ref table region. Table_bytes is a multiple of a page size.
 static inline MemMap NewLRTMap(size_t table_bytes, std::string* error_msg) {
   return MemMap::MapAnonymous("local ref table",
@@ -50,7 +53,7 @@ static inline MemMap NewLRTMap(size_t table_bytes, std::string* error_msg) {
 }
 
 SmallLrtAllocator::SmallLrtAllocator()
-    : free_lists_(kNumSlots, nullptr),
+    : free_lists_(kNumLrtSlots, nullptr),
       shared_lrt_maps_(),
       lock_("Small LRT allocator lock", LockLevel::kGenericBottomLock) {
 }
@@ -60,7 +63,7 @@ inline size_t SmallLrtAllocator::GetIndex(size_t size) {
   DCHECK_LT(size, kPageSize / sizeof(LrtEntry));
   DCHECK(IsPowerOfTwo(size));
   size_t index = WhichPowerOf2(size / kSmallLrtEntries);
-  DCHECK_LT(index, kNumSlots);
+  DCHECK_LT(index, kNumLrtSlots);
   return index;
 }
 
@@ -68,11 +71,11 @@ LrtEntry* SmallLrtAllocator::Allocate(size_t size, std::string* error_msg) {
   size_t index = GetIndex(size);
   MutexLock lock(Thread::Current(), lock_);
   size_t fill_from = index;
-  while (fill_from != kNumSlots && free_lists_[fill_from] == nullptr) {
+  while (fill_from != kNumLrtSlots && free_lists_[fill_from] == nullptr) {
     ++fill_from;
   }
   void* result = nullptr;
-  if (fill_from != kNumSlots) {
+  if (fill_from != kNumLrtSlots) {
     // We found a slot with enough memory.
     result = free_lists_[fill_from];
     free_lists_[fill_from] = *reinterpret_cast<void**>(result);
@@ -101,13 +104,13 @@ LrtEntry* SmallLrtAllocator::Allocate(size_t size, std::string* error_msg) {
 void SmallLrtAllocator::Deallocate(LrtEntry* unneeded, size_t size) {
   size_t index = GetIndex(size);
   MutexLock lock(Thread::Current(), lock_);
-  while (index < kNumSlots) {
+  while (index < kNumLrtSlots) {
     // Check if we can merge this free block with another block with the same size.
     void** other = reinterpret_cast<void**>(
         reinterpret_cast<uintptr_t>(unneeded) ^ (kInitialLrtBytes << index));
     void** before = &free_lists_[index];
-    if (index + 1u == kNumSlots && *before == other && *other == nullptr) {
-      // Do not unmap the page if we do not have other free blocks with index `kNumSlots - 1`.
+    if (index + 1u == kNumLrtSlots && *before == other && *other == nullptr) {
+      // Do not unmap the page if we do not have other free blocks with index `kNumLrtSlots - 1`.
       // (Keep at least one free block to avoid a situation where creating and destroying a single
       // thread with no local references would map and unmap a page in the `SmallLrtAllocator`.)
       break;
@@ -125,9 +128,9 @@ void SmallLrtAllocator::Deallocate(LrtEntry* unneeded, size_t size) {
     unneeded = reinterpret_cast<LrtEntry*>(
         reinterpret_cast<uintptr_t>(unneeded) & reinterpret_cast<uintptr_t>(other));
   }
-  if (index == kNumSlots) {
+  if (index == kNumLrtSlots) {
     // Free the entire page.
-    DCHECK(free_lists_[kNumSlots - 1u] != nullptr);
+    DCHECK(free_lists_[kNumLrtSlots - 1u] != nullptr);
     auto match = [=](MemMap& map) { return unneeded == reinterpret_cast<LrtEntry*>(map.Begin()); };
     auto it = std::find_if(shared_lrt_maps_.begin(), shared_lrt_maps_.end(), match);
     DCHECK(it != shared_lrt_maps_.end());
@@ -614,9 +617,9 @@ void LocalReferenceTable::Trim() {
     PrunePoppedFreeEntries([&](size_t index) { return GetEntry(index); });
   }
   // Small tables can hold as many entries as the next table.
-  constexpr size_t kSmallTablesCapacity = GetTableSize(MaxSmallTables());
+  const size_t small_tables_capacity = GetTableSize(MaxSmallTables());
   size_t mem_map_index = 0u;
-  if (top_index > kSmallTablesCapacity) {
+  if (top_index > small_tables_capacity) {
     const size_t table_size = TruncToPowerOfTwo(top_index);
     const size_t table_index = NumTablesForSize(table_size);
     const size_t start_index = top_index - table_size;

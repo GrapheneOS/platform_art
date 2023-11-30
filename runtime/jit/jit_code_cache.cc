@@ -1101,7 +1101,7 @@ bool JitCodeCache::ShouldDoFullCollection() {
   if (IsAtMaxCapacity()) {
     // Always do a full collection when the code cache is full.
     return true;
-  } else if (private_region_.GetCurrentCapacity() < kReservedCapacity) {
+  } else if (private_region_.GetCurrentCapacity() < GetReservedCapacity()) {
     // Always do partial collection when the code cache size is below the reserved
     // capacity.
     return false;

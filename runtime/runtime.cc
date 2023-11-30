@@ -1525,10 +1525,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Note: Don't request an error message. That will lead to a maps dump in the case of failure,
   //       leading to logspam.
   {
-    constexpr uintptr_t kSentinelAddr =
+    const uintptr_t sentinel_addr =
         RoundDown(static_cast<uintptr_t>(Context::kBadGprBase), kPageSize);
     protected_fault_page_ = MemMap::MapAnonymous("Sentinel fault page",
-                                                 reinterpret_cast<uint8_t*>(kSentinelAddr),
+                                                 reinterpret_cast<uint8_t*>(sentinel_addr),
                                                  kPageSize,
                                                  PROT_NONE,
                                                  /*low_4gb=*/ true,
@@ -1537,7 +1537,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                                                  /*error_msg=*/ nullptr);
     if (!protected_fault_page_.IsValid()) {
       LOG(WARNING) << "Could not reserve sentinel fault page";
-    } else if (reinterpret_cast<uintptr_t>(protected_fault_page_.Begin()) != kSentinelAddr) {
+    } else if (reinterpret_cast<uintptr_t>(protected_fault_page_.Begin()) != sentinel_addr) {
       LOG(WARNING) << "Could not reserve sentinel fault page at the right address.";
       protected_fault_page_.Reset();
     }
