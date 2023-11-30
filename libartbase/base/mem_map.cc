@@ -56,6 +56,13 @@ using AllocationTrackingMultiMap =
 
 using Maps = AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps>;
 
+// TODO: Kernels for arm and x86 in both, 32-bit and 64-bit modes use 512 entries per page-table
+// page. Find a way to confirm that in userspace.
+// Address range covered by 1 Page Middle Directory (PMD) entry in the page table
+const size_t kPMDSize = (kPageSize / sizeof(uint64_t)) * kPageSize;
+// Address range covered by 1 Page Upper Directory (PUD) entry in the page table
+const size_t kPUDSize = (kPageSize / sizeof(uint64_t)) * kPMDSize;
+
 // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
 static Maps* gMaps GUARDED_BY(MemMap::GetMemMapsLock()) = nullptr;
 
@@ -126,7 +133,7 @@ uintptr_t CreateStartPos(uint64_t input) {
   constexpr uintptr_t mask_ones = (1 << (31 - leading_zeros)) - 1;
 
   // Lowest (usually 12) bits are not used, as aligned by page size.
-  constexpr uintptr_t mask = mask_ones & ~(kPageSize - 1);
+  const uintptr_t mask = mask_ones & ~(kPageSize - 1);
 
   // Mask input data.
   return (input & mask) + LOW_MEM_START;
