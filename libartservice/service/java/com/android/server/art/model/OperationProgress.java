@@ -38,7 +38,7 @@ public abstract class OperationProgress {
 
     /** The overall progress, in the range of [0, 100]. */
     public int getPercentage() {
-        return 100 * getCurrent() / getTotal();
+        return getTotal() == 0 ? 100 : 100 * getCurrent() / getTotal();
     }
 
     /**
