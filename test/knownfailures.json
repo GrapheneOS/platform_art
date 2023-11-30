@@ -1512,12 +1512,6 @@
         "description": ["Expected failures when compiling without a boot image"]
     },
     {
-        "tests": ["719-varhandle-concurrency"],
-        "variant": "target & ndebug & 64",
-        "bug": "b/224733324",
-        "description": ["segfault in VarHandle::GetMethodTypeMatchForAccessMode"]
-    },
-    {
         "tests": ["2043-reference-pauses"],
         "env_vars": {"ART_TEST_DEBUG_GC": "true"},
         "description": ["Test timing out on debug gc."]
