@@ -135,7 +135,7 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
     for (size_t i = 0; i < kMarkStackPoolSize; ++i) {
       accounting::AtomicStack<mirror::Object>* mark_stack =
           accounting::AtomicStack<mirror::Object>::Create(
-              "thread local mark stack", kMarkStackSize, kMarkStackSize);
+              "thread local mark stack", GetMarkStackSize(), GetMarkStackSize());
       pooled_mark_stacks_.push_back(mark_stack);
     }
   }
