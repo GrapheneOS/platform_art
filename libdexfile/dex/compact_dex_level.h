@@ -24,6 +24,7 @@
 namespace art {
 
 // Optimization level for compact dex generation.
+// TODO(b/256664509): Clean this up.
 enum class CompactDexLevel {
   // Level none means not generated.
   kCompactDexLevelNone,
@@ -31,9 +32,7 @@ enum class CompactDexLevel {
   kCompactDexLevelFast,
 };
 
-#ifndef ART_DEFAULT_COMPACT_DEX_LEVEL
-#error ART_DEFAULT_COMPACT_DEX_LEVEL not specified.
-#else
+#ifdef ART_DEFAULT_COMPACT_DEX_LEVEL
 #define ART_DEFAULT_COMPACT_DEX_LEVEL_VALUE_fast CompactDexLevel::kCompactDexLevelFast
 #define ART_DEFAULT_COMPACT_DEX_LEVEL_VALUE_none CompactDexLevel::kCompactDexLevelNone
 
@@ -41,7 +40,8 @@ enum class CompactDexLevel {
     ART_DEFAULT_COMPACT_DEX_LEVEL_VALUE_, \
     ART_DEFAULT_COMPACT_DEX_LEVEL)
 
-static constexpr CompactDexLevel kDefaultCompactDexLevel = ART_DEFAULT_COMPACT_DEX_LEVEL_DEFAULT;
+static_assert(ART_DEFAULT_COMPACT_DEX_LEVEL_DEFAULT == CompactDexLevel::kCompactDexLevelNone,
+              "ART_DEFAULT_COMPACT_DEX_LEVEL_DEFAULT != none is no longer supported");
 #endif
 
 }  // namespace art
