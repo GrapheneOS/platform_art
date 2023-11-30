@@ -275,9 +275,7 @@ ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data, DexFileContai
       return separate_data;
     }
     // Shared compact dex data is located at the end after all dex files.
-    CHECK_LE(header->data_off_, size);
-    data += header->data_off_;
-    CHECK_LE(header->data_size_, static_cast<size_t>(container->End() - data));
+    data += std::min<size_t>(header->data_off_, size);
     size = header->data_size_;
   }
   // The returned range is guaranteed to be in bounds of the container memory.
