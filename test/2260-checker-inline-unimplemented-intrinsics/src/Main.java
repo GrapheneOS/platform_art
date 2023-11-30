@@ -14,80 +14,37 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.Field;
-
-import sun.misc.Unsafe;
-
 public class Main {
-    private static final Unsafe unsafe = getUnsafe();
-    public int i = 0;
-    public long l = 0;
-
     public static void main(String[] args) {
-        $noinline$testGetAndAdd();
+        $noinline$testDivideUnsignedLong();
     }
 
-    private static void $noinline$testGetAndAdd() {
-        final Main m = new Main();
-        final long intOffset, longOffset;
-        try {
-            Field intField = Main.class.getDeclaredField("i");
-            Field longField = Main.class.getDeclaredField("l");
+    private static void $noinline$testDivideUnsignedLong() {
+        assertEquals(0x1234567800000000L, $noinline$divideUnsignedLong(0x1234567800000000L, 0x1L));
+        assertEquals(0x1234567887654321L, $noinline$divideUnsignedLong(0x1234567887654321L, 0x1L));
+        assertEquals(-0x1234567800000000L,
+                     $noinline$divideUnsignedLong(-0x1234567800000000L, 0x1L));
+        assertEquals(-0x1234567887654321L,
+                     $noinline$divideUnsignedLong(-0x1234567887654321L, 0x1L));
 
-            intOffset = unsafe.objectFieldOffset(intField);
-            longOffset = unsafe.objectFieldOffset(longField);
-
-        } catch (NoSuchFieldException e) {
-            throw new Error("No offset: " + e);
-        }
-
-        $noinline$add(m, intOffset, 11);
-        assertEquals(11, m.i);
-        $noinline$add(m, intOffset, 13);
-        assertEquals(24, m.i);
-
-        $noinline$add(m, longOffset, 11L);
-        assertEquals(11L, m.l);
-        $noinline$add(m, longOffset, 13L);
-        assertEquals(24L, m.l);
+        assertEquals(0x12345678L, $noinline$divideUnsignedLong(0x1234567800000000L, 0x100000000L));
+        assertEquals(0x12345678L, $noinline$divideUnsignedLong(0x1234567887654321L, 0x100000000L));
+        assertEquals(0x100000000L - 0x12345678L,
+                     $noinline$divideUnsignedLong(-0x1234567800000000L, 0x100000000L));
+        assertEquals(0x100000000L-0x12345678L - 1L,
+                     $noinline$divideUnsignedLong(-0x1234567887654321L, 0x100000000L));
     }
 
-    // UnsafeGetAndAddInt/Long are part of core-oj and we will not inline on host.
-    // And they are actually implemented on arm64.
+    // LongDivideUnsigned is part of core-oj and we will not inline on host.
+    // And it is actually implemented on arm64.
 
-    /// CHECK-START: int Main.$noinline$add(java.lang.Object, long, int) inliner (before)
-    /// CHECK:     InvokeVirtual intrinsic:UnsafeGetAndAddInt
+    /// CHECK-START: long Main.$noinline$divideUnsignedLong(long, long) inliner (before)
+    /// CHECK:     InvokeStaticOrDirect intrinsic:LongDivideUnsigned
 
-    /// CHECK-START-ARM: int Main.$noinline$add(java.lang.Object, long, int) inliner (after)
-    /// CHECK-NOT: InvokeVirtual intrinsic:UnsafeGetAndAddInt
-    private static int $noinline$add(Object o, long offset, int delta) {
-        return unsafe.getAndAddInt(o, offset, delta);
-    }
-
-    /// CHECK-START: long Main.$noinline$add(java.lang.Object, long, long) inliner (before)
-    /// CHECK:     InvokeVirtual intrinsic:UnsafeGetAndAddLong
-
-    /// CHECK-START-ARM: long Main.$noinline$add(java.lang.Object, long, long) inliner (after)
-    /// CHECK-NOT: InvokeVirtual intrinsic:UnsafeGetAndAddLong
-    private static long $noinline$add(Object o, long offset, long delta) {
-        return unsafe.getAndAddLong(o, offset, delta);
-    }
-
-    private static Unsafe getUnsafe() {
-        try {
-            Class<?> unsafeClass = Unsafe.class;
-            Field f = unsafeClass.getDeclaredField("theUnsafe");
-            f.setAccessible(true);
-            return (Unsafe) f.get(null);
-        } catch (Exception e) {
-            throw new Error("Cannot get Unsafe instance");
-        }
-    }
-
-    private static void assertEquals(int expected, int result) {
-        if (expected != result) {
-            throw new Error("Expected: " + expected + ", found: " + result);
-        }
+    /// CHECK-START-ARM: long Main.$noinline$divideUnsignedLong(long, long) inliner (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+    private static long $noinline$divideUnsignedLong(long dividend, long divisor) {
+        return Long.divideUnsigned(dividend, divisor);
     }
 
     private static void assertEquals(long expected, long result) {
