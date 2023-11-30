@@ -23,6 +23,8 @@ public class Main {
         $noinline$testReverseBytesShort();
         $noinline$testBitCountInt();
         $noinline$testBitCountLong();
+        $noinline$testDivideUnsignedInt();
+        $noinline$testDivideUnsignedLong();
         $noinline$testHighestOneBitInt();
         $noinline$testHighestOneBitLong();
         $noinline$testLowestOneBitInt();
@@ -673,6 +675,115 @@ public class Main {
         $noinline$assertLongEquals(63L, Long.bitCount((1L << 63) - 1L));
     }
 
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedInt() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedInt() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+    private static void $noinline$testDivideUnsignedInt() {
+        // Positive/Positive division is as normal.
+        $noinline$assertIntEquals(5, Integer.divideUnsigned(10, 2));
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(2, 10));
+        $noinline$assertIntEquals(1, Integer.divideUnsigned(42, 42));
+
+        // Positive/Negative is 0, as negative numbers are bigger (if taking a look as unsigned).
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(10, -2));
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(2, -10));
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(42, -42));
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(Integer.MAX_VALUE, -1));
+
+        // Negative/Positive
+        $noinline$assertIntEquals(2147483643, Integer.divideUnsigned(-10, 2));
+        $noinline$assertIntEquals(429496729, Integer.divideUnsigned(-2, 10));
+        $noinline$assertIntEquals(102261125, Integer.divideUnsigned(-42, 42));
+        $noinline$assertIntEquals(1, Integer.divideUnsigned(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        $noinline$assertIntEquals(-1, Integer.divideUnsigned(-1, 1));
+
+        // Negative/Negative
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(-2, -1));
+        $noinline$assertIntEquals(1, Integer.divideUnsigned(-1, -2));
+        $noinline$assertIntEquals(0, Integer.divideUnsigned(-10, -2));
+        $noinline$assertIntEquals(1, Integer.divideUnsigned(-2, -10));
+
+        // Special cases where we don't constant fold the intrinsic
+        $noinline$testDivideUnsignedInt_divideByZero();
+    }
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedInt_divideByZero() constant_folding (before)
+    /// CHECK: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+    /// CHECK: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedInt_divideByZero() constant_folding (after)
+    /// CHECK: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+    /// CHECK: InvokeStaticOrDirect intrinsic:IntegerDivideUnsigned
+    private static void $noinline$testDivideUnsignedInt_divideByZero() {
+        try {
+            $noinline$assertIntEquals(0, Integer.divideUnsigned(1, 0));
+            throw new Error("Tried to divide 1 and 0 but didn't get an exception");
+        } catch (ArithmeticException expected) {
+        }
+
+        try {
+            $noinline$assertIntEquals(0, Integer.divideUnsigned(-1, 0));
+            throw new Error("Tried to divide -1 and 0 but didn't get an exception");
+        } catch (ArithmeticException expected) {
+        }
+    }
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedLong() constant_folding (before)
+    /// CHECK-DAG: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedLong() constant_folding (after)
+    /// CHECK-NOT: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+    private static void $noinline$testDivideUnsignedLong() {
+        // Positive/Positive division is as normal.
+        $noinline$assertLongEquals(5L, Long.divideUnsigned(10L, 2L));
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(2L, 10L));
+        $noinline$assertLongEquals(1L, Long.divideUnsigned(42L, 42L));
+
+        // Positive/Negative is 0, as negative numbers are bigger (if taking a look as unsigned).
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(10L, -2L));
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(2L, -10L));
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(42L, -42L));
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(Long.MAX_VALUE, -1L));
+
+        // Negative/Positive
+        $noinline$assertLongEquals(9223372036854775803L, Long.divideUnsigned(-10L, 2L));
+        $noinline$assertLongEquals(1844674407370955161L, Long.divideUnsigned(-2L, 10L));
+        $noinline$assertLongEquals(439208192231179799L, Long.divideUnsigned(-42L, 42L));
+        $noinline$assertLongEquals(1L, Long.divideUnsigned(Long.MIN_VALUE, Long.MAX_VALUE));
+        $noinline$assertLongEquals(-1L, Long.divideUnsigned(-1L, 1L));
+
+        // Negative/Negative
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(-2L, -1L));
+        $noinline$assertLongEquals(1L, Long.divideUnsigned(-1L, -2L));
+        $noinline$assertLongEquals(0L, Long.divideUnsigned(-10L, -2L));
+        $noinline$assertLongEquals(1L, Long.divideUnsigned(-2L, -10L));
+
+        // Special cases where we don't constant fold the intrinsic
+        $noinline$testDivideUnsignedLong_divideByZero();
+    }
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedLong_divideByZero() constant_folding (before)
+    /// CHECK: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+    /// CHECK: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+
+    /// CHECK-START: void Main.$noinline$testDivideUnsignedLong_divideByZero() constant_folding (after)
+    /// CHECK: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+    /// CHECK: InvokeStaticOrDirect intrinsic:LongDivideUnsigned
+    private static void $noinline$testDivideUnsignedLong_divideByZero() {
+        try {
+            $noinline$assertLongEquals(0L, Long.divideUnsigned(1L, 0L));
+            throw new Error("Tried to divide 1 and 0 but didn't get an exception");
+        } catch (ArithmeticException expected) {
+        }
+
+        try {
+            $noinline$assertLongEquals(0L, Long.divideUnsigned(-1L, 0L));
+            throw new Error("Tried to divide -1 and 0 but didn't get an exception");
+        } catch (ArithmeticException expected) {
+        }
+    }
 
     /// CHECK-START: void Main.$noinline$testHighestOneBitInt() constant_folding (before)
     /// CHECK-DAG: InvokeStaticOrDirect intrinsic:IntegerHighestOneBit
