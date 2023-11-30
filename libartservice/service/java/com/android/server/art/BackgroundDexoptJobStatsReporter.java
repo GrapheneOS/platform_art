@@ -25,11 +25,14 @@ import java.util.stream.Collectors;
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class BackgroundDexoptJobStatsReporter {
     public static void reportFailure() {
+        // The fatal error can occur during any pass, but we attribute it to the main pass for
+        // simplicity.
         ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
                 ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_FATAL_ERROR,
                 JobParameters.STOP_REASON_UNDEFINED, 0 /* durationMs */, 0 /* deprecated */,
                 0 /* optimizedPackagesCount */, 0 /* packagesDependingOnBootClasspathCount */,
-                0 /* totalPackagesCount */);
+                0 /* totalPackagesCount */,
+                ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_MAIN);
     }
 
     public static void reportSuccess(@NonNull BackgroundDexoptJob.CompletedResult completedResult,
@@ -43,11 +46,6 @@ public class BackgroundDexoptJobStatsReporter {
 
     public static void reportPass(@BatchDexoptPass int pass, @NonNull DexoptResult dexoptResult,
             long durationMs, Optional<Integer> stopReason) {
-        // TODO(jiakaiz): Report all passes.
-        if (pass != ArtFlags.PASS_MAIN) {
-            return;
-        }
-
         // The job contains multiple passes, so the stop reason may not be for the current pass. We
         // shouldn't report the stop reason if the current pass finished before the job was
         // cancelled.
@@ -62,7 +60,7 @@ public class BackgroundDexoptJobStatsReporter {
                 getStatusForStats(dexoptResult, stopReason), reportedStopReason, durationMs,
                 0 /* deprecated */, getDexoptedPackagesCount(packageDexoptResults),
                 getPackagesDependingOnBootClasspathCount(packageDexoptResults),
-                packageDexoptResults.size());
+                packageDexoptResults.size(), toStatsdPassEnum(pass));
     }
 
     @NonNull
@@ -126,5 +124,17 @@ public class BackgroundDexoptJobStatsReporter {
         return filesResults.stream()
                 .map(DexoptResult.DexContainerFileDexoptResult::getActualCompilerFilter)
                 .anyMatch(DexFile::isOptimizedCompilerFilter);
+    }
+
+    private static int toStatsdPassEnum(@BatchDexoptPass int pass) {
+        switch (pass) {
+            case ArtFlags.PASS_DOWNGRADE:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_DOWNGRADE;
+            case ArtFlags.PASS_MAIN:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_MAIN;
+            case ArtFlags.PASS_SUPPLEMENTARY:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_SUPPLEMENTARY;
+        }
+        throw new IllegalArgumentException("Unknown batch dexopt pass " + pass);
     }
 }
