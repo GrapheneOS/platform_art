@@ -37,6 +37,7 @@ class ProfileAssistant {
 
     Options()
         : force_merge_(kForceMergeDefault),
+          force_merge_and_analyze_(kForceMergeDefault),
           boot_image_merge_(kBootImageMergeDefault),
           min_new_methods_percent_change_for_compilation_(
               kMinNewMethodsPercentChangeForCompilation),
