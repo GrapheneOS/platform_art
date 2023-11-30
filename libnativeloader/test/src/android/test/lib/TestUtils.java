@@ -17,9 +17,13 @@
 package android.test.lib;
 
 import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertThrows;
 
+import android.os.Build;
+
 import androidx.test.platform.app.InstrumentationRegistry;
+
 import org.junit.function.ThrowingRunnable;
 
 public final class TestUtils {
@@ -37,5 +41,11 @@ public final class TestUtils {
     public static String libPath(String dir, String libName) {
         String libDirName = InstrumentationRegistry.getArguments().getString("libDirName");
         return dir + "/" + libDirName + "/lib" + libName + ".so";
+    }
+
+    // True if we have to skip testing public libraries in the product
+    // partition, which got supported in T.
+    public static boolean skipPublicProductLibTests() {
+        return Build.VERSION.SDK_INT < 33; // TIRAMISU
     }
 }
