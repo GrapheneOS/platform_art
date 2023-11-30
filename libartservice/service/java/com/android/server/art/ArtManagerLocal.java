@@ -520,6 +520,17 @@ public final class ArtManagerLocal {
                     dexoptExecutor, progressCallbackExecutor,
                     progressCallbacks != null ? progressCallbacks.get(ArtFlags.PASS_MAIN) : null);
             dexoptResults.put(ArtFlags.PASS_MAIN, mainResult);
+            if (reason.equals(ReasonMapping.REASON_BG_DEXOPT)) {
+                DexoptResult supplementaryResult = maybeDexoptPackagesSupplementaryPass(snapshot,
+                        mainResult, params.getDexoptParams(), cancellationSignal, dexoptExecutor,
+                        progressCallbackExecutor,
+                        progressCallbacks != null
+                                ? progressCallbacks.get(ArtFlags.PASS_SUPPLEMENTARY)
+                                : null);
+                if (supplementaryResult != null) {
+                    dexoptResults.put(ArtFlags.PASS_SUPPLEMENTARY, supplementaryResult);
+                }
+            }
             return dexoptResults;
         } finally {
             dexoptExecutor.shutdown();
@@ -1082,6 +1093,48 @@ public final class ArtManagerLocal {
             Log.e(TAG, "Failed to check storage. Assuming storage not low", e);
             return false;
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @Nullable
+    private DexoptResult maybeDexoptPackagesSupplementaryPass(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull DexoptResult mainResult, @NonNull DexoptParams mainParams,
+            @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor,
+            @Nullable @CallbackExecutor Executor progressCallbackExecutor,
+            @Nullable Consumer<OperationProgress> progressCallback) {
+        if ((mainParams.getFlags() & ArtFlags.FLAG_FORCE_MERGE_PROFILE) != 0) {
+            return null;
+        }
+
+        // Only pick packages that used a profile-guided filter and were skipped in the main pass.
+        // This is a very coarse filter to reduce unnecessary iterations on a best-effort basis.
+        // Packages included in the list may still be skipped by dexopter if the profiles don't have
+        // any change.
+        List<String> packageNames =
+                mainResult.getPackageDexoptResults()
+                        .stream()
+                        .filter(packageResult
+                                -> packageResult.getDexContainerFileDexoptResults()
+                                           .stream()
+                                           .anyMatch(fileResult
+                                                   -> DexFile.isProfileGuidedCompilerFilter(
+                                                              fileResult.getActualCompilerFilter())
+                                                           && fileResult.getStatus()
+                                                                   == DexoptResult.DEXOPT_SKIPPED))
+                        .map(packageResult -> packageResult.getPackageName())
+                        .collect(Collectors.toList());
+
+        DexoptParams dexoptParams = mainParams.toBuilder()
+                                            .setFlags(ArtFlags.FLAG_FORCE_MERGE_PROFILE,
+                                                    ArtFlags.FLAG_FORCE_MERGE_PROFILE)
+                                            .build();
+
+        Log.i(TAG,
+                "Dexopting " + packageNames.size() + " packages with reason="
+                        + dexoptParams.getReason() + " (supplementary pass)");
+        return mInjector.getDexoptHelper().dexopt(snapshot, packageNames, dexoptParams,
+                cancellationSignal, dexoptExecutor, progressCallbackExecutor, progressCallback);
     }
 
     /** Returns the list of packages to process for the given reason. */

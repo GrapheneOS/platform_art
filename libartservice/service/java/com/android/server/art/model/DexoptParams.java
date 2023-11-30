@@ -223,4 +223,12 @@ public class DexoptParams {
     public @Nullable String getSplitName() {
         return mSplitName;
     }
+
+    /** @hide */
+    public @NonNull Builder toBuilder() {
+        return new Builder(mReason, mFlags)
+                .setCompilerFilter(mCompilerFilter)
+                .setPriorityClass(mPriorityClass)
+                .setSplitName(mSplitName);
+    }
 }
