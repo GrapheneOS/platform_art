@@ -6738,7 +6738,7 @@ void CodeGeneratorARM64::GenerateGcRootFieldLoad(
   MaybeGenerateMarkingRegisterCheck(/* code= */ __LINE__);
 }
 
-void CodeGeneratorARM64::GenerateIntrinsicCasMoveWithBakerReadBarrier(
+void CodeGeneratorARM64::GenerateIntrinsicMoveWithBakerReadBarrier(
     vixl::aarch64::Register marked_old_value,
     vixl::aarch64::Register old_value) {
   DCHECK(EmitBakerReadBarrier());

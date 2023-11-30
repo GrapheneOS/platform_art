@@ -281,10 +281,11 @@ void IntrinsicCodeGeneratorRISCV64::VisitMemoryPokeShortNative(HInvoke* invoke) 
   EmitMemoryPoke(invoke, [&](XRegister rs2, XRegister rs1) { __ Sh(rs2, rs1, 0); });
 }
 
-static void GenerateReverseBytes(Riscv64Assembler* assembler,
+static void GenerateReverseBytes(CodeGeneratorRISCV64* codegen,
                                  Location rd,
                                  XRegister rs1,
                                  DataType::Type type) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
   switch (type) {
     case DataType::Type::kUint16:
       // There is no 16-bit reverse bytes instruction.
@@ -320,13 +321,12 @@ static void GenerateReverseBytes(Riscv64Assembler* assembler,
   }
 }
 
-static void GenerateReverseBytes(Riscv64Assembler* assembler,
+static void GenerateReverseBytes(CodeGeneratorRISCV64* codegen,
                                  HInvoke* invoke,
                                  DataType::Type type) {
   DCHECK_EQ(type, invoke->GetType());
   LocationSummary* locations = invoke->GetLocations();
-  GenerateReverseBytes(
-      assembler, locations->Out(), locations->InAt(0).AsRegister<XRegister>(), type);
+  GenerateReverseBytes(codegen, locations->Out(), locations->InAt(0).AsRegister<XRegister>(), type);
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
@@ -334,7 +334,7 @@ void IntrinsicLocationsBuilderRISCV64::VisitIntegerReverseBytes(HInvoke* invoke)
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
-  GenerateReverseBytes(GetAssembler(), invoke, DataType::Type::kInt32);
+  GenerateReverseBytes(codegen_, invoke, DataType::Type::kInt32);
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
@@ -342,7 +342,7 @@ void IntrinsicLocationsBuilderRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitLongReverseBytes(HInvoke* invoke) {
-  GenerateReverseBytes(GetAssembler(), invoke, DataType::Type::kInt64);
+  GenerateReverseBytes(codegen_, invoke, DataType::Type::kInt64);
 }
 
 void IntrinsicLocationsBuilderRISCV64::VisitShortReverseBytes(HInvoke* invoke) {
@@ -350,7 +350,7 @@ void IntrinsicLocationsBuilderRISCV64::VisitShortReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitShortReverseBytes(HInvoke* invoke) {
-  GenerateReverseBytes(GetAssembler(), invoke, DataType::Type::kInt16);
+  GenerateReverseBytes(codegen_, invoke, DataType::Type::kInt16);
 }
 
 template <typename EmitOp>
@@ -2045,7 +2045,7 @@ static void GenerateVarHandleGet(HInvoke* invoke,
       codegen->MaybeGenerateReadBarrierSlow(
           invoke, out, out, object_loc, /*offset=*/ 0u, /*index=*/ offset_loc);
     } else if (byte_swap) {
-      GenerateReverseBytes(assembler, out, load_loc.AsRegister<XRegister>(), type);
+      GenerateReverseBytes(codegen, out, load_loc.AsRegister<XRegister>(), type);
     }
   }
 
@@ -2134,7 +2134,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
         codegen->MoveLocation(new_value, value, value_type);
         value = new_value;
       }
-      GenerateReverseBytes(assembler, new_value, value.AsRegister<XRegister>(), value_type);
+      GenerateReverseBytes(codegen, new_value, value.AsRegister<XRegister>(), value_type);
       value = new_value;
     }
 
@@ -2212,6 +2212,13 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
     // for CompareAndExchange, marking the old value after comparison failure may actually
     // return the reference to `expected`, erroneously indicating success even though we
     // did not set the new value. (And it also gets the memory visibility wrong.) b/173104084
+    return;
+  }
+
+  if ((true)) {
+    // FIXME(riscv64): Fix the register allocation for strong CAS (SC failure sets the result
+    // to success, so comparison failure on retry returns "true" for a failed CAS).
+    // Review register allocation for weak CAS to make sure it's OK.
     return;
   }
 
@@ -2297,7 +2304,7 @@ static XRegister PrepareXRegister(CodeGeneratorRISCV64* codegen,
     if (type == DataType::Type::kInt16) {
       type = DataType::Type::kUint16;  // Do the masking as part of the byte swap.
     }
-    GenerateReverseBytes(codegen->GetAssembler(), result, loc.AsRegister<XRegister>(), type);
+    GenerateReverseBytes(codegen, result, loc.AsRegister<XRegister>(), type);
     loc = result;
   }
   if (shift != kNoXRegister) {
@@ -2311,16 +2318,17 @@ static XRegister PrepareXRegister(CodeGeneratorRISCV64* codegen,
   return result.AsRegister<XRegister>();
 }
 
-static void GenerateByteSwapAndExtract(Riscv64Assembler* assembler,
+static void GenerateByteSwapAndExtract(CodeGeneratorRISCV64* codegen,
                                        Location rd,
                                        XRegister rs1,
                                        XRegister shift,
                                        DataType::Type type) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
   // Do not apply shift in `GenerateReverseBytes()` for small types.
   DCHECK_EQ(shift != kNoXRegister, DataType::Size(type) < 4u);
   DataType::Type swap_type = (shift != kNoXRegister) ? DataType::Type::kInt32 : type;
   // Also handles moving to FP registers.
-  GenerateReverseBytes(assembler, rd, rs1, swap_type);
+  GenerateReverseBytes(codegen, rd, rs1, swap_type);
   if (shift != kNoXRegister) {
     DCHECK_EQ(rs1, rd.AsRegister<XRegister>());
     __ Sllw(rs1, rs1, shift);
@@ -2507,7 +2515,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   if (return_success) {
     // Nothing to do, the result register already contains 1 on success and 0 on failure.
   } else if (byte_swap) {
-    GenerateByteSwapAndExtract(assembler, out, old_value, shift, value_type);
+    GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
   } else if (is_fp) {
     codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
   } else if (is_small) {
@@ -2839,7 +2847,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     codegen->GetInstructionVisitor()->Load(
         Location::RegisterLocation(old_value), tmp_ptr, /*offset=*/ 0, op_type);
     if (byte_swap) {
-      GenerateByteSwapAndExtract(assembler, out, old_value, shift, value_type);
+      GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
     } else {
       DCHECK(is_fp);
       codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
@@ -2866,7 +2874,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
         swap_type = DataType::Type::kUint16;
         __ Xor(new_value, new_value, out.AsRegister<XRegister>());
       }
-      GenerateReverseBytes(assembler, Location::RegisterLocation(new_value), new_value, swap_type);
+      GenerateReverseBytes(codegen, Location::RegisterLocation(new_value), new_value, swap_type);
       if (is_small) {
         __ Sllw(new_value, new_value, shift);
         __ Xor(new_value, new_value, old_value);
@@ -2889,7 +2897,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     GenerateGetAndUpdate(
         codegen, get_and_update_op, op_type, order, tmp_ptr, arg_reg, old_value, mask, temp);
     if (byte_swap) {
-      GenerateByteSwapAndExtract(assembler, out, old_value, shift, value_type);
+      GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
     } else if (is_fp) {
       codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
     } else if (is_small) {
