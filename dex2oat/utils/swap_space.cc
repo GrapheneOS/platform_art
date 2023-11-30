@@ -29,7 +29,7 @@
 namespace art {
 
 // The chunk size by which the swap file is increased and mapped.
-static constexpr size_t kMininumMapSize = 16 * MB;
+static constexpr size_t kMinimumMapSize = 16 * MB;
 
 static constexpr bool kCheckFreeMaps = false;
 
@@ -146,7 +146,7 @@ void* SwapSpace::Alloc(size_t size) {
 
 SwapSpace::SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
 #if !defined(__APPLE__)
-  size_t next_part = std::max(RoundUp(min_size, kPageSize), RoundUp(kMininumMapSize, kPageSize));
+  size_t next_part = std::max(RoundUp(min_size, gPageSize), RoundUp(kMinimumMapSize, gPageSize));
   int result = TEMP_FAILURE_RETRY(ftruncate64(fd_, size_ + next_part));
   if (result != 0) {
     PLOG(FATAL) << "Unable to increase swap file.";
@@ -165,7 +165,7 @@ SwapSpace::SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
   SpaceChunk new_chunk = {ptr, next_part};
   return new_chunk;
 #else
-  UNUSED(min_size, kMininumMapSize);
+  UNUSED(min_size, kMinimumMapSize);
   LOG(FATAL) << "No swap file support on the Mac.";
   UNREACHABLE();
 #endif

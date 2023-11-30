@@ -56,12 +56,12 @@ class RosAlloc {
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
       size_t byte_size = rosalloc->free_page_run_size_map_[pm_idx];
       DCHECK_GE(byte_size, static_cast<size_t>(0));
-      DCHECK_ALIGNED_PARAM(byte_size, kPageSize);
+      DCHECK_ALIGNED_PARAM(byte_size, gPageSize);
       return byte_size;
     }
     void SetByteSize(RosAlloc* rosalloc, size_t byte_size)
         REQUIRES(rosalloc->lock_) {
-      DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
+      DCHECK_EQ(byte_size % gPageSize, static_cast<size_t>(0));
       uint8_t* fpr_base = reinterpret_cast<uint8_t*>(this);
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
       rosalloc->free_page_run_size_map_[pm_idx] = byte_size;
@@ -102,7 +102,7 @@ class RosAlloc {
     void ReleasePages(RosAlloc* rosalloc) REQUIRES(rosalloc->lock_) {
       uint8_t* start = reinterpret_cast<uint8_t*>(this);
       size_t byte_size = ByteSize(rosalloc);
-      DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
+      DCHECK_EQ(byte_size % gPageSize, static_cast<size_t>(0));
       if (ShouldReleasePages(rosalloc)) {
         rosalloc->ReleasePageRange(start, start + byte_size);
       }
@@ -390,7 +390,7 @@ class RosAlloc {
       return &thread_local_free_list_;
     }
     void* End() {
-      return reinterpret_cast<uint8_t*>(this) + kPageSize * numOfPages[size_bracket_idx_];
+      return reinterpret_cast<uint8_t*>(this) + gPageSize * numOfPages[size_bracket_idx_];
     }
     void SetIsThreadLocal(bool is_thread_local) {
       is_thread_local_  = is_thread_local ? 1 : 0;
@@ -610,13 +610,13 @@ class RosAlloc {
     DCHECK_LE(base_, addr);
     DCHECK_LT(addr, base_ + capacity_);
     size_t byte_offset = reinterpret_cast<const uint8_t*>(addr) - base_;
-    DCHECK_EQ(byte_offset % static_cast<size_t>(kPageSize), static_cast<size_t>(0));
-    return byte_offset / kPageSize;
+    DCHECK_EQ(byte_offset % static_cast<size_t>(gPageSize), static_cast<size_t>(0));
+    return byte_offset / gPageSize;
   }
   // Returns the page map index from an address with rounding.
   size_t RoundDownToPageMapIndex(const void* addr) const {
     DCHECK(base_ <= addr && addr < reinterpret_cast<uint8_t*>(base_) + capacity_);
-    return (reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(base_)) / kPageSize;
+    return (reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(base_)) / gPageSize;
   }
 
   // A memory allocation request larger than this size is treated as a large object and allocated
@@ -872,7 +872,7 @@ class RosAlloc {
   // Returns the size of the allocated slot for a given size.
   size_t UsableSize(size_t bytes) {
     if (UNLIKELY(bytes > kLargeSizeThreshold)) {
-      return RoundUp(bytes, kPageSize);
+      return RoundUp(bytes, gPageSize);
     } else {
       return RoundToBracketSize(bytes);
     }
@@ -911,7 +911,7 @@ class RosAlloc {
     return dedicated_full_run_;
   }
   bool IsFreePage(size_t idx) const {
-    DCHECK_LT(idx, capacity_ / kPageSize);
+    DCHECK_LT(idx, capacity_ / gPageSize);
     uint8_t pm_type = page_map_[idx];
     return pm_type == kPageMapReleased || pm_type == kPageMapEmpty;
   }

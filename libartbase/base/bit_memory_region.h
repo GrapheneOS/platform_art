@@ -33,7 +33,7 @@ class BitMemoryRegion final : public ValueObject {
   BitMemoryRegion() = default;
   ALWAYS_INLINE BitMemoryRegion(uint8_t* data, ssize_t bit_start, size_t bit_size) {
     // Normalize the data pointer. Note that bit_start may be negative.
-    data_ = AlignDown(data + (bit_start >> kBitsPerByteLog2), kPageSize);
+    data_ = AlignDown(data + (bit_start >> kBitsPerByteLog2), gPageSize);
     bit_start_ = bit_start + kBitsPerByte * (data - data_);
     bit_size_ = bit_size;
   }

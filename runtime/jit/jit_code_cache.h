@@ -188,7 +188,7 @@ class JitCodeCache {
     // collection. It should be at least two pages, however, as the storage is split
     // into data and code sections with sizes that should be aligned to page size each
     // as that's the unit mspaces use. See also: JitMemoryRegion::Initialize.
-    return std::max(kIsDebugBuild ? 8 * KB : 64 * KB, 2 * kPageSize);
+    return std::max(kIsDebugBuild ? 8 * KB : 64 * KB, 2 * gPageSize);
   }
 
   // Reserved capacity of the JIT code cache.

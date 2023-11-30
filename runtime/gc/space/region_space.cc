@@ -405,8 +405,8 @@ void RegionSpace::ReleaseFreeRegions() {
   for (size_t i = 0u; i < num_regions_; ++i) {
     if (regions_[i].IsFree()) {
       uint8_t* begin = regions_[i].Begin();
-      DCHECK_ALIGNED_PARAM(begin, kPageSize);
-      DCHECK_ALIGNED_PARAM(regions_[i].End(), kPageSize);
+      DCHECK_ALIGNED_PARAM(begin, gPageSize);
+      DCHECK_ALIGNED_PARAM(regions_[i].End(), gPageSize);
       bool res = madvise(begin, regions_[i].End() - begin, MADV_DONTNEED);
       CHECK_NE(res, -1) << "madvise failed";
     }

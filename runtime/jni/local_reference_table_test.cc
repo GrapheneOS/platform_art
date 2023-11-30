@@ -541,14 +541,14 @@ TEST_F(LocalReferenceTableTest, BasicResizeTest) {
   BasicResizeTest(/*check_jni=*/ false, 20u);
   BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
   BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
-  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ gPageSize / sizeof(LrtEntry));
 }
 
 TEST_F(LocalReferenceTableTest, BasicResizeTestCheckJNI) {
   BasicResizeTest(/*check_jni=*/ true, 20u);
   BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
   BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
-  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ gPageSize / sizeof(LrtEntry));
 }
 
 void LocalReferenceTableTest::TestAddRemove(bool check_jni, size_t max_count, size_t fill_count) {
@@ -830,7 +830,7 @@ TEST_F(LocalReferenceTableTest, RegressionTestB276864369) {
 
   // Add refs to fill all small tables and one bigger table.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  const size_t refs_per_page = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs;
   for (size_t i = 0; i != 2 * refs_per_page; ++i) {
     refs.push_back(lrt.Add(cookie0, c, &error_msg));
@@ -854,7 +854,7 @@ TEST_F(LocalReferenceTableTest, Trim) {
 
   // Add refs to fill all small tables.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  const size_t refs_per_page = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs0;
   for (size_t i = 0; i != refs_per_page; ++i) {
     refs0.push_back(lrt.Add(cookie0, c, &error_msg));
@@ -978,7 +978,7 @@ TEST_F(LocalReferenceTableTest, PruneBeforeTrim) {
 
   // Add refs to fill all small tables and one bigger table.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  const size_t refs_per_page = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs;
   for (size_t i = 0; i != 2 * refs_per_page; ++i) {
     refs.push_back(lrt.Add(cookie0, c, &error_msg));

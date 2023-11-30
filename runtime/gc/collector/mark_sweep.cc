@@ -105,7 +105,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
   std::string error_msg;
   sweep_array_free_buffer_mem_map_ = MemMap::MapAnonymous(
       "mark sweep sweep array free buffer",
-      RoundUp(kSweepArrayChunkFreeSize * sizeof(mirror::Object*), kPageSize),
+      RoundUp(kSweepArrayChunkFreeSize * sizeof(mirror::Object*), gPageSize),
       PROT_READ | PROT_WRITE,
       /*low_4gb=*/ false,
       &error_msg);

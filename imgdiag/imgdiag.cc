@@ -229,9 +229,9 @@ size_t EntrySize(ArtMethod* art_method) REQUIRES_SHARED(Locks::mutator_lock_) {
 // Print all pages the entry belongs to
 void PrintEntryPages(uintptr_t entry_address, size_t entry_size, std::ostream& os) {
     const char* tabs = "    ";
-    const uintptr_t first_page_idx = entry_address / kPageSize;
+    const uintptr_t first_page_idx = entry_address / gPageSize;
     const uintptr_t last_page_idx = RoundUp(entry_address + entry_size,
-                                            kObjectAlignment) / kPageSize;
+                                            kObjectAlignment) / gPageSize;
     for (uintptr_t page_idx = first_page_idx; page_idx <= last_page_idx; ++page_idx) {
       os << tabs << "page_idx=" << page_idx << "\n";
     }
@@ -298,13 +298,13 @@ struct RegionCommon {
     uintptr_t entry_address = reinterpret_cast<uintptr_t>(entry);
     // Iterate every page this entry belongs to
     do {
-      current_page_idx = entry_address / kPageSize + page_off;
+      current_page_idx = entry_address / gPageSize + page_off;
       if (dirty_pages.find(current_page_idx) != dirty_pages.end()) {
         // This entry is on a dirty page
         return true;
       }
       page_off++;
-    } while ((current_page_idx * kPageSize) < RoundUp(entry_address + size, kObjectAlignment));
+    } while ((current_page_idx * gPageSize) < RoundUp(entry_address + size, kObjectAlignment));
     return false;
   }
 
@@ -1155,7 +1155,7 @@ class RegionData : public RegionSpecializedBase<T> {
     // Looking at only dirty pages, figure out how many of those bytes belong to dirty entries.
     // TODO: fix this now that there are multiple regions in a mapping.
     float true_dirtied_percent =
-        RegionCommon<T>::GetDirtyEntryBytes() * 1.0f / (mapping_data.dirty_pages * kPageSize);
+        RegionCommon<T>::GetDirtyEntryBytes() * 1.0f / (mapping_data.dirty_pages * gPageSize);
 
     // Entry specific statistics.
     os_ << RegionCommon<T>::GetDifferentEntryCount() << " different entries, \n  "
@@ -1413,7 +1413,7 @@ class ImgDiagDumper {
                          MappingData* mapping_data /*out*/,
                          std::string* error_msg /*out*/) {
     // Iterate through one page at a time. Boot map begin/end already implicitly aligned.
-    for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += kPageSize) {
+    for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += gPageSize) {
       const ptrdiff_t offset = begin - boot_map.start;
 
       // We treat the image header as part of the memory map for now
@@ -1422,11 +1422,11 @@ class ImgDiagDumper {
       const uint8_t* zygote_ptr = &zygote_contents[offset];
       const uint8_t* remote_ptr = &remote_contents[offset];
 
-      if (memcmp(zygote_ptr, remote_ptr, kPageSize) != 0) {
+      if (memcmp(zygote_ptr, remote_ptr, gPageSize) != 0) {
         mapping_data->different_pages++;
 
         // Count the number of 32-bit integers that are different.
-        for (size_t i = 0; i < kPageSize / sizeof(uint32_t); ++i) {
+        for (size_t i = 0; i < gPageSize / sizeof(uint32_t); ++i) {
           const uint32_t* remote_ptr_int32 = reinterpret_cast<const uint32_t*>(remote_ptr);
           const uint32_t* zygote_ptr_int32 = reinterpret_cast<const uint32_t*>(zygote_ptr);
 
@@ -1435,7 +1435,7 @@ class ImgDiagDumper {
           }
         }
         // Count the number of bytes that are different.
-        for (size_t i = 0; i < kPageSize; ++i) {
+        for (size_t i = 0; i < gPageSize; ++i) {
           if (remote_ptr[i] != zygote_ptr[i]) {
             mapping_data->different_bytes++;
           }
@@ -1443,11 +1443,11 @@ class ImgDiagDumper {
       }
     }
 
-    for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += kPageSize) {
+    for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += gPageSize) {
       ptrdiff_t offset = begin - boot_map.start;
 
       // Virtual page number (for an absolute memory address)
-      size_t virtual_page_idx = begin / kPageSize;
+      size_t virtual_page_idx = begin / gPageSize;
 
       uint64_t page_count = 0xC0FFEE;
       // TODO: virtual_page_idx needs to be from the same process
@@ -1555,7 +1555,7 @@ class ImgDiagDumper {
 
     // Adjust the `end` of the mapping. Some other mappings may have been
     // inserted within the image.
-    boot_map.end = RoundUp(boot_map.start + image_header.GetImageSize(), kPageSize);
+    boot_map.end = RoundUp(boot_map.start + image_header.GetImageSize(), gPageSize);
     // The size of the boot image mapping.
     size_t boot_map_size = boot_map.end - boot_map.start;
 
@@ -1569,7 +1569,7 @@ class ImgDiagDumper {
       android::procinfo::MapInfo& zygote_boot_map = *maybe_zygote_boot_map;
       // Adjust the `end` of the mapping. Some other mappings may have been
       // inserted within the image.
-      zygote_boot_map.end = RoundUp(zygote_boot_map.start + image_header.GetImageSize(), kPageSize);
+      zygote_boot_map.end = RoundUp(zygote_boot_map.start + image_header.GetImageSize(), gPageSize);
       if (zygote_boot_map.start != boot_map.start) {
         os << "Zygote boot map does not match image boot map: "
            << "zygote begin " << reinterpret_cast<const void*>(zygote_boot_map.start)
@@ -1589,8 +1589,8 @@ class ImgDiagDumper {
     const uint8_t* image_end_unaligned = image_begin_unaligned + image_header.GetImageSize();
 
     // Adjust range to nearest page
-    const uint8_t* image_begin = AlignDown(image_begin_unaligned, kPageSize);
-    const uint8_t* image_end = AlignUp(image_end_unaligned, kPageSize);
+    const uint8_t* image_begin = AlignDown(image_begin_unaligned, gPageSize);
+    const uint8_t* image_end = AlignUp(image_end_unaligned, gPageSize);
 
     size_t image_size = image_end - image_begin;
     if (image_size != boot_map_size) {
@@ -1603,8 +1603,8 @@ class ImgDiagDumper {
     auto read_contents = [&](File* mem_file,
                              /*out*/ MemMap* map,
                              /*out*/ ArrayRef<uint8_t>* contents) {
-      DCHECK_ALIGNED_PARAM(boot_map.start, kPageSize);
-      DCHECK_ALIGNED_PARAM(boot_map_size, kPageSize);
+      DCHECK_ALIGNED_PARAM(boot_map.start, gPageSize);
+      DCHECK_ALIGNED_PARAM(boot_map_size, gPageSize);
       std::string name = "Contents of " + mem_file->GetPath();
       std::string local_error_msg;
       // We need to use low 4 GiB memory so that we can walk the objects using standard

@@ -199,7 +199,7 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava)
 TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackAttach) {
   std::string error_msg;
   MemMap stack = MemMap::MapAnonymous("ThreadLifecycleCallback Thread",
-                                      128 * kPageSize,  // Just some small stack.
+                                      128 * gPageSize,  // Just some small stack.
                                       PROT_READ | PROT_WRITE,
                                       /*low_4gb=*/ false,
                                       &error_msg);
