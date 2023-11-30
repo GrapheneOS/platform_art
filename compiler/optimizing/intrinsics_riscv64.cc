@@ -1623,7 +1623,7 @@ static void GenerateVarHandleAccessModeAndVarTypeChecks(HInvoke* invoke,
   // For primitive types, we do not need a read barrier when loading a reference only for loading
   // constant field through the reference. For reference types, we deliberately avoid the read
   // barrier, letting the slow path handle the false negatives.
-  __ Loadw(temp, varhandle, var_type_offset.Int32Value());
+  __ Loadwu(temp, varhandle, var_type_offset.Int32Value());
   codegen->MaybeUnpoisonHeapReference(temp);
 
   // Check the varType.primitiveType field against the type we're trying to use.
