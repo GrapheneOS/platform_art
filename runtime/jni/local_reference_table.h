@@ -400,7 +400,7 @@ class LocalReferenceTable {
   }
 
   static size_t MaxSmallTables() {
-    return NumTablesForSize(kPageSize / sizeof(LrtEntry));
+    return NumTablesForSize(gPageSize / sizeof(LrtEntry));
   }
 
   LrtEntry* GetEntry(size_t entry_index) const {

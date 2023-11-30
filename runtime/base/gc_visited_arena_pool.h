@@ -44,22 +44,22 @@ class TrackedArena final : public Arena {
   void VisitRoots(PageVisitor& visitor) const REQUIRES_SHARED(Locks::mutator_lock_) {
     uint8_t* page_begin = Begin();
     if (first_obj_array_.get() != nullptr) {
-      DCHECK_ALIGNED_PARAM(Size(), kPageSize);
-      DCHECK_ALIGNED_PARAM(Begin(), kPageSize);
-      for (int i = 0, nr_pages = Size() / kPageSize; i < nr_pages; i++, page_begin += kPageSize) {
+      DCHECK_ALIGNED_PARAM(Size(), gPageSize);
+      DCHECK_ALIGNED_PARAM(Begin(), gPageSize);
+      for (int i = 0, nr_pages = Size() / gPageSize; i < nr_pages; i++, page_begin += gPageSize) {
         uint8_t* first = first_obj_array_[i];
         if (first != nullptr) {
-          visitor(page_begin, first, kPageSize);
+          visitor(page_begin, first, gPageSize);
         } else {
           break;
         }
       }
     } else {
       size_t page_size = Size();
-      while (page_size > kPageSize) {
-        visitor(page_begin, nullptr, kPageSize);
-        page_begin += kPageSize;
-        page_size -= kPageSize;
+      while (page_size > gPageSize) {
+        visitor(page_begin, nullptr, gPageSize);
+        page_begin += gPageSize;
+        page_size -= gPageSize;
       }
       visitor(page_begin, nullptr, page_size);
     }
@@ -69,17 +69,17 @@ class TrackedArena final : public Arena {
   uint8_t* GetLastUsedByte() const REQUIRES_SHARED(Locks::mutator_lock_) {
     // Jump past bytes-allocated for arenas which are not currently being used
     // by arena-allocator. This helps in reducing loop iterations below.
-    uint8_t* last_byte = AlignUp(Begin() + GetBytesAllocated(), kPageSize);
+    uint8_t* last_byte = AlignUp(Begin() + GetBytesAllocated(), gPageSize);
     if (first_obj_array_.get() != nullptr) {
-      DCHECK_ALIGNED_PARAM(Begin(), kPageSize);
-      DCHECK_ALIGNED_PARAM(End(), kPageSize);
+      DCHECK_ALIGNED_PARAM(Begin(), gPageSize);
+      DCHECK_ALIGNED_PARAM(End(), gPageSize);
       DCHECK_LE(last_byte, End());
     } else {
       DCHECK_EQ(last_byte, End());
     }
-    for (size_t i = (last_byte - Begin()) / kPageSize;
+    for (size_t i = (last_byte - Begin()) / gPageSize;
          last_byte < End() && first_obj_array_[i] != nullptr;
-         last_byte += kPageSize, i++) {
+         last_byte += gPageSize, i++) {
       // No body.
     }
     return last_byte;
@@ -89,7 +89,7 @@ class TrackedArena final : public Arena {
     DCHECK_LE(Begin(), addr);
     DCHECK_GT(End(), addr);
     if (first_obj_array_.get() != nullptr) {
-      return first_obj_array_[(addr - Begin()) / kPageSize];
+      return first_obj_array_[(addr - Begin()) / gPageSize];
     } else {
       // The pages of this arena contain array of GC-roots. So we don't need
       // first-object of any given page of the arena.
@@ -252,7 +252,7 @@ class GcVisitedArenaPool final : public ArenaPool {
   class TrackedArenaHash {
    public:
     size_t operator()(const TrackedArena* arena) const {
-      return std::hash<size_t>{}(reinterpret_cast<uintptr_t>(arena->Begin()) / kPageSize);
+      return std::hash<size_t>{}(reinterpret_cast<uintptr_t>(arena->Begin()) / gPageSize);
     }
   };
   using AllocatedArenaSet =

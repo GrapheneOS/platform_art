@@ -118,7 +118,7 @@ TEST_F(SpaceBitmapTest, ClearRange) {
     for (uintptr_t i = 0; i < range.first; i += kObjectAlignment) {
       EXPECT_TRUE(bitmap.Test(reinterpret_cast<mirror::Object*>(heap_begin + i)));
     }
-    for (uintptr_t i = range.second; i < range.second + kPageSize; i += kObjectAlignment) {
+    for (uintptr_t i = range.second; i < range.second + gPageSize; i += kObjectAlignment) {
       EXPECT_TRUE(bitmap.Test(reinterpret_cast<mirror::Object*>(heap_begin + i)));
     }
     // Everything inside should be cleared.
@@ -212,7 +212,7 @@ TEST_F(SpaceBitmapTest, VisitorObjectAlignment) {
 }
 
 TEST_F(SpaceBitmapTest, VisitorPageAlignment) {
-  RunTestCount(kPageSize);
+  RunTestCount(gPageSize);
 }
 
 void RunTestOrder(size_t alignment) {
@@ -248,7 +248,7 @@ TEST_F(SpaceBitmapTest, OrderObjectAlignment) {
 }
 
 TEST_F(SpaceBitmapTest, OrderPageAlignment) {
-  RunTestOrder(kPageSize);
+  RunTestOrder(gPageSize);
 }
 
 }  // namespace accounting

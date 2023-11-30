@@ -89,7 +89,7 @@ class MemoryToolLargeObjectMapSpace final : public LargeObjectMapSpace {
 
  private:
   static size_t MemoryToolRedZoneBytes() {
-    return kPageSize;
+    return gPageSize;
   }
 
   static const mirror::Object* ObjectWithRedzone(const mirror::Object* obj) {

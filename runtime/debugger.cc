@@ -568,7 +568,7 @@ class HeapChunkContext {
       // of the use of mmaps, so don't report. If not free memory then start a new segment.
       bool flush = true;
       if (start > startOfNextMemoryChunk_) {
-        const size_t kMaxFreeLen = 2 * kPageSize;
+        const size_t kMaxFreeLen = 2 * gPageSize;
         void* free_start = startOfNextMemoryChunk_;
         void* free_end = start;
         const size_t free_len =
