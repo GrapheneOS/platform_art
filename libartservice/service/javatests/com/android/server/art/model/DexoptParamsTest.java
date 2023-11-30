@@ -16,11 +16,18 @@
 
 package com.android.server.art.model;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -105,5 +112,32 @@ public class DexoptParamsTest {
                 .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
                 .setSplitName("split_0")
                 .build();
+    }
+
+    @Test
+    public void testToBuilder() {
+        // Update this test with new fields if this assertion fails.
+        assertThat(Arrays.stream(DexoptParams.class.getDeclaredFields())
+                           .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                           .map(Field::getName)
+                           .collect(Collectors.toList()))
+                .containsExactly(
+                        "mFlags", "mCompilerFilter", "mPriorityClass", "mReason", "mSplitName");
+
+        DexoptParams params1 =
+                new DexoptParams.Builder("install")
+                        .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                        .setCompilerFilter("speed")
+                        .setPriorityClass(90)
+                        .setSplitName("split_0")
+                        .build();
+
+        DexoptParams params2 = params1.toBuilder().build();
+
+        assertThat(params1.getFlags()).isEqualTo(params2.getFlags());
+        assertThat(params1.getCompilerFilter()).isEqualTo(params2.getCompilerFilter());
+        assertThat(params1.getPriorityClass()).isEqualTo(params2.getPriorityClass());
+        assertThat(params1.getReason()).isEqualTo(params2.getReason());
+        assertThat(params1.getSplitName()).isEqualTo(params2.getSplitName());
     }
 }

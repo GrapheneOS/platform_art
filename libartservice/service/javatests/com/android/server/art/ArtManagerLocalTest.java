@@ -19,6 +19,8 @@ package com.android.server.art;
 import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 
 import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
+import static com.android.server.art.model.DexoptResult.PackageDexoptResult;
 import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 import static com.android.server.art.testing.TestingUtils.inAnyOrder;
@@ -709,6 +711,55 @@ public class ArtManagerLocalTest {
         assertThat(mArtManagerLocal.dexoptPackages(mSnapshot, "bg-dexopt", cancellationSignal,
                            null /* processCallbackExecutor */, null /* processCallback */))
                 .isEqualTo(Map.of(ArtFlags.PASS_MAIN, result));
+    }
+
+    @Test
+    public void testDexoptPackagesSupplementaryPass() throws Exception {
+        // The supplementary pass should only try dexopting PKG_NAME_2.
+        var mainResult = DexoptResult.create("speed-profile", "bg-dexopt",
+                List.of(PackageDexoptResult.create(PKG_NAME_1,
+                                List.of(DexContainerFileDexoptResult.create("dex-file-1",
+                                                true /* isPrimaryAbi */, "arm64", "speed-profile",
+                                                DexoptResult.DEXOPT_PERFORMED),
+                                        DexContainerFileDexoptResult.create("dex-file-2",
+                                                true /* isPrimaryAbi */, "arm64", "speed",
+                                                DexoptResult.DEXOPT_SKIPPED)),
+                                null /* packageLevelStatus */),
+                        PackageDexoptResult.create(PKG_NAME_2,
+                                List.of(DexContainerFileDexoptResult.create("dex-file-1",
+                                                true /* isPrimaryAbi */, "arm64", "speed-profile",
+                                                DexoptResult.DEXOPT_PERFORMED),
+                                        DexContainerFileDexoptResult.create("dex-file-2",
+                                                true /* isPrimaryAbi */, "arm64", "speed-profile",
+                                                DexoptResult.DEXOPT_SKIPPED)),
+                                null /* packageLevelStatus */)));
+        var supplementaryResult = DexoptResult.create();
+        var cancellationSignal = new CancellationSignal();
+
+        // The main pass.
+        doReturn(mainResult)
+                .when(mDexoptHelper)
+                .dexopt(any(), inAnyOrder(PKG_NAME_1, PKG_NAME_2),
+                        argThat(params
+                                -> params.getReason().equals("bg-dexopt")
+                                        && (params.getFlags() & ArtFlags.FLAG_FORCE_MERGE_PROFILE)
+                                                == 0),
+                        any(), any(), any(), any());
+
+        // The supplementary pass.
+        doReturn(supplementaryResult)
+                .when(mDexoptHelper)
+                .dexopt(any(), inAnyOrder(PKG_NAME_2),
+                        argThat(params
+                                -> params.getReason().equals("bg-dexopt")
+                                        && (params.getFlags() & ArtFlags.FLAG_FORCE_MERGE_PROFILE)
+                                                != 0),
+                        any(), any(), any(), any());
+
+        assertThat(mArtManagerLocal.dexoptPackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                           null /* processCallbackExecutor */, null /* processCallback */))
+                .isEqualTo(Map.of(ArtFlags.PASS_MAIN, mainResult, ArtFlags.PASS_SUPPLEMENTARY,
+                        supplementaryResult));
     }
 
     @Test(expected = IllegalStateException.class)
