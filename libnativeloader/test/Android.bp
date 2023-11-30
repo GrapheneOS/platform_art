@@ -113,7 +113,12 @@ java_library {
 java_defaults {
     name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
-    sdk_version: "31",
+    min_sdk_version: "31",
+    // Don't let targetSdkVersion become the latest codename, because
+    // PackageManager refuses to install the app on released platform images
+    // then, which makes it fail in MTS runs. Otoh, we don't want app compat
+    // measures getting enabled in these tests, so set some high number.
+    target_sdk_version: "9999",
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.rules",
