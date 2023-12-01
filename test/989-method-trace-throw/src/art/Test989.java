@@ -145,12 +145,14 @@ public class Test989 {
 
   public static class ForceGCTracer implements MethodTracer {
     public void methodEntry(Object m) {
-      if (System.getProperty("java.vm.name").equals("Dalvik")) {
+      if (System.getProperty("java.vm.name").equals("Dalvik") &&
+          testMethods.contains(m)) {
         System.gc();
       }
     }
     public void methodExited(Object m, boolean exception, Object result) {
-      if (System.getProperty("java.vm.name").equals("Dalvik")) {
+      if (System.getProperty("java.vm.name").equals("Dalvik") &&
+          testMethods.contains(m)) {
         System.gc();
       }
     }
