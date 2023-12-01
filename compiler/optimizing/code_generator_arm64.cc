@@ -4636,9 +4636,9 @@ void CodeGeneratorARM64::MaybeGenerateInlineCacheCheck(HInstruction* instruction
     uint64_t address = reinterpret_cast64<uint64_t>(cache);
     vixl::aarch64::Label done;
     __ Mov(x8, address);
-    __ Ldr(x9, MemOperand(x8, InlineCache::ClassesOffset().Int32Value()));
+    __ Ldr(w9, MemOperand(x8, InlineCache::ClassesOffset().Int32Value()));
     // Fast path for a monomorphic cache.
-    __ Cmp(klass, x9);
+    __ Cmp(klass.W(), w9);
     __ B(eq, &done);
     InvokeRuntime(kQuickUpdateInlineCache, instruction, instruction->GetDexPc());
     __ Bind(&done);
