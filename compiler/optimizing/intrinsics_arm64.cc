@@ -1577,7 +1577,7 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
   VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
