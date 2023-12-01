@@ -97,20 +97,11 @@ static constexpr int32_t kFClassNaNMinValue = 0x100;
   V(StringBuilderAppendDouble)                  \
   V(StringBuilderLength)                        \
   V(StringBuilderToString)                      \
-  V(UnsafeCASInt)                               \
-  V(UnsafeCASLong)                              \
-  V(UnsafeCASObject)                            \
   V(UnsafeGetAndAddInt)                         \
   V(UnsafeGetAndAddLong)                        \
   V(UnsafeGetAndSetInt)                         \
   V(UnsafeGetAndSetLong)                        \
   V(UnsafeGetAndSetObject)                      \
-  V(JdkUnsafeCASInt)                            \
-  V(JdkUnsafeCASLong)                           \
-  V(JdkUnsafeCASObject)                         \
-  V(JdkUnsafeCompareAndSetInt)                  \
-  V(JdkUnsafeCompareAndSetLong)                 \
-  V(JdkUnsafeCompareAndSetReference)            \
   V(JdkUnsafeGetAndAddInt)                      \
   V(JdkUnsafeGetAndAddLong)                     \
   V(JdkUnsafeGetAndSetInt)                      \
