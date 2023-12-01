@@ -255,8 +255,8 @@ bool InductionVarRange::CanGenerateRange(const HBasicBlock* context,
                                   nullptr,  // nothing generated yet
                                   &stride_value,
                                   needs_finite_test,
-                                  needs_taken_test)
-      && (stride_value == -1 ||
+                                  needs_taken_test) &&
+         (stride_value == -1 ||
           stride_value == 0 ||
           stride_value == 1);  // avoid arithmetic wrap-around anomalies.
 }
@@ -280,7 +280,10 @@ void InductionVarRange::GenerateRange(const HBasicBlock* context,
                                 nullptr,
                                 &stride_value,
                                 &b1,
-                                &b2)) {
+                                &b2) ||
+      (stride_value != -1 &&
+       stride_value != 0 &&
+       stride_value != 1)) {
     LOG(FATAL) << "Failed precondition: CanGenerateRange()";
   }
 }
@@ -303,7 +306,10 @@ HInstruction* InductionVarRange::GenerateTakenTest(HInstruction* loop_control,
                                 &taken_test,
                                 &stride_value,
                                 &b1,
-                                &b2)) {
+                                &b2) ||
+      (stride_value != -1 &&
+       stride_value != 0 &&
+       stride_value != 1)) {
     LOG(FATAL) << "Failed precondition: CanGenerateRange()";
   }
   return taken_test;
@@ -336,7 +342,8 @@ HInstruction* InductionVarRange::GenerateLastValue(HInstruction* instruction,
   HInstruction* last_value = nullptr;
   bool is_last_value = true;
   int64_t stride_value = 0;
-  bool b1, b2;  // unused
+  bool needs_finite_test = false;
+  bool needs_taken_test = false;
   if (!GenerateRangeOrLastValue(context,
                                 instruction,
                                 is_last_value,
@@ -346,8 +353,10 @@ HInstruction* InductionVarRange::GenerateLastValue(HInstruction* instruction,
                                 &last_value,
                                 nullptr,
                                 &stride_value,
-                                &b1,
-                                &b2)) {
+                                &needs_finite_test,
+                                &needs_taken_test) ||
+      needs_finite_test ||
+      needs_taken_test) {
     LOG(FATAL) << "Failed precondition: CanGenerateLastValue()";
   }
   return last_value;
