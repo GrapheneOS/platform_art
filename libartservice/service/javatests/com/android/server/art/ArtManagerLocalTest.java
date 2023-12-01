@@ -93,6 +93,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -994,6 +995,31 @@ public class ArtManagerLocalTest {
                 .thenReturn(false); // A non-empty merge is tested in `testSnapshotAppProfile`.
 
         mArtManagerLocal.snapshotBootImageProfile(mSnapshot);
+    }
+
+    @Test
+    public void testOnBoot() throws Exception {
+        var progressCallbackExecutor = mock(Executor.class);
+        var progressCallback = mock(Consumer.class);
+
+        when(mDexoptHelper.dexopt(any(), any(),
+                     argThat(params -> params.getReason().equals(ReasonMapping.REASON_FIRST_BOOT)),
+                     any(), any(), same(progressCallbackExecutor), same(progressCallback)))
+                .thenReturn(DexoptResult.create());
+
+        mArtManagerLocal.onBoot(
+                ReasonMapping.REASON_FIRST_BOOT, progressCallbackExecutor, progressCallback);
+    }
+
+    @Test
+    public void testOnBootNoProgressCallback() throws Exception {
+        when(mDexoptHelper.dexopt(any(), any(),
+                     argThat(params -> params.getReason().equals(ReasonMapping.REASON_FIRST_BOOT)),
+                     any(), any(), isNull(), isNull()))
+                .thenReturn(DexoptResult.create());
+
+        mArtManagerLocal.onBoot(ReasonMapping.REASON_FIRST_BOOT,
+                null /* progressCallbackExecutor */, null /* progressCallback */);
     }
 
     @Test
