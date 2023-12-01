@@ -375,7 +375,10 @@ class ConcurrentCopying : public GarbageCollector {
   Mutex mark_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<accounting::ObjectStack*> revoked_mark_stacks_
       GUARDED_BY(mark_stack_lock_);
-  static constexpr size_t kMarkStackSize = kPageSize;
+  // Size of thread local mark stack.
+  static size_t GetMarkStackSize() {
+    return gPageSize;
+  }
   static constexpr size_t kMarkStackPoolSize = 256;
   std::vector<accounting::ObjectStack*> pooled_mark_stacks_
       GUARDED_BY(mark_stack_lock_);

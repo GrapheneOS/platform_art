@@ -124,13 +124,13 @@ uint64_t GarbageCollector::ExtractRssFromMincore(
     }
     size_t length = static_cast<uint8_t*>(it->second) - static_cast<uint8_t*>(it->first);
     // Compute max length for vector allocation later.
-    vec_len = std::max(vec_len, length / kPageSize);
+    vec_len = std::max(vec_len, length / gPageSize);
   }
   std::unique_ptr<unsigned char[]> vec(new unsigned char[vec_len]);
   for (const auto it : *gc_ranges) {
     size_t length = static_cast<uint8_t*>(it.second) - static_cast<uint8_t*>(it.first);
     if (mincore(it.first, length, vec.get()) == 0) {
-      for (size_t i = 0; i < length / kPageSize; i++) {
+      for (size_t i = 0; i < length / gPageSize; i++) {
         // Least significant bit represents residency of a page. Other bits are
         // reserved.
         rss += vec[i] & 0x1;
@@ -140,7 +140,7 @@ uint64_t GarbageCollector::ExtractRssFromMincore(
                    << ", 0x" << it.second << std::dec << ") failed: " << strerror(errno);
     }
   }
-  rss *= kPageSize;
+  rss *= gPageSize;
   rss_histogram_.AddValue(rss / KB);
 #endif
   return rss;

@@ -83,7 +83,7 @@ bool OpenProcFiles(pid_t pid, /*out*/ ProcFiles& files, /*out*/ std::string& err
 }
 
 void DumpPageInfo(uint64_t virtual_page_index, ProcFiles& proc_files, std::ostream& os) {
-  const uint64_t virtual_page_addr = virtual_page_index * kPageSize;
+  const uint64_t virtual_page_addr = virtual_page_index * gPageSize;
   os << "Virtual page index: " << virtual_page_index << "\n";
   os << "Virtual page addr: " << virtual_page_addr << "\n";
 
@@ -117,7 +117,7 @@ void DumpPageInfo(uint64_t virtual_page_index, ProcFiles& proc_files, std::ostre
   os << "kpageflags: " << page_flags << "\n";
 
   if (page_count != 0) {
-    std::vector<uint8_t> page_contents(kPageSize);
+    std::vector<uint8_t> page_contents(gPageSize);
     if (!proc_files.mem.PreadFully(page_contents.data(), page_contents.size(), virtual_page_addr)) {
       os << "Failed to read page contents\n";
       return;
@@ -154,9 +154,9 @@ bool GetMapPageCounts(ProcFiles& proc_files,
   map_page_counts.name = map_info.name;
   map_page_counts.start = map_info.start;
   map_page_counts.end = map_info.end;
-  std::vector<uint8_t> page_contents(kPageSize);
-  for (uint64_t begin = map_info.start; begin < map_info.end; begin += kPageSize) {
-    const size_t virtual_page_index = begin / kPageSize;
+  std::vector<uint8_t> page_contents(gPageSize);
+  for (uint64_t begin = map_info.start; begin < map_info.end; begin += gPageSize) {
+    const size_t virtual_page_index = begin / gPageSize;
     uint64_t page_frame_number = -1;
     if (!GetPageFrameNumber(proc_files.pagemap, virtual_page_index, page_frame_number, error_msg)) {
       return false;

@@ -58,13 +58,13 @@ class TestZygoteMemory : public testing::Test {
     // Zygote JIT memory only works on kernels that don't segfault on flush.
     TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT();
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     android::base::unique_fd fd(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
     CHECK_NE(fd.get(), -1);
 
     // Create a writable mapping.
     int32_t* addr = reinterpret_cast<int32_t*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
     CHECK(addr != nullptr);
     CHECK_NE(addr, MAP_FAILED);
 
@@ -82,7 +82,7 @@ class TestZygoteMemory : public testing::Test {
 
     // Test that we cannot create another writable mapping.
     int32_t* addr2 = reinterpret_cast<int32_t*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
     CHECK_EQ(addr2, MAP_FAILED);
 
     // With the existing mapping, we can toggle read/write.
@@ -92,14 +92,14 @@ class TestZygoteMemory : public testing::Test {
     // Test mremap with old_size = 0. From the man pages:
     //    If the value of old_size is zero, and old_address refers to a shareable mapping
     //    (see mmap(2) MAP_SHARED), then mremap() will create a new mapping of the same pages.
-    addr2 = reinterpret_cast<int32_t*>(mremap(addr, 0, kPageSize, MREMAP_MAYMOVE));
+    addr2 = reinterpret_cast<int32_t*>(mremap(addr, 0, gPageSize, MREMAP_MAYMOVE));
     CHECK_NE(addr2, MAP_FAILED);
 
     // Test that we can  write into the remapped mapping.
     addr2[0] = 3;
     CHECK_EQ(addr2[0], 3);
 
-    addr2 = reinterpret_cast<int32_t*>(mremap(addr, kPageSize, 2 * kPageSize, MREMAP_MAYMOVE));
+    addr2 = reinterpret_cast<int32_t*>(mremap(addr, gPageSize, 2 * gPageSize, MREMAP_MAYMOVE));
     CHECK_NE(addr2, MAP_FAILED);
 
     // Test that we can  write into the remapped mapping.
@@ -111,7 +111,7 @@ class TestZygoteMemory : public testing::Test {
     // Zygote JIT memory only works on kernels that don't segfault on flush.
     TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT();
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     int32_t* addr = nullptr;
     int32_t* addr2 = nullptr;
     {
@@ -120,7 +120,7 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a writable mapping.
       addr = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
       CHECK(addr != nullptr);
       CHECK_NE(addr, MAP_FAILED);
 
@@ -130,7 +130,7 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a read-only mapping.
       addr2 = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
       CHECK(addr2 != nullptr);
 
       // Protect the memory.
@@ -144,7 +144,7 @@ class TestZygoteMemory : public testing::Test {
     android::base::unique_fd fd2(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
     CHECK_NE(fd2.get(), -1);
     std::atomic<int32_t>* shared = reinterpret_cast<std::atomic<int32_t>*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
 
     // Values used for the tests below.
     const int32_t parent_value = 66;
@@ -163,7 +163,7 @@ class TestZygoteMemory : public testing::Test {
       CHECK_EQ(addr2[0], child_value);
 
       // Unmap the writable mappping.
-      munmap(addr, kPageSize);
+      munmap(addr, gPageSize);
 
       CHECK_EQ(addr2[0], child_value);
 
@@ -198,9 +198,9 @@ class TestZygoteMemory : public testing::Test {
       CHECK_EQ(WEXITSTATUS(status), kReturnFromFault);
       CHECK_EQ(addr[0], parent_value);
       CHECK_EQ(addr2[0], parent_value);
-      munmap(addr, kPageSize);
-      munmap(addr2, kPageSize);
-      munmap(shared, kPageSize);
+      munmap(addr, gPageSize);
+      munmap(addr2, gPageSize);
+      munmap(shared, gPageSize);
     }
   }
 
@@ -208,7 +208,7 @@ class TestZygoteMemory : public testing::Test {
     // Zygote JIT memory only works on kernels that don't segfault on flush.
     TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT();
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     int32_t* addr = nullptr;
     int32_t* addr2 = nullptr;
     {
@@ -217,10 +217,10 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a writable mapping.
       addr = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
       CHECK(addr != nullptr);
       CHECK_NE(addr, MAP_FAILED);
-      CHECK_EQ(madvise(addr, kPageSize, MADV_DONTFORK), 0);
+      CHECK_EQ(madvise(addr, gPageSize, MADV_DONTFORK), 0);
 
       // Test that we can write into the mapping.
       addr[0] = 42;
@@ -228,7 +228,7 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a read-only mapping.
       addr2 = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
       CHECK(addr2 != nullptr);
 
       // Protect the memory.
@@ -242,7 +242,7 @@ class TestZygoteMemory : public testing::Test {
     android::base::unique_fd fd2(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
     CHECK_NE(fd2.get(), -1);
     std::atomic<int32_t>* shared = reinterpret_cast<std::atomic<int32_t>*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
 
     // Values used for the tests below.
     const int32_t parent_value = 66;
@@ -288,9 +288,9 @@ class TestZygoteMemory : public testing::Test {
       CHECK_EQ(addr[0], parent_value);
       CHECK_EQ(addr2[0], parent_value);
 
-      munmap(addr, kPageSize);
-      munmap(addr2, kPageSize);
-      munmap(shared, kPageSize);
+      munmap(addr, gPageSize);
+      munmap(addr2, gPageSize);
+      munmap(shared, gPageSize);
     }
   }
 
@@ -307,14 +307,14 @@ class TestZygoteMemory : public testing::Test {
       return;
     }
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     int32_t* addr = nullptr;
     android::base::unique_fd fd(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
     CHECK_NE(fd.get(), -1);
 
     // Create a writable mapping.
     addr = reinterpret_cast<int32_t*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0));
     CHECK(addr != nullptr);
     CHECK_NE(addr, MAP_FAILED);
 
@@ -326,7 +326,7 @@ class TestZygoteMemory : public testing::Test {
     android::base::unique_fd fd2(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
     CHECK_NE(fd2.get(), -1);
     std::atomic<int32_t>* shared = reinterpret_cast<std::atomic<int32_t>*>(
-        mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
+        mmap(nullptr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd2.get(), 0));
 
     // Protect the memory.
     CHECK(JitMemoryRegion::ProtectZygoteMemory(fd.get(), &error_msg));
@@ -342,7 +342,7 @@ class TestZygoteMemory : public testing::Test {
     shared[0] = 0;
     pid_t pid = fork();
     if (pid == 0) {
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       addr[0] = child_value;
       exit(0);
@@ -361,18 +361,18 @@ class TestZygoteMemory : public testing::Test {
     if (pid == 0) {
       // Map it private with write access. MAP_FIXED will replace the existing
       // mapping.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       addr[0] = child_value;
       CHECK_EQ(addr[0], child_value);
 
       // Check that mapping shared with write access fails.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd.get(), 0),
                MAP_FAILED);
       CHECK_EQ(errno, EPERM);
 
       // Map shared with read access.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ, MAP_SHARED | MAP_FIXED, fd.get(), 0), addr);
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ, MAP_SHARED | MAP_FIXED, fd.get(), 0), addr);
       CHECK_NE(addr[0], child_value);
 
       // Wait for the parent to notify.
@@ -385,13 +385,13 @@ class TestZygoteMemory : public testing::Test {
       shared[0] = 2;
 
       // Map it private again.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       addr[0] = child_value + 1;
       CHECK_EQ(addr[0], child_value + 1);
 
       // And map it back shared.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ, MAP_SHARED | MAP_FIXED, fd.get(), 0), addr);
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ, MAP_SHARED | MAP_FIXED, fd.get(), 0), addr);
       while (shared[0] != 3) {
         sched_yield();
       }
@@ -425,7 +425,7 @@ class TestZygoteMemory : public testing::Test {
     addr[0] = starting_value;
     pid = fork();
     if (pid == 0) {
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       CHECK_EQ(addr[0], starting_value);
       addr[0] = child_value;
@@ -442,7 +442,7 @@ class TestZygoteMemory : public testing::Test {
       CHECK_EQ(addr[0], child_value);
 
       // Test the buffer contains the parent data after a new mmap.
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       CHECK_EQ(addr[0], parent_value);
       exit(0);
@@ -467,7 +467,7 @@ class TestZygoteMemory : public testing::Test {
     addr[0] = starting_value;
     pid = fork();
     if (pid == 0) {
-      CHECK_EQ(mmap(addr, kPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
+      CHECK_EQ(mmap(addr, gPageSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fd.get(), 0),
                addr);
       CHECK_EQ(addr[0], starting_value);
       // Notify the parent for a new update of the buffer.
@@ -489,8 +489,8 @@ class TestZygoteMemory : public testing::Test {
       CHECK(WIFEXITED(status)) << strerror(errno);
       CHECK_EQ(addr[0], parent_value);
     }
-    munmap(addr, kPageSize);
-    munmap(shared, kPageSize);
+    munmap(addr, gPageSize);
+    munmap(shared, gPageSize);
   }
 
   // Test that a readable mapping created befire sealing future writes, can be
@@ -499,7 +499,7 @@ class TestZygoteMemory : public testing::Test {
     // Zygote JIT memory only works on kernels that don't segfault on flush.
     TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT();
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     int32_t* addr = nullptr;
     {
       android::base::unique_fd fd(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
@@ -507,7 +507,7 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a shared readable mapping.
       addr = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
       CHECK(addr != nullptr);
       CHECK_NE(addr, MAP_FAILED);
 
@@ -517,7 +517,7 @@ class TestZygoteMemory : public testing::Test {
     }
     // At this point, the fd has been dropped, but the memory mappings are still
     // there.
-    int res = mprotect(addr, kPageSize, PROT_WRITE);
+    int res = mprotect(addr, gPageSize, PROT_WRITE);
     CHECK_EQ(res, 0);
   }
 
@@ -526,7 +526,7 @@ class TestZygoteMemory : public testing::Test {
     // Zygote JIT memory only works on kernels that don't segfault on flush.
     TEST_DISABLED_FOR_KERNELS_WITH_CACHE_SEGFAULT();
     std::string error_msg;
-    size_t size = kPageSize;
+    size_t size = gPageSize;
     int32_t* addr = nullptr;
     {
       android::base::unique_fd fd(JitMemoryRegion::CreateZygoteMemory(size, &error_msg));
@@ -538,13 +538,13 @@ class TestZygoteMemory : public testing::Test {
 
       // Create a shared readable mapping.
       addr = reinterpret_cast<int32_t*>(
-          mmap(nullptr, kPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
+          mmap(nullptr, gPageSize, PROT_READ, MAP_SHARED, fd.get(), 0));
       CHECK(addr != nullptr);
       CHECK_NE(addr, MAP_FAILED);
     }
     // At this point, the fd has been dropped, but the memory mappings are still
     // there.
-    int res = mprotect(addr, kPageSize, PROT_WRITE);
+    int res = mprotect(addr, gPageSize, PROT_WRITE);
     CHECK_EQ(res, -1);
     CHECK_EQ(errno, EACCES);
   }

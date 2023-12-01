@@ -541,14 +541,14 @@ TEST_F(LocalReferenceTableTest, BasicResizeTest) {
   BasicResizeTest(/*check_jni=*/ false, 20u);
   BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kSmallLrtEntries);
   BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ 2u * kSmallLrtEntries);
-  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+  BasicResizeTest(/*check_jni=*/ false, /*max_count=*/ gPageSize / sizeof(LrtEntry));
 }
 
 TEST_F(LocalReferenceTableTest, BasicResizeTestCheckJNI) {
   BasicResizeTest(/*check_jni=*/ true, 20u);
   BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kSmallLrtEntries);
   BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ 2u * kSmallLrtEntries);
-  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ kPageSize / sizeof(LrtEntry));
+  BasicResizeTest(/*check_jni=*/ true, /*max_count=*/ gPageSize / sizeof(LrtEntry));
 }
 
 void LocalReferenceTableTest::TestAddRemove(bool check_jni, size_t max_count, size_t fill_count) {
@@ -830,9 +830,9 @@ TEST_F(LocalReferenceTableTest, RegressionTestB276864369) {
 
   // Add refs to fill all small tables and one bigger table.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs;
-  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+  for (size_t i = 0; i != 2 * refs_per_page; ++i) {
     refs.push_back(lrt.Add(cookie0, c, &error_msg));
     ASSERT_TRUE(refs.back() != nullptr);
   }
@@ -854,9 +854,9 @@ TEST_F(LocalReferenceTableTest, Trim) {
 
   // Add refs to fill all small tables.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs0;
-  for (size_t i = 0; i != kRefsPerPage; ++i) {
+  for (size_t i = 0; i != refs_per_page; ++i) {
     refs0.push_back(lrt.Add(cookie0, c, &error_msg));
     ASSERT_TRUE(refs0.back() != nullptr);
   }
@@ -868,7 +868,7 @@ TEST_F(LocalReferenceTableTest, Trim) {
   // Add refs to fill the next, page-sized table.
   std::vector<IndirectRef> refs1;
   LRTSegmentState cookie1 = lrt.GetSegmentState();
-  for (size_t i = 0; i != kRefsPerPage; ++i) {
+  for (size_t i = 0; i != refs_per_page; ++i) {
     refs1.push_back(lrt.Add(cookie1, c, &error_msg));
     ASSERT_TRUE(refs1.back() != nullptr);
   }
@@ -893,7 +893,7 @@ TEST_F(LocalReferenceTableTest, Trim) {
 
   // Add refs to fill the page-sized table and half of the next one.
   cookie1 = lrt.GetSegmentState();  // Push a new segment.
-  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+  for (size_t i = 0; i != 2 * refs_per_page; ++i) {
     refs1.push_back(lrt.Add(cookie1, c, &error_msg));
     ASSERT_TRUE(refs1.back() != nullptr);
   }
@@ -901,7 +901,7 @@ TEST_F(LocalReferenceTableTest, Trim) {
   // Add refs to fill the other half of the table with two pages.
   std::vector<IndirectRef> refs2;
   const LRTSegmentState cookie2 = lrt.GetSegmentState();
-  for (size_t i = 0; i != kRefsPerPage; ++i) {
+  for (size_t i = 0; i != refs_per_page; ++i) {
     refs2.push_back(lrt.Add(cookie2, c, &error_msg));
     ASSERT_TRUE(refs2.back() != nullptr);
   }
@@ -938,12 +938,12 @@ TEST_F(LocalReferenceTableTest, Trim) {
   refs0.clear();
 
   // Fill small tables and one more reference, then another segment up to 4 pages.
-  for (size_t i = 0; i != kRefsPerPage + 1u; ++i) {
+  for (size_t i = 0; i != refs_per_page + 1u; ++i) {
     refs0.push_back(lrt.Add(cookie0, c, &error_msg));
     ASSERT_TRUE(refs0.back() != nullptr);
   }
   cookie1 = lrt.GetSegmentState();  // Push a new segment.
-  for (size_t i = 0; i != 3u * kRefsPerPage - 1u; ++i) {
+  for (size_t i = 0; i != 3u * refs_per_page - 1u; ++i) {
     refs1.push_back(lrt.Add(cookie1, c, &error_msg));
     ASSERT_TRUE(refs1.back() != nullptr);
   }
@@ -959,11 +959,11 @@ TEST_F(LocalReferenceTableTest, Trim) {
     ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
   }
   ASSERT_EQ(refs0.size(), lrt.Capacity());
-  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(0u, kRefsPerPage - 1u)) {
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(0u, refs_per_page - 1u)) {
     // Popped but not trimmed as these are at the same page as the last entry in `refs0`.
     ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
   }
-  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(kRefsPerPage - 1u)) {
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs1).SubArray(refs_per_page - 1u)) {
     ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
   }
 }
@@ -978,9 +978,9 @@ TEST_F(LocalReferenceTableTest, PruneBeforeTrim) {
 
   // Add refs to fill all small tables and one bigger table.
   const LRTSegmentState cookie0 = kLRTFirstSegment;
-  constexpr size_t kRefsPerPage = kPageSize / sizeof(LrtEntry);
+  const size_t refs_per_page = gPageSize / sizeof(LrtEntry);
   std::vector<IndirectRef> refs;
-  for (size_t i = 0; i != 2 * kRefsPerPage; ++i) {
+  for (size_t i = 0; i != 2 * refs_per_page; ++i) {
     refs.push_back(lrt.Add(cookie0, c, &error_msg));
     ASSERT_TRUE(refs.back() != nullptr);
   }
@@ -996,10 +996,10 @@ TEST_F(LocalReferenceTableTest, PruneBeforeTrim) {
   // Pop the entire segment and trim. Small tables are not pruned.
   lrt.SetSegmentState(cookie0);
   lrt.Trim();
-  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(0u, kRefsPerPage)) {
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(0u, refs_per_page)) {
     ASSERT_FALSE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
   }
-  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(kRefsPerPage)) {
+  for (IndirectRef ref : ArrayRef<IndirectRef>(refs).SubArray(refs_per_page)) {
     ASSERT_TRUE(IndirectReferenceTable::ClearIndirectRefKind<LrtEntry*>(ref)->IsNull());
   }
 

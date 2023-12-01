@@ -22,6 +22,10 @@
 
 namespace art {
 
+ART_PAGE_SIZE_AGNOSTIC_DEFINE(size_t, gPageSize);
+ART_PAGE_SIZE_AGNOSTIC_DEFINE(size_t, gPMDSize);
+ART_PAGE_SIZE_AGNOSTIC_DEFINE(size_t, gPUDSize);
+
 #ifndef ART_STATIC_LIBARTBASE
 
 #ifdef __APPLE__

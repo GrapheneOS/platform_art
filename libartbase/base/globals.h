@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
+
 namespace art {
 
 static constexpr size_t KB = 1024;
@@ -33,10 +35,6 @@ static constexpr int kBitsPerIntPtrT = sizeof(intptr_t) * kBitsPerByte;
 
 // Required stack alignment
 static constexpr size_t kStackAlignment = 16;
-
-// System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime, but use a simple
-// compile-time constant so the compiler can generate better code.
-static constexpr size_t kPageSize = 4096;
 
 // Minimum supported page size.
 static constexpr size_t kMinPageSize = 4096;
@@ -57,17 +55,6 @@ static constexpr size_t kMaxPageSize = kMinPageSize;
 // this is the value to be used in images files for aligning contents to page size.
 static constexpr size_t kElfSegmentAlignment = kMaxPageSize;
 
-// TODO: Kernels for arm and x86 in both, 32-bit and 64-bit modes use 512 entries per page-table
-// page. Find a way to confirm that in userspace.
-// Address range covered by 1 Page Middle Directory (PMD) entry in the page table
-static constexpr size_t kPMDSize = (kPageSize / sizeof(uint64_t)) * kPageSize;
-// Address range covered by 1 Page Upper Directory (PUD) entry in the page table
-static constexpr size_t kPUDSize = (kPageSize / sizeof(uint64_t)) * kPMDSize;
-// Returns the ideal alignment corresponding to page-table levels for the
-// given size.
-static constexpr size_t BestPageTableAlignment(size_t size) {
-  return size < kPUDSize ? kPMDSize : kPUDSize;
-}
 // Clion, clang analyzer, etc can falsely believe that "if (kIsDebugBuild)" always
 // returns the same value. By wrapping into a call to another constexpr function, we force it
 // to realize that is not actually always evaluating to the same value.
@@ -142,6 +129,92 @@ static constexpr bool kHostStaticBuildEnabled = false;
 // TODO(b/256664509): Clean this up.
 static constexpr char kPhDisableCompactDex[] =
     "persist.device_config.runtime_native_boot.disable_compact_dex";
+
+// Helper class that acts as a global constant which can be initialized with
+// a dynamically computed value while not being subject to static initialization
+// order issues via gating access to the value through a function which ensures
+// the value is initialized before being accessed.
+//
+// The Initialize function should return T type. It shouldn't have side effects
+// and should always return the same value.
+template<typename T, auto Initialize>
+struct GlobalConst {
+  operator T() const {
+    static T data = Initialize();
+    return data;
+  }
+};
+
+// Helper macros for declaring and defining page size agnostic global values
+// which are constants in page size agnostic configuration and constexpr
+// in non page size agnostic configuration.
+//
+// For the former case, this uses the GlobalConst class initializing it with given expression
+// which might be the same as for the non page size agnostic configuration (then
+// ART_PAGE_SIZE_AGNOSTIC_DECLARE is most suitable to avoid duplication) or might be different
+// (in which case ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT should be used).
+//
+// The motivation behind these helpers is mainly to provide a way to declare / define / initialize
+// the global constants protected from static initialization order issues.
+//
+// Adding a new value e.g. `const uint32_t gNewVal = function(gPageSize);` can be done,
+// for example, via:
+//  - declaring it using ART_PAGE_SIZE_AGNOSTIC_DECLARE in this header;
+//  - and defining it with ART_PAGE_SIZE_AGNOSTIC_DEFINE in the globals_unix.cc
+//    or another suitable module.
+// The statements might look as follows:
+//  ART_PAGE_SIZE_AGNOSTIC_DECLARE(uint32_t, gNewVal, function(gPageSize));
+//  ART_PAGE_SIZE_AGNOSTIC_DEFINE(uint32_t, gNewVal);
+//
+// NOTE:
+//      The initializer expressions shouldn't have side effects
+//      and should always return the same value.
+
+#ifdef ART_PAGE_SIZE_AGNOSTIC
+// Declaration (page size agnostic version).
+#define ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT(type, name, page_size_agnostic_expr, const_expr) \
+  inline type __attribute__((visibility("default"))) \
+  name ## _Initializer(void) { \
+    return (page_size_agnostic_expr); \
+  } \
+  extern GlobalConst<type, name ## _Initializer> name
+// Definition (page size agnostic version).
+#define ART_PAGE_SIZE_AGNOSTIC_DEFINE(type, name) GlobalConst<type, name ## _Initializer> name
+#else
+// Declaration (non page size agnostic version).
+#define ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT(type, name, page_size_agnostic_expr, const_expr) \
+  static constexpr type name = (const_expr)
+// Definition (non page size agnostic version).
+#define ART_PAGE_SIZE_AGNOSTIC_DEFINE(type, name)
+#endif  // ART_PAGE_SIZE_AGNOSTIC
+
+// ART_PAGE_SIZE_AGNOSTIC_DECLARE is same as ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT
+// for the case when the initializer expressions are the same.
+#define ART_PAGE_SIZE_AGNOSTIC_DECLARE(type, name, expr) \
+    ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT(type, name, expr, expr)
+
+// Declaration and definition combined.
+#define ART_PAGE_SIZE_AGNOSTIC_DECLARE_AND_DEFINE(type, name, expr) \
+  ART_PAGE_SIZE_AGNOSTIC_DECLARE(type, name, expr); \
+  ART_PAGE_SIZE_AGNOSTIC_DEFINE(type, name)
+
+// System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime,
+// but for non page size agnostic configuration we use a simple compile-time
+// constant so the compiler can generate better code.
+ART_PAGE_SIZE_AGNOSTIC_DECLARE_ALT(size_t, gPageSize, sysconf(_SC_PAGE_SIZE), 4096);
+
+// TODO: Kernels for arm and x86 in both, 32-bit and 64-bit modes use 512 entries per page-table
+// page. Find a way to confirm that in userspace.
+// Address range covered by 1 Page Middle Directory (PMD) entry in the page table
+ART_PAGE_SIZE_AGNOSTIC_DECLARE(size_t, gPMDSize, (gPageSize / sizeof(uint64_t)) * gPageSize);
+// Address range covered by 1 Page Upper Directory (PUD) entry in the page table
+ART_PAGE_SIZE_AGNOSTIC_DECLARE(size_t, gPUDSize, (gPageSize / sizeof(uint64_t)) * gPMDSize);
+
+// Returns the ideal alignment corresponding to page-table levels for the
+// given size.
+static inline size_t BestPageTableAlignment(size_t size) {
+  return size < gPUDSize ? gPMDSize : gPUDSize;
+}
 
 }  // namespace art
 

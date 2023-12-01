@@ -227,8 +227,6 @@ class SmallLrtAllocator {
   void Deallocate(LrtEntry* unneeded, size_t size) REQUIRES(!lock_);
 
  private:
-  static constexpr size_t kNumSlots = WhichPowerOf2(kPageSize / kInitialLrtBytes);
-
   static size_t GetIndex(size_t size);
 
   // Free lists of small chunks linked through the first word.
@@ -401,8 +399,8 @@ class LocalReferenceTable {
     return 1u + WhichPowerOf2(size / kSmallLrtEntries);
   }
 
-  static constexpr size_t MaxSmallTables() {
-    return NumTablesForSize(kPageSize / sizeof(LrtEntry));
+  static size_t MaxSmallTables() {
+    return NumTablesForSize(gPageSize / sizeof(LrtEntry));
   }
 
   LrtEntry* GetEntry(size_t entry_index) const {

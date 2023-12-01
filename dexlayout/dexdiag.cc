@@ -186,7 +186,7 @@ static char PageTypeChar(uint16_t type) {
 static uint16_t FindSectionTypeForPage(size_t page,
                                        const std::vector<dex_ir::DexFileSection>& sections) {
   for (const auto& section : sections) {
-    size_t first_page_of_section = section.offset / kPageSize;
+    size_t first_page_of_section = section.offset / gPageSize;
     // Only consider non-empty sections.
     if (section.size == 0) {
       continue;
@@ -287,14 +287,14 @@ static void ProcessOneDexMapping(const std::vector<uint64_t>& pagemap,
               << std::endl;
     return;
   }
-  uint64_t start_page = (dex_file_start - vdex_start) / kPageSize;
-  uint64_t start_address = start_page * kPageSize;
-  uint64_t end_page = RoundUp(start_address + dex_file_size, kPageSize) / kPageSize;
+  uint64_t start_page = (dex_file_start - vdex_start) / gPageSize;
+  uint64_t start_address = start_page * gPageSize;
+  uint64_t end_page = RoundUp(start_address + dex_file_size, gPageSize) / gPageSize;
   std::cout << "DEX "
             << dex_file->GetLocation().c_str()
             << StringPrintf(": %" PRIx64 "-%" PRIx64,
-                            map_start + start_page * kPageSize,
-                            map_start + end_page * kPageSize)
+                            map_start + start_page * gPageSize,
+                            map_start + end_page * gPageSize)
             << std::endl;
   // Build a list of the dex file section types, sorted from highest offset to lowest.
   std::vector<dex_ir::DexFileSection> sections;

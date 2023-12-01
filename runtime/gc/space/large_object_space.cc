@@ -55,14 +55,14 @@ class MemoryToolLargeObjectMapSpace final : public LargeObjectMapSpace {
                         size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       override {
     mirror::Object* obj =
-        LargeObjectMapSpace::Alloc(self, num_bytes + kMemoryToolRedZoneBytes * 2, bytes_allocated,
+        LargeObjectMapSpace::Alloc(self, num_bytes + MemoryToolRedZoneBytes() * 2, bytes_allocated,
                                    usable_size, bytes_tl_bulk_allocated);
     mirror::Object* object_without_rdz = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) + kMemoryToolRedZoneBytes);
-    MEMORY_TOOL_MAKE_NOACCESS(reinterpret_cast<void*>(obj), kMemoryToolRedZoneBytes);
+        reinterpret_cast<uintptr_t>(obj) + MemoryToolRedZoneBytes());
+    MEMORY_TOOL_MAKE_NOACCESS(reinterpret_cast<void*>(obj), MemoryToolRedZoneBytes());
     MEMORY_TOOL_MAKE_NOACCESS(
         reinterpret_cast<uint8_t*>(object_without_rdz) + num_bytes,
-        kMemoryToolRedZoneBytes);
+        MemoryToolRedZoneBytes());
     if (usable_size != nullptr) {
       *usable_size = num_bytes;  // Since we have redzones, shrink the usable size.
     }
@@ -88,17 +88,19 @@ class MemoryToolLargeObjectMapSpace final : public LargeObjectMapSpace {
   }
 
  private:
+  static size_t MemoryToolRedZoneBytes() {
+    return gPageSize;
+  }
+
   static const mirror::Object* ObjectWithRedzone(const mirror::Object* obj) {
     return reinterpret_cast<const mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) - kMemoryToolRedZoneBytes);
+        reinterpret_cast<uintptr_t>(obj) - MemoryToolRedZoneBytes());
   }
 
   static mirror::Object* ObjectWithRedzone(mirror::Object* obj) {
     return reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<uintptr_t>(obj) - kMemoryToolRedZoneBytes);
+        reinterpret_cast<uintptr_t>(obj) - MemoryToolRedZoneBytes());
   }
-
-  static constexpr size_t kMemoryToolRedZoneBytes = kPageSize;
 };
 
 void LargeObjectSpace::SwapBitmaps() {

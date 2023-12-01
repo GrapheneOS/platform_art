@@ -126,7 +126,7 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name,
   // Note: making this value large means that large allocations are unlikely to succeed as dlmalloc
   // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
   // size of the large allocation) will be greater than the footprint limit.
-  size_t starting_size = kPageSize;
+  size_t starting_size = gPageSize;
   MemMap mem_map = CreateMemMap(name, starting_size, &initial_size, &growth_limit, &capacity);
   if (!mem_map.IsValid()) {
     LOG(ERROR) << "Failed to create mem map for alloc space (" << name << ") of size "

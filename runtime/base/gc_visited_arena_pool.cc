@@ -41,16 +41,16 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork, bo
     // entire arena.
     bytes_allocated_ = size;
   } else {
-    DCHECK_ALIGNED_PARAM(size, kPageSize);
-    DCHECK_ALIGNED_PARAM(start, kPageSize);
-    size_t arr_size = size / kPageSize;
+    DCHECK_ALIGNED_PARAM(size, gPageSize);
+    DCHECK_ALIGNED_PARAM(start, gPageSize);
+    size_t arr_size = size / gPageSize;
     first_obj_array_.reset(new uint8_t*[arr_size]);
     std::fill_n(first_obj_array_.get(), arr_size, nullptr);
   }
 }
 
 void TrackedArena::ReleasePages(uint8_t* begin, size_t size, bool pre_zygote_fork) {
-  DCHECK_ALIGNED_PARAM(begin, kPageSize);
+  DCHECK_ALIGNED_PARAM(begin, gPageSize);
   // Userfaultfd GC uses MAP_SHARED mappings for linear-alloc and therefore
   // MADV_DONTNEED will not free the pages from page cache. Therefore use
   // MADV_REMOVE instead, which is meant for this purpose.
@@ -69,7 +69,7 @@ void TrackedArena::Release() {
   if (bytes_allocated_ > 0) {
     ReleasePages(Begin(), Size(), pre_zygote_fork_);
     if (first_obj_array_.get() != nullptr) {
-      std::fill_n(first_obj_array_.get(), Size() / kPageSize, nullptr);
+      std::fill_n(first_obj_array_.get(), Size() / gPageSize, nullptr);
     }
     bytes_allocated_ = 0;
   }
@@ -81,15 +81,15 @@ void TrackedArena::SetFirstObject(uint8_t* obj_begin, uint8_t* obj_end) {
   DCHECK_LT(static_cast<void*>(obj_begin), static_cast<void*>(obj_end));
   GcVisitedArenaPool* arena_pool =
       static_cast<GcVisitedArenaPool*>(Runtime::Current()->GetLinearAllocArenaPool());
-  size_t idx = static_cast<size_t>(obj_begin - Begin()) / kPageSize;
-  size_t last_byte_idx = static_cast<size_t>(obj_end - 1 - Begin()) / kPageSize;
+  size_t idx = static_cast<size_t>(obj_begin - Begin()) / gPageSize;
+  size_t last_byte_idx = static_cast<size_t>(obj_end - 1 - Begin()) / gPageSize;
   // Do the update below with arena-pool's lock in shared-mode to serialize with
   // the compaction-pause wherein we acquire it exclusively. This is to ensure
   // that last-byte read there doesn't change after reading it and before
   // userfaultfd registration.
   ReaderMutexLock rmu(Thread::Current(), arena_pool->GetLock());
   // If the addr is at the beginning of a page, then we set it for that page too.
-  if (IsAlignedParam(obj_begin, kPageSize)) {
+  if (IsAlignedParam(obj_begin, gPageSize)) {
     first_obj_array_[idx] = obj_begin;
   }
   while (idx < last_byte_idx) {
@@ -106,7 +106,7 @@ uint8_t* GcVisitedArenaPool::AddMap(size_t min_size) {
   }
 #endif
   size_t alignment = BestPageTableAlignment(size);
-  DCHECK_GE(size, kPMDSize);
+  DCHECK_GE(size, gPMDSize);
   std::string err_msg;
   maps_.emplace_back(MemMap::MapAnonymousAligned(
       name_, size, PROT_READ | PROT_WRITE, low_4gb_, alignment, &err_msg));
@@ -218,7 +218,7 @@ void GcVisitedArenaPool::FreeSingleObjArena(uint8_t* addr) {
 
 Arena* GcVisitedArenaPool::AllocArena(size_t size, bool single_obj_arena) {
   // Return only page aligned sizes so that madvise can be leveraged.
-  size = RoundUp(size, kPageSize);
+  size = RoundUp(size, gPageSize);
   if (pre_zygote_fork_) {
     // The first fork out of zygote hasn't happened yet. Allocate arena in a
     // private-anonymous mapping to retain clean pages across fork.

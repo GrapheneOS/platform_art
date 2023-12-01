@@ -71,9 +71,8 @@ class ImmuneSpacesTest : public CommonArtTest {
     // do not need to cover the image spaces though.
     for (size_t i = 0; i < kMaxBitmaps; ++i) {
       accounting::ContinuousSpaceBitmap bitmap(
-          accounting::ContinuousSpaceBitmap::Create("bitmap",
-                                                    reinterpret_cast<uint8_t*>(kPageSize),
-                                                    kPageSize));
+          accounting::ContinuousSpaceBitmap::Create(
+              "bitmap", reinterpret_cast<uint8_t*>(static_cast<size_t>(gPageSize)), gPageSize));
       CHECK(bitmap.IsValid());
       live_bitmaps_.push_back(std::move(bitmap));
     }

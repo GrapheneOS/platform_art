@@ -153,7 +153,8 @@ static constexpr size_t kSuspendTimeDuringFlip = 5'000;
 // of the stack (lowest memory).  The higher portion of the memory
 // is protected against reads and the lower is available for use while
 // throwing the StackOverflow exception.
-constexpr size_t kStackOverflowProtectedSize = kMemoryToolStackGuardSizeScale * kPageSize;
+ART_PAGE_SIZE_AGNOSTIC_DECLARE_AND_DEFINE(size_t, gStackOverflowProtectedSize,
+                                          kMemoryToolStackGuardSizeScale * gPageSize);
 
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 
@@ -734,7 +735,7 @@ static size_t FixStackSize(size_t stack_size) {
   }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
-  stack_size = RoundUp(stack_size, kPageSize);
+  stack_size = RoundUp(stack_size, gPageSize);
 
   return stack_size;
 }
@@ -743,26 +744,26 @@ static size_t FixStackSize(size_t stack_size) {
 NO_INLINE
 static uint8_t* FindStackTop() {
   return reinterpret_cast<uint8_t*>(
-      AlignDown(__builtin_frame_address(0), kPageSize));
+      AlignDown(__builtin_frame_address(0), gPageSize));
 }
 
 // Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
 // overflow is detected.  It is located right below the stack_begin_.
 ATTRIBUTE_NO_SANITIZE_ADDRESS
 void Thread::InstallImplicitProtection() {
-  uint8_t* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  uint8_t* pregion = tlsPtr_.stack_begin - gStackOverflowProtectedSize;
   // Page containing current top of stack.
   uint8_t* stack_top = FindStackTop();
 
   // Try to directly protect the stack.
   VLOG(threads) << "installing stack protected region at " << std::hex <<
         static_cast<void*>(pregion) << " to " <<
-        static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
+        static_cast<void*>(pregion + gStackOverflowProtectedSize - 1);
   if (ProtectStack(/* fatal_on_error= */ false)) {
     // Tell the kernel that we won't be needing these pages any more.
     // NB. madvise will probably write zeroes into the memory (on linux it does).
     size_t unwanted_size =
-        reinterpret_cast<uintptr_t>(stack_top) - reinterpret_cast<uintptr_t>(pregion) - kPageSize;
+        reinterpret_cast<uintptr_t>(stack_top) - reinterpret_cast<uintptr_t>(pregion) - gPageSize;
     madvise(pregion, unwanted_size, MADV_DONTNEED);
     return;
   }
@@ -812,12 +813,12 @@ void Thread::InstallImplicitProtection() {
 #endif
       // Keep space uninitialized as it can overflow the stack otherwise (should Clang actually
       // auto-initialize this local variable).
-      volatile char space[kPageSize - (kAsanMultiplier * 256)] __attribute__((uninitialized));
+      volatile char space[gPageSize - (kAsanMultiplier * 256)] __attribute__((uninitialized));
       [[maybe_unused]] char sink = space[zero];
       // Remove tag from the pointer. Nop in non-hwasan builds.
       uintptr_t addr = reinterpret_cast<uintptr_t>(
           __hwasan_tag_pointer != nullptr ? __hwasan_tag_pointer(space, 0) : space);
-      if (addr >= target + kPageSize) {
+      if (addr >= target + gPageSize) {
         Touch(target);
       }
       zero *= 2;  // Try to avoid tail recursion.
@@ -828,7 +829,7 @@ void Thread::InstallImplicitProtection() {
 
   VLOG(threads) << "(again) installing stack protected region at " << std::hex <<
       static_cast<void*>(pregion) << " to " <<
-      static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
+      static_cast<void*>(pregion + gStackOverflowProtectedSize - 1);
 
   // Protect the bottom of the stack to prevent read/write to it.
   ProtectStack(/* fatal_on_error= */ true);
@@ -836,7 +837,7 @@ void Thread::InstallImplicitProtection() {
   // Tell the kernel that we won't be needing these pages any more.
   // NB. madvise will probably write zeroes into the memory (on linux it does).
   size_t unwanted_size =
-      reinterpret_cast<uintptr_t>(stack_top) - reinterpret_cast<uintptr_t>(pregion) - kPageSize;
+      reinterpret_cast<uintptr_t>(stack_top) - reinterpret_cast<uintptr_t>(pregion) - gPageSize;
   madvise(pregion, unwanted_size, MADV_DONTNEED);
 }
 
@@ -1363,9 +1364,10 @@ bool Thread::InitStackHwm() {
   //
   // On systems with 4K page size, typically the minimum stack size will be 4+8+4 = 16K.
   // The thread won't be able to do much with this stack: even the GC takes between 8K and 12K.
-  DCHECK_ALIGNED(kStackOverflowProtectedSize, kPageSize);
-  uint32_t min_stack = kStackOverflowProtectedSize +
-      RoundUp(GetStackOverflowReservedBytes(kRuntimeISA) + 4 * KB, kPageSize);
+  DCHECK_ALIGNED_PARAM(static_cast<size_t>(gStackOverflowProtectedSize),
+                       static_cast<int32_t>(gPageSize));
+  size_t min_stack = gStackOverflowProtectedSize +
+      RoundUp(GetStackOverflowReservedBytes(kRuntimeISA) + 4 * KB, gPageSize);
   if (read_stack_size <= min_stack) {
     // Note, as we know the stack is small, avoid operations that could use a lot of stack.
     LogHelper::LogLineLowStack(__PRETTY_FUNCTION__,
@@ -1395,9 +1397,9 @@ bool Thread::InitStackHwm() {
     // to install our own region so we need to move the limits
     // of the stack to make room for it.
 
-    tlsPtr_.stack_begin += read_guard_size + kStackOverflowProtectedSize;
-    tlsPtr_.stack_end += read_guard_size + kStackOverflowProtectedSize;
-    tlsPtr_.stack_size -= read_guard_size + kStackOverflowProtectedSize;
+    tlsPtr_.stack_begin += read_guard_size + gStackOverflowProtectedSize;
+    tlsPtr_.stack_end += read_guard_size + gStackOverflowProtectedSize;
+    tlsPtr_.stack_size -= read_guard_size + gStackOverflowProtectedSize;
 
     InstallImplicitProtection();
   }
@@ -4640,14 +4642,14 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
 }
 
 bool Thread::ProtectStack(bool fatal_on_error) {
-  void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  void* pregion = tlsPtr_.stack_begin - gStackOverflowProtectedSize;
   VLOG(threads) << "Protecting stack at " << pregion;
-  if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
+  if (mprotect(pregion, gStackOverflowProtectedSize, PROT_NONE) == -1) {
     if (fatal_on_error) {
       // b/249586057, LOG(FATAL) times out
       LOG(ERROR) << "Unable to create protected region in stack for implicit overflow check. "
           "Reason: "
-          << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+          << strerror(errno) << " size:  " << gStackOverflowProtectedSize;
       exit(1);
     }
     return false;
@@ -4656,9 +4658,9 @@ bool Thread::ProtectStack(bool fatal_on_error) {
 }
 
 bool Thread::UnprotectStack() {
-  void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  void* pregion = tlsPtr_.stack_begin - gStackOverflowProtectedSize;
   VLOG(threads) << "Unprotecting stack at " << pregion;
-  return mprotect(pregion, kStackOverflowProtectedSize, PROT_READ|PROT_WRITE) == 0;
+  return mprotect(pregion, gStackOverflowProtectedSize, PROT_READ|PROT_WRITE) == 0;
 }
 
 size_t Thread::NumberOfHeldMutexes() const {

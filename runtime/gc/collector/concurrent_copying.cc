@@ -135,7 +135,7 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
     for (size_t i = 0; i < kMarkStackPoolSize; ++i) {
       accounting::AtomicStack<mirror::Object>* mark_stack =
           accounting::AtomicStack<mirror::Object>::Create(
-              "thread local mark stack", kMarkStackSize, kMarkStackSize);
+              "thread local mark stack", GetMarkStackSize(), GetMarkStackSize());
       pooled_mark_stacks_.push_back(mark_stack);
     }
   }
@@ -144,7 +144,7 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
     std::string error_msg;
     sweep_array_free_buffer_mem_map_ = MemMap::MapAnonymous(
         "concurrent copying sweep array free buffer",
-        RoundUp(kSweepArrayChunkFreeSize * sizeof(mirror::Object*), kPageSize),
+        RoundUp(kSweepArrayChunkFreeSize * sizeof(mirror::Object*), gPageSize),
         PROT_READ | PROT_WRITE,
         /*low_4gb=*/ false,
         &error_msg);
@@ -2657,19 +2657,19 @@ void ConcurrentCopying::CaptureRssAtPeak() {
   if (Runtime::Current()->GetDumpGCPerformanceOnShutdown()) {
     std::list<range_t> gc_ranges;
     auto add_gc_range = [&gc_ranges](void* start, size_t size) {
-      void* end = static_cast<char*>(start) + RoundUp(size, kPageSize);
+      void* end = static_cast<char*>(start) + RoundUp(size, gPageSize);
       gc_ranges.emplace_back(range_t(start, end));
     };
 
     // region space
-    DCHECK(IsAlignedParam(region_space_->Limit(), kPageSize));
+    DCHECK(IsAlignedParam(region_space_->Limit(), gPageSize));
     gc_ranges.emplace_back(range_t(region_space_->Begin(), region_space_->Limit()));
     // mark bitmap
     add_gc_range(region_space_bitmap_->Begin(), region_space_bitmap_->Size());
 
     // non-moving space
     {
-      DCHECK(IsAlignedParam(heap_->non_moving_space_->Limit(), kPageSize));
+      DCHECK(IsAlignedParam(heap_->non_moving_space_->Limit(), gPageSize));
       gc_ranges.emplace_back(range_t(heap_->non_moving_space_->Begin(),
                                      heap_->non_moving_space_->Limit()));
       // mark bitmap
@@ -2689,7 +2689,7 @@ void ConcurrentCopying::CaptureRssAtPeak() {
     // large-object space
     if (heap_->GetLargeObjectsSpace()) {
       heap_->GetLargeObjectsSpace()->ForEachMemMap([&add_gc_range](const MemMap& map) {
-        DCHECK(IsAlignedParam(map.BaseSize(), kPageSize));
+        DCHECK(IsAlignedParam(map.BaseSize(), gPageSize));
         add_gc_range(map.BaseBegin(), map.BaseSize());
       });
       // mark bitmap

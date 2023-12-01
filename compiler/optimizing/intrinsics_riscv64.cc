@@ -857,6 +857,11 @@ class ReadBarrierCasSlowPathRISCV64 : public SlowPathCodeRISCV64 {
 
   const char* GetDescription() const override { return "ReadBarrierCasSlowPathRISCV64"; }
 
+  // We return to a different label on success for a strong CAS that does not return old value.
+  Riscv64Label* GetSuccessExitLabel() {
+    return &success_exit_label_;
+  }
+
   void EmitNativeCode(CodeGenerator* codegen) override {
     CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
     Riscv64Assembler* assembler = riscv64_codegen->GetAssembler();
@@ -909,14 +914,16 @@ class ReadBarrierCasSlowPathRISCV64 : public SlowPathCodeRISCV64 {
       // To reach this point, the `old_value_temp_` must be either a from-space or a to-space
       // reference of the `expected_` object. Update the `old_value_` to the to-space reference.
       __ Mv(old_value_, expected_);
-    } else if (strong_) {
-      // Load success value to the result register.
-      // `GenerateCompareAndSet()` does not emit code to indicate success for a strong CAS.
-      // TODO(riscv64): We could just jump to an identical instruction in the fast-path.
-      // This would require an additional label as we would have two different slow path exits.
-      __ Li(store_result, 1);
     }
-    __ J(GetExitLabel());
+    if (!update_old_value_ && strong_) {
+      // Load success value to the result register.
+      // We must jump to the instruction that loads the success value in the main path.
+      // Note that a SC failure in the CAS loop sets the `store_result` to 1, so the main
+      // path must not use the `store_result` as an indication of success.
+      __ J(GetSuccessExitLabel());
+    } else {
+      __ J(GetExitLabel());
+    }
 
     if (update_old_value_) {
       // TODO(riscv64): If we initially saw a from-space reference and then saw
@@ -961,6 +968,7 @@ class ReadBarrierCasSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   bool update_old_value_;
   SlowPathCodeRISCV64* mark_old_value_slow_path_;
   SlowPathCodeRISCV64* update_old_value_slow_path_;
+  Riscv64Label success_exit_label_;
 };
 
 enum class GetAndUpdateOp {
@@ -1623,7 +1631,7 @@ static void GenerateVarHandleAccessModeAndVarTypeChecks(HInvoke* invoke,
   // For primitive types, we do not need a read barrier when loading a reference only for loading
   // constant field through the reference. For reference types, we deliberately avoid the read
   // barrier, letting the slow path handle the false negatives.
-  __ Loadw(temp, varhandle, var_type_offset.Int32Value());
+  __ Loadwu(temp, varhandle, var_type_offset.Int32Value());
   codegen->MaybeUnpoisonHeapReference(temp);
 
   // Check the varType.primitiveType field against the type we're trying to use.
@@ -2204,7 +2212,8 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
   DataType::Type value_type = GetDataTypeFromShorty(invoke, new_value_index);
   DCHECK_EQ(value_type, GetDataTypeFromShorty(invoke, expected_index));
 
-  if (value_type == DataType::Type::kReference && codegen->EmitNonBakerReadBarrier()) {
+  bool is_reference = (value_type == DataType::Type::kReference);
+  if (is_reference && codegen->EmitNonBakerReadBarrier()) {
     // Unsupported for non-Baker read barrier because the artReadBarrierSlow() ignores
     // the passed reference and reloads it from the field. This breaks the read barriers
     // in slow path in different ways. The marked old value may not actually be a to-space
@@ -2212,13 +2221,6 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
     // for CompareAndExchange, marking the old value after comparison failure may actually
     // return the reference to `expected`, erroneously indicating success even though we
     // did not set the new value. (And it also gets the memory visibility wrong.) b/173104084
-    return;
-  }
-
-  if ((true)) {
-    // FIXME(riscv64): Fix the register allocation for strong CAS (SC failure sets the result
-    // to success, so comparison failure on retry returns "true" for a failed CAS).
-    // Review register allocation for weak CAS to make sure it's OK.
     return;
   }
 
@@ -2243,36 +2245,33 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke,
     }
   }
 
-  if (value_type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
-    // Add a temporary for the `old_value_temp` in the slow path, `tmp_ptr` is scratch register.
-    locations->AddTemp(Location::RequiresRegister());
-  } else {
-    Location expected = locations->InAt(expected_index);
-    Location new_value = locations->InAt(new_value_index);
-    size_t data_size = DataType::Size(value_type);
-    bool is_small = (data_size < 4u);
-    bool can_byte_swap =
-        (expected_index == 3u) && (value_type != DataType::Type::kReference && data_size != 1u);
-    bool is_fp = DataType::IsFloatingPointType(value_type);
-    size_t temps_needed =
-        // The offset temp is used for the `tmp_ptr`.
-        1u +
-        // For small values, we need a temp for the `mask`, `masked` and maybe also for the `shift`.
-        (is_small ? (return_success ? 2u : 3u) : 0u) +
-        // Some cases need modified copies of `new_value` and `expected`.
-        (ScratchXRegisterNeeded(expected, value_type, can_byte_swap) ? 1u : 0u) +
-        (ScratchXRegisterNeeded(new_value, value_type, can_byte_swap) ? 1u : 0u) +
-        // We need a scratch register either for the old value or for the result of SC.
-        // If we need to return a floating point old value, we need a temp for each.
-        ((!return_success && is_fp) ? 2u : 1u);
-    size_t scratch_registers_available = 2u;
-    DCHECK_EQ(scratch_registers_available,
-              ScratchRegisterScope(codegen->GetAssembler()).AvailableXRegisters());
-    size_t old_temp_count = locations->GetTempCount();
-    DCHECK_EQ(old_temp_count, (expected_index == 1u) ? 2u : 1u);
-    if (temps_needed > old_temp_count + scratch_registers_available) {
-      locations->AddRegisterTemps(temps_needed - (old_temp_count + scratch_registers_available));
-    }
+  size_t old_temp_count = locations->GetTempCount();
+  DCHECK_EQ(old_temp_count, (expected_index == 1u) ? 2u : 1u);
+  Location expected = locations->InAt(expected_index);
+  Location new_value = locations->InAt(new_value_index);
+  size_t data_size = DataType::Size(value_type);
+  bool is_small = (data_size < 4u);
+  bool can_byte_swap =
+      (expected_index == 3u) && (value_type != DataType::Type::kReference && data_size != 1u);
+  bool is_fp = DataType::IsFloatingPointType(value_type);
+  size_t temps_needed =
+      // The offset temp is used for the `tmp_ptr`, except for the read barrier case. For read
+      // barrier we must preserve the offset and class pointer (if any) for the slow path and
+      // use a separate temp for `tmp_ptr` and we also need another temp for `old_value_temp`.
+      ((is_reference && codegen->EmitReadBarrier()) ? old_temp_count + 2u : 1u) +
+      // For small values, we need a temp for the `mask`, `masked` and maybe also for the `shift`.
+      (is_small ? (return_success ? 2u : 3u) : 0u) +
+      // Some cases need modified copies of `new_value` and `expected`.
+      (ScratchXRegisterNeeded(expected, value_type, can_byte_swap) ? 1u : 0u) +
+      (ScratchXRegisterNeeded(new_value, value_type, can_byte_swap) ? 1u : 0u) +
+      // We need a scratch register either for the old value or for the result of SC.
+      // If we need to return a floating point old value, we need a temp for each.
+      ((!return_success && is_fp) ? 2u : 1u);
+  size_t scratch_registers_available = 2u;
+  DCHECK_EQ(scratch_registers_available,
+            ScratchRegisterScope(codegen->GetAssembler()).AvailableXRegisters());
+  if (temps_needed > old_temp_count + scratch_registers_available) {
+    locations->AddRegisterTemps(temps_needed - (old_temp_count + scratch_registers_available));
   }
 }
 
@@ -2392,8 +2391,9 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   XRegister tmp_ptr = target.offset;
   bool is_reference = (value_type == DataType::Type::kReference);
   if (is_reference && codegen->EmitReadBarrier()) {
+    // Reserve scratch registers for `tmp_ptr` and `old_value_temp`.
     DCHECK_EQ(available_scratch_registers, 2u);
-    available_scratch_registers -= 1u;
+    available_scratch_registers = 0u;
     DCHECK_EQ(expected_index, 1u + GetExpectedVarHandleCoordinatesCount(invoke));
     next_temp = expected_index == 1u ? 2u : 1u;  // Preserve the class register for static field.
     tmp_ptr = srs.AllocateXRegister();
@@ -2444,9 +2444,11 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   XRegister old_value;
   XRegister store_result;
   if (return_success) {
-    // Use a temp for the old value and the output register for the store conditional result.
+    // Use a temp for the old value.
     old_value = get_temp();
-    store_result = out.AsRegister<XRegister>();
+    // For strong CAS, use the `old_value` temp also for the SC result.
+    // For weak CAS, put the SC result directly to `out`.
+    store_result = strong ? old_value : out.AsRegister<XRegister>();
   } else if (is_fp) {
     // We need two temporary registers.
     old_value = get_temp();
@@ -2461,37 +2463,41 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   Riscv64Label* exit_loop = &exit_loop_label;
   Riscv64Label* cmp_failure = &exit_loop_label;
 
+  ReadBarrierCasSlowPathRISCV64* rb_slow_path = nullptr;
   if (is_reference && codegen->EmitReadBarrier()) {
     // The `old_value_temp` is used first for marking the `old_value` and then for the unmarked
-    // reloaded old value for subsequent CAS in the slow path. It cannot be a scratch register.
-    XRegister old_value_temp = locations->GetTemp(next_temp).AsRegister<XRegister>();
-    ++next_temp;
-    // If we are returning the old value rather than the success,
-    // use a scratch register for the store result in the slow path.
-    XRegister slow_path_store_result = return_success ? store_result : kNoXRegister;
-    ReadBarrierCasSlowPathRISCV64* rb_slow_path =
-        new (codegen->GetScopedAllocator()) ReadBarrierCasSlowPathRISCV64(
-            invoke,
-            order,
-            strong,
-            target.object,
-            target.offset,
-            expected_reg,
-            new_value_reg,
-            old_value,
-            old_value_temp,
-            slow_path_store_result,
-            /*update_old_value=*/ !return_success,
-            codegen);
+    // reloaded old value for subsequent CAS in the slow path. We make this a scratch register
+    // as we do have marking entrypoints on riscv64 even for scratch registers.
+    XRegister old_value_temp = srs.AllocateXRegister();
+    // For strong CAS, use the `old_value_temp` also for the SC result as the reloaded old value
+    // is no longer needed after the comparison. For weak CAS, store the SC result in the same
+    // result register as the main path.
+    // Note that for a strong CAS, a SC failure in the slow path can set the register to 1, so
+    // we cannot use that register to indicate success without resetting it to 0 at the start of
+    // the retry loop. Instead, we return to the success indicating instruction in the main path.
+    XRegister slow_path_store_result = strong ? old_value_temp : store_result;
+    rb_slow_path = new (codegen->GetScopedAllocator()) ReadBarrierCasSlowPathRISCV64(
+        invoke,
+        order,
+        strong,
+        target.object,
+        target.offset,
+        expected_reg,
+        new_value_reg,
+        old_value,
+        old_value_temp,
+        slow_path_store_result,
+        /*update_old_value=*/ !return_success,
+        codegen);
     codegen->AddSlowPath(rb_slow_path);
     exit_loop = rb_slow_path->GetExitLabel();
     cmp_failure = rb_slow_path->GetEntryLabel();
   }
 
   if (return_success) {
-    // Pre-populate the result register with failure for the case when the old value
+    // Pre-populate the output register with failure for the case when the old value
     // differs and we do not execute the store conditional.
-    __ Li(store_result, 0);
+    __ Li(out.AsRegister<XRegister>(), 0);
   }
   GenerateCompareAndSet(codegen->GetAssembler(),
                         cas_type,
@@ -2506,9 +2512,15 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
                         store_result,
                         expected_reg);
   if (return_success && strong) {
-    // Load success value to the result register.
+    if (rb_slow_path != nullptr) {
+      // Slow path returns here on success.
+      __ Bind(rb_slow_path->GetSuccessExitLabel());
+    }
+    // Load success value to the output register.
     // `GenerateCompareAndSet()` does not emit code to indicate success for a strong CAS.
-    __ Li(store_result, 1);
+    __ Li(out.AsRegister<XRegister>(), 1);
+  } else if (rb_slow_path != nullptr) {
+    DCHECK(!rb_slow_path->GetSuccessExitLabel()->IsLinked());
   }
   __ Bind(exit_loop);
 

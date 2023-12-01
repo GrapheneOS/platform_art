@@ -2055,38 +2055,60 @@ TEST_F(ProfileAssistantTest, CopyAndUpdateProfileKeyNoUpdate) {
 }
 
 TEST_F(ProfileAssistantTest, BootImageMerge) {
-  ScratchFile profile;
-  ScratchFile reference_profile;
-  std::vector<int> profile_fds({GetFd(profile)});
-  int reference_profile_fd = GetFd(reference_profile);
-  std::vector<uint32_t> hot_methods_cur;
-  std::vector<uint32_t> hot_methods_ref;
-  std::vector<uint32_t> empty_vector;
-  size_t num_methods = 100;
-  for (size_t i = 0; i < num_methods; ++i) {
-    hot_methods_cur.push_back(i);
+  ScratchFile profile1;
+  ScratchFile profile2;
+  ScratchFile profile3;
+  ScratchFile output_profile;
+  std::vector<uint32_t> hot_methods_1;
+  std::vector<uint32_t> hot_methods_2;
+  std::vector<uint32_t> hot_methods_3;
+  for (size_t i = 0; i < 100; ++i) {
+    hot_methods_1.push_back(i);
   }
-  for (size_t i = 0; i < num_methods; ++i) {
-    hot_methods_ref.push_back(i);
+  for (size_t i = 50; i < 150; ++i) {
+    hot_methods_2.push_back(i);
   }
-  ProfileCompilationInfo info1(/*for_boot_image=*/ true);
-  SetupBasicProfile(dex1, hot_methods_cur, empty_vector, empty_vector,
-      profile, &info1);
+  for (size_t i = 100; i < 200; ++i) {
+    hot_methods_3.push_back(i);
+  }
+  ProfileCompilationInfo info1(/*for_boot_image=*/false);
+  SetupBasicProfile(
+      dex1, hot_methods_1, /*startup_methods=*/{}, /*post_startup_methods=*/{}, profile1, &info1);
   ProfileCompilationInfo info2(/*for_boot_image=*/true);
-  SetupBasicProfile(dex1, hot_methods_ref, empty_vector, empty_vector,
-      reference_profile, &info2);
+  SetupBasicProfile(
+      dex1, hot_methods_2, /*startup_methods=*/{}, /*post_startup_methods=*/{}, profile2, &info2);
+  ProfileCompilationInfo info3(/*for_boot_image=*/true);
+  SetupBasicProfile(
+      dex1, hot_methods_3, /*startup_methods=*/{}, /*post_startup_methods=*/{}, profile3, &info3);
 
-  std::vector<const std::string> extra_args({"--force-merge", "--boot-image-merge"});
+  {
+    int return_code = ProcessProfiles({profile1.GetFd(), profile2.GetFd(), profile3.GetFd()},
+                                      output_profile.GetFd(),
+                                      {"--force-merge-and-analyze", "--boot-image-merge"});
+    ASSERT_EQ(return_code, ProfmanResult::kCompile);
 
-  int return_code = ProcessProfiles(profile_fds, reference_profile_fd, extra_args);
+    // Verify the result: it should be equal to info2 union info3 since info1 is a regular profile
+    // and should be ignored.
+    ProfileCompilationInfo result(/*for_boot_image=*/true);
+    ASSERT_TRUE(result.Load(output_profile.GetFd()));
+    ASSERT_TRUE(info2.MergeWith(info3));
+    ASSERT_TRUE(result.Equals(info2));
+  }
 
-  ASSERT_EQ(return_code, ProfmanResult::kSuccess);
+  // Same for the legacy force merge mode.
+  {
+    int return_code = ProcessProfiles({profile1.GetFd(), profile2.GetFd(), profile3.GetFd()},
+                                      output_profile.GetFd(),
+                                      {"--force-merge", "--boot-image-merge"});
+    ASSERT_EQ(return_code, ProfmanResult::kSuccess);
 
-  // Verify the result: it should be equal to info2 since info1 is a regular profile
-  // and should be ignored.
-  ProfileCompilationInfo result(/*for_boot_image=*/ true);
-  ASSERT_TRUE(result.Load(reference_profile.GetFd()));
-  ASSERT_TRUE(result.Equals(info2));
+    // Verify the result: it should be equal to info2 union info3 since info1 is a regular profile
+    // and should be ignored.
+    ProfileCompilationInfo result(/*for_boot_image=*/true);
+    ASSERT_TRUE(result.Load(output_profile.GetFd()));
+    ASSERT_TRUE(info2.MergeWith(info3));
+    ASSERT_TRUE(result.Equals(info2));
+  }
 }
 
 // Under default behaviour we should not advice compilation
@@ -2129,6 +2151,82 @@ TEST_F(ProfileAssistantTest, ForceMerge) {
   ASSERT_TRUE(result.Load(reference_profile.GetFd()));
   ASSERT_TRUE(info1.MergeWith(info2));
   ASSERT_TRUE(result.Equals(info1));
+}
+
+TEST_F(ProfileAssistantTest, ForceMergeAndAnalyze) {
+  const uint16_t kNumberOfMethodsInRefProfile = 600;
+  const uint16_t kNumberOfMethodsInCurProfile = 601;
+
+  ScratchFile ref_profile;
+  ScratchFile cur_profile;
+
+  ProfileCompilationInfo ref_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInRefProfile, /*number_of_classes=*/0, ref_profile, &ref_info);
+  ProfileCompilationInfo cur_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInCurProfile, /*number_of_classes=*/0, cur_profile, &cur_info);
+
+  std::vector<const std::string> extra_args({"--force-merge-and-analyze"});
+  int return_code = ProcessProfiles({cur_profile.GetFd()}, ref_profile.GetFd(), extra_args);
+
+  ASSERT_EQ(return_code, ProfmanResult::kCompile);
+
+  // Check that the result is the aggregation.
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(result.Load(ref_profile.GetFd()));
+  ASSERT_TRUE(ref_info.MergeWith(cur_info));
+  ASSERT_TRUE(result.Equals(ref_info));
+}
+
+TEST_F(ProfileAssistantTest, ForceMergeAndAnalyzeNoDelta) {
+  const uint16_t kNumberOfMethodsInRefProfile = 600;
+  const uint16_t kNumberOfMethodsInCurProfile = 600;
+
+  ScratchFile ref_profile;
+  ScratchFile cur_profile;
+
+  ProfileCompilationInfo ref_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInRefProfile, /*number_of_classes=*/0, ref_profile, &ref_info);
+  ProfileCompilationInfo cur_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInCurProfile, /*number_of_classes=*/0, cur_profile, &cur_info);
+
+  std::vector<const std::string> extra_args({"--force-merge-and-analyze"});
+  int return_code = ProcessProfiles({cur_profile.GetFd()}, ref_profile.GetFd(), extra_args);
+
+  ASSERT_EQ(return_code, ProfmanResult::kSkipCompilationSmallDelta);
+
+  // Check that the reference profile is unchanged.
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(result.Load(ref_profile.GetFd()));
+  ASSERT_TRUE(result.Equals(ref_info));
+}
+
+TEST_F(ProfileAssistantTest, ForceMergeAndAnalyzeEmptyProfiles) {
+  const uint16_t kNumberOfMethodsInRefProfile = 0;
+  const uint16_t kNumberOfMethodsInCurProfile = 0;
+
+  ScratchFile ref_profile;
+  ScratchFile cur_profile;
+
+  ProfileCompilationInfo ref_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInRefProfile, /*number_of_classes=*/0, ref_profile, &ref_info);
+  ProfileCompilationInfo cur_info;
+  SetupProfile(
+      dex1, dex2, kNumberOfMethodsInCurProfile, /*number_of_classes=*/0, cur_profile, &cur_info);
+
+  std::vector<const std::string> extra_args({"--force-merge-and-analyze"});
+  int return_code = ProcessProfiles({cur_profile.GetFd()}, ref_profile.GetFd(), extra_args);
+
+  ASSERT_EQ(return_code, ProfmanResult::kSkipCompilationEmptyProfiles);
+
+  // Check that the reference profile is unchanged.
+  ProfileCompilationInfo result;
+  ASSERT_TRUE(result.Load(ref_profile.GetFd()));
+  ASSERT_TRUE(result.Equals(ref_info));
 }
 
 // Test that we consider the annations when we merge boot image profiles.
@@ -2213,25 +2311,40 @@ TEST_F(ProfileAssistantTest, ForceMergeIgnoreProfilesItCannotLoad) {
   std::string content = "giberish";
   ASSERT_TRUE(profile1.GetFile()->WriteFully(content.c_str(), content.length()));
 
-  ProfileCompilationInfo info2(/*for_boot_image=*/ true);
+  ProfileCompilationInfo info2(/*for_boot_image=*/true);
   info2.Save(profile2.GetFd());
 
-  std::vector<int> profile_fds({ GetFd(profile1)});
+  std::vector<int> profile_fds({GetFd(profile1)});
   int reference_profile_fd = GetFd(profile2);
 
   // With force-merge we should merge successfully.
-  std::vector<const std::string> extra_args({"--force-merge", "--boot-image-merge"});
-  ASSERT_EQ(ProcessProfiles(profile_fds, reference_profile_fd, extra_args),
-            ProfmanResult::kSuccess);
+  {
+    ASSERT_EQ(
+        ProcessProfiles(
+            profile_fds, reference_profile_fd, {"--force-merge-and-analyze", "--boot-image-merge"}),
+        ProfmanResult::kSkipCompilationEmptyProfiles);
 
-  ProfileCompilationInfo result(/*for_boot_image=*/ true);
-  ASSERT_TRUE(result.Load(reference_profile_fd));
-  ASSERT_TRUE(info2.Equals(result));
+    ProfileCompilationInfo result(/*for_boot_image=*/true);
+    ASSERT_TRUE(result.Load(reference_profile_fd));
+    ASSERT_TRUE(info2.Equals(result));
+  }
+
+  // Same for the legacy force merge mode.
+  {
+    ASSERT_EQ(
+        ProcessProfiles(profile_fds, reference_profile_fd, {"--force-merge", "--boot-image-merge"}),
+        ProfmanResult::kSuccess);
+
+    ProfileCompilationInfo result(/*for_boot_image=*/true);
+    ASSERT_TRUE(result.Load(reference_profile_fd));
+    ASSERT_TRUE(info2.Equals(result));
+  }
 
   // Without force-merge we should fail.
-  std::vector<const std::string> extra_args2({"--boot-image-merge"});
-  ASSERT_EQ(ProcessProfiles(profile_fds, reference_profile_fd, extra_args2),
-            ProfmanResult::kErrorBadProfiles);
+  {
+    ASSERT_EQ(ProcessProfiles(profile_fds, reference_profile_fd, {"--boot-image-merge"}),
+              ProfmanResult::kErrorBadProfiles);
+  }
 }
 
 }  // namespace art

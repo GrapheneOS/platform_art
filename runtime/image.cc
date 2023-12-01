@@ -105,7 +105,7 @@ void ImageHeader::RelocateImageReferences(int64_t delta) {
   //       to be done in alignment with the dynamic linker's ELF loader as
   //       otherwise inconsistency would still be possible e.g. when using
   //       `dlopen`-like calls to load OAT files.
-  CHECK_ALIGNED_PARAM(delta, kPageSize) << "relocation delta must be page aligned";
+  CHECK_ALIGNED_PARAM(delta, gPageSize) << "relocation delta must be page aligned";
   oat_file_begin_ += delta;
   oat_data_begin_ += delta;
   oat_data_end_ += delta;
@@ -239,7 +239,12 @@ bool ImageHeader::Block::Decompress(uint8_t* out_ptr,
       if (!ok) {
         return false;
       }
-      CHECK_EQ(decompressed_size, image_size_);
+      if (decompressed_size != image_size_) {
+        // Maybe some disk / memory corruption, just bail.
+        *error_msg = (std::ostringstream() << "Decompressed size different than image size: "
+                                           << decompressed_size << ", and " << image_size_).str();
+        return false;
+      }
       break;
     }
     default: {

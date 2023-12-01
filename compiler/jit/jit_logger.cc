@@ -211,7 +211,7 @@ void JitLogger::OpenMarkerFile() {
   int fd = jit_dump_file_->Fd();
   // The 'perf inject' tool requires that the jit-PID.dump file
   // must have a mmap(PROT_READ|PROT_EXEC) record in perf.data.
-  marker_address_ = mmap(nullptr, kPageSize, PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
+  marker_address_ = mmap(nullptr, gPageSize, PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
   if (marker_address_ == MAP_FAILED) {
     LOG(WARNING) << "Failed to create record in perf.data. JITed code profiling will not work.";
     return;
@@ -220,7 +220,7 @@ void JitLogger::OpenMarkerFile() {
 
 void JitLogger::CloseMarkerFile() {
   if (marker_address_ != nullptr) {
-    munmap(marker_address_, kPageSize);
+    munmap(marker_address_, gPageSize);
   }
 }
 

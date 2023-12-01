@@ -1,11 +1,14 @@
 package com.android.server.art;
 
+import static com.android.server.art.model.ArtFlags.BatchDexoptPass;
+
 import android.annotation.NonNull;
 import android.app.job.JobParameters;
 import android.os.Build;
 
 import androidx.annotation.RequiresApi;
 
+import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DexoptResult;
 
 import dalvik.system.DexFile;
@@ -22,31 +25,48 @@ import java.util.stream.Collectors;
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class BackgroundDexoptJobStatsReporter {
     public static void reportFailure() {
+        // The fatal error can occur during any pass, but we attribute it to the main pass for
+        // simplicity.
         ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
                 ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_FATAL_ERROR,
                 JobParameters.STOP_REASON_UNDEFINED, 0 /* durationMs */, 0 /* deprecated */,
                 0 /* optimizedPackagesCount */, 0 /* packagesDependingOnBootClasspathCount */,
-                0 /* totalPackagesCount */);
+                0 /* totalPackagesCount */,
+                ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_MAIN);
     }
 
     public static void reportSuccess(@NonNull BackgroundDexoptJob.CompletedResult completedResult,
             Optional<Integer> stopReason) {
+        for (var entry : completedResult.dexoptResultByPass().entrySet()) {
+            reportPass(entry.getKey(), entry.getValue(),
+                    completedResult.durationMsByPass().getOrDefault(entry.getKey(), 0l),
+                    stopReason);
+        }
+    }
+
+    public static void reportPass(@BatchDexoptPass int pass, @NonNull DexoptResult dexoptResult,
+            long durationMs, Optional<Integer> stopReason) {
+        // The job contains multiple passes, so the stop reason may not be for the current pass. We
+        // shouldn't report the stop reason if the current pass finished before the job was
+        // cancelled.
+        int reportedStopReason = dexoptResult.getFinalStatus() == DexoptResult.DEXOPT_CANCELLED
+                ? stopReason.orElse(JobParameters.STOP_REASON_UNDEFINED)
+                : JobParameters.STOP_REASON_UNDEFINED;
+
         List<DexoptResult.PackageDexoptResult> packageDexoptResults =
-                getFilteredPackageResults(completedResult);
+                getFilteredPackageResults(dexoptResult);
+
         ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
-                getStatusForStats(completedResult, stopReason),
-                stopReason.orElse(JobParameters.STOP_REASON_UNDEFINED),
-                completedResult.durationMs(), 0 /* deprecated */,
-                getDexoptedPackagesCount(packageDexoptResults),
+                getStatusForStats(dexoptResult, stopReason), reportedStopReason, durationMs,
+                0 /* deprecated */, getDexoptedPackagesCount(packageDexoptResults),
                 getPackagesDependingOnBootClasspathCount(packageDexoptResults),
-                packageDexoptResults.size());
+                packageDexoptResults.size(), toStatsdPassEnum(pass));
     }
 
     @NonNull
     private static List<DexoptResult.PackageDexoptResult> getFilteredPackageResults(
-            @NonNull BackgroundDexoptJob.CompletedResult completedResult) {
-        return completedResult.dexoptResult()
-                .getPackageDexoptResults()
+            @NonNull DexoptResult dexoptResult) {
+        return dexoptResult.getPackageDexoptResults()
                 .stream()
                 .filter(packageResult
                         -> packageResult.getDexContainerFileDexoptResults().stream().anyMatch(
@@ -58,8 +78,8 @@ public class BackgroundDexoptJobStatsReporter {
     }
 
     private static int getStatusForStats(
-            @NonNull BackgroundDexoptJob.CompletedResult result, Optional<Integer> stopReason) {
-        if (result.dexoptResult().getFinalStatus() == DexoptResult.DEXOPT_CANCELLED) {
+            @NonNull DexoptResult dexoptResult, Optional<Integer> stopReason) {
+        if (dexoptResult.getFinalStatus() == DexoptResult.DEXOPT_CANCELLED) {
             if (stopReason.isPresent()) {
                 return ArtStatsLog
                         .BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_CANCELLATION;
@@ -69,8 +89,7 @@ public class BackgroundDexoptJobStatsReporter {
         }
 
         boolean isSkippedDueToStorageLow =
-                result.dexoptResult()
-                        .getPackageDexoptResults()
+                dexoptResult.getPackageDexoptResults()
                         .stream()
                         .flatMap(packageResult
                                 -> packageResult.getDexContainerFileDexoptResults().stream())
@@ -105,5 +124,17 @@ public class BackgroundDexoptJobStatsReporter {
         return filesResults.stream()
                 .map(DexoptResult.DexContainerFileDexoptResult::getActualCompilerFilter)
                 .anyMatch(DexFile::isOptimizedCompilerFilter);
+    }
+
+    private static int toStatsdPassEnum(@BatchDexoptPass int pass) {
+        switch (pass) {
+            case ArtFlags.PASS_DOWNGRADE:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_DOWNGRADE;
+            case ArtFlags.PASS_MAIN:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_MAIN;
+            case ArtFlags.PASS_SUPPLEMENTARY:
+                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__PASS__PASS_SUPPLEMENTARY;
+        }
+        throw new IllegalArgumentException("Unknown batch dexopt pass " + pass);
     }
 }
