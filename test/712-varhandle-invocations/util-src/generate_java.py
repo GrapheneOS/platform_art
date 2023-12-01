@@ -84,6 +84,8 @@ FLOAT_TYPE=ValueType("float", "Float", [ "-7.77e23f", "1.234e-17f", "3.40e36f", 
 DOUBLE_TYPE=ValueType("double", "Double", [ "-1.0e-200", "1.11e200", "3.141", "1.1111", "6.022e23", "6.626e-34" ], ordinal=7, width=4, supports_bitwise=False)
 
 VALUE_TYPES = { BOOLEAN_TYPE, BYTE_TYPE, SHORT_TYPE, CHAR_TYPE, INT_TYPE, LONG_TYPE, FLOAT_TYPE, DOUBLE_TYPE }
+VIEW_SUPPORTED_TYPES = list(filter(lambda x : x.width >= 2, VALUE_TYPES))
+VIEW_SUPPORTED_NARROW_TYPES = list(filter(lambda x : x.width == 2, VALUE_TYPES))
 
 WIDENING_CONVERSIONS = {
     BOOLEAN_TYPE : set(),
@@ -104,11 +106,9 @@ def types_that_widen_to(var_type):
     return types_that_widen
 
 class VarHandleKind(object):
-    ALL_SUPPORTED_TYPES = VALUE_TYPES
-    VIEW_SUPPORTED_TYPES = list(filter(lambda x : x.width >= 2, ALL_SUPPORTED_TYPES))
-
-    def __init__(self, name, imports=[], declarations=[], lookup='', coordinates=[], get_value='', may_throw_read_only=False):
+    def __init__(self, name, supported_types=[], imports=[], declarations=[], lookup='', coordinates=[], get_value='', may_throw_read_only=False):
         self.name = name
+        self.supported_types = supported_types
         self.imports = imports
         self.declarations = declarations
         self.lookup = lookup
@@ -132,7 +132,7 @@ class VarHandleKind(object):
         return Template(self.lookup).safe_substitute(dictionary)
 
     def get_supported_types(self):
-        return VarHandleKind.VIEW_SUPPORTED_TYPES if self.is_view() else VarHandleKind.ALL_SUPPORTED_TYPES
+        return self.supported_types
 
     def is_view(self):
         return "View" in self.name
@@ -141,6 +141,7 @@ class VarHandleKind(object):
         return Template(self.get_value_).safe_substitute(dictionary)
 
 FIELD_VAR_HANDLE = VarHandleKind("Field",
+                                 VALUE_TYPES,
                                  [
                                      'java.lang.invoke.MethodHandles',
                                      'java.lang.invoke.VarHandle'
@@ -156,6 +157,7 @@ FIELD_VAR_HANDLE = VarHandleKind("Field",
                                  may_throw_read_only = False)
 
 FINAL_FIELD_VAR_HANDLE = VarHandleKind("FinalField",
+                                       VALUE_TYPES,
                                        [
                                            'java.lang.invoke.MethodHandles',
                                            'java.lang.invoke.VarHandle'
@@ -171,6 +173,7 @@ FINAL_FIELD_VAR_HANDLE = VarHandleKind("FinalField",
                                        may_throw_read_only = False)
 
 STATIC_FIELD_VAR_HANDLE = VarHandleKind("StaticField",
+                                        VALUE_TYPES,
                                         [
                                             'java.lang.invoke.MethodHandles',
                                             'java.lang.invoke.VarHandle'
@@ -184,6 +187,7 @@ STATIC_FIELD_VAR_HANDLE = VarHandleKind("StaticField",
                                         may_throw_read_only = False)
 
 STATIC_FINAL_FIELD_VAR_HANDLE = VarHandleKind("StaticFinalField",
+                                              VALUE_TYPES,
                                               [
                                                   'java.lang.invoke.MethodHandles',
                                                   'java.lang.invoke.VarHandle'
@@ -197,6 +201,7 @@ STATIC_FINAL_FIELD_VAR_HANDLE = VarHandleKind("StaticFinalField",
                                               may_throw_read_only = False)
 
 ARRAY_ELEMENT_VAR_HANDLE = VarHandleKind("ArrayElement",
+                                         VALUE_TYPES,
                                          [
                                              'java.lang.invoke.MethodHandles',
                                              'java.lang.invoke.VarHandle'
@@ -212,13 +217,14 @@ ARRAY_ELEMENT_VAR_HANDLE = VarHandleKind("ArrayElement",
                                          may_throw_read_only = False)
 
 BYTE_ARRAY_LE_VIEW_VAR_HANDLE = VarHandleKind("ByteArrayViewLE",
+                                              VIEW_SUPPORTED_TYPES,
                                               [
                                                   'java.lang.invoke.MethodHandles',
                                                   'java.lang.invoke.VarHandle',
                                                   'java.nio.ByteOrder'
                                               ],
                                               [
-                                                  "byte[] array = new byte[27]",
+                                                  "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(27)",
                                                   "int index = 8",
                                                   "{"
                                                   "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(array, index);"
@@ -233,14 +239,38 @@ BYTE_ARRAY_LE_VIEW_VAR_HANDLE = VarHandleKind("ByteArrayViewLE",
                                               'VarHandleUnitTestHelpers.getBytesAs_${var_type}(array, index, ByteOrder.LITTLE_ENDIAN)',
                                               may_throw_read_only = False)
 
+NARROW_BYTE_ARRAY_LE_VIEW_VAR_HANDLE = VarHandleKind("NarrowByteArrayViewLE",
+                                                     VIEW_SUPPORTED_NARROW_TYPES,
+                                                     [
+                                                         'java.lang.invoke.MethodHandles',
+                                                         'java.lang.invoke.VarHandle',
+                                                         'java.nio.ByteOrder'
+                                                     ],
+                                                     [
+                                                         "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(27)",
+                                                         "int index = 10",
+                                                         "{"
+                                                         "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(array, index);"
+                                                         "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.LITTLE_ENDIAN);"
+                                                         "}"
+                                                     ],
+                                                     'MethodHandles.byteArrayViewVarHandle(${var_type}[].class, ByteOrder.LITTLE_ENDIAN)',
+                                                     [
+                                                         'array',
+                                                         'index'
+                                                     ],
+                                                     'VarHandleUnitTestHelpers.getBytesAs_${var_type}(array, index, ByteOrder.LITTLE_ENDIAN)',
+                                                     may_throw_read_only = False)
+
 BYTE_ARRAY_BE_VIEW_VAR_HANDLE = VarHandleKind("ByteArrayViewBE",
+                                              VIEW_SUPPORTED_TYPES,
                                               [
                                                   'java.lang.invoke.MethodHandles',
                                                   'java.lang.invoke.VarHandle',
                                                   'java.nio.ByteOrder'
                                               ],
                                               [
-                                                  "byte[] array = new byte[27]",
+                                                  "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(27)",
                                                   "int index = 8",
                                                   "{"
                                                   "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(array, index);"
@@ -255,7 +285,31 @@ BYTE_ARRAY_BE_VIEW_VAR_HANDLE = VarHandleKind("ByteArrayViewBE",
                                               'VarHandleUnitTestHelpers.getBytesAs_${var_type}(array, index, ByteOrder.BIG_ENDIAN)',
                                               may_throw_read_only = False)
 
+NARROW_BYTE_ARRAY_BE_VIEW_VAR_HANDLE = VarHandleKind("NarrowByteArrayViewBE",
+                                                     VIEW_SUPPORTED_NARROW_TYPES,
+                                                     [
+                                                         'java.lang.invoke.MethodHandles',
+                                                         'java.lang.invoke.VarHandle',
+                                                         'java.nio.ByteOrder'
+                                                     ],
+                                                     [
+                                                         "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(27)",
+                                                         "int index = 10",
+                                                         "{"
+                                                         "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(array, index);"
+                                                         "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.BIG_ENDIAN);"
+                                                         "}"
+                                                     ],
+                                                     'MethodHandles.byteArrayViewVarHandle(${var_type}[].class, ByteOrder.BIG_ENDIAN)',
+                                                     [
+                                                         'array',
+                                                         'index'
+                                                     ],
+                                                     'VarHandleUnitTestHelpers.getBytesAs_${var_type}(array, index, ByteOrder.BIG_ENDIAN)',
+                                                     may_throw_read_only = False)
+
 DIRECT_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("DirectByteBufferViewLE",
+                                                      VIEW_SUPPORTED_TYPES,
                                                       [
                                                           'java.lang.invoke.MethodHandles',
                                                           'java.lang.invoke.VarHandle',
@@ -278,7 +332,32 @@ DIRECT_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("DirectByteBufferViewLE",
                                                       'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
                                                       may_throw_read_only = False)
 
+NARROW_DIRECT_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("NarrowDirectByteBufferViewLE",
+                                                             VIEW_SUPPORTED_NARROW_TYPES,
+                                                             [
+                                                                 'java.lang.invoke.MethodHandles',
+                                                                 'java.lang.invoke.VarHandle',
+                                                                 'java.nio.ByteBuffer',
+                                                                 'java.nio.ByteOrder'
+                                                             ],
+                                                             [
+                                                                 "ByteBuffer bb = ByteBuffer.allocateDirect(31)",
+                                                                 "int index = 10",
+                                                                 "{"
+                                                                 "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                                 "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(bb, index, ${initial_value}, ByteOrder.LITTLE_ENDIAN);"
+                                                                 "}"
+                                                             ],
+                                                             'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.LITTLE_ENDIAN)',
+                                                             [
+                                                                 'bb',
+                                                                 'index'
+                                                             ],
+                                                             'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
+                                                             may_throw_read_only = False)
+
 DIRECT_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("DirectByteBufferViewBE",
+                                                      VIEW_SUPPORTED_TYPES,
                                                       [
                                                           'java.lang.invoke.MethodHandles',
                                                           'java.lang.invoke.VarHandle',
@@ -301,7 +380,32 @@ DIRECT_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("DirectByteBufferViewBE",
                                                       'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
                                                       may_throw_read_only = False)
 
+NARROW_DIRECT_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("NarrowDirectByteBufferViewBE",
+                                                             VIEW_SUPPORTED_NARROW_TYPES,
+                                                             [
+                                                                 'java.lang.invoke.MethodHandles',
+                                                                 'java.lang.invoke.VarHandle',
+                                                                 'java.nio.ByteBuffer',
+                                                                 'java.nio.ByteOrder'
+                                                             ],
+                                                             [
+                                                                 "ByteBuffer bb = ByteBuffer.allocateDirect(31)",
+                                                                 "int index = 10",
+                                                                 "{"
+                                                                 "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                                 "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(bb, index, ${initial_value}, ByteOrder.BIG_ENDIAN);"
+                                                                 "}"
+                                                             ],
+                                                             'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.BIG_ENDIAN)',
+                                                             [
+                                                                 'bb',
+                                                                 'index'
+                                                             ],
+                                                             'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
+                                                             may_throw_read_only = False)
+
 HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewLE",
+                                                    VIEW_SUPPORTED_TYPES,
                                                     [
                                                         'java.lang.invoke.MethodHandles',
                                                         'java.lang.invoke.VarHandle',
@@ -309,7 +413,7 @@ HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewLE",
                                                         'java.nio.ByteOrder'
                                                     ],
                                                     [
-                                                        "byte[] array = new byte[36]",
+                                                        "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(36)",
                                                         "int offset = 8",
                                                         "ByteBuffer bb = ByteBuffer.wrap(array, offset, array.length - offset)",
                                                         "int index = 8",
@@ -326,7 +430,34 @@ HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewLE",
                                                     'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
                                                     may_throw_read_only = False)
 
+NARROW_HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE = VarHandleKind("NarrowHeapByteBufferViewLE",
+                                                           VIEW_SUPPORTED_NARROW_TYPES,
+                                                           [
+                                                               'java.lang.invoke.MethodHandles',
+                                                               'java.lang.invoke.VarHandle',
+                                                               'java.nio.ByteBuffer',
+                                                               'java.nio.ByteOrder'
+                                                           ],
+                                                           [
+                                                               "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(36)",
+                                                               "int offset = 8",
+                                                               "ByteBuffer bb = ByteBuffer.wrap(array, offset, array.length - offset)",
+                                                               "int index = 10",
+                                                               "{"
+                                                               "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                               "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(bb, index, ${initial_value}, ByteOrder.LITTLE_ENDIAN);"
+                                                               "}"
+                                                           ],
+                                                           'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.LITTLE_ENDIAN)',
+                                                           [
+                                                               'bb',
+                                                               'index'
+                                                           ],
+                                                           'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
+                                                           may_throw_read_only = False)
+
 HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewBE",
+                                                    VIEW_SUPPORTED_TYPES,
                                                     [
                                                         'java.lang.invoke.MethodHandles',
                                                         'java.lang.invoke.VarHandle',
@@ -334,7 +465,7 @@ HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewBE",
                                                         'java.nio.ByteOrder'
                                                     ],
                                                     [
-                                                        "byte[] array = new byte[47]",
+                                                        "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(47)",
                                                         "int offset = 8",
                                                         "ByteBuffer bb = ByteBuffer.wrap(array, offset, array.length - offset)",
                                                         "int index = 8",
@@ -351,7 +482,34 @@ HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferViewBE",
                                                     'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
                                                     may_throw_read_only = False)
 
+NARROW_HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE = VarHandleKind("NarrowHeapByteBufferViewBE",
+                                                           VIEW_SUPPORTED_NARROW_TYPES,
+                                                           [
+                                                               'java.lang.invoke.MethodHandles',
+                                                               'java.lang.invoke.VarHandle',
+                                                               'java.nio.ByteBuffer',
+                                                               'java.nio.ByteOrder'
+                                                           ],
+                                                           [
+                                                               "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(47)",
+                                                               "int offset = 8",
+                                                               "ByteBuffer bb = ByteBuffer.wrap(array, offset, array.length - offset)",
+                                                               "int index = 10",
+                                                               "{"
+                                                               "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                               "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(bb, index, ${initial_value}, ByteOrder.BIG_ENDIAN);"
+                                                               "}"
+                                                           ],
+                                                           'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.BIG_ENDIAN)',
+                                                           [
+                                                               'bb',
+                                                               'index'
+                                                           ],
+                                                           'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
+                                                           may_throw_read_only = False)
+
 HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyViewLE",
+                                                       VIEW_SUPPORTED_TYPES,
                                                        [
                                                            'java.lang.invoke.MethodHandles',
                                                            'java.lang.invoke.VarHandle',
@@ -360,7 +518,7 @@ HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyVi
                                                            'java.nio.ReadOnlyBufferException'
                                                        ],
                                                        [
-                                                           "byte[] array = new byte[43]",
+                                                           "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(43)",
                                                            "int index = 8",
                                                            "ByteBuffer bb",
                                                            "{"
@@ -368,7 +526,6 @@ HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyVi
                                                            "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
                                                            "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.LITTLE_ENDIAN);"
                                                            "  bb = bb.asReadOnlyBuffer();"
-
                                                            "}"
                                                        ],
                                                        'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.LITTLE_ENDIAN)',
@@ -379,7 +536,36 @@ HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyVi
                                                        'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
                                                        may_throw_read_only = True)
 
+NARROW_HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE = VarHandleKind("NarrowHeapByteBufferReadOnlyViewLE",
+                                                              VIEW_SUPPORTED_NARROW_TYPES,
+                                                              [
+                                                                  'java.lang.invoke.MethodHandles',
+                                                                  'java.lang.invoke.VarHandle',
+                                                                  'java.nio.ByteBuffer',
+                                                                  'java.nio.ByteOrder',
+                                                                  'java.nio.ReadOnlyBufferException'
+                                                              ],
+                                                              [
+                                                                  "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(43)",
+                                                                  "int index = 10",
+                                                                  "ByteBuffer bb",
+                                                                  "{"
+                                                                  "  bb = ByteBuffer.wrap(array).asReadOnlyBuffer();"
+                                                                  "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                                  "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.LITTLE_ENDIAN);"
+                                                                  "  bb = bb.asReadOnlyBuffer();"
+                                                                  "}"
+                                                              ],
+                                                              'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.LITTLE_ENDIAN)',
+                                                              [
+                                                                  'bb',
+                                                                  'index'
+                                                              ],
+                                                              'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.LITTLE_ENDIAN)',
+                                                              may_throw_read_only = True)
+
 HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyViewBE",
+                                                       VIEW_SUPPORTED_TYPES,
                                                        [
                                                            'java.lang.invoke.MethodHandles',
                                                            'java.lang.invoke.VarHandle',
@@ -388,12 +574,12 @@ HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyVi
                                                            'java.nio.ReadOnlyBufferException'
                                                        ],
                                                        [
-                                                           "byte[] array = new byte[29]",
-                                                           "int index",
+                                                           "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(29)",
+                                                           "int index = 8",
                                                            "ByteBuffer bb",
                                                            "{"
                                                            "  bb = ByteBuffer.wrap(array);"
-                                                           "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, 8);"
+                                                           "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
                                                            "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.BIG_ENDIAN);"
                                                            "  bb = bb.asReadOnlyBuffer();"
                                                            "}"
@@ -406,6 +592,34 @@ HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE = VarHandleKind("HeapByteBufferReadOnlyVi
                                                        'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
                                                        may_throw_read_only = True)
 
+NARROW_HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE = VarHandleKind("NarrowHeapByteBufferReadOnlyViewBE",
+                                                              VIEW_SUPPORTED_NARROW_TYPES,
+                                                              [
+                                                                  'java.lang.invoke.MethodHandles',
+                                                                  'java.lang.invoke.VarHandle',
+                                                                  'java.nio.ByteBuffer',
+                                                                  'java.nio.ByteOrder',
+                                                                  'java.nio.ReadOnlyBufferException'
+                                                              ],
+                                                              [
+                                                                  "byte[] array = VarHandleUnitTestHelpers.createFilledByteArray(29)",
+                                                                  "int index = 10",
+                                                                  "ByteBuffer bb",
+                                                                  "{"
+                                                                  "  bb = ByteBuffer.wrap(array);"
+                                                                  "  index = VarHandleUnitTestHelpers.alignedOffset_${var_type}(bb, index);"
+                                                                  "  VarHandleUnitTestHelpers.setBytesAs_${var_type}(array, index, ${initial_value}, ByteOrder.BIG_ENDIAN);"
+                                                                  "  bb = bb.asReadOnlyBuffer();"
+                                                                  "}"
+                                                              ],
+                                                              'MethodHandles.byteBufferViewVarHandle(${var_type}[].class, ByteOrder.BIG_ENDIAN)',
+                                                              [
+                                                                  'bb',
+                                                                  'index'
+                                                              ],
+                                                              'VarHandleUnitTestHelpers.getBytesAs_${var_type}(bb, index, ByteOrder.BIG_ENDIAN)',
+                                                              may_throw_read_only = True)
+
 ALL_FIELD_VAR_HANDLE_KINDS = [
     FIELD_VAR_HANDLE,
     FINAL_FIELD_VAR_HANDLE,
@@ -415,13 +629,21 @@ ALL_FIELD_VAR_HANDLE_KINDS = [
 
 ALL_BYTE_VIEW_VAR_HANDLE_KINDS = [
     BYTE_ARRAY_LE_VIEW_VAR_HANDLE,
+    NARROW_BYTE_ARRAY_LE_VIEW_VAR_HANDLE,
     BYTE_ARRAY_BE_VIEW_VAR_HANDLE,
+    NARROW_BYTE_ARRAY_BE_VIEW_VAR_HANDLE,
     DIRECT_BYTE_BUFFER_LE_VIEW_VAR_HANDLE,
+    NARROW_DIRECT_BYTE_BUFFER_LE_VIEW_VAR_HANDLE,
     DIRECT_BYTE_BUFFER_BE_VIEW_VAR_HANDLE,
+    NARROW_DIRECT_BYTE_BUFFER_BE_VIEW_VAR_HANDLE,
     HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE,
+    NARROW_HEAP_BYTE_BUFFER_LE_VIEW_VAR_HANDLE,
     HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE,
+    NARROW_HEAP_BYTE_BUFFER_BE_VIEW_VAR_HANDLE,
     HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE,
-    HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE
+    NARROW_HEAP_BYTE_BUFFER_RO_LE_VIEW_VAR_HANDLE,
+    HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE,
+    NARROW_HEAP_BYTE_BUFFER_RO_BE_VIEW_VAR_HANDLE
 ]
 
 ALL_VAR_HANDLE_KINDS = ALL_FIELD_VAR_HANDLE_KINDS + [ ARRAY_ELEMENT_VAR_HANDLE ] + ALL_BYTE_VIEW_VAR_HANDLE_KINDS
