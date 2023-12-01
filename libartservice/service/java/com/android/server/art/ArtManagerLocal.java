@@ -883,7 +883,7 @@ public final class ArtManagerLocal {
             @Nullable Consumer<OperationProgress> progressCallback) {
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
             dexoptPackages(snapshot, bootReason, new CancellationSignal(), progressCallbackExecutor,
-                    Map.of(ArtFlags.PASS_MAIN, progressCallback));
+                    progressCallback != null ? Map.of(ArtFlags.PASS_MAIN, progressCallback) : null);
         }
     }
 
