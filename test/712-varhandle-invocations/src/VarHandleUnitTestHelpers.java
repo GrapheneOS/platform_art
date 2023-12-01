@@ -53,6 +53,14 @@ public class VarHandleUnitTestHelpers {
         }
     }
 
+    public static byte[] createFilledByteArray(int size) {
+        byte[] array = new byte[size];
+        for (int i = 0; i != size; ++i) {
+            array[i] = (byte) (i * 47 + 11);
+        }
+        return array;
+    }
+
     public static boolean getBytesAs_boolean(byte[] array, int index, ByteOrder order) {
         return getBytesAs_boolean(ByteBuffer.wrap(array), index, order);
     }
