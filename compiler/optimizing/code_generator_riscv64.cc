@@ -3698,7 +3698,9 @@ void LocationsBuilderRISCV64::VisitIf(HIf* instruction) {
   LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
   if (IsBooleanValueOrMaterializedCondition(instruction->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
-    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+    if (GetGraph()->IsCompilingBaseline() &&
+        codegen_->GetCompilerOptions().ProfileBranches() &&
+        !Runtime::Current()->IsAotCompiler()) {
       DCHECK(instruction->InputAt(0)->IsCondition());
       ProfilingInfo* info = GetGraph()->GetProfilingInfo();
       DCHECK(info != nullptr);
@@ -3720,7 +3722,9 @@ void InstructionCodeGeneratorRISCV64::VisitIf(HIf* instruction) {
       ? nullptr
       : codegen_->GetLabelOf(false_successor);
   if (IsBooleanValueOrMaterializedCondition(instruction->InputAt(0))) {
-    if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
+    if (GetGraph()->IsCompilingBaseline() &&
+        codegen_->GetCompilerOptions().ProfileBranches() &&
+        !Runtime::Current()->IsAotCompiler()) {
       DCHECK(instruction->InputAt(0)->IsCondition());
       ProfilingInfo* info = GetGraph()->GetProfilingInfo();
       DCHECK(info != nullptr);
@@ -3751,8 +3755,6 @@ void InstructionCodeGeneratorRISCV64::VisitIf(HIf* instruction) {
         __ Bind(&done);
       }
     }
-  } else {
-    DCHECK(!GetGraph()->IsCompilingBaseline()) << instruction->InputAt(0)->DebugName();
   }
   GenerateTestAndBranch(instruction, /* condition_input_index= */ 0, true_target, false_target);
 }
