@@ -220,9 +220,11 @@ bool ImageHeader::Block::Decompress(uint8_t* out_ptr,
         return false;
       }
       if (decompressed_size != image_size_) {
-        // Maybe some disk / memory corruption, just bail.
-        *error_msg = (std::ostringstream() << "Decompressed size different than image size: "
-                                           << decompressed_size << ", and " << image_size_).str();
+        if (error_msg != nullptr) {
+          // Maybe some disk / memory corruption, just bail.
+          *error_msg = (std::ostringstream() << "Decompressed size different than image size: "
+                                             << decompressed_size << ", and " << image_size_).str();
+        }
         return false;
       }
       break;
