@@ -2322,22 +2322,15 @@ static void GenerateByteSwapAndExtract(CodeGeneratorRISCV64* codegen,
                                        XRegister rs1,
                                        XRegister shift,
                                        DataType::Type type) {
-  Riscv64Assembler* assembler = codegen->GetAssembler();
-  // Do not apply shift in `GenerateReverseBytes()` for small types.
+  // Apply shift before `GenerateReverseBytes()` for small types.
   DCHECK_EQ(shift != kNoXRegister, DataType::Size(type) < 4u);
-  DataType::Type swap_type = (shift != kNoXRegister) ? DataType::Type::kInt32 : type;
-  // Also handles moving to FP registers.
-  GenerateReverseBytes(codegen, rd, rs1, swap_type);
   if (shift != kNoXRegister) {
-    DCHECK_EQ(rs1, rd.AsRegister<XRegister>());
-    __ Sllw(rs1, rs1, shift);
-    if (type == DataType::Type::kUint16) {
-      __ Srliw(rs1, rs1, 16);
-    } else {
-      DCHECK_EQ(type, DataType::Type::kInt16);
-      __ Sraiw(rs1, rs1, 16);
-    }
+    Riscv64Assembler* assembler = codegen->GetAssembler();
+    __ Srlw(rd.AsRegister<XRegister>(), rs1, shift);
+    rs1 = rd.AsRegister<XRegister>();
   }
+  // Also handles moving to FP registers.
+  GenerateReverseBytes(codegen, rd, rs1, type);
 }
 
 static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
@@ -2527,6 +2520,8 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   if (return_success) {
     // Nothing to do, the result register already contains 1 on success and 0 on failure.
   } else if (byte_swap) {
+    DCHECK_IMPLIES(is_small, out.AsRegister<XRegister>() == old_value)
+        << " " << value_type << " " << out.AsRegister<XRegister>() << "!=" << old_value;
     GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
   } else if (is_fp) {
     codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
@@ -2909,6 +2904,8 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     GenerateGetAndUpdate(
         codegen, get_and_update_op, op_type, order, tmp_ptr, arg_reg, old_value, mask, temp);
     if (byte_swap) {
+      DCHECK_IMPLIES(is_small, out.AsRegister<XRegister>() == old_value)
+          << " " << value_type << " " << out.AsRegister<XRegister>() << "!=" << old_value;
       GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
     } else if (is_fp) {
       codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
