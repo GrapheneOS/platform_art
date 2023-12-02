@@ -1501,6 +1501,197 @@ void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafePutByte(HInvoke* invoke) {
   GenUnsafePut(invoke, codegen_, std::memory_order_relaxed, DataType::Type::kInt8);
 }
 
+static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
+                                     HInvoke* invoke,
+                                     CodeGeneratorRISCV64* codegen) {
+  const bool can_call = codegen->EmitReadBarrier() && IsUnsafeCASReference(invoke);
+  LocationSummary* locations = new (allocator) LocationSummary(
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister());
+}
+
+static void GenUnsafeCas(HInvoke* invoke, CodeGeneratorRISCV64* codegen, DataType::Type type) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister out = locations->Out().AsRegister<XRegister>();            // Boolean result.
+  XRegister object = locations->InAt(1).AsRegister<XRegister>();       // Object pointer.
+  XRegister offset = locations->InAt(2).AsRegister<XRegister>();       // Long offset.
+  XRegister expected = locations->InAt(3).AsRegister<XRegister>();     // Expected.
+  XRegister new_value = locations->InAt(4).AsRegister<XRegister>();    // New value.
+
+  // This needs to be before the temp registers, as MarkGCCard also uses scratch registers.
+  if (type == DataType::Type::kReference) {
+    // Mark card for object assuming new value is stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(object, new_value, new_value_can_be_null);
+  }
+
+  ScratchRegisterScope srs(assembler);
+  XRegister tmp_ptr = srs.AllocateXRegister();                         // Pointer to actual memory.
+  XRegister old_value;                                                 // Value in memory.
+
+  Riscv64Label exit_loop_label;
+  Riscv64Label* exit_loop = &exit_loop_label;
+  Riscv64Label* cmp_failure = &exit_loop_label;
+
+  ReadBarrierCasSlowPathRISCV64* slow_path = nullptr;
+  if (type == DataType::Type::kReference && codegen->EmitReadBarrier()) {
+    // We need to store the `old_value` in a non-scratch register to make sure
+    // the read barrier in the slow path does not clobber it.
+    old_value = locations->GetTemp(0).AsRegister<XRegister>();  // The old value from main path.
+    // The `old_value_temp` is used first for marking the `old_value` and then for the unmarked
+    // reloaded old value for subsequent CAS in the slow path. We make this a scratch register
+    // as we do have marking entrypoints on riscv64 even for scratch registers.
+    XRegister old_value_temp = srs.AllocateXRegister();
+    slow_path = new (codegen->GetScopedAllocator()) ReadBarrierCasSlowPathRISCV64(
+        invoke,
+        std::memory_order_seq_cst,
+        /*strong=*/ true,
+        object,
+        offset,
+        expected,
+        new_value,
+        old_value,
+        old_value_temp,
+        /*store_result=*/ old_value_temp,  // Let the SC result clobber the reloaded old_value.
+        /*update_old_value=*/ false,
+        codegen);
+    codegen->AddSlowPath(slow_path);
+    exit_loop = slow_path->GetExitLabel();
+    cmp_failure = slow_path->GetEntryLabel();
+  } else {
+    old_value = srs.AllocateXRegister();
+  }
+
+  __ Add(tmp_ptr, object, offset);
+
+  // Pre-populate the result register with failure.
+  __ Li(out, 0);
+
+  GenerateCompareAndSet(assembler,
+                        type,
+                        std::memory_order_seq_cst,
+                        /*strong=*/ true,
+                        cmp_failure,
+                        tmp_ptr,
+                        new_value,
+                        old_value,
+                        /*mask=*/ kNoXRegister,
+                        /*masked=*/ kNoXRegister,
+                        /*store_result=*/ old_value,  // Let the SC result clobber the `old_value`.
+                        expected);
+
+  DCHECK_EQ(slow_path != nullptr, type == DataType::Type::kReference && codegen->EmitReadBarrier());
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetSuccessExitLabel());
+  }
+
+  // Indicate success if we successfully execute the SC.
+  __ Li(out, 1);
+
+  __ Bind(exit_loop);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeCASInt(HInvoke* invoke) {
+  VisitJdkUnsafeCASInt(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeCASInt(HInvoke* invoke) {
+  VisitJdkUnsafeCASInt(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeCASLong(HInvoke* invoke) {
+  VisitJdkUnsafeCASLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeCASLong(HInvoke* invoke) {
+  VisitJdkUnsafeCASLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeCASObject(HInvoke* invoke) {
+  VisitJdkUnsafeCASObject(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeCASObject(HInvoke* invoke) {
+  VisitJdkUnsafeCASObject(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
+  CreateUnsafeCASLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
+  GenUnsafeCas(invoke, codegen_, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
+  CreateUnsafeCASLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
+  GenUnsafeCas(invoke, codegen_, DataType::Type::kInt64);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  if (codegen_->EmitNonBakerReadBarrier()) {
+    return;
+  }
+
+  CreateUnsafeCASLocations(allocator_, invoke, codegen_);
+  if (codegen_->EmitReadBarrier()) {
+    DCHECK(kUseBakerReadBarrier);
+    // We need one non-scratch temporary register for read barrier.
+    LocationSummary* locations = invoke->GetLocations();
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCompareAndSetReference(HInvoke* invoke) {
+  GenUnsafeCas(invoke, codegen_, DataType::Type::kReference);
+}
+
 class VarHandleSlowPathRISCV64 : public IntrinsicSlowPathRISCV64 {
  public:
   VarHandleSlowPathRISCV64(HInvoke* invoke, std::memory_order order)
@@ -2322,22 +2513,15 @@ static void GenerateByteSwapAndExtract(CodeGeneratorRISCV64* codegen,
                                        XRegister rs1,
                                        XRegister shift,
                                        DataType::Type type) {
-  Riscv64Assembler* assembler = codegen->GetAssembler();
-  // Do not apply shift in `GenerateReverseBytes()` for small types.
+  // Apply shift before `GenerateReverseBytes()` for small types.
   DCHECK_EQ(shift != kNoXRegister, DataType::Size(type) < 4u);
-  DataType::Type swap_type = (shift != kNoXRegister) ? DataType::Type::kInt32 : type;
-  // Also handles moving to FP registers.
-  GenerateReverseBytes(codegen, rd, rs1, swap_type);
   if (shift != kNoXRegister) {
-    DCHECK_EQ(rs1, rd.AsRegister<XRegister>());
-    __ Sllw(rs1, rs1, shift);
-    if (type == DataType::Type::kUint16) {
-      __ Srliw(rs1, rs1, 16);
-    } else {
-      DCHECK_EQ(type, DataType::Type::kInt16);
-      __ Sraiw(rs1, rs1, 16);
-    }
+    Riscv64Assembler* assembler = codegen->GetAssembler();
+    __ Srlw(rd.AsRegister<XRegister>(), rs1, shift);
+    rs1 = rd.AsRegister<XRegister>();
   }
+  // Also handles moving to FP registers.
+  GenerateReverseBytes(codegen, rd, rs1, type);
 }
 
 static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
@@ -2527,6 +2711,8 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   if (return_success) {
     // Nothing to do, the result register already contains 1 on success and 0 on failure.
   } else if (byte_swap) {
+    DCHECK_IMPLIES(is_small, out.AsRegister<XRegister>() == old_value)
+        << " " << value_type << " " << out.AsRegister<XRegister>() << "!=" << old_value;
     GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
   } else if (is_fp) {
     codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
@@ -2909,6 +3095,8 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     GenerateGetAndUpdate(
         codegen, get_and_update_op, op_type, order, tmp_ptr, arg_reg, old_value, mask, temp);
     if (byte_swap) {
+      DCHECK_IMPLIES(is_small, out.AsRegister<XRegister>() == old_value)
+          << " " << value_type << " " << out.AsRegister<XRegister>() << "!=" << old_value;
       GenerateByteSwapAndExtract(codegen, out, old_value, shift, value_type);
     } else if (is_fp) {
       codegen->MoveLocation(out, Location::RegisterLocation(old_value), value_type);
