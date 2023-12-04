@@ -16,6 +16,7 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -24,6 +25,7 @@
 
 #if defined(__BIONIC__)
 #include <bionic/macros.h>
+#include <unwindstack/AndroidUnwinder.h>
 #endif
 
 #include <algorithm>
@@ -94,6 +96,28 @@ static int sigorset(SigsetType* dest, SigsetType* left, SigsetType* right) {
     }
   }
   return 0;
+}
+
+void LogStack() {
+#if defined(__BIONIC__)
+  unwindstack::AndroidLocalUnwinder unwinder;
+  unwindstack::AndroidUnwinderData data;
+  if (!unwinder.Unwind(data)) {
+    LogError("Failed to get callstack.");
+    return;
+  }
+  data.DemangleFunctionNames();
+  for (const unwindstack::FrameData& frame : data.frames) {
+    auto& map = frame.map_info;
+    LogError("  #%02zu pc %08" PRIx64 "  %s (%s+%" PRIu64 ") (BuildId: %s)",
+             frame.num,
+             frame.rel_pc,
+             map != nullptr ? map->name().c_str() : "???",
+             frame.function_name.c_str(),
+             frame.function_offset,
+             map != nullptr ? map->GetPrintableBuildID().c_str() : "???");
+  }
+#endif
 }
 
 namespace art {
@@ -490,7 +514,8 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
       // the crash will have no way to know our ucontext, and thus no way to dump the original crash
       // stack (since we're on an alternate stack.) Let's remove our handler and return. Then the
       // pre-crash state is restored, the crash happens again, and the next handler gets a chance.
-      log("reverting to SIG_DFL handler for signal %d, ucontext %p", signo, ucontext);
+      LogError("reverting to SIG_DFL handler for signal %d, ucontext %p", signo, ucontext);
+      LogStack();
       struct sigaction dfl = {};
       dfl.sa_handler = SIG_DFL;
       linked_sigaction(signo, &dfl, nullptr);
@@ -517,6 +542,11 @@ static int __sigaction(int signal, const SigactionType* new_action,
   if (signal <= 0 || signal >= _NSIG) {
     errno = EINVAL;
     return -1;
+  }
+
+  if (signal == SIGSEGV && new_action != nullptr && new_action->sa_handler == SIG_DFL) {
+    LogError("Setting SIGSEGV to SIG_DFL");
+    LogStack();
   }
 
   if (chains[signal].IsClaimed()) {
@@ -672,7 +702,7 @@ extern "C" void EnsureFrontOfChain(int signal) {
   // If the sigactions don't match then we put the current action on the chain and make ourself as
   // the main action.
   if (current_action.sa_sigaction != SignalChain::Handler) {
-    log("Warning: Unexpected sigaction action found %p\n", current_action.sa_sigaction);
+    LogError("Warning: Unexpected sigaction action found %p\n", current_action.sa_sigaction);
     chains[signal].Register(signal);
   }
 }

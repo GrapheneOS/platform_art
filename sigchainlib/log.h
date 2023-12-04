@@ -21,7 +21,7 @@
 
 #include <async_safe/log.h>
 
-#define log(...) async_safe_format_log(ANDROID_LOG_ERROR, "libsigchain", __VA_ARGS__)
+#define LogError(...) async_safe_format_log(ANDROID_LOG_ERROR, "libsigchain", __VA_ARGS__)
 #define fatal async_safe_fatal
 
 #else
@@ -29,7 +29,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-static void log(const char* format, ...) {
+static void LogError(const char* format, ...) {
   va_list ap;
   va_start(ap, format);
   vprintf(format, ap);
@@ -38,7 +38,9 @@ static void log(const char* format, ...) {
   printf("\n");
 }
 
-#define fatal(...) log(__VA_ARGS__); abort()
+#define fatal(...)       \
+  LogError(__VA_ARGS__); \
+  abort()
 
 #endif
 
