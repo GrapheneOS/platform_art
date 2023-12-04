@@ -28,24 +28,24 @@
 namespace art {
 
 extern "C" void EnsureFrontOfChain([[maybe_unused]] int signal) {
-  log("EnsureFrontOfChain is not exported by the main executable.");
+  LogError("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
 
 extern "C" void AddSpecialSignalHandlerFn([[maybe_unused]] int signal,
                                           [[maybe_unused]] SigchainAction* sa) {
-  log("SetSpecialSignalHandlerFn is not exported by the main executable.");
+  LogError("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
 
 extern "C" void RemoveSpecialSignalHandlerFn([[maybe_unused]] int signal,
                                              [[maybe_unused]] bool (*fn)(int, siginfo_t*, void*)) {
-  log("SetSpecialSignalHandlerFn is not exported by the main executable.");
+  LogError("SetSpecialSignalHandlerFn is not exported by the main executable.");
   abort();
 }
 
 extern "C" void SkipAddSignalHandler([[maybe_unused]] bool value) {
-  log("SkipAddSignalHandler is not exported by the main executable.");
+  LogError("SkipAddSignalHandler is not exported by the main executable.");
   abort();
 }
 
