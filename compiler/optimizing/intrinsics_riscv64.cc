@@ -1692,6 +1692,161 @@ void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeCompareAndSetReference(HInvoke
   GenUnsafeCas(invoke, codegen_, DataType::Type::kReference);
 }
 
+static void CreateUnsafeGetAndUpdateLocations(ArenaAllocator* allocator,
+                                              HInvoke* invoke,
+                                              CodeGeneratorRISCV64* codegen) {
+  const bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetAndSetReference(invoke);
+  LocationSummary* locations = new (allocator) LocationSummary(
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  locations->SetInAt(3, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+}
+
+static void GenUnsafeGetAndUpdate(HInvoke* invoke,
+                                  DataType::Type type,
+                                  CodeGeneratorRISCV64* codegen,
+                                  GetAndUpdateOp get_and_update_op) {
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  Location out_loc = locations->Out();
+  XRegister out = out_loc.AsRegister<XRegister>();                    // Result.
+  XRegister base = locations->InAt(1).AsRegister<XRegister>();        // Object pointer.
+  XRegister offset = locations->InAt(2).AsRegister<XRegister>();      // Long offset.
+  XRegister arg = locations->InAt(3).AsRegister<XRegister>();         // New value or addend.
+
+  // This needs to be before the temp registers, as MarkGCCard also uses scratch registers.
+  if (type == DataType::Type::kReference) {
+    DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+    // Mark card for object as a new value shall be stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(base, /*value=*/ arg, new_value_can_be_null);
+  }
+
+  ScratchRegisterScope srs(assembler);
+  XRegister tmp_ptr = srs.AllocateXRegister();                        // Pointer to actual memory.
+  __ Add(tmp_ptr, base, offset);
+  GenerateGetAndUpdate(codegen,
+                       get_and_update_op,
+                       (type == DataType::Type::kReference) ? DataType::Type::kInt32 : type,
+                       std::memory_order_seq_cst,
+                       tmp_ptr,
+                       arg,
+                       /*old_value=*/ out,
+                       /*mask=*/ kNoXRegister,
+                       /*temp=*/ kNoXRegister);
+
+  if (type == DataType::Type::kReference) {
+    __ ZextW(out, out);
+    if (codegen->EmitReadBarrier()) {
+      DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+      if (kUseBakerReadBarrier) {
+        // Use RA as temp. It is clobbered in the slow path anyway.
+        static constexpr Location kBakerReadBarrierTemp = Location::RegisterLocation(RA);
+        SlowPathCodeRISCV64* rb_slow_path =
+            codegen->AddGcRootBakerBarrierBarrierSlowPath(invoke, out_loc, kBakerReadBarrierTemp);
+        codegen->EmitBakerReadBarierMarkingCheck(rb_slow_path, out_loc, kBakerReadBarrierTemp);
+      } else {
+        codegen->GenerateReadBarrierSlow(
+            invoke,
+            out_loc,
+            out_loc,
+            Location::RegisterLocation(base),
+            /*offset=*/ 0u,
+            /*index=*/ Location::RegisterLocation(offset));
+      }
+    }
+  }
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kReference, codegen_, GetAndUpdateOp::kSet);
+}
+
 class VarHandleSlowPathRISCV64 : public IntrinsicSlowPathRISCV64 {
  public:
   VarHandleSlowPathRISCV64(HInvoke* invoke, std::memory_order order)
