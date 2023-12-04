@@ -87,19 +87,8 @@ static constexpr FloatRegister non_volatile_xmm_regs[] = { XMM12, XMM13, XMM14, 
   V(StringBuilderLength)                       \
   V(StringBuilderToString)                     \
   /* 1.8 */                                    \
-  V(UnsafeGetAndAddInt)                        \
-  V(UnsafeGetAndAddLong)                       \
-  V(UnsafeGetAndSetInt)                        \
-  V(UnsafeGetAndSetLong)                       \
-  V(UnsafeGetAndSetObject)                     \
   V(MethodHandleInvokeExact)                   \
-  V(MethodHandleInvoke)                        \
-  /* OpenJDK 11 */                             \
-  V(JdkUnsafeGetAndAddInt)                     \
-  V(JdkUnsafeGetAndAddLong)                    \
-  V(JdkUnsafeGetAndSetInt)                     \
-  V(JdkUnsafeGetAndSetLong)                    \
-  V(JdkUnsafeGetAndSetReference)
+  V(MethodHandleInvoke)
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:

@@ -2643,6 +2643,188 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetReference(HInvoke*
   GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
 
+static void CreateUnsafeGetAndUpdateLocations(ArenaAllocator* allocator,
+                                              HInvoke* invoke,
+                                              CodeGeneratorX86_64* codegen) {
+  const bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetAndSetReference(invoke);
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke,
+                                      can_call
+                                          ? LocationSummary::kCallOnSlowPath
+                                          : LocationSummary::kNoCall,
+                                      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  // Use the same register for both the output and the new value or addend
+  // to take advantage of XCHG or XADD. Arbitrarily pick RAX.
+  locations->SetInAt(3, Location::RegisterLocation(RAX));
+  locations->SetOut(Location::RegisterLocation(RAX));
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  if (codegen_->EmitNonBakerReadBarrier()) {
+    return;
+  }
+
+  CreateUnsafeGetAndUpdateLocations(allocator_, invoke, codegen_);
+  invoke->GetLocations()->AddRegisterTemps(3);
+}
+
+enum class GetAndUpdateOp {
+  kSet,
+  kAdd,
+  kBitwiseAnd,
+  kBitwiseOr,
+  kBitwiseXor
+};
+
+static void GenUnsafeGetAndUpdate(HInvoke* invoke,
+                                  DataType::Type type,
+                                  CodeGeneratorX86_64* codegen,
+                                  GetAndUpdateOp get_and_update_op) {
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();       // Result.
+  CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();    // Object pointer.
+  CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();  // Long offset.
+  DCHECK_EQ(out, locations->InAt(3).AsRegister<CpuRegister>());       // New value or addend.
+  Address field_address(base, offset, TIMES_1, 0);
+
+  if (type == DataType::Type::kInt32) {
+    if (get_and_update_op == GetAndUpdateOp::kAdd) {
+      __ LockXaddl(field_address, out);
+    } else {
+      DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+      __ xchgl(out, field_address);
+    }
+  } else if (type == DataType::Type::kInt64) {
+    if (get_and_update_op == GetAndUpdateOp::kAdd) {
+      __ LockXaddq(field_address, out);
+    } else {
+      DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+      __ xchgq(out, field_address);
+    }
+  } else {
+    DCHECK_EQ(type, DataType::Type::kReference);
+    DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+    CpuRegister temp1 = locations->GetTemp(0).AsRegister<CpuRegister>();
+    CpuRegister temp2 = locations->GetTemp(1).AsRegister<CpuRegister>();
+    CpuRegister temp3 = locations->GetTemp(2).AsRegister<CpuRegister>();
+
+    if (codegen->EmitReadBarrier()) {
+      DCHECK(kUseBakerReadBarrier);
+      // Ensure that the field contains a to-space reference.
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke,
+          Location::RegisterLocation(temp3.AsRegister()),
+          base,
+          field_address,
+          /*needs_null_check=*/ false,
+          /*always_update_field=*/ true,
+          &temp1,
+          &temp2);
+    }
+
+    // Mark card for object as a new value shall be stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    codegen->MarkGCCard(temp1, temp2, base, /*value=*/ out, new_value_can_be_null);
+
+    if (kPoisonHeapReferences) {
+      // Use a temp to avoid poisoning base of the field address, which might happen if `out`
+      // is the same as `base` (for code like `unsafe.getAndSet(obj, offset, obj)`).
+      __ movl(temp1, out);
+      __ PoisonHeapReference(temp1);
+      __ xchgl(temp1, field_address);
+      __ UnpoisonHeapReference(temp1);
+      __ movl(out, temp1);
+    } else {
+      __ xchgl(out, field_address);
+    }
+  }
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kReference, codegen_, GetAndUpdateOp::kSet);
+}
+
 void IntrinsicLocationsBuilderX86_64::VisitIntegerReverse(HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
@@ -3387,14 +3569,6 @@ void IntrinsicCodeGeneratorX86_64::VisitMathMultiplyHigh(HInvoke* invoke) {
 
   __ imulq(y);
 }
-
-enum class GetAndUpdateOp {
-  kSet,
-  kAdd,
-  kBitwiseAnd,
-  kBitwiseOr,
-  kBitwiseXor
-};
 
 class VarHandleSlowPathX86_64 : public IntrinsicSlowPathX86_64 {
  public:
