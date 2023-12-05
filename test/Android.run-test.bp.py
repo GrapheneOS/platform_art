@@ -37,7 +37,10 @@ def main():
           java_genrule {{
               name: "{name}-tmp",
               out: ["{name}.zip"],
-              srcs: ["?{shard}-*/**/*", "??{shard}-*/**/*"],
+              srcs: [
+                  "?{shard}-*/**/*",
+                  "??{shard}-*/**/*",
+              ],
               defaults: ["art-run-test-{mode}-data-defaults"],
           }}
 
@@ -60,18 +63,21 @@ def main():
         java_genrule {{
             name: "{name}-tmp",
             out: ["{name}.zip"],
-            srcs: ["???-*hiddenapi*/**/*", "????-*hiddenapi*/**/*"],
+            srcs: [
+                "???-*hiddenapi*/**/*",
+                "????-*hiddenapi*/**/*",
+            ],
             defaults: ["art-run-test-{mode}-data-defaults"],
             tools: ["hiddenapi"],
             cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
-                 "--bootclasspath $(location :art-run-test-bootclasspath) " +
-                 "--d8 $(location d8) " +
-                 "--hiddenapi $(location hiddenapi) " +
-                 "--jasmin $(location jasmin) " +
-                 "--smali $(location smali) " +
-                 "--soong_zip $(location soong_zip) " +
-                 "--zipalign $(location zipalign) " +
-                 "$(in)",
+                "--bootclasspath $(location :art-run-test-bootclasspath) " +
+                "--d8 $(location d8) " +
+                "--hiddenapi $(location hiddenapi) " +
+                "--jasmin $(location jasmin) " +
+                "--smali $(location android-smali) " +
+                "--soong_zip $(location soong_zip) " +
+                "--zipalign $(location zipalign) " +
+                "$(in)",
         }}
 
         // Install in the output directory to make it accessible for tests.
@@ -99,18 +105,18 @@ def main():
             tools: [
                 "d8",
                 "jasmin",
-                "smali",
+                "android-smali",
                 "soong_zip",
                 "zipalign",
             ],
             cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
-                 "--bootclasspath $(location :art-run-test-bootclasspath) " +
-                 "--d8 $(location d8) " +
-                 "--jasmin $(location jasmin) " +
-                 "--smali $(location smali) " +
-                 "--soong_zip $(location soong_zip) " +
-                 "--zipalign $(location zipalign) " +
-                 "$(in)",
+                "--bootclasspath $(location :art-run-test-bootclasspath) " +
+                "--d8 $(location d8) " +
+                "--jasmin $(location jasmin) " +
+                "--smali $(location android-smali) " +
+                "--soong_zip $(location soong_zip) " +
+                "--zipalign $(location zipalign) " +
+                "$(in)",
         }}
         """).format(mode=mode))
 
@@ -149,7 +155,11 @@ def main():
         // Phony target used to build all shards
         java_genrule {{
             name: "{name}-tmp",
-            defaults: ["art-run-test-data-defaults"],
+            defaults: [
+                // Enable only in source builds, where com.android.art.testing is
+                // available.
+                "art_module_source_build_genrule_defaults",
+            ],
             out: ["{name}.txt"],
             srcs: [
                 {srcs}
