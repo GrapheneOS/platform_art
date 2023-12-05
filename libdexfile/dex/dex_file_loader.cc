@@ -256,12 +256,12 @@ DexFileLoader::DexFileLoader(std::vector<uint8_t>&& memory, const std::string& l
 DexFileLoader::DexFileLoader(MemMap&& mem_map, const std::string& location)
     : DexFileLoader(std::make_shared<MemMapContainer>(std::move(mem_map)), location) {}
 
-std::unique_ptr<const DexFile> DexFileLoader::Open(size_t header_offset,
-                                                   uint32_t location_checksum,
-                                                   const OatDexFile* oat_dex_file,
-                                                   bool verify,
-                                                   bool verify_checksum,
-                                                   std::string* error_msg) {
+std::unique_ptr<const DexFile> DexFileLoader::OpenOne(size_t header_offset,
+                                                      uint32_t location_checksum,
+                                                      const OatDexFile* oat_dex_file,
+                                                      bool verify,
+                                                      bool verify_checksum,
+                                                      std::string* error_msg) {
   DEXFILE_SCOPED_TRACE(std::string("Open dex file ") + location_);
 
   uint32_t magic;
