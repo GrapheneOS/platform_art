@@ -187,19 +187,23 @@ class DexFileLoader {
 
   virtual ~DexFileLoader() {}
 
-  std::unique_ptr<const DexFile> Open(size_t header_offset,
-                                      uint32_t location_checksum,
-                                      const OatDexFile* oat_dex_file,
-                                      bool verify,
-                                      bool verify_checksum,
-                                      std::string* error_msg);
+  // Open singe dex file at the given offset within the container (usually 0).
+  // This intentionally ignores all other dex files in the container
+  std::unique_ptr<const DexFile> OpenOne(size_t header_offset,
+                                         uint32_t location_checksum,
+                                         const OatDexFile* oat_dex_file,
+                                         bool verify,
+                                         bool verify_checksum,
+                                         std::string* error_msg);
 
+  // Open single dex file (starting at offset 0 of the container).
+  // It expects only single dex file to be present and will fail otherwise.
   std::unique_ptr<const DexFile> Open(uint32_t location_checksum,
                                       const OatDexFile* oat_dex_file,
                                       bool verify,
                                       bool verify_checksum,
                                       std::string* error_msg) {
-    std::unique_ptr<const DexFile> dex_file = Open(
+    std::unique_ptr<const DexFile> dex_file = OpenOne(
         /*header_offset=*/0, location_checksum, oat_dex_file, verify, verify_checksum, error_msg);
     // This API returns only singe DEX file, so check there is just single dex in the container.
     CHECK(dex_file == nullptr || dex_file->IsDexContainerLastEntry()) << location_;
