@@ -467,12 +467,12 @@ bool OatWriter::AddRawDexFileSource(std::shared_ptr<DexFileContainer> container,
   ArtDexFileLoader loader(container->Begin(), container->Size(), location);
   CHECK_GE(dex_file_begin, container->Begin());
   CHECK_LE(dex_file_begin, container->End());
-  auto dex_file = loader.Open(dex_file_begin - container->Begin(),
-                              location_checksum,
-                              nullptr,
-                              /*verify=*/false,
-                              /*verify_checksum=*/false,
-                              &error_msg);
+  auto dex_file = loader.OpenOne(dex_file_begin - container->Begin(),
+                                 location_checksum,
+                                 nullptr,
+                                 /*verify=*/false,
+                                 /*verify_checksum=*/false,
+                                 &error_msg);
   if (dex_file == nullptr) {
     LOG(ERROR) << "Failed to open dex file '" << location << "': " << error_msg;
     return false;
@@ -3435,12 +3435,12 @@ bool OatWriter::OpenDexFiles(
     std::string error_msg;
     ArtDexFileLoader dex_file_loader(dex_container, oat_dex_file.GetLocation());
     // All dex files have been already verified in WriteDexFiles before we copied them.
-    dex_files.emplace_back(dex_file_loader.Open(oat_dex_file.dex_file_offset_,
-                                                oat_dex_file.dex_file_location_checksum_,
-                                                /*oat_dex_file=*/nullptr,
-                                                /*verify=*/false,
-                                                /*verify_checksum=*/false,
-                                                &error_msg));
+    dex_files.emplace_back(dex_file_loader.OpenOne(oat_dex_file.dex_file_offset_,
+                                                   oat_dex_file.dex_file_location_checksum_,
+                                                   /*oat_dex_file=*/nullptr,
+                                                   /*verify=*/false,
+                                                   /*verify_checksum=*/false,
+                                                   &error_msg));
     if (dex_files.back() == nullptr) {
       LOG(ERROR) << "Failed to open dex file from oat file. File: " << oat_dex_file.GetLocation()
                  << " Error: " << error_msg;
