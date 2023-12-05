@@ -147,13 +147,13 @@ public class Test989 {
     public void methodEntry(Object m) {
       if (System.getProperty("java.vm.name").equals("Dalvik") &&
           testMethods.contains(m)) {
-        System.gc();
+        Runtime.getRuntime().gc();
       }
     }
     public void methodExited(Object m, boolean exception, Object result) {
       if (System.getProperty("java.vm.name").equals("Dalvik") &&
           testMethods.contains(m)) {
-        System.gc();
+        Runtime.getRuntime().gc();
       }
     }
   }
