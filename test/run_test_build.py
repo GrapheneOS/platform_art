@@ -49,6 +49,8 @@ USE_RBE = 100  # Percentage of tests that can use RBE (between 0 and 100)
 
 lock_file = None  # Keep alive as long as this process is alive.
 
+RBE_COMPARE = False  # Debugging: Check that RBE and local output are identical.
+
 RBE_D8_DISABLED_FOR = {
   "952-invoke-custom",        # b/228312861: RBE uses wrong inputs.
   "979-const-method-handle",  # b/228312861: RBE uses wrong inputs.
@@ -173,10 +175,11 @@ class BuildTestContext:
           inputs.update(arg)
       input_list.writelines([relpath(i, self.rbe_exec_root)+"\n" for i in inputs])
       input_list.flush()
+      dbg_args = ["-compare", "-num_local_reruns=1", "-num_remote_reruns=1"] if RBE_COMPARE else []
       return self.run(self.rbe_rewrapper, [
         "--platform=" + os.environ["RBE_platform"],
         "--input_list_paths=" + input_list.name,
-      ] + args)
+      ] + dbg_args + args)
 
   def rbe_javac(self, javac_path:Path, args):
     output = relpath(Path(args[args.index("-d") + 1]), self.rbe_exec_root)
