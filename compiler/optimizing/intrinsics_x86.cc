@@ -2468,6 +2468,238 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafeCompareAndSetReference(HInvoke* in
   GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
 
+// Note: Unlike other architectures that use corresponding enums for the `VarHandle`
+// implementation, x86 is currently using it only for `Unsafe`.
+enum class GetAndUpdateOp {
+  kSet,
+  kAdd,
+};
+
+void CreateUnsafeGetAndUpdateLocations(ArenaAllocator* allocator,
+                                       HInvoke* invoke,
+                                       CodeGeneratorX86* codegen,
+                                       DataType::Type type,
+                                       GetAndUpdateOp get_and_unsafe_op) {
+  const bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetAndSetReference(invoke);
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke,
+                                      can_call
+                                          ? LocationSummary::kCallOnSlowPath
+                                          : LocationSummary::kNoCall,
+                                      kIntrinsified);
+  if (can_call && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
+  }
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  if (type == DataType::Type::kInt64) {
+    // Explicitly allocate all registers.
+    locations->SetInAt(1, Location::RegisterLocation(EBP));
+    if (get_and_unsafe_op == GetAndUpdateOp::kAdd) {
+      locations->AddTemp(Location::RegisterLocation(EBP));  // We shall clobber EBP.
+      locations->SetInAt(2, Location::Any());  // Offset shall be on the stack.
+      locations->SetInAt(3, Location::RegisterPairLocation(ESI, EDI));
+      locations->AddTemp(Location::RegisterLocation(EBX));
+      locations->AddTemp(Location::RegisterLocation(ECX));
+    } else {
+      locations->SetInAt(2, Location::RegisterPairLocation(ESI, EDI));
+      locations->SetInAt(3, Location::RegisterPairLocation(EBX, ECX));
+    }
+    locations->SetOut(Location::RegisterPairLocation(EAX, EDX), Location::kOutputOverlap);
+  } else {
+    locations->SetInAt(1, Location::RequiresRegister());
+    locations->SetInAt(2, Location::RequiresRegister());
+    // Use the same register for both the output and the new value or addend
+    // to take advantage of XCHG or XADD. Arbitrarily pick EAX.
+    locations->SetInAt(3, Location::RegisterLocation(EAX));
+    locations->SetOut(Location::RegisterLocation(EAX));
+  }
+}
+
+void IntrinsicLocationsBuilderX86::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicLocationsBuilderX86::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicLocationsBuilderX86::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicLocationsBuilderX86::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicLocationsBuilderX86::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt32, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  CreateUnsafeGetAndUpdateLocations(
+      allocator_, invoke, codegen_, DataType::Type::kInt64, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicLocationsBuilderX86::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  if (codegen_->EmitNonBakerReadBarrier()) {
+    return;
+  }
+
+  CreateUnsafeGetAndUpdateLocations(
+      allocator_, invoke, codegen_, DataType::Type::kReference, GetAndUpdateOp::kSet);
+  LocationSummary* locations = invoke->GetLocations();
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RegisterLocation(ECX));  // Byte register for `MarkGCCard()`.
+}
+
+static void GenUnsafeGetAndUpdate(HInvoke* invoke,
+                                  DataType::Type type,
+                                  CodeGeneratorX86* codegen,
+                                  GetAndUpdateOp get_and_update_op) {
+  X86Assembler* assembler = down_cast<X86Assembler*>(codegen->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+
+  Location out = locations->Out();                            // Result.
+  Register base = locations->InAt(1).AsRegister<Register>();  // Object pointer.
+  Location offset = locations->InAt(2);                       // Long offset.
+  Location arg = locations->InAt(3);                          // New value or addend.
+
+  if (type == DataType::Type::kInt32) {
+    DCHECK(out.Equals(arg));
+    Register out_reg = out.AsRegister<Register>();
+    Address field_address(base, offset.AsRegisterPairLow<Register>(), TIMES_1, 0);
+    if (get_and_update_op == GetAndUpdateOp::kAdd) {
+      __ LockXaddl(field_address, out_reg);
+    } else {
+      DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+      __ xchgl(out_reg, field_address);
+    }
+  } else if (type == DataType::Type::kInt64) {
+    // Prepare the field address. Ignore the high 32 bits of the `offset`.
+    Address field_address_low(kNoRegister, 0), field_address_high(kNoRegister, 0);
+    if (get_and_update_op == GetAndUpdateOp::kAdd) {
+      DCHECK(offset.IsDoubleStackSlot());
+      __ addl(base, Address(ESP, offset.GetStackIndex()));  // Clobbers `base`.
+      DCHECK(Location::RegisterLocation(base).Equals(locations->GetTemp(0)));
+      field_address_low = Address(base, 0);
+      field_address_high = Address(base, 4);
+    } else {
+      field_address_low = Address(base, offset.AsRegisterPairLow<Register>(), TIMES_1, 0);
+      field_address_high = Address(base, offset.AsRegisterPairLow<Register>(), TIMES_1, 4);
+    }
+    // Load the old value to EDX:EAX and use LOCK CMPXCHG8B to set the new value.
+    NearLabel loop;
+    __ Bind(&loop);
+    __ movl(EAX, field_address_low);
+    __ movl(EDX, field_address_high);
+    if (get_and_update_op == GetAndUpdateOp::kAdd) {
+      DCHECK(Location::RegisterPairLocation(ESI, EDI).Equals(arg));
+      __ movl(EBX, EAX);
+      __ movl(ECX, EDX);
+      __ addl(EBX, ESI);
+      __ adcl(ECX, EDI);
+    } else {
+      DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+      DCHECK(Location::RegisterPairLocation(EBX, ECX).Equals(arg));
+    }
+    __ LockCmpxchg8b(field_address_low);
+    __ j(kNotEqual, &loop);  // Repeat on failure.
+  } else {
+    DCHECK_EQ(type, DataType::Type::kReference);
+    DCHECK(get_and_update_op == GetAndUpdateOp::kSet);
+    Register out_reg = out.AsRegister<Register>();
+    Address field_address(base, offset.AsRegisterPairLow<Register>(), TIMES_1, 0);
+    Register temp1 = locations->GetTemp(0).AsRegister<Register>();
+    Register temp2 = locations->GetTemp(1).AsRegister<Register>();
+
+    if (codegen->EmitReadBarrier()) {
+      DCHECK(kUseBakerReadBarrier);
+      // Ensure that the field contains a to-space reference.
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke,
+          Location::RegisterLocation(temp2),
+          base,
+          field_address,
+          /*needs_null_check=*/ false,
+          /*always_update_field=*/ true,
+          &temp1);
+    }
+
+    // Mark card for object as a new value shall be stored.
+    bool new_value_can_be_null = true;  // TODO: Worth finding out this information?
+    DCHECK_EQ(temp2, ECX);  // Byte register for `MarkGCCard()`.
+    codegen->MarkGCCard(temp1, temp2, base, /*value=*/ out_reg, new_value_can_be_null);
+
+    if (kPoisonHeapReferences) {
+      // Use a temp to avoid poisoning base of the field address, which might happen if `out`
+      // is the same as `base` (for code like `unsafe.getAndSet(obj, offset, obj)`).
+      __ movl(temp1, out_reg);
+      __ PoisonHeapReference(temp1);
+      __ xchgl(temp1, field_address);
+      __ UnpoisonHeapReference(temp1);
+      __ movl(out_reg, temp1);
+    } else {
+      __ xchgl(out_reg, field_address);
+    }
+  }
+}
+
+void IntrinsicCodeGeneratorX86::VisitUnsafeGetAndAddInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddInt(invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitUnsafeGetAndAddLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndAddLong(invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitUnsafeGetAndSetInt(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetInt(invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitUnsafeGetAndSetLong(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetLong(invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitUnsafeGetAndSetObject(HInvoke* invoke) {
+  VisitJdkUnsafeGetAndSetReference(invoke);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGetAndAddInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGetAndAddLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kAdd);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGetAndSetInt(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt32, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGetAndSetLong(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kInt64, codegen_, GetAndUpdateOp::kSet);
+}
+
+void IntrinsicCodeGeneratorX86::VisitJdkUnsafeGetAndSetReference(HInvoke* invoke) {
+  GenUnsafeGetAndUpdate(invoke, DataType::Type::kReference, codegen_, GetAndUpdateOp::kSet);
+}
+
 void IntrinsicLocationsBuilderX86::VisitIntegerReverse(HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
