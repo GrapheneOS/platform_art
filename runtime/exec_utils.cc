@@ -21,9 +21,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <ctime>
-#include <string_view>
-
 #ifdef __BIONIC__
 #include <sys/pidfd.h>
 #endif
@@ -32,8 +29,12 @@
 #include <climits>
 #include <condition_variable>
 #include <cstdint>
+#include <cstring>
+#include <ctime>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -232,6 +233,11 @@ bool ParseProcStat(const std::string& stat_content,
       !ParseInt(stat_fields[21 - kSkippedFields], &starttime)) {
     return false;
   }
+  if (starttime == 0) {
+    // The start time is the time the process started after system boot, so it's not supposed to be
+    // zero unless the process is `init`.
+    return false;
+  }
   stat->cpu_time_ms = (utime + stime + cutime + cstime) * 1000 / ticks_per_sec;
   stat->wall_time_ms = uptime_ms - starttime * 1000 / ticks_per_sec;
   return true;
@@ -338,9 +344,12 @@ std::string ExecUtils::GetProcStat(pid_t pid) const {
   return stat_content;
 }
 
-int64_t ExecUtils::GetUptimeMs() const {
+std::optional<int64_t> ExecUtils::GetUptimeMs(std::string* error_msg) const {
   timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
+  if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) {
+    *error_msg = ART_FORMAT("Failed to get uptime: {}", strerror(errno));
+    return std::nullopt;
+  }
   return t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
@@ -349,14 +358,17 @@ int64_t ExecUtils::GetTicksPerSec() const { return sysconf(_SC_CLK_TCK); }
 bool ExecUtils::GetStat(pid_t pid,
                         /*out*/ ProcessStat* stat,
                         /*out*/ std::string* error_msg) const {
-  int64_t uptime_ms = GetUptimeMs();
+  std::optional<int64_t> uptime_ms = GetUptimeMs(error_msg);
+  if (!uptime_ms.has_value()) {
+    return false;
+  }
   std::string stat_content = GetProcStat(pid);
   if (stat_content.empty()) {
     *error_msg = StringPrintf("Failed to read /proc/%d/stat: %s", pid, strerror(errno));
     return false;
   }
   int64_t ticks_per_sec = GetTicksPerSec();
-  if (!ParseProcStat(stat_content, uptime_ms, ticks_per_sec, stat)) {
+  if (!ParseProcStat(stat_content, *uptime_ms, ticks_per_sec, stat)) {
     *error_msg = StringPrintf("Failed to parse /proc/%d/stat '%s'", pid, stat_content.c_str());
     return false;
   }

@@ -22,9 +22,11 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <tuple>
 
 #include "android-base/logging.h"
+#include "android-base/result.h"
 #include "android-base/stringprintf.h"
 #include "base/file_utils.h"
 #include "base/memory_tool.h"
@@ -34,6 +36,7 @@
 
 namespace art {
 
+using ::android::base::Result;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Gt;
@@ -68,8 +71,19 @@ std::tuple<int, int> GetKernelVersion() {
 class TestingExecUtils : public ExecUtils {
  public:
   MOCK_METHOD(std::string, GetProcStat, (pid_t pid), (const, override));
-  MOCK_METHOD(int64_t, GetUptimeMs, (), (const, override));
+  MOCK_METHOD(Result<int64_t>, DoGetUptimeMs, (), (const));
   MOCK_METHOD(int64_t, GetTicksPerSec, (), (const, override));
+
+  // A workaround to avoid MOCK_METHOD on a method with an `std::string*` parameter, which will lead
+  // to a conflict between gmock and android-base/logging.h (b/132668253).
+  std::optional<int64_t> GetUptimeMs(std::string* error_msg) const override {
+    Result<int64_t> result = DoGetUptimeMs();
+    if (result.ok()) {
+      return *result;
+    }
+    *error_msg = result.error().message();
+    return std::nullopt;
+  }
 };
 
 class AlwaysFallbackExecUtils : public TestingExecUtils {
@@ -204,7 +218,7 @@ TEST_P(ExecUtilsTest, ExecStat) {
       .WillOnce(Return(
           "14963 (a) b) Z 6067 14963 1 0 -1 4228108 105 0 0 0 94 5 0 0 39 19 1 0 162034388 0 0 "
           "18446744073709551615 0 0 0 0 0 0 20999 0 0 1 0 0 17 71 0 0 0 0 0 0 0 0 0 0 0 0 9"));
-  EXPECT_CALL(*exec_utils_, GetUptimeMs()).WillOnce(Return(1620344887ll));
+  EXPECT_CALL(*exec_utils_, DoGetUptimeMs()).WillOnce(Return(1620344887ll));
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
   ASSERT_EQ(
@@ -218,6 +232,53 @@ TEST_P(ExecUtilsTest, ExecStat) {
   EXPECT_EQ(stat.wall_time_ms, 1007);
 }
 
+TEST_P(ExecUtilsTest, ExecStatNoStartTime) {
+  std::vector<std::string> command;
+  command.push_back(GetBin("id"));
+
+  std::string error_msg;
+  ProcessStat stat;
+
+  // The process filename is "a) b".
+  EXPECT_CALL(*exec_utils_, GetProcStat(_))
+      .WillOnce(Return(
+          "14963 (a) b) Z 6067 14963 1 0 -1 4228108 105 0 0 0 94 5 0 0 39 19 1 0 0 0 0 "
+          "18446744073709551615 0 0 0 0 0 0 20999 0 0 1 0 0 17 71 0 0 0 0 0 0 0 0 0 0 0 0 9"));
+  EXPECT_CALL(*exec_utils_, DoGetUptimeMs()).WillOnce(Return(1620344887ll));
+  EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
+
+  ASSERT_EQ(
+      exec_utils_
+          ->ExecAndReturnResult(command, /*timeout_sec=*/-1, ExecCallbacks(), &stat, &error_msg)
+          .status,
+      ExecResult::kExited)
+      << error_msg;
+
+  EXPECT_EQ(stat.cpu_time_ms, 0);
+  EXPECT_EQ(stat.wall_time_ms, 0);
+}
+
+TEST_P(ExecUtilsTest, ExecStatNoUptime) {
+  std::vector<std::string> command;
+  command.push_back(GetBin("id"));
+
+  std::string error_msg;
+  ProcessStat stat;
+
+  EXPECT_CALL(*exec_utils_, DoGetUptimeMs())
+      .WillOnce(Return(Result<int64_t>(Errorf("Failed to get uptime"))));
+
+  ASSERT_EQ(
+      exec_utils_
+          ->ExecAndReturnResult(command, /*timeout_sec=*/-1, ExecCallbacks(), &stat, &error_msg)
+          .status,
+      ExecResult::kExited)
+      << error_msg;
+
+  EXPECT_EQ(stat.cpu_time_ms, 0);
+  EXPECT_EQ(stat.wall_time_ms, 0);
+}
+
 TEST_P(ExecUtilsTest, ExecStatFailed) {
   std::vector<std::string> command = SleepCommand(5);
 
@@ -228,7 +289,7 @@ TEST_P(ExecUtilsTest, ExecStatFailed) {
       .WillOnce(Return(
           "14963 (a) b) Z 6067 14963 1 0 -1 4228108 105 0 0 0 94 5 0 0 39 19 1 0 162034388 0 0 "
           "18446744073709551615 0 0 0 0 0 0 20999 0 0 1 0 0 17 71 0 0 0 0 0 0 0 0 0 0 0 0 9"));
-  EXPECT_CALL(*exec_utils_, GetUptimeMs()).WillOnce(Return(1620344887ll));
+  EXPECT_CALL(*exec_utils_, DoGetUptimeMs()).WillOnce(Return(1620344887ll));
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
   // This will always time out.
