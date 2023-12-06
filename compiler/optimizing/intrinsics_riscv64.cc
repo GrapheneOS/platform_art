@@ -659,6 +659,137 @@ void IntrinsicCodeGeneratorRISCV64::HandleValueOf(HInvoke* invoke,
   }
 }
 
+void IntrinsicLocationsBuilderRISCV64::VisitReferenceGetReferent(HInvoke* invoke) {
+  IntrinsicVisitor::CreateReferenceGetReferentLocations(invoke, codegen_);
+
+  if (codegen_->EmitBakerReadBarrier() && invoke->GetLocations() != nullptr) {
+    invoke->GetLocations()->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitReferenceGetReferent(HInvoke* invoke) {
+  Riscv64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  Location obj = locations->InAt(0);
+  Location out = locations->Out();
+
+  SlowPathCodeRISCV64* slow_path =
+      new (codegen_->GetScopedAllocator()) IntrinsicSlowPathRISCV64(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  if (codegen_->EmitReadBarrier()) {
+    // Check self->GetWeakRefAccessEnabled().
+    ScratchRegisterScope srs(assembler);
+    XRegister temp = srs.AllocateXRegister();
+    __ Loadwu(temp, TR, Thread::WeakRefAccessEnabledOffset<kRiscv64PointerSize>().Int32Value());
+    static_assert(enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled) == 0);
+    __ Bnez(temp, slow_path->GetEntryLabel());
+  }
+
+  {
+    // Load the java.lang.ref.Reference class.
+    ScratchRegisterScope srs(assembler);
+    XRegister temp = srs.AllocateXRegister();
+    codegen_->LoadIntrinsicDeclaringClass(temp, invoke);
+
+    // Check static fields java.lang.ref.Reference.{disableIntrinsic,slowPathEnabled} together.
+    MemberOffset disable_intrinsic_offset = IntrinsicVisitor::GetReferenceDisableIntrinsicOffset();
+    DCHECK_ALIGNED(disable_intrinsic_offset.Uint32Value(), 2u);
+    DCHECK_EQ(disable_intrinsic_offset.Uint32Value() + 1u,
+              IntrinsicVisitor::GetReferenceSlowPathEnabledOffset().Uint32Value());
+    __ Loadhu(temp, temp, disable_intrinsic_offset.Int32Value());
+    __ Bnez(temp, slow_path->GetEntryLabel());
+  }
+
+  // Load the value from the field.
+  uint32_t referent_offset = mirror::Reference::ReferentOffset().Uint32Value();
+  if (codegen_->EmitBakerReadBarrier()) {
+    codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                    out,
+                                                    obj.AsRegister<XRegister>(),
+                                                    referent_offset,
+                                                    /*maybe_temp=*/ locations->GetTemp(0),
+                                                    /*needs_null_check=*/ false);
+  } else {
+    codegen_->GetInstructionVisitor()->Load(
+        out, obj.AsRegister<XRegister>(), referent_offset, DataType::Type::kReference);
+    codegen_->MaybeGenerateReadBarrierSlow(invoke, out, out, obj, referent_offset);
+  }
+  // Emit memory barrier for load-acquire.
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitReferenceRefersTo(HInvoke* invoke) {
+  IntrinsicVisitor::CreateReferenceRefersToLocations(invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitReferenceRefersTo(HInvoke* invoke) {
+  Riscv64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister obj = locations->InAt(0).AsRegister<XRegister>();
+  XRegister other = locations->InAt(1).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+
+  uint32_t referent_offset = mirror::Reference::ReferentOffset().Uint32Value();
+  uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
+
+  codegen_->GetInstructionVisitor()->Load(
+      Location::RegisterLocation(out), obj, referent_offset, DataType::Type::kReference);
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  codegen_->MaybeUnpoisonHeapReference(out);
+
+  // Emit memory barrier for load-acquire.
+  codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+
+  if (codegen_->EmitReadBarrier()) {
+    DCHECK(kUseBakerReadBarrier);
+
+    Riscv64Label calculate_result;
+
+    // If equal to `other`, the loaded reference is final (it cannot be a from-space reference).
+    __ Beq(out, other, &calculate_result);
+
+    // If the GC is not marking, the loaded reference is final.
+    ScratchRegisterScope srs(assembler);
+    XRegister tmp = srs.AllocateXRegister();
+    __ Loadwu(tmp, TR, Thread::IsGcMarkingOffset<kRiscv64PointerSize>().Int32Value());
+    __ Beqz(tmp, &calculate_result);
+
+    // Check if the loaded reference is null.
+    __ Beqz(out, &calculate_result);
+
+    // For correct memory visibility, we need a barrier before loading the lock word to
+    // synchronize with the publishing of `other` by the CC GC. However, as long as the
+    // load-acquire above is implemented as a plain load followed by a barrier (rather
+    // than an atomic load-acquire instruction which synchronizes only with other
+    // instructions on the same memory location), that barrier is sufficient.
+
+    // Load the lockword and check if it is a forwarding address.
+    static_assert(LockWord::kStateShift == 30u);
+    static_assert(LockWord::kStateForwardingAddress == 3u);
+    // Load the lock word sign-extended. Comparing it to the sign-extended forwarding
+    // address bits as unsigned is the same as comparing both zero-extended.
+    __ Loadw(tmp, out, monitor_offset);
+    // Materialize sign-extended forwarding address bits. This is a single LUI instruction.
+    XRegister tmp2 = srs.AllocateXRegister();
+    __ Li(tmp2, INT64_C(-1) & ~static_cast<int64_t>((1 << LockWord::kStateShift) - 1));
+    // If we do not have a forwarding address, the loaded reference cannot be the same as `other`,
+    // so we proceed to calculate the result with `out != other`.
+    __ Bltu(tmp, tmp2, &calculate_result);
+
+    // Extract the forwarding address for comparison with `other`.
+    // Note that the high 32 bits shall not be used for the result calculation.
+    __ Slliw(out, tmp, LockWord::kForwardingAddressShift);
+
+    __ Bind(&calculate_result);
+  }
+
+  // Calculate the result `out == other`.
+  __ Subw(out, out, other);
+  __ Seqz(out, out);
+}
+
 static void GenerateVisitStringIndexOf(HInvoke* invoke,
                                        Riscv64Assembler* assembler,
                                        CodeGeneratorRISCV64* codegen,
