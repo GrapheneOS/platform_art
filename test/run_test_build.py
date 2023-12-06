@@ -166,6 +166,8 @@ class BuildTestContext:
   def rbe_wrap(self, args, inputs: Set[pathlib.Path]=None):
     with NamedTemporaryFile(mode="w+t") as input_list:
       inputs = inputs or set()
+      for i in inputs:
+        assert i.exists(), i
       for i, arg in enumerate(args):
         if isinstance(arg, pathlib.Path):
           assert arg.absolute(), arg
@@ -216,7 +218,7 @@ class BuildTestContext:
     inputs = set([
       wrapper,
       self.smali_path,
-      self.smali_path.parent.parent / "framework/smali.jar",
+      self.smali_path.parent.parent / "framework/android-smali.jar",
       self.d8_path,
       self.d8_path.parent.parent / "framework/d8.jar",
     ])
