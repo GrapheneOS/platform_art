@@ -329,6 +329,67 @@ static void GenerateReverseBytes(CodeGeneratorRISCV64* codegen,
   GenerateReverseBytes(codegen, locations->Out(), locations->InAt(0).AsRegister<XRegister>(), type);
 }
 
+static void GenerateReverse(CodeGeneratorRISCV64* codegen, HInvoke* invoke, DataType::Type type) {
+  DCHECK_EQ(type, invoke->GetType());
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+  XRegister in = locations->InAt(0).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+  ScratchRegisterScope srs(assembler);
+  XRegister temp1 = srs.AllocateXRegister();
+  XRegister temp2 = srs.AllocateXRegister();
+
+  auto maybe_extend_mask = [type, assembler](XRegister mask, XRegister temp) {
+    if (type == DataType::Type::kInt64) {
+      __ Slli(temp, mask, 32);
+      __ Add(mask, mask, temp);
+    }
+  };
+
+  // Swap bits in bit pairs.
+  __ Li(temp1, 0x55555555);
+  maybe_extend_mask(temp1, temp2);
+  __ Srli(temp2, in, 1);
+  __ And(out, in, temp1);
+  __ And(temp2, temp2, temp1);
+  __ Sh1Add(out, out, temp2);
+
+  // Swap bit pairs in 4-bit groups.
+  __ Li(temp1, 0x33333333);
+  maybe_extend_mask(temp1, temp2);
+  __ Srli(temp2, out, 2);
+  __ And(out, out, temp1);
+  __ And(temp2, temp2, temp1);
+  __ Sh2Add(out, out, temp2);
+
+  // Swap 4-bit groups in 8-bit groups.
+  __ Li(temp1, 0x0f0f0f0f);
+  maybe_extend_mask(temp1, temp2);
+  __ Srli(temp2, out, 4);
+  __ And(out, out, temp1);
+  __ And(temp2, temp2, temp1);
+  __ Slli(out, out, 4);
+  __ Add(out, out, temp2);
+
+  GenerateReverseBytes(codegen, Location::RegisterLocation(out), out, type);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitIntegerReverse(HInvoke* invoke) {
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitIntegerReverse(HInvoke* invoke) {
+  GenerateReverse(codegen_, invoke, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitLongReverse(HInvoke* invoke) {
+  CreateIntToIntNoOverlapLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitLongReverse(HInvoke* invoke) {
+  GenerateReverse(codegen_, invoke, DataType::Type::kInt64);
+}
+
 void IntrinsicLocationsBuilderRISCV64::VisitIntegerReverseBytes(HInvoke* invoke) {
   CreateIntToIntNoOverlapLocations(allocator_, invoke);
 }
@@ -473,6 +534,47 @@ void IntrinsicLocationsBuilderRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* i
 void IntrinsicCodeGeneratorRISCV64::VisitLongNumberOfTrailingZeros(HInvoke* invoke) {
   Riscv64Assembler* assembler = GetAssembler();
   EmitIntegralUnOp(invoke, [&](XRegister rd, XRegister rs1) { __ Ctz(rd, rs1); });
+}
+
+static void GenerateDivideUnsigned(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
+  LocationSummary* locations = invoke->GetLocations();
+  Riscv64Assembler* assembler = codegen->GetAssembler();
+  DataType::Type type = invoke->GetType();
+  DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64);
+
+  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
+  XRegister divisor = locations->InAt(1).AsRegister<XRegister>();
+  XRegister out = locations->Out().AsRegister<XRegister>();
+
+  // Check if divisor is zero, bail to managed implementation to handle.
+  SlowPathCodeRISCV64* slow_path =
+      new (codegen->GetScopedAllocator()) IntrinsicSlowPathRISCV64(invoke);
+  codegen->AddSlowPath(slow_path);
+  __ Beqz(divisor, slow_path->GetEntryLabel());
+
+  if (type == DataType::Type::kInt32) {
+    __ Divuw(out, dividend, divisor);
+  } else {
+    __ Divu(out, dividend, divisor);
+  }
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_);
 }
 
 #define VISIT_INTRINSIC(name, low, high, type, start_index) \
@@ -3526,47 +3628,6 @@ void IntrinsicLocationsBuilderRISCV64::VisitReachabilityFence(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitReachabilityFence([[maybe_unused]] HInvoke* invoke) {}
-
-static void GenerateDivideUnsigned(HInvoke* invoke, CodeGeneratorRISCV64* codegen) {
-  LocationSummary* locations = invoke->GetLocations();
-  Riscv64Assembler* assembler = codegen->GetAssembler();
-  DataType::Type type = invoke->GetType();
-  DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64);
-
-  XRegister dividend = locations->InAt(0).AsRegister<XRegister>();
-  XRegister divisor = locations->InAt(1).AsRegister<XRegister>();
-  XRegister out = locations->Out().AsRegister<XRegister>();
-
-  // Check if divisor is zero, bail to managed implementation to handle.
-  SlowPathCodeRISCV64* slow_path =
-      new (codegen->GetScopedAllocator()) IntrinsicSlowPathRISCV64(invoke);
-  codegen->AddSlowPath(slow_path);
-  __ Beqz(divisor, slow_path->GetEntryLabel());
-
-  if (type == DataType::Type::kInt32) {
-    __ Divuw(out, dividend, divisor);
-  } else {
-    __ Divu(out, dividend, divisor);
-  }
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
-void IntrinsicLocationsBuilderRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
-  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
-}
-
-void IntrinsicCodeGeneratorRISCV64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
-  GenerateDivideUnsigned(invoke, codegen_);
-}
-
-void IntrinsicLocationsBuilderRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
-  CreateIntIntToIntSlowPathCallLocations(allocator_, invoke);
-}
-
-void IntrinsicCodeGeneratorRISCV64::VisitLongDivideUnsigned(HInvoke* invoke) {
-  GenerateDivideUnsigned(invoke, codegen_);
-}
 
 void IntrinsicLocationsBuilderRISCV64::VisitMathFmaDouble(HInvoke* invoke) {
   CreateFpFpFpToFpNoOverlapLocations(allocator_, invoke);
