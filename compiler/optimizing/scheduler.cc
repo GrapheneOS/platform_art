@@ -108,7 +108,6 @@ static bool IsArrayAccess(const HInstruction* instruction) {
 static bool IsInstanceFieldAccess(const HInstruction* instruction) {
   return instruction->IsInstanceFieldGet() ||
          instruction->IsInstanceFieldSet() ||
-         instruction->IsPredicatedInstanceFieldGet() ||
          instruction->IsUnresolvedInstanceFieldGet() ||
          instruction->IsUnresolvedInstanceFieldSet();
 }
@@ -123,7 +122,6 @@ static bool IsStaticFieldAccess(const HInstruction* instruction) {
 static bool IsResolvedFieldAccess(const HInstruction* instruction) {
   return instruction->IsInstanceFieldGet() ||
          instruction->IsInstanceFieldSet() ||
-         instruction->IsPredicatedInstanceFieldGet() ||
          instruction->IsStaticFieldGet() ||
          instruction->IsStaticFieldSet();
 }
@@ -149,9 +147,7 @@ size_t SideEffectDependencyAnalysis::MemoryDependencyAnalysis::FieldAccessHeapLo
   DCHECK(GetFieldInfo(instr) != nullptr);
   DCHECK(heap_location_collector_ != nullptr);
 
-  HInstruction* ref = instr->IsPredicatedInstanceFieldGet()
-      ? instr->AsPredicatedInstanceFieldGet()->GetTarget()
-      : instr->InputAt(0);
+  HInstruction* ref = instr->InputAt(0);
   size_t heap_loc = heap_location_collector_->GetFieldHeapLocation(ref, GetFieldInfo(instr));
   // This field access should be analyzed and added to HeapLocationCollector before.
   DCHECK(heap_loc != HeapLocationCollector::kHeapLocationNotFound);
@@ -554,7 +550,7 @@ void HScheduler::Schedule(HGraph* graph) {
   // should run the analysis or not.
   const HeapLocationCollector* heap_location_collector = nullptr;
   ScopedArenaAllocator allocator(graph->GetArenaStack());
-  LoadStoreAnalysis lsa(graph, /*stats=*/nullptr, &allocator, LoadStoreAnalysisType::kBasic);
+  LoadStoreAnalysis lsa(graph, /*stats=*/nullptr, &allocator);
   if (!only_optimize_loop_blocks_ || graph->HasLoops()) {
     lsa.Run();
     heap_location_collector = &lsa.GetHeapLocationCollector();
@@ -734,8 +730,6 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
          instruction->IsCurrentMethod() ||
          instruction->IsDivZeroCheck() ||
          (instruction->IsInstanceFieldGet() && !instruction->AsInstanceFieldGet()->IsVolatile()) ||
-         (instruction->IsPredicatedInstanceFieldGet() &&
-          !instruction->AsPredicatedInstanceFieldGet()->IsVolatile()) ||
          (instruction->IsInstanceFieldSet() && !instruction->AsInstanceFieldSet()->IsVolatile()) ||
          instruction->IsInstanceOf() ||
          instruction->IsInvokeInterface() ||
