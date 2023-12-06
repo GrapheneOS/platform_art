@@ -606,7 +606,9 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
     HInvoke* invoke = instruction_->AsInvoke();
-    DCHECK(IsUnsafeCASReference(invoke) || IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
+    DCHECK(IsUnsafeCASReference(invoke) ||
+           IsUnsafeGetAndSetReference(invoke) ||
+           IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
 
     __ Bind(GetEntryLabel());
     if (unpoison_ref_before_marking_) {
