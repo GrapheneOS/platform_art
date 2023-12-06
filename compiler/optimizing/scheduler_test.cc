@@ -274,8 +274,7 @@ class SchedulerTest : public CommonCompilerTest, public OptimizingUnitTestHelper
       entry->AddInstruction(instr);
     }
 
-    HeapLocationCollector heap_location_collector(
-        graph_, GetScopedAllocator(), LoadStoreAnalysisType::kBasic);
+    HeapLocationCollector heap_location_collector(graph_, GetScopedAllocator());
     heap_location_collector.VisitBasicBlock(entry);
     heap_location_collector.BuildAliasingMatrix();
     TestSchedulingGraph scheduling_graph(GetScopedAllocator(), &heap_location_collector);
