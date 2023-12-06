@@ -608,7 +608,6 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(out_.reg()));
     DCHECK(instruction_->IsInstanceFieldGet() ||
-           instruction_->IsPredicatedInstanceFieldGet() ||
            instruction_->IsStaticFieldGet() ||
            instruction_->IsArrayGet() ||
            instruction_->IsInstanceOf() ||
@@ -2169,11 +2168,7 @@ void LocationsBuilderARM64::HandleBinaryOp(HBinaryOperation* instr) {
 
 void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction,
                                            const FieldInfo& field_info) {
-  DCHECK(instruction->IsInstanceFieldGet() ||
-         instruction->IsStaticFieldGet() ||
-         instruction->IsPredicatedInstanceFieldGet());
-
-  bool is_predicated = instruction->IsPredicatedInstanceFieldGet();
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
 
   bool object_field_get_with_read_barrier =
       (instruction->GetType() == DataType::Type::kReference) && codegen_->EmitReadBarrier();
@@ -2193,37 +2188,24 @@ void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction,
     }
   }
   // Input for object receiver.
-  locations->SetInAt(is_predicated ? 1 : 0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
   if (DataType::IsFloatingPointType(instruction->GetType())) {
-    if (is_predicated) {
-      locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetOut(Location::SameAsFirstInput());
-    } else {
-      locations->SetOut(Location::RequiresFpuRegister());
-    }
+    locations->SetOut(Location::RequiresFpuRegister());
   } else {
-    if (is_predicated) {
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetOut(Location::SameAsFirstInput());
-    } else {
-      // The output overlaps for an object field get when read barriers
-      // are enabled: we do not want the load to overwrite the object's
-      // location, as we need it to emit the read barrier.
-      locations->SetOut(Location::RequiresRegister(),
-                        object_field_get_with_read_barrier ? Location::kOutputOverlap
-                                                           : Location::kNoOutputOverlap);
-    }
+    // The output overlaps for an object field get when read barriers
+    // are enabled: we do not want the load to overwrite the object's
+    // location, as we need it to emit the read barrier.
+    locations->SetOut(
+        Location::RequiresRegister(),
+        object_field_get_with_read_barrier ? Location::kOutputOverlap : Location::kNoOutputOverlap);
   }
 }
 
 void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
                                                    const FieldInfo& field_info) {
-  DCHECK(instruction->IsInstanceFieldGet() ||
-         instruction->IsStaticFieldGet() ||
-         instruction->IsPredicatedInstanceFieldGet());
-  bool is_predicated = instruction->IsPredicatedInstanceFieldGet();
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t receiver_input = is_predicated ? 1 : 0;
+  uint32_t receiver_input = 0;
   Location base_loc = locations->InAt(receiver_input);
   Location out = locations->Out();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
@@ -2293,20 +2275,12 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
                                                    bool value_can_be_null,
                                                    WriteBarrierKind write_barrier_kind) {
   DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
-  bool is_predicated =
-      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
 
   Register obj = InputRegisterAt(instruction, 0);
   CPURegister value = InputCPURegisterOrZeroRegAt(instruction, 1);
   CPURegister source = value;
   Offset offset = field_info.GetFieldOffset();
   DataType::Type field_type = field_info.GetFieldType();
-  std::optional<vixl::aarch64::Label> pred_is_null;
-  if (is_predicated) {
-    pred_is_null.emplace();
-    __ Cbz(obj, &*pred_is_null);
-  }
-
   {
     // We use a block to end the scratch scope before the write barrier, thus
     // freeing the temporary registers so they can be used in `MarkGCCard`.
@@ -2337,10 +2311,6 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
         obj,
         Register(value),
         value_can_be_null && write_barrier_kind == WriteBarrierKind::kEmitWithNullCheck);
-  }
-
-  if (is_predicated) {
-    __ Bind(&*pred_is_null);
   }
 }
 
@@ -4031,21 +4001,8 @@ void CodeGeneratorARM64::GenerateNop() {
   __ Nop();
 }
 
-void LocationsBuilderARM64::VisitPredicatedInstanceFieldGet(
-    HPredicatedInstanceFieldGet* instruction) {
-  HandleFieldGet(instruction, instruction->GetFieldInfo());
-}
-
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   HandleFieldGet(instruction, instruction->GetFieldInfo());
-}
-
-void InstructionCodeGeneratorARM64::VisitPredicatedInstanceFieldGet(
-    HPredicatedInstanceFieldGet* instruction) {
-  vixl::aarch64::Label finish;
-  __ Cbz(InputRegisterAt(instruction, 1), &finish);
-  HandleFieldGet(instruction, instruction->GetFieldInfo());
-  __ Bind(&finish);
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {

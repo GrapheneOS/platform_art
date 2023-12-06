@@ -33,13 +33,11 @@
 #include "base/scoped_arena_containers.h"
 #include "base/transform_iterator.h"
 #include "escape.h"
-#include "execution_subgraph.h"
 #include "handle.h"
 #include "load_store_analysis.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
-#include "optimizing/execution_subgraph.h"
 #include "optimizing_compiler_stats.h"
 #include "reference_type_propagation.h"
 #include "side_effects_analysis.h"
@@ -94,9 +92,7 @@
  *    to maintain the validity of all heap locations during the optimization
  *    phase, we only record substitutes at this phase and the real elimination
  *    is delayed till the end of LSE. Loads that require a loop Phi placeholder
- *    replacement are recorded for processing later. We also keep track of the
- *    heap-value at the start load so that later partial-LSE can predicate the
- *    load.
+ *    replacement are recorded for processing later.
  *  - If the instruction is a store, it updates the heap value for the heap
  *    location with the stored value and records the store itself so that we can
  *    mark it for keeping if the value becomes observable. Heap values are
@@ -240,79 +236,6 @@
  * The time complexity of this phase is
  *    O(instructions + instruction_uses) .
  *
- * 5. Partial LSE
- *
- * Move allocations closer to their escapes and remove/predicate loads and
- * stores as required.
- *
- * Partial singletons are objects which only escape from the function or have
- * multiple names along certain execution paths. In cases where we recognize
- * these partial singletons we can move the allocation and initialization
- * closer to the actual escape(s). We can then perform a simplified version of
- * LSE step 2 to determine the unescaped value of any reads performed after the
- * object may have escaped. These are used to replace these reads with
- * 'predicated-read' instructions where the value is only read if the object
- * has actually escaped. We use the existence of the object itself as the
- * marker of whether escape has occurred.
- *
- * There are several steps in this sub-pass
- *
- * 5.1 Group references
- *
- * Since all heap-locations for a single reference escape at the same time, we
- * need to group the heap-locations by reference and process them at the same
- * time.
- *
- *    O(heap_locations).
- *
- * FIXME: The time complexity above assumes we can bucket the heap-locations in
- * O(1) which is not true since we just perform a linear-scan of the heap-ref
- * list. Since there are generally only a small number of heap-references which
- * are partial-singletons this is fine and lower real overhead than a hash map.
- *
- * 5.2 Generate materializations
- *
- * Once we have the references we add new 'materialization blocks' on the edges
- * where escape becomes inevitable. This information is calculated by the
- * execution-subgraphs created during load-store-analysis. We create new
- * 'materialization's in these blocks and initialize them with the value of
- * each heap-location ignoring side effects (since the object hasn't escaped
- * yet). Worst case this is the same time-complexity as step 3 since we may
- * need to materialize phis.
- *
- *    O(heap_locations^2 * materialization_edges)
- *
- * 5.3 Propagate materializations
- *
- * Since we use the materialization as the marker for escape we need to
- * propagate it throughout the graph. Since the subgraph analysis considers any
- * lifetime that escapes a loop (and hence would require a loop-phi) to be
- * escaping at the loop-header we do not need to create any loop-phis to do
- * this.
- *
- *    O(edges)
- *
- * NB: Currently the subgraph analysis considers all objects to have their
- * lifetimes start at the entry block. This simplifies that analysis enormously
- * but means that we cannot distinguish between an escape in a loop where the
- * lifetime does not escape the loop (in which case this pass could optimize)
- * and one where it does escape the loop (in which case the whole loop is
- * escaping). This is a shortcoming that would be good to fix at some point.
- *
- * 5.4 Propagate partial values
- *
- * We need to replace loads and stores to the partial reference with predicated
- * ones that have default non-escaping values. Again this is the same as step 3.
- *
- *   O(heap_locations^2 * edges)
- *
- * 5.5 Final fixup
- *
- * Now all we need to do is replace and remove uses of the old reference with the
- * appropriate materialization.
- *
- *   O(instructions + uses)
- *
  * FIXME: The time complexities described above assumes that the
  * HeapLocationCollector finds a heap location for an instruction in O(1)
  * time but it is currently O(heap_locations); this can be fixed by adding
@@ -324,7 +247,6 @@ namespace art HIDDEN {
 #define LSE_VLOG \
   if (::art::LoadStoreElimination::kVerboseLoggingMode && VLOG_IS_ON(compiler)) LOG(INFO)
 
-class PartialLoadStoreEliminationHelper;
 class HeapRefHolder;
 
 // Use HGraphDelegateVisitor for which all VisitInvokeXXX() delegate to VisitInvoke().
@@ -332,7 +254,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
  public:
   LSEVisitor(HGraph* graph,
              const HeapLocationCollector& heap_location_collector,
-             bool perform_partial_lse,
              OptimizingCompilerStats* stats);
 
   void Run();
@@ -615,27 +536,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     return PhiPlaceholderIndex(phi_placeholder.GetPhiPlaceholder());
   }
 
-  bool IsEscapingObject(ReferenceInfo* info, HBasicBlock* block, size_t index) {
-    return !info->IsSingletonAndRemovable() &&
-           !(info->IsPartialSingleton() && IsPartialNoEscape(block, index));
-  }
-
-  bool IsPartialNoEscape(HBasicBlock* blk, size_t idx) {
-    auto* ri = heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo();
-    if (!ri->IsPartialSingleton()) {
-      return false;
-    }
-    ArrayRef<const ExecutionSubgraph::ExcludedCohort> cohorts =
-        ri->GetNoEscapeSubgraph()->GetExcludedCohorts();
-    return std::none_of(cohorts.cbegin(),
-                        cohorts.cend(),
-                        [&](const ExecutionSubgraph::ExcludedCohort& ex) -> bool {
-                          // Make sure we haven't yet and never will escape.
-                          return ex.PrecedesBlock(blk) ||
-                                 ex.ContainsBlock(blk) ||
-                                 ex.SucceedsBlock(blk);
-                        });
-  }
+  bool IsEscapingObject(ReferenceInfo* info) { return !info->IsSingletonAndRemovable(); }
 
   PhiPlaceholder GetPhiPlaceholderAt(size_t off) const {
     DCHECK_LT(off, num_phi_placeholders_);
@@ -652,9 +553,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   Value Replacement(Value value) const {
-    DCHECK(value.NeedsPhi() ||
-           (current_phase_ == Phase::kPartialElimination && value.IsMergedUnknown()))
-        << value << " phase: " << current_phase_;
+    DCHECK(value.NeedsPhi()) << value << " phase: " << current_phase_;
     Value replacement = phi_placeholder_replacements_[PhiPlaceholderIndex(value)];
     DCHECK(replacement.IsUnknown() || replacement.IsInstruction());
     DCHECK(replacement.IsUnknown() ||
@@ -663,35 +562,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   Value ReplacementOrValue(Value value) const {
-    if (current_phase_ == Phase::kPartialElimination) {
-      // In this phase we are materializing the default values which are used
-      // only if the partial singleton did not escape, so we can replace
-      // a partial unknown with the prior value.
-      if (value.IsPartialUnknown()) {
-        value = value.GetPriorValue().ToValue();
-      }
-      if ((value.IsMergedUnknown() || value.NeedsPhi()) &&
-          phi_placeholder_replacements_[PhiPlaceholderIndex(value)].IsValid()) {
-        value = phi_placeholder_replacements_[PhiPlaceholderIndex(value)];
-        DCHECK(!value.IsMergedUnknown());
-        DCHECK(!value.NeedsPhi());
-      } else if (value.IsMergedUnknown()) {
-        return Value::ForLoopPhiPlaceholder(value.GetPhiPlaceholder());
-      }
-      if (value.IsInstruction() && value.GetInstruction()->IsInstanceFieldGet()) {
-        DCHECK_LT(static_cast<size_t>(value.GetInstruction()->GetId()),
-                  substitute_instructions_for_loads_.size());
-        HInstruction* substitute =
-            substitute_instructions_for_loads_[value.GetInstruction()->GetId()];
-        if (substitute != nullptr) {
-          DCHECK(substitute->IsPredicatedInstanceFieldGet());
-          return Value::ForInstruction(substitute);
-        }
-      }
-      DCHECK_IMPLIES(value.IsInstruction(),
-                     FindSubstitute(value.GetInstruction()) == value.GetInstruction());
-      return value;
-    }
     if (value.NeedsPhi() && phi_placeholder_replacements_[PhiPlaceholderIndex(value)].IsValid()) {
       return Replacement(value);
     } else {
@@ -752,8 +622,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   HInstruction* FindSubstitute(HInstruction* instruction) const {
     size_t id = static_cast<size_t>(instruction->GetId());
     if (id >= substitute_instructions_for_loads_.size()) {
-      // New Phi (may not be in the graph yet), default value or PredicatedInstanceFieldGet.
-      DCHECK_IMPLIES(IsLoad(instruction), instruction->IsPredicatedInstanceFieldGet());
+      // New Phi (may not be in the graph yet), or default value.
+      DCHECK(!IsLoad(instruction));
       return instruction;
     }
     HInstruction* substitute = substitute_instructions_for_loads_[id];
@@ -789,7 +659,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   static bool IsLoad(HInstruction* instruction) {
     // Unresolved load is not treated as a load.
     return instruction->IsInstanceFieldGet() ||
-           instruction->IsPredicatedInstanceFieldGet() ||
            instruction->IsStaticFieldGet() ||
            instruction->IsVecLoad() ||
            instruction->IsArrayGet();
@@ -818,12 +687,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     if (value.IsPureUnknown() || value.IsPartialUnknown()) {
       return;
     }
-    if (value.IsMergedUnknown()) {
-      kept_merged_unknowns_.SetBit(PhiPlaceholderIndex(value));
-      phi_placeholders_to_search_for_kept_stores_.SetBit(PhiPlaceholderIndex(value));
-      return;
-    }
-    if (value.NeedsPhi()) {
+    if (value.IsMergedUnknown() || value.NeedsPhi()) {
       phi_placeholders_to_search_for_kept_stores_.SetBit(PhiPlaceholderIndex(value));
     } else {
       HInstruction* instruction = value.GetInstruction();
@@ -843,9 +707,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
         // We use this function when reading a location with unknown value and
         // therefore we cannot know what exact store wrote that unknown value.
         // But we can have a phi placeholder here marking multiple stores to keep.
-        DCHECK(
-            !heap_values[i].stored_by.IsInstruction() ||
-            heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo()->IsPartialSingleton());
+        DCHECK(!heap_values[i].stored_by.IsInstruction());
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
       } else if (heap_location_collector_.MayAlias(i, loc_index)) {
@@ -925,7 +787,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   enum class Phase {
     kLoadElimination,
     kStoreElimination,
-    kPartialElimination,
   };
 
   bool MayAliasOnBackEdge(HBasicBlock* loop_header, size_t idx1, size_t idx2) const;
@@ -958,21 +819,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   void FindOldValueForPhiPlaceholder(PhiPlaceholder phi_placeholder, DataType::Type type);
   void FindStoresWritingOldValues();
   void FinishFullLSE();
-  void PrepareForPartialPhiComputation();
-  // Create materialization block and materialization object for the given predecessor of entry.
-  HInstruction* SetupPartialMaterialization(PartialLoadStoreEliminationHelper& helper,
-                                            HeapRefHolder&& holder,
-                                            size_t pred_idx,
-                                            HBasicBlock* blk);
-  // Returns the value that would be read by the 'read' instruction on
-  // 'orig_new_inst' if 'orig_new_inst' has not escaped.
-  HInstruction* GetPartialValueAt(HNewInstance* orig_new_inst, HInstruction* read);
-  void MovePartialEscapes();
-
-  void VisitPredicatedInstanceFieldGet(HPredicatedInstanceFieldGet* instruction) override {
-    LOG(FATAL) << "Visited instruction " << instruction->DumpWithoutArgs()
-               << " but LSE should be the only source of predicated-ifield-gets!";
-  }
 
   void HandleAcquireLoad(HInstruction* instruction) {
     DCHECK((instruction->IsInstanceFieldGet() && instruction->AsInstanceFieldGet()->IsVolatile()) ||
@@ -1109,7 +955,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
         // Finalizable objects always escape.
         const bool finalizable_object =
             reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable();
-        if (!finalizable_object && !IsEscapingObject(info, block, i)) {
+        if (!finalizable_object && !IsEscapingObject(info)) {
           // Check whether the reference for a store is used by an environment local of
           // the HDeoptimize. If not, the singleton is not observed after deoptimization.
           const HUseList<HEnvironment*>& env_uses = reference->GetEnvUses();
@@ -1133,7 +979,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
     for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
       ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo();
-      if (must_keep_stores || IsEscapingObject(ref_info, block, i)) {
+      if (must_keep_stores || IsEscapingObject(ref_info)) {
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
       }
@@ -1216,30 +1062,9 @@ class LSEVisitor final : private HGraphDelegateVisitor {
         heap_values_for_[instruction->GetBlock()->GetBlockId()];
     for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
       ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo();
-      HBasicBlock* blk = instruction->GetBlock();
       // We don't need to do anything if the reference has not escaped at this point.
-      // This is true if either we (1) never escape or (2) sometimes escape but
-      // there is no possible execution where we have done so at this time. NB
-      // We count being in the excluded cohort as escaping. Technically, this is
-      // a bit over-conservative (since we can have multiple non-escaping calls
-      // before a single escaping one) but this simplifies everything greatly.
-      auto partial_singleton_did_not_escape = [](ReferenceInfo* ref_info, HBasicBlock* blk) {
-        DCHECK(ref_info->IsPartialSingleton());
-        if (!ref_info->GetNoEscapeSubgraph()->ContainsBlock(blk)) {
-          return false;
-        }
-        ArrayRef<const ExecutionSubgraph::ExcludedCohort> cohorts =
-            ref_info->GetNoEscapeSubgraph()->GetExcludedCohorts();
-        return std::none_of(cohorts.begin(),
-                            cohorts.end(),
-                            [&](const ExecutionSubgraph::ExcludedCohort& cohort) {
-                              return cohort.PrecedesBlock(blk);
-                            });
-      };
-      if (!can_throw_inside_a_try &&
-          (ref_info->IsSingleton() ||
-           // partial and we aren't currently escaping and we haven't escaped yet.
-           (ref_info->IsPartialSingleton() && partial_singleton_did_not_escape(ref_info, blk)))) {
+      // This is true if we never escape.
+      if (!can_throw_inside_a_try && ref_info->IsSingleton()) {
         // Singleton references cannot be seen by the callee.
       } else {
         if (can_throw || side_effects.DoesAnyRead() || side_effects.DoesAnyWrite()) {
@@ -1315,7 +1140,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
           heap_values[i].value = Value::ForInstruction(new_instance->GetLoadClass());
           heap_values[i].stored_by = Value::PureUnknown();
         }
-      } else if (inside_a_try || IsEscapingObject(info, block, i)) {
+      } else if (inside_a_try || IsEscapingObject(info)) {
         // Since NewInstance can throw, we presume all previous stores could be visible.
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
@@ -1350,7 +1175,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
         // Array elements are set to default heap values.
         heap_values[i].value = Value::Default();
         heap_values[i].stored_by = Value::PureUnknown();
-      } else if (inside_a_try || IsEscapingObject(info, block, i)) {
+      } else if (inside_a_try || IsEscapingObject(info)) {
         // Since NewArray can throw, we presume all previous stores could be visible.
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
@@ -1362,14 +1187,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     // Throwing instructions must be handled specially.
     DCHECK(!instruction->CanThrow());
   }
-
-  bool ShouldPerformPartialLSE() const {
-    return perform_partial_lse_ &&
-           !GetGraph()->IsCompilingOsr() &&
-           !GetGraph()->HasIrreducibleLoops();
-  }
-
-  bool perform_partial_lse_;
 
   const HeapLocationCollector& heap_location_collector_;
 
@@ -1427,10 +1244,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   // The invalid heap value is used to mark Phi placeholders that cannot be replaced.
   ScopedArenaVector<Value> phi_placeholder_replacements_;
 
-  // Merged-unknowns that must have their predecessor values kept to ensure
-  // partially escaped values are written
-  ArenaBitVector kept_merged_unknowns_;
-
   ScopedArenaVector<HInstruction*> singleton_new_instances_;
 
   // The field infos for each heap location (if relevant).
@@ -1438,7 +1251,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
 
   Phase current_phase_;
 
-  friend class PartialLoadStoreEliminationHelper;
   friend struct ScopedRestoreHeapValues;
 
   friend std::ostream& operator<<(std::ostream& os, const Value& v);
@@ -1459,8 +1271,6 @@ std::ostream& operator<<(std::ostream& oss, const LSEVisitor::Phase& phase) {
       return oss << "kLoadElimination";
     case LSEVisitor::Phase::kStoreElimination:
       return oss << "kStoreElimination";
-    case LSEVisitor::Phase::kPartialElimination:
-      return oss << "kPartialElimination";
   }
 }
 
@@ -1584,10 +1394,8 @@ std::ostream& operator<<(std::ostream& os, const LSEVisitor::Value& v) {
 
 LSEVisitor::LSEVisitor(HGraph* graph,
                        const HeapLocationCollector& heap_location_collector,
-                       bool perform_partial_lse,
                        OptimizingCompilerStats* stats)
     : HGraphDelegateVisitor(graph, stats),
-      perform_partial_lse_(perform_partial_lse),
       heap_location_collector_(heap_location_collector),
       allocator_(graph->GetArenaStack()),
       num_phi_placeholders_(GetGraph()->GetBlocks().size() *
@@ -1617,10 +1425,6 @@ LSEVisitor::LSEVisitor(HGraph* graph,
       phi_placeholder_replacements_(num_phi_placeholders_,
                                     Value::Invalid(),
                                     allocator_.Adapter(kArenaAllocLSE)),
-      kept_merged_unknowns_(&allocator_,
-                            /*start_bits=*/num_phi_placeholders_,
-                            /*expandable=*/false,
-                            kArenaAllocLSE),
       singleton_new_instances_(allocator_.Adapter(kArenaAllocLSE)),
       field_infos_(heap_location_collector_.GetNumberOfHeapLocations(),
                    allocator_.Adapter(kArenaAllocLSE)),
@@ -1860,8 +1664,7 @@ void LSEVisitor::MaterializeNonLoopPhis(PhiPlaceholder phi_placeholder, DataType
       Value pred_value = ReplacementOrValue(heap_values_for_[predecessor->GetBlockId()][idx].value);
       DCHECK(!pred_value.IsPureUnknown()) << pred_value << " block " << current_block->GetBlockId()
                                           << " pred: " << predecessor->GetBlockId();
-      if (pred_value.NeedsNonLoopPhi() ||
-          (current_phase_ == Phase::kPartialElimination && pred_value.IsMergedUnknown())) {
+      if (pred_value.NeedsNonLoopPhi()) {
         // We need to process the Phi placeholder first.
         work_queue.push_back(pred_value.GetPhiPlaceholder());
       } else if (pred_value.IsDefault()) {
@@ -1892,12 +1695,6 @@ void LSEVisitor::VisitGetLocation(HInstruction* instruction, size_t idx) {
     RecordFieldInfo(&instruction->GetFieldInfo(), idx);
   }
   DCHECK(record.value.IsUnknown() || record.value.Equals(ReplacementOrValue(record.value)));
-  // If we are unknown, we either come from somewhere untracked or we can reconstruct the partial
-  // value.
-  DCHECK(!record.value.IsPureUnknown() ||
-         heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo() == nullptr ||
-         !heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo()->IsPartialSingleton())
-         << "In " << GetGraph()->PrettyMethod() << ": " << record.value << " for " << *instruction;
   intermediate_values_.insert({instruction, record.value});
   loads_and_stores_.push_back({ instruction, idx });
   if ((record.value.IsDefault() || record.value.NeedsNonLoopPhi()) &&
@@ -2306,9 +2103,7 @@ bool LSEVisitor::MaterializeLoopPhis(ArrayRef<const size_t> phi_placeholder_inde
     for (HBasicBlock* predecessor : block->GetPredecessors()) {
       Value value = ReplacementOrValue(heap_values_for_[predecessor->GetBlockId()][idx].value);
       if (value.NeedsNonLoopPhi()) {
-        DCHECK(current_phase_ == Phase::kLoadElimination ||
-               current_phase_ == Phase::kPartialElimination)
-            << current_phase_;
+        DCHECK(current_phase_ == Phase::kLoadElimination) << current_phase_;
         MaterializeNonLoopPhis(value.GetPhiPlaceholder(), type);
         value = Replacement(value);
       }
@@ -2769,22 +2564,9 @@ void LSEVisitor::SearchPhiPlaceholdersForKeptStores() {
     work_queue.push_back(index);
   }
   const ArenaVector<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
-  std::optional<ArenaBitVector> not_kept_stores;
-  if (stats_) {
-    not_kept_stores.emplace(GetGraph()->GetAllocator(),
-                            kept_stores_.GetBitSizeOf(),
-                            false,
-                            ArenaAllocKind::kArenaAllocLSE);
-  }
   while (!work_queue.empty()) {
     uint32_t cur_phi_idx = work_queue.back();
     PhiPlaceholder phi_placeholder = GetPhiPlaceholderAt(cur_phi_idx);
-    // Only writes to partial-escapes need to be specifically kept.
-    bool is_partial_kept_merged_unknown =
-        kept_merged_unknowns_.IsBitSet(cur_phi_idx) &&
-        heap_location_collector_.GetHeapLocation(phi_placeholder.GetHeapLocation())
-            ->GetReferenceInfo()
-            ->IsPartialSingleton();
     work_queue.pop_back();
     size_t idx = phi_placeholder.GetHeapLocation();
     HBasicBlock* block = blocks[phi_placeholder.GetBlockId()];
@@ -2804,11 +2586,6 @@ void LSEVisitor::SearchPhiPlaceholdersForKeptStores() {
         if (!stored_by.IsUnknown() && (i == idx || MayAliasOnBackEdge(block, idx, i))) {
           if (stored_by.NeedsPhi()) {
             size_t phi_placeholder_index = PhiPlaceholderIndex(stored_by);
-            if (is_partial_kept_merged_unknown) {
-              // Propagate merged-unknown keep since otherwise this might look
-              // like a partial escape we can remove.
-              kept_merged_unknowns_.SetBit(phi_placeholder_index);
-            }
             if (!phi_placeholders_to_search_for_kept_stores_.IsBitSet(phi_placeholder_index)) {
               phi_placeholders_to_search_for_kept_stores_.SetBit(phi_placeholder_index);
               work_queue.push_back(phi_placeholder_index);
@@ -2819,23 +2596,11 @@ void LSEVisitor::SearchPhiPlaceholdersForKeptStores() {
             DCHECK(ri != nullptr) << "No heap value for " << stored_by.GetInstruction()->DebugName()
                                   << " id: " << stored_by.GetInstruction()->GetId() << " block: "
                                   << stored_by.GetInstruction()->GetBlock()->GetBlockId();
-            if (!is_partial_kept_merged_unknown && IsPartialNoEscape(predecessor, idx)) {
-              if (not_kept_stores) {
-                not_kept_stores->SetBit(stored_by.GetInstruction()->GetId());
-              }
-            } else {
-              kept_stores_.SetBit(stored_by.GetInstruction()->GetId());
-            }
+            kept_stores_.SetBit(stored_by.GetInstruction()->GetId());
           }
         }
       }
     }
-  }
-  if (not_kept_stores) {
-    // a - b := (a & ~b)
-    not_kept_stores->Subtract(&kept_stores_);
-    auto num_removed = not_kept_stores->NumSetBits();
-    MaybeRecordStat(stats_, MethodCompilationStat::kPartialStoreRemoved, num_removed);
   }
 }
 
@@ -3026,932 +2791,8 @@ void LSEVisitor::Run() {
 
   // 4. Replace loads and remove unnecessary stores and singleton allocations.
   FinishFullLSE();
-
-  // 5. Move partial escapes down and fixup with PHIs.
-  current_phase_ = Phase::kPartialElimination;
-  MovePartialEscapes();
 }
 
-// Clear unknown loop-phi results. Here we'll be able to use partial-unknowns so we need to
-// retry all of them with more information about where they come from.
-void LSEVisitor::PrepareForPartialPhiComputation() {
-  std::replace_if(
-      phi_placeholder_replacements_.begin(),
-      phi_placeholder_replacements_.end(),
-      [](const Value& val) { return !val.IsDefault() && !val.IsInstruction(); },
-      Value::Invalid());
-}
-
-class PartialLoadStoreEliminationHelper {
- public:
-  PartialLoadStoreEliminationHelper(LSEVisitor* lse, ScopedArenaAllocator* alloc)
-      : lse_(lse),
-        alloc_(alloc),
-        new_ref_phis_(alloc_->Adapter(kArenaAllocLSE)),
-        heap_refs_(alloc_->Adapter(kArenaAllocLSE)),
-        max_preds_per_block_((*std::max_element(GetGraph()->GetActiveBlocks().begin(),
-                                                GetGraph()->GetActiveBlocks().end(),
-                                                [](HBasicBlock* a, HBasicBlock* b) {
-                                                  return a->GetNumberOfPredecessors() <
-                                                         b->GetNumberOfPredecessors();
-                                                }))
-                                 ->GetNumberOfPredecessors()),
-        materialization_blocks_(GetGraph()->GetBlocks().size() * max_preds_per_block_,
-                                nullptr,
-                                alloc_->Adapter(kArenaAllocLSE)),
-        first_materialization_block_id_(GetGraph()->GetBlocks().size()) {
-    size_t num_partial_singletons = lse_->heap_location_collector_.CountPartialSingletons();
-    heap_refs_.reserve(num_partial_singletons);
-    new_ref_phis_.reserve(num_partial_singletons * GetGraph()->GetBlocks().size());
-    CollectInterestingHeapRefs();
-  }
-
-  ~PartialLoadStoreEliminationHelper() {
-    if (heap_refs_.empty()) {
-      return;
-    }
-    ReferenceTypePropagation rtp_fixup(GetGraph(),
-                                       Handle<mirror::DexCache>(),
-                                       /* is_first_run= */ false);
-    rtp_fixup.Visit(ArrayRef<HInstruction* const>(new_ref_phis_));
-    GetGraph()->ClearReachabilityInformation();
-    GetGraph()->RecomputeDominatorTree();
-    GetGraph()->ComputeReachabilityInformation();
-  }
-
-  class IdxToHeapLoc {
-   public:
-    explicit IdxToHeapLoc(const HeapLocationCollector* hlc) : collector_(hlc) {}
-    HeapLocation* operator()(size_t idx) const {
-      return collector_->GetHeapLocation(idx);
-    }
-
-   private:
-    const HeapLocationCollector* collector_;
-  };
-
-
-  class HeapReferenceData {
-   public:
-    using LocIterator = IterationRange<TransformIterator<BitVector::IndexIterator, IdxToHeapLoc>>;
-    HeapReferenceData(PartialLoadStoreEliminationHelper* helper,
-                      HNewInstance* new_inst,
-                      const ExecutionSubgraph* subgraph,
-                      ScopedArenaAllocator* alloc)
-        : new_instance_(new_inst),
-          helper_(helper),
-          heap_locs_(alloc,
-                     helper->lse_->heap_location_collector_.GetNumberOfHeapLocations(),
-                     /* expandable= */ false,
-                     kArenaAllocLSE),
-          materializations_(
-              // We generally won't need to create too many materialization blocks and we can expand
-              // this as needed so just start off with 2x.
-              2 * helper->lse_->GetGraph()->GetBlocks().size(),
-              nullptr,
-              alloc->Adapter(kArenaAllocLSE)),
-          collector_(helper->lse_->heap_location_collector_),
-          subgraph_(subgraph) {}
-
-    LocIterator IterateLocations() {
-      auto idxs = heap_locs_.Indexes();
-      return MakeTransformRange(idxs, IdxToHeapLoc(&collector_));
-    }
-
-    void AddHeapLocation(size_t idx) {
-      heap_locs_.SetBit(idx);
-    }
-
-    const ExecutionSubgraph* GetNoEscapeSubgraph() const {
-      return subgraph_;
-    }
-
-    bool IsPostEscape(HBasicBlock* blk) {
-      return std::any_of(
-          subgraph_->GetExcludedCohorts().cbegin(),
-          subgraph_->GetExcludedCohorts().cend(),
-          [&](const ExecutionSubgraph::ExcludedCohort& ec) { return ec.PrecedesBlock(blk); });
-    }
-
-    bool InEscapeCohort(HBasicBlock* blk) {
-      return std::any_of(
-          subgraph_->GetExcludedCohorts().cbegin(),
-          subgraph_->GetExcludedCohorts().cend(),
-          [&](const ExecutionSubgraph::ExcludedCohort& ec) { return ec.ContainsBlock(blk); });
-    }
-
-    bool BeforeAllEscapes(HBasicBlock* b) {
-      return std::none_of(subgraph_->GetExcludedCohorts().cbegin(),
-                          subgraph_->GetExcludedCohorts().cend(),
-                          [&](const ExecutionSubgraph::ExcludedCohort& ec) {
-                            return ec.PrecedesBlock(b) || ec.ContainsBlock(b);
-                          });
-    }
-
-    HNewInstance* OriginalNewInstance() const {
-      return new_instance_;
-    }
-
-    // Collect and replace all uses. We need to perform this twice since we will
-    // generate PHIs and additional uses as we create the default-values for
-    // pred-gets. These values might be other references that are also being
-    // partially eliminated. By running just the replacement part again we are
-    // able to avoid having to keep another whole in-progress partial map
-    // around. Since we will have already handled all the other uses in the
-    // first pass the second one will be quite fast.
-    void FixupUses(bool first_pass) {
-      ScopedArenaAllocator saa(GetGraph()->GetArenaStack());
-      // Replace uses with materialized values.
-      ScopedArenaVector<InstructionUse<HInstruction>> to_replace(saa.Adapter(kArenaAllocLSE));
-      ScopedArenaVector<HInstruction*> to_remove(saa.Adapter(kArenaAllocLSE));
-      // Do we need to add a constructor-fence.
-      ScopedArenaVector<InstructionUse<HConstructorFence>> constructor_fences(
-          saa.Adapter(kArenaAllocLSE));
-      ScopedArenaVector<InstructionUse<HInstruction>> to_predicate(saa.Adapter(kArenaAllocLSE));
-
-      CollectReplacements(to_replace, to_remove, constructor_fences, to_predicate);
-
-      if (!first_pass) {
-        // If another partial creates new references they can only be in Phis or pred-get defaults
-        // so they must be in the to_replace group.
-        DCHECK(to_predicate.empty());
-        DCHECK(constructor_fences.empty());
-        DCHECK(to_remove.empty());
-      }
-
-      ReplaceInput(to_replace);
-      RemoveAndReplaceInputs(to_remove);
-      CreateConstructorFences(constructor_fences);
-      PredicateInstructions(to_predicate);
-
-      CHECK(OriginalNewInstance()->GetUses().empty())
-          << OriginalNewInstance()->GetUses() << ", " << OriginalNewInstance()->GetEnvUses();
-    }
-
-    void AddMaterialization(HBasicBlock* blk, HInstruction* ins) {
-      if (blk->GetBlockId() >= materializations_.size()) {
-        // Make sure the materialization array is large enough, try to avoid
-        // re-sizing too many times by giving extra space.
-        materializations_.resize(blk->GetBlockId() * 2, nullptr);
-      }
-      DCHECK(materializations_[blk->GetBlockId()] == nullptr)
-          << "Already have a materialization in block " << blk->GetBlockId() << ": "
-          << *materializations_[blk->GetBlockId()] << " when trying to set materialization to "
-          << *ins;
-      materializations_[blk->GetBlockId()] = ins;
-      LSE_VLOG << "In  block " << blk->GetBlockId() << " materialization is " << *ins;
-      helper_->NotifyNewMaterialization(ins);
-    }
-
-    bool HasMaterialization(HBasicBlock* blk) const {
-      return blk->GetBlockId() < materializations_.size() &&
-             materializations_[blk->GetBlockId()] != nullptr;
-    }
-
-    HInstruction* GetMaterialization(HBasicBlock* blk) const {
-      if (materializations_.size() <= blk->GetBlockId() ||
-          materializations_[blk->GetBlockId()] == nullptr) {
-        // This must be a materialization block added after the partial LSE of
-        // the current reference finished. Since every edge can only have at
-        // most one materialization block added to it we can just check the
-        // blocks predecessor.
-        DCHECK(helper_->IsMaterializationBlock(blk));
-        blk = helper_->FindDominatingNonMaterializationBlock(blk);
-        DCHECK(!helper_->IsMaterializationBlock(blk));
-      }
-      DCHECK_GT(materializations_.size(), blk->GetBlockId());
-      DCHECK(materializations_[blk->GetBlockId()] != nullptr);
-      return materializations_[blk->GetBlockId()];
-    }
-
-    void GenerateMaterializationValueFromPredecessors(HBasicBlock* blk) {
-      DCHECK(std::none_of(GetNoEscapeSubgraph()->GetExcludedCohorts().begin(),
-                          GetNoEscapeSubgraph()->GetExcludedCohorts().end(),
-                          [&](const ExecutionSubgraph::ExcludedCohort& cohort) {
-                            return cohort.IsEntryBlock(blk);
-                          }));
-      DCHECK(!HasMaterialization(blk));
-      if (blk->IsExitBlock()) {
-        return;
-      } else if (blk->IsLoopHeader()) {
-        // See comment in execution_subgraph.h. Currently we act as though every
-        // allocation for partial elimination takes place in the entry block.
-        // This simplifies the analysis by making it so any escape cohort
-        // expands to contain any loops it is a part of. This is something that
-        // we should rectify at some point. In either case however we can still
-        // special case the loop-header since (1) currently the loop can't have
-        // any merges between different cohort entries since the pre-header will
-        // be the earliest place entry can happen and (2) even if the analysis
-        // is improved to consider lifetime of the object WRT loops any values
-        // which would require loop-phis would have to make the whole loop
-        // escape anyway.
-        // This all means we can always use value from the pre-header when the
-        // block is the loop-header and we didn't already create a
-        // materialization block. (NB when we do improve the analysis we will
-        // need to modify the materialization creation code to deal with this
-        // correctly.)
-        HInstruction* pre_header_val =
-            GetMaterialization(blk->GetLoopInformation()->GetPreHeader());
-        AddMaterialization(blk, pre_header_val);
-        return;
-      }
-      ScopedArenaAllocator saa(GetGraph()->GetArenaStack());
-      ScopedArenaVector<HInstruction*> pred_vals(saa.Adapter(kArenaAllocLSE));
-      pred_vals.reserve(blk->GetNumberOfPredecessors());
-      for (HBasicBlock* pred : blk->GetPredecessors()) {
-        DCHECK(HasMaterialization(pred));
-        pred_vals.push_back(GetMaterialization(pred));
-      }
-      GenerateMaterializationValueFromPredecessorsDirect(blk, pred_vals);
-    }
-
-    void GenerateMaterializationValueFromPredecessorsForEntry(
-        HBasicBlock* entry, const ScopedArenaVector<HInstruction*>& pred_vals) {
-      DCHECK(std::any_of(GetNoEscapeSubgraph()->GetExcludedCohorts().begin(),
-                         GetNoEscapeSubgraph()->GetExcludedCohorts().end(),
-                         [&](const ExecutionSubgraph::ExcludedCohort& cohort) {
-                           return cohort.IsEntryBlock(entry);
-                         }));
-      GenerateMaterializationValueFromPredecessorsDirect(entry, pred_vals);
-    }
-
-   private:
-    template <typename InstructionType>
-    struct InstructionUse {
-      InstructionType* instruction_;
-      size_t index_;
-    };
-
-    void ReplaceInput(const ScopedArenaVector<InstructionUse<HInstruction>>& to_replace) {
-      for (auto& [ins, idx] : to_replace) {
-        HInstruction* merged_inst = GetMaterialization(ins->GetBlock());
-        if (ins->IsPhi() && merged_inst->IsPhi() && ins->GetBlock() == merged_inst->GetBlock()) {
-          // Phis we just pass through the appropriate inputs.
-          ins->ReplaceInput(merged_inst->InputAt(idx), idx);
-        } else {
-          ins->ReplaceInput(merged_inst, idx);
-        }
-      }
-    }
-
-    void RemoveAndReplaceInputs(const ScopedArenaVector<HInstruction*>& to_remove) {
-      for (HInstruction* ins : to_remove) {
-        if (ins->GetBlock() == nullptr) {
-          // Already dealt with.
-          continue;
-        }
-        DCHECK(BeforeAllEscapes(ins->GetBlock())) << *ins;
-        if (ins->IsInstanceFieldGet() || ins->IsInstanceFieldSet()) {
-          bool instruction_has_users =
-              ins->IsInstanceFieldGet() && (!ins->GetUses().empty() || !ins->GetEnvUses().empty());
-          if (instruction_has_users) {
-            // Make sure any remaining users of read are replaced.
-            HInstruction* replacement =
-                helper_->lse_->GetPartialValueAt(OriginalNewInstance(), ins);
-            // NB ReplaceInput will remove a use from the list so this is
-            // guaranteed to finish eventually.
-            while (!ins->GetUses().empty()) {
-              const HUseListNode<HInstruction*>& use = ins->GetUses().front();
-              use.GetUser()->ReplaceInput(replacement, use.GetIndex());
-            }
-            while (!ins->GetEnvUses().empty()) {
-              const HUseListNode<HEnvironment*>& use = ins->GetEnvUses().front();
-              use.GetUser()->ReplaceInput(replacement, use.GetIndex());
-            }
-          } else {
-            DCHECK(ins->GetUses().empty())
-                << "Instruction has users!\n"
-                << ins->DumpWithArgs() << "\nUsers are " << ins->GetUses();
-            DCHECK(ins->GetEnvUses().empty())
-                << "Instruction has users!\n"
-                << ins->DumpWithArgs() << "\nUsers are " << ins->GetEnvUses();
-          }
-          ins->GetBlock()->RemoveInstruction(ins);
-        } else {
-          // Can only be obj == other, obj != other, obj == obj (!?) or, obj != obj (!?)
-          // Since PHIs are escapes as far as LSE is concerned and we are before
-          // any escapes these are the only 4 options.
-          DCHECK(ins->IsEqual() || ins->IsNotEqual()) << *ins;
-          HInstruction* replacement;
-          if (UNLIKELY(ins->InputAt(0) == ins->InputAt(1))) {
-            replacement = ins->IsEqual() ? GetGraph()->GetIntConstant(1)
-                                         : GetGraph()->GetIntConstant(0);
-          } else {
-            replacement = ins->IsEqual() ? GetGraph()->GetIntConstant(0)
-                                         : GetGraph()->GetIntConstant(1);
-          }
-          ins->ReplaceWith(replacement);
-          ins->GetBlock()->RemoveInstruction(ins);
-        }
-      }
-    }
-
-    void CreateConstructorFences(
-        const ScopedArenaVector<InstructionUse<HConstructorFence>>& constructor_fences) {
-      if (!constructor_fences.empty()) {
-        uint32_t pc = constructor_fences.front().instruction_->GetDexPc();
-        for (auto& [cf, idx] : constructor_fences) {
-          if (cf->GetInputs().size() == 1) {
-            cf->GetBlock()->RemoveInstruction(cf);
-          } else {
-            cf->RemoveInputAt(idx);
-          }
-        }
-        for (const ExecutionSubgraph::ExcludedCohort& ec :
-            GetNoEscapeSubgraph()->GetExcludedCohorts()) {
-          for (HBasicBlock* blk : ec.EntryBlocks()) {
-            for (HBasicBlock* materializer :
-                Filter(MakeIterationRange(blk->GetPredecessors()),
-                        [&](HBasicBlock* blk) { return helper_->IsMaterializationBlock(blk); })) {
-              HInstruction* new_cf = new (GetGraph()->GetAllocator()) HConstructorFence(
-                  GetMaterialization(materializer), pc, GetGraph()->GetAllocator());
-              materializer->InsertInstructionBefore(new_cf, materializer->GetLastInstruction());
-            }
-          }
-        }
-      }
-    }
-
-    void PredicateInstructions(
-        const ScopedArenaVector<InstructionUse<HInstruction>>& to_predicate) {
-      for (auto& [ins, idx] : to_predicate) {
-        if (UNLIKELY(ins->GetBlock() == nullptr)) {
-          // Already handled due to obj == obj;
-          continue;
-        } else if (ins->IsInstanceFieldGet()) {
-          // IFieldGet[obj] => PredicatedIFieldGet[PartialValue, obj]
-          HInstruction* new_fget = new (GetGraph()->GetAllocator()) HPredicatedInstanceFieldGet(
-              ins->AsInstanceFieldGet(),
-              GetMaterialization(ins->GetBlock()),
-              helper_->lse_->GetPartialValueAt(OriginalNewInstance(), ins));
-          MaybeRecordStat(helper_->lse_->stats_, MethodCompilationStat::kPredicatedLoadAdded);
-          ins->GetBlock()->InsertInstructionBefore(new_fget, ins);
-          if (ins->GetType() == DataType::Type::kReference) {
-            // Reference info is the same
-            new_fget->SetReferenceTypeInfoIfValid(ins->GetReferenceTypeInfo());
-          }
-          // In this phase, substitute instructions are used only for the predicated get
-          // default values which are used only if the partial singleton did not escape,
-          // so the out value of the `new_fget` for the relevant cases is the same as
-          // the default value.
-          // TODO: Use the default value for materializing default values used by
-          // other predicated loads to avoid some unnecessary Phis. (This shall
-          // complicate the search for replacement in `ReplacementOrValue()`.)
-          DCHECK(helper_->lse_->substitute_instructions_for_loads_[ins->GetId()] == nullptr);
-          helper_->lse_->substitute_instructions_for_loads_[ins->GetId()] = new_fget;
-          ins->ReplaceWith(new_fget);
-          ins->ReplaceEnvUsesDominatedBy(ins, new_fget);
-          CHECK(ins->GetEnvUses().empty() && ins->GetUses().empty())
-              << "Instruction: " << *ins << " uses: " << ins->GetUses()
-              << ", env: " << ins->GetEnvUses();
-          ins->GetBlock()->RemoveInstruction(ins);
-        } else if (ins->IsInstanceFieldSet()) {
-          // Any predicated sets shouldn't require movement.
-          ins->AsInstanceFieldSet()->SetIsPredicatedSet();
-          MaybeRecordStat(helper_->lse_->stats_, MethodCompilationStat::kPredicatedStoreAdded);
-          HInstruction* merged_inst = GetMaterialization(ins->GetBlock());
-          ins->ReplaceInput(merged_inst, idx);
-        } else {
-          // comparisons need to be split into 2.
-          DCHECK(ins->IsEqual() || ins->IsNotEqual()) << "bad instruction " << *ins;
-          bool this_is_first = idx == 0;
-          if (ins->InputAt(0) == ins->InputAt(1)) {
-            // This is a obj == obj or obj != obj.
-            // No idea why anyone would do this but whatever.
-            ins->ReplaceWith(GetGraph()->GetIntConstant(ins->IsEqual() ? 1 : 0));
-            ins->GetBlock()->RemoveInstruction(ins);
-            continue;
-          } else {
-            HInstruction* is_escaped = new (GetGraph()->GetAllocator())
-                HNotEqual(GetMaterialization(ins->GetBlock()), GetGraph()->GetNullConstant());
-            HInstruction* combine_inst =
-                ins->IsEqual() ? static_cast<HInstruction*>(new (GetGraph()->GetAllocator()) HAnd(
-                                     DataType::Type::kBool, is_escaped, ins))
-                               : static_cast<HInstruction*>(new (GetGraph()->GetAllocator()) HOr(
-                                     DataType::Type::kBool, is_escaped, ins));
-            ins->ReplaceInput(GetMaterialization(ins->GetBlock()), this_is_first ? 0 : 1);
-            ins->GetBlock()->InsertInstructionBefore(is_escaped, ins);
-            ins->GetBlock()->InsertInstructionAfter(combine_inst, ins);
-            ins->ReplaceWith(combine_inst);
-            combine_inst->ReplaceInput(ins, 1);
-          }
-        }
-      }
-    }
-
-    // Figure out all the instructions we need to
-    // fixup/replace/remove/duplicate. Since this requires an iteration of an
-    // intrusive linked list we want to do it only once and collect all the data
-    // here.
-    void CollectReplacements(
-        ScopedArenaVector<InstructionUse<HInstruction>>& to_replace,
-        ScopedArenaVector<HInstruction*>& to_remove,
-        ScopedArenaVector<InstructionUse<HConstructorFence>>& constructor_fences,
-        ScopedArenaVector<InstructionUse<HInstruction>>& to_predicate) {
-      size_t size = new_instance_->GetUses().SizeSlow();
-      to_replace.reserve(size);
-      to_remove.reserve(size);
-      constructor_fences.reserve(size);
-      to_predicate.reserve(size);
-      for (auto& use : new_instance_->GetUses()) {
-        HBasicBlock* blk =
-            helper_->FindDominatingNonMaterializationBlock(use.GetUser()->GetBlock());
-        if (InEscapeCohort(blk)) {
-          LSE_VLOG << "Replacing " << *new_instance_ << " use in " << *use.GetUser() << " with "
-                   << *GetMaterialization(blk);
-          to_replace.push_back({use.GetUser(), use.GetIndex()});
-        } else if (IsPostEscape(blk)) {
-          LSE_VLOG << "User " << *use.GetUser() << " after escapes!";
-          // The fields + cmp are normal uses. Phi can only be here if it was
-          // generated by full LSE so whatever store+load that created the phi
-          // is the escape.
-          if (use.GetUser()->IsPhi()) {
-            to_replace.push_back({use.GetUser(), use.GetIndex()});
-          } else {
-            DCHECK(use.GetUser()->IsFieldAccess() ||
-                   use.GetUser()->IsEqual() ||
-                   use.GetUser()->IsNotEqual())
-                << *use.GetUser() << "@" << use.GetIndex();
-            to_predicate.push_back({use.GetUser(), use.GetIndex()});
-          }
-        } else if (use.GetUser()->IsConstructorFence()) {
-          LSE_VLOG << "User " << *use.GetUser() << " being moved to materialization!";
-          constructor_fences.push_back({use.GetUser()->AsConstructorFence(), use.GetIndex()});
-        } else {
-          LSE_VLOG << "User " << *use.GetUser() << " not contained in cohort!";
-          to_remove.push_back(use.GetUser());
-        }
-      }
-      DCHECK_EQ(
-          to_replace.size() + to_remove.size() + constructor_fences.size() + to_predicate.size(),
-          size);
-    }
-
-    void GenerateMaterializationValueFromPredecessorsDirect(
-        HBasicBlock* blk, const ScopedArenaVector<HInstruction*>& pred_vals) {
-      DCHECK(!pred_vals.empty());
-      bool all_equal = std::all_of(pred_vals.begin() + 1, pred_vals.end(), [&](HInstruction* val) {
-        return val == pred_vals.front();
-      });
-      if (LIKELY(all_equal)) {
-        AddMaterialization(blk, pred_vals.front());
-      } else {
-        // Make a PHI for the predecessors.
-        HPhi* phi = new (GetGraph()->GetAllocator()) HPhi(
-            GetGraph()->GetAllocator(), kNoRegNumber, pred_vals.size(), DataType::Type::kReference);
-        for (const auto& [ins, off] : ZipCount(MakeIterationRange(pred_vals))) {
-          phi->SetRawInputAt(off, ins);
-        }
-        blk->AddPhi(phi);
-        AddMaterialization(blk, phi);
-      }
-    }
-
-    HGraph* GetGraph() const {
-      return helper_->GetGraph();
-    }
-
-    HNewInstance* new_instance_;
-    PartialLoadStoreEliminationHelper* helper_;
-    ArenaBitVector heap_locs_;
-    ScopedArenaVector<HInstruction*> materializations_;
-    const HeapLocationCollector& collector_;
-    const ExecutionSubgraph* subgraph_;
-  };
-
-  ArrayRef<HeapReferenceData> GetHeapRefs() {
-    return ArrayRef<HeapReferenceData>(heap_refs_);
-  }
-
-  bool IsMaterializationBlock(HBasicBlock* blk) const {
-    return blk->GetBlockId() >= first_materialization_block_id_;
-  }
-
-  HBasicBlock* GetOrCreateMaterializationBlock(HBasicBlock* entry, size_t pred_num) {
-    size_t idx = GetMaterializationBlockIndex(entry, pred_num);
-    HBasicBlock* blk = materialization_blocks_[idx];
-    if (blk == nullptr) {
-      blk = new (GetGraph()->GetAllocator()) HBasicBlock(GetGraph());
-      GetGraph()->AddBlock(blk);
-      LSE_VLOG << "creating materialization block " << blk->GetBlockId() << " on edge "
-               << entry->GetPredecessors()[pred_num]->GetBlockId() << "->" << entry->GetBlockId();
-      blk->AddInstruction(new (GetGraph()->GetAllocator()) HGoto());
-      materialization_blocks_[idx] = blk;
-    }
-    return blk;
-  }
-
-  HBasicBlock* GetMaterializationBlock(HBasicBlock* entry, size_t pred_num) {
-    HBasicBlock* out = materialization_blocks_[GetMaterializationBlockIndex(entry, pred_num)];
-    DCHECK(out != nullptr) << "No materialization block for edge " << entry->GetBlockId() << "->"
-                           << entry->GetPredecessors()[pred_num]->GetBlockId();
-    return out;
-  }
-
-  IterationRange<ArenaVector<HBasicBlock*>::const_iterator> IterateMaterializationBlocks() {
-    return MakeIterationRange(GetGraph()->GetBlocks().begin() + first_materialization_block_id_,
-                              GetGraph()->GetBlocks().end());
-  }
-
-  void FixupPartialObjectUsers() {
-    for (PartialLoadStoreEliminationHelper::HeapReferenceData& ref_data : GetHeapRefs()) {
-      // Use the materialized instances to replace original instance
-      ref_data.FixupUses(/*first_pass=*/true);
-      CHECK(ref_data.OriginalNewInstance()->GetUses().empty())
-          << ref_data.OriginalNewInstance()->GetUses() << ", "
-          << ref_data.OriginalNewInstance()->GetEnvUses();
-    }
-    // This can cause new uses to be created due to the creation of phis/pred-get defaults
-    for (PartialLoadStoreEliminationHelper::HeapReferenceData& ref_data : GetHeapRefs()) {
-      // Only need to handle new phis/pred-get defaults. DCHECK that's all we find.
-      ref_data.FixupUses(/*first_pass=*/false);
-      CHECK(ref_data.OriginalNewInstance()->GetUses().empty())
-          << ref_data.OriginalNewInstance()->GetUses() << ", "
-          << ref_data.OriginalNewInstance()->GetEnvUses();
-    }
-  }
-
-  // Finds the first block which either is or dominates the given block which is
-  // not a materialization block
-  HBasicBlock* FindDominatingNonMaterializationBlock(HBasicBlock* blk) {
-    if (LIKELY(!IsMaterializationBlock(blk))) {
-      // Not a materialization block so itself.
-      return blk;
-    } else if (blk->GetNumberOfPredecessors() != 0) {
-      // We're far enough along that the materialization blocks have been
-      // inserted into the graph so no need to go searching.
-      return blk->GetSinglePredecessor();
-    }
-    // Search through the materialization blocks to find where it will be
-    // inserted.
-    for (auto [mat, idx] : ZipCount(MakeIterationRange(materialization_blocks_))) {
-      if (mat == blk) {
-        size_t cur_pred_idx = idx % max_preds_per_block_;
-        HBasicBlock* entry = GetGraph()->GetBlocks()[idx / max_preds_per_block_];
-        return entry->GetPredecessors()[cur_pred_idx];
-      }
-    }
-    LOG(FATAL) << "Unable to find materialization block position for " << blk->GetBlockId() << "!";
-    return nullptr;
-  }
-
-  void InsertMaterializationBlocks() {
-    for (auto [mat, idx] : ZipCount(MakeIterationRange(materialization_blocks_))) {
-      if (mat == nullptr) {
-        continue;
-      }
-      size_t cur_pred_idx = idx % max_preds_per_block_;
-      HBasicBlock* entry = GetGraph()->GetBlocks()[idx / max_preds_per_block_];
-      HBasicBlock* pred = entry->GetPredecessors()[cur_pred_idx];
-      mat->InsertBetween(pred, entry);
-      LSE_VLOG << "Adding materialization block " << mat->GetBlockId() << " on edge "
-               << pred->GetBlockId() << "->" << entry->GetBlockId();
-    }
-  }
-
-  // Replace any env-uses remaining of the partial singletons with the
-  // appropriate phis and remove the instructions.
-  void RemoveReplacedInstructions() {
-    for (HeapReferenceData& ref_data : GetHeapRefs()) {
-      CHECK(ref_data.OriginalNewInstance()->GetUses().empty())
-          << ref_data.OriginalNewInstance()->GetUses() << ", "
-          << ref_data.OriginalNewInstance()->GetEnvUses()
-          << " inst is: " << ref_data.OriginalNewInstance();
-      const auto& env_uses = ref_data.OriginalNewInstance()->GetEnvUses();
-      while (!env_uses.empty()) {
-        const HUseListNode<HEnvironment*>& use = env_uses.front();
-        HInstruction* merged_inst =
-            ref_data.GetMaterialization(use.GetUser()->GetHolder()->GetBlock());
-        LSE_VLOG << "Replacing env use of " << *use.GetUser()->GetHolder() << "@" << use.GetIndex()
-                 << " with " << *merged_inst;
-        use.GetUser()->ReplaceInput(merged_inst, use.GetIndex());
-      }
-      ref_data.OriginalNewInstance()->GetBlock()->RemoveInstruction(ref_data.OriginalNewInstance());
-    }
-  }
-
-  // We need to make sure any allocations dominate their environment uses.
-  // Technically we could probably remove the env-uses and be fine but this is easy.
-  void ReorderMaterializationsForEnvDominance() {
-    for (HBasicBlock* blk : IterateMaterializationBlocks()) {
-      ScopedArenaAllocator alloc(alloc_->GetArenaStack());
-      ArenaBitVector still_unsorted(
-          &alloc, GetGraph()->GetCurrentInstructionId(), false, kArenaAllocLSE);
-      // This is guaranteed to be very short (since we will abandon LSE if there
-      // are >= kMaxNumberOfHeapLocations (32) heap locations so that is the
-      // absolute maximum size this list can be) so doing a selection sort is
-      // fine. This avoids the need to do a complicated recursive check to
-      // ensure transitivity for std::sort.
-      ScopedArenaVector<HNewInstance*> materializations(alloc.Adapter(kArenaAllocLSE));
-      materializations.reserve(GetHeapRefs().size());
-      for (HInstruction* ins :
-           MakeSTLInstructionIteratorRange(HInstructionIterator(blk->GetInstructions()))) {
-        if (ins->IsNewInstance()) {
-          materializations.push_back(ins->AsNewInstance());
-          still_unsorted.SetBit(ins->GetId());
-        }
-      }
-      using Iter = ScopedArenaVector<HNewInstance*>::iterator;
-      Iter unsorted_start = materializations.begin();
-      Iter unsorted_end = materializations.end();
-      // selection sort. Required since the only check we can easily perform a
-      // is-before-all-unsorted check.
-      while (unsorted_start != unsorted_end) {
-        bool found_instruction = false;
-        for (Iter candidate = unsorted_start; candidate != unsorted_end; ++candidate) {
-          HNewInstance* ni = *candidate;
-          if (std::none_of(ni->GetAllEnvironments().cbegin(),
-                           ni->GetAllEnvironments().cend(),
-                           [&](const HEnvironment* env) {
-                             return std::any_of(
-                                 env->GetEnvInputs().cbegin(),
-                                 env->GetEnvInputs().cend(),
-                                 [&](const HInstruction* env_element) {
-                                   return env_element != nullptr &&
-                                          still_unsorted.IsBitSet(env_element->GetId());
-                                 });
-                           })) {
-            still_unsorted.ClearBit(ni->GetId());
-            std::swap(*unsorted_start, *candidate);
-            ++unsorted_start;
-            found_instruction = true;
-            break;
-          }
-        }
-        CHECK(found_instruction) << "Unable to select next materialization instruction."
-                                 << " Environments have a dependency loop!";
-      }
-      // Reverse so we as we prepend them we end up with the correct order.
-      auto reverse_iter = MakeIterationRange(materializations.rbegin(), materializations.rend());
-      for (HNewInstance* ins : reverse_iter) {
-        if (blk->GetFirstInstruction() != ins) {
-          // Don't do checks since that makes sure the move is safe WRT
-          // ins->CanBeMoved which for NewInstance is false.
-          ins->MoveBefore(blk->GetFirstInstruction(), /*do_checks=*/false);
-        }
-      }
-    }
-  }
-
- private:
-  void CollectInterestingHeapRefs() {
-    // Get all the partials we need to move around.
-    for (size_t i = 0; i < lse_->heap_location_collector_.GetNumberOfHeapLocations(); ++i) {
-      ReferenceInfo* ri = lse_->heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo();
-      if (ri->IsPartialSingleton() &&
-          ri->GetReference()->GetBlock() != nullptr &&
-          ri->GetNoEscapeSubgraph()->ContainsBlock(ri->GetReference()->GetBlock())) {
-        RecordHeapRefField(ri->GetReference()->AsNewInstance(), i);
-      }
-    }
-  }
-
-  void RecordHeapRefField(HNewInstance* ni, size_t loc) {
-    DCHECK(ni != nullptr);
-    // This is likely to be very short so just do a linear search.
-    auto it = std::find_if(heap_refs_.begin(), heap_refs_.end(), [&](HeapReferenceData& data) {
-      return data.OriginalNewInstance() == ni;
-    });
-    HeapReferenceData& cur_ref =
-        (it == heap_refs_.end())
-            ? heap_refs_.emplace_back(this,
-                                      ni,
-                                      lse_->heap_location_collector_.GetHeapLocation(loc)
-                                          ->GetReferenceInfo()
-                                          ->GetNoEscapeSubgraph(),
-                                      alloc_)
-            : *it;
-    cur_ref.AddHeapLocation(loc);
-  }
-
-
-  void NotifyNewMaterialization(HInstruction* ins) {
-    if (ins->IsPhi()) {
-      new_ref_phis_.push_back(ins->AsPhi());
-    }
-  }
-
-  size_t GetMaterializationBlockIndex(HBasicBlock* blk, size_t pred_num) const {
-    DCHECK_LT(blk->GetBlockId(), first_materialization_block_id_)
-        << "block is a materialization block!";
-    DCHECK_LT(pred_num, max_preds_per_block_);
-    return blk->GetBlockId() * max_preds_per_block_ + pred_num;
-  }
-
-  HGraph* GetGraph() const {
-    return lse_->GetGraph();
-  }
-
-  LSEVisitor* lse_;
-  ScopedArenaAllocator* alloc_;
-  ScopedArenaVector<HInstruction*> new_ref_phis_;
-  ScopedArenaVector<HeapReferenceData> heap_refs_;
-  size_t max_preds_per_block_;
-  // An array of (# of non-materialization blocks) * max_preds_per_block
-  // arranged in block-id major order. Since we can only have at most one
-  // materialization block on each edge this is the maximum possible number of
-  // materialization blocks.
-  ScopedArenaVector<HBasicBlock*> materialization_blocks_;
-  size_t first_materialization_block_id_;
-
-  friend void LSEVisitor::MovePartialEscapes();
-};
-
-// Work around c++ type checking annoyances with not being able to forward-declare inner types.
-class HeapRefHolder
-    : public std::reference_wrapper<PartialLoadStoreEliminationHelper::HeapReferenceData> {};
-
-HInstruction* LSEVisitor::SetupPartialMaterialization(PartialLoadStoreEliminationHelper& helper,
-                                                      HeapRefHolder&& holder,
-                                                      size_t pred_idx,
-                                                      HBasicBlock* entry) {
-  PartialLoadStoreEliminationHelper::HeapReferenceData& ref_data = holder.get();
-  HBasicBlock* old_pred = entry->GetPredecessors()[pred_idx];
-  HInstruction* new_inst = ref_data.OriginalNewInstance();
-  if (UNLIKELY(!new_inst->GetBlock()->Dominates(entry))) {
-    LSE_VLOG << "Initial materialization in non-dominating block " << entry->GetBlockId()
-             << " is null!";
-    return GetGraph()->GetNullConstant();
-  }
-  HBasicBlock* bb = helper.GetOrCreateMaterializationBlock(entry, pred_idx);
-  CHECK(bb != nullptr) << "entry " << entry->GetBlockId() << " -> " << old_pred->GetBlockId();
-  HNewInstance* repl_create = new_inst->Clone(GetGraph()->GetAllocator())->AsNewInstance();
-  repl_create->SetPartialMaterialization();
-  bb->InsertInstructionBefore(repl_create, bb->GetLastInstruction());
-  repl_create->CopyEnvironmentFrom(new_inst->GetEnvironment());
-  MaybeRecordStat(stats_, MethodCompilationStat::kPartialAllocationMoved);
-  LSE_VLOG << "In blk " << bb->GetBlockId() << " initial materialization is " << *repl_create;
-  ref_data.AddMaterialization(bb, repl_create);
-  const FieldInfo* info = nullptr;
-  for (const HeapLocation* loc : ref_data.IterateLocations()) {
-    size_t loc_off = heap_location_collector_.GetHeapLocationIndex(loc);
-    info = field_infos_[loc_off];
-    DCHECK(loc->GetIndex() == nullptr);
-    Value value = ReplacementOrValue(heap_values_for_[old_pred->GetBlockId()][loc_off].value);
-    if (value.NeedsLoopPhi() || value.IsMergedUnknown()) {
-      Value repl = phi_placeholder_replacements_[PhiPlaceholderIndex(value.GetPhiPlaceholder())];
-      DCHECK(repl.IsDefault() || repl.IsInvalid() || repl.IsInstruction())
-          << repl << " from " << value << " pred is " << old_pred->GetBlockId();
-      if (!repl.IsInvalid()) {
-        value = repl;
-      } else {
-        FullyMaterializePhi(value.GetPhiPlaceholder(), info->GetFieldType());
-        value = phi_placeholder_replacements_[PhiPlaceholderIndex(value.GetPhiPlaceholder())];
-      }
-    } else if (value.NeedsNonLoopPhi()) {
-      Value repl = phi_placeholder_replacements_[PhiPlaceholderIndex(value.GetPhiPlaceholder())];
-      DCHECK(repl.IsDefault() || repl.IsInvalid() || repl.IsInstruction())
-          << repl << " from " << value << " pred is " << old_pred->GetBlockId();
-      if (!repl.IsInvalid()) {
-        value = repl;
-      } else {
-        MaterializeNonLoopPhis(value.GetPhiPlaceholder(), info->GetFieldType());
-        value = phi_placeholder_replacements_[PhiPlaceholderIndex(value.GetPhiPlaceholder())];
-      }
-    }
-    DCHECK(value.IsDefault() || value.IsInstruction())
-        << GetGraph()->PrettyMethod() << ": " << value;
-
-    if (!value.IsDefault() &&
-        // shadow$_klass_ doesn't need to be manually initialized.
-        MemberOffset(loc->GetOffset()) != mirror::Object::ClassOffset()) {
-      CHECK(info != nullptr);
-      HInstruction* set_value =
-          new (GetGraph()->GetAllocator()) HInstanceFieldSet(repl_create,
-                                                             value.GetInstruction(),
-                                                             field_infos_[loc_off]->GetField(),
-                                                             loc->GetType(),
-                                                             MemberOffset(loc->GetOffset()),
-                                                             false,
-                                                             field_infos_[loc_off]->GetFieldIndex(),
-                                                             loc->GetDeclaringClassDefIndex(),
-                                                             field_infos_[loc_off]->GetDexFile(),
-                                                             0u);
-      bb->InsertInstructionAfter(set_value, repl_create);
-      LSE_VLOG << "Adding " << *set_value << " for materialization setup!";
-    }
-  }
-  return repl_create;
-}
-
-HInstruction* LSEVisitor::GetPartialValueAt(HNewInstance* orig_new_inst, HInstruction* read) {
-  size_t loc = heap_location_collector_.GetFieldHeapLocation(orig_new_inst, &read->GetFieldInfo());
-  Value pred = ReplacementOrValue(intermediate_values_.find(read)->second);
-  LSE_VLOG << "using " << pred << " as default value for " << *read;
-  if (pred.IsInstruction()) {
-    return pred.GetInstruction();
-  } else if (pred.IsMergedUnknown() || pred.NeedsPhi()) {
-    FullyMaterializePhi(pred.GetPhiPlaceholder(),
-                        heap_location_collector_.GetHeapLocation(loc)->GetType());
-    HInstruction* res = Replacement(pred).GetInstruction();
-    LSE_VLOG << pred << " materialized to " << res->DumpWithArgs();
-    return res;
-  } else if (pred.IsDefault()) {
-    HInstruction* res = GetDefaultValue(read->GetType());
-    LSE_VLOG << pred << " materialized to " << res->DumpWithArgs();
-    return res;
-  }
-  LOG(FATAL) << "Unable to find unescaped value at " << read->DumpWithArgs()
-             << "! This should be impossible! Value is " << pred;
-  UNREACHABLE();
-}
-
-void LSEVisitor::MovePartialEscapes() {
-  if (!ShouldPerformPartialLSE()) {
-    return;
-  }
-
-  ScopedArenaAllocator saa(allocator_.GetArenaStack());
-  PartialLoadStoreEliminationHelper helper(this, &saa);
-
-  // Since for PHIs we now will have more information (since we know the object
-  // hasn't escaped) we need to clear the old phi-replacements where we weren't
-  // able to find the value.
-  PrepareForPartialPhiComputation();
-
-  for (PartialLoadStoreEliminationHelper::HeapReferenceData& ref_data : helper.GetHeapRefs()) {
-    LSE_VLOG << "Creating materializations for " << *ref_data.OriginalNewInstance();
-    // Setup entry and exit blocks.
-    for (const auto& excluded_cohort : ref_data.GetNoEscapeSubgraph()->GetExcludedCohorts()) {
-      // Setup materialization blocks.
-      for (HBasicBlock* entry : excluded_cohort.EntryBlocksReversePostOrder()) {
-        // Setup entries.
-        // TODO Assuming we correctly break critical edges every entry block
-        // must have only a single predecessor so we could just put all this
-        // stuff in there. OTOH simplifier can do it for us and this is simpler
-        // to implement - giving clean separation between the original graph and
-        // materialization blocks - so for now we might as well have these new
-        // blocks.
-        ScopedArenaAllocator pred_alloc(saa.GetArenaStack());
-        ScopedArenaVector<HInstruction*> pred_vals(pred_alloc.Adapter(kArenaAllocLSE));
-        pred_vals.reserve(entry->GetNumberOfPredecessors());
-        for (const auto& [pred, pred_idx] :
-             ZipCount(MakeIterationRange(entry->GetPredecessors()))) {
-          DCHECK(!helper.IsMaterializationBlock(pred));
-          if (excluded_cohort.IsEntryBlock(pred)) {
-            pred_vals.push_back(ref_data.GetMaterialization(pred));
-            continue;
-          } else {
-            pred_vals.push_back(SetupPartialMaterialization(helper, {ref_data}, pred_idx, entry));
-          }
-        }
-        ref_data.GenerateMaterializationValueFromPredecessorsForEntry(entry, pred_vals);
-      }
-
-      // Setup exit block heap-values for later phi-generation.
-      for (HBasicBlock* exit : excluded_cohort.ExitBlocks()) {
-        // mark every exit of cohorts as having a value so we can easily
-        // materialize the PHIs.
-        // TODO By setting this we can easily use the normal MaterializeLoopPhis
-        //      (via FullyMaterializePhis) in order to generate the default-values
-        //      for predicated-gets. This has the unfortunate side effect of creating
-        //      somewhat more phis than are really needed (in some cases). We really
-        //      should try to eventually know that we can lower these PHIs to only
-        //      the non-escaping value in cases where it is possible. Currently this
-        //      is done to some extent in instruction_simplifier but we have more
-        //      information here to do the right thing.
-        for (const HeapLocation* loc : ref_data.IterateLocations()) {
-          size_t loc_off = heap_location_collector_.GetHeapLocationIndex(loc);
-          // This Value::Default() is only used to fill in PHIs used as the
-          // default value for PredicatedInstanceFieldGets. The actual value
-          // stored there is meaningless since the Predicated-iget will use the
-          // actual field value instead on these paths.
-          heap_values_for_[exit->GetBlockId()][loc_off].value = Value::Default();
-        }
-      }
-    }
-
-    // string materialization through the graph.
-    // // Visit RPO to PHI the materialized object through the cohort.
-    for (HBasicBlock* blk : GetGraph()->GetReversePostOrder()) {
-      // NB This doesn't include materialization blocks.
-      DCHECK(!helper.IsMaterializationBlock(blk))
-          << "Materialization blocks should not be in RPO yet.";
-      if (ref_data.HasMaterialization(blk)) {
-        continue;
-      } else if (ref_data.BeforeAllEscapes(blk)) {
-        ref_data.AddMaterialization(blk, GetGraph()->GetNullConstant());
-        continue;
-      } else {
-        ref_data.GenerateMaterializationValueFromPredecessors(blk);
-      }
-    }
-  }
-
-  // Once we've generated all the materializations we can update the users.
-  helper.FixupPartialObjectUsers();
-
-  // Actually put materialization blocks into the graph
-  helper.InsertMaterializationBlocks();
-
-  // Get rid of the original instructions.
-  helper.RemoveReplacedInstructions();
-
-  // Ensure everything is ordered correctly in the materialization blocks. This
-  // involves moving every NewInstance to the top and ordering them so that any
-  // required env-uses are correctly ordered.
-  helper.ReorderMaterializationsForEnvDominance();
-}
 
 void LSEVisitor::FinishFullLSE() {
   // Remove recorded load instructions that should be eliminated.
@@ -4006,9 +2847,8 @@ class LSEVisitorWrapper : public DeletableArenaObject<kArenaAllocLSE> {
  public:
   LSEVisitorWrapper(HGraph* graph,
                     const HeapLocationCollector& heap_location_collector,
-                    bool perform_partial_lse,
                     OptimizingCompilerStats* stats)
-      : lse_visitor_(graph, heap_location_collector, perform_partial_lse, stats) {}
+      : lse_visitor_(graph, heap_location_collector, stats) {}
 
   void Run() {
     lse_visitor_.Run();
@@ -4018,7 +2858,7 @@ class LSEVisitorWrapper : public DeletableArenaObject<kArenaAllocLSE> {
   LSEVisitor lse_visitor_;
 };
 
-bool LoadStoreElimination::Run(bool enable_partial_lse) {
+bool LoadStoreElimination::Run() {
   if (graph_->IsDebuggable()) {
     // Debugger may set heap values or trigger deoptimization of callers.
     // Skip this optimization.
@@ -4031,11 +2871,7 @@ bool LoadStoreElimination::Run(bool enable_partial_lse) {
   // O(1) though.
   graph_->ComputeReachabilityInformation();
   ScopedArenaAllocator allocator(graph_->GetArenaStack());
-  LoadStoreAnalysis lsa(graph_,
-                        stats_,
-                        &allocator,
-                        enable_partial_lse ? LoadStoreAnalysisType::kFull
-                                           : LoadStoreAnalysisType::kBasic);
+  LoadStoreAnalysis lsa(graph_, stats_, &allocator);
   lsa.Run();
   const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
   if (heap_location_collector.GetNumberOfHeapLocations() == 0) {
@@ -4050,8 +2886,8 @@ bool LoadStoreElimination::Run(bool enable_partial_lse) {
     return false;
   }
 
-  std::unique_ptr<LSEVisitorWrapper> lse_visitor(new (&allocator) LSEVisitorWrapper(
-      graph_, heap_location_collector, enable_partial_lse, stats_));
+  std::unique_ptr<LSEVisitorWrapper> lse_visitor(
+      new (&allocator) LSEVisitorWrapper(graph_, heap_location_collector, stats_));
   lse_visitor->Run();
   return true;
 }

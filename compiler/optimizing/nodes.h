@@ -1552,7 +1552,6 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(If, Instruction)                                                    \
   M(InstanceFieldGet, Instruction)                                      \
   M(InstanceFieldSet, Instruction)                                      \
-  M(PredicatedInstanceFieldGet, Instruction)                            \
   M(InstanceOf, Instruction)                                            \
   M(IntConstant, Constant)                                              \
   M(IntermediateAddress, Instruction)                                   \
@@ -6369,96 +6368,6 @@ class HInstanceFieldGet final : public HExpression<1> {
   const FieldInfo field_info_;
 };
 
-class HPredicatedInstanceFieldGet final : public HExpression<2> {
- public:
-  HPredicatedInstanceFieldGet(HInstanceFieldGet* orig,
-                              HInstruction* target,
-                              HInstruction* default_val)
-      : HExpression(kPredicatedInstanceFieldGet,
-                    orig->GetFieldType(),
-                    orig->GetSideEffects(),
-                    orig->GetDexPc()),
-        field_info_(orig->GetFieldInfo()) {
-    // NB Default-val is at 0 so we can avoid doing a move.
-    SetRawInputAt(1, target);
-    SetRawInputAt(0, default_val);
-  }
-
-  HPredicatedInstanceFieldGet(HInstruction* value,
-                              ArtField* field,
-                              HInstruction* default_value,
-                              DataType::Type field_type,
-                              MemberOffset field_offset,
-                              bool is_volatile,
-                              uint32_t field_idx,
-                              uint16_t declaring_class_def_index,
-                              const DexFile& dex_file,
-                              uint32_t dex_pc)
-      : HExpression(kPredicatedInstanceFieldGet,
-                    field_type,
-                    SideEffects::FieldReadOfType(field_type, is_volatile),
-                    dex_pc),
-        field_info_(field,
-                    field_offset,
-                    field_type,
-                    is_volatile,
-                    field_idx,
-                    declaring_class_def_index,
-                    dex_file) {
-    SetRawInputAt(1, value);
-    SetRawInputAt(0, default_value);
-  }
-
-  bool IsClonable() const override {
-    return true;
-  }
-  bool CanBeMoved() const override {
-    return !IsVolatile();
-  }
-
-  HInstruction* GetDefaultValue() const {
-    return InputAt(0);
-  }
-  HInstruction* GetTarget() const {
-    return InputAt(1);
-  }
-
-  bool InstructionDataEquals(const HInstruction* other) const override {
-    const HPredicatedInstanceFieldGet* other_get = other->AsPredicatedInstanceFieldGet();
-    return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue() &&
-           GetDefaultValue() == other_get->GetDefaultValue();
-  }
-
-  bool CanDoImplicitNullCheckOn(HInstruction* obj) const override {
-    return (obj == InputAt(0)) && art::CanDoImplicitNullCheckOn(GetFieldOffset().Uint32Value());
-  }
-
-  size_t ComputeHashCode() const override {
-    return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
-  }
-
-  bool IsFieldAccess() const override { return true; }
-  const FieldInfo& GetFieldInfo() const override { return field_info_; }
-  MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
-  DataType::Type GetFieldType() const { return field_info_.GetFieldType(); }
-  bool IsVolatile() const { return field_info_.IsVolatile(); }
-
-  void SetType(DataType::Type new_type) {
-    DCHECK(DataType::IsIntegralType(GetType()));
-    DCHECK(DataType::IsIntegralType(new_type));
-    DCHECK_EQ(DataType::Size(GetType()), DataType::Size(new_type));
-    SetPackedField<TypeField>(new_type);
-  }
-
-  DECLARE_INSTRUCTION(PredicatedInstanceFieldGet);
-
- protected:
-  DEFAULT_COPY_CONSTRUCTOR(PredicatedInstanceFieldGet);
-
- private:
-  const FieldInfo field_info_;
-};
-
 enum class WriteBarrierKind {
   // Emit the write barrier, with a runtime optimization which checks if the value that it is being
   // set is null.
@@ -6503,7 +6412,6 @@ class HInstanceFieldSet final : public HExpression<2> {
                     declaring_class_def_index,
                     dex_file) {
     SetPackedFlag<kFlagValueCanBeNull>(true);
-    SetPackedFlag<kFlagIsPredicatedSet>(false);
     SetPackedField<WriteBarrierKindField>(WriteBarrierKind::kEmitWithNullCheck);
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
@@ -6523,8 +6431,6 @@ class HInstanceFieldSet final : public HExpression<2> {
   HInstruction* GetValue() const { return InputAt(1); }
   bool GetValueCanBeNull() const { return GetPackedFlag<kFlagValueCanBeNull>(); }
   void ClearValueCanBeNull() { SetPackedFlag<kFlagValueCanBeNull>(false); }
-  bool GetIsPredicatedSet() const { return GetPackedFlag<kFlagIsPredicatedSet>(); }
-  void SetIsPredicatedSet(bool value = true) { SetPackedFlag<kFlagIsPredicatedSet>(value); }
   WriteBarrierKind GetWriteBarrierKind() { return GetPackedField<WriteBarrierKindField>(); }
   void SetWriteBarrierKind(WriteBarrierKind kind) {
     DCHECK(kind != WriteBarrierKind::kEmitWithNullCheck)
@@ -6539,8 +6445,7 @@ class HInstanceFieldSet final : public HExpression<2> {
 
  private:
   static constexpr size_t kFlagValueCanBeNull = kNumberOfGenericPackedBits;
-  static constexpr size_t kFlagIsPredicatedSet = kFlagValueCanBeNull + 1;
-  static constexpr size_t kWriteBarrierKind = kFlagIsPredicatedSet + 1;
+  static constexpr size_t kWriteBarrierKind = kFlagValueCanBeNull + 1;
   static constexpr size_t kWriteBarrierKindSize =
       MinimumBitsToStore(static_cast<size_t>(WriteBarrierKind::kLast));
   static constexpr size_t kNumberOfInstanceFieldSetPackedBits =
