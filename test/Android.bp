@@ -1652,8 +1652,8 @@ genrule_defaults {
 // Assemble jar file from smali source.
 genrule_defaults {
     name: "art-gtest-jars-smali-defaults",
-    cmd: "$(location smali) assemble --output $(out) $(in)",
-    tools: ["smali"],
+    cmd: "$(location android-smali) assemble --output $(out) $(in)",
+    tools: ["android-smali"],
 }
 
 // A copy of Main with the classes.dex stripped for the oat file assistant tests.
@@ -1799,25 +1799,6 @@ genrule {
     defaults: ["art-gtest-jars-smali-defaults"],
     srcs: ["Dex2oatVdexPublicSdkDex/*.smali"],
     out: ["art-gtest-jars-Dex2oatVdexPublicSdkDex.dex"],
-}
-
-genrule_defaults {
-    name: "art-run-test-data-defaults",
-    defaults: [
-        // Enable only in source builds, where com.android.art.testing is
-        // available.
-        "art_module_source_build_genrule_defaults",
-    ],
-    tool_files: [
-        "run_test_build.py",
-        ":art-run-test-bootclasspath",
-    ],
-    tools: [
-        "d8",
-        "hiddenapi",
-        "jasmin",
-        "smali",
-    ],
 }
 
 build = [
