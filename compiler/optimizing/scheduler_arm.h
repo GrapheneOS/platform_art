@@ -77,7 +77,6 @@ class SchedulingLatencyVisitorARM final : public SchedulingLatencyVisitor {
   M(Condition, unused)                        \
   M(Compare, unused)                          \
   M(BoundsCheck, unused)                      \
-  M(PredicatedInstanceFieldGet, unused)       \
   M(InstanceFieldGet, unused)                 \
   M(InstanceFieldSet, unused)                 \
   M(InstanceOf, unused)                       \
