@@ -355,9 +355,14 @@ void RegisterAllocatorLinearScan::CheckForFixedInputs(HInstruction* instruction)
     Location input = locations->InAt(i);
     if (input.IsRegister() || input.IsFpuRegister()) {
       BlockRegister(input, position, position + 1);
+      // Ensure that an explicit input register is marked as being allocated.
+      codegen_->AddAllocatedRegister(input);
     } else if (input.IsPair()) {
       BlockRegister(input.ToLow(), position, position + 1);
       BlockRegister(input.ToHigh(), position, position + 1);
+      // Ensure that an explicit input register pair is marked as being allocated.
+      codegen_->AddAllocatedRegister(input.ToLow());
+      codegen_->AddAllocatedRegister(input.ToHigh());
     }
   }
 }
@@ -417,6 +422,8 @@ void RegisterAllocatorLinearScan::CheckForFixedOutput(HInstruction* instruction)
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1);
+    // Ensure that an explicit output register is marked as being allocated.
+    codegen_->AddAllocatedRegister(output);
   } else if (output.IsPair()) {
     current->SetFrom(position + 1);
     current->SetRegister(output.low());
@@ -425,6 +432,9 @@ void RegisterAllocatorLinearScan::CheckForFixedOutput(HInstruction* instruction)
     high->SetFrom(position + 1);
     BlockRegister(output.ToLow(), position, position + 1);
     BlockRegister(output.ToHigh(), position, position + 1);
+    // Ensure that an explicit output register pair is marked as being allocated.
+    codegen_->AddAllocatedRegister(output.ToLow());
+    codegen_->AddAllocatedRegister(output.ToHigh());
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
   } else {
