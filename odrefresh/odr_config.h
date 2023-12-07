@@ -72,9 +72,7 @@ struct SystemPropertyConfig {
 // default value should not trigger re-compilation. This is to comply with the phenotype flag
 // requirement (go/platform-experiments-flags#pre-requisites).
 const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProperties{
-    {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.enable_uffd_gc_2",
-                          .default_value = "false"},
-     SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.force_disable_uffd_gc",
+    {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.force_disable_uffd_gc",
                           .default_value = "false"},
      SystemPropertyConfig{.name = kPhDisableCompactDex, .default_value = "false"},
      SystemPropertyConfig{.name = kSystemPropertySystemServerCompilerFilterOverride,
