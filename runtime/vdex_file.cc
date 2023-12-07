@@ -223,12 +223,12 @@ bool VdexFile::OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_
     static constexpr char kVdexLocation[] = "";
     std::string location = DexFileLoader::GetMultiDexLocation(i, kVdexLocation);
     ArtDexFileLoader dex_file_loader(dex_file_container, location);
-    std::unique_ptr<const DexFile> dex(dex_file_loader.Open(dex_file_start - Begin(),
-                                                            GetLocationChecksum(i),
-                                                            /*oat_dex_file=*/nullptr,
-                                                            /*verify=*/false,
-                                                            /*verify_checksum=*/false,
-                                                            error_msg));
+    std::unique_ptr<const DexFile> dex(dex_file_loader.OpenOne(dex_file_start - Begin(),
+                                                               GetLocationChecksum(i),
+                                                               /*oat_dex_file=*/nullptr,
+                                                               /*verify=*/false,
+                                                               /*verify_checksum=*/false,
+                                                               error_msg));
     if (dex == nullptr) {
       return false;
     }
