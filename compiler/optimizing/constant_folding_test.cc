@@ -551,7 +551,7 @@ TEST_F(ConstantFoldingTest, LongConstantFoldingOnSubtraction) {
  *
  * The intent of this test is to ensure that all constant expressions
  * are actually evaluated at compile-time, thanks to the reverse
- * (forward) post-order traversal of the the dominator tree.
+ * (forward) post-order traversal of the dominator tree.
  *
  *                              16-bit
  *                              offset

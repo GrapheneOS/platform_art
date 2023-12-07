@@ -3258,7 +3258,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
         __ testl(temp1, temp1);
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp1` has been unpoisoned
-        // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+        // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
       } else {
         // /* HeapReference<Class> */ temp1 = src->klass_
         __ movl(temp1, Address(src, class_offset));
@@ -3303,7 +3303,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
         __ testl(temp2, temp2);
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp2` has been unpoisoned
-        // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+        // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
         __ cmpw(Address(temp2, primitive_offset), Immediate(Primitive::kPrimNot));
         __ j(kNotEqual, intrinsic_slow_path->GetEntryLabel());
       }
@@ -3382,7 +3382,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
       __ testl(temp1, temp1);
       __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
       // If heap poisoning is enabled, `temp1` has been unpoisoned
-      // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+      // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
     } else {
       // /* HeapReference<Class> */ temp1 = src->klass_
       __ movl(temp1, Address(src, class_offset));

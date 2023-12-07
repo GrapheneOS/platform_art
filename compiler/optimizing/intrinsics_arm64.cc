@@ -3260,7 +3260,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           /* use_load_acquire= */ false);
           __ Cbz(temp1, intrinsic_slow_path->GetEntryLabel());
           // If heap poisoning is enabled, `temp1` has been unpoisoned
-          // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+          // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
           // /* uint16_t */ temp1 = static_cast<uint16>(temp1->primitive_type_);
           __ Ldrh(temp1, HeapOperand(temp1, primitive_offset));
           static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
@@ -3294,7 +3294,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                           /* use_load_acquire= */ false);
           __ Cbz(temp2, intrinsic_slow_path->GetEntryLabel());
           // If heap poisoning is enabled, `temp2` has been unpoisoned
-          // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+          // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
           // /* uint16_t */ temp2 = static_cast<uint16>(temp2->primitive_type_);
           __ Ldrh(temp2, HeapOperand(temp2, primitive_offset));
           static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
@@ -3419,7 +3419,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                                         /* use_load_acquire= */ false);
         __ Cbz(temp2, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp2` has been unpoisoned
-        // by the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+        // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
       } else {
         // /* HeapReference<Class> */ temp1 = src->klass_
         __ Ldr(temp1, HeapOperand(src.W(), class_offset));
