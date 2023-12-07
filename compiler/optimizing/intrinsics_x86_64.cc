@@ -1015,9 +1015,8 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
       // /* HeapReference<Class> */ temp2 = src->klass_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
           invoke, temp2_loc, src, class_offset, /* needs_null_check= */ false);
-      // If heap poisoning is enabled, `temp1` and `temp2` have been
-      // unpoisoned by the the previous calls to
-      // GenerateFieldLoadWithBakerReadBarrier.
+      // If heap poisoning is enabled, `temp1` and `temp2` have been unpoisoned
+      // by the previous calls to GenerateFieldLoadWithBakerReadBarrier.
     } else {
       // /* HeapReference<Class> */ temp1 = dest->klass_
       __ movl(temp1, Address(dest, class_offset));
@@ -1042,7 +1041,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
         __ testl(CpuRegister(TMP), CpuRegister(TMP));
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `TMP` has been unpoisoned by
-        // the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+        // the previous call to GenerateFieldLoadWithBakerReadBarrier.
       } else {
         // /* HeapReference<Class> */ TMP = temp1->component_type_
         __ movl(CpuRegister(TMP), Address(temp1, component_offset));
@@ -1065,7 +1064,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
         __ testl(CpuRegister(TMP), CpuRegister(TMP));
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `TMP` has been unpoisoned by
-        // the the previous call to GenerateFieldLoadWithBakerReadBarrier.
+        // the previous call to GenerateFieldLoadWithBakerReadBarrier.
       } else {
         // /* HeapReference<Class> */ TMP = temp2->component_type_
         __ movl(CpuRegister(TMP), Address(temp2, component_offset));
