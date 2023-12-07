@@ -970,12 +970,20 @@ class MethodEntryExitHooksSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 
 class CompileOptimizedSlowPathARMVIXL : public SlowPathCodeARMVIXL {
  public:
-  CompileOptimizedSlowPathARMVIXL() : SlowPathCodeARMVIXL(/* instruction= */ nullptr) {}
+  explicit CompileOptimizedSlowPathARMVIXL(vixl32::Register profiling_info)
+      : SlowPathCodeARMVIXL(/* instruction= */ nullptr),
+        profiling_info_(profiling_info) {}
 
   void EmitNativeCode(CodeGenerator* codegen) override {
     uint32_t entry_point_offset =
         GetThreadOffset<kArmPointerSize>(kQuickCompileOptimized).Int32Value();
     __ Bind(GetEntryLabel());
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    UseScratchRegisterScope temps(arm_codegen->GetVIXLAssembler());
+    vixl32::Register tmp = temps.Acquire();
+    __ Mov(tmp, ProfilingInfo::GetOptimizeThreshold());
+    __ Strh(tmp,
+            MemOperand(profiling_info_, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Ldr(lr, MemOperand(tr, entry_point_offset));
     // Note: we don't record the call here (and therefore don't generate a stack
     // map), as the entrypoint should never be suspended.
@@ -988,6 +996,8 @@ class CompileOptimizedSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   }
 
  private:
+  vixl32::Register profiling_info_;
+
   DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathARMVIXL);
 };
 
@@ -2289,14 +2299,15 @@ void CodeGeneratorARMVIXL::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    SlowPathCodeARMVIXL* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathARMVIXL();
-    AddSlowPath(slow_path);
     ProfilingInfo* info = GetGraph()->GetProfilingInfo();
     DCHECK(info != nullptr);
     DCHECK(!HasEmptyFrame());
     uint32_t address = reinterpret_cast32<uint32_t>(info);
     UseScratchRegisterScope temps(GetVIXLAssembler());
     vixl32::Register tmp = temps.Acquire();
+    SlowPathCodeARMVIXL* slow_path =
+        new (GetScopedAllocator()) CompileOptimizedSlowPathARMVIXL(/* profiling_info= */ lr);
+    AddSlowPath(slow_path);
     __ Mov(lr, address);
     __ Ldrh(tmp, MemOperand(lr, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Adds(tmp, tmp, -1);

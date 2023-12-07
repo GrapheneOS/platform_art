@@ -1505,9 +1505,7 @@ bool Jit::IgnoreSamplesForMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutat
 }
 
 void Jit::EnqueueOptimizedCompilation(ArtMethod* method, Thread* self) {
-  // Reset the hotness counter so the baseline compiled code doesn't call this
-  // method repeatedly.
-  GetCodeCache()->ResetHotnessCounter(method, self);
+  // Note the hotness counter will be reset by the compiled code.
 
   if (thread_pool_ == nullptr) {
     return;

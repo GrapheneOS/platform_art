@@ -1009,11 +1009,15 @@ class MethodEntryExitHooksSlowPathX86_64 : public SlowPathCode {
 
 class CompileOptimizedSlowPathX86_64 : public SlowPathCode {
  public:
-  CompileOptimizedSlowPathX86_64() : SlowPathCode(/* instruction= */ nullptr) {}
+  explicit CompileOptimizedSlowPathX86_64(uint64_t counter_address)
+      : SlowPathCode(/* instruction= */ nullptr),
+        counter_address_(counter_address) {}
 
   void EmitNativeCode(CodeGenerator* codegen) override {
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
+    __ movq(CpuRegister(TMP), Immediate(counter_address_));
+    __ movw(Address(CpuRegister(TMP), 0), Immediate(ProfilingInfo::GetOptimizeThreshold()));
     x86_64_codegen->GenerateInvokeRuntime(
         GetThreadOffset<kX86_64PointerSize>(kQuickCompileOptimized).Int32Value());
     __ jmp(GetExitLabel());
@@ -1024,6 +1028,8 @@ class CompileOptimizedSlowPathX86_64 : public SlowPathCode {
   }
 
  private:
+  uint64_t counter_address_;
+
   DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathX86_64);
 };
 
@@ -1731,20 +1737,20 @@ void CodeGeneratorX86_64::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    SlowPathCode* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathX86_64();
-    AddSlowPath(slow_path);
     ProfilingInfo* info = GetGraph()->GetProfilingInfo();
     DCHECK(info != nullptr);
     CHECK(!HasEmptyFrame());
-    uint64_t address = reinterpret_cast64<uint64_t>(info);
+    uint64_t address = reinterpret_cast64<uint64_t>(info) +
+        ProfilingInfo::BaselineHotnessCountOffset().Int32Value();
+    SlowPathCode* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathX86_64(address);
+    AddSlowPath(slow_path);
     // Note: if the address was in the 32bit range, we could use
     // Address::Absolute and avoid this movq.
     __ movq(CpuRegister(TMP), Immediate(address));
     // With multiple threads, this can overflow. This is OK, we will eventually get to see
     // it reaching 0. Also, at this point we have no register available to look
     // at the counter directly.
-    __ addw(Address(CpuRegister(TMP), ProfilingInfo::BaselineHotnessCountOffset().Int32Value()),
-            Immediate(-1));
+    __ addw(Address(CpuRegister(TMP), 0), Immediate(-1));
     __ j(kEqual, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetExitLabel());
   }
