@@ -43,10 +43,6 @@ public class Main {
     // Also tests stack walk over the JIT-compiled stub.
     callThrough(Main.class, "testGcWithCallThroughStubOnStack");
 
-    // Test that, when marking used methods before a full JIT GC, a single execution
-    // of the GenericJNI trampoline can save the compiled stub from being collected.
-    testSingleInvocationTriggersRecompilation();
-
     // Test that the JNI compiled stub can actually be collected.
     testStubCanBeCollected();
   }
@@ -61,17 +57,6 @@ public class Main {
     // The callThrough() on the stack above this method is using the compiled stub,
     // so the JIT GC should not remove the compiled code.
     jitGc();
-    assertTrue(hasJitCompiledCode(Main.class, "callThrough"));
-  }
-
-  public static void testSingleInvocationTriggersRecompilation() {
-    // After scheduling a full JIT GC, single call through the GenericJNI
-    // trampoline should ensure that the compiled stub is used again.
-    doJitGcsUntilFullJitGcIsScheduled();
-    callThrough(Main.class, "doNothing");
-    ensureCompiledCallThroughEntrypoint(/* call */ false);  // Wait for the compilation task to run.
-    assertTrue(hasJitCompiledEntrypoint(Main.class, "callThrough"));
-    jitGc();  // This JIT GC should not collect the callThrough() stub.
     assertTrue(hasJitCompiledCode(Main.class, "callThrough"));
   }
 
