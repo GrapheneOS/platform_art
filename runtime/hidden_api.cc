@@ -191,6 +191,13 @@ hiddenapi::AccessContext GetReflectionCallerAccessContext(Thread* self)
         if (declaring_class->IsClassClass()) {
           return true;
         }
+
+        // MethodHandles.makeIdentity is doing findStatic to find hidden methods,
+        // where reflection is used.
+        if (m == WellKnownClasses::java_lang_invoke_MethodHandles_makeIdentity) {
+          return false;
+        }
+
         // Check classes in the java.lang.invoke package. At the time of writing, the
         // classes of interest are MethodHandles and MethodHandles.Lookup, but this
         // is subject to change so conservatively cover the entire package.
