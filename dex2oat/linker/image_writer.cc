@@ -188,7 +188,8 @@ class ReferenceFieldVisitor {
   void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool is_static) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(!obj->IsObjectArray());
-    mirror::Object* field_obj = obj->GetFieldObject<mirror::Object>(offset);
+    mirror::Object* field_obj =
+        obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(offset);
     // Skip fields that contain null.
     if (field_obj == nullptr) {
       return;
@@ -205,7 +206,9 @@ class ReferenceFieldVisitor {
       CHECK(obj->IsClass());
       field = ArtField::FindStaticFieldWithOffset(obj->AsClass(), offset.Uint32Value());
     } else {
-      field = ArtField::FindInstanceFieldWithOffset(obj->GetClass(), offset.Uint32Value());
+      field = ArtField::
+          FindInstanceFieldWithOffset</*kExactOffset*/ true, kVerifyNone, kWithoutReadBarrier>(
+              obj->GetClass<kVerifyNone, kWithoutReadBarrier>(), offset.Uint32Value());
     }
     DCHECK(field != nullptr);
     visit_func_(*field_obj, *field);
@@ -283,9 +286,15 @@ HashMap<mirror::Object*, uint32_t> MatchDirtyObjectPaths(
       return nullptr;
     }
 
-    ObjPtr<mirror::Object> next_obj = array->GetWithoutChecks(idx);
+    ObjPtr<mirror::Object> next_obj =
+        array->GetWithoutChecks<kVerifyNone, kWithoutReadBarrier>(idx);
+    if (next_obj == nullptr) {
+      return nullptr;
+    }
+
     std::string temp;
-    if (next_obj == nullptr || next_obj->GetClass()->GetDescriptor(&temp) != ref_info.type) {
+    if (next_obj->GetClass<kVerifyNone, kWithoutReadBarrier>()->GetDescriptor(&temp) !=
+        ref_info.type) {
       return nullptr;
     }
     return next_obj.Ptr();
