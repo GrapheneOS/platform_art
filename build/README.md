@@ -37,7 +37,7 @@ the module. It is also mutually exclusive with the other ones.
 
     ```
     banchan com.android.art <arch>
-    export SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true
+    export SOONG_ALLOW_MISSING_DEPENDENCIES=true
     ```
 
     For Google internal builds on the internal master-art branch, specify
@@ -45,7 +45,7 @@ the module. It is also mutually exclusive with the other ones.
 
     ```
     banchan com.google.android.art mainline_modules_<arch>
-    export SOONG_ALLOW_MISSING_DEPENDENCIES=true BUILD_BROKEN_DISABLE_BAZEL=true
+    export SOONG_ALLOW_MISSING_DEPENDENCIES=true
     ```
 
     `<arch>` is the device architecture, one of `arm`, `arm64`, `x86`, or
