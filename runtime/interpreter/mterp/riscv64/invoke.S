@@ -15,9 +15,8 @@
 // (0) If the next method's "quick code" is nterp, then set up a fresh nterp frame and perform a
 //     vreg->vreg transfer. Jump to handler for the next method's first opcode.
 // - The following paths leave nterp. -
-// (1) If the next method is guaranteed to avoid floats, doubles, and longs, then the managed ABI is
-//     very simple: just place all arguments in the native arg registers. We don't need to know the
-//     precise types or widths, just the order matters. Call the quick code.
+// (1) If the next method is guaranteed to be only object refs, then the managed ABI is very simple:
+//     just place all arguments in the native arg registers using LWU. Call the quick code.
 // (2) If the next method has 0 or 1 argument, then the managed ABI is mildly overloaded by
 //     pessimistically placing a singleton 32-bit arg in both a0 and fa0; we don't have to know if
 //     the argument is an int or float. We might be able to avoid the shorty ...
@@ -664,6 +663,7 @@
 // Temporaries: z0, z1
 %def try_simple_args(v_fedc="", z0="", z1="", arg_start="1", skip="", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
+   // The meaning of nterp-invoke-fast-path-flag for RISC-V diverges from other ISAs.
    BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
 
    srliw $z0, xINST, 12              // z0 := A
@@ -679,22 +679,22 @@
    // A = 5
    srliw $z1, xINST, 8               // z1 := A|G
    andi $z1, $z1, 0xF                // z1 := G
-   GET_VREG a5, $z1
+   GET_VREG_OBJECT a5, $z1
 .L${uniq}_simple_4:
    srliw $z1, $v_fedc, 12            // z1 := F
-   GET_VREG a4, $z1
+   GET_VREG_OBJECT a4, $z1
 .L${uniq}_simple_3:
    srliw $z1, $v_fedc, 8             // z1 := F|E
    andi $z1, $z1, 0xF                // z1 := E
-   GET_VREG a3, $z1
+   GET_VREG_OBJECT a3, $z1
 .L${uniq}_simple_2:
    srliw $z1, $v_fedc, 4             // z1 := F|E|D
    andi $z1, $z1, 0xF                // z1 := D
-   GET_VREG a2, $z1
+   GET_VREG_OBJECT a2, $z1
 .L${uniq}_simple_1:
 %  if arg_start == "0":
      andi $z1, $v_fedc, 0xF          // z1 := C
-     GET_VREG a1, $z1
+     GET_VREG_OBJECT a1, $z1
    // instance: a1 already set to "this"
 .L${uniq}_simple_done:
 
@@ -702,6 +702,7 @@
 // Range variant.
 %def try_simple_args_range(vC="", z0="", z1="", z2="", z3="", z4="", skip="", arg_start="1", uniq=""):
    lwu $z0, ART_METHOD_ACCESS_FLAGS_OFFSET(a0)
+   // The meaning of nterp-invoke-fast-path-flag for RISC-V diverges from other ISAs.
    BRANCH_IF_BIT_CLEAR $z0, $z0, ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT, $skip
 
    srliw $z0, xINST, 8                 // z0 := AA
@@ -734,7 +735,7 @@
                                      // z4 := &OUT[CCCC + 7]
    bltz $z2, .L${uniq}_simple_loop_wide
                                      // if AA odd, branch to wide-copy
-   lw $z2, ($z3)
+   lwu $z2, ($z3)
    sw $z2, ($z4)
    addi $z3, $z3, 4
    addi $z4, $z4, 4
@@ -750,20 +751,20 @@
 
    // Bottom 7 slots of OUT array never written; first args are passed with a1-a7.
 .L${uniq}_simple_7:
-   lw a7, 6*4($z1)
+   lwu a7, 6*4($z1)
 .L${uniq}_simple_6:
-   lw a6, 5*4($z1)
+   lwu a6, 5*4($z1)
 .L${uniq}_simple_5:
-   lw a5, 4*4($z1)
+   lwu a5, 4*4($z1)
 .L${uniq}_simple_4:
-   lw a4, 3*4($z1)
+   lwu a4, 3*4($z1)
 .L${uniq}_simple_3:
-   lw a3, 2*4($z1)
+   lwu a3, 2*4($z1)
 .L${uniq}_simple_2:
-   lw a2, 1*4($z1)
+   lwu a2, 1*4($z1)
 .L${uniq}_simple_1:
 %  if arg_start == "0":  # static:
-     lw a1, 0*4($z1)
+     lwu a1, 0*4($z1)
 %#:
 .L${uniq}_simple_done:
 

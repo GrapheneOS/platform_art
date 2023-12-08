@@ -75,6 +75,11 @@ uint32_t NterpGetVRegReference(ArtMethod** frame, uint16_t vreg)
 bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa = kRuntimeISA)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
+/**
+ * Returns kAccNterpInvokeFastPathFlag and/or kAccNterpEntryPointFastPathFlag, if appropriate.
+ */
+uint32_t GetNterpFastPathFlags(std::string_view shorty, uint32_t access_flags, InstructionSet isa);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_NTERP_HELPERS_H_
