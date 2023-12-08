@@ -101,7 +101,7 @@ static constexpr uint32_t kAccSingleImplementation =  0x08000000;  // method (ru
 // Whether nterp can take a fast path when entering this method (runtime; non-native)
 static constexpr uint32_t kAccNterpEntryPointFastPathFlag = 0x00100000;
 // Set by the class linker to mark that a method does not have floating points
-// or longs in its shorty.
+// or longs in its shorty. On RISC-V 64, a method that has only reference args.
 static constexpr uint32_t kAccNterpInvokeFastPathFlag     = 0x00200000;  // method (runtime)
 
 static constexpr uint32_t kAccPublicApi =             0x10000000;  // field, method
