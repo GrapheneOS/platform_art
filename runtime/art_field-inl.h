@@ -417,7 +417,7 @@ static inline ArtField* FindFieldWithOffset(
   return nullptr;
 }
 
-template <bool kExactOffset>
+template <bool kExactOffset, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ArtField* ArtField::FindInstanceFieldWithOffset(ObjPtr<mirror::Class> klass,
                                                        uint32_t field_offset) {
   DCHECK(klass != nullptr);
@@ -426,8 +426,11 @@ inline ArtField* ArtField::FindInstanceFieldWithOffset(ObjPtr<mirror::Class> kla
     return field;
   }
   // We did not find field in the class: look into superclass.
-  return (klass->GetSuperClass() != nullptr) ?
-      FindInstanceFieldWithOffset<kExactOffset>(klass->GetSuperClass(), field_offset) : nullptr;
+  ObjPtr<mirror::Class> super_class = klass->GetSuperClass<kVerifyFlags, kReadBarrierOption>();
+  return (super_class != nullptr)
+      ? FindInstanceFieldWithOffset<kExactOffset, kVerifyFlags, kReadBarrierOption>(
+          super_class, field_offset) :
+      nullptr;
 }
 
 template <bool kExactOffset>

@@ -23,6 +23,7 @@
 #include "obj_ptr.h"
 #include "offsets.h"
 #include "read_barrier_option.h"
+#include "verify_object.h"
 
 namespace art {
 
@@ -198,7 +199,9 @@ class ArtField final {
   // Returns an instance field with this offset in the given class or null if not found.
   // If kExactOffset is true then we only find the matching offset, not the field containing the
   // offset.
-  template <bool kExactOffset = true>
+  template <bool kExactOffset = true,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static ArtField* FindInstanceFieldWithOffset(ObjPtr<mirror::Class> klass, uint32_t field_offset)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

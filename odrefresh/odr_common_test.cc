@@ -57,21 +57,13 @@ TEST(OdrCommonTest, ShouldDisableRefresh) {
 
 TEST(OdrCommonTest, CheckBuildUserfaultFdGc) {
   EXPECT_TRUE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/false, /*is_at_least_t=*/false, /*kernel_supports_uffd=*/false));
+      /*build_enable_uffd_gc=*/false, /*kernel_supports_uffd=*/false));
   EXPECT_FALSE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/true, /*is_at_least_t=*/false, /*kernel_supports_uffd=*/false));
-  EXPECT_TRUE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/false, /*is_at_least_t=*/true, /*kernel_supports_uffd=*/false));
+      /*build_enable_uffd_gc=*/true, /*kernel_supports_uffd=*/false));
   EXPECT_FALSE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/true, /*is_at_least_t=*/true, /*kernel_supports_uffd=*/false));
+      /*build_enable_uffd_gc=*/false, /*kernel_supports_uffd=*/true));
   EXPECT_TRUE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/false, /*is_at_least_t=*/false, /*kernel_supports_uffd=*/true));
-  EXPECT_TRUE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/true, /*is_at_least_t=*/false, /*kernel_supports_uffd=*/true));
-  EXPECT_FALSE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/false, /*is_at_least_t=*/true, /*kernel_supports_uffd=*/true));
-  EXPECT_TRUE(CheckBuildUserfaultFdGc(
-      /*build_enable_uffd_gc=*/true, /*is_at_least_t=*/true, /*kernel_supports_uffd=*/true));
+      /*build_enable_uffd_gc=*/true, /*kernel_supports_uffd=*/true));
 }
 
 }  // namespace odrefresh

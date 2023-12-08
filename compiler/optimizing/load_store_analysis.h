@@ -25,65 +25,26 @@
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
 #include "escape.h"
-#include "execution_subgraph.h"
 #include "nodes.h"
 #include "optimizing/optimizing_compiler_stats.h"
 
 namespace art HIDDEN {
 
-enum class LoadStoreAnalysisType {
-  kBasic,
-  kNoPredicatedInstructions,
-  kFull,
-};
-
 // A ReferenceInfo contains additional info about a reference such as
 // whether it's a singleton, returned, etc.
 class ReferenceInfo : public DeletableArenaObject<kArenaAllocLSA> {
  public:
-  ReferenceInfo(HInstruction* reference,
-                ScopedArenaAllocator* allocator,
-                size_t pos,
-                LoadStoreAnalysisType elimination_type)
+  ReferenceInfo(HInstruction* reference, size_t pos)
       : reference_(reference),
         position_(pos),
         is_singleton_(true),
         is_singleton_and_not_returned_(true),
-        is_singleton_and_not_deopt_visible_(true),
-        allocator_(allocator),
-        subgraph_(nullptr) {
-    // TODO We can do this in one pass.
-    // TODO NewArray is possible but will need to get a handle on how to deal with the dynamic loads
-    // for now just ignore it.
-    bool can_be_partial = elimination_type != LoadStoreAnalysisType::kBasic &&
-                          (/* reference_->IsNewArray() || */ reference_->IsNewInstance());
-    if (can_be_partial) {
-      subgraph_.reset(
-          new (allocator) ExecutionSubgraph(reference->GetBlock()->GetGraph(), allocator));
-      CollectPartialEscapes(reference_->GetBlock()->GetGraph());
-    }
+        is_singleton_and_not_deopt_visible_(true) {
     CalculateEscape(reference_,
                     nullptr,
                     &is_singleton_,
                     &is_singleton_and_not_returned_,
                     &is_singleton_and_not_deopt_visible_);
-    if (can_be_partial) {
-      if (elimination_type == LoadStoreAnalysisType::kNoPredicatedInstructions) {
-        // This is to mark writes to partially escaped values as also part of the escaped subset.
-        // TODO We can avoid this if we have a 'ConditionalWrite' instruction. Will require testing
-        //      to see if the additional branches are worth it.
-        PrunePartialEscapeWrites();
-      }
-      DCHECK(subgraph_ != nullptr);
-      subgraph_->Finalize();
-    } else {
-      DCHECK(subgraph_ == nullptr);
-    }
-  }
-
-  const ExecutionSubgraph* GetNoEscapeSubgraph() const {
-    DCHECK(IsPartialSingleton());
-    return subgraph_.get();
   }
 
   HInstruction* GetReference() const {
@@ -101,16 +62,6 @@ class ReferenceInfo : public DeletableArenaObject<kArenaAllocLSA> {
     return is_singleton_;
   }
 
-  // This is a singleton and there are paths that don't escape the method
-  bool IsPartialSingleton() const {
-    auto ref = GetReference();
-    // TODO NewArray is possible but will need to get a handle on how to deal with the dynamic loads
-    // for now just ignore it.
-    return (/* ref->IsNewArray() || */ ref->IsNewInstance()) &&
-           subgraph_ != nullptr &&
-           subgraph_->IsValid();
-  }
-
   // Returns true if reference_ is a singleton and not returned to the caller or
   // used as an environment local of an HDeoptimize instruction.
   // The allocation and stores into reference_ may be eliminated for such cases.
@@ -126,19 +77,6 @@ class ReferenceInfo : public DeletableArenaObject<kArenaAllocLSA> {
   }
 
  private:
-  void CollectPartialEscapes(HGraph* graph);
-  void HandleEscape(HBasicBlock* escape) {
-    DCHECK(subgraph_ != nullptr);
-    subgraph_->RemoveBlock(escape);
-  }
-  void HandleEscape(HInstruction* escape) {
-    HandleEscape(escape->GetBlock());
-  }
-
-  // Make sure we mark any writes/potential writes to heap-locations within partially
-  // escaped values as escaping.
-  void PrunePartialEscapeWrites();
-
   HInstruction* const reference_;
   const size_t position_;  // position in HeapLocationCollector's ref_info_array_.
 
@@ -148,10 +86,6 @@ class ReferenceInfo : public DeletableArenaObject<kArenaAllocLSA> {
   bool is_singleton_and_not_returned_;
   // Is singleton and not used as an environment local of HDeoptimize.
   bool is_singleton_and_not_deopt_visible_;
-
-  ScopedArenaAllocator* allocator_;
-
-  std::unique_ptr<ExecutionSubgraph> subgraph_;
 
   DISALLOW_COPY_AND_ASSIGN(ReferenceInfo);
 };
@@ -249,16 +183,13 @@ class HeapLocationCollector : public HGraphVisitor {
   // aliasing matrix of 8 heap locations.
   static constexpr uint32_t kInitialAliasingMatrixBitVectorSize = 32;
 
-  HeapLocationCollector(HGraph* graph,
-                        ScopedArenaAllocator* allocator,
-                        LoadStoreAnalysisType lse_type)
+  HeapLocationCollector(HGraph* graph, ScopedArenaAllocator* allocator)
       : HGraphVisitor(graph),
         allocator_(allocator),
         ref_info_array_(allocator->Adapter(kArenaAllocLSA)),
         heap_locations_(allocator->Adapter(kArenaAllocLSA)),
         aliasing_matrix_(allocator, kInitialAliasingMatrixBitVectorSize, true, kArenaAllocLSA),
-        has_heap_stores_(false),
-        lse_type_(lse_type) {
+        has_heap_stores_(false) {
     aliasing_matrix_.ClearAllBits();
   }
 
@@ -270,12 +201,6 @@ class HeapLocationCollector : public HGraphVisitor {
     heap_locations_.clear();
     STLDeleteContainerPointers(ref_info_array_.begin(), ref_info_array_.end());
     ref_info_array_.clear();
-  }
-
-  size_t CountPartialSingletons() const {
-    return std::count_if(ref_info_array_.begin(),
-                         ref_info_array_.end(),
-                         [](ReferenceInfo* ri) { return ri->IsPartialSingleton(); });
   }
 
   size_t GetNumberOfHeapLocations() const {
@@ -507,7 +432,7 @@ class HeapLocationCollector : public HGraphVisitor {
     ReferenceInfo* ref_info = FindReferenceInfoOf(instruction);
     if (ref_info == nullptr) {
       size_t pos = ref_info_array_.size();
-      ref_info = new (allocator_) ReferenceInfo(instruction, allocator_, pos, lse_type_);
+      ref_info = new (allocator_) ReferenceInfo(instruction, pos);
       ref_info_array_.push_back(ref_info);
     }
     return ref_info;
@@ -566,10 +491,6 @@ class HeapLocationCollector : public HGraphVisitor {
                             is_vec_op);
   }
 
-  void VisitPredicatedInstanceFieldGet(HPredicatedInstanceFieldGet* instruction) override {
-    VisitFieldAccess(instruction->GetTarget(), instruction->GetFieldInfo());
-    CreateReferenceInfoForReferenceType(instruction);
-  }
   void VisitInstanceFieldGet(HInstanceFieldGet* instruction) override {
     VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     CreateReferenceInfoForReferenceType(instruction);
@@ -645,25 +566,16 @@ class HeapLocationCollector : public HGraphVisitor {
   ArenaBitVector aliasing_matrix_;    // aliasing info between each pair of locations.
   bool has_heap_stores_;    // If there is no heap stores, LSE acts as GVN with better
                             // alias analysis and won't be as effective.
-  LoadStoreAnalysisType lse_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapLocationCollector);
 };
 
 class LoadStoreAnalysis {
  public:
-  // for_elimination controls whether we should keep track of escapes at a per-block level for
-  // partial LSE.
   explicit LoadStoreAnalysis(HGraph* graph,
                              OptimizingCompilerStats* stats,
-                             ScopedArenaAllocator* local_allocator,
-                             LoadStoreAnalysisType lse_type)
-      : graph_(graph),
-        stats_(stats),
-        heap_location_collector_(
-            graph,
-            local_allocator,
-            ExecutionSubgraph::CanAnalyse(graph_) ? lse_type : LoadStoreAnalysisType::kBasic) {}
+                             ScopedArenaAllocator* local_allocator)
+      : graph_(graph), stats_(stats), heap_location_collector_(graph, local_allocator) {}
 
   const HeapLocationCollector& GetHeapLocationCollector() const {
     return heap_location_collector_;

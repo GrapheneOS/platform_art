@@ -628,7 +628,7 @@ void CodeGenerator::CreateUnresolvedFieldLocationSummary(
   }
 
   // Note that pSetXXStatic/pGetXXStatic always takes/returns an int or int64
-  // regardless of the the type. Because of that we forced to special case
+  // regardless of the type. Because of that we forced to special case
   // the access to floating point values.
   if (is_get) {
     if (DataType::IsFloatingPointType(field_type)) {
@@ -1642,7 +1642,6 @@ void CodeGenerator::ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
              // GC.
              (EmitNonBakerReadBarrier() &&
               (instruction->IsInstanceFieldGet() ||
-               instruction->IsPredicatedInstanceFieldGet() ||
                instruction->IsStaticFieldGet() ||
                instruction->IsArrayGet() ||
                instruction->IsLoadClass() ||
@@ -1679,7 +1678,6 @@ void CodeGenerator::ValidateInvokeRuntimeWithoutRecordingPcInfo(HInstruction* in
   // PC-related information.
   DCHECK(kUseBakerReadBarrier);
   DCHECK(instruction->IsInstanceFieldGet() ||
-         instruction->IsPredicatedInstanceFieldGet() ||
          instruction->IsStaticFieldGet() ||
          instruction->IsArrayGet() ||
          instruction->IsArraySet() ||
