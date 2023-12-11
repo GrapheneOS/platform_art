@@ -676,42 +676,42 @@ bool JitCodeCache::Commit(Thread* self,
   size_t root_table_size = ComputeRootTableSize(roots.size());
   const uint8_t* stack_map_data = roots_data + root_table_size;
 
-  MutexLock mu(self, *Locks::jit_lock_);
-  // We need to make sure that there will be no jit-gcs going on and wait for any ongoing one to
-  // finish.
-  WaitForPotentialCollectionToCompleteRunnable(self);
-  const uint8_t* code_ptr = region->CommitCode(reserved_code, code, stack_map_data);
-  if (code_ptr == nullptr) {
-    return false;
-  }
-  OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
-
-  // Commit roots and stack maps before updating the entry point.
-  if (!region->CommitData(reserved_data, roots, stack_map)) {
-    return false;
-  }
-
-  switch (compilation_kind) {
-    case CompilationKind::kOsr:
-      number_of_osr_compilations_++;
-      break;
-    case CompilationKind::kBaseline:
-      number_of_baseline_compilations_++;
-      break;
-    case CompilationKind::kOptimized:
-      number_of_optimized_compilations_++;
-      break;
-  }
-
-  // We need to update the debug info before the entry point gets set.
-  // At the same time we want to do under JIT lock so that debug info and JIT maps are in sync.
-  if (!debug_info.empty()) {
-    // NB: Don't allow packing of full info since it would remove non-backtrace data.
-    AddNativeDebugInfoForJit(code_ptr, debug_info, /*allow_packing=*/ !is_full_debug_info);
-  }
-
-  // We need to update the entry point in the runnable state for the instrumentation.
+  OatQuickMethodHeader* method_header = nullptr;
   {
+    MutexLock mu(self, *Locks::jit_lock_);
+    // We need to make sure that there will be no jit-gcs going on and wait for any ongoing one to
+    // finish.
+    WaitForPotentialCollectionToCompleteRunnable(self);
+    const uint8_t* code_ptr = region->CommitCode(reserved_code, code, stack_map_data);
+    if (code_ptr == nullptr) {
+      return false;
+    }
+    method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+
+    // Commit roots and stack maps before updating the entry point.
+    if (!region->CommitData(reserved_data, roots, stack_map)) {
+      return false;
+    }
+
+    switch (compilation_kind) {
+      case CompilationKind::kOsr:
+        number_of_osr_compilations_++;
+        break;
+      case CompilationKind::kBaseline:
+        number_of_baseline_compilations_++;
+        break;
+      case CompilationKind::kOptimized:
+        number_of_optimized_compilations_++;
+        break;
+    }
+
+    // We need to update the debug info before the entry point gets set.
+    // At the same time we want to do under JIT lock so that debug info and JIT maps are in sync.
+    if (!debug_info.empty()) {
+      // NB: Don't allow packing of full info since it would remove non-backtrace data.
+      AddNativeDebugInfoForJit(code_ptr, debug_info, /*allow_packing=*/ !is_full_debug_info);
+    }
+
     // The following needs to be guarded by cha_lock_ also. Otherwise it's possible that the
     // compiled code is considered invalidated by some class linking, but below we still make the
     // compiled code valid for the method.  Need cha_lock_ for checking all single-implementation
@@ -796,6 +796,12 @@ bool JitCodeCache::Commit(Thread* self,
                                          method_header->GetCodeSize());
   }
 
+  if (kIsDebugBuild) {
+    uintptr_t entry_point = reinterpret_cast<uintptr_t>(method_header->GetEntryPoint());
+    DCHECK_EQ(LookupMethodHeader(entry_point, method), method_header) << method->PrettyMethod();
+    DCHECK_EQ(LookupMethodHeader(entry_point + method_header->GetCodeSize() - 1, method),
+              method_header) << method->PrettyMethod();
+  }
   return true;
 }
 
@@ -1329,11 +1335,8 @@ void JitCodeCache::DoCollection(Thread* self) {
 
 OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* method) {
   static_assert(kRuntimeISA != InstructionSet::kThumb2, "kThumb2 cannot be a runtime ISA");
-  if (kRuntimeISA == InstructionSet::kArm) {
-    // On Thumb-2, the pc is offset by one.
-    --pc;
-  }
-  if (!ContainsPc(reinterpret_cast<const void*>(pc))) {
+  const void* pc_ptr = reinterpret_cast<const void*>(pc);
+  if (!ContainsPc(pc_ptr)) {
     return nullptr;
   }
 
@@ -1365,15 +1368,18 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
       return nullptr;
     }
   } else {
-    if (shared_region_.IsInExecSpace(reinterpret_cast<const void*>(pc))) {
+    if (shared_region_.IsInExecSpace(pc_ptr)) {
       const void* code_ptr = zygote_map_.GetCodeFor(method, pc);
       if (code_ptr != nullptr) {
         return OatQuickMethodHeader::FromCodePointer(code_ptr);
       }
     }
-    auto it = method_code_map_.lower_bound(reinterpret_cast<const void*>(pc));
-    if (it != method_code_map_.begin()) {
+    auto it = method_code_map_.lower_bound(pc_ptr);
+    if ((it == method_code_map_.end() || it->first != pc_ptr) &&
+        it != method_code_map_.begin()) {
       --it;
+    }
+    if (it != method_code_map_.end()) {
       const void* code_ptr = it->first;
       if (OatQuickMethodHeader::FromCodePointer(code_ptr)->Contains(pc)) {
         method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
