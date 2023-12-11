@@ -846,12 +846,20 @@ class MethodEntryExitHooksSlowPathARM64 : public SlowPathCodeARM64 {
 
 class CompileOptimizedSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  CompileOptimizedSlowPathARM64() : SlowPathCodeARM64(/* instruction= */ nullptr) {}
+  explicit CompileOptimizedSlowPathARM64(Register profiling_info)
+      : SlowPathCodeARM64(/* instruction= */ nullptr),
+        profiling_info_(profiling_info) {}
 
   void EmitNativeCode(CodeGenerator* codegen) override {
     uint32_t entrypoint_offset =
         GetThreadOffset<kArm64PointerSize>(kQuickCompileOptimized).Int32Value();
     __ Bind(GetEntryLabel());
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+    UseScratchRegisterScope temps(arm64_codegen->GetVIXLAssembler());
+    Register counter = temps.AcquireW();
+    __ Mov(counter, ProfilingInfo::GetOptimizeThreshold());
+    __ Strh(counter,
+            MemOperand(profiling_info_, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Ldr(lr, MemOperand(tr, entrypoint_offset));
     // Note: we don't record the call here (and therefore don't generate a stack
     // map), as the entrypoint should never be suspended.
@@ -864,6 +872,10 @@ class CompileOptimizedSlowPathARM64 : public SlowPathCodeARM64 {
   }
 
  private:
+  // The register where the profiling info is stored when entering the slow
+  // path.
+  Register profiling_info_;
+
   DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathARM64);
 };
 
@@ -1286,21 +1298,21 @@ void CodeGeneratorARM64::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    SlowPathCodeARM64* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathARM64();
-    AddSlowPath(slow_path);
     ProfilingInfo* info = GetGraph()->GetProfilingInfo();
     DCHECK(info != nullptr);
     DCHECK(!HasEmptyFrame());
     uint64_t address = reinterpret_cast64<uint64_t>(info);
     vixl::aarch64::Label done;
     UseScratchRegisterScope temps(masm);
-    Register temp = temps.AcquireX();
     Register counter = temps.AcquireW();
-    __ Ldr(temp, jit_patches_.DeduplicateUint64Literal(address));
-    __ Ldrh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
+    SlowPathCodeARM64* slow_path =
+        new (GetScopedAllocator()) CompileOptimizedSlowPathARM64(/* profiling_info= */ lr);
+    AddSlowPath(slow_path);
+    __ Ldr(lr, jit_patches_.DeduplicateUint64Literal(address));
+    __ Ldrh(counter, MemOperand(lr, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Cbz(counter, slow_path->GetEntryLabel());
     __ Add(counter, counter, -1);
-    __ Strh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
+    __ Strh(counter, MemOperand(lr, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
     __ Bind(slow_path->GetExitLabel());
   }
 }
