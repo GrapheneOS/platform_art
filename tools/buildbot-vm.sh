@@ -56,7 +56,7 @@ if [[ $action = create ]]; then
 
         # Get OpenSBI for Ubuntu 22.04 (Jammy)
         get_stable_binary \
-            o/opensbi/opensbi_1.3-1ubuntu0.22.04.1_all.deb \
+            o/opensbi/opensbi_1.3-1ubuntu0.22.04.2_all.deb \
             usr/lib/riscv64-linux-gnu/opensbi/generic/fw_jump.elf
 
     elif [[ "$TARGET_ARCH" = "arm64" ]]; then
