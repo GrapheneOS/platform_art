@@ -32,6 +32,7 @@
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testCollectorMultiThreaded",
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testCollectArgumentsMultiThreaded",
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testConstantMultithreaded",
+          "libcore.java.lang.invoke.MethodHandleCombinersTest#testGuardWithTestMultiThreaded",
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testPermuteArgumentsMultiThreaded",
           "libcore.java.lang.invoke.MethodHandleCombinersTest#testReferenceArrayGetterMultiThreaded",
           "libcore.java.lang.StringTest#testFastPathString_wellFormedUtf8Sequence",
