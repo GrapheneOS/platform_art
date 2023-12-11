@@ -649,7 +649,8 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   static uint32_t GetBootImageOffset(ClassRoot class_root);
   static uint32_t GetBootImageOffsetOfIntrinsicDeclaringClass(HInvoke* invoke);
 
-  static void CreateSystemArrayCopyLocationSummary(HInvoke* invoke);
+  static LocationSummary* CreateSystemArrayCopyLocationSummary(
+      HInvoke* invoke, int32_t length_threshold = -1, size_t num_temps = 3);
 
   void SetDisassemblyInformation(DisassemblyInformation* info) { disasm_info_ = info; }
   DisassemblyInformation* GetDisassemblyInformation() const { return disasm_info_; }

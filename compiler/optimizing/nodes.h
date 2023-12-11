@@ -253,7 +253,7 @@ class ReferenceTypeInfo : ValueObject {
 
   bool IsNonPrimitiveArrayClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
-    return GetTypeHandle()->IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
+    return IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
   }
 
   bool CanArrayHold(ReferenceTypeInfo rti)  const REQUIRES_SHARED(Locks::mutator_lock_) {
