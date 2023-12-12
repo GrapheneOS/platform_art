@@ -17,19 +17,20 @@
 // - The following paths leave nterp. -
 // (1) If the next method is guaranteed to be only object refs, then the managed ABI is very simple:
 //     just place all arguments in the native arg registers using LWU. Call the quick code.
-// (2) If the next method has 0 or 1 argument, then the managed ABI is mildly overloaded by
-//     pessimistically placing a singleton 32-bit arg in both a0 and fa0; we don't have to know if
-//     the argument is an int or float. We might be able to avoid the shorty ...
-// (2.1) If this 0/1 arg method isn't returning a scalar value, it's returning void or an object. A
-//       return will come back in a0, so we definitely don't need the shorty. Call the quick code.
-// (2.2) If this 0/1 arg method returns a scalar value, that return might be a float or double! We
-//       must obtain the shorty to know for sure, so that a returned float is copied from fa0 into
-//       a0, as expected by Nterp. But we can skip the argument setup for the managed ABI. Call the
-//       quick code.
+// (2) The next method might have an arg/return shape that can avoid the shorty, or at least avoid
+//     most complications of the managed ABI arg setup.
+// (2.1) If the next method has 0 args, then peek ahead in dex: if no scalar return, then call the
+//       quick code. (Even when the next opcode is move-result-object, nterp will expect the
+//       reference at a0, matching where the managed ABI leaves it after the call.)
+// (2.2) If the next method has 0 args and scalar return, or has 1 arg, then obtain the shorty.
+// (2.2.1) Post-shorty: if 0 args, call the quick code. (After the call, a returned float must be
+//         copied from fa0 into a0.)
+// (2.2.2) Post-shorty: check the arg's shorty type. If 'L', we must load it with LWU. Otherwise, we
+//         load it with LW and store a copy into FA0 (to avoid another branch). Call the quick code.
 // - The fully pessimistic case. -
 // (3) The next method has 2+ arguments with a mix of float/double/long, OR it is polymorphic OR
-//     custom. Obtain the shorty and perform the full setup for managed ABI. Polymorphic and custom
-//     invokes are specially shunted to the runtime. Otherwise we call the quick code.
+//     custom. Obtain the shorty and perform the full setup for managed ABI. Polymorphic and
+//     custom invokes are specially shunted to the runtime. Otherwise we call the quick code.
 //
 // Code organization. These functions are organized in a three tier structure to aid readability.
 // (P) The "front end" is an opcode handler, such as op_invoke_virtual(). They are defined in
@@ -396,20 +397,12 @@
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   j .L${uniq}_slow  // TODO fix this fastpath
    mv s9, zero                   // initialize shorty reg
-%  try_01_args(vreg="s7", z0="t1", z1="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
-                                 // a2, fa0 := (regular) fp[D] or (range) fp[CCCC + 1], maybe
-   // Return value expected. Get shorty, stash in callee-save to be available on return.
-   // When getting shorty, stash this fast path's arg registers then restore.
-   // Unconditionally restores a2/fa0, even if extra arg not found.
-   mv s0, a2                    // skip fa0, bitwise equiv to a2
-%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-   mv a2, s0
-   fmv.w.x fa0, s0
+%  try_01_args(vreg="s7", shorty="s9", z0="t0", z1="t1", z2="t2", y0="s10", y1="s11", y2="s0", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                                 // if s9 := shorty, then maybe (a2, fa0) := fp[D] or fp[CCCC + 1]
 .L${uniq}_01_call:
    jalr s8                       // args a0, a1, and maybe a2, fa0
-   beqz s9, .L${uniq}_next_op    // no shorty, no return value
+   beqz s9, .L${uniq}_next_op    // no shorty, no scalar return
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
                                  // a0 := fa0 if float return
    j .L${uniq}_next_op
@@ -478,18 +471,12 @@
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   j .L${uniq}_slow  // TODO fix this fastpath
    mv s9, zero                 // initialize shorty reg
-%  try_01_args_static(vreg="s7", z0="t0", z1="t1", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
-                               // a1, fa0 := fp[C], maybe
-   // Return value expected. Get shorty, stash in callee-save to be available on return.
-   // When getting shorty, stash this fast path's arg registers then restore.
-   // Unconditionally restores a1/fa0, even if extra arg not found.
-%  get_shorty_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-   fmv.w.x fa0, s11
+%  try_01_args_static(vreg="s7", shorty="s9", z0="t0", z1="t1", z2="t2", y0="s10", y1="s11", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                               // if s9 := shorty, then maybe (a2, fa0) := fp[C] or fp[CCCC]
 .L${uniq}_01_call:
    jalr s8                     // args a0, and maybe a1, fa0
-   beqz s9, .L${uniq}_next_op  // no shorty, no return value
+   beqz s9, .L${uniq}_next_op  // no shorty, no scalar return
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
                                // a0 := fa0 if float return
    j .L${uniq}_next_op
@@ -535,30 +522,19 @@
    j .L${uniq}_next_op
 
 .L${uniq}_01:
-   j .L${uniq}_slow  // TODO fix this fastpath
    mv s9, zero                 // initialize shorty reg
-%  try_01_args(vreg="s7", z0="t1", z1="t2", skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
-                               // a2, fa0 := (regular) fp[D] or (range) fp[CCCC + 1], maybe
-   // Return value expected. Get shorty, stash in callee-save to be available on return.
-   // When getting shorty, stash this fast path's arg registers then restore.
-   // Unconditionally stores a2/fa0, even if extra arg not found.
-   mv s7, a2                   // skip fa0, bitwise equiv to a2. vreg in s7 no longer needed.
-   mv s0, t0
-%  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-   mv t0, s0
-   mv a2, s7
-   fmv.w.x fa0, s7
+%  try_01_args(vreg="s7", shorty="s9", z0="t1", z1="t2", z2="t3", y0="s10", y1="s11", y2="s0", interface=True, skip=f".L{uniq}_slow", call=f".L{uniq}_01_call", uniq=uniq, range=range)
+                               // if s9 := shorty, then maybe (a2, fa0) := fp[D] or fp[CCCC + 1]
+                               // (xINST clobbered, if taking this fast path)
 .L${uniq}_01_call:
    jalr s8                     // args a0, a1, and t0, and maybe a2, fa0
-   beqz s9, .L${uniq}_next_op  // no shorty, no return value
+   beqz s9, .L${uniq}_next_op  // no shorty, no scalar return
 %  maybe_float_returned(shorty="s9", z0="t0", z1="t1", uniq=f"{uniq}_0")
                                // a0 := fa0 if float return
    j .L${uniq}_next_op
 
 .L${uniq}_slow:
-   mv s0, t0
-%  get_shorty_for_interface_save_a0_a1(shorty="s9", y0="s10", y1="s11")
-   mv t0, s0
+%  get_shorty_for_interface_save_a0_a1_t0(shorty="s9", y0="s10", y1="s11", y2="s0")
 %  if range == 'Range':
 %    slow_setup_args_range(shorty="s9", vC="s7", z0="s10", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s11", uniq=uniq)
 %  else:
@@ -771,52 +747,89 @@
 
 // Check if a 0/1 arg invoke form is possible, set up a2 and fa0 if needed.
 // If a return value expected, move possible float return to a0.
-// zN are temporaries
-%def try_01_args(vreg="", z0="", z1="", skip="", call="", uniq="", range=""):
+// Hardcoded: xINST, xPC, xFP, a0, a1, t0, fa0
+// NOTE xINST clobbered if interface=True and we're taking the fast path.
+// zN are temporaries, yN are callee-save
+%def try_01_args(vreg="", shorty="", z0="", z1="", z2="", y0="", y1="", y2="", interface=False, skip="", call="", uniq="", range=""):
 %  if range == 'Range':
-     srliw $z0, xINST, 8   // z0 := AA
+     srliw $y0, xINST, 8   // y0 := AA
 %  else:
-     srliw $z0, xINST, 12  // z0 := A
+     srliw $y0, xINST, 12  // y0 := A
 %#:
-   li $z1, 2               // z1 := 2
-   blt $z0, $z1, .L${uniq}_01_peek_next  // ins = 1
-   bgt $z0, $z1, $skip     // ins >= 3
-   // ins = 2: this, plus one arg
+   addi $y0, $y0, -2       // y0 := A - 2 or (range) AA - 2
+   bgtz $y0, $skip         // 2+ args: slow path
+   beqz $y0, .L${uniq}_01_shorty  // this and 1 arg: determine arg type with shorty
+   // 0 args
+%  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has scalar return
+   bnez $z0, $call         // Non-scalar return, 0 args: make the call.
+   // Scalar return, 0 args: determine return type with shorty
+
+.L${uniq}_01_shorty:
+   // Get shorty, stash in callee-save to be available on return.
+   // When getting shorty, stash this fast path's A0 and A1, then restore.
+%  if interface:
+     // xINST is a regular callee save. Safe: orig xINST value unused before FETCH_ADVANCE_INST.
+%    get_shorty_for_interface_save_a0_a1_t0(shorty=shorty, y0=y1, y1=y2, y2="xINST")
+%  else:
+%    get_shorty_save_a0_a1(shorty=shorty, y0=y1, y1=y2)
+%#:
+   // shorty assigned
+   bltz $y0, $call         // Scalar return, 0 args: make the call.
+   // ins = 2: this and 1 arg. Load arg type.
+   lb $z0, 1($shorty)      // z0 := first arg
+   li $z1, 'L'             // ref type
 %  if range == 'Range':
-     addi $z1, $vreg, 1    // z1 := CCCC + 1
-     GET_VREG a2, $z1      // a2 := fp[CCCC + 1]
+     sh2add $z2, $vreg, xFP  // z2 := &fp[CCCC]
+     lwu a2, 4($z2)        // a2 := fp[CCCC + 1], zext
 %  else:
-     srliw $z1, $vreg, 4   // z1 := F|E|D
-     andi $z1, $z1, 0xF    // z1 := D
-     GET_VREG a2, $z1      // a2 := fp[D]
+     srliw $z2, $vreg, 4   // z2 := F|E|D
+     andi $z2, $z2, 0xF    // z2 := D
+     sh2add $z2, $z2, xFP  // z2 := &fp[D]
+     lwu a2, ($z2)         // a2 := fp[D], zext
 %#:
-   fmv.w.x fa0, a2
-.L${uniq}_01_peek_next:
-%  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
-   bnez $z0, $call
+   beq $z0, $z1, $call     // ref type: LWU into a2
+   // non-'L' type
+   fmv.w.x fa0, a2         // overload of managed ABI, for one arg
+   sext.w a2, a2           // scalar type: LW into a2
+   // immediately followed by call
 
 
 // Static variant.
-%def try_01_args_static(vreg="", z0="", z1="", skip="", call="", uniq="", range=""):
+%def try_01_args_static(vreg="", shorty="", z0="", z1="", z2="", y0="", y1="", skip="", call="", uniq="", range=""):
 %  if range == 'Range':
-     srliw $z0, xINST, 8     // z0 := AA
+     srliw $y0, xINST, 8     // y0 := AA
 %  else:
-     srliw $z0, xINST, 12    // z0 := A
+     srliw $y0, xINST, 12    // y0 := A
 %#:
-   beqz $z0, .L${uniq}_01_peek_next  // ins = 0
-   li $z1, 1                 // z1 := 1
-   bgt $z0, $z1, $skip       // ins >= 2
-   // ins = 1: one arg
+   addi $y0, $y0, -1         // y0 := A - 1 or (range) AA - 1
+   bgtz $y0, $skip           // 2+ args: slow path
+   beqz $y0, .L${uniq}_01_shorty  // 1 arg: determine arg type with shorty
+   // 0 args
+%  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has scalar return
+   bnez $z0, $call           // Non-scalar return, 0 args: make the call.
+   // Scalar return, 0 args: determine return type with shorty.
+
+.L${uniq}_01_shorty:
+   // Get shorty, stash in callee-save to be available on return.
+   // When getting shorty, stash this fast path's A0 then restore.
+%  get_shorty_save_a0(shorty=shorty, y0=y1)
+   // shorty assigned
+   bltz $y0, $call           // Scalar return, 0 args: make the call.
+   // ins = 1: load arg type
+   lb $z0, 1($shorty)        // z0 := first arg
+   li $z1, 'L'               // ref type
 %  if range == 'Range':
-     GET_VREG a1, $vreg      // a1 := fp[CCCC]
+     sh2add $z2, $vreg, xFP  // z2 := &fp[CCCC]
 %  else:
-     andi $z1, $vreg, 0xF    // z1 := C
-     GET_VREG a1, $z1        // a1 := fp[C]
+     andi $z2, $vreg, 0xF    // z2 := C
+     sh2add $z2, $z2, xFP    // z2 := &fp[C]
 %#:
-   fmv.w.x fa0, a1
-.L${uniq}_01_peek_next:
-%  try_01_args_peek_next(z0=z0)  # z0 is zero if invoke has return value
-   bnez $z0, $call
+   lwu a1, ($z2)             // a1 := fp[C] or (range) fp[CCCC], zext
+   beq $z0, $z1, $call       // ref type: LWU into a1
+   // non-'L' type
+   fmv.w.x fa0, a1           // overload of managed ABI, for one arg
+   sext.w a1, a1             // scalar type: LW into a1
+   // immediately followed by call
 
 
 %def try_01_args_peek_next(z0=""):
@@ -871,8 +884,10 @@
 // Hardcoded:
 // - a0: ArtMethod*
 // - a1: this
-// Callee-saves: y0, y1
-%def get_shorty_for_interface_save_a0_a1(shorty="", y0="", y1=""):
+// - t0: "hidden argument"
+// Callee-saves: y0, y1, y2
+%def get_shorty_for_interface_save_a0_a1_t0(shorty="", y0="", y1="", y2=""):
+   mv $y2, t0
    mv $y1, a1
    mv $y0, a0
    ld a0, (sp)            // a0 := caller ArtMethod*
@@ -881,6 +896,7 @@
    mv $shorty, a0
    mv a0, $y0
    mv a1, $y1
+   mv t0, $y2
 
 
 // Hardcoded: xFP, xREFS
