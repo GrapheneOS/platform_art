@@ -1389,10 +1389,18 @@ ENTRY \name
     and t6, t6, t5
     CFI_REMEMBER_STATE
     bgez t6, .Lrb_full_\name
+    // Note: The mark bit which is shifted to the sign bit and sign-extended is
+    // always zero in the forwarding address state. No zero-extension is needed.
     slliw \reg, t5, LOCK_WORD_STATE_FORWARDING_ADDRESS_SHIFT
+    .ifc \reg, t5
+      sd t5, (8*0)(sp)
+    .endif
+    .ifc \reg, t6
+      sd t6, (8*1)(sp)
+    .endif
 .Lrb_tmp_restore_\name:
-    RESTORE_GPR_NE \reg, t5, (8*0)
-    RESTORE_GPR_NE \reg, t6, (8*1)
+    RESTORE_GPR t5, (8*0)
+    RESTORE_GPR t6, (8*1)
     DECREASE_FRAME 16
 .Lrb_return_\name:
     ret
