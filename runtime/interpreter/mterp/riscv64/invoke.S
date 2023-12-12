@@ -278,7 +278,19 @@
 //
 // Present in Dex files from version 038 onwards.
 %def op_invoke_polymorphic(range=""):
-   unimp
+   EXPORT_PC
+   FETCH s7, count=2  // s7 := F|E|D|C or CCCC (range)
+   // No need to fetch the target method; the runtime handles it.
+%  fetch_receiver(reg="s8", vreg="s7", range=range)
+   beqz s8, 1f        // throw if null
+
+   ld a0, (sp)        // a0 := caller ArtMethod*
+   mv a1, xPC
+   call NterpGetShortyFromInvokePolymorphic  // args a0, a1
+   mv a1, s8
+   tail NterpInvokePolymorphic${range}  // args a0 (shorty), a1 (this), s7 (vregs)
+1:
+   tail common_errNullObject
 
 
 // invoke-polymorphic/range {vCCCC .. vNNNN}, meth@BBBB, proto@HHHH
@@ -323,7 +335,14 @@
 //
 // Present in Dex files from version 038 onwards.
 %def op_invoke_custom(range=""):
-   unimp
+   EXPORT_PC
+   ld a0, (sp)  // a0 := caller ArtMethod*
+   mv a1, xPC
+   call NterpGetShortyFromInvokeCustom  // args a0, a1
+   mv s7, a0    // s7 := shorty
+   FETCH a0, 1  // a0 := BBBB
+   FETCH s8, 2  // s8 := F|E|D|C or CCCC (range)
+   tail NterpInvokeCustom${range}  // args a0 (BBBB), s7 (shorty), s8 (vregs)
 
 
 // invoke-custom/range {vCCCC .. vNNNN}, call_site@BBBB
@@ -550,13 +569,39 @@
 
 
 // NterpInvokePolymorphic
-%def nterp_invoke_polymorphic(uniq="invoke_polymorphic"):
-   unimp
+// a0: shorty
+// a1: receiver this
+// s7: (regular) vreg ids F|E|D|C, (range) vreg id CCCC
+%def nterp_invoke_polymorphic(uniq="invoke_polymorphic", range=""):
+%  if range == "Range":
+%    slow_setup_args_range(shorty="a0", vC="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s8", uniq=uniq)
+%  else:
+%    slow_setup_args(shorty="a0", vregs="s7", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", uniq=uniq)
+%#:
+   // Managed ABI argument regs get spilled to stack and consumed by artInvokePolymorphic.
+   call art_quick_invoke_polymorphic  // args a1 - a7, fa0 - fa7, and maybe stack
+   // Note: If float return, artInvokePolymorphic will place the value in A0, as Nterp expects.
+   FETCH_ADVANCE_INST 4
+   GET_INST_OPCODE t0
+   GOTO_OPCODE t0
 
 
 // NterpInvokeCustom
-%def nterp_invoke_custom(uniq="invoke_custom"):
-   unimp
+// a0: BBBB
+// s7: shorty
+// s8: (regular) vreg ids F|E|D|C, (range) vreg id CCCC
+%def nterp_invoke_custom(uniq="invoke_custom", range=""):
+%  if range == "Range":
+%    slow_setup_args_range(shorty="s7", vC="s8", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", z7="s9", uniq=uniq)
+%  else:
+%    slow_setup_args(shorty="s7", vregs="s8", z0="t0", z1="t1", z2="t2", z3="t3", z4="t4", z5="t5", z6="t6", uniq=uniq)
+%#:
+   // Managed ABI argument regs get spilled to stack and consumed by artInvokeCustom.
+   call art_quick_invoke_custom  // args a0 - a7, fa0 - fa7, and maybe stack
+   // Note: If float return, artInvokeCustom will place the value in A0, as Nterp expects.
+   FETCH_ADVANCE_INST 3
+   GET_INST_OPCODE t0
+   GOTO_OPCODE t0
 
 
 // NterpInvokeVirtualRange
@@ -611,13 +656,13 @@
 
 
 // NterpInvokePolymorphicRange
-%def nterp_invoke_polymorphic_range(uniq="invoke_polymorphic_range"):
-   unimp
+%def nterp_invoke_polymorphic_range():
+%  nterp_invoke_polymorphic(uniq="invoke_polymorphic_range", range="Range")
 
 
 // NterpInvokeCustomRange
-%def nterp_invoke_custom_range(uniq="invoke_custom_range"):
-   unimp
+%def nterp_invoke_custom_range():
+%  nterp_invoke_custom(uniq="invoke_custom_range", range="Range")
 
 
 // fast path and slow path helpers
