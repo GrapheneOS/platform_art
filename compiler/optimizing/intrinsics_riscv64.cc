@@ -28,6 +28,66 @@ using IntrinsicSlowPathRISCV64 = IntrinsicSlowPath<InvokeDexCallingConventionVis
                                                    SlowPathCodeRISCV64,
                                                    Riscv64Assembler>;
 
+#define __ assembler->
+
+// Slow path implementing the SystemArrayCopy intrinsic copy loop with read barriers.
+class ReadBarrierSystemArrayCopySlowPathRISCV64 : public SlowPathCodeRISCV64 {
+ public:
+  ReadBarrierSystemArrayCopySlowPathRISCV64(HInstruction* instruction, Location tmp)
+      : SlowPathCodeRISCV64(instruction), tmp_(tmp) {}
+
+  void EmitNativeCode(CodeGenerator* codegen_in) override {
+    DCHECK(codegen_in->EmitBakerReadBarrier());
+    CodeGeneratorRISCV64* codegen = down_cast<CodeGeneratorRISCV64*>(codegen_in);
+    Riscv64Assembler* assembler = codegen->GetAssembler();
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(locations->CanCall());
+    DCHECK(instruction_->IsInvokeStaticOrDirect())
+        << "Unexpected instruction in read barrier arraycopy slow path: "
+        << instruction_->DebugName();
+    DCHECK(instruction_->GetLocations()->Intrinsified());
+    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kSystemArrayCopy);
+
+    const int32_t element_size = DataType::Size(DataType::Type::kReference);
+
+    XRegister src_curr_addr = locations->GetTemp(0).AsRegister<XRegister>();
+    XRegister dst_curr_addr = locations->GetTemp(1).AsRegister<XRegister>();
+    XRegister src_stop_addr = locations->GetTemp(2).AsRegister<XRegister>();
+    XRegister tmp_reg = tmp_.AsRegister<XRegister>();
+
+    __ Bind(GetEntryLabel());
+    Riscv64Label slow_copy_loop;
+    __ Bind(&slow_copy_loop);
+    __ Lwu(tmp_reg, src_curr_addr, 0);
+    codegen->MaybeUnpoisonHeapReference(tmp_reg);
+    // TODO: Inline the mark bit check before calling the runtime?
+    // tmp_reg = ReadBarrier::Mark(tmp_reg);
+    // No need to save live registers; it's taken care of by the
+    // entrypoint. Also, there is no need to update the stack mask,
+    // as this runtime call will not trigger a garbage collection.
+    // (See ReadBarrierMarkSlowPathRISCV64::EmitNativeCode for more
+    // explanations.)
+    int32_t entry_point_offset = ReadBarrierMarkEntrypointOffset(tmp_);
+    // This runtime call does not require a stack map.
+    codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
+    codegen->MaybePoisonHeapReference(tmp_reg);
+    __ Sw(tmp_reg, dst_curr_addr, 0);
+    __ Addi(src_curr_addr, src_curr_addr, element_size);
+    __ Addi(dst_curr_addr, dst_curr_addr, element_size);
+    __ Bne(src_curr_addr, src_stop_addr, &slow_copy_loop);
+    __ J(GetExitLabel());
+  }
+
+  const char* GetDescription() const override {
+    return "ReadBarrierSystemArrayCopySlowPathRISCV64";
+  }
+
+ private:
+  Location tmp_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReadBarrierSystemArrayCopySlowPathRISCV64);
+};
+
 bool IntrinsicLocationsBuilderRISCV64::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
@@ -40,8 +100,6 @@ bool IntrinsicLocationsBuilderRISCV64::TryDispatch(HInvoke* invoke) {
 Riscv64Assembler* IntrinsicCodeGeneratorRISCV64::GetAssembler() {
   return codegen_->GetAssembler();
 }
-
-#define __ assembler->
 
 static void CreateFPToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
@@ -1203,6 +1261,629 @@ class ReadBarrierCasSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   SlowPathCodeRISCV64* update_old_value_slow_path_;
   Riscv64Label success_exit_label_;
 };
+
+static void CheckSystemArrayCopyPosition(Riscv64Assembler* assembler,
+                                         const Location& pos,
+                                         const XRegister& input,
+                                         const Location& length,
+                                         SlowPathCodeRISCV64* slow_path,
+                                         const XRegister& temp1,
+                                         const XRegister& temp2,
+                                         bool length_is_input_length = false) {
+  const int32_t length_offset = mirror::Array::LengthOffset().Int32Value();
+  if (pos.IsConstant()) {
+    int32_t pos_const = pos.GetConstant()->AsIntConstant()->GetValue();
+    if (pos_const == 0) {
+      if (!length_is_input_length) {
+        // Check that length(input) >= length.
+        __ Lwu(temp1, input, length_offset);
+        if (length.IsConstant()) {
+          __ Li(temp2, length.GetConstant()->AsIntConstant()->GetValue());
+          __ Blt(temp1, temp2, slow_path->GetEntryLabel());
+        } else {
+          __ Blt(temp1, length.AsRegister<XRegister>(), slow_path->GetEntryLabel());
+        }
+      }
+    } else {
+      // Check that length(input) >= pos.
+      __ Lwu(temp1, input, length_offset);
+      __ AddConst32(temp1, temp1, -pos_const);
+      __ Bltz(temp1, slow_path->GetEntryLabel());
+
+      // Check that (length(input) - pos) >= length.
+      if (length.IsConstant()) {
+        __ Li(temp2, length.GetConstant()->AsIntConstant()->GetValue());
+        __ Blt(temp1, temp2, slow_path->GetEntryLabel());
+      } else {
+        __ Blt(temp1, length.AsRegister<XRegister>(), slow_path->GetEntryLabel());
+      }
+    }
+  } else if (length_is_input_length) {
+    // The only way the copy can succeed is if pos is zero.
+    __ Bnez(pos.AsRegister<XRegister>(), slow_path->GetEntryLabel());
+  } else {
+    // Check that pos >= 0.
+    XRegister pos_reg = pos.AsRegister<XRegister>();
+    __ Bltz(pos_reg, slow_path->GetEntryLabel());
+
+    // Check that pos <= length(input)
+    __ Lwu(temp1, input, length_offset);
+    __ Bgt(pos_reg, temp1, slow_path->GetEntryLabel());
+
+    // Check that (length(input) - pos) >= length.
+    __ Sub(temp1, temp1, pos_reg);
+    if (length.IsConstant()) {
+      __ Li(temp2, length.GetConstant()->AsIntConstant()->GetValue());
+      __ Blt(temp1, temp2, slow_path->GetEntryLabel());
+    } else {
+      __ Blt(temp1, length.AsRegister<XRegister>(), slow_path->GetEntryLabel());
+    }
+  }
+}
+
+// Compute base source address, base destination address, and end
+// source address for System.arraycopy* intrinsics in `src_base`,
+// `dst_base` and `src_end` respectively.
+static void GenSystemArrayCopyAddresses(Riscv64Assembler* assembler,
+                                        DataType::Type type,
+                                        const XRegister& src,
+                                        const Location& src_pos,
+                                        const XRegister& dst,
+                                        const Location& dst_pos,
+                                        const Location& copy_length,
+                                        const XRegister& src_base,
+                                        const XRegister& dst_base,
+                                        const XRegister& src_end) {
+  // This routine is used by the SystemArrayCopy and the SystemArrayCopyChar intrinsics.
+  DCHECK(type == DataType::Type::kReference || type == DataType::Type::kUint16)
+      << "Unexpected element type: " << type;
+  const int32_t element_size = DataType::Size(type);
+  const int32_t element_size_shift = DataType::SizeShift(type);
+  const uint32_t data_offset = mirror::Array::DataOffset(element_size).Uint32Value();
+
+  if (src_pos.IsConstant()) {
+    int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ AddConst32(src_base, src, element_size * constant + data_offset);
+  } else {
+    __ Slli(src_base, src_pos.AsRegister<XRegister>(), element_size_shift);
+    __ Add(src_base, src_base, src);
+    __ Addi(src_base, src_base, data_offset);
+  }
+
+  if (dst_pos.IsConstant()) {
+    int32_t constant = dst_pos.GetConstant()->AsIntConstant()->GetValue();
+    __ AddConst32(dst_base, dst, element_size * constant + data_offset);
+  } else {
+    __ Slli(dst_base, dst_pos.AsRegister<XRegister>(), element_size_shift);
+    __ Add(dst_base, dst_base, dst);
+    __ Addi(dst_base, dst_base, data_offset);
+  }
+
+  if (copy_length.IsConstant()) {
+    int32_t constant = copy_length.GetConstant()->AsIntConstant()->GetValue();
+    __ AddConst32(src_end, src_base, element_size * constant);
+  } else {
+    __ Slli(src_end, copy_length.AsRegister<XRegister>(), element_size_shift);
+    __ Add(src_end, src_end, src_base);
+  }
+}
+
+static void SetSystemArrayCopyLocationRequires(LocationSummary* locations,
+                                               uint32_t at,
+                                               HInstruction* input) {
+  HIntConstant* const_input = input->AsIntConstantOrNull();
+  if (const_input != nullptr && IsInt<12>(const_input->GetValue())) {
+    locations->SetInAt(at, Location::RequiresRegister());
+  } else {
+    locations->SetInAt(at, Location::RegisterOrConstant(input));
+  }
+}
+
+// We can choose to use the native implementation there for longer copy lengths.
+static constexpr int32_t kSystemArrayCopyThreshold = 128;
+
+// CodeGenerator::CreateSystemArrayCopyLocationSummary use three temporary registers.
+// We want to use two temporary registers in order to reduce the register pressure in riscv64.
+// So we don't use the CodeGenerator::CreateSystemArrayCopyLocationSummary.
+void IntrinsicLocationsBuilderRISCV64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // The only read barrier implementation supporting the
+  // SystemArrayCopy intrinsic is the Baker-style read barriers.
+  if (codegen_->EmitNonBakerReadBarrier()) {
+    return;
+  }
+
+  // Check to see if we have known failures that will cause us to have to bail out
+  // to the runtime, and just generate the runtime call directly.
+  HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstantOrNull();
+  HIntConstant* dest_pos = invoke->InputAt(3)->AsIntConstantOrNull();
+
+  // The positions must be non-negative.
+  if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
+      (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
+    // We will have to fail anyways.
+    return;
+  }
+
+  // The length must be >= 0.
+  HIntConstant* length = invoke->InputAt(4)->AsIntConstantOrNull();
+  if (length != nullptr) {
+    int32_t len = length->GetValue();
+    if (len < 0 || len >= kSystemArrayCopyThreshold) {
+      // Just call as normal.
+      return;
+    }
+  }
+
+  SystemArrayCopyOptimizations optimizations(invoke);
+
+  if (optimizations.GetDestinationIsSource()) {
+    if (src_pos != nullptr && dest_pos != nullptr && src_pos->GetValue() < dest_pos->GetValue()) {
+      // We only support backward copying if source and destination are the same.
+      return;
+    }
+  }
+
+  if (optimizations.GetDestinationIsPrimitiveArray() || optimizations.GetSourceIsPrimitiveArray()) {
+    // We currently don't intrinsify primitive copying.
+    return;
+  }
+
+  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+  // arraycopy(Object src, int src_pos, Object dest, int dest_pos, int length).
+  locations->SetInAt(0, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 1, invoke->InputAt(1));
+  locations->SetInAt(2, Location::RequiresRegister());
+  SetSystemArrayCopyLocationRequires(locations, 3, invoke->InputAt(3));
+  SetSystemArrayCopyLocationRequires(locations, 4, invoke->InputAt(4));
+
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorRISCV64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // The only read barrier implementation supporting the
+  // SystemArrayCopy intrinsic is the Baker-style read barriers.
+  DCHECK_IMPLIES(codegen_->EmitReadBarrier(), kUseBakerReadBarrier);
+
+  Riscv64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
+  uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
+  uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
+  uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
+
+  XRegister src = locations->InAt(0).AsRegister<XRegister>();
+  Location src_pos = locations->InAt(1);
+  XRegister dest = locations->InAt(2).AsRegister<XRegister>();
+  Location dest_pos = locations->InAt(3);
+  Location length = locations->InAt(4);
+  XRegister temp1 = locations->GetTemp(0).AsRegister<XRegister>();
+  Location temp1_loc = Location::RegisterLocation(temp1);
+  XRegister temp2 = locations->GetTemp(1).AsRegister<XRegister>();
+  Location temp2_loc = Location::RegisterLocation(temp2);
+
+  SlowPathCodeRISCV64* intrinsic_slow_path =
+      new (codegen_->GetScopedAllocator()) IntrinsicSlowPathRISCV64(invoke);
+  codegen_->AddSlowPath(intrinsic_slow_path);
+
+  Riscv64Label conditions_on_positions_validated;
+  SystemArrayCopyOptimizations optimizations(invoke);
+
+  // If source and destination are the same, we go to slow path if we need to do
+  // forward copying.
+  if (src_pos.IsConstant()) {
+    int32_t src_pos_constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
+    if (dest_pos.IsConstant()) {
+      int32_t dest_pos_constant = dest_pos.GetConstant()->AsIntConstant()->GetValue();
+      if (optimizations.GetDestinationIsSource()) {
+        // Checked when building locations.
+        DCHECK_GE(src_pos_constant, dest_pos_constant);
+      } else if (src_pos_constant < dest_pos_constant) {
+        __ Beq(src, dest, intrinsic_slow_path->GetEntryLabel());
+      }
+    } else {
+      if (!optimizations.GetDestinationIsSource()) {
+        __ Bne(src, dest, &conditions_on_positions_validated);
+      }
+      __ Li(temp1, src_pos_constant);
+      __ Bgt(dest_pos.AsRegister<XRegister>(), temp1, intrinsic_slow_path->GetEntryLabel());
+    }
+  } else {
+    if (!optimizations.GetDestinationIsSource()) {
+      __ Bne(src, dest, &conditions_on_positions_validated);
+    }
+    if (dest_pos.IsConstant()) {
+      __ Li(temp2, dest_pos.GetConstant()->AsIntConstant()->GetValue());
+      __ Blt(src_pos.AsRegister<XRegister>(), temp2, intrinsic_slow_path->GetEntryLabel());
+    } else {
+      __ Blt(src_pos.AsRegister<XRegister>(),
+             dest_pos.AsRegister<XRegister>(),
+             intrinsic_slow_path->GetEntryLabel());
+    }
+  }
+
+  __ Bind(&conditions_on_positions_validated);
+
+  if (!optimizations.GetSourceIsNotNull()) {
+    // Bail out if the source is null.
+    __ Beqz(src, intrinsic_slow_path->GetEntryLabel());
+  }
+
+  if (!optimizations.GetDestinationIsNotNull() && !optimizations.GetDestinationIsSource()) {
+    // Bail out if the destination is null.
+    __ Beqz(dest, intrinsic_slow_path->GetEntryLabel());
+  }
+
+  // We have already checked in the LocationsBuilder for the constant case.
+  if (!length.IsConstant() &&
+      !optimizations.GetCountIsSourceLength() &&
+      !optimizations.GetCountIsDestinationLength()) {
+    // Merge the following two comparisons into one:
+    //   If the length is negative, bail out (delegate to libcore's native implementation).
+    //   If the length >= 128 then (currently) prefer native implementation.
+    __ Li(temp1, kSystemArrayCopyThreshold);
+    __ Bgeu(length.AsRegister<XRegister>(), temp1, intrinsic_slow_path->GetEntryLabel());
+  }
+  // Validity checks: source.
+  CheckSystemArrayCopyPosition(assembler,
+                               src_pos,
+                               src,
+                               length,
+                               intrinsic_slow_path,
+                               temp1,
+                               temp2,
+                               optimizations.GetCountIsSourceLength());
+
+  // Validity checks: dest.
+  CheckSystemArrayCopyPosition(assembler,
+                               dest_pos,
+                               dest,
+                               length,
+                               intrinsic_slow_path,
+                               temp1,
+                               temp2,
+                               optimizations.GetCountIsDestinationLength());
+  {
+    // We use a block to end the scratch scope before the write barrier, thus
+    // freeing the temporary registers so they can be used in `MarkGCCard`.
+    ScratchRegisterScope srs(assembler);
+    Location temp3_loc;  // Used only for Baker read barrier.
+    XRegister temp3;
+    if (codegen_->EmitBakerReadBarrier()) {
+      temp3_loc = locations->GetTemp(2);
+      temp3 = temp3_loc.AsRegister<XRegister>();
+    } else {
+      temp3 = srs.AllocateXRegister();
+    }
+
+    if (!optimizations.GetDoesNotNeedTypeCheck()) {
+      // Check whether all elements of the source array are assignable to the component
+      // type of the destination array. We do two checks: the classes are the same,
+      // or the destination is Object[]. If none of these checks succeed, we go to the
+      // slow path.
+
+      if (codegen_->EmitBakerReadBarrier()) {
+        if (!optimizations.GetSourceIsNonPrimitiveArray()) {
+          // /* HeapReference<Class> */ temp1 = src->klass_
+          codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                          temp1_loc,
+                                                          src,
+                                                          class_offset,
+                                                          temp3_loc,
+                                                          /* needs_null_check= */ false);
+          // Bail out if the source is not a non primitive array.
+          // /* HeapReference<Class> */ temp1 = temp1->component_type_
+          codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                          temp1_loc,
+                                                          temp1,
+                                                          component_offset,
+                                                          temp3_loc,
+                                                          /* needs_null_check= */ false);
+          __ Beqz(temp1, intrinsic_slow_path->GetEntryLabel());
+          // If heap poisoning is enabled, `temp1` has been unpoisoned
+          // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
+          // /* uint16_t */ temp1 = static_cast<uint16>(temp1->primitive_type_);
+          __ Lhu(temp1, temp1, primitive_offset);
+          static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+          __ Bnez(temp1, intrinsic_slow_path->GetEntryLabel());
+        }
+
+        // /* HeapReference<Class> */ temp1 = dest->klass_
+        codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                        temp1_loc,
+                                                        dest,
+                                                        class_offset,
+                                                        temp3_loc,
+                                                        /* needs_null_check= */ false);
+
+        if (!optimizations.GetDestinationIsNonPrimitiveArray()) {
+          // Bail out if the destination is not a non primitive array.
+          //
+          // Register `temp1` is not trashed by the read barrier emitted
+          // by GenerateFieldLoadWithBakerReadBarrier below, as that
+          // method produces a call to a ReadBarrierMarkRegX entry point,
+          // which saves all potentially live registers, including
+          // temporaries such a `temp1`.
+          // /* HeapReference<Class> */ temp2 = temp1->component_type_
+          codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                          temp2_loc,
+                                                          temp1,
+                                                          component_offset,
+                                                          temp3_loc,
+                                                          /* needs_null_check= */ false);
+          __ Beqz(temp2, intrinsic_slow_path->GetEntryLabel());
+          // If heap poisoning is enabled, `temp2` has been unpoisoned
+          // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
+          // /* uint16_t */ temp2 = static_cast<uint16>(temp2->primitive_type_);
+          __ Lhu(temp2, temp2, primitive_offset);
+          static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+          __ Bnez(temp2, intrinsic_slow_path->GetEntryLabel());
+        }
+
+        // For the same reason given earlier, `temp1` is not trashed by the
+        // read barrier emitted by GenerateFieldLoadWithBakerReadBarrier below.
+        // /* HeapReference<Class> */ temp2 = src->klass_
+        codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                        temp2_loc,
+                                                        src,
+                                                        class_offset,
+                                                        temp3_loc,
+                                                        /* needs_null_check= */ false);
+
+        if (optimizations.GetDestinationIsTypedObjectArray()) {
+          Riscv64Label do_copy;
+          __ Beq(temp1, temp2, &do_copy);
+          // /* HeapReference<Class> */ temp1 = temp1->component_type_
+          codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                          temp1_loc,
+                                                          temp1,
+                                                          component_offset,
+                                                          temp3_loc,
+                                                          /* needs_null_check= */ false);
+          // /* HeapReference<Class> */ temp1 = temp1->super_class_
+          // We do not need to emit a read barrier for the following
+          // heap reference load, as `temp1` is only used in a
+          // comparison with null below, and this reference is not
+          // kept afterwards.
+          __ Lwu(temp1, temp1, super_offset);
+          __ Bnez(temp1, intrinsic_slow_path->GetEntryLabel());
+          __ Bind(&do_copy);
+        } else {
+          __ Bne(temp1, temp2, intrinsic_slow_path->GetEntryLabel());
+        }
+      } else {
+        // Non read barrier code.
+
+        // /* HeapReference<Class> */ temp1 = dest->klass_
+        __ Lwu(temp1, dest, class_offset);
+        // /* HeapReference<Class> */ temp2 = src->klass_
+        __ Lwu(temp2, src, class_offset);
+        bool did_unpoison = false;
+        if (!optimizations.GetDestinationIsNonPrimitiveArray() ||
+            !optimizations.GetSourceIsNonPrimitiveArray()) {
+          // One or two of the references need to be unpoisoned. Unpoison them
+          // both to make the identity check valid.
+          codegen_->MaybeUnpoisonHeapReference(temp1);
+          codegen_->MaybeUnpoisonHeapReference(temp2);
+          did_unpoison = true;
+        }
+
+        if (!optimizations.GetDestinationIsNonPrimitiveArray()) {
+          // Bail out if the destination is not a non primitive array.
+          // /* HeapReference<Class> */ temp3 = temp1->component_type_
+          __ Lwu(temp3, temp1, component_offset);
+          __ Beqz(temp3, intrinsic_slow_path->GetEntryLabel());
+          codegen_->MaybeUnpoisonHeapReference(temp3);
+          // /* uint16_t */ temp3 = static_cast<uint16>(temp3->primitive_type_);
+          __ Lhu(temp3, temp3, primitive_offset);
+          static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+          __ Bnez(temp3, intrinsic_slow_path->GetEntryLabel());
+        }
+
+        if (!optimizations.GetSourceIsNonPrimitiveArray()) {
+          // Bail out if the source is not a non primitive array.
+          // /* HeapReference<Class> */ temp3 = temp2->component_type_
+          __ Lwu(temp3, temp2, component_offset);
+          __ Beqz(temp3, intrinsic_slow_path->GetEntryLabel());
+          codegen_->MaybeUnpoisonHeapReference(temp3);
+          // /* uint16_t */ temp3 = static_cast<uint16>(temp3->primitive_type_);
+          __ Lhu(temp3, temp3, primitive_offset);
+          static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+          __ Bnez(temp3, intrinsic_slow_path->GetEntryLabel());
+        }
+
+        if (optimizations.GetDestinationIsTypedObjectArray()) {
+          Riscv64Label do_copy;
+          __ Beq(temp1, temp2, &do_copy);
+          if (!did_unpoison) {
+            codegen_->MaybeUnpoisonHeapReference(temp1);
+          }
+          // /* HeapReference<Class> */ temp1 = temp1->component_type_
+          __ Lwu(temp1, temp1, component_offset);
+          codegen_->MaybeUnpoisonHeapReference(temp1);
+          // /* HeapReference<Class> */ temp1 = temp1->super_class_
+          __ Lwu(temp1, temp1, super_offset);
+          // No need to unpoison the result, we're comparing against null.
+          __ Bnez(temp1, intrinsic_slow_path->GetEntryLabel());
+          __ Bind(&do_copy);
+        } else {
+          __ Bne(temp1, temp2, intrinsic_slow_path->GetEntryLabel());
+        }
+      }
+    } else if (!optimizations.GetSourceIsNonPrimitiveArray()) {
+      DCHECK(optimizations.GetDestinationIsNonPrimitiveArray());
+      // Bail out if the source is not a non primitive array.
+      if (codegen_->EmitBakerReadBarrier()) {
+        // /* HeapReference<Class> */ temp1 = src->klass_
+        codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                        temp1_loc,
+                                                        src,
+                                                        class_offset,
+                                                        temp3_loc,
+                                                        /* needs_null_check= */ false);
+        // /* HeapReference<Class> */ temp2 = temp1->component_type_
+        codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
+                                                        temp2_loc,
+                                                        temp1,
+                                                        component_offset,
+                                                        temp3_loc,
+                                                        /* needs_null_check= */ false);
+        __ Beqz(temp2, intrinsic_slow_path->GetEntryLabel());
+        // If heap poisoning is enabled, `temp2` has been unpoisoned
+        // by the previous call to GenerateFieldLoadWithBakerReadBarrier.
+      } else {
+        // /* HeapReference<Class> */ temp1 = src->klass_
+        __ Lwu(temp1, src, class_offset);
+        codegen_->MaybeUnpoisonHeapReference(temp1);
+        // /* HeapReference<Class> */ temp2 = temp1->component_type_
+        __ Lwu(temp2, temp1, component_offset);
+        __ Beqz(temp2, intrinsic_slow_path->GetEntryLabel());
+        codegen_->MaybeUnpoisonHeapReference(temp2);
+      }
+      // /* uint16_t */ temp2 = static_cast<uint16>(temp2->primitive_type_);
+      __ Lhu(temp2, temp2, primitive_offset);
+      static_assert(Primitive::kPrimNot == 0, "Expected 0 for kPrimNot");
+      __ Bnez(temp2, intrinsic_slow_path->GetEntryLabel());
+    }
+
+    if (length.IsConstant() && length.GetConstant()->AsIntConstant()->GetValue() == 0) {
+      // Null constant length: not need to emit the loop code at all.
+    } else {
+      XRegister src_curr_addr = temp1;
+      XRegister dst_curr_addr = temp2;
+      XRegister src_stop_addr = temp3;
+      Riscv64Label done;
+      const DataType::Type type = DataType::Type::kReference;
+      const int32_t element_size = DataType::Size(type);
+
+      if (length.IsRegister()) {
+        // Don't enter the copy loop if the length is null.
+        __ Beqz(length.AsRegister<XRegister>(), &done);
+      }
+
+      if (codegen_->EmitBakerReadBarrier()) {
+        // TODO: Also convert this intrinsic to the IsGcMarking strategy?
+
+        // SystemArrayCopy implementation for Baker read barriers (see
+        // also CodeGeneratorRISCV64::GenerateReferenceLoadWithBakerReadBarrier):
+        //
+        //   uint32_t rb_state = Lockword(src->monitor_).ReadBarrierState();
+        //   lfence;  // Load fence or artificial data dependency to prevent load-load reordering
+        //   bool is_gray = (rb_state == ReadBarrier::GrayState());
+        //   if (is_gray) {
+        //     // Slow-path copy.
+        //     do {
+        //       *dest_ptr++ = MaybePoison(ReadBarrier::Mark(MaybeUnpoison(*src_ptr++)));
+        //     } while (src_ptr != end_ptr)
+        //   } else {
+        //     // Fast-path copy.
+        //     do {
+        //       *dest_ptr++ = *src_ptr++;
+        //     } while (src_ptr != end_ptr)
+        //   }
+
+        XRegister tmp = srs.AllocateXRegister();
+
+        // /* uint32_t */ monitor = src->monitor_
+        __ Lwu(tmp, src, monitor_offset);
+        // /* LockWord */ lock_word = LockWord(monitor)
+        static_assert(sizeof(LockWord) == sizeof(int32_t),
+                      "art::LockWord and int32_t have different sizes.");
+
+        // Introduce a dependency on the lock_word including rb_state,
+        // to prevent load-load reordering, and without using
+        // a memory barrier (which would be more expensive).
+        // `src` is unchanged by this operation (since Adduw adds low 32 bits
+        // which are zero after left shift), but its value now depends
+        // on `tmp`.
+        __ Slli(tmp, tmp, 32);
+        __ AddUw(src, tmp, src);
+        __ Srli(tmp, tmp, 32);
+
+        // Compute base source address, base destination address, and end
+        // source address for System.arraycopy* intrinsics in `src_base`,
+        // `dst_base` and `src_end` respectively.
+        // Note that `src_curr_addr` is computed from from `src` (and
+        // `src_pos`) here, and thus honors the artificial dependency
+        // of `src` on `tmp`.
+        GenSystemArrayCopyAddresses(assembler,
+                                    type,
+                                    src,
+                                    src_pos,
+                                    dest,
+                                    dest_pos,
+                                    length,
+                                    src_curr_addr,
+                                    dst_curr_addr,
+                                    src_stop_addr);
+
+        // Slow path used to copy array when `src` is gray.
+        SlowPathCodeRISCV64* read_barrier_slow_path = new (codegen_->GetScopedAllocator())
+            ReadBarrierSystemArrayCopySlowPathRISCV64(invoke, Location::RegisterLocation(tmp));
+        codegen_->AddSlowPath(read_barrier_slow_path);
+
+        // Given the numeric representation, it's enough to check the low bit of the rb_state.
+        static_assert(ReadBarrier::NonGrayState() == 0, "Expecting non-gray to have value 0");
+        static_assert(ReadBarrier::GrayState() == 1, "Expecting gray to have value 1");
+        // TODO(riscv64): use `bexti` instead
+        __ Srli(tmp, tmp, LockWord::kReadBarrierStateShift);
+        __ Andi(tmp, tmp, 1);
+        __ Bnez(tmp, read_barrier_slow_path->GetEntryLabel());
+
+        // Fast-path copy.
+        // Iterate over the arrays and do a raw copy of the objects. We don't need to
+        // poison/unpoison.
+        Riscv64Label loop;
+        __ Bind(&loop);
+        __ Lwu(tmp, src_curr_addr, 0);
+        __ Sw(tmp, dst_curr_addr, 0);
+        __ Addi(dst_curr_addr, dst_curr_addr, element_size);
+        __ Addi(src_curr_addr, src_curr_addr, element_size);
+        __ Bne(src_curr_addr, src_stop_addr, &loop);
+
+        __ Bind(read_barrier_slow_path->GetExitLabel());
+      } else {
+        // Non read barrier code.
+        // Compute base source address, base destination address, and end
+        // source address for System.arraycopy* intrinsics in `src_base`,
+        // `dst_base` and `src_end` respectively.
+        GenSystemArrayCopyAddresses(assembler,
+                                    type,
+                                    src,
+                                    src_pos,
+                                    dest,
+                                    dest_pos,
+                                    length,
+                                    src_curr_addr,
+                                    dst_curr_addr,
+                                    src_stop_addr);
+        // Iterate over the arrays and do a raw copy of the objects. We don't need to
+        // poison/unpoison.
+        Riscv64Label loop;
+        __ Bind(&loop);
+        {
+          XRegister tmp = srs.AllocateXRegister();
+          __ Lwu(tmp, src_curr_addr, 0);
+          __ Sw(tmp, dst_curr_addr, 0);
+          __ Addi(src_curr_addr, src_curr_addr, element_size);
+          __ Addi(dst_curr_addr, dst_curr_addr, element_size);
+        }
+        __ Bne(src_curr_addr, src_stop_addr, &loop);
+      }
+      __ Bind(&done);
+    }
+  }
+
+  // We only need one card marking on the destination array.
+  codegen_->MarkGCCard(dest, XRegister(kNoXRegister), /* emit_null_check= */ false);
+
+  __ Bind(intrinsic_slow_path->GetExitLabel());
+}
 
 enum class GetAndUpdateOp {
   kSet,
