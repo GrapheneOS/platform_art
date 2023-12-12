@@ -265,12 +265,20 @@ void LocationsBuilderRISCV64::HandleInvoke(HInvoke* instruction) {
 
 class CompileOptimizedSlowPathRISCV64 : public SlowPathCodeRISCV64 {
  public:
-  CompileOptimizedSlowPathRISCV64() : SlowPathCodeRISCV64(/*instruction=*/ nullptr) {}
+  CompileOptimizedSlowPathRISCV64(XRegister base, int32_t imm12)
+      : SlowPathCodeRISCV64(/*instruction=*/ nullptr),
+        base_(base),
+        imm12_(imm12) {}
 
   void EmitNativeCode(CodeGenerator* codegen) override {
     uint32_t entrypoint_offset =
         GetThreadOffset<kRiscv64PointerSize>(kQuickCompileOptimized).Int32Value();
     __ Bind(GetEntryLabel());
+    CodeGeneratorRISCV64* riscv64_codegen = down_cast<CodeGeneratorRISCV64*>(codegen);
+    riscv64::ScratchRegisterScope srs(riscv64_codegen->GetAssembler());
+    XRegister counter = srs.AllocateXRegister();
+    __ LoadConst32(counter, ProfilingInfo::GetOptimizeThreshold());
+    __ Sh(counter, base_, imm12_);
     __ Loadd(RA, TR, entrypoint_offset);
     // Note: we don't record the call here (and therefore don't generate a stack
     // map), as the entrypoint should never be suspended.
@@ -281,6 +289,9 @@ class CompileOptimizedSlowPathRISCV64 : public SlowPathCodeRISCV64 {
   const char* GetDescription() const override { return "CompileOptimizedSlowPath"; }
 
  private:
+  XRegister base_;
+  const int32_t imm12_;
+
   DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathRISCV64);
 };
 
@@ -5693,8 +5704,6 @@ void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    SlowPathCodeRISCV64* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathRISCV64();
-    AddSlowPath(slow_path);
     ProfilingInfo* info = GetGraph()->GetProfilingInfo();
     DCHECK(info != nullptr);
     DCHECK(!HasEmptyFrame());
@@ -5702,9 +5711,12 @@ void CodeGeneratorRISCV64::MaybeIncrementHotness(bool is_frame_entry) {
                        ProfilingInfo::BaselineHotnessCountOffset().SizeValue();
     auto [base_address, imm12] = SplitJitAddress(address);
     ScratchRegisterScope srs(GetAssembler());
-    XRegister tmp = srs.AllocateXRegister();
-    __ LoadConst64(tmp, base_address);
     XRegister counter = srs.AllocateXRegister();
+    XRegister tmp = RA;
+    __ LoadConst64(tmp, base_address);
+    SlowPathCodeRISCV64* slow_path =
+        new (GetScopedAllocator()) CompileOptimizedSlowPathRISCV64(tmp, imm12);
+    AddSlowPath(slow_path);
     __ Lhu(counter, tmp, imm12);
     __ Beqz(counter, slow_path->GetEntryLabel());  // Can clobber `TMP` if taken.
     __ Addi(counter, counter, -1);
