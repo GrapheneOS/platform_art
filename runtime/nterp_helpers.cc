@@ -388,6 +388,10 @@ bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
         case Instruction::SHL_INT_LIT8:
         case Instruction::SHR_INT_LIT8:
         case Instruction::USHR_INT_LIT8:
+        case Instruction::INVOKE_POLYMORPHIC:
+        case Instruction::INVOKE_POLYMORPHIC_RANGE:
+        case Instruction::INVOKE_CUSTOM:
+        case Instruction::INVOKE_CUSTOM_RANGE:
           continue;
         default:
           return false;
