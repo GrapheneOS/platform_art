@@ -168,12 +168,12 @@ class ProfilingInfo {
     return baseline_hotness_count_;
   }
 
+  static uint16_t GetOptimizeThreshold();
+
  private:
   ProfilingInfo(ArtMethod* method,
                 const std::vector<uint32_t>& inline_cache_entries,
                 const std::vector<uint32_t>& branch_cache_entries);
-
-  static uint16_t GetOptimizeThreshold();
 
   // Hotness count for methods compiled with the JIT baseline compiler. Once
   // a threshold is hit (currentily the maximum value of uint16_t), we will

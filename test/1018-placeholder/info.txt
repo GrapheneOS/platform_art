@@ -1,0 +1,4 @@
+Android.run-test.bp uses ?18-*/**/* and ??18-*/**/* wildcards to glob the tests in its shard,
+and then passes them to run_test_build.py using $(locations). $(locations) doesn't accept
+modules/globs that don't produce any files. There were previously no tests >1000 that end in 18,
+so this one was added just to satisfy the glob.
