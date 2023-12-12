@@ -103,7 +103,7 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 			"-DART_STACK_OVERFLOW_GAP_x86_64=8192")
 	}
 
-	if (ctx.Config().NoBionicPageSizeMacro()) {
+	if ctx.Config().NoBionicPageSizeMacro() {
 		cflags = append(cflags, "-DART_PAGE_SIZE_AGNOSTIC=1")
 	}
 
@@ -390,8 +390,7 @@ func artBinary() android.Module {
 }
 
 func artTest() android.Module {
-	// Disable bp2build.
-	module := cc.NewTest(android.HostAndDeviceSupported, false /* bazelable */).Init()
+	module := cc.NewTest(android.HostAndDeviceSupported).Init()
 
 	installCodegenCustomizer(module, binary)
 
