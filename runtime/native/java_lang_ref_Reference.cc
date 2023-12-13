@@ -52,16 +52,19 @@ static jboolean Reference_refersTo0(JNIEnv* env, jobject javaThis, jobject o) {
     return JNI_FALSE;
   }
   // Explicitly handle the case in which referent is a from-space pointer.  Don't use a
-  // read-barrier, since that could easily mark an object we no longer need and, since it
-  // creates new gray objects, may not be safe without blocking.
+  // read-barrier, since that could easily mark an object we no longer need and, since it creates
+  // new gray objects, may not be safe without blocking.
   //
-  // ConcurrentCopying::Copy ensure that whenever a pointer to a to_space object is published,
-  // the forwarding pointer is also visible. We need that guarantee to ensure that if referent
-  // == other and referent is in from-space, then referent has a forwarding pointer. In order to
-  // use that guarantee, we need to ensure that the forwarding pointer is loaded after we
-  // retrieved other. Hence this fence:
+  // Assume we're post flip in a GC. 'other' will always be a to-space reference. Thus the only
+  // remaining case in which we should return true is when 'referent' still points to from-space.
+  // ConcurrentCopying::Copy ensures that whenever a pointer to a to-space object is published,
+  // the forwarding pointer is also visible. Thus if 'other' and 'javaThis' refer to the same
+  // object, and we can ensure that the read of the forwarding pointer is ordered after the read
+  // of other, which ensured the forwarding pointer was set, then we're guaranteed to see the
+  // correct forwarding pointer, which should then match 'other'. This fence ensures that the
+  // forwarding pointer read is ordered with respect to the access to 'other':
   atomic_thread_fence(std::memory_order_acquire);
-  // Note: On ARM, the above could be replaced by an asm fake-dependency hack to make
+  // Note: On ARM and RISC-V, the above could be replaced by an asm fake-dependency hack to make
   // referent appear to depend on other. That would be faster and uglier.
   return gc::collector::ConcurrentCopying::GetFwdPtrUnchecked(referent.Ptr()) == other.Ptr() ?
       JNI_TRUE : JNI_FALSE;
