@@ -222,6 +222,7 @@ class SystemArrayCopyOptimizations : public IntrinsicOptimizations {
   INTRINSIC_OPTIMIZATION(DestinationIsPrimitiveArray, 8);
   INTRINSIC_OPTIMIZATION(SourceIsNonPrimitiveArray, 9);
   INTRINSIC_OPTIMIZATION(SourceIsPrimitiveArray, 10);
+  INTRINSIC_OPTIMIZATION(SourcePositionIsDestinationPosition, 11);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SystemArrayCopyOptimizations);
