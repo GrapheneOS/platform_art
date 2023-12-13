@@ -903,6 +903,7 @@ cc_defaults {
         "2048-bad-native-registry/native_finalizer.cc",
         "2235-JdkUnsafeTest/unsafe_test.cc",
         "2262-miranda-methods/jni_invoke.cc",
+        "2270-mh-internal-hiddenapi-use/mh-internal-hidden-api.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],
