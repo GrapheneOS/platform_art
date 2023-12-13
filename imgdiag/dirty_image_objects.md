@@ -45,6 +45,24 @@ art/imgdiag/create_dirty_image_objects.py \
   ./imgdiag_com.google.android.gms.unstable.txt
 ```
 
+The resulting file will contain a list of dirty objects with optional
+(enabled by default) sort keys in the following format:
+```
+<class_descriptor>[.<reference_field_name>:<reference_field_type>]* [<sort_key>]
+```
+Classes are specified using a descriptor and objects are specified by
+a reference chain starting from a class. Example:
+```
+# Mark FileUtils class as dirty:
+Landroid/os/FileUtils; 4
+# Mark instance of Property class as dirty:
+Landroid/view/View;.SCALE_X:Landroid/util/Property; 4
+```
+If present, sort keys are used to specify the ordering between dirty entries.
+All dirty objects will be placed in the dirty bin of the boot image and sorted
+by the sort\_key values. I.e., dirty entries with sort\_key==N will have lower
+address than entries with sort\_key==N+1.
+
 5. Push new dirty-image-objects to the device.
 
 ```
