@@ -1732,7 +1732,8 @@ void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary*
   }
 }
 
-void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
+LocationSummary* CodeGenerator::CreateSystemArrayCopyLocationSummary(
+    HInvoke* invoke, int32_t length_threshold, size_t num_temps) {
   // Check to see if we have known failures that will cause us to have to bail out
   // to the runtime, and just generate the runtime call directly.
   HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstantOrNull();
@@ -1742,16 +1743,17 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   if ((src_pos != nullptr && src_pos->GetValue() < 0) ||
       (dest_pos != nullptr && dest_pos->GetValue() < 0)) {
     // We will have to fail anyways.
-    return;
+    return nullptr;
   }
 
-  // The length must be >= 0.
+  // The length must be >= 0. If a positive `length_threshold` is provided, lengths
+  // greater or equal to the threshold are also handled by the normal implementation.
   HIntConstant* length = invoke->InputAt(4)->AsIntConstantOrNull();
   if (length != nullptr) {
     int32_t len = length->GetValue();
-    if (len < 0) {
+    if (len < 0 || (length_threshold > 0 && len >= length_threshold)) {
       // Just call as normal.
-      return;
+      return nullptr;
     }
   }
 
@@ -1760,13 +1762,13 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   if (optimizations.GetDestinationIsSource()) {
     if (src_pos != nullptr && dest_pos != nullptr && src_pos->GetValue() < dest_pos->GetValue()) {
       // We only support backward copying if source and destination are the same.
-      return;
+      return nullptr;
     }
   }
 
   if (optimizations.GetDestinationIsPrimitiveArray() || optimizations.GetSourceIsPrimitiveArray()) {
     // We currently don't intrinsify primitive copying.
-    return;
+    return nullptr;
   }
 
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
@@ -1780,9 +1782,10 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   locations->SetInAt(3, Location::RegisterOrConstant(invoke->InputAt(3)));
   locations->SetInAt(4, Location::RegisterOrConstant(invoke->InputAt(4)));
 
-  locations->AddTemp(Location::RequiresRegister());
-  locations->AddTemp(Location::RequiresRegister());
-  locations->AddTemp(Location::RequiresRegister());
+  if (num_temps != 0u) {
+    locations->AddRegisterTemps(num_temps);
+  }
+  return locations;
 }
 
 void CodeGenerator::EmitJitRoots(uint8_t* code,

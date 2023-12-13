@@ -2406,7 +2406,9 @@ static bool IsArrayLengthOf(HInstruction* potential_length, HInstruction* potent
 
 void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction) {
   HInstruction* source = instruction->InputAt(0);
+  HInstruction* source_pos = instruction->InputAt(1);
   HInstruction* destination = instruction->InputAt(2);
+  HInstruction* destination_pos = instruction->InputAt(3);
   HInstruction* count = instruction->InputAt(4);
   SystemArrayCopyOptimizations optimizations(instruction);
   if (CanEnsureNotNullAt(source, instruction)) {
@@ -2417,6 +2419,10 @@ void InstructionSimplifierVisitor::SimplifySystemArrayCopy(HInvoke* instruction)
   }
   if (destination == source) {
     optimizations.SetDestinationIsSource();
+  }
+
+  if (source_pos == destination_pos) {
+    optimizations.SetSourcePositionIsDestinationPosition();
   }
 
   if (IsArrayLengthOf(count, source)) {
