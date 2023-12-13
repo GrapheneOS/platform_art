@@ -157,18 +157,6 @@ END \name
     call art_quick_test_suspend
 .endm
 
-// Clobbers: t0, t1
-.macro WRITE_BARRIER_IF_OBJECT is_object, value, holder, uniq
-    .if \is_object
-    beqz \value, .Lskip_write_barrier_\uniq // No object, skip out.
-    ld t0, THREAD_CARD_TABLE_OFFSET(xSELF)
-    srli t1, \holder, CARD_TABLE_CARD_SHIFT
-    add t1, t0, t1
-    sb t0, (t1)
-.Lskip_write_barrier_\uniq:
-    .endif
-.endm
-
 // Fetch one or more half-word units from an offset past the current PC.
 // The offset is specified in 16-bit code units.
 //
