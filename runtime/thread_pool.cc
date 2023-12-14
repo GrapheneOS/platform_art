@@ -304,6 +304,11 @@ Task* ThreadPool::TryGetTaskLocked() {
   return nullptr;
 }
 
+bool ThreadPool::IsActive(Thread* self) {
+  MutexLock mu(self, task_queue_lock_);
+  return waiting_count_ != GetThreadCount() || HasOutstandingTasks();
+}
+
 void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
   if (do_work) {
     CHECK(!create_peers_);
