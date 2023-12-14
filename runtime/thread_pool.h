@@ -133,6 +133,9 @@ class ThreadPool {
   // Remove all tasks in the queue.
   void RemoveAllTasks(Thread* self) REQUIRES(!task_queue_lock_);
 
+  // Return whether any thread in the pool is busy, or the task queue is not empty.
+  bool IsActive(Thread* self) REQUIRES(!task_queue_lock_);
+
   // Create a named thread pool with the given number of threads.
   //
   // If create_peers is true, all worker threads will have a Java peer object. Note that if the
