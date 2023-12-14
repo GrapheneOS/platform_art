@@ -577,7 +577,8 @@
             "817-hiddenapi",
             "944-transform-classloaders",
             "999-redefine-hiddenapi",
-            "2038-hiddenapi-jvmti-ext"
+            "2038-hiddenapi-jvmti-ext",
+            "2270-mh-internal-hiddenapi-use"
         ],
         "description": [
             "Tests that use custom class loaders or other features not supported ",
