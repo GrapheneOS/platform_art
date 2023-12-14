@@ -96,6 +96,7 @@ ArtMethod* WellKnownClasses::java_lang_ThreadGroup_threadTerminated;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_makeIdentity;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodType_makeImpl;
 ArtMethod* WellKnownClasses::java_lang_ref_FinalizerReference_add;
@@ -635,6 +636,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       "lookup",
       "()Ljava/lang/invoke/MethodHandles$Lookup;",
       pointer_size);
+  java_lang_invoke_MethodHandles_makeIdentity = CacheMethod(
+      j_l_i_MethodHandles.Get(),
+      /*is_static=*/ true,
+      "makeIdentity",
+      "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandle;",
+      pointer_size);
   java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(
       j_l_i_MethodHandles_Lookup.Get(),
       /*is_static=*/ false,
@@ -917,6 +924,7 @@ void WellKnownClasses::Clear() {
   java_lang_invoke_MethodHandle_asType = nullptr;
   java_lang_invoke_MethodHandle_invokeExact = nullptr;
   java_lang_invoke_MethodHandles_lookup = nullptr;
+  java_lang_invoke_MethodHandles_makeIdentity = nullptr;
   java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;
   java_lang_invoke_MethodType_makeImpl = nullptr;
   java_lang_ref_FinalizerReference_add = nullptr;

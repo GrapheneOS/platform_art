@@ -141,6 +141,7 @@ struct WellKnownClasses {
   static ArtMethod* java_lang_invoke_MethodHandle_asType;
   static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
   static ArtMethod* java_lang_invoke_MethodHandles_lookup;
+  static ArtMethod* java_lang_invoke_MethodHandles_makeIdentity;
   static ArtMethod* java_lang_invoke_MethodHandles_Lookup_findConstructor;
   static ArtMethod* java_lang_invoke_MethodType_makeImpl;
   static ArtMethod* java_lang_ref_FinalizerReference_add;
