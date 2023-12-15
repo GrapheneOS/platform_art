@@ -242,6 +242,9 @@ class Jit {
   // Create JIT itself.
   static std::unique_ptr<Jit> Create(JitCodeCache* code_cache, JitOptions* options);
 
+  // Return whether any JIT thread is busy compiling, or the task queue is not empty.
+  static bool IsActive(Thread* self);
+
   bool CompileMethod(ArtMethod* method, Thread* self, CompilationKind compilation_kind, bool prejit)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
