@@ -62,6 +62,8 @@
 #include <sys/system_properties.h>
 #endif  // ART_TARGET_ANDROID
 
+#include <sys/mman.h>
+
 namespace art HIDDEN {
 
 // Should be the same as dalvik.system.DexFile.ENFORCE_READ_ONLY_JAVA_DCL
@@ -178,6 +180,16 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
+
+#define FLAG_RESTRICT_MEMORY_DCL 1
+
+#define MAX_PAGE_SIZE (16 * 1024)
+
+static union {
+    int dynCodeLoadingFlags = 0;
+    char padding[MAX_PAGE_SIZE];
+} ro __attribute__((aligned(MAX_PAGE_SIZE)));
+
 static jobject CreateCookieFromOatFileManagerResult(
     JNIEnv* env,
     std::vector<std::unique_ptr<const DexFile>>& dex_files,
@@ -207,6 +219,14 @@ static jobject CreateCookieFromOatFileManagerResult(
     }
   }
   return array;
+}
+
+static void DexFile_enableDynCodeLoadingChecks(JNIEnv*, jclass, int flags) {
+    ro.dynCodeLoadingFlags |= flags; // use |= to make flags harder to clear
+    if (mprotect(&ro, sizeof(ro), PROT_READ) != 0) {
+        LOG(ERROR) << "unable to mprotect ro: " << strerror(errno);
+        exit(1);
+    }
 }
 
 static MemMap AllocateDexMemoryMap(JNIEnv* env, jint start, jint end) {
@@ -258,6 +278,16 @@ static jobject DexFile_openInMemoryDexFilesNative(JNIEnv* env,
                                                   jintArray jends,
                                                   jobject class_loader,
                                                   jobjectArray dex_elements) {
+
+  if (ro.dynCodeLoadingFlags & FLAG_RESTRICT_MEMORY_DCL) {
+    ScopedLocalRef<jclass> cls(env, env->FindClass("android/ext/dcl/DynCodeLoading"));
+    jmethodID method = env->GetStaticMethodID(cls.get(), "checkInMemoryDexFileOpen", "(I)V");
+    env->CallStaticVoidMethod(cls.get(), method, (jint) ro.dynCodeLoadingFlags);
+    if (env->ExceptionCheck()) {
+      return nullptr;
+    }
+  }
+
   jsize buffers_length = env->GetArrayLength(buffers);
   CHECK_EQ(buffers_length, env->GetArrayLength(arrays));
   CHECK_EQ(buffers_length, env->GetArrayLength(jstarts));
@@ -995,6 +1025,7 @@ static void DexFile_setTrusted(JNIEnv* env, jclass, jobject j_cookie) {
 }
 
 static const JNINativeMethod gMethods[] = {
+    NATIVE_METHOD(DexFile, enableDynCodeLoadingChecks, "(I)V"),
     NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
     NATIVE_METHOD(DexFile,
                   defineClassNative,
