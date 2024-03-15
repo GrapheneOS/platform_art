@@ -304,13 +304,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     @NonNull
     private String adjustCompilerFilter(
             @NonNull String targetCompilerFilter, @NonNull DexInfoType dexInfo) {
-        if (mInjector.isSystemUiPackage(mPkgState.getPackageName())) {
-            String systemUiCompilerFilter = getSystemUiCompilerFilter();
-            if (!systemUiCompilerFilter.isEmpty()) {
-                targetCompilerFilter = systemUiCompilerFilter;
-            }
-        } else if (mInjector.isLauncherPackage(mPkgState.getPackageName())) {
-            targetCompilerFilter = "speed-profile";
+        if (mPkgState.isSystem()) {
+            targetCompilerFilter = "speed";
         }
 
         // Code below should only downgrade the compiler filter. Don't upgrade the compiler filter
