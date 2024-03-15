@@ -370,18 +370,11 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
     @NonNull
     private String adjustCompilerFilter(
             @NonNull String targetCompilerFilter, @NonNull DexInfoType dexInfo) {
-        if ((mParams.getFlags() & ArtFlags.FLAG_FORCE_COMPILER_FILTER) == 0) {
-            if (mInjector.isSystemUiPackage(mPkgState.getPackageName())) {
-                String systemUiCompilerFilter = getSystemUiCompilerFilter();
-                if (!systemUiCompilerFilter.isEmpty()) {
-                    targetCompilerFilter = printAdjustCompilerFilterReason(targetCompilerFilter,
-                            systemUiCompilerFilter, "the package is System UI");
-                }
-            } else if (mInjector.isLauncherPackage(mPkgState.getPackageName())) {
-                targetCompilerFilter = printAdjustCompilerFilterReason(
-                        targetCompilerFilter, "speed-profile", "the package is a launcher package");
-            }
+        if (mPkgState.isSystem()) {
+            targetCompilerFilter = "speed";
+        }
 
+        if ((mParams.getFlags() & ArtFlags.FLAG_FORCE_COMPILER_FILTER) == 0) {
             Callback<AdjustCompilerFilterCallback, Void> callback =
                     mInjector.getConfig().getAdjustCompilerFilterCallback();
             if (callback != null) {
