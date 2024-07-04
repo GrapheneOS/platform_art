@@ -2570,18 +2570,33 @@ class JNI {
     }
     CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", java_class, JNI_ERR);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    ScopedLocalRef<jobject> jclass_loader(env, nullptr);
+    {
+      ScopedObjectAccess soa(env);
+      StackHandleScope<1> hs(soa.Self());
+      Handle<mirror::Class> c = hs.NewHandle(soa.Decode<mirror::Class>(java_class));
+      if (UNLIKELY(method_count == 0)) {
+        LOG(WARNING) << "JNI RegisterNativeMethods: attempt to register 0 native methods for "
+                     << c->PrettyDescriptor();
+        return JNI_OK;
+      }
+      if (c->GetClassLoader() != nullptr) {
+        jclass_loader.reset(soa.Env()->AddLocalReference<jobject>(c->GetClassLoader()));
+      }
+      // Making sure to release mutator_lock_ before proceeding.
+      // FindNativeLoaderNamespaceByClassLoader eventually acquires lock on g_namespaces_mutex
+      // which may cause a deadlock if another thread is waiting for mutator_lock_
+      // for IsSameObject call in libnativeloader's CreateClassLoaderNamespace (which happens
+      // under g_namespace_mutex lock)
+    }
+
+    bool is_class_loader_namespace_natively_bridged =
+        IsClassLoaderNamespaceNativelyBridged(env, jclass_loader.get());
+
+    CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", methods, JNI_ERR);
     ScopedObjectAccess soa(env);
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> c = hs.NewHandle(soa.Decode<mirror::Class>(java_class));
-    if (UNLIKELY(method_count == 0)) {
-      LOG(WARNING) << "JNI RegisterNativeMethods: attempt to register 0 native methods for "
-          << c->PrettyDescriptor();
-      return JNI_OK;
-    }
-    bool is_class_loader_namespace_natively_bridged =
-        IsClassLoaderNamespaceNativelyBridged(soa, c->GetClassLoader());
-
-    CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", methods, JNI_ERR);
     for (jint i = 0; i < method_count; ++i) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
@@ -2914,16 +2929,13 @@ class JNI {
     return array;
   }
 
-  static bool IsClassLoaderNamespaceNativelyBridged(ScopedObjectAccess& soa,
-                                                    ObjPtr<mirror::ClassLoader> class_loader)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+  static bool IsClassLoaderNamespaceNativelyBridged(JNIEnv* env, jobject jclass_loader) {
 #if defined(ART_TARGET_ANDROID)
-    ScopedLocalRef<jobject> jclass_loader(soa.Env(), soa.AddLocalReference<jobject>(class_loader));
     android::NativeLoaderNamespace* ns =
-        android::FindNativeLoaderNamespaceByClassLoader(soa.Env(), jclass_loader.get());
+        android::FindNativeLoaderNamespaceByClassLoader(env, jclass_loader);
     return ns != nullptr && android::IsNamespaceNativeBridged(ns);
 #else
-    UNUSED(soa, class_loader);
+    UNUSED(env, jclass_loader);
     return false;
 #endif
   }
