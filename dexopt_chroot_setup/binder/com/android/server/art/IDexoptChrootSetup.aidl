@@ -38,6 +38,12 @@ interface IDexoptChrootSetup {
      */
     void init();
 
-    /** Tears down the chroot environment. */
-    void tearDown();
+    /**
+     * Tears down the chroot environment.
+     *
+     * @param allowConcurrent If true, allows this method to be called concurrently when another
+     * call to the service is still being processed. Note that the service does not process this
+     * call concurrently but waits until the other call is done.
+     */
+    void tearDown(boolean allowConcurrent);
 }

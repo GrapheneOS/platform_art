@@ -48,6 +48,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -72,6 +74,7 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
     @NonNull private final Injector mInjector;
 
     // Job state variables. The monitor of `this` is notified when `mRunningJob` is changed.
+    // `mRunningJob` and `mCancellationSignal` have the same nullness.
     @GuardedBy("this") @Nullable private CompletableFuture<Void> mRunningJob = null;
     @GuardedBy("this") @Nullable private CancellationSignal mCancellationSignal = null;
 
@@ -93,6 +96,17 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
             new ThreadPoolExecutor(1 /* corePoolSize */, 1 /* maximumPoolSize */,
                     60 /* keepAliveTime */, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
 
+    /**
+     * A separate thread for executing `mRunningJob`. We avoid using any known thread / thread pool
+     * such as {@link java.util.concurrent.ForkJoinPool} and {@link
+     * com.android.internal.os.BackgroundThread} because we don't want to block other things that
+     * use known threads / thread pools.
+     */
+    @NonNull
+    private final ThreadPoolExecutor mExecutor =
+            new ThreadPoolExecutor(1 /* corePoolSize */, 1 /* maximumPoolSize */,
+                    60 /* keepAliveTime */, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+
     // Mutations to the global state of Pre-reboot Dexopt, including mounts, staged files, and
     // stats, should only be done when there is no job running and the `this` lock is held, or by
     // the job itself.
@@ -106,6 +120,10 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
         mInjector = injector;
         // Recycle the thread if it's not used for `keepAliveTime`.
         mSerializedExecutor.allowsCoreThreadTimeOut();
+        mExecutor.allowsCoreThreadTimeOut();
+        if (hasStarted()) {
+            maybeCleanUpChrootAsyncForStartup();
+        }
     }
 
     @Override
@@ -207,6 +225,31 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
     /** @see #cancelAnyLocked */
     public synchronized void cancelAny() {
         cancelAnyLocked();
+    }
+
+    /** Cleans up chroot if it exists. Only expected to be called on system server startup. */
+    private synchronized void maybeCleanUpChrootAsyncForStartup() {
+        // We only get here when there was a system server restart (probably due to a crash). In
+        // this case, it's possible that a previous Pre-reboot Dexopt job didn't end normally and
+        // left over a chroot, so we need to clean it up.
+        // We assign this operation to `mRunningJob` to block other operations on their calls to
+        // `cancelAnyLocked`.
+        // `mCancellationSignal` is a placeholder and the signal actually ignored. It's created just
+        // for keeping the invariant that `mRunningJob` and `mCancellationSignal` have the same
+        // nullness, to make other code simpler.
+        mCancellationSignal = new CancellationSignal();
+        mRunningJob = new CompletableFuture().runAsync(() -> {
+            try {
+                mInjector.getPreRebootDriver().maybeCleanUpChroot();
+            } finally {
+                synchronized (this) {
+                    mRunningJob = null;
+                    mCancellationSignal = null;
+                    this.notifyAll();
+                }
+            }
+        }, mExecutor);
+        this.notifyAll();
     }
 
     @VisibleForTesting
@@ -322,7 +365,7 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
                     this.notifyAll();
                 }
             }
-        });
+        }, mExecutor);
         this.notifyAll();
         return mRunningJob;
     }

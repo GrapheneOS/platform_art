@@ -35,7 +35,7 @@ class DexoptChrootSetup : public aidl::com::android::server::art::BnDexoptChroot
 
   ndk::ScopedAStatus init() override;
 
-  ndk::ScopedAStatus tearDown() override;
+  ndk::ScopedAStatus tearDown(bool in_allowConcurrent) override;
 
   android::base::Result<void> Start();
 

@@ -1562,6 +1562,14 @@ public final class ArtManagerLocal {
             getDexUseManager();
             getStorageManager();
             GlobalInjector.getInstance().checkArtModuleServiceManager();
+
+            // `PreRebootDexoptJob` does not depend on external dependencies, so unlike the calls
+            // above, this call is not for checking the dependencies. Rather, we make this call here
+            // to trigger the construction of `PreRebootDexoptJob`, which may clean up leftover
+            // chroot if there is any.
+            if (SdkLevel.isAtLeastV()) {
+                getPreRebootDexoptJob();
+            }
         }
 
         @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
