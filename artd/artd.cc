@@ -1935,10 +1935,11 @@ Result<BuildSystemProperties> BuildSystemProperties::Create(const std::string& f
   if (!ReadFileToString(filename, &content)) {
     return ErrnoErrorf("Failed to read '{}'", filename);
   }
+  std::regex import_pattern(R"re(import\s.*)re");
   std::unordered_map<std::string, std::string> system_properties;
   for (const std::string& raw_line : Split(content, "\n")) {
     std::string line = Trim(raw_line);
-    if (line.empty() || line.starts_with('#')) {
+    if (line.empty() || line.starts_with('#') || std::regex_match(line, import_pattern)) {
       continue;
     }
     size_t pos = line.find('=');

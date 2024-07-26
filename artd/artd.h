@@ -342,6 +342,9 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 };
 
 // A class for getting system properties from a `build.prop` file.
+// Note that this class ignores import statements and only reads properties from the given file
+// itself. To read properties from an imported file, insatiate this class with the imported file
+// directly.
 class BuildSystemProperties : public tools::SystemProperties {
  public:
   // Creates an instance and loads system properties from the `build.prop` file specified at the

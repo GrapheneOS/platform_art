@@ -2637,6 +2637,8 @@ TEST_F(ArtdTest, BuildSystemProperties) {
     property.bar?=000
     property.bar=789
     property.baz?=111
+    import /vendor/my_import.prop ro.*
+    import=222
   )";
 
   CreateFile(scratch_path_ + "/build.prop", kContent);
@@ -2645,6 +2647,7 @@ TEST_F(ArtdTest, BuildSystemProperties) {
   EXPECT_EQ(props.GetOrEmpty("property.foo"), "123");
   EXPECT_EQ(props.GetOrEmpty("property.bar"), "789");
   EXPECT_EQ(props.GetOrEmpty("property.baz"), "111");
+  EXPECT_EQ(props.GetOrEmpty("import"), "222");
 }
 
 class ArtdPreRebootTest : public ArtdTest {
