@@ -182,6 +182,7 @@ class NullableScopedUtfChars {
 
 
 #define FLAG_RESTRICT_MEMORY_DCL 1
+#define FLAG_RESTRICT_STORAGE_DCL (1 << 1)
 
 #define MAX_PAGE_SIZE (16 * 1024)
 
@@ -405,6 +406,15 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == nullptr) {
     return nullptr;
+  }
+
+  if (ro.dynCodeLoadingFlags & FLAG_RESTRICT_STORAGE_DCL) {
+    ScopedLocalRef<jclass> cls(env, env->FindClass("android/ext/dcl/DynCodeLoading"));
+    jmethodID method = env->GetStaticMethodID(cls.get(), "checkDexFileOpen", "(ILjava/lang/String;)V");
+    env->CallStaticVoidMethod(cls.get(), method, (jint) ro.dynCodeLoadingFlags, javaSourceName);
+    if (env->ExceptionCheck()) {
+      return nullptr;
+    }
   }
 
   if (isReadOnlyJavaDclChecked() && access(sourceName.c_str(), W_OK) == 0) {
