@@ -222,6 +222,11 @@ static Domain DetermineDomainFromDexLocation(const std::string& dex_location,
     return dex_domain.value();
   }
 
+  if (dex_location == "/system/app/GmsCompatLib/GmsCompatLib.apk" ||
+          (dex_location.starts_with("/data/app/~~") && dex_location.find("==/app.grapheneos.gmscompat.lib-") != std::string::npos)) {
+      return Domain::kPlatform;
+  }
+
   if (LocationIsOnSystemFramework(dex_location) || LocationIsOnSystemExtFramework(dex_location)) {
     return Domain::kPlatform;
   }
