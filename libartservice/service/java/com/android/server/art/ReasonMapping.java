@@ -175,6 +175,10 @@ public class ReasonMapping {
      */
     @NonNull
     public static String getCompilerFilterForReason(@NonNull String reason) {
+        if (REASON_PRE_REBOOT_DEXOPT.equals(reason)) {
+            return "speed-profile";
+        }
+
         String value = SystemProperties.get("pm.dexopt." + reason);
         if (TextUtils.isEmpty(value)) {
             if (reason.equals(REASON_POST_UNATTENDED_REBOOT)) {
