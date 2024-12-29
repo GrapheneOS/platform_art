@@ -240,6 +240,10 @@ public class ReasonMapping {
      * @hide
      */
     public static int getConcurrencyForReason(@NonNull @BatchDexoptReason String reason) {
+        if (REASON_BG_DEXOPT.equals(reason) || REASON_PRE_REBOOT_DEXOPT.equals(reason)) {
+            return SystemProperties.getInt("pm.dexopt." + reason + ".concurrency", 2 /* def */);
+        }
+
         // TODO(jiakaiz): Revisit the concurrency for non-boot reasons.
         int defaultValue = 1;
         if (BOOT_REASONS.contains(reason)) {
