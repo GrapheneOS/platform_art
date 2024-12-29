@@ -207,6 +207,10 @@ public class ReasonMapping {
      * @hide
      */
     public static int getConcurrencyForReason(@NonNull @BatchDexoptReason String reason) {
+        if (REASON_BG_DEXOPT.equals(reason) || REASON_PRE_REBOOT_DEXOPT.equals(reason)) {
+            return SystemProperties.getInt("pm.dexopt." + reason + ".concurrency", 2 /* def */);
+        }
+
         // TODO(jiakaiz): Revisit the concurrency for non-boot reasons.
         return SystemProperties.getInt("pm.dexopt." + reason + ".concurrency",
                 BOOT_REASONS.contains(reason) ? 4 : 1 /* def */);
