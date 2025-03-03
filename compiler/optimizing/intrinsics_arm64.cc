@@ -200,12 +200,18 @@ class InvokePolymorphicSlowPathARM64 : public SlowPathCodeARM64 {
 #undef __
 
 bool IntrinsicLocationsBuilderARM64::TryDispatch(HInvoke* invoke) {
+#ifdef ART_USE_RESTRICTED_MODE
+  // TODO(Simulator): support intrinsics.
+  USE(invoke);
+  return false;
+#else
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
   if (res == nullptr) {
     return false;
   }
   return res->Intrinsified();
+#endif  // ART_USE_RESTRICTED_MODE
 }
 
 #define __ masm->
@@ -2955,9 +2961,8 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
     }
   }
 
-  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   // arraycopy(char[] src, int src_pos, char[] dst, int dst_pos, int length).
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, LocationForSystemArrayCopyInput(invoke->InputAt(1)));
@@ -4919,7 +4924,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke,
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DataType::Type return_type = invoke->GetType();
 
-  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
+  ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
@@ -5970,8 +5975,7 @@ void VarHandleSlowPathARM64::EmitByteArrayViewCode(CodeGenerator* codegen_in) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMethodHandleInvokeExact(HInvoke* invoke) {
-  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
-  LocationSummary* locations = new (allocator)
+  LocationSummary* locations = new (allocator_)
       LocationSummary(invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
 
   InvokeDexCallingConventionVisitorARM64 calling_convention;
@@ -6045,21 +6049,19 @@ void IntrinsicCodeGeneratorARM64::VisitMethodHandleInvokeExact(HInvoke* invoke) 
     // If method is defined in the receiver's class, execute it as it is.
     __ Ldr(temp, MemOperand(method, ArtMethod::DeclaringClassOffset().Int32Value()));
     __ Ldr(receiver_class, HeapOperand(receiver.W(), mirror::Object::ClassOffset().Int32Value()));
+    codegen_->GetAssembler()->MaybeUnpoisonHeapReference(receiver_class.W());
+    // `receiver_class` is read w/o read barriers: false negatives go through virtual dispatch.
     __ Cmp(temp, receiver_class);
     __ B(eq, &execute_target_method);
 
     // MethodIndex is uint16_t.
     __ Ldrh(temp, MemOperand(method, ArtMethod::MethodIndexOffset().Int32Value()));
 
-    // Re-using method register for receiver class.
-    // /* HeapReference<Class> */ method = receiver->klass
-    __ Ldr(method.W(), HeapOperand(receiver.W(), mirror::Object::ClassOffset()));
-    codegen_->GetAssembler()->MaybeUnpoisonHeapReference(method.W());
-
+    // Re-using receiver class register to store vtable.
     constexpr uint32_t vtable_offset =
         mirror::Class::EmbeddedVTableOffset(art::PointerSize::k64).Int32Value();
-    __ Add(method, method, vtable_offset);
-    __ Ldr(method, MemOperand(method, temp, Extend::UXTW, 3u));
+    __ Add(receiver_class.X(), receiver_class.X(), vtable_offset);
+    __ Ldr(method, MemOperand(receiver_class.X(), temp, Extend::UXTW, 3u));
     __ B(&execute_target_method);
 
     __ Bind(&non_virtual_dispatch);

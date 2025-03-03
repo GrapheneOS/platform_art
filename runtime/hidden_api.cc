@@ -68,6 +68,26 @@ static const std::vector<std::string> kWarningExemptions = {
     "Lsun/misc/Unsafe;",
 };
 
+// Intra-core APIs that aren't also core platform APIs. These may be used by the
+// non-updatable ICU module and hence are effectively de-facto core platform
+// APIs.
+// TODO(b/377676642): Fix API annotations and delete this.
+static const std::vector<std::string> kCorePlatformApiExemptions = {
+    "Ldalvik/annotation/compat/VersionCodes;",
+    "Ldalvik/annotation/optimization/ReachabilitySensitive;",
+    "Ldalvik/system/BlockGuard/Policy;->onNetwork",
+    "Ljava/nio/charset/CharsetEncoder;-><init>(Ljava/nio/charset/Charset;FF[BZ)V",
+    "Ljava/security/spec/ECParameterSpec;->getCurveName",
+    "Ljava/security/spec/ECParameterSpec;->setCurveName",
+    "Llibcore/api/CorePlatformApi;",
+    "Llibcore/io/AsynchronousCloseMonitor;",
+    "Llibcore/util/NonNull;",
+    "Llibcore/util/Nullable;",
+    "Lsun/security/util/DerEncoder;",
+    "Lsun/security/x509/AlgorithmId;->derEncode",
+    "Lsun/security/x509/AlgorithmId;->get",
+};
+
 static inline std::ostream& operator<<(std::ostream& os, AccessMethod value) {
   switch (value) {
     case AccessMethod::kCheck:
@@ -134,8 +154,7 @@ static Domain DetermineDomainFromLocation(const std::string& dex_location,
   // These checks will be skipped on target buildbots where ANDROID_ART_ROOT
   // is set to "/system".
   if (ArtModuleRootDistinctFromAndroidRoot()) {
-    if (LocationIsOnArtModule(dex_location) || LocationIsOnConscryptModule(dex_location) ||
-        LocationIsOnI18nModule(dex_location)) {
+    if (LocationIsOnArtModule(dex_location) || LocationIsOnConscryptModule(dex_location)) {
       return Domain::kCorePlatform;
     }
 
@@ -354,7 +373,7 @@ void MemberSignature::Dump(std::ostream& os) const {
 }
 
 void MemberSignature::LogAccessToLogcat(AccessMethod access_method,
-                                        hiddenapi::ApiList list,
+                                        ApiList api_list,
                                         bool access_denied,
                                         uint32_t runtime_flags,
                                         const AccessContext& caller_context,
@@ -368,10 +387,10 @@ void MemberSignature::LogAccessToLogcat(AccessMethod access_method,
       << "hiddenapi: Accessing hidden " << (type_ == kField ? "field " : "method ")
       << Dumpable<MemberSignature>(*this)
       << " (runtime_flags=" << FormatHiddenApiRuntimeFlags(runtime_flags)
-      << ", domain=" << callee_context.GetDomain() << ", api=" << list << ") from "
+      << ", domain=" << callee_context.GetDomain() << ", api=" << api_list << ") from "
       << caller_context << " (domain=" << caller_context.GetDomain() << ") using " << access_method
       << (access_denied ? ": denied" : ": allowed");
-  if (access_denied && list.IsTestApi()) {
+  if (access_denied && api_list.IsTestApi()) {
     // see b/177047045 for more details about test api access getting denied
     LOG(WARNING) << "hiddenapi: If this is a platform test consider enabling "
                  << "VMRuntime.ALLOW_TEST_API_ACCESS change id for this package.";
@@ -533,8 +552,7 @@ uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> declaring_class = member->GetDeclaringClass();
   DCHECK(!declaring_class.IsNull()) << "Attempting to access a runtime method";
 
-  ApiList flags;
-  DCHECK(!flags.IsValid());
+  ApiList flags = ApiList::Invalid();
 
   // Check if the declaring class has ClassExt allocated. If it does, check if
   // the pre-JVMTI redefine dex file has been set to determine if the declaring
@@ -556,7 +574,7 @@ uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_) {
       uint32_t member_index = GetMemberDexIndex(member);
       auto fn_visit = [&](const AccessorType& dex_member) {
         if (dex_member.GetIndex() == member_index) {
-          flags = ApiList(dex_member.GetHiddenapiFlags());
+          flags = ApiList::FromDexFlags(dex_member.GetHiddenapiFlags());
         }
       };
       VisitMembers(declaring_class->GetDexFile(), *class_def, fn_visit);
@@ -576,7 +594,7 @@ uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_) {
       MemberSignature cur_signature(dex_member);
       if (member_signature.MemberNameAndTypeMatch(cur_signature)) {
         DCHECK(member_signature.Equals(cur_signature));
-        flags = ApiList(dex_member.GetHiddenapiFlags());
+        flags = ApiList::FromDexFlags(dex_member.GetHiddenapiFlags());
       }
     };
     VisitMembers(*original_dex, original_class_def, fn_visit);
@@ -589,6 +607,7 @@ uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_) {
 
 template <typename T>
 bool HandleCorePlatformApiViolation(T* member,
+                                    ApiList api_list,
                                     uint32_t runtime_flags,
                                     const AccessContext& caller_context,
                                     const AccessContext& callee_context,
@@ -608,8 +627,8 @@ bool HandleCorePlatformApiViolation(T* member,
         << "hiddenapi: Core platform API violation: "
         << Dumpable<MemberSignature>(MemberSignature(member))
         << " (runtime_flags=" << FormatHiddenApiRuntimeFlags(runtime_flags)
-        << ", domain=" << callee_context.GetDomain() << ") from " << caller_context
-        << " (domain=" << caller_context.GetDomain() << ")"
+        << ", domain=" << callee_context.GetDomain() << ", api=" << api_list << ") from "
+        << caller_context << " (domain=" << caller_context.GetDomain() << ")"
         << " using " << access_method;
 
     // If policy is set to just warn, add kAccCorePlatformApi to access flags of
@@ -719,12 +738,14 @@ bool ShouldDenyAccessToMemberImpl(T* member,
 template uint32_t GetDexFlags<ArtField>(ArtField* member);
 template uint32_t GetDexFlags<ArtMethod>(ArtMethod* member);
 template bool HandleCorePlatformApiViolation(ArtField* member,
+                                             ApiList api_list,
                                              uint32_t runtime_flags,
                                              const AccessContext& caller_context,
                                              const AccessContext& callee_context,
                                              AccessMethod access_method,
                                              EnforcementPolicy policy);
 template bool HandleCorePlatformApiViolation(ArtMethod* member,
+                                             ApiList api_list,
                                              uint32_t runtime_flags,
                                              const AccessContext& caller_context,
                                              const AccessContext& callee_context,
@@ -811,7 +832,7 @@ bool ShouldDenyAccessToMember(T* member,
       // Decode hidden API access flags from the dex file.
       // This is an O(N) operation scaling with the number of fields/methods
       // in the class. Only do this on slow path and only do it once.
-      ApiList api_list(detail::GetDexFlags(member));
+      ApiList api_list = ApiList::FromDexFlags(detail::GetDexFlags(member));
       DCHECK(api_list.IsValid());
 
       // Member is hidden and caller is not exempted. Enter slow path.
@@ -836,11 +857,36 @@ bool ShouldDenyAccessToMember(T* member,
       // If this is a proxy method, look at the interface method instead.
       member = detail::GetInterfaceMemberIfProxy(member);
 
+      // Decode hidden API access flags from the dex file. This is a slow path,
+      // like in the kApplication case above.
+      ApiList api_list = ApiList::FromDexFlags(detail::GetDexFlags(member));
+      DCHECK(api_list.IsValid());
+
+      // Max target SDK versions don't matter for platform callers, but they may
+      // still depend on unsupported APIs. Let's compare against the "max" SDK
+      // version to only allow that (and also proper SDK APIs, but they are
+      // typically combined with kCorePlatformApi already).
+      if (api_list.GetMaxAllowedSdkVersion() == SdkVersion::kMax) {
+        // Allow access and attempt to update the access flags to avoid
+        // re-examining the dex flags next time.
+        detail::MaybeUpdateAccessFlags(Runtime::Current(), member, kAccCorePlatformApi);
+        return false;
+      }
+
+      // Check for exemptions.
+      // TODO(b/377676642): Fix API annotations and delete this.
+      detail::MemberSignature member_signature(member);
+      if (member_signature.DoesPrefixMatchAny(kCorePlatformApiExemptions)) {
+        // Avoid re-examining the exemption list next time.
+        detail::MaybeUpdateAccessFlags(Runtime::Current(), member, kAccCorePlatformApi);
+        return false;
+      }
+
       // Access checks are not disabled, report the violation.
       // This may also add kAccCorePlatformApi to the access flags of `member`
       // so as to not warn again on next access.
       return detail::HandleCorePlatformApiViolation(
-          member, runtime_flags, caller_context, callee_context, access_method, policy);
+          member, api_list, runtime_flags, caller_context, callee_context, access_method, policy);
     }
 
     case Domain::kCorePlatform: {

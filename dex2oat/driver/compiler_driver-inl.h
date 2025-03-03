@@ -29,6 +29,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
+#include "utils/atomic_dex_ref_map-inl.h"
 
 namespace art {
 
@@ -97,6 +98,11 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
                                              field_idx);
   bool fast_put = fast_get && (!resolved_field->IsFinal() || fields_class == referrer_class);
   return std::make_pair(fast_get, fast_put);
+}
+
+inline const CompilerDriver::CompiledMethodArray* CompilerDriver::GetCompiledMethods(
+    const DexFile* dex_file) const {
+  return compiled_methods_.GetArray(dex_file);
 }
 
 }  // namespace art

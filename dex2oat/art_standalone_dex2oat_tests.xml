@@ -33,6 +33,7 @@
         <option name="push" value="art-gtest-jars-Dex2oatVdexTestDex.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Dex2oatVdexTestDex.jar" />
         <option name="push" value="art-gtest-jars-ImageLayoutA.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-ImageLayoutA.jar" />
         <option name="push" value="art-gtest-jars-ImageLayoutB.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-ImageLayoutB.jar" />
+        <option name="push" value="art-gtest-jars-Interfaces.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Interfaces.jar" />
         <option name="push" value="art-gtest-jars-LinkageTest.dex->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-LinkageTest.dex" />
         <option name="push" value="art-gtest-jars-Main.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Main.jar" />
         <option name="push" value="art-gtest-jars-MainEmptyUncompressed.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-MainEmptyUncompressed.jar" />

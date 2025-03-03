@@ -150,8 +150,8 @@ static bool IsInterestingInstruction(HInstruction* instruction) {
 }
 
 static void AddInstruction(HInstruction* instruction,
-                           const ArenaBitVector& processed_instructions,
-                           const ArenaBitVector& discard_blocks,
+                           BitVectorView<size_t> processed_instructions,
+                           BitVectorView<size_t> discard_blocks,
                            ScopedArenaVector<HInstruction*>* worklist) {
   // Add to the work list if the instruction is not in the list of blocks
   // to discard, hasn't been already processed and is of interest.
@@ -163,8 +163,8 @@ static void AddInstruction(HInstruction* instruction,
 }
 
 static void AddInputs(HInstruction* instruction,
-                      const ArenaBitVector& processed_instructions,
-                      const ArenaBitVector& discard_blocks,
+                      BitVectorView<size_t> processed_instructions,
+                      BitVectorView<size_t> discard_blocks,
                       ScopedArenaVector<HInstruction*>* worklist) {
   for (HInstruction* input : instruction->GetInputs()) {
     AddInstruction(input, processed_instructions, discard_blocks, worklist);
@@ -172,8 +172,8 @@ static void AddInputs(HInstruction* instruction,
 }
 
 static void AddInputs(HBasicBlock* block,
-                      const ArenaBitVector& processed_instructions,
-                      const ArenaBitVector& discard_blocks,
+                      BitVectorView<size_t> processed_instructions,
+                      BitVectorView<size_t> discard_blocks,
                       ScopedArenaVector<HInstruction*>* worklist) {
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     AddInputs(it.Current(), processed_instructions, discard_blocks, worklist);
@@ -185,7 +185,7 @@ static void AddInputs(HBasicBlock* block,
 
 static bool ShouldFilterUse(HInstruction* instruction,
                             HInstruction* user,
-                            const ArenaBitVector& post_dominated) {
+                            BitVectorView<size_t> post_dominated) {
   if (instruction->IsNewInstance()) {
     return (user->IsInstanceFieldSet() || user->IsConstructorFence()) &&
         (user->InputAt(0) == instruction) &&
@@ -204,7 +204,7 @@ static bool ShouldFilterUse(HInstruction* instruction,
 // This method is tailored to the sinking algorithm, unlike
 // the generic HInstruction::MoveBeforeFirstUserAndOutOfLoops.
 static HInstruction* FindIdealPosition(HInstruction* instruction,
-                                       const ArenaBitVector& post_dominated,
+                                       BitVectorView<size_t> post_dominated,
                                        bool filter = false) {
   DCHECK(!instruction->IsPhi());  // Makes no sense for Phi.
 
@@ -333,9 +333,10 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
 
   size_t number_of_instructions = graph_->GetCurrentInstructionId();
   ScopedArenaVector<HInstruction*> worklist(allocator.Adapter(kArenaAllocMisc));
-  ArenaBitVector processed_instructions(
-      &allocator, number_of_instructions, /* expandable= */ false);
-  ArenaBitVector post_dominated(&allocator, graph_->GetBlocks().size(), /* expandable= */ false);
+  BitVectorView<size_t> processed_instructions =
+      ArenaBitVector::CreateFixedSize(&allocator, number_of_instructions);
+  BitVectorView<size_t> post_dominated =
+      ArenaBitVector::CreateFixedSize(&allocator, graph_->GetBlocks().size());
 
   // Step (1): Visit post order to get a subset of blocks post dominated by `end_block`.
   // TODO(ngeoffray): Getting the full set of post-dominated should be done by
@@ -408,8 +409,8 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
   HBasicBlock* common_dominator = finder.Get();
 
   // Step (2): iterate over the worklist to find sinking candidates.
-  ArenaBitVector instructions_that_can_move(
-      &allocator, number_of_instructions, /* expandable= */ false);
+  BitVectorView<size_t> instructions_that_can_move =
+      ArenaBitVector::CreateFixedSize(&allocator, number_of_instructions);
   ScopedArenaVector<ScopedArenaVector<HInstruction*>> instructions_to_move(
       graph_->GetBlocks().size(),
       ScopedArenaVector<HInstruction*>(allocator.Adapter(kArenaAllocMisc)),

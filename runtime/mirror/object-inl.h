@@ -939,6 +939,52 @@ inline void Object::VerifyTransaction() {
   }
 }
 
+class Object::DumpRefsVisitor {
+ public:
+  explicit DumpRefsVisitor(std::ostream& os) : os_(os) {}
+
+  ALWAYS_INLINE void operator()(mirror::Object* obj,
+                                MemberOffset offset,
+                                [[maybe_unused]] bool is_static) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
+    if (ref != nullptr) {
+      os_ << "ref[" << offset << "] = " << ref << " (" << ref->PrettyTypeOf() << ")\n";
+    }
+  }
+
+  ALWAYS_INLINE void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                                ObjPtr<mirror::Reference> ref) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!ref.IsNull()) {
+      os_ << "referant[" << mirror::Reference::ReferentOffset() << "] = " << ref.Ptr() << " ("
+          << ref->PrettyTypeOf() << ")\n";
+    }
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    mirror::Object* ref = root->AsMirrorPtr();
+    os_ << "root[" << root << "] = " << ref << " (" << ref->PrettyTypeOf() << ")\n";
+  }
+
+ private:
+  std::ostream& os_;
+};
+
+template <bool kDumpNativeRoots>
+void Object::DumpReferences(std::ostream& os) {
+  DumpRefsVisitor visitor(os);
+  VisitReferences<kDumpNativeRoots>(visitor, visitor);
+}
+
 }  // namespace mirror
 }  // namespace art
 

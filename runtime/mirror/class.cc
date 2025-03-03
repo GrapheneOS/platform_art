@@ -1173,14 +1173,7 @@ ArtField* Class::FindDeclaredStaticField(std::string_view name, std::string_view
 }
 
 ArtField* Class::FindDeclaredField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
-  if (dex_cache == GetDexCache()) {
-    for (ArtField& field : GetFields()) {
-      if (field.GetDexFieldIndex() == dex_field_idx) {
-        return &field;
-      }
-    }
-  }
-  return nullptr;
+  return (dex_cache == GetDexCache()) ? FindDeclaredField(dex_field_idx) : nullptr;
 }
 
 ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
@@ -2298,7 +2291,8 @@ static bool IsInterfaceMethodAccessible(ArtMethod* interface_method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // If the interface method is part of the public SDK, return it.
   if ((hiddenapi::GetRuntimeFlags(interface_method) & kAccPublicApi) != 0) {
-    hiddenapi::ApiList api_list(hiddenapi::detail::GetDexFlags(interface_method));
+    hiddenapi::ApiList api_list =
+        hiddenapi::ApiList::FromDexFlags(hiddenapi::detail::GetDexFlags(interface_method));
     // The kAccPublicApi flag is also used as an optimization to avoid
     // other hiddenapi checks to always go on the slow path. Therefore, we
     // need to check here if the method is in the SDK list.

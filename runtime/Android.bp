@@ -540,16 +540,35 @@ cc_defaults {
                 // shared between the x86 and x86_64 architectures.
                 "interpreter/mterp/nterp.cc",
                 ":libart_mterp.x86_64ng",
-                "arch/x86_64/context_x86_64.cc",
-                "arch/x86_64/entrypoints_init_x86_64.cc",
-                "arch/x86_64/jni_entrypoints_x86_64.S",
                 "arch/x86_64/memcmp16_x86_64.S",
-                "arch/x86_64/quick_entrypoints_x86_64.S",
                 "arch/x86_64/native_entrypoints_x86_64.S",
                 "arch/x86_64/thread_x86_64.cc",
                 "monitor_pool.cc",
                 "arch/x86/fault_handler_x86.cc",
-            ],
+            ] + select(soong_config_variable("art_module", "art_use_simulator"), {
+                // Quick code architecture specific sources. Only sources which relate to the quick
+                // code ISA (see definition of StackType in thread.h) should be placed in this
+                // section. This is because all simulator build configurations will always have a
+                // different quick code (target) ISA to that of the native (host machine) ISA and
+                // therefore will require quick code specific sources (e.g: assembly entrypoints)
+                // to be built for the host machine.
+                //
+                // When the simulator is enabled, i.e.: ART_USE_SIMULATOR is defined, x86_64 native
+                // code files are used with Arm64 quick code files. This ensures that the target
+                // (arm64) context and entrypoints are used even on host (x86_64).
+                true: [
+                    "arch/arm64/context_arm64.cc",
+                    "arch/arm64/entrypoints_init_arm64.cc",
+                    "arch/arm64/jni_entrypoints_arm64.S",
+                    "arch/arm64/quick_entrypoints_arm64.S",
+                ],
+                default: [
+                    "arch/x86_64/context_x86_64.cc",
+                    "arch/x86_64/entrypoints_init_x86_64.cc",
+                    "arch/x86_64/jni_entrypoints_x86_64.S",
+                    "arch/x86_64/quick_entrypoints_x86_64.S",
+                ],
+            }),
             avx: {
                 asflags: ["-DMTERP_USE_AVX"],
             },

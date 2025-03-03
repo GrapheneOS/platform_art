@@ -438,7 +438,6 @@ art_cc_defaults {
     name: "art_compiler_tests_defaults",
     device_common_data: [
         ":art-gtest-jars-ExceptionHandle",
-        ":art-gtest-jars-Interfaces",
         ":art-gtest-jars-Main",
         ":art-gtest-jars-MyClassNatives",
     ],
@@ -489,8 +488,6 @@ art_cc_defaults {
         "optimizing/stack_map_test.cc",
         "optimizing/superblock_cloner_test.cc",
         "optimizing/suspend_check_test.cc",
-        "utils/atomic_dex_ref_map_test.cc",
-        "utils/dedupe_set_test.cc",
 
         "optimizing/codegen_test.cc",
         "optimizing/instruction_simplifier_test.cc",

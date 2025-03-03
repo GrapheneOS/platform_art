@@ -56,15 +56,20 @@ void HGraph::AddBlock(HBasicBlock* block) {
   blocks_.push_back(block);
 }
 
-void HGraph::FindBackEdges(ArenaBitVector* visited) {
+inline int32_t HGraph::AllocateInstructionId() {
+  CHECK_NE(current_instruction_id_, INT32_MAX);
+  return current_instruction_id_++;
+}
+
+void HGraph::FindBackEdges(/*out*/ BitVectorView<size_t> visited) {
   // "visited" must be empty on entry, it's an output argument for all visited (i.e. live) blocks.
-  DCHECK_EQ(visited->GetHighestBitSet(), -1);
+  DCHECK(!visited.IsAnyBitSet());
 
   // Allocate memory from local ScopedArenaAllocator.
   ScopedArenaAllocator allocator(GetArenaStack());
   // Nodes that we're currently visiting, indexed by block id.
-  ArenaBitVector visiting(
-      &allocator, blocks_.size(), /* expandable= */ false, kArenaAllocGraphBuilder);
+  BitVectorView<size_t> visiting =
+      ArenaBitVector::CreateFixedSize(&allocator, blocks_.size(), kArenaAllocGraphBuilder);
   // Number of successors visited from a given node, indexed by block id.
   ScopedArenaVector<size_t> successors_visited(blocks_.size(),
                                                0u,
@@ -73,7 +78,7 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   ScopedArenaVector<HBasicBlock*> worklist(allocator.Adapter(kArenaAllocGraphBuilder));
   constexpr size_t kDefaultWorklistSize = 8;
   worklist.reserve(kDefaultWorklistSize);
-  visited->SetBit(entry_block_->GetBlockId());
+  visited.SetBit(entry_block_->GetBlockId());
   visiting.SetBit(entry_block_->GetBlockId());
   worklist.push_back(entry_block_);
 
@@ -89,8 +94,8 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
       if (visiting.IsBitSet(successor_id)) {
         DCHECK(ContainsElement(worklist, successor));
         successor->AddBackEdge(current);
-      } else if (!visited->IsBitSet(successor_id)) {
-        visited->SetBit(successor_id);
+      } else if (!visited.IsBitSet(successor_id)) {
+        visited.SetBit(successor_id);
         visiting.SetBit(successor_id);
         worklist.push_back(successor);
       }
@@ -145,7 +150,8 @@ static void RemoveAsUser(HInstruction* instruction) {
   RemoveEnvironmentUses(instruction);
 }
 
-void HGraph::RemoveDeadBlocksInstructionsAsUsersAndDisconnect(const ArenaBitVector& visited) const {
+void HGraph::RemoveDeadBlocksInstructionsAsUsersAndDisconnect(
+    BitVectorView<const size_t> visited) const {
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
       HBasicBlock* block = blocks_[i];
@@ -160,7 +166,7 @@ void HGraph::RemoveDeadBlocksInstructionsAsUsersAndDisconnect(const ArenaBitVect
       }
 
       // Remove non-catch phi uses, and disconnect the block.
-      block->DisconnectFromSuccessors(&visited);
+      block->DisconnectFromSuccessors(visited);
     }
   }
 }
@@ -183,7 +189,7 @@ static void RemoveCatchPhiUsesOfDeadInstruction(HInstruction* insn) {
   }
 }
 
-void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
+void HGraph::RemoveDeadBlocks(BitVectorView<const size_t> visited) {
   DCHECK(reverse_post_order_.empty()) << "We shouldn't have dominance information.";
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
@@ -210,10 +216,11 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   // Allocate memory from local ScopedArenaAllocator.
   ScopedArenaAllocator allocator(GetArenaStack());
 
-  ArenaBitVector visited(&allocator, blocks_.size(), false, kArenaAllocGraphBuilder);
+  BitVectorView<size_t> visited =
+      ArenaBitVector::CreateFixedSize(&allocator, blocks_.size(), kArenaAllocGraphBuilder);
 
   // (1) Find the back edges in the graph doing a DFS traversal.
-  FindBackEdges(&visited);
+  FindBackEdges(visited);
 
   // (2) Remove instructions and phis from blocks not visited during
   //     the initial DFS as users from other instructions, so that
@@ -1035,10 +1042,13 @@ bool HBasicBlock::Dominates(const HBasicBlock* other) const {
   return false;
 }
 
-static void UpdateInputsUsers(HInstruction* instruction) {
+static void UpdateInputsUsers(HGraph* graph, HInstruction* instruction) {
   HInputsRef inputs = instruction->GetInputs();
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    inputs[i]->AddUseAt(instruction, i);
+  if (inputs.size() != 0u) {
+    ArenaAllocator* allocator = graph->GetAllocator();
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      inputs[i]->AddUseAt(allocator, instruction, i);
+    }
   }
   // Environment should be created later.
   DCHECK(!instruction->HasEnvironment());
@@ -1064,9 +1074,10 @@ void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
     DCHECK(initial->GetUses().empty());
     DCHECK(initial->GetEnvUses().empty());
     replacement->SetBlock(this);
-    replacement->SetId(GetGraph()->GetNextInstructionId());
+    HGraph* graph = GetGraph();
+    replacement->SetId(graph->AllocateInstructionId());
     instructions_.InsertInstructionBefore(replacement, initial);
-    UpdateInputsUsers(replacement);
+    UpdateInputsUsers(graph, replacement);
   } else {
     InsertInstructionBefore(replacement, initial);
     initial->ReplaceWith(replacement);
@@ -1080,8 +1091,9 @@ static void Add(HInstructionList* instruction_list,
   DCHECK(instruction->GetBlock() == nullptr);
   DCHECK_EQ(instruction->GetId(), -1);
   instruction->SetBlock(block);
-  instruction->SetId(block->GetGraph()->GetNextInstructionId());
-  UpdateInputsUsers(instruction);
+  HGraph* graph = block->GetGraph();
+  instruction->SetId(graph->AllocateInstructionId());
+  UpdateInputsUsers(graph, instruction);
   instruction_list->AddInstruction(instruction);
 }
 
@@ -1101,8 +1113,9 @@ void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstructio
   DCHECK_EQ(cursor->GetBlock(), this);
   DCHECK(!instruction->IsControlFlow());
   instruction->SetBlock(this);
-  instruction->SetId(GetGraph()->GetNextInstructionId());
-  UpdateInputsUsers(instruction);
+  HGraph* graph = GetGraph();
+  instruction->SetId(graph->AllocateInstructionId());
+  UpdateInputsUsers(graph, instruction);
   instructions_.InsertInstructionBefore(instruction, cursor);
 }
 
@@ -1115,8 +1128,9 @@ void HBasicBlock::InsertInstructionAfter(HInstruction* instruction, HInstruction
   DCHECK(!instruction->IsControlFlow());
   DCHECK(!cursor->IsControlFlow());
   instruction->SetBlock(this);
-  instruction->SetId(GetGraph()->GetNextInstructionId());
-  UpdateInputsUsers(instruction);
+  HGraph* graph = GetGraph();
+  instruction->SetId(graph->AllocateInstructionId());
+  UpdateInputsUsers(graph, instruction);
   instructions_.InsertInstructionAfter(instruction, cursor);
 }
 
@@ -1125,8 +1139,9 @@ void HBasicBlock::InsertPhiAfter(HPhi* phi, HPhi* cursor) {
   DCHECK_NE(cursor->GetId(), -1);
   DCHECK_EQ(cursor->GetBlock(), this);
   phi->SetBlock(this);
-  phi->SetId(GetGraph()->GetNextInstructionId());
-  UpdateInputsUsers(phi);
+  HGraph* graph = GetGraph();
+  phi->SetId(graph->AllocateInstructionId());
+  UpdateInputsUsers(graph, phi);
   phis_.InsertInstructionAfter(phi, cursor);
 }
 
@@ -1161,27 +1176,30 @@ void HBasicBlock::RemoveInstructionOrPhi(HInstruction* instruction, bool ensure_
   }
 }
 
-void HEnvironment::CopyFrom(ArrayRef<HInstruction* const> locals) {
+void HEnvironment::CopyFrom(ArenaAllocator* allocator, ArrayRef<HInstruction* const> locals) {
+  DCHECK_EQ(locals.size(), Size());
   for (size_t i = 0; i < locals.size(); i++) {
     HInstruction* instruction = locals[i];
     SetRawEnvAt(i, instruction);
     if (instruction != nullptr) {
-      instruction->AddEnvUseAt(this, i);
+      instruction->AddEnvUseAt(allocator, this, i);
     }
   }
 }
 
-void HEnvironment::CopyFrom(const HEnvironment* env) {
+void HEnvironment::CopyFrom(ArenaAllocator* allocator, const HEnvironment* env) {
+  DCHECK_EQ(env->Size(), Size());
   for (size_t i = 0; i < env->Size(); i++) {
     HInstruction* instruction = env->GetInstructionAt(i);
     SetRawEnvAt(i, instruction);
     if (instruction != nullptr) {
-      instruction->AddEnvUseAt(this, i);
+      instruction->AddEnvUseAt(allocator, this, i);
     }
   }
 }
 
-void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
+void HEnvironment::CopyFromWithLoopPhiAdjustment(ArenaAllocator* allocator,
+                                                 HEnvironment* env,
                                                  HBasicBlock* loop_header) {
   DCHECK(loop_header->IsLoopHeader());
   for (size_t i = 0; i < env->Size(); i++) {
@@ -1195,9 +1213,9 @@ void HEnvironment::CopyFromWithLoopPhiAdjustment(HEnvironment* env,
       // is the first input of the phi.
       HInstruction* initial = instruction->AsPhi()->InputAt(0);
       SetRawEnvAt(i, initial);
-      initial->AddEnvUseAt(this, i);
+      initial->AddEnvUseAt(allocator, this, i);
     } else {
-      instruction->AddEnvUseAt(this, i);
+      instruction->AddEnvUseAt(allocator, this, i);
     }
   }
 }
@@ -1439,18 +1457,17 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
                                           HInstruction* replacement,
                                           bool strictly_dominated) {
   HBasicBlock* dominator_block = dominator->GetBlock();
-  std::optional<ArenaBitVector> visited_blocks;
+  BitVectorView<size_t> visited_blocks;
 
   // Lazily compute the dominated blocks to faster calculation of domination afterwards.
   auto maybe_generate_visited_blocks = [&visited_blocks, this, dominator_block]() {
-    if (visited_blocks.has_value()) {
+    if (visited_blocks.SizeInBits() != 0u) {
+      DCHECK_EQ(visited_blocks.SizeInBits(), GetBlock()->GetGraph()->GetBlocks().size());
       return;
     }
     HGraph* graph = GetBlock()->GetGraph();
-    visited_blocks.emplace(graph->GetAllocator(),
-                           graph->GetBlocks().size(),
-                           /* expandable= */ false,
-                           kArenaAllocMisc);
+    visited_blocks = ArenaBitVector::CreateFixedSize(
+        graph->GetAllocator(), graph->GetBlocks().size(), kArenaAllocMisc);
     ScopedArenaAllocator allocator(graph->GetArenaStack());
     ScopedArenaQueue<const HBasicBlock*> worklist(allocator.Adapter(kArenaAllocMisc));
     worklist.push(dominator_block);
@@ -1458,9 +1475,9 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
     while (!worklist.empty()) {
       const HBasicBlock* current = worklist.front();
       worklist.pop();
-      visited_blocks->SetBit(current->GetBlockId());
+      visited_blocks.SetBit(current->GetBlockId());
       for (HBasicBlock* dominated : current->GetDominatedBlocks()) {
-        if (visited_blocks->IsBitSet(dominated->GetBlockId())) {
+        if (visited_blocks.IsBitSet(dominated->GetBlockId())) {
           continue;
         }
         worklist.push(dominated);
@@ -1483,7 +1500,7 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
     } else {
       // Block domination.
       maybe_generate_visited_blocks();
-      dominated = visited_blocks->IsBitSet(block->GetBlockId());
+      dominated = visited_blocks.IsBitSet(block->GetBlockId());
     }
 
     if (dominated) {
@@ -1494,7 +1511,7 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
       // for their inputs.
       HBasicBlock* predecessor = block->GetPredecessors()[index];
       maybe_generate_visited_blocks();
-      if (visited_blocks->IsBitSet(predecessor->GetBlockId())) {
+      if (visited_blocks.IsBitSet(predecessor->GetBlockId())) {
         user->ReplaceInput(replacement, index);
       }
     }
@@ -1538,7 +1555,7 @@ size_t HInstruction::EnvironmentSize() const {
 void HVariableInputSizeInstruction::AddInput(HInstruction* input) {
   DCHECK(input->GetBlock() != nullptr);
   inputs_.push_back(HUserRecord<HInstruction*>(input));
-  input->AddUseAt(this, inputs_.size() - 1);
+  input->AddUseAt(GetBlock()->GetGraph()->GetAllocator(), this, inputs_.size() - 1);
 }
 
 void HVariableInputSizeInstruction::InsertInputAt(size_t index, HInstruction* input) {
@@ -1550,7 +1567,7 @@ void HVariableInputSizeInstruction::InsertInputAt(size_t index, HInstruction* in
   }
   // Add the use after updating the indexes. If the `input` is already used by `this`,
   // the fixup after use insertion can use those indexes.
-  input->AddUseAt(this, index);
+  input->AddUseAt(GetBlock()->GetGraph()->GetAllocator(), this, index);
 }
 
 void HVariableInputSizeInstruction::RemoveInputAt(size_t index) {
@@ -2489,13 +2506,14 @@ void HBasicBlock::DisconnectAndDelete() {
   graph_->DeleteDeadEmptyBlock(this);
 }
 
-void HBasicBlock::DisconnectFromSuccessors(const ArenaBitVector* visited) {
+void HBasicBlock::DisconnectFromSuccessors(BitVectorView<const size_t> visited) {
+  DCHECK_IMPLIES(visited.SizeInBits() != 0u, visited.SizeInBits() == graph_->GetBlocks().size());
   for (HBasicBlock* successor : successors_) {
     // Delete this block from the list of predecessors.
     size_t this_index = successor->GetPredecessorIndexOf(this);
     successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
 
-    if (visited != nullptr && !visited->IsBitSet(successor->GetBlockId())) {
+    if (visited.SizeInBits() != 0u && !visited.IsBitSet(successor->GetBlockId())) {
       // `successor` itself is dead. Therefore, there is no need to update its phis.
       continue;
     }

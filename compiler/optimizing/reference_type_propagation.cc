@@ -218,7 +218,7 @@ static void BoundTypeIn(HInstruction* receiver,
           : start_block->GetFirstInstruction();
       if (ShouldCreateBoundType(
             insert_point, receiver, class_rti, start_instruction, start_block)) {
-        bound_type = new (receiver->GetBlock()->GetGraph()->GetAllocator()) HBoundType(receiver);
+        bound_type = new (start_block->GetGraph()->GetAllocator()) HBoundType(receiver);
         bound_type->SetUpperBound(class_rti, /* can_be_null= */ false);
         start_block->InsertInstructionBefore(bound_type, insert_point);
         // To comply with the RTP algorithm, don't type the bound type just yet, it will

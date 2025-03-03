@@ -26,6 +26,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #include "android-base/scopeguard.h"
@@ -42,6 +43,7 @@
 #include "oat_file.h"
 #include "oat_file_assistant_context.h"
 #include "oat_file_manager.h"
+#include "obj_ptr.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 
@@ -237,39 +239,6 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
   std::unique_ptr<OatFileAssistantContext> ofa_context_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 };
-
-class ScopedNonWritable {
- public:
-  explicit ScopedNonWritable(const std::string& dex_location) {
-    is_valid_ = false;
-    size_t pos = dex_location.rfind('/');
-    if (pos != std::string::npos) {
-      is_valid_ = true;
-      dex_parent_ = dex_location.substr(0, pos);
-      if (chmod(dex_parent_.c_str(), 0555) != 0)  {
-        PLOG(ERROR) << "Could not change permissions on " << dex_parent_;
-      }
-    }
-  }
-
-  bool IsSuccessful() { return is_valid_ && (access(dex_parent_.c_str(), W_OK) != 0); }
-
-  ~ScopedNonWritable() {
-    if (is_valid_) {
-      if (chmod(dex_parent_.c_str(), 0777) != 0) {
-        PLOG(ERROR) << "Could not restore permissions on " << dex_parent_;
-      }
-    }
-  }
-
- private:
-  std::string dex_parent_;
-  bool is_valid_;
-};
-
-static bool IsExecutedAsRoot() {
-  return geteuid() == 0;
-}
 
 // Case: We have a MultiDEX file and up-to-date ODEX file for it with relative
 // encoded dex locations.
@@ -586,19 +555,9 @@ TEST_P(OatFileAssistantTest, OdexUpToDateSymLink) {
 // Case: We have a DEX file and up-to-date OAT file for it.
 // Expect: The status is kNoDexOptNeeded.
 TEST_P(OatFileAssistantTest, OatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/OatUpToDate.jar";
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
-
-  // Force the use of oat location by making the dex parent not writable.
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -860,12 +819,6 @@ TEST_P(OatFileAssistantTest, EmptyVdexOdex) {
 // Case: We have a DEX file and up-to-date (OAT) VDEX file for it, but no OAT
 // file.
 TEST_P(OatFileAssistantTest, VdexUpToDateNoOat) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/VdexUpToDateNoOat.jar";
   std::string oat_location;
   std::string error_msg;
@@ -876,9 +829,6 @@ TEST_P(OatFileAssistantTest, VdexUpToDateNoOat) {
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
   ASSERT_EQ(0, unlink(oat_location.c_str()));
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -896,18 +846,9 @@ TEST_P(OatFileAssistantTest, VdexUpToDateNoOat) {
 // Expect: The status is kNoDexOptNeeded if the profile hasn't changed, but
 // kDex2Oat if the profile has changed.
 TEST_P(OatFileAssistantTest, ProfileOatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/ProfileOatUpToDate.jar";
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeedProfile);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -965,18 +906,9 @@ TEST_P(OatFileAssistantTest, ProfileOatUpToDate) {
 // Case: We have a MultiDEX file and up-to-date OAT file for it.
 // Expect: The status is kNoDexOptNeeded and we load all dex files.
 TEST_P(OatFileAssistantTest, MultiDexOatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/MultiDexOatUpToDate.jar";
   Copy(GetMultiDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1005,12 +937,6 @@ TEST_P(OatFileAssistantTest, MultiDexOatUpToDate) {
 // Case: We have a MultiDEX file where the non-main multdex entry is out of date.
 // Expect: The status is kDex2OatNeeded.
 TEST_P(OatFileAssistantTest, MultiDexNonMainOutOfDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/MultiDexNonMainOutOfDate.jar";
 
   // Compile code for GetMultiDexSrc1.
@@ -1020,9 +946,6 @@ TEST_P(OatFileAssistantTest, MultiDexNonMainOutOfDate) {
   // Now overwrite the dex file with GetMultiDexSrc2 so the non-main checksum
   // is out of date.
   Copy(GetMultiDexSrc2(), dex_location);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1039,12 +962,6 @@ TEST_P(OatFileAssistantTest, MultiDexNonMainOutOfDate) {
 // Case: We have a DEX file and an OAT file out of date with respect to the
 // dex checksum.
 TEST_P(OatFileAssistantTest, OatDexOutOfDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/OatDexOutOfDate.jar";
 
   // We create a dex, generate an oat for it, then overwrite the dex with a
@@ -1052,9 +969,6 @@ TEST_P(OatFileAssistantTest, OatDexOutOfDate) {
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
   Copy(GetDexSrc2(), dex_location);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1128,21 +1042,12 @@ TEST_P(OatFileAssistantTest, VdexMultiDexNonMainOutOfDate) {
 // Case: We have a DEX file and an OAT file out of date with respect to the
 // boot image.
 TEST_P(OatFileAssistantTest, OatImageOutOfDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/OatImageOutOfDate.jar";
 
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(),
                      CompilerFilter::kSpeed,
                      /* with_alternate_image= */ true);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1288,7 +1193,7 @@ TEST_P(OatFileAssistantTest, ResourceOnlyDex) {
 }
 
 // Case: We have a DEX file, an ODEX file and an OAT file.
-// Expect: It shouldn't crash. We should load the odex file executable.
+// Expect: It shouldn't crash. We should load the oat file executable.
 TEST_P(OatFileAssistantTest, OdexOatOverlap) {
   std::string dex_location = GetScratchDir() + "/OdexOatOverlap.jar";
   std::string odex_location = GetOdexDir() + "/OdexOatOverlap.odex";
@@ -1309,7 +1214,7 @@ TEST_P(OatFileAssistantTest, OdexOatOverlap) {
                                CompilerFilter::kSpeed,
                                /*expected_dexopt_needed=*/false,
                                /*expected_is_vdex_usable=*/true,
-                               /*expected_location=*/OatFileAssistant::kLocationOdex,
+                               /*expected_location=*/OatFileAssistant::kLocationOat,
                                /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
@@ -1331,19 +1236,10 @@ TEST_P(OatFileAssistantTest, OdexOatOverlap) {
 // Case: We have a DEX file and up-to-date OAT file for it.
 // Expect: We should load an executable dex file.
 TEST_P(OatFileAssistantTest, LoadOatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/LoadOatUpToDate.jar";
 
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1365,19 +1261,10 @@ TEST_P(OatFileAssistantTest, LoadOatUpToDate) {
 // Case: We have a DEX file and up-to-date quicken OAT file for it.
 // Expect: We should still load the oat file as executable.
 TEST_P(OatFileAssistantTest, LoadExecInterpretOnlyOatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/LoadExecInterpretOnlyOatUpToDate.jar";
 
   Copy(GetDexSrc1(), dex_location);
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kVerify);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -1399,18 +1286,9 @@ TEST_P(OatFileAssistantTest, LoadExecInterpretOnlyOatUpToDate) {
 // Case: We have a DEX file and up-to-date OAT file for it.
 // Expect: Loading non-executable should load the oat non-executable.
 TEST_P(OatFileAssistantTest, LoadNoExecOatUpToDate) {
-  if (IsExecutedAsRoot()) {
-    // We cannot simulate non writable locations when executed as root: b/38000545.
-    LOG(ERROR) << "Test skipped because it's running as root";
-    return;
-  }
-
   std::string dex_location = GetScratchDir() + "/LoadNoExecOatUpToDate.jar";
 
   Copy(GetDexSrc1(), dex_location);
-
-  ScopedNonWritable scoped_non_writable(dex_location);
-  ASSERT_TRUE(scoped_non_writable.IsSuccessful());
 
   GenerateOatForTest(dex_location.c_str(), CompilerFilter::kSpeed);
 
@@ -2305,10 +2183,26 @@ TEST_P(OatFileAssistantTest, ShouldRecompileForImageFromSpeedProfile) {
             oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
 }
 
-// Test that GetLocation of a dex file is the same whether the dex
-// filed is backed by an oat file or not.
+class CollectDexCacheVisitor : public DexCacheVisitor {
+ public:
+  explicit CollectDexCacheVisitor(
+      std::unordered_map<std::string, ObjPtr<mirror::DexCache>>& dex_caches)
+      : dex_caches_(dex_caches) {}
+
+  void Visit(ObjPtr<mirror::DexCache> dex_cache)
+      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_) override {
+    dex_caches_[dex_cache->GetDexFile()->GetLocation()] = dex_cache;
+  }
+
+ private:
+  std::unordered_map<std::string, ObjPtr<mirror::DexCache>>& dex_caches_;
+};
+
+// Test that, no matter the dex file is backed by an oat file or not, the location fields in
+// DexFile, OatDexFile, and DexCache are the same as the actual dex location.
 TEST_F(OatFileAssistantBaseTest, GetDexLocation) {
   std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string dex_location_multidex = dex_location + "!classes2.dex";
   std::string oat_location = GetOdexDir() + "/TestDex.odex";
   std::string art_location = GetOdexDir() + "/TestDex.art";
 
@@ -2316,7 +2210,7 @@ TEST_F(OatFileAssistantBaseTest, GetDexLocation) {
   Thread::Current()->TransitionFromSuspendedToRunnable();
   runtime_->Start();
 
-  Copy(GetDexSrc1(), dex_location);
+  Copy(GetMultiDexSrc1(), dex_location);
 
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::vector<std::string> error_msgs;
@@ -2328,9 +2222,11 @@ TEST_F(OatFileAssistantBaseTest, GetDexLocation) {
       /*dex_elements=*/nullptr,
       &oat_file,
       &error_msgs);
-  ASSERT_EQ(dex_files.size(), 1u) << android::base::Join(error_msgs, "\n");
+  ASSERT_EQ(dex_files.size(), 2u) << android::base::Join(error_msgs, "\n");
   EXPECT_EQ(oat_file, nullptr);
-  std::string stored_dex_location = dex_files[0]->GetLocation();
+  EXPECT_EQ(dex_files[0]->GetLocation(), dex_location);
+  EXPECT_EQ(dex_files[1]->GetLocation(), dex_location_multidex);
+
   {
     // Create the oat file.
     std::vector<std::string> args;
@@ -2347,10 +2243,24 @@ TEST_F(OatFileAssistantBaseTest, GetDexLocation) {
       /*dex_elements=*/nullptr,
       &oat_file,
       &error_msgs);
-  ASSERT_EQ(dex_files.size(), 1u) << android::base::Join(error_msgs, "\n");
+  ASSERT_EQ(dex_files.size(), 2u) << android::base::Join(error_msgs, "\n");
   ASSERT_NE(oat_file, nullptr);
-  std::string oat_stored_dex_location = dex_files[0]->GetLocation();
-  EXPECT_EQ(oat_stored_dex_location, stored_dex_location);
+  EXPECT_EQ(dex_files[0]->GetLocation(), dex_location);
+  EXPECT_EQ(dex_files[1]->GetLocation(), dex_location_multidex);
+  EXPECT_EQ(oat_file->GetOatDexFiles()[0]->GetLocation(), dex_location);
+  EXPECT_EQ(oat_file->GetOatDexFiles()[1]->GetLocation(), dex_location_multidex);
+
+  std::unordered_map<std::string, ObjPtr<mirror::DexCache>> dex_caches;
+  CollectDexCacheVisitor visitor(dex_caches);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    ReaderMutexLock mu(Thread::Current(), *Locks::dex_lock_);
+    class_linker->VisitDexCaches(&visitor);
+    EXPECT_EQ(dex_caches[dex_location]->GetLocation()->ToModifiedUtf8(), dex_location);
+    EXPECT_EQ(dex_caches[dex_location_multidex]->GetLocation()->ToModifiedUtf8(),
+              dex_location_multidex);
+  }
 }
 
 // Test that a dex file on the platform location gets the right hiddenapi domain,

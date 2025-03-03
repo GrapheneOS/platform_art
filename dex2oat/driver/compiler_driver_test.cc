@@ -31,6 +31,7 @@
 #include "dex/dex_file_types.h"
 #include "gc/heap.h"
 #include "handle_scope-inl.h"
+#include "instrumentation-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
@@ -93,7 +94,11 @@ class CompilerDriverTest : public CommonCompilerDriverTest {
         LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
       }
     }
-    runtime_->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ method_code);
+    instrumentation::Instrumentation* instr = runtime_->GetInstrumentation();
+    const void* entrypoint = instr->GetInitialEntrypoint(method->GetAccessFlags(), method_code);
+    CHECK(!instr->IsForcedInterpretOnly());
+    CHECK(!instr->EntryExitStubsInstalled());
+    instr->UpdateMethodsCode(method, entrypoint);
   }
 
   void MakeDexFileExecutable(jobject class_loader, const DexFile& dex_file) {

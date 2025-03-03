@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <random>
@@ -664,33 +665,39 @@ class ImageSpace::Loader {
     CHECK(image_filename != nullptr);
     CHECK(image_location != nullptr);
 
-    std::unique_ptr<File> file;
+    FileWithRange file_with_range;
     {
       TimingLogger::ScopedTiming timing("OpenImageFile", logger);
-      file.reset(OS::OpenFileForReading(image_filename));
-      if (file == nullptr) {
-        *error_msg = StringPrintf("Failed to open '%s'", image_filename);
+      // Most likely, the image is compressed and doesn't really need alignment. We enforce page
+      // size alignment just in case the image is uncompressed.
+      file_with_range = OS::OpenFileDirectlyOrFromZip(
+          image_filename, OatFile::kZipSeparator, /*alignment=*/MemMap::GetPageSize(), error_msg);
+      if (file_with_range.file == nullptr) {
         return nullptr;
       }
     }
-    return Init(file.get(),
+    return Init(file_with_range.file.get(),
+                file_with_range.start,
+                file_with_range.length,
                 image_filename,
                 image_location,
-                /*profile_files=*/ {},
-                /*allow_direct_mapping=*/ true,
+                /*profile_files=*/{},
+                /*allow_direct_mapping=*/true,
                 logger,
                 image_reservation,
                 error_msg);
   }
 
   static std::unique_ptr<ImageSpace> Init(File* file,
+                                          off_t start,
+                                          size_t image_file_size,
                                           const char* image_filename,
                                           const char* image_location,
                                           const std::vector<std::string>& profile_files,
                                           bool allow_direct_mapping,
                                           TimingLogger* logger,
-                                          /*inout*/MemMap* image_reservation,
-                                          /*out*/std::string* error_msg) {
+                                          /*inout*/ MemMap* image_reservation,
+                                          /*out*/ std::string* error_msg) {
     CHECK(image_filename != nullptr);
     CHECK(image_location != nullptr);
 
@@ -699,19 +706,17 @@ class ImageSpace::Loader {
     ImageHeader image_header;
     {
       TimingLogger::ScopedTiming timing("ReadImageHeader", logger);
-      bool success = file->PreadFully(&image_header, sizeof(image_header), /*offset=*/ 0u);
+      bool success = file->PreadFully(&image_header, sizeof(image_header), start);
       if (!success || !image_header.IsValid()) {
         *error_msg = StringPrintf("Invalid image header in '%s'", image_filename);
         return nullptr;
       }
     }
     // Check that the file is larger or equal to the header size + data size.
-    const uint64_t image_file_size = static_cast<uint64_t>(file->GetLength());
     if (image_file_size < sizeof(ImageHeader) + image_header.GetDataSize()) {
-      *error_msg = StringPrintf(
-          "Image file truncated: %" PRIu64 " vs. %" PRIu64 ".",
-           image_file_size,
-           static_cast<uint64_t>(sizeof(ImageHeader) + image_header.GetDataSize()));
+      *error_msg = StringPrintf("Image file truncated: %zu vs. %" PRIu64 ".",
+                                image_file_size,
+                                sizeof(ImageHeader) + image_header.GetDataSize());
       return nullptr;
     }
 
@@ -733,10 +738,9 @@ class ImageSpace::Loader {
         RoundUp(sizeof(ImageHeader) + image_header.GetDataSize(), kElfSegmentAlignment);
     const size_t end_of_bitmap = image_bitmap_offset + bitmap_section.Size();
     if (end_of_bitmap != image_file_size) {
-      *error_msg = StringPrintf(
-          "Image file size does not equal end of bitmap: size=%" PRIu64 " vs. %zu.",
-          image_file_size,
-          end_of_bitmap);
+      *error_msg = StringPrintf("Image file size does not equal end of bitmap: size=%zu vs. %zu.",
+                                image_file_size,
+                                end_of_bitmap);
       return nullptr;
     }
 
@@ -746,15 +750,15 @@ class ImageSpace::Loader {
     // avoid reading proc maps for a mapping failure and slowing everything down.
     // For the boot image, we have already reserved the memory and we load the image
     // into the `image_reservation`.
-    MemMap map = LoadImageFile(
-        image_filename,
-        image_location,
-        image_header,
-        file->Fd(),
-        allow_direct_mapping,
-        logger,
-        image_reservation,
-        error_msg);
+    MemMap map = LoadImageFile(image_filename,
+                               image_location,
+                               image_header,
+                               file->Fd(),
+                               start,
+                               allow_direct_mapping,
+                               logger,
+                               image_reservation,
+                               error_msg);
     if (!map.IsValid()) {
       DCHECK(!error_msg->empty());
       return nullptr;
@@ -765,8 +769,8 @@ class ImageSpace::Loader {
                                               PROT_READ,
                                               MAP_PRIVATE,
                                               file->Fd(),
-                                              image_bitmap_offset,
-                                              /*low_4gb=*/ false,
+                                              start + image_bitmap_offset,
+                                              /*low_4gb=*/false,
                                               image_filename,
                                               error_msg);
     if (!image_bitmap_map.IsValid()) {
@@ -986,10 +990,11 @@ class ImageSpace::Loader {
                               const char* image_location,
                               const ImageHeader& image_header,
                               int fd,
+                              off_t start,
                               bool allow_direct_mapping,
                               TimingLogger* logger,
-                              /*inout*/MemMap* image_reservation,
-                              /*out*/std::string* error_msg) {
+                              /*inout*/ MemMap* image_reservation,
+                              /*out*/ std::string* error_msg) {
     TimingLogger::ScopedTiming timing("MapImageFile", logger);
 
     // The runtime might not be available at this point if we're running dex2oat or oatdump, in
@@ -1008,7 +1013,7 @@ class ImageSpace::Loader {
           PROT_READ | PROT_WRITE,
           MAP_PRIVATE,
           fd,
-          /*start=*/0,
+          start,
           /*low_4gb=*/true,
           image_filename,
           /*reuse=*/false,
@@ -1037,8 +1042,8 @@ class ImageSpace::Loader {
                                         PROT_READ,
                                         MAP_PRIVATE,
                                         fd,
-                                        /*start=*/ 0,
-                                        /*low_4gb=*/ false,
+                                        start,
+                                        /*low_4gb=*/false,
                                         image_filename,
                                         error_msg);
       if (!temp_map.IsValid()) {
@@ -1054,7 +1059,7 @@ class ImageSpace::Loader {
 
         Runtime::ScopedThreadPoolUsage stpu;
         ThreadPool* const pool = stpu.GetThreadPool();
-        const uint64_t start = NanoTime();
+        const uint64_t start_time = NanoTime();
         Thread* const self = Thread::Current();
         static constexpr size_t kMinBlocks = 2u;
         const bool use_parallel = pool != nullptr && image_header.GetBlockCount() >= kMinBlocks;
@@ -1085,7 +1090,7 @@ class ImageSpace::Loader {
           ScopedTrace trace("Waiting for workers");
           pool->Wait(self, true, false);
         }
-        const uint64_t time = NanoTime() - start;
+        const uint64_t time = NanoTime() - start_time;
         // Add one 1 ns to prevent possible divide by 0.
         VLOG(image) << "Decompressing image took " << PrettyDuration(time) << " ("
                     << PrettySize(static_cast<uint64_t>(map.Size()) * MsToNs(1000) / (time + 1))
@@ -2821,12 +2826,20 @@ class ImageSpace::BootImageLoader {
       VLOG(startup) << "Using image file " << image_filename.c_str() << " for image location "
                     << image_location << " for compiled extension";
 
-      File image_file(art_fd.release(), image_filename, /*check_usage=*/ false);
+      File image_file(art_fd.release(), image_filename, /*check_usage=*/false);
+      int64_t file_length = image_file.GetLength();
+      if (file_length < 0) {
+        *error_msg =
+            ART_FORMAT("Failed to get file length of '{}': {}", image_filename, strerror(errno));
+        return nullptr;
+      }
       std::unique_ptr<ImageSpace> result = Loader::Init(&image_file,
+                                                        /*start=*/0,
+                                                        file_length,
                                                         image_filename.c_str(),
                                                         image_location.c_str(),
                                                         profile_files,
-                                                        /*allow_direct_mapping=*/ false,
+                                                        /*allow_direct_mapping=*/false,
                                                         logger,
                                                         image_reservation,
                                                         error_msg);

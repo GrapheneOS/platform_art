@@ -38,8 +38,8 @@ TEST(CompactDexFileTest, MagicAndVersion) {
       }
       EXPECT_EQ(valid_magic, CompactDexFile::IsMagicValid(header));
       EXPECT_EQ(valid_version, CompactDexFile::IsVersionValid(header));
-      EXPECT_EQ(valid_magic, DexFileLoader::IsMagicValid(header));
-      EXPECT_EQ(valid_magic && valid_version, DexFileLoader::IsVersionAndMagicValid(header));
+      EXPECT_FALSE(DexFileLoader::IsMagicValid(header));
+      EXPECT_FALSE(DexFileLoader::IsVersionAndMagicValid(header));
     }
   }
 }

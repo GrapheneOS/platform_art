@@ -41,10 +41,12 @@ constexpr const char kTransactionAbortErrorDescriptor[] = "Ldalvik/system/Transa
 
 // AbstractMethodError
 
-void ThrowAbstractMethodError(ArtMethod* method)
+void ThrowAbstractMethodError(ArtMethod* method, ObjPtr<mirror::Object> receiver)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowAbstractMethodError(uint32_t method_idx, const DexFile& dex_file)
+void ThrowAbstractMethodError(uint32_t method_idx,
+                              const DexFile& dex_file,
+                              ObjPtr<mirror::Object> receiver)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 // ArithmeticException

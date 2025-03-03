@@ -871,7 +871,7 @@ bool JitCodeCache::RemoveMethod(ArtMethod* method, bool release_memory) {
     return false;
   }
 
-  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+  Runtime::Current()->GetInstrumentation()->ReinitializeMethodsCode(method);
   return true;
 }
 
@@ -1779,7 +1779,7 @@ void JitCodeCache::InvalidateAllCompiledCode() {
           OatQuickMethodHeader::FromCodePointer(data.GetCode());
       for (ArtMethod* method : data.GetMethods()) {
         if (method->GetEntryPointFromQuickCompiledCode() == method_header->GetEntryPoint()) {
-          instr->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+          instr->ReinitializeMethodsCode(method);
         }
       }
     }
@@ -1789,7 +1789,7 @@ void JitCodeCache::InvalidateAllCompiledCode() {
       if (UNLIKELY(meth->IsObsolete())) {
         linker->SetEntryPointsForObsoleteMethod(meth);
       } else {
-        instr->InitializeMethodsCode(meth, /*aot_code=*/ nullptr);
+        instr->ReinitializeMethodsCode(meth);
       }
     }
     osr_code_map_.clear();
@@ -1803,7 +1803,7 @@ void JitCodeCache::InvalidateAllCompiledCode() {
     if (entry.method->IsPreCompiled()) {
       entry.method->ClearPreCompiled();
     }
-    instr->InitializeMethodsCode(entry.method, /*aot_code=*/nullptr);
+    instr->ReinitializeMethodsCode(entry.method);
   }
 }
 
@@ -1816,7 +1816,7 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   // the future.
   if (method_entrypoint == header->GetEntryPoint()) {
     // The entrypoint is the one to invalidate, so we just update it to the interpreter entry point.
-    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+    Runtime::Current()->GetInstrumentation()->ReinitializeMethodsCode(method);
   } else {
     Thread* self = Thread::Current();
     ScopedDebugDisallowReadBarriers sddrb(self);

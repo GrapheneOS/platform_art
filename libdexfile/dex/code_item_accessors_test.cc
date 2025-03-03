@@ -61,10 +61,6 @@ TEST(CodeItemAccessorsTest, TestDexInstructionsAccessor) {
   std::unique_ptr<const DexFile> standard_dex(CreateFakeDex(/*compact_dex=*/false,
                                                             &standard_dex_data));
   ASSERT_TRUE(standard_dex != nullptr);
-  std::vector<uint8_t> compact_dex_data;
-  std::unique_ptr<const DexFile> compact_dex(CreateFakeDex(/*compact_dex=*/true,
-                                                           &compact_dex_data));
-  ASSERT_TRUE(compact_dex != nullptr);
   static constexpr uint16_t kRegisterSize = 2;
   static constexpr uint16_t kInsSize = 1;
   static constexpr uint16_t kOutsSize = 3;
@@ -98,19 +94,6 @@ TEST(CodeItemAccessorsTest, TestDexInstructionsAccessor) {
   dex_code_item->tries_size_ = kTriesSize;
   dex_code_item->insns_size_in_code_units_ = kInsnsSizeInCodeUnits;
   verify_code_item(standard_dex.get(), dex_code_item, dex_code_item->insns_);
-
-  CompactDexFile::CodeItem* cdex_code_item =
-      reinterpret_cast<CompactDexFile::CodeItem*>(const_cast<uint8_t*>(compact_dex->Begin() +
-          CompactDexFile::CodeItem::kMaxPreHeaderSize * sizeof(uint16_t)));
-  std::vector<uint16_t> preheader;
-  cdex_code_item->Create(kRegisterSize,
-                         kInsSize,
-                         kOutsSize,
-                         kTriesSize,
-                         kInsnsSizeInCodeUnits,
-                         cdex_code_item->GetPreHeader());
-
-  verify_code_item(compact_dex.get(), cdex_code_item, cdex_code_item->insns_);
 }
 
 }  // namespace art

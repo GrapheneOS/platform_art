@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cstddef>
 #include <memory>
 
 #include "android-base/stringprintf.h"
@@ -36,85 +37,65 @@ namespace art HIDDEN {
 using android::base::StringPrintf;
 
 template <typename ElfTypes>
-ElfFileImpl<ElfTypes>::ElfFileImpl(File* file)
-    : header_(nullptr),
-      base_address_(nullptr),
-      program_headers_start_(nullptr),
-      section_headers_start_(nullptr),
-      dynamic_program_header_(nullptr),
-      dynamic_section_start_(nullptr),
-      symtab_section_start_(nullptr),
-      dynsym_section_start_(nullptr),
-      strtab_section_start_(nullptr),
-      dynstr_section_start_(nullptr),
-      hash_section_start_(nullptr) {
-  CHECK(file != nullptr);
-}
-
-template <typename ElfTypes>
 ElfFileImpl<ElfTypes>* ElfFileImpl<ElfTypes>::Open(File* file,
+                                                   off_t start,
+                                                   size_t file_length,
+                                                   const std::string& file_location,
                                                    bool low_4gb,
                                                    std::string* error_msg) {
-  std::unique_ptr<ElfFileImpl<ElfTypes>> elf_file(new ElfFileImpl<ElfTypes>(file));
-  if (!elf_file->Setup(file, PROT_READ, MAP_PRIVATE, low_4gb, error_msg)) {
+  std::unique_ptr<ElfFileImpl<ElfTypes>> elf_file(
+      new ElfFileImpl<ElfTypes>(file, start, file_length, file_location));
+  if (!elf_file->Setup(low_4gb, error_msg)) {
     return nullptr;
   }
   return elf_file.release();
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::Setup(File* file,
-                                  int prot,
-                                  int flags,
-                                  bool low_4gb,
-                                  std::string* error_msg) {
-  int64_t temp_file_length = file->GetLength();
-  if (temp_file_length < 0) {
-    errno = -temp_file_length;
-    *error_msg = StringPrintf("Failed to get length of file: '%s' fd=%d: %s",
-                              file->GetPath().c_str(), file->Fd(), strerror(errno));
-    return false;
-  }
-  size_t file_length = static_cast<size_t>(temp_file_length);
-  if (file_length < sizeof(Elf_Ehdr)) {
-    *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF header of "
-                              "%zd bytes: '%s'", file_length, sizeof(Elf_Ehdr),
-                              file->GetPath().c_str());
+bool ElfFileImpl<ElfTypes>::Setup(bool low_4gb, std::string* error_msg) {
+  if (file_length_ < sizeof(Elf_Ehdr)) {
+    *error_msg = StringPrintf(
+        "File size of %zd bytes not large enough to contain ELF header of "
+        "%zd bytes: '%s'",
+        file_length_,
+        sizeof(Elf_Ehdr),
+        file_location_.c_str());
     return false;
   }
 
+  int prot = PROT_READ;
+  int flags = MAP_PRIVATE;
+
   // first just map ELF header to get program header size information
   size_t elf_header_size = sizeof(Elf_Ehdr);
-  if (!SetMap(file,
-              MemMap::MapFile(elf_header_size,
+  if (!SetMap(MemMap::MapFile(elf_header_size,
                               prot,
                               flags,
-                              file->Fd(),
-                              0,
+                              file_->Fd(),
+                              start_,
                               low_4gb,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               error_msg),
               error_msg)) {
     return false;
   }
   // then remap to cover program header
   size_t program_header_size = header_->e_phoff + (header_->e_phentsize * header_->e_phnum);
-  if (file_length < program_header_size) {
+  if (file_length_ < program_header_size) {
     *error_msg = StringPrintf(
         "File size of %zd bytes not large enough to contain ELF program header of %zd bytes: '%s'",
-        file_length,
+        file_length_,
         sizeof(Elf_Ehdr),
-        file->GetPath().c_str());
+        file_location_.c_str());
     return false;
   }
-  if (!SetMap(file,
-              MemMap::MapFile(program_header_size,
+  if (!SetMap(MemMap::MapFile(program_header_size,
                               prot,
                               flags,
-                              file->Fd(),
-                              0,
+                              file_->Fd(),
+                              start_,
                               low_4gb,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               error_msg),
               error_msg)) {
     *error_msg = StringPrintf("Failed to map ELF program headers: %s", error_msg->c_str());
@@ -127,18 +108,18 @@ bool ElfFileImpl<ElfTypes>::Setup(File* file,
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::CheckSectionsExist(File* file, std::string* error_msg) const {
+bool ElfFileImpl<ElfTypes>::CheckSectionsExist(std::string* error_msg) const {
   // This is redundant, but defensive.
   if (dynamic_program_header_ == nullptr) {
     *error_msg = StringPrintf("Failed to find PT_DYNAMIC program header in ELF file: '%s'",
-                              file->GetPath().c_str());
+                              file_location_.c_str());
     return false;
   }
 
   // Need a dynamic section. This is redundant, but defensive.
   if (dynamic_section_start_ == nullptr) {
-    *error_msg = StringPrintf("Failed to find dynamic section in ELF file: '%s'",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find dynamic section in ELF file: '%s'", file_location_.c_str());
     return false;
   }
 
@@ -147,36 +128,35 @@ bool ElfFileImpl<ElfTypes>::CheckSectionsExist(File* file, std::string* error_ms
   if (symtab_section_start_ != nullptr) {
     // When there's a symtab, there should be a strtab.
     if (strtab_section_start_ == nullptr) {
-      *error_msg = StringPrintf("No strtab for symtab in ELF file: '%s'", file->GetPath().c_str());
+      *error_msg = StringPrintf("No strtab for symtab in ELF file: '%s'", file_location_.c_str());
       return false;
     }
   }
 
   // We always need a dynstr & dynsym.
   if (dynstr_section_start_ == nullptr) {
-    *error_msg = StringPrintf("No dynstr in ELF file: '%s'", file->GetPath().c_str());
+    *error_msg = StringPrintf("No dynstr in ELF file: '%s'", file_location_.c_str());
     return false;
   }
   if (dynsym_section_start_ == nullptr) {
-    *error_msg = StringPrintf("No dynsym in ELF file: '%s'", file->GetPath().c_str());
+    *error_msg = StringPrintf("No dynsym in ELF file: '%s'", file_location_.c_str());
     return false;
   }
 
   // Need a hash section for dynamic symbol lookup.
   if (hash_section_start_ == nullptr) {
-    *error_msg = StringPrintf("Failed to find hash section in ELF file: '%s'",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find hash section in ELF file: '%s'", file_location_.c_str());
     return false;
   }
 
   // We'd also like to confirm a shstrtab. This is usually the last in an oat file, and a good
   // indicator of whether writing was successful (or the process crashed and left garbage).
   // It might not be mapped, but we can compare against the file size.
-  int64_t offset = static_cast<int64_t>(GetHeader().e_shoff +
-                                        (GetHeader().e_shstrndx * GetHeader().e_shentsize));
-  if (offset >= file->GetLength()) {
+  size_t offset = GetHeader().e_shoff + (GetHeader().e_shstrndx * GetHeader().e_shentsize);
+  if (offset >= file_length_) {
     *error_msg =
-        StringPrintf("Shstrtab is not in the mapped ELF file: '%s'", file->GetPath().c_str());
+        StringPrintf("Shstrtab is not in the mapped ELF file: '%s'", file_location_.c_str());
     return false;
   }
 
@@ -184,15 +164,15 @@ bool ElfFileImpl<ElfTypes>::CheckSectionsExist(File* file, std::string* error_ms
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::SetMap(File* file, MemMap&& map, std::string* error_msg) {
+bool ElfFileImpl<ElfTypes>::SetMap(MemMap&& map, std::string* error_msg) {
   if (!map.IsValid()) {
     // MemMap::Open should have already set an error.
     DCHECK(!error_msg->empty());
     return false;
   }
   map_ = std::move(map);
-  CHECK(map_.IsValid()) << file->GetPath();
-  CHECK(map_.Begin() != nullptr) << file->GetPath();
+  CHECK(map_.IsValid()) << file_location_;
+  CHECK(map_.Begin() != nullptr) << file_location_;
 
   header_ = reinterpret_cast<Elf_Ehdr*>(map_.Begin());
   if ((ELFMAG0 != header_->e_ident[EI_MAG0])
@@ -200,8 +180,11 @@ bool ElfFileImpl<ElfTypes>::SetMap(File* file, MemMap&& map, std::string* error_
       || (ELFMAG2 != header_->e_ident[EI_MAG2])
       || (ELFMAG3 != header_->e_ident[EI_MAG3])) {
     *error_msg = StringPrintf("Failed to find ELF magic value %d %d %d %d in %s, found %d %d %d %d",
-                              ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3,
-                              file->GetPath().c_str(),
+                              ELFMAG0,
+                              ELFMAG1,
+                              ELFMAG2,
+                              ELFMAG3,
+                              file_location_.c_str(),
                               header_->e_ident[EI_MAG0],
                               header_->e_ident[EI_MAG1],
                               header_->e_ident[EI_MAG2],
@@ -212,90 +195,90 @@ bool ElfFileImpl<ElfTypes>::SetMap(File* file, MemMap&& map, std::string* error_
   if (elf_class != header_->e_ident[EI_CLASS]) {
     *error_msg = StringPrintf("Failed to find expected EI_CLASS value %d in %s, found %d",
                               elf_class,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               header_->e_ident[EI_CLASS]);
     return false;
   }
   if (ELFDATA2LSB != header_->e_ident[EI_DATA]) {
     *error_msg = StringPrintf("Failed to find expected EI_DATA value %d in %s, found %d",
                               ELFDATA2LSB,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               header_->e_ident[EI_CLASS]);
     return false;
   }
   if (EV_CURRENT != header_->e_ident[EI_VERSION]) {
     *error_msg = StringPrintf("Failed to find expected EI_VERSION value %d in %s, found %d",
                               EV_CURRENT,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               header_->e_ident[EI_CLASS]);
     return false;
   }
   if (ET_DYN != header_->e_type) {
     *error_msg = StringPrintf("Failed to find expected e_type value %d in %s, found %d",
                               ET_DYN,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               header_->e_type);
     return false;
   }
   if (EV_CURRENT != header_->e_version) {
     *error_msg = StringPrintf("Failed to find expected e_version value %d in %s, found %d",
                               EV_CURRENT,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               header_->e_version);
     return false;
   }
   if (0 != header_->e_entry) {
     *error_msg = StringPrintf("Failed to find expected e_entry value %d in %s, found %d",
                               0,
-                              file->GetPath().c_str(),
+                              file_location_.c_str(),
                               static_cast<int32_t>(header_->e_entry));
     return false;
   }
   if (0 == header_->e_phoff) {
-    *error_msg = StringPrintf("Failed to find non-zero e_phoff value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_phoff value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_shoff) {
-    *error_msg = StringPrintf("Failed to find non-zero e_shoff value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_shoff value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_ehsize) {
-    *error_msg = StringPrintf("Failed to find non-zero e_ehsize value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_ehsize value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_phentsize) {
-    *error_msg = StringPrintf("Failed to find non-zero e_phentsize value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_phentsize value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_phnum) {
-    *error_msg = StringPrintf("Failed to find non-zero e_phnum value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_phnum value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_shentsize) {
-    *error_msg = StringPrintf("Failed to find non-zero e_shentsize value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_shentsize value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_shnum) {
-    *error_msg = StringPrintf("Failed to find non-zero e_shnum value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_shnum value in %s", file_location_.c_str());
     return false;
   }
   if (0 == header_->e_shstrndx) {
-    *error_msg = StringPrintf("Failed to find non-zero e_shstrndx value in %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("Failed to find non-zero e_shstrndx value in %s", file_location_.c_str());
     return false;
   }
   if (header_->e_shstrndx >= header_->e_shnum) {
     *error_msg = StringPrintf("Failed to find e_shnum value %d less than %d in %s",
                               header_->e_shstrndx,
                               header_->e_shnum,
-                              file->GetPath().c_str());
+                              file_location_.c_str());
     return false;
   }
   return true;
@@ -328,7 +311,7 @@ typename ElfTypes::Dyn* ElfFileImpl<ElfTypes>::GetDynamicSectionStart() const {
 template <typename ElfTypes>
 typename ElfTypes::Sym* ElfFileImpl<ElfTypes>::GetSymbolSectionStart(
     Elf_Word section_type) const {
-  CHECK(IsSymbolSectionType(section_type)) << file_path_ << " " << section_type;
+  CHECK(IsSymbolSectionType(section_type)) << file_location_ << " " << section_type;
   switch (section_type) {
     case SHT_SYMTAB: {
       return symtab_section_start_;
@@ -348,7 +331,7 @@ typename ElfTypes::Sym* ElfFileImpl<ElfTypes>::GetSymbolSectionStart(
 template <typename ElfTypes>
 const char* ElfFileImpl<ElfTypes>::GetStringSectionStart(
     Elf_Word section_type) const {
-  CHECK(IsSymbolSectionType(section_type)) << file_path_ << " " << section_type;
+  CHECK(IsSymbolSectionType(section_type)) << file_location_ << " " << section_type;
   switch (section_type) {
     case SHT_SYMTAB: {
       return strtab_section_start_;
@@ -366,7 +349,7 @@ const char* ElfFileImpl<ElfTypes>::GetStringSectionStart(
 template <typename ElfTypes>
 const char* ElfFileImpl<ElfTypes>::GetString(Elf_Word section_type,
                                              Elf_Word i) const {
-  CHECK(IsSymbolSectionType(section_type)) << file_path_ << " " << section_type;
+  CHECK(IsSymbolSectionType(section_type)) << file_location_ << " " << section_type;
   if (i == 0) {
     return nullptr;
   }
@@ -424,7 +407,7 @@ typename ElfTypes::Word ElfFileImpl<ElfTypes>::GetProgramHeaderNum() const {
 
 template <typename ElfTypes>
 typename ElfTypes::Phdr* ElfFileImpl<ElfTypes>::GetProgramHeader(Elf_Word i) const {
-  CHECK_LT(i, GetProgramHeaderNum()) << file_path_;  // Validity check for caller.
+  CHECK_LT(i, GetProgramHeaderNum()) << file_location_;  // Validity check for caller.
   uint8_t* program_header = GetProgramHeadersStart() + (i * GetHeader().e_phentsize);
   CHECK_LT(program_header, End());
   return reinterpret_cast<Elf_Phdr*>(program_header);
@@ -517,8 +500,8 @@ bool ElfFileImpl<ElfTypes>::IsSymbolSectionType(Elf_Word section_type) {
 template <typename ElfTypes>
 typename ElfTypes::Word ElfFileImpl<ElfTypes>::GetSymbolNum(Elf_Shdr& section_header) const {
   CHECK(IsSymbolSectionType(section_header.sh_type))
-      << file_path_ << " " << section_header.sh_type;
-  CHECK_NE(0U, section_header.sh_entsize) << file_path_;
+      << file_location_ << " " << section_header.sh_type;
+  CHECK_NE(0U, section_header.sh_entsize) << file_location_;
   return section_header.sh_size / section_header.sh_entsize;
 }
 
@@ -538,7 +521,7 @@ typename ElfTypes::Word ElfFileImpl<ElfTypes>::GetDynamicNum() const {
 
 template <typename ElfTypes>
 typename ElfTypes::Dyn& ElfFileImpl<ElfTypes>::GetDynamic(Elf_Word i) const {
-  CHECK_LT(i, GetDynamicNum()) << file_path_;
+  CHECK_LT(i, GetDynamicNum()) << file_location_;
   return *(GetDynamicSectionStart() + i);
 }
 
@@ -558,7 +541,7 @@ size_t ElfFileImpl<ElfTypes>::GetElfSegmentAlignmentFromFile() const {
     }
     return program_header->p_align;
   }
-  LOG(ERROR) << "No loadable segment found in ELF file " << file_path_;
+  LOG(ERROR) << "No loadable segment found in ELF file " << file_location_;
   return 0;
 }
 
@@ -583,7 +566,7 @@ bool ElfFileImpl<ElfTypes>::GetLoadedAddressRange(/*out*/uint8_t** vaddr_begin,
       std::ostringstream oss;
       oss << "Program header #" << i << " has overflow in p_vaddr+p_memsz: 0x" << std::hex
           << program_header->p_vaddr << "+0x" << program_header->p_memsz << "=0x" << end_vaddr
-          << " in ELF file \"" << file_path_ << "\"";
+          << " in ELF file \"" << file_location_ << "\"";
       *error_msg = oss.str();
       *vaddr_begin = nullptr;
       *vaddr_size = static_cast<size_t>(-1);
@@ -595,13 +578,13 @@ bool ElfFileImpl<ElfTypes>::GetLoadedAddressRange(/*out*/uint8_t** vaddr_begin,
   }
   min_vaddr = RoundDown(min_vaddr, kElfSegmentAlignment);
   max_vaddr = RoundUp(max_vaddr, kElfSegmentAlignment);
-  CHECK_LT(min_vaddr, max_vaddr) << file_path_;
+  CHECK_LT(min_vaddr, max_vaddr) << file_location_;
   // Check that the range fits into the runtime address space.
   if (UNLIKELY(max_vaddr - 1u > std::numeric_limits<size_t>::max())) {
     std::ostringstream oss;
     oss << "Loaded range is 0x" << std::hex << min_vaddr << "-0x" << max_vaddr
-        << " but maximum size_t is 0x" << std::numeric_limits<size_t>::max()
-        << " for ELF file \"" << file_path_ << "\"";
+        << " but maximum size_t is 0x" << std::numeric_limits<size_t>::max() << " for ELF file \""
+        << file_location_ << "\"";
     *error_msg = oss.str();
     *vaddr_begin = nullptr;
     *vaddr_size = static_cast<size_t>(-1);
@@ -630,8 +613,7 @@ static InstructionSet GetInstructionSetFromELF(uint16_t e_machine,
 }
 
 template <typename ElfTypes>
-bool ElfFileImpl<ElfTypes>::Load(File* file,
-                                 bool executable,
+bool ElfFileImpl<ElfTypes>::Load(bool executable,
                                  bool low_4gb,
                                  /*inout*/ MemMap* reservation,
                                  /*out*/ std::string* error_msg) {
@@ -669,14 +651,6 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
     // non-zero, the segments require the specific address specified,
     // which either was specified in the file because we already set
     // base_address_ after the first zero segment).
-    int64_t temp_file_length = file->GetLength();
-    if (temp_file_length < 0) {
-      errno = -temp_file_length;
-      *error_msg = StringPrintf("Failed to get length of file: '%s' fd=%d: %s",
-                                file->GetPath().c_str(), file->Fd(), strerror(errno));
-      return false;
-    }
-    size_t file_length = static_cast<size_t>(temp_file_length);
     if (!reserved) {
       uint8_t* vaddr_begin;
       size_t vaddr_size;
@@ -684,16 +658,16 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
         DCHECK(!error_msg->empty());
         return false;
       }
-      std::string reservation_name = "ElfFile reservation for " + file->GetPath();
-      MemMap local_reservation = MemMap::MapAnonymous(
-          reservation_name.c_str(),
-          (reservation != nullptr) ? reservation->Begin() : nullptr,
-          vaddr_size,
-          PROT_NONE,
-          low_4gb,
-          /* reuse= */ false,
-          reservation,
-          error_msg);
+      std::string reservation_name = "ElfFile reservation for " + file_location_;
+      MemMap local_reservation =
+          MemMap::MapAnonymous(reservation_name.c_str(),
+                               (reservation != nullptr) ? reservation->Begin() : nullptr,
+                               vaddr_size,
+                               PROT_NONE,
+                               low_4gb,
+                               /*reuse=*/false,
+                               reservation,
+                               error_msg);
       if (!local_reservation.IsValid()) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
                                   reservation_name.c_str(),
@@ -731,23 +705,26 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
       *error_msg = StringPrintf("Invalid p_filesz > p_memsz (%" PRIu64 " > %" PRIu64 "): %s",
                                 static_cast<uint64_t>(program_header->p_filesz),
                                 static_cast<uint64_t>(program_header->p_memsz),
-                                file->GetPath().c_str());
+                                file_location_.c_str());
       return false;
     }
     if (program_header->p_filesz < program_header->p_memsz &&
         !IsAligned<kElfSegmentAlignment>(program_header->p_filesz)) {
-      *error_msg = StringPrintf("Unsupported unaligned p_filesz < p_memsz (%" PRIu64
-                                " < %" PRIu64 "): %s",
-                                static_cast<uint64_t>(program_header->p_filesz),
-                                static_cast<uint64_t>(program_header->p_memsz),
-                                file->GetPath().c_str());
+      *error_msg =
+          StringPrintf("Unsupported unaligned p_filesz < p_memsz (%" PRIu64 " < %" PRIu64 "): %s",
+                       static_cast<uint64_t>(program_header->p_filesz),
+                       static_cast<uint64_t>(program_header->p_memsz),
+                       file_location_.c_str());
       return false;
     }
-    if (file_length < (program_header->p_offset + program_header->p_filesz)) {
-      *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF segment "
-                                "%d of %" PRIu64 " bytes: '%s'", file_length, i,
-                                static_cast<uint64_t>(program_header->p_offset + program_header->p_filesz),
-                                file->GetPath().c_str());
+    if (file_length_ < (program_header->p_offset + program_header->p_filesz)) {
+      *error_msg = StringPrintf(
+          "File size of %zd bytes not large enough to contain ELF segment "
+          "%d of %" PRIu64 " bytes: '%s'",
+          file_length_,
+          i,
+          static_cast<uint64_t>(program_header->p_offset + program_header->p_filesz),
+          file_location_.c_str());
       return false;
     }
     if (program_header->p_filesz != 0u) {
@@ -755,29 +732,36 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
                                                 program_header->p_filesz,
                                                 prot,
                                                 MAP_PRIVATE,
-                                                file->Fd(),
-                                                program_header->p_offset,
+                                                file_->Fd(),
+                                                start_ + program_header->p_offset,
                                                 /*low_4gb=*/false,
-                                                file->GetPath().c_str(),
+                                                file_location_.c_str(),
                                                 /*reuse=*/true,  // implies MAP_FIXED
                                                 /*reservation=*/nullptr,
                                                 error_msg);
       if (!segment.IsValid()) {
         *error_msg = StringPrintf("Failed to map ELF file segment %d from %s: %s",
-                                  i, file->GetPath().c_str(), error_msg->c_str());
+                                  i,
+                                  file_location_.c_str(),
+                                  error_msg->c_str());
         return false;
       }
       if (segment.Begin() != p_vaddr) {
-        *error_msg = StringPrintf("Failed to map ELF file segment %d from %s at expected address %p, "
-                                  "instead mapped to %p",
-                                  i, file->GetPath().c_str(), p_vaddr, segment.Begin());
+        *error_msg = StringPrintf(
+            "Failed to map ELF file segment %d from %s at expected address %p, "
+            "instead mapped to %p",
+            i,
+            file_location_.c_str(),
+            p_vaddr,
+            segment.Begin());
         return false;
       }
       segments_.push_back(std::move(segment));
     }
     if (program_header->p_filesz < program_header->p_memsz) {
       std::string name = StringPrintf("Zero-initialized segment %" PRIu64 " of ELF file %s",
-                                      static_cast<uint64_t>(i), file->GetPath().c_str());
+                                      static_cast<uint64_t>(i),
+                                      file_location_.c_str());
       MemMap segment = MemMap::MapAnonymous(name.c_str(),
                                             p_vaddr + program_header->p_filesz,
                                             program_header->p_memsz - program_header->p_filesz,
@@ -788,13 +772,19 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
                                             error_msg);
       if (!segment.IsValid()) {
         *error_msg = StringPrintf("Failed to map zero-initialized ELF file segment %d from %s: %s",
-                                  i, file->GetPath().c_str(), error_msg->c_str());
+                                  i,
+                                  file_location_.c_str(),
+                                  error_msg->c_str());
         return false;
       }
       if (segment.Begin() != p_vaddr) {
-        *error_msg = StringPrintf("Failed to map zero-initialized ELF file segment %d from %s "
-                                  "at expected address %p, instead mapped to %p",
-                                  i, file->GetPath().c_str(), p_vaddr, segment.Begin());
+        *error_msg = StringPrintf(
+            "Failed to map zero-initialized ELF file segment %d from %s "
+            "at expected address %p, instead mapped to %p",
+            i,
+            file_location_.c_str(),
+            p_vaddr,
+            segment.Begin());
         return false;
       }
       segments_.push_back(std::move(segment));
@@ -804,8 +794,8 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
   // Now that we are done loading, .dynamic should be in memory to find .dynstr, .dynsym, .hash
   uint8_t* dsptr = base_address_ + GetDynamicProgramHeader().p_vaddr;
   if ((dsptr < Begin() || dsptr >= End()) && !ValidPointer(dsptr)) {
-    *error_msg = StringPrintf("dynamic section address invalid in ELF file %s",
-                              file->GetPath().c_str());
+    *error_msg =
+        StringPrintf("dynamic section address invalid in ELF file %s", file_location_.c_str());
     return false;
   }
   dynamic_section_start_ = reinterpret_cast<Elf_Dyn*>(dsptr);
@@ -817,7 +807,8 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
       case DT_HASH: {
         if (!ValidPointer(d_ptr)) {
           *error_msg = StringPrintf("DT_HASH value %p does not refer to a loaded ELF segment of %s",
-                                    d_ptr, file->GetPath().c_str());
+                                    d_ptr,
+                                    file_location_.c_str());
           return false;
         }
         hash_section_start_ = reinterpret_cast<Elf_Word*>(d_ptr);
@@ -826,7 +817,8 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
       case DT_STRTAB: {
         if (!ValidPointer(d_ptr)) {
           *error_msg = StringPrintf("DT_HASH value %p does not refer to a loaded ELF segment of %s",
-                                    d_ptr, file->GetPath().c_str());
+                                    d_ptr,
+                                    file_location_.c_str());
           return false;
         }
         dynstr_section_start_ = reinterpret_cast<char*>(d_ptr);
@@ -835,7 +827,8 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
       case DT_SYMTAB: {
         if (!ValidPointer(d_ptr)) {
           *error_msg = StringPrintf("DT_HASH value %p does not refer to a loaded ELF segment of %s",
-                                    d_ptr, file->GetPath().c_str());
+                                    d_ptr,
+                                    file_location_.c_str());
           return false;
         }
         dynsym_section_start_ = reinterpret_cast<Elf_Sym*>(d_ptr);
@@ -843,9 +836,12 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
       }
       case DT_NULL: {
         if (GetDynamicNum() != i+1) {
-          *error_msg = StringPrintf("DT_NULL found after %d .dynamic entries, "
-                                    "expected %d as implied by size of PT_DYNAMIC segment in %s",
-                                    i + 1, GetDynamicNum(), file->GetPath().c_str());
+          *error_msg = StringPrintf(
+              "DT_NULL found after %d .dynamic entries, "
+              "expected %d as implied by size of PT_DYNAMIC segment in %s",
+              i + 1,
+              GetDynamicNum(),
+              file_location_.c_str());
           return false;
         }
         break;
@@ -854,7 +850,7 @@ bool ElfFileImpl<ElfTypes>::Load(File* file,
   }
 
   // Check for the existence of some sections.
-  if (!CheckSectionsExist(file, error_msg)) {
+  if (!CheckSectionsExist(error_msg)) {
     return false;
   }
 
@@ -875,102 +871,52 @@ bool ElfFileImpl<ElfTypes>::ValidPointer(const uint8_t* start) const {
 template class ElfFileImpl<ElfTypes32>;
 template class ElfFileImpl<ElfTypes64>;
 
-ElfFile::ElfFile(ElfFileImpl32* elf32) : elf32_(elf32), elf64_(nullptr) {
-}
-
-ElfFile::ElfFile(ElfFileImpl64* elf64) : elf32_(nullptr), elf64_(elf64) {
-}
-
-ElfFile::~ElfFile() {
-  // Should never have 32 and 64-bit impls.
-  CHECK_NE(elf32_.get() == nullptr, elf64_.get() == nullptr);
-}
-
 ElfFile* ElfFile::Open(File* file,
+                       off_t start,
+                       size_t file_length,
+                       const std::string& file_location,
                        bool low_4gb,
                        /*out*/ std::string* error_msg) {
-  if (file->GetLength() < EI_NIDENT) {
-    *error_msg = StringPrintf("File %s is too short to be a valid ELF file",
-                              file->GetPath().c_str());
+  if (file_length < EI_NIDENT) {
+    *error_msg = StringPrintf("File %s is too short to be a valid ELF file", file_location.c_str());
     return nullptr;
   }
   MemMap map = MemMap::MapFile(EI_NIDENT,
                                PROT_READ,
                                MAP_PRIVATE,
                                file->Fd(),
-                               0,
+                               start,
                                low_4gb,
-                               file->GetPath().c_str(),
+                               file_location.c_str(),
                                error_msg);
   if (!map.IsValid() || map.Size() != EI_NIDENT) {
     return nullptr;
   }
   uint8_t* header = map.Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
-    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, low_4gb, error_msg);
-    if (elf_file_impl == nullptr) {
-      return nullptr;
-    }
-    return new ElfFile(elf_file_impl);
+    return ElfFileImpl64::Open(file, start, file_length, file_location, low_4gb, error_msg);
   } else if (header[EI_CLASS] == ELFCLASS32) {
-    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, low_4gb, error_msg);
-    if (elf_file_impl == nullptr) {
-      return nullptr;
-    }
-    return new ElfFile(elf_file_impl);
+    return ElfFileImpl32::Open(file, start, file_length, file_location, low_4gb, error_msg);
   } else {
     *error_msg = StringPrintf("Failed to find expected EI_CLASS value %d or %d in %s, found %d",
-                              ELFCLASS32, ELFCLASS64,
-                              file->GetPath().c_str(),
+                              ELFCLASS32,
+                              ELFCLASS64,
+                              file_location.c_str(),
                               header[EI_CLASS]);
     return nullptr;
   }
 }
 
-#define DELEGATE_TO_IMPL(func, ...) \
-  if (elf64_.get() != nullptr) { \
-    return elf64_->func(__VA_ARGS__); \
-  } else { \
-    DCHECK(elf32_.get() != nullptr); \
-    return elf32_->func(__VA_ARGS__); \
+ElfFile* ElfFile::Open(File* file,
+                       bool low_4gb,
+                       /*out*/ std::string* error_msg) {
+  int64_t file_length = file->GetLength();
+  if (file_length < 0) {
+    *error_msg =
+        ART_FORMAT("Failed to get file length of '{}': {}", file->GetPath(), strerror(errno));
+    return nullptr;
   }
-
-bool ElfFile::Load(File* file,
-                   bool executable,
-                   bool low_4gb,
-                   /*inout*/MemMap* reservation,
-                   /*out*/std::string* error_msg) {
-  DELEGATE_TO_IMPL(Load, file, executable, low_4gb, reservation, error_msg);
+  return Open(file, /*start=*/0, file_length, file->GetPath(), low_4gb, error_msg);
 }
-
-const uint8_t* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) const {
-  DELEGATE_TO_IMPL(FindDynamicSymbolAddress, symbol_name);
-}
-
-size_t ElfFile::Size() const {
-  DELEGATE_TO_IMPL(Size);
-}
-
-uint8_t* ElfFile::Begin() const {
-  DELEGATE_TO_IMPL(Begin);
-}
-
-uint8_t* ElfFile::End() const {
-  DELEGATE_TO_IMPL(End);
-}
-
-const std::string& ElfFile::GetFilePath() const {
-  DELEGATE_TO_IMPL(GetFilePath);
-}
-
-bool ElfFile::GetLoadedSize(size_t* size, std::string* error_msg) const {
-  DELEGATE_TO_IMPL(GetLoadedSize, size, error_msg);
-}
-
-size_t ElfFile::GetElfSegmentAlignmentFromFile() const {
-  DELEGATE_TO_IMPL(GetElfSegmentAlignmentFromFile);
-}
-
-const uint8_t* ElfFile::GetBaseAddress() const { DELEGATE_TO_IMPL(GetBaseAddress); }
 
 }  // namespace art

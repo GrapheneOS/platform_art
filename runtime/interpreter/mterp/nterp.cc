@@ -35,6 +35,12 @@ namespace art HIDDEN {
 namespace interpreter {
 
 bool IsNterpSupported() {
+#ifdef ART_USE_RESTRICTED_MODE
+  // TODO(Simulator): Support Nterp.
+  // Nterp uses the native stack and quick stack frame layout; this will be a complication
+  // for the simulator mode. We should use switch interpreter only for now.
+  return false;
+#else
   switch (kRuntimeQuickCodeISA) {
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:
@@ -48,6 +54,7 @@ bool IsNterpSupported() {
     default:
       return false;
   }
+#endif  // #ifdef ART_USE_RESTRICTED_MODE
 }
 
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -384,33 +391,66 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t
   }
 }
 
+ALWAYS_INLINE FLATTEN
+static ArtField* FindFieldFast(ArtMethod* caller, uint16_t field_index)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (caller->IsObsolete()) {
+    return nullptr;
+  }
+
+  const dex::FieldId& field_id = caller->GetDexFile()->GetFieldId(field_index);
+  ObjPtr<mirror::Class> cls = caller->GetDeclaringClass();
+  if (cls->GetDexTypeIndex() == field_id.class_idx_) {
+    // Field is in the same class as the caller, no need to do access checks.
+    return cls->FindDeclaredField(field_index);
+  }
+
+  return nullptr;
+}
+
+NO_INLINE
+static ArtField* FindFieldSlow(Thread* self,
+                               ArtMethod* caller,
+                               uint16_t field_index,
+                               bool is_static,
+                               bool is_put)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return ResolveFieldWithAccessChecks(
+      self,
+      Runtime::Current()->GetClassLinker(),
+      field_index,
+      caller,
+      is_static,
+      /*is_put=*/ is_put,
+      /*resolve_field_type=*/ 0);
+}
+
 LIBART_PROTECTED
 extern "C" size_t NterpGetStaticField(Thread* self,
                                       ArtMethod* caller,
                                       const uint16_t* dex_pc_ptr,
                                       size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   uint16_t field_index = inst->VRegB_21c();
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   Instruction::Code opcode = inst->Opcode();
-  ArtField* resolved_field = ResolveFieldWithAccessChecks(
-      self,
-      class_linker,
-      field_index,
-      caller,
-      /*is_static=*/ true,
-      /*is_put=*/ IsInstructionSPut(opcode),
-      resolve_field_type);
 
-  if (resolved_field == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    return 0;
+  ArtField* resolved_field = FindFieldFast(caller, field_index);
+  if (resolved_field == nullptr || !resolved_field->IsStatic()) {
+    resolved_field = FindFieldSlow(
+        self, caller, field_index, /*is_static=*/ true, IsInstructionSPut(opcode));
+    if (resolved_field == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return 0;
+    }
+    // Only update hotness for slow lookups.
+    UpdateHotness(caller);
   }
+
   if (UNLIKELY(!resolved_field->GetDeclaringClass()->IsVisiblyInitialized())) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(resolved_field->GetDeclaringClass()));
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     if (UNLIKELY(!class_linker->EnsureInitialized(
                       self, h_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
       DCHECK(self->IsExceptionPending());
@@ -418,26 +458,32 @@ extern "C" size_t NterpGetStaticField(Thread* self,
     }
     DCHECK(h_class->IsInitializing());
   }
+
+  // For sput-object, try to resolve the field type even if we were not requested to.
+  // Only if the field type is successfully resolved can we update the cache. If we
+  // fail to resolve the type, we clear the exception to keep interpreter
+  // semantics of not throwing when null is stored.
+  bool update_cache = true;
+  if (opcode == Instruction::SPUT_OBJECT && resolved_field->ResolveType() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    if (resolve_field_type) {
+      return 0;
+    }
+    self->ClearException();
+    update_cache = false;
+  }
+
   if (resolved_field->IsVolatile()) {
     // Or the result with 1 to notify to nterp this is a volatile field. We
     // also don't cache the result as we don't want nterp to have its fast path always
     // check for it.
     return reinterpret_cast<size_t>(resolved_field) | 1;
-  } else {
-    // For sput-object, try to resolve the field type even if we were not requested to.
-    // Only if the field type is successfully resolved can we update the cache. If we
-    // fail to resolve the type, we clear the exception to keep interpreter
-    // semantics of not throwing when null is stored.
-    if (opcode == Instruction::SPUT_OBJECT &&
-        resolve_field_type == 0 &&
-        resolved_field->ResolveType() == nullptr) {
-      DCHECK(self->IsExceptionPending());
-      self->ClearException();
-    } else {
-      UpdateCache(self, dex_pc_ptr, resolved_field);
-    }
-    return reinterpret_cast<size_t>(resolved_field);
   }
+
+  if (update_cache) {
+    UpdateCache(self, dex_pc_ptr, resolved_field);
+  }
+  return reinterpret_cast<size_t>(resolved_field);
 }
 
 LIBART_PROTECTED
@@ -446,38 +492,42 @@ extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
                                                 const uint16_t* dex_pc_ptr,
                                                 size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   uint16_t field_index = inst->VRegC_22c();
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   Instruction::Code opcode = inst->Opcode();
-  ArtField* resolved_field = ResolveFieldWithAccessChecks(
-      self,
-      class_linker,
-      field_index,
-      caller,
-      /*is_static=*/ false,
-      /*is_put=*/ IsInstructionIPut(opcode),
-      resolve_field_type);
-  if (resolved_field == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    return 0;
+
+  ArtField* resolved_field = FindFieldFast(caller, field_index);
+  if (resolved_field == nullptr || resolved_field->IsStatic()) {
+    resolved_field = FindFieldSlow(
+        self, caller, field_index, /*is_static=*/ false, IsInstructionIPut(opcode));
+    if (resolved_field == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return 0;
+    }
+    // Only update hotness for slow lookups.
+    UpdateHotness(caller);
   }
+
+  // For iput-object, try to resolve the field type even if we were not requested to.
+  // Only if the field type is successfully resolved can we update the cache. If we
+  // fail to resolve the type, we clear the exception to keep interpreter
+  // semantics of not throwing when null is stored.
+  bool update_cache = true;
+  if (opcode == Instruction::IPUT_OBJECT && resolved_field->ResolveType() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    if (resolve_field_type != 0u) {
+      return 0;
+    }
+    self->ClearException();
+    update_cache = false;
+  }
+
   if (resolved_field->IsVolatile()) {
     // Don't cache for a volatile field, and return a negative offset as marker
     // of volatile.
     return -resolved_field->GetOffset().Uint32Value();
   }
-  // For iput-object, try to resolve the field type even if we were not requested to.
-  // Only if the field type is successfully resolved can we update the cache. If we
-  // fail to resolve the type, we clear the exception to keep interpreter
-  // semantics of not throwing when null is stored.
-  if (opcode == Instruction::IPUT_OBJECT &&
-      resolve_field_type == 0 &&
-      resolved_field->ResolveType() == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    self->ClearException();
-  } else {
+  if (update_cache) {
     UpdateCache(self, dex_pc_ptr, resolved_field->GetOffset().Uint32Value());
   }
   return resolved_field->GetOffset().Uint32Value();

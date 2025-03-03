@@ -1419,14 +1419,14 @@ bool DoFilledNewArray(const Instruction* inst,
   ObjPtr<mirror::Class> component_class = array_class->GetComponentType();
   const bool is_primitive_int_component = component_class->IsPrimitiveInt();
   if (UNLIKELY(component_class->IsPrimitive() && !is_primitive_int_component)) {
-    if (component_class->IsPrimitiveLong() || component_class->IsPrimitiveDouble()) {
-      ThrowRuntimeException("Bad filled array request for type %s",
-                            component_class->PrettyDescriptor().c_str());
-    } else {
-      self->ThrowNewExceptionF("Ljava/lang/InternalError;",
-                               "Found type %s; filled-new-array not implemented for anything but 'int'",
-                               component_class->PrettyDescriptor().c_str());
-    }
+    // Verifier rejects `filled-new-array/-range` with descriptors `[J` and `[D`.
+    // These are forbidden, see https://source.android.com/docs/core/runtime/dalvik-bytecode .
+    DCHECK(!component_class->IsPrimitiveLong());
+    DCHECK(!component_class->IsPrimitiveDouble());
+    self->ThrowNewExceptionF(
+        "Ljava/lang/InternalError;",
+        "Found type %s; filled-new-array not implemented for anything but 'int'",
+        component_class->PrettyDescriptor().c_str());
     return false;
   }
   ObjPtr<mirror::Object> new_array = mirror::Array::Alloc(

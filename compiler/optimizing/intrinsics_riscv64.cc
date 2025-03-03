@@ -3858,7 +3858,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke,
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DataType::Type return_type = invoke->GetType();
 
-  ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
+  ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());

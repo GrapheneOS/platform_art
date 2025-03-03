@@ -1168,6 +1168,7 @@
                   "848-pattern-match",
                   "854-image-inlining",
                   "855-native",
+                  "860-vdex-failure",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
@@ -1622,5 +1623,19 @@
                         "The ability to destroy a thread group and the concept of a destroyed ",
                         "thread group no longer exists. A thread group is eligible to be GC'ed ",
                         "when there are no live threads in the group and it is otherwise unreachable."]
+    },
+    {
+        "tests": ["004-StackWalk",
+                  "141-class-unload",
+                  "178-app-image-native-method",
+                  "597-deopt-busy-loop",
+                  "629-vdex-speed",
+                  "638-checker-inline-cache-intrinsic",
+                  "661-oat-writer-layout",
+                  "692-vdex-secondary-loader",
+                  "850-checker-branches",
+                  "2042-reference-processing"],
+        "env_vars": {"ART_USE_RESTRICTED_MODE": "true"},
+        "description": ["Test failures when using the restricted mode for simulator."]
     }
 ]

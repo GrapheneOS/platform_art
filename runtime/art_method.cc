@@ -200,17 +200,17 @@ void ArtMethod::ThrowInvocationTimeError(ObjPtr<mirror::Object> receiver) {
             ThrowIllegalAccessErrorForImplementingMethod(receiver->GetClass(), np_method, this);
             return;
           } else if (np_method->IsAbstract()) {
-            ThrowAbstractMethodError(this);
+            ThrowAbstractMethodError(this, receiver);
             return;
           }
         }
       }
       current = current->GetSuperClass();
     }
-    ThrowAbstractMethodError(this);
+    ThrowAbstractMethodError(this, receiver);
   } else {
     DCHECK(IsAbstract());
-    ThrowAbstractMethodError(this);
+    ThrowAbstractMethodError(this, receiver);
   }
 }
 

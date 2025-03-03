@@ -780,11 +780,6 @@ inline uint32_t ArtMethod::GetImtIndex() {
   }
 }
 
-inline void ArtMethod::CalculateAndSetImtIndex() {
-  DCHECK(IsAbstract()) << PrettyMethod();
-  imt_index_ = ImTable::GetImtIndex(this);
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_ART_METHOD_INL_H_

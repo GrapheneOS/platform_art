@@ -19,6 +19,7 @@
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "instrumentation.h"
 #include "jni.h"
 #include "scoped_thread_state_change.h"
 #include "stack.h"

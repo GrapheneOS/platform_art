@@ -540,13 +540,19 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Allocating `ArtField` and `ArtMethod` arrays can lead to adding new arenas to
+  // the `LinearAlloc` but the CMC GC's `CompactionPause()` does not expect new
+  // arenas being concurrently added. Therefore we require these allocations to be
+  // done with the mutator lock held shared as this prevents concurrent execution
+  // with the `CompactionPause()` where we hold the mutator lock exclusively.
   LengthPrefixedArray<ArtField>* AllocArtFieldArray(Thread* self,
                                                     LinearAlloc* allocator,
-                                                    size_t length);
-
+                                                    size_t length)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   LengthPrefixedArray<ArtMethod>* AllocArtMethodArray(Thread* self,
                                                       LinearAlloc* allocator,
-                                                      size_t length);
+                                                      size_t length)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Convenience AllocClass() overload that uses mirror::Class::InitializeClassVisitor
   // for the class initialization and uses the `java_lang_Class` from class roots
@@ -998,6 +1004,7 @@ class ClassLinker {
   class LinkFieldsHelper;
   template <PointerSize kPointerSize>
   class LinkMethodsHelper;
+  class LoadClassHelper;
   class MethodAnnotationsIterator;
   class OatClassCodeIterator;
   class VisiblyInitializedCallback;
@@ -1113,20 +1120,6 @@ class ClassLinker {
   // sufficient to hold all static fields.
   uint32_t SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                             const dex::ClassDef& dex_class_def);
-
-  void LoadField(const ClassAccessor::Field& field, Handle<mirror::Class> klass, ArtField* dst)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void LoadMethod(const DexFile& dex_file,
-                  const ClassAccessor::Method& method,
-                  ObjPtr<mirror::Class> klass,
-                  /*inout*/ MethodAnnotationsIterator* mai,
-                  /*out*/ ArtMethod* dst)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void LinkCode(ArtMethod* method,
-                uint32_t class_def_method_index,
-                /*inout*/ OatClassCodeIterator* occi) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);

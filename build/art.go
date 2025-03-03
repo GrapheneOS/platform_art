@@ -44,6 +44,19 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 		tlab = true
 	}
 
+	if ctx.Config().IsEnvTrue("ART_USE_RESTRICTED_MODE") {
+		cflags = append(cflags, "-DART_USE_RESTRICTED_MODE=1")
+		asflags = append(asflags, "-DART_USE_RESTRICTED_MODE=1")
+
+		// TODO(Simulator): Support other GC types.
+		gcType = "MS"
+	}
+
+	if ctx.Config().IsEnvTrue("ART_USE_SIMULATOR") {
+		cflags = append(cflags, "-DART_USE_SIMULATOR=1")
+		asflags = append(asflags, "-DART_USE_SIMULATOR=1")
+	}
+
 	cflags = append(cflags, "-DART_DEFAULT_GC_TYPE_IS_"+gcType)
 
 	if ctx.Config().IsEnvTrue("ART_HEAP_POISONING") {
@@ -56,7 +69,8 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 
 	// TODO: deprecate and then eventually remove ART_USE_GENERATIONAL_CC in favor of
 	// ART_USE_GENERATIONAL_GC
-	if !ctx.Config().IsEnvFalse("ART_USE_READ_BARRIER") && ctx.Config().ArtUseReadBarrier() {
+	if !ctx.Config().IsEnvFalse("ART_USE_READ_BARRIER") && ctx.Config().ArtUseReadBarrier() &&
+	   !ctx.Config().IsEnvTrue("ART_USE_RESTRICTED_MODE") {
 		// Used to change the read barrier type. Valid values are BAKER, TABLELOOKUP.
 		// The default is BAKER.
 		barrierType := ctx.Config().GetenvWithDefault("ART_READ_BARRIER_TYPE", "BAKER")

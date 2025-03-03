@@ -110,7 +110,12 @@ static constexpr ALWAYS_INLINE size_t ModuloPageSize(size_t num) {
 // Returns whether the given memory offset can be used for generating
 // an implicit null check.
 static inline bool CanDoImplicitNullCheckOn(uintptr_t offset) {
+#ifdef ART_USE_RESTRICTED_MODE
+  UNUSED(offset);
+  return false;
+#else
   return offset < gPageSize;
+#endif  // ART_USE_RESTRICTED_MODE
 }
 
 // Required object alignment

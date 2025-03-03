@@ -29,21 +29,21 @@
 
 namespace art HIDDEN {
 
-static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
+static void MarkReachableBlocks(HGraph* graph, BitVectorView<size_t> visited) {
   // Use local allocator for allocating memory.
   ScopedArenaAllocator allocator(graph->GetArenaStack());
 
   ScopedArenaVector<HBasicBlock*> worklist(allocator.Adapter(kArenaAllocDCE));
   constexpr size_t kDefaultWorlistSize = 8;
   worklist.reserve(kDefaultWorlistSize);
-  visited->SetBit(graph->GetEntryBlock()->GetBlockId());
+  visited.SetBit(graph->GetEntryBlock()->GetBlockId());
   worklist.push_back(graph->GetEntryBlock());
 
   while (!worklist.empty()) {
     HBasicBlock* block = worklist.back();
     worklist.pop_back();
     int block_id = block->GetBlockId();
-    DCHECK(visited->IsBitSet(block_id));
+    DCHECK(visited.IsBitSet(block_id));
 
     ArrayRef<HBasicBlock* const> live_successors(block->GetSuccessors());
     HInstruction* last_instruction = block->GetLastInstruction();
@@ -83,8 +83,8 @@ static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
 
     for (HBasicBlock* successor : live_successors) {
       // Add only those successors that have not been visited yet.
-      if (!visited->IsBitSet(successor->GetBlockId())) {
-        visited->SetBit(successor->GetBlockId());
+      if (!visited.IsBitSet(successor->GetBlockId())) {
+        visited.SetBit(successor->GetBlockId());
         worklist.push_back(successor);
       }
     }
@@ -201,7 +201,7 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
           user_block != throws &&
           block->Dominates(user_block)) {
         if (bound == nullptr) {
-          bound = new (obj->GetBlock()->GetGraph()->GetAllocator()) HBoundType(obj);
+          bound = new (block->GetGraph()->GetAllocator()) HBoundType(obj);
           bound->SetUpperBound(ti, /*can_be_null*/ false);
           bound->SetReferenceTypeInfo(ti);
           bound->SetCanBeNull(false);
@@ -591,14 +591,15 @@ void HDeadCodeElimination::ConnectSuccessiveBlocks() {
 
 struct HDeadCodeElimination::TryBelongingInformation {
   TryBelongingInformation(HGraph* graph, ScopedArenaAllocator* allocator)
-      : blocks_in_try(allocator, graph->GetBlocks().size(), /*expandable=*/false, kArenaAllocDCE),
-        coalesced_try_entries(
-            allocator, graph->GetBlocks().size(), /*expandable=*/false, kArenaAllocDCE) {}
+      : blocks_in_try(ArenaBitVector::CreateFixedSize(
+            allocator, graph->GetBlocks().size(), kArenaAllocDCE)),
+        coalesced_try_entries(ArenaBitVector::CreateFixedSize(
+            allocator, graph->GetBlocks().size(), kArenaAllocDCE)) {}
 
   // Which blocks belong in the try.
-  ArenaBitVector blocks_in_try;
+  BitVectorView<size_t> blocks_in_try;
   // Which other try entries are referencing this same try.
-  ArenaBitVector coalesced_try_entries;
+  BitVectorView<size_t> coalesced_try_entries;
 };
 
 bool HDeadCodeElimination::CanPerformTryRemoval(const TryBelongingInformation& try_belonging_info) {
@@ -725,7 +726,7 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
       if (try_boundary->HasSameExceptionHandlersAs(*other_try_boundary)) {
         // Merge the entries as they are really the same one.
         // Block merging.
-        it->second.blocks_in_try.Union(&other_it->second.blocks_in_try);
+        it->second.blocks_in_try.Union(other_it->second.blocks_in_try);
 
         // Add the coalesced try entry to update it too.
         it->second.coalesced_try_entries.SetBit(other_block->GetBlockId());
@@ -799,8 +800,8 @@ bool HDeadCodeElimination::RemoveEmptyIfs() {
     //   5
     // where 2, 3, and 4 are single HGoto blocks, and block 5 has Phis.
     ScopedArenaAllocator allocator(graph_->GetArenaStack());
-    ArenaBitVector visited_blocks(
-        &allocator, graph_->GetBlocks().size(), /*expandable=*/ false, kArenaAllocDCE);
+    BitVectorView<size_t> visited_blocks =
+        ArenaBitVector::CreateFixedSize(&allocator, graph_->GetBlocks().size(), kArenaAllocDCE);
     HBasicBlock* merge_true = true_block;
     visited_blocks.SetBit(merge_true->GetBlockId());
     while (merge_true->IsSingleGoto()) {
@@ -822,8 +823,8 @@ bool HDeadCodeElimination::RemoveEmptyIfs() {
 
     // Data structures to help remove now-dead instructions.
     ScopedArenaQueue<HInstruction*> maybe_remove(allocator.Adapter(kArenaAllocDCE));
-    ArenaBitVector visited(
-        &allocator, graph_->GetCurrentInstructionId(), /*expandable=*/ false, kArenaAllocDCE);
+    BitVectorView<size_t> visited = ArenaBitVector::CreateFixedSize(
+        &allocator, graph_->GetCurrentInstructionId(), kArenaAllocDCE);
     maybe_remove.push(if_instr->InputAt(0));
     visited.SetBit(if_instr->GetId());
 
@@ -874,9 +875,10 @@ bool HDeadCodeElimination::RemoveDeadBlocks(bool force_recomputation,
   ScopedArenaAllocator allocator(graph_->GetArenaStack());
 
   // Classify blocks as reachable/unreachable.
-  ArenaBitVector live_blocks(&allocator, graph_->GetBlocks().size(), false, kArenaAllocDCE);
+  BitVectorView<size_t> live_blocks =
+      ArenaBitVector::CreateFixedSize(&allocator, graph_->GetBlocks().size(), kArenaAllocDCE);
 
-  MarkReachableBlocks(graph_, &live_blocks);
+  MarkReachableBlocks(graph_, live_blocks);
   bool removed_one_or_more_blocks = false;
   bool rerun_dominance_and_loop_analysis = false;
 

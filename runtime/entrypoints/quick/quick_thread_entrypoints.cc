@@ -16,6 +16,7 @@
 
 #include "arch/context.h"
 #include "callee_save_frame.h"
+#include "instrumentation.h"
 #include "jit/jit.h"
 #include "runtime.h"
 #include "thread-inl.h"

@@ -457,7 +457,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_deoptimizeNativeMethod(JNIEnv* env,
   ScopedUtfChars chars(env, method_name);
   ArtMethod* method = GetMethod(soa, cls, chars);
   CHECK(method->IsNative());
-  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+  Runtime::Current()->GetInstrumentation()->ReinitializeMethodsCode(method);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_isDebuggable(JNIEnv*, jclass) {

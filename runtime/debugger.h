@@ -28,6 +28,7 @@
 #include "base/locks.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "instrumentation.h"
 #include "jni.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"

@@ -114,7 +114,14 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                 }
 
                 String compilerFilter = adjustCompilerFilter(mParams.getCompilerFilter(), dexInfo);
+                DexMetadataInfo dmInfo =
+                        mInjector.getDexMetadataHelper().getDexMetadataInfo(buildDmPath(dexInfo));
                 if (compilerFilter.equals(DexoptParams.COMPILER_FILTER_NOOP)) {
+                    mInjector.getReporterExecutor().execute(
+                            ()
+                                    -> Dex2OatStatsReporter.reportSkipped(mPkgState.getAppId(),
+                                            mParams.getReason(), dmInfo.type(), dexInfo,
+                                            getAllAbis(dexInfo)));
                     continue;
                 }
 
@@ -125,9 +132,6 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     // non-existing dex files to avoid them.
                     continue;
                 }
-
-                DexMetadataInfo dmInfo =
-                        mInjector.getDexMetadataHelper().getDexMetadataInfo(buildDmPath(dexInfo));
 
                 boolean needsToBeShared = needsToBeShared(dexInfo);
                 boolean isOtherReadable = true;

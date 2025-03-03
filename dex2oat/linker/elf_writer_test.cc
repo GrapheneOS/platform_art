@@ -152,8 +152,7 @@ TEST_F(ElfWriterTest, dlsym) {
                                               &error_msg);
     CHECK(reservation.IsValid()) << error_msg;
     uint8_t* base = reservation.Begin();
-    success =
-        ef->Load(file.get(), /*executable=*/false, /*low_4gb=*/false, &reservation, &error_msg);
+    success = ef->Load(/*executable=*/false, /*low_4gb=*/false, &reservation, &error_msg);
     CHECK(success) << error_msg;
     CHECK(!reservation.IsValid());
     EXPECT_EQ(reinterpret_cast<uintptr_t>(dl_oatdata) + reinterpret_cast<uintptr_t>(base),
@@ -253,11 +252,11 @@ TEST_F(ElfWriterTest, CheckDynamicSection) {
                                               /*low_4gb=*/false,
                                               &error_msg));
     ASSERT_NE(ef.get(), nullptr) << error_msg;
-    ASSERT_TRUE(ef->Load(tmp_oat.GetFile(),
-                         /*executable=*/false,
+    ASSERT_TRUE(ef->Load(/*executable=*/false,
                          /*low_4gb=*/false,
                          /*reservation=*/nullptr,
-                         &error_msg)) << error_msg;
+                         &error_msg))
+        << error_msg;
 
     const uint8_t* oatdata_ptr = ef->FindDynamicSymbolAddress("oatdata");
     ASSERT_NE(oatdata_ptr, nullptr);

@@ -27,17 +27,14 @@ namespace verifier {
 
 ALWAYS_INLINE
 static inline bool CanCompilerHandleVerificationFailure(uint32_t encountered_failure_types) {
-  constexpr uint32_t unresolved_mask =
-      verifier::VerifyError::VERIFY_ERROR_NO_CLASS |
-      verifier::VerifyError::VERIFY_ERROR_UNRESOLVED_TYPE_CHECK |
-      verifier::VerifyError::VERIFY_ERROR_CLASS_CHANGE |
-      verifier::VerifyError::VERIFY_ERROR_NO_METHOD |
-      verifier::VerifyError::VERIFY_ERROR_NO_FIELD |
-      verifier::VerifyError::VERIFY_ERROR_INSTANTIATION |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_FIELD |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_METHOD;
-  return (encountered_failure_types & (~unresolved_mask)) == 0;
+  // These are and should remain the only two reasons a verified method cannot
+  // be compiled. The vdex file will mark classes where those methods are defined
+  // as verify-at-runtime and we should ideally not break that format in adding
+  // a new kind of failure.
+  constexpr uint32_t errors_needing_reverification =
+      verifier::VerifyError::VERIFY_ERROR_RUNTIME_THROW |
+      verifier::VerifyError::VERIFY_ERROR_LOCKING;
+  return (encountered_failure_types & errors_needing_reverification) == 0;
 }
 
 }  // namespace verifier

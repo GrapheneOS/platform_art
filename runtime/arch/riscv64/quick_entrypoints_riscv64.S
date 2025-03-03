@@ -357,7 +357,8 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_def_cfa_register sp
 
     LOAD_RUNTIME_INSTANCE a1
-    lb   a1, RUN_EXIT_HOOKS_OFFSET_FROM_RUNTIME_INSTANCE(a1)
+    ld   a1, RUNTIME_INSTRUMENTATION_OFFSET(a1)
+    lb   a1, INSTRUMENTATION_RUN_EXIT_HOOKS_OFFSET(a1)
     bnez a1, .Lcall_method_exit_hook
 
 .Lcall_method_exit_hook_done:

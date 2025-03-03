@@ -17,15 +17,15 @@
 #ifndef ART_LIBARTBASE_BASE_HIDDENAPI_FLAGS_H_
 #define ART_LIBARTBASE_BASE_HIDDENAPI_FLAGS_H_
 
-#include "sdk_version.h"
+#include <android-base/logging.h>
 
 #include <vector>
 
-#include "android-base/logging.h"
 #include "base/bit_utils.h"
 #include "base/dumpable.h"
-#include "base/macros.h"
 #include "base/hiddenapi_stubs.h"
+#include "base/macros.h"
+#include "sdk_version.h"
 
 namespace art {
 namespace hiddenapi {
@@ -80,15 +80,20 @@ namespace helper {
  */
 class ApiList {
  private:
+  // The representation in dex_flags_ is a combination of a Value in the lowest
+  // kValueBitSize bits, and bit flags corresponding to DomainApi in bits above
+  // that.
+  uint32_t dex_flags_;
+
   // Number of bits reserved for Value in dex flags, and the corresponding bit mask.
   static constexpr uint32_t kValueBitSize = 4;
   static constexpr uint32_t kValueBitMask = helper::BitMask(kValueBitSize);
 
   enum class Value : uint32_t {
     // Values independent of target SDK version of app
-    kSdk =    0,
-    kUnsupported =     1,
-    kBlocked =    2,
+    kSdk = 0,
+    kUnsupported = 1,  // @UnsupportedAppUsage
+    kBlocked = 2,
 
     // Values dependent on target SDK version of app. Put these last as
     // their list will be extended in future releases.
@@ -100,21 +105,24 @@ class ApiList {
     kMaxTargetR = 6,
     kMaxTargetS = 7,
 
-    // Special values
-    kInvalid =      (static_cast<uint32_t>(-1) & kValueBitMask),
-    kMin =          kSdk,
-    kMax =          kMaxTargetS,
+    // Invalid value. Does not imply the DomainApi is invalid.
+    kInvalid = (static_cast<uint32_t>(-1) & kValueBitMask),
+
+    kMin = kSdk,
+    kMax = kMaxTargetS,
+    kFuture = kMax + 1,  // Only for testing
   };
 
-  // Additional bit flags after the first kValueBitSize bits in dex flags.
-  // These are used for domain-specific API.
+  // Additional bit flags after the first kValueBitSize bits in dex flags. These
+  // are used for domain-specific APIs. The app domain is the default when no
+  // bits are set.
   enum class DomainApi : uint32_t {
     kCorePlatformApi = kValueBitSize,
     kTestApi = kValueBitSize + 1,
 
     // Special values
-    kMin =             kCorePlatformApi,
-    kMax =             kTestApi,
+    kMin = kCorePlatformApi,
+    kMax = kTestApi,
   };
 
   // Bit mask of all domain API flags.
@@ -124,12 +132,22 @@ class ApiList {
   static_assert(kValueBitSize >= MinimumBitsToStore(helper::ToUint(Value::kMax)),
                 "Not enough bits to store all ApiList values");
 
-  // Checks that all Values are covered by kValueBitMask.
+  // Check that all Values are covered by kValueBitMask.
   static_assert(helper::MatchesBitMask(Value::kMin, kValueBitMask));
   static_assert(helper::MatchesBitMask(Value::kMax, kValueBitMask));
+  static_assert(helper::MatchesBitMask(Value::kFuture, kValueBitMask));
+  static_assert(helper::MatchesBitMask(Value::kInvalid, kValueBitMask));
 
-  // Assert that Value::kInvalid is larger than the maximum Value.
-  static_assert(helper::ToUint(Value::kMax) < helper::ToUint(Value::kInvalid));
+  // Check that there's no offset between Values and the corresponding uint32
+  // dex flags, so they can be converted between each other without any change.
+  static_assert(helper::ToUint(Value::kMin) == 0);
+
+  // Check that Value::kInvalid is larger than kFuture (which is larger than kMax).
+  static_assert(helper::ToUint(Value::kFuture) < helper::ToUint(Value::kInvalid));
+
+  // Check that no DomainApi bit flag is covered by kValueBitMask.
+  static_assert((helper::ToBit(DomainApi::kMin) & kValueBitMask) == 0);
+  static_assert((helper::ToBit(DomainApi::kMax) & kValueBitMask) == 0);
 
   // Names corresponding to Values.
   static constexpr const char* kValueNames[] = {
@@ -165,13 +183,32 @@ class ApiList {
     /* max-target-s */ SdkVersion::kS,
   };
 
-  explicit ApiList(Value val, uint32_t domain_apis = 0u)
-      : dex_flags_(helper::ToUint(val) | domain_apis) {
-    DCHECK(GetValue() == val);
-    DCHECK_EQ(GetDomainApis(), domain_apis);
+  explicit ApiList(uint32_t dex_flags) : dex_flags_(dex_flags) {
+    DCHECK_EQ(dex_flags_, (dex_flags_ & kValueBitMask) | (dex_flags_ & kDomainApiBitMask));
   }
 
-  explicit ApiList(DomainApi val) : ApiList(Value::kInvalid, helper::ToBit(val)) {}
+  static ApiList FromValue(Value val) {
+    ApiList api_list(helper::ToUint(val));
+    DCHECK(api_list.GetValue() == val);
+    DCHECK_EQ(api_list.GetDomainApis(), 0u);
+    return api_list;
+  }
+
+  // Returns an ApiList with only a DomainApi bit set - the Value is invalid. It
+  // can be Combine'd with another ApiList with a Value to produce a valid combination.
+  static ApiList FromDomainApi(DomainApi domain_api) {
+    ApiList api_list(helper::ToUint(Value::kInvalid) | helper::ToBit(domain_api));
+    DCHECK(api_list.GetValue() == Value::kInvalid);
+    DCHECK_EQ(api_list.GetDomainApis(), helper::ToBit(domain_api));
+    return api_list;
+  }
+
+  static ApiList FromValueAndDomainApis(Value val, uint32_t domain_apis) {
+    ApiList api_list(helper::ToUint(val) | domain_apis);
+    DCHECK(api_list.GetValue() == val);
+    DCHECK_EQ(api_list.GetDomainApis(), domain_apis);
+    return api_list;
+  }
 
   Value GetValue() const {
     uint32_t value = (dex_flags_ & kValueBitMask);
@@ -190,88 +227,17 @@ class ApiList {
 
   uint32_t GetDomainApis() const { return (dex_flags_ & kDomainApiBitMask); }
 
-  uint32_t dex_flags_;
-
- public:
-  ApiList() : ApiList(Value::kInvalid) {}
-
-  explicit ApiList(uint32_t dex_flags) : dex_flags_(dex_flags) {
-    DCHECK_EQ(dex_flags_, (dex_flags_ & kValueBitMask) | (dex_flags_ & kDomainApiBitMask));
-  }
-
-  // Helpers for conveniently constructing ApiList instances.
-  static ApiList Sdk() { return ApiList(Value::kSdk); }
-  static ApiList Unsupported() { return ApiList(Value::kUnsupported); }
-  static ApiList Blocked() { return ApiList(Value::kBlocked); }
-  static ApiList MaxTargetO() { return ApiList(Value::kMaxTargetO); }
-  static ApiList MaxTargetP() { return ApiList(Value::kMaxTargetP); }
-  static ApiList MaxTargetQ() { return ApiList(Value::kMaxTargetQ); }
-  static ApiList MaxTargetR() { return ApiList(Value::kMaxTargetR); }
-  static ApiList MaxTargetS() { return ApiList(Value::kMaxTargetS); }
-  static ApiList CorePlatformApi() { return ApiList(DomainApi::kCorePlatformApi); }
-  static ApiList TestApi() { return ApiList(DomainApi::kTestApi); }
-
-  uint32_t GetDexFlags() const { return dex_flags_; }
-  uint32_t GetIntValue() const { return helper::ToUint(GetValue()) - helper::ToUint(Value::kMin); }
-
-  // Returns the ApiList with a flag of a given name, or an empty ApiList if not matched.
-  static ApiList FromName(const std::string& str) {
-    for (uint32_t i = 0; i < kValueCount; ++i) {
-      if (str == kValueNames[i]) {
-        return ApiList(helper::GetEnumAt<Value>(i));
-      }
-    }
-    for (uint32_t i = 0; i < kDomainApiCount; ++i) {
-      if (str == kDomainApiNames[i]) {
-        return ApiList(helper::GetEnumAt<DomainApi>(i));
-      }
-    }
-    if (str == kFutureValueName) {
-      static_assert(helper::ToUint(Value::kMax) + 1 < helper::ToUint(Value::kInvalid));
-      return ApiList(helper::ToUint(Value::kMax) + 1);
-    }
-    return ApiList();
-  }
-
-  // Parses a vector of flag names into a single ApiList value. If successful,
-  // returns true and assigns the new ApiList to `out_api_list`.
-  static bool FromNames(std::vector<std::string>::iterator begin,
-                        std::vector<std::string>::iterator end,
-                        /* out */ ApiList* out_api_list) {
-    ApiList api_list;
-    for (std::vector<std::string>::iterator it = begin; it != end; it++) {
-      ApiList current = FromName(*it);
-      if (current.IsEmpty() || !api_list.CanCombineWith(current)) {
-        if (ApiStubs::IsStubsFlag(*it)) {
-        // Ignore flags which correspond to the stubs from where the api
-        // originates (i.e. system-api, test-api, public-api), as they are not
-        // relevant at runtime
-          continue;
-        }
-        return false;
-      }
-      api_list |= current;
-    }
-    if (out_api_list != nullptr) {
-      *out_api_list = api_list;
-    }
-    return true;
-  }
-
-  bool operator==(const ApiList& other) const { return dex_flags_ == other.dex_flags_; }
-  bool operator!=(const ApiList& other) const { return !(*this == other); }
-  bool operator<(const ApiList& other) const { return dex_flags_ < other.dex_flags_; }
-  bool operator>(const ApiList& other) const { return dex_flags_ > other.dex_flags_; }
-
   // In order to correctly handle flagged changes from Unsupported to the Sdk, where both will be
   // set when the flag is enabled, consider Sdk to take precedence over any form of unsupported.
   // Note, this is not necessary in the inverse direction, because API flagging does not currently
   // support API removal. Moving from the blocklist to unsupported is also a case we don't have to
   // consider.
   // If this is true, the conflict resolves to Value::kSdk.
-  static bool is_conflicting_flags_acceptable(Value x, Value y) {
-    const auto predicate_non_symmetric = [] (auto l, auto r) {
-      if (l != Value::kSdk) return false;
+  static bool IsConflictingFlagsAcceptable(Value x, Value y) {
+    const auto predicate_non_symmetric = [](auto l, auto r) {
+      if (l != Value::kSdk) {
+        return false;
+      }
       switch (r) {
         case Value::kSdk:
         case Value::kUnsupported:
@@ -293,36 +259,105 @@ class ApiList {
     const Value val1 = GetValue();
     const Value val2 = other.GetValue();
     return (val1 == val2) || (val1 == Value::kInvalid) || (val2 == Value::kInvalid) ||
-           is_conflicting_flags_acceptable(val1, val2);
+           IsConflictingFlagsAcceptable(val1, val2);
   }
 
-  // Combine two ApiList instances.
-  ApiList operator|(const ApiList& other) {
-    // DomainApis are not mutually exclusive. Simply OR them.
-    const uint32_t domain_apis = GetDomainApis() | other.GetDomainApis();
+ public:
+  // Helpers for conveniently constructing ApiList instances.
+  static ApiList Sdk() { return FromValue(Value::kSdk); }
+  static ApiList Unsupported() { return FromValue(Value::kUnsupported); }
+  static ApiList Blocked() { return FromValue(Value::kBlocked); }
+  static ApiList MaxTargetO() { return FromValue(Value::kMaxTargetO); }
+  static ApiList MaxTargetP() { return FromValue(Value::kMaxTargetP); }
+  static ApiList MaxTargetQ() { return FromValue(Value::kMaxTargetQ); }
+  static ApiList MaxTargetR() { return FromValue(Value::kMaxTargetR); }
+  static ApiList MaxTargetS() { return FromValue(Value::kMaxTargetS); }
+  static ApiList Invalid() { return FromValue(Value::kInvalid); }
+  static ApiList CorePlatformApi() { return FromDomainApi(DomainApi::kCorePlatformApi); }
+  static ApiList TestApi() { return FromDomainApi(DomainApi::kTestApi); }
 
-    // Values are mutually exclusive. Check if `this` and `other` have the same Value
-    // or if at most one is set.
-    const Value val1 = GetValue();
-    const Value val2 = other.GetValue();
+  uint32_t GetDexFlags() const { return dex_flags_; }
+  uint32_t GetIntValue() const { return helper::ToUint(GetValue()); }
+
+  static ApiList FromDexFlags(uint32_t dex_flags) { return ApiList(dex_flags); }
+
+  static ApiList FromIntValue(uint32_t int_val) {
+    return FromValue(helper::GetEnumAt<Value>(int_val));
+  }
+
+  // Returns the ApiList with a flag of a given name, or an empty ApiList if not matched.
+  static ApiList FromName(const std::string& str) {
+    for (uint32_t i = 0; i < kValueCount; ++i) {
+      if (str == kValueNames[i]) {
+        return FromIntValue(i);
+      }
+    }
+    for (uint32_t i = 0; i < kDomainApiCount; ++i) {
+      if (str == kDomainApiNames[i]) {
+        return FromDomainApi(helper::GetEnumAt<DomainApi>(i));
+      }
+    }
+    if (str == kFutureValueName) {
+      return FromValue(Value::kFuture);
+    }
+    return Invalid();
+  }
+
+  // Parses a vector of flag names into a single ApiList value. If successful,
+  // returns true and assigns the new ApiList to `out_api_list`.
+  static bool FromNames(std::vector<std::string>::iterator begin,
+                        std::vector<std::string>::iterator end,
+                        /* out */ ApiList* out_api_list) {
+    ApiList api_list = Invalid();
+    for (std::vector<std::string>::iterator it = begin; it != end; it++) {
+      ApiList current = FromName(*it);
+      if (current.IsEmpty() || !api_list.CanCombineWith(current)) {
+        if (ApiStubs::IsStubsFlag(*it)) {
+        // Ignore flags which correspond to the stubs from where the api
+        // originates (i.e. system-api, test-api, public-api), as they are not
+        // relevant at runtime
+          continue;
+        }
+        return false;
+      }
+      api_list = Combine(api_list, current);
+    }
+    if (out_api_list != nullptr) {
+      *out_api_list = api_list;
+    }
+    return true;
+  }
+
+  bool operator==(const ApiList& other) const { return dex_flags_ == other.dex_flags_; }
+  bool operator!=(const ApiList& other) const { return !(*this == other); }
+
+  // The order doesn't have any significance - only for ordering in containers.
+  bool operator<(const ApiList& other) const { return dex_flags_ < other.dex_flags_; }
+
+  // Combine two ApiList instances. The returned value has the union of the API
+  // domains. Values are mutually exclusive, so they either have to be identical
+  // or one of them can be safely ignored, which includes being kInvalid.
+  static ApiList Combine(const ApiList& api1, const ApiList& api2) {
+    // DomainApis are not mutually exclusive. Simply OR them.
+    // TODO: This is suspect since the app domain doesn't have any bit and hence
+    // implicitly disappears if OR'ed with any other domain.
+    const uint32_t domain_apis = api1.GetDomainApis() | api2.GetDomainApis();
+
+    const Value val1 = api1.GetValue();
+    const Value val2 = api2.GetValue();
     if (val1 == val2) {
-      return ApiList(val1, domain_apis);
+      return FromValueAndDomainApis(val1, domain_apis);
     } else if (val1 == Value::kInvalid) {
-      return ApiList(val2, domain_apis);
+      return FromValueAndDomainApis(val2, domain_apis);
     } else if (val2 == Value::kInvalid) {
-      return ApiList(val1, domain_apis);
-    } else if (is_conflicting_flags_acceptable(val1, val2)) {
-      return ApiList(Value::kSdk, domain_apis);
+      return FromValueAndDomainApis(val1, domain_apis);
+    } else if (IsConflictingFlagsAcceptable(val1, val2)) {
+      return FromValueAndDomainApis(Value::kSdk, domain_apis);
     } else {
-      LOG(FATAL) << "Invalid combination of values " << Dumpable(ApiList(val1))
-          << " and " << Dumpable(ApiList(val2));
+      LOG(FATAL) << "Invalid combination of values " << Dumpable(FromValue(val1)) << " and "
+                 << Dumpable(FromValue(val2));
       UNREACHABLE();
     }
-  }
-
-  const ApiList& operator|=(const ApiList& other) {
-    (*this) = (*this) | other;
-    return *this;
   }
 
   // Returns true if all flags set in `other` are also set in `this`.
@@ -338,13 +373,9 @@ class ApiList {
   bool IsEmpty() const { return (GetValue() == Value::kInvalid) && (GetDomainApis() == 0); }
 
   // Returns true if the ApiList is on blocklist.
-  bool IsBlocked() const {
-    return GetValue() == Value::kBlocked;
-  }
+  bool IsBlocked() const { return GetValue() == Value::kBlocked; }
 
-  bool IsSdkApi() const {
-    return GetValue() == Value::kSdk;
-  }
+  bool IsSdkApi() const { return GetValue() == Value::kSdk; }
 
   // Returns true if the ApiList is a test API.
   bool IsTestApi() const {

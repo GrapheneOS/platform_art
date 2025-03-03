@@ -565,6 +565,7 @@ static void CompileMethodQuick(
 void CompilerDriver::Resolve(jobject class_loader,
                              const std::vector<const DexFile*>& dex_files,
                              TimingLogger* timings) {
+  TimingLogger::ScopedTiming t("Resolve Types", timings);
   // Resolution allocates classes and needs to run single-threaded to be deterministic.
   bool force_determinism = GetCompilerOptions().IsForceDeterminism();
   ThreadPool* resolve_thread_pool = force_determinism
@@ -586,6 +587,7 @@ void CompilerDriver::Resolve(jobject class_loader,
 void CompilerDriver::ResolveConstStrings(const std::vector<const DexFile*>& dex_files,
                                          bool only_startup_strings,
                                          TimingLogger* timings) {
+  TimingLogger::ScopedTiming t("Resolve const-string Strings", timings);
   const ProfileCompilationInfo* profile_compilation_info =
       GetCompilerOptions().GetProfileCompilationInfo();
   if (only_startup_strings && profile_compilation_info == nullptr) {
@@ -601,7 +603,6 @@ void CompilerDriver::ResolveConstStrings(const std::vector<const DexFile*>& dex_
 
   for (const DexFile* dex_file : dex_files) {
     dex_cache.Assign(class_linker->FindDexCache(soa.Self(), *dex_file));
-    TimingLogger::ScopedTiming t("Resolve const-string Strings", timings);
 
     ProfileCompilationInfo::ProfileIndexType profile_index =
         ProfileCompilationInfo::MaxProfileIndex();
@@ -1767,7 +1768,7 @@ void CompilerDriver::ResolveDexFile(jobject class_loader,
                                     size_t thread_count,
                                     TimingLogger* timings) {
   ScopedTrace trace(__FUNCTION__);
-  TimingLogger::ScopedTiming t("Resolve Types", timings);
+  TimingLogger::ScopedTiming t("Resolve Dex File", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
@@ -1932,18 +1933,21 @@ void CompilerDriver::Verify(jobject jclass_loader,
     }
   }
 
-  // Verification updates VerifierDeps and needs to run single-threaded to be deterministic.
-  bool force_determinism = GetCompilerOptions().IsForceDeterminism();
-  ThreadPool* verify_thread_pool =
-      force_determinism ? single_thread_pool_.get() : parallel_thread_pool_.get();
-  size_t verify_thread_count = force_determinism ? 1U : parallel_thread_count_;
-  for (const DexFile* dex_file : dex_files) {
-    CHECK(dex_file != nullptr);
-    VerifyDexFile(jclass_loader,
-                  *dex_file,
-                  verify_thread_pool,
-                  verify_thread_count,
-                  timings);
+  {
+    TimingLogger::ScopedTiming t("Verify Classes", timings);
+    // Verification updates VerifierDeps and needs to run single-threaded to be deterministic.
+    bool force_determinism = GetCompilerOptions().IsForceDeterminism();
+    ThreadPool* verify_thread_pool =
+        force_determinism ? single_thread_pool_.get() : parallel_thread_pool_.get();
+    size_t verify_thread_count = force_determinism ? 1U : parallel_thread_count_;
+    for (const DexFile* dex_file : dex_files) {
+      CHECK(dex_file != nullptr);
+      VerifyDexFile(jclass_loader,
+                    *dex_file,
+                    verify_thread_pool,
+                    verify_thread_count,
+                    timings);
+    }
   }
 
   if (main_verifier_deps != nullptr) {
@@ -2609,7 +2613,7 @@ class InitializeClassVisitor : public CompilationVisitor {
 void CompilerDriver::InitializeClasses(jobject jni_class_loader,
                                        const DexFile& dex_file,
                                        TimingLogger* timings) {
-  TimingLogger::ScopedTiming t("InitializeNoClinit", timings);
+  TimingLogger::ScopedTiming t("Initialize Classes Dex File", timings);
 
   // Initialization allocates objects and needs to run single-threaded to be deterministic.
   bool force_determinism = GetCompilerOptions().IsForceDeterminism();
@@ -2640,6 +2644,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
 void CompilerDriver::InitializeClasses(jobject class_loader,
                                        const std::vector<const DexFile*>& dex_files,
                                        TimingLogger* timings) {
+  TimingLogger::ScopedTiming t("Initialize Classes", timings);
   for (const DexFile* dex_file : dex_files) {
     CHECK(dex_file != nullptr);
     InitializeClasses(class_loader, *dex_file, timings);
@@ -2741,6 +2746,7 @@ static void CompileDexFile(CompilerDriver* driver,
 void CompilerDriver::Compile(jobject class_loader,
                              const std::vector<const DexFile*>& dex_files,
                              TimingLogger* timings) {
+  TimingLogger::ScopedTiming t("Compile Methods", timings);
   if (kDebugProfileGuidedCompilation) {
     const ProfileCompilationInfo* profile_compilation_info =
         GetCompilerOptions().GetProfileCompilationInfo();

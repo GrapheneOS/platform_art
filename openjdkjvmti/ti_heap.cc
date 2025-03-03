@@ -1583,6 +1583,8 @@ jvmtiError HeapExtensions::GetHeapName(jvmtiEnv* env, jint heap_id, char** heap_
   }
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
 jvmtiError HeapExtensions::IterateThroughHeapExt(jvmtiEnv* env,
                                                  jint heap_filter,
                                                  jclass klass,
@@ -1614,6 +1616,7 @@ jvmtiError HeapExtensions::IterateThroughHeapExt(jvmtiEnv* env,
                               callbacks,
                               user_data);
 }
+#pragma clang diagnostic pop
 
 namespace {
 

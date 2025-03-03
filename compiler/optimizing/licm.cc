@@ -64,7 +64,9 @@ static bool InputsAreDefinedBeforeLoop(HInstruction* instruction) {
 /**
  * If `environment` has a loop header phi, we replace it with its first input.
  */
-static void UpdateLoopPhisIn(HEnvironment* environment, HLoopInformation* info) {
+static void UpdateLoopPhisIn(ArenaAllocator* allocator,
+                             HEnvironment* environment,
+                             HLoopInformation* info) {
   for (; environment != nullptr; environment = environment->GetParent()) {
     for (size_t i = 0, e = environment->Size(); i < e; ++i) {
       HInstruction* input = environment->GetInstructionAt(i);
@@ -72,7 +74,7 @@ static void UpdateLoopPhisIn(HEnvironment* environment, HLoopInformation* info) 
         environment->RemoveAsUserOfInput(i);
         HInstruction* incoming = input->InputAt(0);
         environment->SetRawEnvAt(i, incoming);
-        incoming->AddEnvUseAt(environment, i);
+        incoming->AddEnvUseAt(allocator, environment, i);
       }
     }
   }
@@ -152,7 +154,7 @@ bool LICM::Run() {
           // We need to update the environment if the instruction has a loop header
           // phi in it.
           if (instruction->NeedsEnvironment()) {
-            UpdateLoopPhisIn(instruction->GetEnvironment(), loop_info);
+            UpdateLoopPhisIn(graph_->GetAllocator(), instruction->GetEnvironment(), loop_info);
           } else {
             DCHECK(!instruction->HasEnvironment());
           }

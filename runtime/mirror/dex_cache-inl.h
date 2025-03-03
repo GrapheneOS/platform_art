@@ -19,12 +19,14 @@
 
 #include "dex_cache.h"
 
-#include <android-base/logging.h>
+#include <atomic>
 
+#include "android-base/logging.h"
 #include "art_field.h"
 #include "art_method.h"
 #include "base/atomic_pair.h"
 #include "base/casts.h"
+#include "base/globals.h"
 #include "base/pointer_size.h"
 #include "class_linker.h"
 #include "dex/dex_file.h"
@@ -37,8 +39,6 @@
 #include "object-inl.h"
 #include "runtime.h"
 #include "write_barrier-inl.h"
-
-#include <atomic>
 
 namespace art HIDDEN {
 namespace mirror {
@@ -346,9 +346,17 @@ inline void DexCache::VisitNativeRoots(const Visitor& visitor) {
 }
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline ObjPtr<String> DexCache::GetLocation() {
-  return GetFieldObject<String, kVerifyFlags, kReadBarrierOption>(
+inline ObjPtr<String> DexCache::GetLocation(bool allow_location_mismatch) {
+  ObjPtr<String> location = GetFieldObject<String, kVerifyFlags, kReadBarrierOption>(
       OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
+  // At runtime, if the DexCache is from an app image or dynamically created, then its location must
+  // match the DexFile location.
+  // TODO(jiakaiz): Remove the AOT compiler and boot classpath checks?
+  if (kIsDebugBuild && !allow_location_mismatch && !Runtime::Current()->IsAotCompiler() &&
+      GetDexFile() != nullptr && !ClassLinker::IsBootClassLoader(GetClassLoader())) {
+    DCHECK_EQ(location->ToModifiedUtf8(), GetDexFile()->GetLocation());
+  }
+  return location;
 }
 
 }  // namespace mirror

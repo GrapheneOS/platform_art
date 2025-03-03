@@ -169,7 +169,7 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
                                         context.get(),
                                         /*load_executable=*/false);
 
-    bool match = oat_file_assistant.ValidateBootClassPathChecksums(*odex_file);
+    bool match = oat_file_assistant.ValidateBootClassPathChecksums(*odex_file, &error_msg);
     ASSERT_EQ(!with_alternate_image, match) << error_msg;
   }
 }

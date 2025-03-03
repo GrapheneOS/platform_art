@@ -17,8 +17,9 @@
 #ifndef ART_TOOLS_VERIDEX_API_LIST_FILTER_H_
 #define ART_TOOLS_VERIDEX_API_LIST_FILTER_H_
 
-#include <algorithm>
 #include <android-base/strings.h>
+
+#include <set>
 
 #include "base/hiddenapi_flags.h"
 
@@ -46,10 +47,10 @@ class ApiListFilter {
     }
 
     if (include_invalid_list) {
-      lists_.push_back(hiddenapi::ApiList());
+      lists_.push_back(hiddenapi::ApiList::Invalid());
     }
     for (size_t i = 0; i < hiddenapi::ApiList::kValueCount; ++i) {
-      hiddenapi::ApiList list = hiddenapi::ApiList(i);
+      hiddenapi::ApiList list = hiddenapi::ApiList::FromIntValue(i);
       if (exclude_set.find(list) == exclude_set.end()) {
           lists_.push_back(list);
       }

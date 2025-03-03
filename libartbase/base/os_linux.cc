@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-#include "os.h"
-
+#include <android-base/logging.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include <cstddef>
+#include <cstring>
 #include <memory>
 
-#include <android-base/logging.h>
-
+#include "base/zip_archive.h"
+#include "os.h"
 #include "unix_file/fd_file.h"
 
 namespace art {
+
+FileWithRange FileWithRange::Invalid() { return {.file = nullptr, .start = 0, .length = 0}; }
 
 File* OS::OpenFileForReading(const char* name) {
   return OpenFileWithFlags(name, O_RDONLY);
@@ -101,6 +103,71 @@ int64_t OS::GetFileSizeBytes(const char* name) {
   } else {
     return -1;
   }
+}
+
+FileWithRange OS::OpenFileDirectlyOrFromZip(const std::string& name_and_zip_entry,
+                                            const char* zip_separator,
+                                            size_t alignment,
+                                            std::string* error_msg) {
+  std::string filename = name_and_zip_entry;
+  std::string zip_entry_name;
+  size_t pos = filename.find(zip_separator);
+  if (pos != std::string::npos) {
+    zip_entry_name = filename.substr(pos + strlen(zip_separator));
+    filename.resize(pos);
+    if (filename.empty() || zip_entry_name.empty()) {
+      *error_msg = ART_FORMAT("Malformed zip path '{}'", name_and_zip_entry);
+      return FileWithRange::Invalid();
+    }
+  }
+
+  std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
+  if (file == nullptr) {
+    *error_msg = ART_FORMAT("Failed to open '{}' for reading: {}", filename, strerror(errno));
+    return FileWithRange::Invalid();
+  }
+
+  off_t start = 0;
+  int64_t total_file_length = file->GetLength();
+  if (total_file_length < 0) {
+    *error_msg = ART_FORMAT("Failed to get file length of '{}': {}", filename, strerror(errno));
+    return FileWithRange::Invalid();
+  }
+  size_t length = total_file_length;
+
+  if (!zip_entry_name.empty()) {
+    std::unique_ptr<ZipArchive> zip_archive(
+        ZipArchive::OpenFromOwnedFd(file->Fd(), filename.c_str(), error_msg));
+    if (zip_archive == nullptr) {
+      *error_msg = ART_FORMAT("Failed to open '{}' as zip", filename);
+      return FileWithRange::Invalid();
+    }
+    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(zip_entry_name.c_str(), error_msg));
+    if (zip_entry == nullptr) {
+      *error_msg = ART_FORMAT("Failed to find entry '{}' in zip '{}'", zip_entry_name, filename);
+      return FileWithRange::Invalid();
+    }
+    if (!zip_entry->IsUncompressed() || !zip_entry->IsAlignedTo(alignment)) {
+      *error_msg =
+          ART_FORMAT("The entry '{}' in zip '{}' must be uncompressed and aligned to {} bytes",
+                     zip_entry_name,
+                     filename,
+                     alignment);
+      return FileWithRange::Invalid();
+    }
+    start = zip_entry->GetOffset();
+    length = zip_entry->GetUncompressedLength();
+    if (start + length > static_cast<size_t>(total_file_length)) {
+      *error_msg = ART_FORMAT(
+          "Invalid zip entry offset or length (offset: {}, length: {}, total_file_length: {})",
+          start,
+          length,
+          total_file_length);
+      return FileWithRange::Invalid();
+    }
+  }
+
+  return {.file = std::move(file), .start = start, .length = length};
 }
 
 }  // namespace art

@@ -102,6 +102,7 @@ java_defaults {
     ],
     static_libs: [
         "android.content.pm.flags-aconfig-java-export",
+        "android.os.flags-aconfig-java-export",
         "art-statslog-art-java",
         "artd-aidl-java",
         "dexopt_chroot_setup-aidl-java",
@@ -256,6 +257,7 @@ android_test {
         "androidx.test.ext.truth",
         "androidx.test.runner",
         "artd-aidl-java",
+        "flag-junit",
         "framework-annotations-lib",
         // We need ExtendedMockito to mock static methods.
         "mockito-target-extended-minus-junit4",

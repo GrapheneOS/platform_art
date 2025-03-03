@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "instrumentation.h"
+#include "instrumentation-inl.h"
 
 #include <functional>
 #include <optional>
@@ -315,37 +315,13 @@ bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mu
   return InterpretOnly() || IsDeoptimized(method);
 }
 
-static bool CanUseAotCode(const void* quick_code)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (quick_code == nullptr) {
-    return false;
-  }
-  Runtime* runtime = Runtime::Current();
-  // For simplicity, we never use AOT code for debuggable.
-  if (runtime->IsJavaDebuggable()) {
-    return false;
-  }
-
-  if (runtime->IsNativeDebuggable()) {
-    DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
-    // If we are doing native debugging, ignore application's AOT code,
-    // since we want to JIT it (at first use) with extra stackmaps for native
-    // debugging. We keep however all AOT code from the boot image,
-    // since the JIT-at-first-use is blocking and would result in non-negligible
-    // startup performance impact.
-    return runtime->GetHeap()->IsInBootImageOatFile(quick_code);
-  }
-
-  return true;
-}
-
 static bool CanUseNterp(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   return interpreter::CanRuntimeUseNterp() &&
       CanMethodUseNterp(method) &&
       method->IsDeclaringClassVerifiedMayBeDead();
 }
 
-static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+const void* Instrumentation::GetOptimizedCodeFor(ArtMethod* method) {
   DCHECK(!Runtime::Current()->GetInstrumentation()->InterpretOnly(method));
   CHECK(method->IsInvokable()) << method->PrettyMethod();
   if (method->IsProxyMethod()) {
@@ -378,8 +354,7 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
   return method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge();
 }
 
-void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_code)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+void Instrumentation::ReinitializeMethodsCode(ArtMethod* method) {
   if (!method->IsInvokable()) {
     DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr ||
            Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(
@@ -405,7 +380,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
     // Note: this mimics the logic in image_writer.cc that installs the resolution
     // stub only if we have compiled code or we can execute nterp, and the method needs a class
     // initialization check.
-    if (aot_code != nullptr || method->IsNative() || CanUseNterp(method)) {
+    if (method->IsNative() || CanUseNterp(method)) {
       if (kIsDebugBuild && CanUseNterp(method)) {
         // Adds some test coverage for the nterp clinit entrypoint.
         UpdateEntryPoints(method, interpreter::GetNterpWithClinitEntryPoint());
@@ -415,12 +390,6 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
     } else {
       UpdateEntryPoints(method, GetQuickToInterpreterBridge());
     }
-    return;
-  }
-
-  // Use the provided AOT code if possible.
-  if (CanUseAotCode(aot_code)) {
-    UpdateEntryPoints(method, aot_code);
     return;
   }
 

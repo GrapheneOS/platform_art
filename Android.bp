@@ -60,3 +60,15 @@ phony_rule {
         default: true,
     }),
 }
+
+genrule {
+    name: "cpplint-art-all",
+    tools: ["cpplint"],
+    srcs: [
+        "**/*.h",
+        "**/*.cc",
+        "CPPLINT.cfg",
+    ],
+    out: ["cpplint_output.txt"],
+    cmd: "$(location cpplint) --quiet art/**/*.h art/**/*.cc > $(out)",
+}

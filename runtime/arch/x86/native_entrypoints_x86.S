@@ -65,8 +65,13 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     movl THREAD_TOP_QUICK_FRAME_OFFSET(%eax), %eax   // uintptr_t tagged_quick_frame
     andl LITERAL(TAGGED_JNI_SP_MASK_TOGGLED32), %eax // ArtMethod** sp
     movl (%eax), %eax                                // ArtMethod* method
+#ifdef ART_USE_RESTRICTED_MODE
+    // Critical native methods are disabled and treated as normal native methods instead.
+    testl LITERAL(ACCESS_FLAGS_METHOD_IS_FAST_NATIVE), ART_METHOD_ACCESS_FLAGS_OFFSET(%eax)
+#else
     testl LITERAL(ACCESS_FLAGS_METHOD_IS_FAST_NATIVE | ACCESS_FLAGS_METHOD_IS_CRITICAL_NATIVE), \
           ART_METHOD_ACCESS_FLAGS_OFFSET(%eax)
+#endif
     jne .Llookup_stub_fast_or_critical_native
     call SYMBOL(artFindNativeMethod)  // (Thread*)
     jmp .Llookup_stub_continue

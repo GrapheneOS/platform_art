@@ -931,6 +931,12 @@ class MarkCompact final : public GarbageCollector {
   // is incorporated.
   void* stack_high_addr_;
   void* stack_low_addr_;
+  // Following values for logging purposes
+  void* prev_post_compact_end_;
+  void* prev_black_dense_end_;
+  void* prev_black_allocations_begin_;
+  bool prev_gc_young_;
+  bool prev_gc_performed_compaction_;
 
   class FlipCallback;
   class ThreadFlipVisitor;
@@ -946,7 +952,8 @@ class MarkCompact final : public GarbageCollector {
   class ClassLoaderRootsUpdater;
   class LinearAllocPageUpdater;
   class ImmuneSpaceUpdateObjVisitor;
-  class DetectOldToMidRefVisitor;
+  template <typename Visitor>
+  class VisitReferencesVisitor;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };

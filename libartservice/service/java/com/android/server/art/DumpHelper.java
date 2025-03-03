@@ -60,24 +60,26 @@ import java.util.stream.Collectors;
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 public class DumpHelper {
     @NonNull private final Injector mInjector;
+    private final boolean mVerifySdmSignatures;
 
-    public DumpHelper(@NonNull ArtManagerLocal artManagerLocal) {
-        this(new Injector(artManagerLocal));
+    public DumpHelper(@NonNull ArtManagerLocal artManagerLocal, boolean verifySdmSignatures) {
+        this(new Injector(artManagerLocal), verifySdmSignatures);
     }
 
     @VisibleForTesting
-    public DumpHelper(@NonNull Injector injector) {
+    public DumpHelper(@NonNull Injector injector, boolean verifySdmSignatures) {
         mInjector = injector;
+        mVerifySdmSignatures = verifySdmSignatures;
     }
 
     /** Handles {@link ArtManagerLocal#dump(PrintWriter, PackageManagerLocal.FilteredSnapshot)}. */
-    public void dump(@NonNull PrintWriter pw,
-            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, boolean verifySdmSignatures) {
+    public void dump(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
         snapshot.getPackageStates()
                 .values()
                 .stream()
                 .sorted(Comparator.comparing(PackageState::getPackageName))
-                .forEach(pkgState -> dumpPackage(pw, snapshot, pkgState, verifySdmSignatures));
+                .forEach(pkgState -> dumpPackage(pw, snapshot, pkgState));
         pw.printf("\nCurrent GC: %s\n", ArtJni.getGarbageCollector());
     }
 
@@ -86,8 +88,8 @@ public class DumpHelper {
      * ArtManagerLocal#dumpPackage(PrintWriter, PackageManagerLocal.FilteredSnapshot, String)}.
      */
     public void dumpPackage(@NonNull PrintWriter pw,
-            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull PackageState pkgState,
-            boolean verifySdmSignatures) {
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull PackageState pkgState) {
         if (pkgState.isApex() || pkgState.getAndroidPackage() == null) {
             return;
         }
@@ -130,7 +132,7 @@ public class DumpHelper {
 
         ipw.increaseIndent();
         for (List<DexContainerFileDexoptStatus> fileStatuses : primaryStatusesByDexPath.values()) {
-            dumpPrimaryDex(ipw, snapshot, fileStatuses, packageName, verifySdmSignatures);
+            dumpPrimaryDex(ipw, snapshot, fileStatuses, packageName);
         }
         if (!secondaryStatusesByDexPath.isEmpty()) {
             ipw.println("known secondary dex files:");
@@ -147,8 +149,7 @@ public class DumpHelper {
 
     private void dumpPrimaryDex(@NonNull IndentingPrintWriter ipw,
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName,
-            boolean verifySdmSignatures) {
+            List<DexContainerFileDexoptStatus> fileStatuses, @NonNull String packageName) {
         String dexPath = fileStatuses.get(0).getDexContainerFile();
         ipw.printf("path: %s\n", dexPath);
         ipw.increaseIndent();
@@ -156,7 +157,6 @@ public class DumpHelper {
         dumpUsedByOtherApps(ipw, snapshot,
                 mInjector.getDexUseManager().getPrimaryDexLoaders(packageName, dexPath),
                 packageName);
-        dumpSdmStatus(ipw, dexPath, verifySdmSignatures);
         ipw.decreaseIndent();
     }
 
@@ -199,12 +199,15 @@ public class DumpHelper {
     private void dumpFileStatuses(
             @NonNull IndentingPrintWriter ipw, List<DexContainerFileDexoptStatus> fileStatuses) {
         for (DexContainerFileDexoptStatus fileStatus : fileStatuses) {
-            ipw.printf("%s: [status=%s] [reason=%s]%s\n",
-                    VMRuntime.getInstructionSet(fileStatus.getAbi()),
-                    fileStatus.getCompilerFilter(), fileStatus.getCompilationReason(),
+            String isa = VMRuntime.getInstructionSet(fileStatus.getAbi());
+            ipw.printf("%s: [status=%s] [reason=%s]%s\n", isa, fileStatus.getCompilerFilter(),
+                    fileStatus.getCompilationReason(),
                     fileStatus.isPrimaryAbi() ? " [primary-abi]" : "");
             ipw.increaseIndent();
             ipw.printf("[location is %s]\n", fileStatus.getLocationDebugString());
+            if (fileStatus.isPrimaryDex()) {
+                dumpSdmStatus(ipw, fileStatus.getDexContainerFile(), isa);
+            }
             ipw.decreaseIndent();
         }
     }
@@ -225,13 +228,13 @@ public class DumpHelper {
         }
     }
 
-    private void dumpSdmStatus(@NonNull IndentingPrintWriter ipw, @NonNull String dexPath,
-            boolean verifySdmSignatures) {
+    private void dumpSdmStatus(
+            @NonNull IndentingPrintWriter ipw, @NonNull String dexPath, @NonNull String isa) {
         if (!android.content.pm.Flags.cloudCompilationPm()) {
             return;
         }
 
-        String sdmPath = getSdmPath(dexPath);
+        String sdmPath = getSdmPath(dexPath, isa);
         String status = "";
         String signature = "skipped";
         if (mInjector.fileExists(sdmPath)) {
@@ -239,7 +242,7 @@ public class DumpHelper {
             // because SDM files are not supported yet.
             status = "pending";
             // This operation is expensive, so hide it behind a flag.
-            if (verifySdmSignatures) {
+            if (mVerifySdmSignatures) {
                 signature = getSdmSignatureStatus(dexPath, sdmPath);
             }
         }
@@ -283,8 +286,9 @@ public class DumpHelper {
     }
 
     @NonNull
-    private static String getSdmPath(@NonNull String dexPath) {
-        return Utils.replaceFileExtension(dexPath, ArtConstants.SECURE_DEX_METADATA_FILE_EXT);
+    private static String getSdmPath(@NonNull String dexPath, @NonNull String isa) {
+        return Utils.replaceFileExtension(
+                dexPath, "." + isa + ArtConstants.SECURE_DEX_METADATA_FILE_EXT);
     }
 
     @NonNull

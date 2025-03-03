@@ -690,6 +690,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             throw new SecurityException("Only root can call 'on-ota-staged'");
         }
 
+        String mode = null;
         String otaSlot = null;
 
         String opt;
@@ -698,23 +699,33 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 case "--slot":
                     otaSlot = getNextArgRequired();
                     break;
+                case "--start":
+                    mode = opt;
+                    break;
                 default:
                     pw.println("Error: Unknown option: " + opt);
                     return 1;
             }
         }
 
-        if (otaSlot == null) {
-            pw.println("Error: '--slot' must be specified");
-            return 1;
-        }
-
-        if (mInjector.getArtManagerLocal().getPreRebootDexoptJob().isAsyncForOta()) {
-            return handleSchedulePrDexoptJob(pw, otaSlot);
+        if ("--start".equals(mode)) {
+            if (otaSlot != null) {
+                pw.println("Error: '--slot' cannot be specified together with '--start'");
+                return 1;
+            }
+            return handleOnOtaStagedStart(pw);
         } else {
-            // Don't map snapshots when running synchronously. `update_engine` maps snapshots
-            // for us.
-            return handleRunPrDexoptJob(pw, otaSlot, false /* mapSnapshotsForOta */);
+            if (otaSlot == null) {
+                pw.println("Error: '--slot' must be specified");
+                return 1;
+            }
+
+            if (mInjector.getArtManagerLocal().getPreRebootDexoptJob().isAsyncForOta()) {
+                return handleSchedulePrDexoptJob(pw, otaSlot);
+            } else {
+                // In the synchronous case, `update_engine` has already mapped snapshots for us.
+                return handleRunPrDexoptJob(pw, otaSlot, true /* isUpdateEngineReady */);
+            }
         }
     }
 
@@ -766,7 +777,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             case "--test":
                 return handleTestPrDexoptJob(pw);
             case "--run":
-                return handleRunPrDexoptJob(pw, otaSlot, true /* mapSnapshotsForOta */);
+                // Passing isUpdateEngineReady=false will make the job call update_engine's
+                // triggerPostinstall to map the snapshot devices if the API is available.
+                // It's always safe to do so because triggerPostinstall can be called at any time
+                // any number of times to map the snapshots if any are available.
+                return handleRunPrDexoptJob(pw, otaSlot, false /* isUpdateEngineReady */);
             case "--schedule":
                 return handleSchedulePrDexoptJob(pw, otaSlot);
             case "--cancel":
@@ -792,15 +807,41 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private int handleRunPrDexoptJob(
-            @NonNull PrintWriter pw, @Nullable String otaSlot, boolean mapSnapshotsForOta) {
+            @NonNull PrintWriter pw, @Nullable String otaSlot, boolean isUpdateEngineReady) {
         PreRebootDexoptJob job = mInjector.getArtManagerLocal().getPreRebootDexoptJob();
 
-        CompletableFuture<Void> future = job.onUpdateReadyStartNow(otaSlot, mapSnapshotsForOta);
+        CompletableFuture<Void> future = job.onUpdateReadyStartNow(otaSlot, isUpdateEngineReady);
         if (future == null) {
             pw.println("Job disabled by system property");
             return 1;
         }
 
+        return handlePrDexoptJobRunning(pw, future);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private int handleOnOtaStagedStart(@NonNull PrintWriter pw) {
+        PreRebootDexoptJob job = mInjector.getArtManagerLocal().getPreRebootDexoptJob();
+
+        // We assume we're being invoked from within `UpdateEngine.triggerPostinstall` in
+        // `PreRebootDexoptJob.triggerUpdateEnginePostinstallAndWait`, so a Pre-reboot Dexopt job is
+        // waiting.
+        CompletableFuture<Void> future = job.notifyUpdateEngineReady();
+        if (future == null) {
+            pw.println("No waiting job found");
+            return 1;
+        }
+
+        return handlePrDexoptJobRunning(pw, future);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private int handlePrDexoptJobRunning(
+            @NonNull PrintWriter pw, @NonNull CompletableFuture<Void> future) {
+        PreRebootDexoptJob job = mInjector.getArtManagerLocal().getPreRebootDexoptJob();
+
+        // Read stdin and cancel on broken pipe, to detect if the caller (e.g. update_engine) has
+        // killed the postinstall script.
         // Put the read in a separate thread because there isn't an easy way in Java to wait for
         // both the `Future` and the read.
         var readThread = new Thread(() -> {
@@ -939,10 +980,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("       better than that of the current dexopt artifacts for a package.");
         pw.println("    --reset Reset the dexopt state of the package as if the package is newly");
         pw.println("       installed.");
-        pw.println("       More specifically, it clears reference profiles, current profiles, and");
-        pw.println("       any code compiled from those local profiles. If there is an external");
-        pw.println("       profile (e.g., a cloud profile), the code compiled from that profile");
-        pw.println("       will be kept.");
+        pw.println("       More specifically, it clears current profiles, reference profiles");
+        pw.println("       from local profiles, and any code compiled from those local profiles.");
+        pw.println("       If there is an external profile (e.g., a cloud profile), the reference");
+        pw.println("       profile from that profile and the code compiled from that profile will");
+        pw.println("       be kept.");
         pw.println("       For secondary dex files, it also clears all dexopt artifacts.");
         pw.println("       When this flag is set, all the other flags are ignored.");
         pw.println("    -v Verbose mode. This mode prints detailed results.");
@@ -1058,7 +1100,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    only dexopts a subset of apps, and it runs dexopt in parallel. See the");
         pw.println("    API documentation for 'ArtManagerLocal.dexoptPackages' for details.");
         pw.println();
-        pw.println("  on-ota-staged --slot SLOT");
+        pw.println("  on-ota-staged [--slot SLOT | --start]");
         pw.println("    Notify ART Service that an OTA update is staged. ART Service decides what");
         pw.println("    to do with this notification:");
         pw.println("    - If Pre-reboot Dexopt is disabled or unsupported, the command returns");
@@ -1071,6 +1113,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("      then run by the job scheduler when the device is idle and charging.");
         pw.println("    Options:");
         pw.println("      --slot SLOT The slot that contains the OTA update, '_a' or '_b'.");
+        pw.println("      --start Notify the asynchronous job that the snapshot devices are");
+        pw.println("        ready. The command blocks until the job finishes, and returns zero no");
+        pw.println("        matter it succeeds or not.");
         pw.println("    Note: This command is only supposed to be used by the system. To manually");
         pw.println("    control the Pre-reboot Dexopt job, use 'pr-dexopt-job' instead.");
         pw.println();

@@ -645,7 +645,7 @@ void CodeGenerator::CreateUnresolvedFieldLocationSummary(
   bool is_get = field_access->IsUnresolvedInstanceFieldGet()
       || field_access->IsUnresolvedStaticFieldGet();
 
-  ArenaAllocator* allocator = field_access->GetBlock()->GetGraph()->GetAllocator();
+  ArenaAllocator* allocator = GetGraph()->GetAllocator();
   LocationSummary* locations =
       new (allocator) LocationSummary(field_access, LocationSummary::kCallOnMainOnly);
 
@@ -1569,6 +1569,7 @@ bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
 void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
   HNullCheck* null_check = instr->GetImplicitNullCheck();
   if (null_check != nullptr) {
+    DCHECK(compiler_options_.GetImplicitNullChecks());
     RecordPcInfo(null_check);
   }
 }

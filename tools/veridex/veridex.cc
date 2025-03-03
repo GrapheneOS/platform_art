@@ -270,9 +270,9 @@ class Veridex {
     os << stats.count << " hidden API(s) used: "
        << stats.linking_count << " linked against, "
        << stats.reflection_count << " through reflection" << std::endl;
-    DumpApiListStats(os, stats, hiddenapi::ApiList(), api_list_filter);
+    DumpApiListStats(os, stats, hiddenapi::ApiList::Invalid(), api_list_filter);
     for (size_t i = 0; i < hiddenapi::ApiList::kValueCount; ++i) {
-      DumpApiListStats(os, stats, hiddenapi::ApiList(i), api_list_filter);
+      DumpApiListStats(os, stats, hiddenapi::ApiList::FromIntValue(i), api_list_filter);
     }
   }
 

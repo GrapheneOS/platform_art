@@ -878,6 +878,12 @@ class Dex2Oat final {
         break;
     }
 
+#ifdef ART_USE_RESTRICTED_MODE
+    // TODO(Simulator): support signal handling and implicit checks.
+    compiler_options_->implicit_suspend_checks_ = false;
+    compiler_options_->implicit_null_checks_ = false;
+#endif  // ART_USE_RESTRICTED_MODE
+
     // Done with usage checks, enable watchdog if requested
     if (parser_options->watch_dog_enabled) {
       int64_t timeout = parser_options->watch_dog_timeout_in_ms > 0
@@ -1373,9 +1379,12 @@ class Dex2Oat final {
     // In theory the files should be the same.
     if (dm_file_ != nullptr) {
       if (input_vdex_file_ == nullptr) {
-        input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_);
+        std::string error_msg;
+        input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_, &error_msg);
         if (input_vdex_file_ != nullptr) {
           VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
+        } else {
+          LOG(WARNING) << error_msg;
         }
       } else {
         LOG(INFO) << "Ignoring vdex file in dex metadata due to vdex file already being passed";
@@ -1987,7 +1996,6 @@ class Dex2Oat final {
                         dex_files,
                         timings_,
                         &compiler_options_->image_classes_);
-    callbacks_->SetVerificationResults(nullptr);  // Should not be needed anymore.
     driver_->CompileAll(class_loader, dex_files, timings_);
     driver_->FreeThreadPools();
     return class_loader;
@@ -2196,11 +2204,17 @@ class Dex2Oat final {
         }
 
         elf_writer->WriteDynamicSection();
-        elf_writer->WriteDebugInfo(oat_writer->GetDebugInfo());
+        {
+          TimingLogger::ScopedTiming t_wdi("Write DebugInfo", timings_);
+          elf_writer->WriteDebugInfo(oat_writer->GetDebugInfo());
+        }
 
-        if (!elf_writer->End()) {
-          LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
-          return false;
+        {
+          TimingLogger::ScopedTiming t_end("Write ELF End", timings_);
+          if (!elf_writer->End()) {
+            LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
+            return false;
+          }
         }
 
         if (!FlushOutputFile(&vdex_files_[i]) || !FlushOutputFile(&oat_files_[i])) {
@@ -2209,7 +2223,10 @@ class Dex2Oat final {
 
         VLOG(compiler) << "Oat file written successfully: " << oat_filenames_[i];
 
-        oat_writer.reset();
+        {
+          TimingLogger::ScopedTiming t_dow("Destroy OatWriter", timings_);
+          oat_writer.reset();
+        }
         // We may still need the ELF writer later for stripping.
       }
     }

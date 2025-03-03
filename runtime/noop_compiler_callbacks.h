@@ -35,6 +35,7 @@ class NoopCompilerCallbacks final : public CompilerCallbacks {
 
   void AddUncompilableMethod([[maybe_unused]] MethodReference ref) override {}
   void AddUncompilableClass([[maybe_unused]] ClassReference ref) override {}
+  bool IsUncompilableMethod([[maybe_unused]] MethodReference ref) override { return false; }
   void ClassRejected([[maybe_unused]] ClassReference ref) override {}
 
   verifier::VerifierDeps* GetVerifierDeps() const override { return nullptr; }

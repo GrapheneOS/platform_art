@@ -470,12 +470,19 @@ class EXPORT ArtMethod final {
     return IsCriticalNative(GetAccessFlags());
   }
 
-  static bool IsCriticalNative(uint32_t access_flags) {
+  static bool IsCriticalNative([[maybe_unused]] uint32_t access_flags) {
+#ifdef ART_USE_RESTRICTED_MODE
+    // Return false to treat all critical native methods as normal native methods instead, i.e.:
+    // will use the generic JNI trampoline instead.
+    // TODO(Simulator): support critical native methods
+    return false;
+#else
     // The presence of the annotation is checked by ClassLinker and recorded in access flags.
     // The kAccCriticalNative flag value is used with a different meaning for non-native methods,
     // so we need to check the kAccNative flag as well.
     constexpr uint32_t mask = kAccCriticalNative | kAccNative;
     return (access_flags & mask) == mask;
+#endif
   }
 
   // Returns true if the method is managed (not native).
@@ -906,12 +913,13 @@ class EXPORT ArtMethod final {
   }
 
   bool HasCodeItem() REQUIRES_SHARED(Locks::mutator_lock_) {
-    uint32_t access_flags = GetAccessFlags();
+    return NeedsCodeItem(GetAccessFlags()) && !IsRuntimeMethod() && !IsProxyMethod();
+  }
+
+  static bool NeedsCodeItem(uint32_t access_flags) {
     return !IsNative(access_flags) &&
            !IsAbstract(access_flags) &&
-           !IsDefaultConflicting(access_flags) &&
-           !IsRuntimeMethod() &&
-           !IsProxyMethod();
+           !IsDefaultConflicting(access_flags);
   }
 
   void SetCodeItem(const dex::CodeItem* code_item)
@@ -1038,7 +1046,13 @@ class EXPORT ArtMethod final {
 
   ALWAYS_INLINE uint32_t GetImtIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void CalculateAndSetImtIndex() REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetImtIndex(uint16_t imt_index) REQUIRES_SHARED(Locks::mutator_lock_) {
+    imt_index_ = imt_index;
+  }
+
+  void SetHotnessCount(uint16_t hotness_count) REQUIRES_SHARED(Locks::mutator_lock_) {
+    hotness_count_ = hotness_count;
+  }
 
   static constexpr MemberOffset HotnessCountOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, hotness_count_));
@@ -1128,8 +1142,8 @@ class EXPORT ArtMethod final {
     // as we allow missing increments: if the method is hot, we will see it eventually.
     uint16_t hotness_count_;
     // Abstract interface methods: IMT index.
-    uint16_t imt_index_;
     // Abstract class (non-interface) methods: Unused (zero-initialized).
+    uint16_t imt_index_;
   };
 
   // Fake padding field gets inserted here.

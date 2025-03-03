@@ -20,6 +20,7 @@
 #include "base/logging.h"  // For VLOG
 #include "base/pointer_size.h"
 #include "base/stl_util.h"
+#include "instrumentation.h"
 #include "obj_ptr-inl.h"
 #include "object_callbacks.h"
 #include "stack.h"

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_DEDUPE_SET_INL_H_
-#define ART_COMPILER_UTILS_DEDUPE_SET_INL_H_
+#ifndef ART_DEX2OAT_UTILS_DEDUPE_SET_INL_H_
+#define ART_DEX2OAT_UTILS_DEDUPE_SET_INL_H_
 
 #include "dedupe_set.h"
 
@@ -272,4 +272,4 @@ std::string DedupeSet<InKey, StoreKey, Alloc, HashType, HashFunc, kShard>::DumpS
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_DEDUPE_SET_INL_H_
+#endif  // ART_DEX2OAT_UTILS_DEDUPE_SET_INL_H_

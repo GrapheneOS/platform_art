@@ -322,8 +322,22 @@ class Instrumentation {
   // Returns a string representation of the given entry point.
   static std::string EntryPointString(const void* code);
 
-  // Initialize the entrypoint of the method .`aot_code` is the AOT code.
-  EXPORT void InitializeMethodsCode(ArtMethod* method, const void* aot_code)
+  // Return the best initial entrypoint of a method, assuming that stubs are not in use.
+  // This function can be called while the thread is suspended.
+  const void* GetInitialEntrypoint(uint32_t method_access_flags, const void* aot_code);
+
+  // Check if the best initial entrypoint needs to be overridden with stubs.
+  bool InitialEntrypointNeedsInstrumentationStubs()
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Roles::uninterruptible_);
+
+  // Initialize the method's entrypoint with aot code or runtime stub.
+  // The caller must check and apply `InitialEntrypointNeedsInstrumentationStubs()`
+  // in the same `Roles::uninterruptible_` section of code.
+  void InitializeMethodsCode(ArtMethod* method, const void* entrypoint, PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Roles::uninterruptible_);
+
+  // Reinitialize the entrypoint of the method.
+  EXPORT void ReinitializeMethodsCode(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update the code of a method respecting any installed stubs.
@@ -601,6 +615,9 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  static bool CanUseAotCode(const void* quick_code);
+  static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Update the current instrumentation_level_.
   void UpdateInstrumentationLevel(InstrumentationLevel level);
 

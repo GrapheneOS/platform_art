@@ -41,7 +41,7 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       : allocator_(allocator),
         num_buckets_(kMinimumNumberOfBuckets),
         buckets_(allocator->AllocArray<Node*>(num_buckets_, kArenaAllocGvn)),
-        buckets_owned_(allocator, num_buckets_, false, kArenaAllocGvn),
+        buckets_owned_(ArenaBitVector::CreateFixedSize(allocator, num_buckets_, kArenaAllocGvn)),
         num_entries_(0u) {
     DCHECK(IsPowerOfTwo(num_buckets_));
     std::fill_n(buckets_, num_buckets_, nullptr);
@@ -54,7 +54,7 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
       : allocator_(allocator),
         num_buckets_(other.IdealBucketCount()),
         buckets_(allocator->AllocArray<Node*>(num_buckets_, kArenaAllocGvn)),
-        buckets_owned_(allocator, num_buckets_, false, kArenaAllocGvn),
+        buckets_owned_(ArenaBitVector::CreateFixedSize(allocator, num_buckets_, kArenaAllocGvn)),
         num_entries_(0u) {
     DCHECK(IsPowerOfTwo(num_buckets_));
     PopulateFromInternal(other);
@@ -342,7 +342,7 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
   // Flags specifying which buckets were copied into the set from its parent.
   // If a flag is not set, the corresponding bucket points to entries in the
   // parent and must be cloned prior to making changes.
-  ArenaBitVector buckets_owned_;
+  BitVectorView<size_t> buckets_owned_;
 
   // The number of entries in the set.
   size_t num_entries_;
@@ -364,9 +364,10 @@ class GlobalValueNumberer : public ValueObject {
         sets_(graph->GetBlocks().size(), nullptr, allocator_.Adapter(kArenaAllocGvn)),
         dominated_to_visit_(graph->GetBlocks().size(), allocator_.Adapter(kArenaAllocGvn)),
         successors_to_visit_(graph->GetBlocks().size(), allocator_.Adapter(kArenaAllocGvn)),
-        free_sets_(&allocator_, graph->GetBlocks().size(), /* expandable= */ false, kArenaAllocGvn),
-        visited_blocks_(
-            &allocator_, graph->GetBlocks().size(), /* expandable= */ false, kArenaAllocGvn),
+        free_sets_(ArenaBitVector::CreateFixedSize(
+            &allocator_, graph->GetBlocks().size(), kArenaAllocGvn)),
+        visited_blocks_(ArenaBitVector::CreateFixedSize(
+            &allocator_, graph->GetBlocks().size(), kArenaAllocGvn)),
         did_optimization_(false) {
     for (HBasicBlock* block : graph->GetReversePostOrder()) {
       dominated_to_visit_[block->GetBlockId()] = block->GetDominatedBlocks().size();
@@ -418,11 +419,11 @@ class GlobalValueNumberer : public ValueObject {
   // Number of successor blocks left to visit.
   ScopedArenaVector<uint32_t> successors_to_visit_;
   // True iff the block's ValueSet is free to be reused by another block.
-  ArenaBitVector free_sets_;
+  BitVectorView<size_t> free_sets_;
 
   // BitVector which serves as a fast-access map from block id to
   // visited/unvisited Boolean.
-  ArenaBitVector visited_blocks_;
+  BitVectorView<size_t> visited_blocks_;
 
   // True if GVN did at least one removal.
   bool did_optimization_;

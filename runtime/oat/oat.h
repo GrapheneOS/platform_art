@@ -68,6 +68,7 @@ class EXPORT PACKED(4) OatHeader {
                            uint32_t dex_file_count,
                            const SafeMap<std::string, std::string>* variable_data,
                            uint32_t base_oat_offset = 0u);
+  static void Delete(OatHeader* header);
 
   bool IsValid() const;
   std::string GetValidationErrorMessage() const;

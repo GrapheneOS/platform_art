@@ -202,6 +202,11 @@ class HiddenApiTest : public CommonRuntimeTest {
                                         hiddenapi::AccessMethod::kCheck);
   }
 
+  bool ShouldDenyAccess(hiddenapi::ApiList list1, hiddenapi::ApiList list2)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return ShouldDenyAccess(hiddenapi::ApiList::Combine(list1, list2));
+  }
+
   void TestLocation(const std::string& location, hiddenapi::Domain expected_domain) {
     // Create a temp file with a unique name based on `location` to isolate tests
     // that may run in parallel. b/238730923
@@ -382,59 +387,63 @@ TEST_F(HiddenApiTest, CheckTestApiEnforcement) {
   runtime_->SetTargetSdkVersion(
       static_cast<uint32_t>(hiddenapi::ApiList::MaxTargetR().GetMaxAllowedSdkVersion()) + 1);
 
+  // clang-format off
+
   // Default case where all TestApis are treated like non-TestApi.
   runtime_->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kEnabled);
   SetChangeIdState(kAllowTestApiAccess, false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Sdk()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Sdk()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Unsupported()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Unsupported()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetR()), true);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetR()), true);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetQ()), true);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetQ()), true);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetP()), true);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetP()), true);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetO()), true);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetO()), true);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Blocked()), true);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Blocked()), true);
 
   // A case where we want to allow access to TestApis.
   runtime_->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kDisabled);
   SetChangeIdState(kAllowTestApiAccess, false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Sdk()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Sdk()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Unsupported()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Unsupported()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetR()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetR()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetQ()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetQ()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetP()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetP()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetO()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetO()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Blocked()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Blocked()), false);
 
   // A second case where we want to allow access to TestApis.
   runtime_->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kEnabled);
   SetChangeIdState(kAllowTestApiAccess, true);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Sdk()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Sdk()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Unsupported()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Unsupported()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetR()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetR()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetQ()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetQ()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetP()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetP()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::MaxTargetO()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::MaxTargetO()), false);
   ASSERT_EQ(
-      ShouldDenyAccess(hiddenapi::ApiList::TestApi() | hiddenapi::ApiList::Blocked()), false);
+      ShouldDenyAccess(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Blocked()), false);
+
+  // clang-format on
 }
 
 TEST_F(HiddenApiTest, CheckMembersRead) {

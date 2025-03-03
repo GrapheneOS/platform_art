@@ -19,6 +19,7 @@
 
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "base/array_ref.h"
 #include "base/bit_field.h"
 #include "base/bit_utils.h"
 #include "base/bit_vector.h"
@@ -39,7 +40,7 @@ std::ostream& operator<<(std::ostream& os, const Location& location);
  */
 class Location : public ValueObject {
  public:
-  enum OutputOverlap {
+  enum OutputOverlap : uint8_t {
     // The liveness of the output overlaps the liveness of one or
     // several input(s); the register allocator cannot reuse an
     // input's location for the output's location.
@@ -534,7 +535,7 @@ static constexpr bool kIntrinsified = true;
  */
 class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
  public:
-  enum CallKind {
+  enum CallKind : uint8_t {
     kNoCall,
     kCallOnMainAndSlowPath,
     kCallOnSlowPath,
@@ -713,8 +714,13 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
                   bool intrinsified,
                   ArenaAllocator* allocator);
 
-  ArenaVector<Location> inputs_;
+  ArrayRef<Location> inputs_;
   ArenaVector<Location> temps_;
+  Location output_;
+
+  // Mask of objects that live in the stack.
+  BitVector* stack_mask_;
+
   const CallKind call_kind_;
   // Whether these are locations for an intrinsified call.
   const bool intrinsified_;
@@ -723,10 +729,6 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   // Whether the output overlaps with any of the inputs. If it overlaps, then it cannot
   // share the same register as the inputs.
   Location::OutputOverlap output_overlaps_;
-  Location output_;
-
-  // Mask of objects that live in the stack.
-  BitVector* stack_mask_;
 
   // Mask of objects that live in register.
   uint32_t register_mask_;
@@ -734,7 +736,8 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   // Registers that are in use at this position.
   RegisterSet live_registers_;
 
-  // Custom slow path caller saves. Valid only if indicated by slow_path_calling_convention_.
+  // Custom slow path caller saves. Valid only if indicated by
+  // `has_custom_slow_path_calling_convention_`.
   RegisterSet custom_slow_path_caller_saves_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, ExpectedInRegisterHint);

@@ -55,8 +55,8 @@
   V(0x21, ARRAY_LENGTH, "array-length", k12x, kIndexNone, kContinue | kThrow, 0, kVerifyRegA | kVerifyRegB) \
   V(0x22, NEW_INSTANCE, "new-instance", k21c, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegA | kVerifyRegBNewInstance) \
   V(0x23, NEW_ARRAY, "new-array", k22c, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegA | kVerifyRegB | kVerifyRegCNewArray) \
-  V(0x24, FILLED_NEW_ARRAY, "filled-new-array", k35c, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegBType | kVerifyVarArg) \
-  V(0x25, FILLED_NEW_ARRAY_RANGE, "filled-new-array/range", k3rc, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegBType | kVerifyVarArgRange) \
+  V(0x24, FILLED_NEW_ARRAY, "filled-new-array", k35c, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegBFilledNewArray | kVerifyVarArg) \
+  V(0x25, FILLED_NEW_ARRAY_RANGE, "filled-new-array/range", k3rc, kIndexTypeRef, kContinue | kThrow, kClobber, kVerifyRegBFilledNewArray | kVerifyVarArgRange) \
   V(0x26, FILL_ARRAY_DATA, "fill-array-data", k31t, kIndexNone, kContinue | kThrow, kClobber, kVerifyRegA | kVerifyArrayData) \
   V(0x27, THROW, "throw", k11x, kIndexNone, kThrow, 0, kVerifyRegA) \
   V(0x28, GOTO, "goto", k10t, kIndexNone, kBranch | kUnconditional, 0, kVerifyBranchTarget) \

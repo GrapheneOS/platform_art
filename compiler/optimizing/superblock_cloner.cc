@@ -144,7 +144,7 @@ void SuperblockCloner::DeepCloneEnvironmentWithRemapping(HInstruction* copy_inst
     }
     copy_env->SetRawEnvAt(i, env_input);
     if (env_input != nullptr) {
-      env_input->AddEnvUseAt(copy_env, i);
+      env_input->AddEnvUseAt(graph_->GetAllocator(), copy_env, i);
     }
   }
   // InsertRawEnvironment assumes that instruction already has an environment that's why we use

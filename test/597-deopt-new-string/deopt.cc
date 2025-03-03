@@ -18,6 +18,7 @@
 
 #include "gc/gc_cause.h"
 #include "gc/scoped_gc_critical_section.h"
+#include "instrumentation.h"
 #include "mirror/class-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"

@@ -65,6 +65,7 @@
 #include "stack.h"
 #include "vdex_file.h"
 #include "verifier/method_verifier.h"
+#include "verifier_compiler_binding.h"
 #include "verifier_deps.h"
 
 namespace art HIDDEN {
@@ -422,25 +423,18 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   // Perform static checks on an instruction referencing a constant method handle. All we do here
   // is ensure that the method index is in the valid range.
   bool CheckMethodHandleIndex(uint32_t idx) {
-    uint32_t limit = dex_file_->NumMethodHandles();
-    if (UNLIKELY(idx >= limit)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad method handle index " << idx << " (max "
-                                        << limit << ")";
+    if (UNLIKELY(idx >= dex_file_->NumMethodHandles())) {
+      FailBadMethodHandleIndex(idx);
       return false;
     }
     return true;
   }
 
-  // Perform static checks on a "new-instance" instruction. Specifically, make sure the class
-  // reference isn't for an array class.
-  bool CheckNewInstance(dex::TypeIndex idx);
-
   // Perform static checks on a prototype indexing instruction. All we do here is ensure that the
   // prototype index is in the valid range.
   bool CheckPrototypeIndex(uint32_t idx) {
-    if (UNLIKELY(idx >= dex_file_->GetHeader().proto_ids_size_)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad prototype index " << idx << " (max "
-                                        << dex_file_->GetHeader().proto_ids_size_ << ")";
+    if (UNLIKELY(idx >= dex_file_->NumProtoIds())) {
+      FailBadPrototypeIndex(idx);
       return false;
     }
     return true;
@@ -448,9 +442,8 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
 
   /* Ensure that the string index is in the valid range. */
   bool CheckStringIndex(uint32_t idx) {
-    if (UNLIKELY(idx >= dex_file_->GetHeader().string_ids_size_)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad string index " << idx << " (max "
-                                        << dex_file_->GetHeader().string_ids_size_ << ")";
+    if (UNLIKELY(idx >= dex_file_->NumStringIds())) {
+      FailBadStringIndex(idx);
       return false;
     }
     return true;
@@ -460,15 +453,22 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   // index is in the valid range.
   bool CheckTypeIndex(dex::TypeIndex idx) {
     if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
-                                        << dex_file_->GetHeader().type_ids_size_ << ")";
+      FailBadTypeIndex(idx);
       return false;
     }
     return true;
   }
 
-  // Perform static checks on a "new-array" instruction. Specifically, make sure they aren't
-  // creating an array of arrays that causes the number of dimensions to exceed 255.
+  // Perform static checks on a `new-instance` instruction. Specifically, make sure the class
+  // reference isn't for an array class.
+  bool CheckNewInstance(dex::TypeIndex idx);
+
+  // Perform static checks on a `*new-array*` instruction. Specifically, make sure it
+  // references an array class with the number of dimensions not exceeding 255.
+  // For `filled-new-array*`, check for a valid component type; `I` is accepted, `J` and `D`
+  // are rejected in line with the specification and other primitive component types are marked
+  // for interpreting (throws `InternalError` in interpreter and the compiler cannot handle them).
+  template <bool kFilled>
   bool CheckNewArray(dex::TypeIndex idx);
 
   // Determine if the relative `offset` targets a valid dex pc.
@@ -565,8 +565,8 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   // This has the side-effect of validating the signature.
   bool SetTypesFromSignature() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Perform verification of a new array instruction
-  void VerifyNewArray(const Instruction* inst, bool is_filled, bool is_range)
+  // Perform verification of a `filled-new-array/-range` instruction.
+  bool VerifyFilledNewArray(const Instruction* inst, bool is_range)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Helper to perform verification on puts of primitive type.
@@ -729,6 +729,41 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   NO_INLINE void FailBadMethodIndex(uint32_t method_idx) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "bad method index " << method_idx << " (max " << dex_file_->NumMethodIds() << ")";
+  }
+
+  NO_INLINE void FailBadMethodHandleIndex(uint32_t idx) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "bad method handle index " << idx << " (max " << dex_file_->NumMethodHandles() << ")";
+  }
+
+  NO_INLINE void FailBadPrototypeIndex(uint32_t idx) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "bad prototype index " << idx << " (max " << dex_file_->NumProtoIds() << ")";
+  }
+
+  NO_INLINE void FailBadStringIndex(uint32_t idx) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "bad string index " << idx << " (max " << dex_file_->NumStringIds() << ")";
+  }
+
+  NO_INLINE void FailBadTypeIndex(dex::TypeIndex idx) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "bad type index " << idx.index_ << " (max " << dex_file_->NumTypeIds() << ")";
+  }
+
+  NO_INLINE void FailBadNewArrayNotArray(const char* descriptor) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "can't new-array class '" << descriptor << "' (not an array)";
+  }
+
+  NO_INLINE void FailBadNewArrayTooManyDimensions(const char* descriptor) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "can't new-array class '" << descriptor << "' (exceeds limit)";
+  }
+
+  NO_INLINE void FailBadFilledNewArray(const char* descriptor) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "can't fill-new-array class '" << descriptor << "' (wide component type)";
   }
 
   NO_INLINE void FailBranchOffsetZero(uint32_t dex_pc) {
@@ -960,7 +995,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
         fail_type = VERIFY_ERROR_BAD_CLASS_HARD;
       }
       FailForRegisterType(vsrc, check_type, src_type, fail_type);
-      return false;
+      return fail_type != VERIFY_ERROR_BAD_CLASS_HARD;
     }
     if (check_type.IsLowHalf()) {
       const RegType& src_type_h = work_line_->GetRegisterType(this, vsrc + 1);
@@ -1960,6 +1995,10 @@ inline bool MethodVerifierImpl::VerifyInstruction(uint32_t dex_pc,
     case Instruction::kVerifyRegBPrototype:
       result = result && CheckPrototypeIndex(inst->VRegB(kFormat, inst_data));
       break;
+    case Instruction::kVerifyRegBFilledNewArray:
+      result = result &&
+               CheckNewArray</*kFilled=*/ true>(dex::TypeIndex(inst->VRegB(kFormat, inst_data)));
+      break;
     case Instruction::kVerifyNothing:
       break;
   }
@@ -1973,7 +2012,7 @@ inline bool MethodVerifierImpl::VerifyInstruction(uint32_t dex_pc,
       result = result && CheckFieldIndex(inst, inst_data, inst->VRegC(kFormat));
       break;
     case Instruction::kVerifyRegCNewArray:
-      result = result && CheckNewArray(dex::TypeIndex(inst->VRegC(kFormat)));
+      result = result && CheckNewArray</*kFilled=*/ false>(dex::TypeIndex(inst->VRegC(kFormat)));
       break;
     case Instruction::kVerifyRegCType:
       result = result && CheckTypeIndex(dex::TypeIndex(inst->VRegC(kFormat)));
@@ -2041,9 +2080,7 @@ inline bool MethodVerifierImpl::VerifyInstruction(uint32_t dex_pc,
 }
 
 inline bool MethodVerifierImpl::CheckNewInstance(dex::TypeIndex idx) {
-  if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
-                                      << dex_file_->GetHeader().type_ids_size_ << ")";
+  if (!CheckTypeIndex(idx)) {
     return false;
   }
   // We don't need the actual class, just a pointer to the class name.
@@ -2052,35 +2089,41 @@ inline bool MethodVerifierImpl::CheckNewInstance(dex::TypeIndex idx) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't call new-instance on type '" << descriptor << "'";
     return false;
   } else if (UNLIKELY(descriptor == "Ljava/lang/Class;")) {
-    // An unlikely new instance on Class is not allowed. Fall back to interpreter to ensure an
-    // exception is thrown when this statement is executed (compiled code would not do that).
+    // An unlikely new instance on Class is not allowed.
     Fail(VERIFY_ERROR_INSTANTIATION);
   }
   return true;
 }
 
-bool MethodVerifierImpl::CheckNewArray(dex::TypeIndex idx) {
-  if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx.index_ << " (max "
-                                      << dex_file_->GetHeader().type_ids_size_ << ")";
+template <bool kFilled>
+inline bool MethodVerifierImpl::CheckNewArray(dex::TypeIndex idx) {
+  if (!CheckTypeIndex(idx)) {
     return false;
   }
-  int bracket_count = 0;
   const char* descriptor = dex_file_->GetTypeDescriptor(idx);
   const char* cp = descriptor;
-  while (*cp++ == '[') {
-    bracket_count++;
+  while (*cp == '[') {
+    ++cp;
   }
-  if (UNLIKELY(bracket_count == 0)) {
+  size_t bracket_count = static_cast<size_t>(cp - descriptor);
+  if (UNLIKELY(bracket_count == 0u)) {
     /* The given class must be an array type. */
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-        << "can't new-array class '" << descriptor << "' (not an array)";
+    FailBadNewArrayNotArray(descriptor);
     return false;
-  } else if (UNLIKELY(bracket_count > 255)) {
+  } else if (UNLIKELY(bracket_count > 255u)) {
     /* It is illegal to create an array of more than 255 dimensions. */
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-        << "can't new-array class '" << descriptor << "' (exceeds limit)";
+    FailBadNewArrayTooManyDimensions(descriptor);
     return false;
+  }
+  if (kFilled && bracket_count == 1u && UNLIKELY(*cp != 'I' && *cp != 'L')) {
+    if (UNLIKELY(*cp == 'J') || UNLIKELY(*cp == 'D')) {
+      // Forbidden, see https://source.android.com/docs/core/runtime/dalvik-bytecode .
+      FailBadFilledNewArray(descriptor);
+      return false;
+    } else {
+      // Fall back to interpreter to throw `InternalError`. Compiler does not handle this case.
+      Fail(VERIFY_ERROR_FILLED_NEW_ARRAY);
+    }
   }
   return true;
 }
@@ -3158,15 +3201,30 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       work_line_->SetRegisterTypeForNewInstance(vA, uninit_type, work_insn_idx_);
       break;
     }
-    case Instruction::NEW_ARRAY:
-      VerifyNewArray(inst, false, false);
+    case Instruction::NEW_ARRAY: {
+      // Make sure the "size" register has a valid type.
+      if (!VerifyRegisterType(inst->VRegB_22c(), RegType::Kind::kInteger)) {
+        return false;
+      }
+      // Dex file verifier ensures that all valid type indexes reference valid descriptors and the
+      // `CheckNewArray()` ensures that the descriptor starts with an `[` before we get to the
+      // code flow verification. So, we should see only array types here.
+      const RegType& res_type = ResolveClass<CheckAccess::kYes>(dex::TypeIndex(inst->VRegC_22c()));
+      DCHECK(res_type.IsArrayTypes());
+      // Set the register type to the array class.
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_22c(), res_type);
       break;
+    }
     case Instruction::FILLED_NEW_ARRAY:
-      VerifyNewArray(inst, true, false);
+      if (!VerifyFilledNewArray(inst, /*is_range=*/ false)) {
+        return false;
+      }
       just_set_result = true;  // Filled new array sets result register
       break;
     case Instruction::FILLED_NEW_ARRAY_RANGE:
-      VerifyNewArray(inst, true, true);
+      if (!VerifyFilledNewArray(inst, /*is_range=*/ true)) {
+        return false;
+      }
       just_set_result = true;  // Filled new array range sets result register
       break;
     case Instruction::CMPL_FLOAT:
@@ -4929,54 +4987,41 @@ bool MethodVerifierImpl::CheckSignaturePolymorphicReceiver(const Instruction* in
   return true;
 }
 
-void MethodVerifierImpl::VerifyNewArray(const Instruction* inst,
-                                        bool is_filled,
-                                        bool is_range) {
+bool MethodVerifierImpl::VerifyFilledNewArray(const Instruction* inst, bool is_range) {
   dex::TypeIndex type_idx;
-  if (!is_filled) {
-    DCHECK_EQ(inst->Opcode(), Instruction::NEW_ARRAY);
-    type_idx = dex::TypeIndex(inst->VRegC_22c());
-  } else if (!is_range) {
+  if (!is_range) {
     DCHECK_EQ(inst->Opcode(), Instruction::FILLED_NEW_ARRAY);
     type_idx = dex::TypeIndex(inst->VRegB_35c());
   } else {
     DCHECK_EQ(inst->Opcode(), Instruction::FILLED_NEW_ARRAY_RANGE);
     type_idx = dex::TypeIndex(inst->VRegB_3rc());
   }
+  // Dex file verifier ensures that all valid type indexes reference valid descriptors and the
+  // `CheckNewArray()` ensures that the descriptor starts with an `[` before we get to the
+  // code flow verification. So, we should see only array types here.
   const RegType& res_type = ResolveClass<CheckAccess::kYes>(type_idx);
-  if (res_type.IsConflict()) {  // bad class
-    DCHECK_NE(failures_.size(), 0U);
-  } else {
-    // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-    if (!res_type.IsArrayTypes()) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "new-array on non-array class " << res_type;
-    } else if (!is_filled) {
-      /* make sure "size" register is valid type */
-      VerifyRegisterType(inst->VRegB_22c(), RegType::Kind::kInteger);
-      /* set register type to array class */
-      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_22c(), res_type);
-    } else {
-      DCHECK(!res_type.IsUnresolvedMergedReference());
-      // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
-      // the list and fail. It's legal, if silly, for arg_count to be zero.
-      const RegType& expected_type = reg_types_.GetComponentType(res_type);
-      uint32_t arg_count = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
-      uint32_t arg[5];
-      if (!is_range) {
-        inst->GetVarArgs(arg);
-      }
-      for (size_t ui = 0; ui < arg_count; ui++) {
-        uint32_t get_reg = is_range ? inst->VRegC_3rc() + ui : arg[ui];
-        VerifyRegisterType(get_reg, expected_type);
-        if (flags_.have_pending_hard_failure_) {
-          // Don't continue on hard failures.
-          return;
-        }
-      }
-      // filled-array result goes into "result" register
-      work_line_->SetResultRegisterType(res_type);
-    }
+  DCHECK(res_type.IsArrayTypes());
+  // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+  DCHECK(!res_type.IsUnresolvedMergedReference());
+  // Verify each input register. It's legal, if silly, for arg_count to be zero.
+  const RegType& expected_type = reg_types_.GetComponentType(res_type);
+  uint32_t arg_count = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
+  uint32_t arg[5];
+  if (!is_range) {
+    inst->GetVarArgs(arg);
   }
+  for (size_t ui = 0; ui < arg_count; ui++) {
+    uint32_t get_reg = is_range ? inst->VRegC_3rc() + ui : arg[ui];
+    if (!VerifyRegisterType(get_reg, expected_type)) {
+      // Don't continue on hard failures.
+      DCHECK(flags_.have_pending_hard_failure_);
+      return false;
+    }
+    DCHECK(!flags_.have_pending_hard_failure_);
+  }
+  // filled-array result goes into "result" register
+  work_line_->SetResultRegisterType(res_type);
+  return true;
 }
 
 void MethodVerifierImpl::VerifyAGet(const Instruction* inst,
@@ -5543,24 +5588,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
   }
 }
 
-// Return whether the runtime knows how to execute a method without needing to
-// re-verify it at runtime (and therefore save on first use of the class).
-// The AOT/JIT compiled code is not affected.
-static inline bool CanRuntimeHandleVerificationFailure(uint32_t encountered_failure_types) {
-  constexpr uint32_t unresolved_mask =
-      verifier::VerifyError::VERIFY_ERROR_UNRESOLVED_TYPE_CHECK |
-      verifier::VerifyError::VERIFY_ERROR_NO_CLASS |
-      verifier::VerifyError::VERIFY_ERROR_CLASS_CHANGE |
-      verifier::VerifyError::VERIFY_ERROR_INSTANTIATION |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_FIELD |
-      verifier::VerifyError::VERIFY_ERROR_NO_METHOD |
-      verifier::VerifyError::VERIFY_ERROR_NO_FIELD |
-      verifier::VerifyError::VERIFY_ERROR_ACCESS_METHOD |
-      verifier::VerifyError::VERIFY_ERROR_RUNTIME_THROW;
-  return (encountered_failure_types & (~unresolved_mask)) == 0;
-}
-
 template <bool kVerifierDebug>
 MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          ArenaPool* arena_pool,
@@ -5605,13 +5632,16 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
         LOG(INFO) << verifier.InfoMessages().view();
         verifier.Dump(LOG_STREAM(INFO));
       }
-      if (CanRuntimeHandleVerificationFailure(verifier.encountered_failure_types_)) {
+      if (CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
         if (verifier.encountered_failure_types_ & VERIFY_ERROR_UNRESOLVED_TYPE_CHECK) {
           result.kind = FailureKind::kTypeChecksFailure;
         } else {
           result.kind = FailureKind::kAccessChecksFailure;
         }
       } else {
+        // If the compiler cannot handle the failure, force a soft failure to
+        // ensure the class will be re-verified at runtime and the method marked
+        // as not compilable.
         result.kind = FailureKind::kSoftFailure;
       }
     }
@@ -5826,6 +5856,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
       case VERIFY_ERROR_ACCESS_FIELD:
       case VERIFY_ERROR_ACCESS_METHOD:
       case VERIFY_ERROR_INSTANTIATION:
+      case VERIFY_ERROR_FILLED_NEW_ARRAY:
       case VERIFY_ERROR_CLASS_CHANGE: {
         PotentiallyMarkRuntimeThrow();
         break;

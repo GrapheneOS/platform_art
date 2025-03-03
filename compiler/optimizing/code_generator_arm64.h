@@ -186,11 +186,12 @@ class JumpTableARM64 : public DeletableArenaObject<kArenaAllocSwitchTable> {
  public:
   using VIXLInt32Literal = vixl::aarch64::Literal<int32_t>;
 
-  explicit JumpTableARM64(HPackedSwitch* switch_instr)
+  JumpTableARM64(HPackedSwitch* switch_instr, ArenaAllocator* allocator)
       : switch_instr_(switch_instr),
         table_start_(),
-        jump_targets_(switch_instr->GetAllocator()->Adapter(kArenaAllocCodeGenerator)) {
+        jump_targets_(allocator->Adapter(kArenaAllocCodeGenerator)) {
       uint32_t num_entries = switch_instr_->GetNumEntries();
+      jump_targets_.reserve(num_entries);
       for (uint32_t i = 0; i < num_entries; i++) {
         VIXLInt32Literal* lit = new VIXLInt32Literal(0);
         jump_targets_.emplace_back(lit);
@@ -765,7 +766,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   uint32_t GetPreferredSlotsAlignment() const override { return vixl::aarch64::kXRegSizeInBytes; }
 
   JumpTableARM64* CreateJumpTable(HPackedSwitch* switch_instr) {
-    jump_tables_.emplace_back(new (GetGraph()->GetAllocator()) JumpTableARM64(switch_instr));
+    ArenaAllocator* allocator = GetGraph()->GetAllocator();
+    jump_tables_.emplace_back(new (allocator) JumpTableARM64(switch_instr, allocator));
     return jump_tables_.back().get();
   }
 

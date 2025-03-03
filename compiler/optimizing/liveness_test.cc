@@ -33,14 +33,14 @@ class LivenessTest : public CommonCompilerTest, public OptimizingUnitTestHelper 
   void TestCode(const std::vector<uint16_t>& data, const char* expected);
 };
 
-static void DumpBitVector(BitVector* vector,
+static void DumpBitVector(BitVectorView<size_t> vector,
                           std::ostream& buffer,
                           size_t count,
                           const char* prefix) {
   buffer << prefix;
   buffer << '(';
   for (size_t i = 0; i < count; ++i) {
-    buffer << vector->IsBitSet(i);
+    buffer << vector.IsBitSet(i);
   }
   buffer << ")\n";
 }
@@ -59,11 +59,11 @@ void LivenessTest::TestCode(const std::vector<uint16_t>& data, const char* expec
   for (HBasicBlock* block : graph->GetBlocks()) {
     buffer << "Block " << block->GetBlockId() << std::endl;
     size_t ssa_values = liveness.GetNumberOfSsaValues();
-    BitVector* live_in = liveness.GetLiveInSet(*block);
+    BitVectorView<size_t> live_in = liveness.GetLiveInSet(*block);
     DumpBitVector(live_in, buffer, ssa_values, "  live in: ");
-    BitVector* live_out = liveness.GetLiveOutSet(*block);
+    BitVectorView<size_t> live_out = liveness.GetLiveOutSet(*block);
     DumpBitVector(live_out, buffer, ssa_values, "  live out: ");
-    BitVector* kill = liveness.GetKillSet(*block);
+    BitVectorView<size_t> kill = liveness.GetKillSet(*block);
     DumpBitVector(kill, buffer, ssa_values, "  kill: ");
   }
   ASSERT_STREQ(expected, buffer.str().c_str());

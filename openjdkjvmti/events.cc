@@ -1251,7 +1251,7 @@ void EventHandler::HandleLocalAccessCapabilityAdded() {
           continue;
         } else if (!runtime_->GetClassLinker()->IsQuickToInterpreterBridge(code) &&
                    !runtime_->IsAsyncDeoptimizeable(&m, reinterpret_cast<uintptr_t>(code))) {
-          runtime_->GetInstrumentation()->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
+          runtime_->GetInstrumentation()->ReinitializeMethodsCode(&m);
         }
       }
       return true;

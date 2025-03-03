@@ -1,0 +1,2 @@
+Regression test for the optimizing compiler, which used to try to inline a
+method which failed verification.

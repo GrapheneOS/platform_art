@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_DEDUPE_SET_H_
-#define ART_COMPILER_UTILS_DEDUPE_SET_H_
+#ifndef ART_DEX2OAT_UTILS_DEDUPE_SET_H_
+#define ART_DEX2OAT_UTILS_DEDUPE_SET_H_
 
 #include <stdint.h>
 #include <memory>
@@ -61,4 +61,4 @@ class DedupeSet {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_DEDUPE_SET_H_
+#endif  // ART_DEX2OAT_UTILS_DEDUPE_SET_H_

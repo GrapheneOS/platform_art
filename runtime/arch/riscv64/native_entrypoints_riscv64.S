@@ -65,7 +65,12 @@ ENTRY art_jni_dlsym_lookup_stub
     andi t0, t0, ~TAGGED_JNI_SP_MASK             // ArtMethod** sp
     ld   t0, (t0)                                // ArtMethod* method
     lw   t0, ART_METHOD_ACCESS_FLAGS_OFFSET(t0)  // uint32_t access_flags
+#ifdef ART_USE_RESTRICTED_MODE
+    // Critical native methods are disabled and treated as normal native methods instead.
+    li   t1, (ACCESS_FLAGS_METHOD_IS_FAST_NATIVE)
+#else
     li   t1, (ACCESS_FLAGS_METHOD_IS_FAST_NATIVE | ACCESS_FLAGS_METHOD_IS_CRITICAL_NATIVE)
+#endif
     and  t0, t0, t1
     bnez t0, .Llookup_stub_fast_or_critical_native
     call artFindNativeMethod

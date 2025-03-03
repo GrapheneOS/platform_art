@@ -35,6 +35,7 @@
 #include "dex/class_reference.h"
 #include "handle.h"
 #include "handle_scope-inl.h"
+#include "instrumentation.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/class_loader.h"
 #include "monitor-inl.h"
@@ -80,7 +81,7 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
     PointerSize pointer_size = class_linker_->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
       if (!m.IsAbstract()) {
-        Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
+        Runtime::Current()->GetInstrumentation()->ReinitializeMethodsCode(&m);
       }
     }
   }

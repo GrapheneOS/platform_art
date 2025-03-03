@@ -398,9 +398,6 @@ art_cc_test {
         "art_test_defaults",
         "art_libdexfile_external_tests_defaults",
     ],
-    // TODO(b/395617594): This can be removed when apex_available is removed
-    // from art_test_defaults.
-    apex_available: ["//apex_available:platform"],
 }
 
 // Standalone version of ART gtest `art_libdexfile_external_tests`, not bundled with the ART APEX on
@@ -543,9 +540,6 @@ art_cc_test {
     srcs: [
         "external/dex_file_supp_test.cc",
     ],
-    // TODO(b/395617594): This can be removed when apex_available is removed
-    // from art_test_defaults.
-    apex_available: ["//apex_available:platform"],
 }
 
 // For use by external packages allowed to link in static libdexfile_support.
@@ -611,9 +605,6 @@ art_cc_test {
     sanitize: {
         misc_undefined: ["shift"],
     },
-    // TODO(b/395617594): This can be removed when apex_available is removed
-    // from art_test_defaults.
-    apex_available: ["//apex_available:platform"],
 }
 
 filegroup {

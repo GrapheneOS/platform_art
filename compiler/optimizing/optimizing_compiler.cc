@@ -759,6 +759,51 @@ CompiledMethod* OptimizingCompiler::Emit(ArenaAllocator* allocator,
   return compiled_method;
 }
 
+#ifdef ART_USE_RESTRICTED_MODE
+
+// This class acts as a filter and enables gradual enablement of ART Simulator work - we
+// compile (and hence simulate) only limited types of methods.
+class CompilationFilterForRestrictedMode : public HGraphDelegateVisitor {
+ public:
+  explicit CompilationFilterForRestrictedMode(HGraph* graph)
+      : HGraphDelegateVisitor(graph),
+        has_unsupported_instructions_(false) {}
+
+  // Returns true if the graph contains instructions which are not currently supported in
+  // the restricted mode.
+  bool GraphRejected() const { return has_unsupported_instructions_; }
+
+ private:
+  void VisitInstruction(HInstruction*) override {
+    // Currently we don't support compiling methods unless they were annotated with $compile$.
+    RejectGraph();
+  }
+  void RejectGraph() {
+    has_unsupported_instructions_ = true;
+  }
+
+  bool has_unsupported_instructions_;
+};
+
+// Returns whether an ArtMethod, specified by a name, should be compiled. Used in restricted
+// mode.
+//
+// In restricted mode, the simulator will execute only those methods which are compiled; thus
+// this is going to be an effective filter for methods to be simulated.
+//
+// TODO(Simulator): compile and simulate all the methods as in regular host mode.
+bool ShouldMethodBeCompiled(HGraph* graph, const std::string& method_name) {
+  if (method_name.find("$compile$") != std::string::npos) {
+    return true;
+  }
+
+  CompilationFilterForRestrictedMode filter_visitor(graph);
+  filter_visitor.VisitReversePostOrder();
+
+  return !filter_visitor.GraphRejected();
+}
+#endif  // ART_USE_RESTRICTED_MODE
+
 CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
                                               ArenaStack* arena_stack,
                                               const DexCompilationUnit& dex_compilation_unit,
@@ -958,6 +1003,17 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
     return nullptr;
   }
 
+#ifdef ART_USE_RESTRICTED_MODE
+  // Check whether the method should be compiled according to the compilation filter. Note: this
+  // relies on a LocationSummary being available for each instruction so should take place after
+  // register allocation does liveness analysis.
+  // TODO(Simulator): support and compile all methods.
+  std::string method_name = dex_file.PrettyMethod(method_idx);
+  if (!ShouldMethodBeCompiled(graph, method_name)) {
+    return nullptr;
+  }
+#endif  // ART_USE_RESTRICTED_MODE
+
   codegen->Compile();
   pass_observer.DumpDisassembly();
 
@@ -976,6 +1032,11 @@ CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
   InstructionSet instruction_set = compiler_options.GetInstructionSet();
   const DexFile& dex_file = *dex_compilation_unit.GetDexFile();
   uint32_t method_idx = dex_compilation_unit.GetDexMethodIndex();
+
+  // TODO(Simulator): Reenable compilation of intrinsics.
+#ifdef ART_USE_RESTRICTED_MODE
+  return nullptr;
+#endif  // ART_USE_RESTRICTED_MODE
 
   // Always use the Thumb-2 assembler: some runtime functionality
   // (like implicit stack overflow checks) assume Thumb-2.
@@ -1149,6 +1210,8 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
     }
   }
 
+  // TODO(Simulator): Check for $opt$ in method name and that such method is compiled.
+#ifndef ART_USE_RESTRICTED_MODE
   if (kIsDebugBuild &&
       compiler_options.CompileArtTest() &&
       IsInstructionSetSupported(compiler_options.GetInstructionSet())) {
@@ -1160,6 +1223,7 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
     bool shouldCompile = method_name.find("$opt$") != std::string::npos;
     DCHECK_IMPLIES(compiled_method == nullptr, !shouldCompile) << "Didn't compile " << method_name;
   }
+#endif  // #ifndef ART_USE_RESTRICTED_MODE
 
   return compiled_method;
 }

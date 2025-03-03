@@ -49,6 +49,7 @@
 #include "gc_root-inl.h"
 #include "gtest/gtest.h"
 #include "handle_scope-inl.h"
+#include "instrumentation.h"
 #include "interpreter/unstarted_runtime.h"
 #include "jni/java_vm_ext.h"
 #include "jni/jni_internal.h"
@@ -412,7 +413,7 @@ void CommonRuntimeTestImpl::SetUpRuntimeOptionsForFillHeap(RuntimeOptions *optio
 void CommonRuntimeTestImpl::MakeInterpreted(ObjPtr<mirror::Class> klass) {
   PointerSize pointer_size = class_linker_->GetImagePointerSize();
   for (ArtMethod& method : klass->GetMethods(pointer_size)) {
-    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(&method, /*aot_code=*/ nullptr);
+    Runtime::Current()->GetInstrumentation()->ReinitializeMethodsCode(&method);
   }
 }
 

@@ -421,6 +421,7 @@ art_cc_defaults {
         ":art-gtest-jars-Dex2oatVdexTestDex",
         ":art-gtest-jars-ImageLayoutA",
         ":art-gtest-jars-ImageLayoutB",
+        ":art-gtest-jars-Interfaces",
         ":art-gtest-jars-LinkageTest",
         ":art-gtest-jars-Main",
         ":art-gtest-jars-MainEmptyUncompressed",
@@ -466,6 +467,8 @@ art_cc_defaults {
         "linker/oat_writer_test.cc",
         "transaction_test.cc",
         "verifier_deps_test.cc",
+        "utils/atomic_dex_ref_map_test.cc",
+        "utils/dedupe_set_test.cc",
         "utils/swap_space_test.cc",
     ],
     target: {

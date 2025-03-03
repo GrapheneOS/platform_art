@@ -305,7 +305,7 @@ void HInstructionBuilder::InitializeInstruction(HInstruction* instruction) {
         graph_->GetArtMethod(),
         instruction->GetDexPc(),
         instruction);
-    environment->CopyFrom(ArrayRef<HInstruction* const>(*current_locals_));
+    environment->CopyFrom(allocator_, ArrayRef<HInstruction* const>(*current_locals_));
     instruction->SetRawEnvironment(environment);
   }
 }
@@ -2542,9 +2542,9 @@ HNewArray* HInstructionBuilder::BuildNewArray(uint32_t dex_pc,
   return new_array;
 }
 
-HNewArray* HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
-                                                    dex::TypeIndex type_index,
-                                                    const InstructionOperands& operands) {
+bool HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
+                                              dex::TypeIndex type_index,
+                                              const InstructionOperands& operands) {
   const size_t number_of_operands = operands.GetNumberOfOperands();
   HInstruction* length = graph_->GetIntConstant(number_of_operands);
 
@@ -2552,9 +2552,11 @@ HNewArray* HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
   const char* descriptor = dex_file_->GetTypeDescriptor(type_index);
   DCHECK_EQ(descriptor[0], '[') << descriptor;
   char primitive = descriptor[1];
-  DCHECK(primitive == 'I'
-      || primitive == 'L'
-      || primitive == '[') << descriptor;
+  if (primitive != 'I' && primitive != 'L' && primitive != '[') {
+    DCHECK(primitive != 'J' && primitive != 'D');  // Rejected by the verifier.
+    MaybeRecordStat(compilation_stats_, MethodCompilationStat::kNotCompiledMalformedOpcode);
+    return false;
+  }
   bool is_reference_array = (primitive == 'L') || (primitive == '[');
   DataType::Type type = is_reference_array ? DataType::Type::kReference : DataType::Type::kInt32;
 
@@ -2567,7 +2569,8 @@ HNewArray* HInstructionBuilder::BuildFilledNewArray(uint32_t dex_pc,
   }
   latest_result_ = new_array;
 
-  return new_array;
+  BuildConstructorFenceForAllocation(new_array);
+  return true;
 }
 
 template <typename T>
@@ -3720,16 +3723,18 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
       uint32_t args[5];
       uint32_t number_of_vreg_arguments = instruction.GetVarArgs(args);
       VarArgsInstructionOperands operands(args, number_of_vreg_arguments);
-      HNewArray* new_array = BuildFilledNewArray(dex_pc, type_index, operands);
-      BuildConstructorFenceForAllocation(new_array);
+      if (!BuildFilledNewArray(dex_pc, type_index, operands)) {
+        return false;
+      }
       break;
     }
 
     case Instruction::FILLED_NEW_ARRAY_RANGE: {
       dex::TypeIndex type_index(instruction.VRegB_3rc());
       RangeInstructionOperands operands(instruction.VRegC_3rc(), instruction.VRegA_3rc());
-      HNewArray* new_array = BuildFilledNewArray(dex_pc, type_index, operands);
-      BuildConstructorFenceForAllocation(new_array);
+      if (!BuildFilledNewArray(dex_pc, type_index, operands)) {
+        return false;
+      }
       break;
     }
 

@@ -28,6 +28,8 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.job.JobInfo;
@@ -36,6 +38,10 @@ import android.app.job.JobScheduler;
 import android.os.CancellationSignal;
 import android.os.Process;
 import android.os.SystemProperties;
+import android.os.UpdateEngine;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.filters.SmallTest;
 
@@ -65,11 +71,13 @@ public class ArtShellCommandTest {
     @Rule
     public StaticMockitoRule mockitoRule = new StaticMockitoRule(
             SystemProperties.class, BackgroundDexoptJobService.class, ArtJni.class);
+    @Rule public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Mock private BackgroundDexoptJobService mJobService;
     @Mock private PreRebootDriver mPreRebootDriver;
     @Mock private PreRebootStatsReporter mPreRebootStatsReporter;
     @Mock private JobScheduler mJobScheduler;
+    @Mock private UpdateEngine mUpdateEngine;
     @Mock private PreRebootDexoptJob.Injector mPreRebootDexoptJobInjector;
     @Mock private ArtManagerLocal.Injector mArtManagerLocalInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
@@ -114,6 +122,7 @@ public class ArtShellCommandTest {
                 .when(mPreRebootDexoptJobInjector.getStatsReporter())
                 .thenReturn(mPreRebootStatsReporter);
         lenient().when(mPreRebootDexoptJobInjector.getJobScheduler()).thenReturn(mJobScheduler);
+        lenient().when(mPreRebootDexoptJobInjector.getUpdateEngine()).thenReturn(mUpdateEngine);
         mPreRebootDexoptJob = new PreRebootDexoptJob(mPreRebootDexoptJobInjector);
 
         lenient().when(BackgroundDexoptJobService.getJob(JOB_ID)).thenReturn(mPreRebootDexoptJob);
@@ -141,6 +150,7 @@ public class ArtShellCommandTest {
     }
 
     @Test
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
     public void testOnOtaStagedSync() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
@@ -157,6 +167,7 @@ public class ArtShellCommandTest {
     }
 
     @Test
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
     public void testOnOtaStagedSyncFatalError() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
@@ -173,6 +184,7 @@ public class ArtShellCommandTest {
     }
 
     @Test
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
     public void testOnOtaStagedSyncCancelledByCommand() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
@@ -205,6 +217,7 @@ public class ArtShellCommandTest {
     }
 
     @Test
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
     public void testOnOtaStagedSyncCancelledByBrokenPipe() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
@@ -231,6 +244,188 @@ public class ArtShellCommandTest {
     }
 
     @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testOnOtaStagedAsync() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "on-ota-staged", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenReturn(new PreRebootResult(true /* success */));
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job finished. See logs for details");
+        }
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testOnOtaStagedAsyncFatalError() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "on-ota-staged", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenThrow(RuntimeException.class);
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job encountered a fatal error");
+        }
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testOnOtaStagedAsyncCancelledByCommand() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "on-ota-staged", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        Semaphore dexoptStarted = new Semaphore(0);
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenAnswer(invocation -> {
+                    // Step 2.
+                    dexoptStarted.release();
+
+                    Semaphore dexoptCancelled = new Semaphore(0);
+                    var cancellationSignal = invocation.<CancellationSignal>getArgument(2);
+                    cancellationSignal.setOnCancelListener(() -> dexoptCancelled.release());
+                    assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+                    // Step 4.
+                    return new PreRebootResult(true /* success */);
+                });
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+
+        // Step 1.
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            assertThat(execution.getStdout().readLine()).contains("Job running...");
+
+            assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+            // Step 3.
+            try (var execution2 = new CommandExecution(
+                         createHandler(), "art", "pr-dexopt-job", "--cancel")) {
+                int exitCode2 = execution2.waitAndGetExitCode();
+                String outputs2 = getOutputs(execution2);
+                assertWithMessage(outputs2).that(exitCode2).isEqualTo(0);
+                assertThat(outputs2).contains("Pre-reboot Dexopt job cancelled");
+            }
+
+            int exitCode = execution.waitAndGetExitCode();
+
+            // Step 5.
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job finished. See logs for details");
+        }
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testOnOtaStagedAsyncCancelledByBrokenPipe() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "on-ota-staged", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        Semaphore dexoptStarted = new Semaphore(0);
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenAnswer(invocation -> {
+                    // Step 2.
+                    dexoptStarted.release();
+
+                    Semaphore dexoptCancelled = new Semaphore(0);
+                    var cancellationSignal = invocation.<CancellationSignal>getArgument(2);
+                    cancellationSignal.setOnCancelListener(() -> dexoptCancelled.release());
+                    assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+                    // Step 4.
+                    return new PreRebootResult(true /* success */);
+                });
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+
+        // Step 1.
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            assertThat(execution.getStdout().readLine()).contains("Job running...");
+
+            assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+            // Step 3.
+            execution.closeStdin();
+
+            int exitCode = execution.waitAndGetExitCode();
+
+            // Step 5.
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job finished. See logs for details");
+        }
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testOnOtaStagedAsyncCancelledByJobScheduler() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "on-ota-staged", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+        mPreRebootDexoptJob.onStopJobImpl(mJobParameters);
+
+        mPreRebootDexoptJob.waitForRunningJob();
+        verify(mUpdateEngine).triggerPostinstall("system");
+        verify(mPreRebootDriver, never()).run(any(), anyBoolean(), any());
+    }
+
+    @Test
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
     public void testOnOtaStagedAsyncLegacy() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
@@ -250,6 +445,19 @@ public class ArtShellCommandTest {
 
         mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
         mPreRebootDexoptJob.waitForRunningJob();
+    }
+
+    @Test
+    public void testOnOtaStagedStartJobNotFound() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(1);
+            assertThat(outputs).contains("No waiting job found");
+        }
     }
 
     @Test
@@ -283,7 +491,8 @@ public class ArtShellCommandTest {
     }
 
     @Test
-    public void testPrDexoptJobRunOta() throws Exception {
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testPrDexoptJobRunOtaLegacy() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
         when(mPreRebootDriver.run(eq("_b"), eq(true) /* mapSnapshotsForOta */, any()))
@@ -291,6 +500,33 @@ public class ArtShellCommandTest {
 
         try (var execution = new CommandExecution(
                      createHandler(), "art", "pr-dexopt-job", "--run", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job finished. See logs for details");
+        }
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testPrDexoptJobRunOta() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenReturn(new PreRebootResult(true /* success */));
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "pr-dexopt-job", "--run", "--slot", "_b")) {
+            assertThat(execution.getStdout().readLine()).contains("Job running...");
+
+            try (var execution2 = new CommandExecution(
+                         createHandler(), "art", "on-ota-staged", "--start")) {
+                int exitCode2 = execution2.waitAndGetExitCode();
+                String outputs2 = getOutputs(execution2);
+                assertWithMessage(outputs2).that(exitCode2).isEqualTo(0);
+                assertThat(outputs2).contains("Job finished. See logs for details");
+            }
+
             int exitCode = execution.waitAndGetExitCode();
             String outputs = getOutputs(execution);
             assertWithMessage(outputs).that(exitCode).isEqualTo(0);
@@ -332,7 +568,8 @@ public class ArtShellCommandTest {
     }
 
     @Test
-    public void testPrDexoptJobScheduleOta() throws Exception {
+    @DisableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testPrDexoptJobScheduleOtaLegacy() throws Exception {
         when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
 
         try (var execution = new CommandExecution(
@@ -347,6 +584,35 @@ public class ArtShellCommandTest {
                 .thenReturn(new PreRebootResult(true /* success */));
 
         mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+        mPreRebootDexoptJob.waitForRunningJob();
+    }
+
+    @Test
+    @EnableFlags({android.os.Flags.FLAG_UPDATE_ENGINE_API})
+    public void testPrDexoptJobScheduleOta() throws Exception {
+        when(mInjector.getCallingUid()).thenReturn(Process.ROOT_UID);
+
+        try (var execution = new CommandExecution(
+                     createHandler(), "art", "pr-dexopt-job", "--schedule", "--slot", "_b")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Pre-reboot Dexopt job scheduled");
+        }
+
+        when(mPreRebootDriver.run(eq("_b"), eq(false) /* mapSnapshotsForOta */, any()))
+                .thenReturn(new PreRebootResult(true /* success */));
+
+        mPreRebootDexoptJob.onStartJobImpl(mJobService, mJobParameters);
+
+        try (var execution =
+                        new CommandExecution(createHandler(), "art", "on-ota-staged", "--start")) {
+            int exitCode = execution.waitAndGetExitCode();
+            String outputs = getOutputs(execution);
+            assertWithMessage(outputs).that(exitCode).isEqualTo(0);
+            assertThat(outputs).contains("Job finished. See logs for details");
+        }
+
         mPreRebootDexoptJob.waitForRunningJob();
     }
 

@@ -139,10 +139,8 @@ bool SsaRedundantPhiElimination::Run() {
     }
   }
 
-  ArenaBitVector visited_phis_in_cycle(&allocator,
-                                       graph_->GetCurrentInstructionId(),
-                                       /* expandable= */ false,
-                                       kArenaAllocSsaPhiElimination);
+  BitVectorView<size_t> visited_phis_in_cycle = ArenaBitVector::CreateFixedSize(
+      &allocator, graph_->GetCurrentInstructionId(), kArenaAllocSsaPhiElimination);
   ScopedArenaVector<HPhi*> cycle_worklist(allocator.Adapter(kArenaAllocSsaPhiElimination));
 
   while (!worklist.empty()) {

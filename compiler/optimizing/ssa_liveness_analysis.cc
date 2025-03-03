@@ -105,7 +105,7 @@ void SsaLivenessAnalysis::ComputeLiveness() {
 
 void SsaLivenessAnalysis::RecursivelyProcessInputs(HInstruction* current,
                                                    HInstruction* actual_user,
-                                                   BitVector* live_in) {
+                                                   BitVectorView<size_t> live_in) {
   HInputsRef inputs = current->GetInputs();
   for (size_t i = 0; i < inputs.size(); ++i) {
     HInstruction* input = inputs[i];
@@ -121,7 +121,7 @@ void SsaLivenessAnalysis::RecursivelyProcessInputs(HInstruction* current,
       // `input` generates a result used by `current`. Add use and update
       // the live-in set.
       input->GetLiveInterval()->AddUse(current, /* environment= */ nullptr, i, actual_user);
-      live_in->SetBit(input->GetSsaIndex());
+      live_in.SetBit(input->GetSsaIndex());
     } else if (has_out_location) {
       // `input` generates a result but it is not used by `current`.
     } else {
@@ -139,7 +139,7 @@ void SsaLivenessAnalysis::RecursivelyProcessInputs(HInstruction* current,
 
 void SsaLivenessAnalysis::ProcessEnvironment(HInstruction* current,
                                              HInstruction* actual_user,
-                                             BitVector* live_in) {
+                                             BitVectorView<size_t> live_in) {
   for (HEnvironment* environment = current->GetEnvironment();
        environment != nullptr;
        environment = environment->GetParent()) {
@@ -155,7 +155,7 @@ void SsaLivenessAnalysis::ProcessEnvironment(HInstruction* current,
       // affect the live range of that instruction.
       if (should_be_live) {
         CHECK(instruction->HasSsaIndex()) << instruction->DebugName();
-        live_in->SetBit(instruction->GetSsaIndex());
+        live_in.SetBit(instruction->GetSsaIndex());
         instruction->GetLiveInterval()->AddUse(current,
                                                environment,
                                                i,
@@ -169,13 +169,13 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
   // Do a post order visit, adding inputs of instructions live in the block where
   // that instruction is defined, and killing instructions that are being visited.
   for (HBasicBlock* block : ReverseRange(graph_->GetLinearOrder())) {
-    BitVector* kill = GetKillSet(*block);
-    BitVector* live_in = GetLiveInSet(*block);
+    BitVectorView kill = GetKillSet(*block);
+    BitVectorView live_in = GetLiveInSet(*block);
 
     // Set phi inputs of successors of this block corresponding to this block
     // as live_in.
     for (HBasicBlock* successor : block->GetSuccessors()) {
-      live_in->Union(GetLiveInSet(*successor));
+      live_in.Union(GetLiveInSet(*successor));
       if (successor->IsCatchBlock()) {
         // Inputs of catch phis will be kept alive through their environment
         // uses, allowing the runtime to copy their values to the corresponding
@@ -193,14 +193,14 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
           // A phi input whose last user is the phi dies at the end of the predecessor block,
           // and not at the phi's lifetime position.
-          live_in->SetBit(input->GetSsaIndex());
+          live_in.SetBit(input->GetSsaIndex());
         }
       }
     }
 
     // Add a range that covers this block to all instructions live_in because of successors.
     // Instructions defined in this block will have their start of the range adjusted.
-    for (uint32_t idx : live_in->Indexes()) {
+    for (uint32_t idx : live_in.Indexes()) {
       HInstruction* current = GetInstructionFromSsaIndex(idx);
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
@@ -210,8 +210,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       HInstruction* current = back_it.Current();
       if (current->HasSsaIndex()) {
         // Kill the instruction and shorten its interval.
-        kill->SetBit(current->GetSsaIndex());
-        live_in->ClearBit(current->GetSsaIndex());
+        kill.SetBit(current->GetSsaIndex());
+        live_in.ClearBit(current->GetSsaIndex());
         current->GetLiveInterval()->SetFrom(current->GetLifetimePosition());
       }
 
@@ -245,8 +245,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HInstruction* current = inst_it.Current();
       if (current->HasSsaIndex()) {
-        kill->SetBit(current->GetSsaIndex());
-        live_in->ClearBit(current->GetSsaIndex());
+        kill.SetBit(current->GetSsaIndex());
+        live_in.ClearBit(current->GetSsaIndex());
         LiveInterval* interval = current->GetLiveInterval();
         DCHECK((interval->GetFirstRange() == nullptr)
                || (interval->GetStart() == current->GetLifetimePosition()));
@@ -261,7 +261,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       size_t last_position = block->GetLoopInformation()->GetLifetimeEnd();
       // For all live_in instructions at the loop header, we need to create a range
       // that covers the full loop.
-      for (uint32_t idx : live_in->Indexes()) {
+      for (uint32_t idx : live_in.Indexes()) {
         HInstruction* current = GetInstructionFromSsaIndex(idx);
         current->GetLiveInterval()->AddLoopRange(block->GetLifetimeStart(), last_position);
       }
@@ -289,26 +289,41 @@ void SsaLivenessAnalysis::ComputeLiveInAndLiveOutSets() {
 }
 
 bool SsaLivenessAnalysis::UpdateLiveOut(const HBasicBlock& block) {
-  BitVector* live_out = GetLiveOutSet(block);
+  BitVectorView<size_t> live_out = GetLiveOutSet(block);
   bool changed = false;
   // The live_out set of a block is the union of live_in sets of its successors.
   for (HBasicBlock* successor : block.GetSuccessors()) {
-    if (live_out->Union(GetLiveInSet(*successor))) {
+    if (live_out.Union(GetLiveInSet(*successor))) {
       changed = true;
     }
   }
   return changed;
 }
 
-
 bool SsaLivenessAnalysis::UpdateLiveIn(const HBasicBlock& block) {
-  BitVector* live_out = GetLiveOutSet(block);
-  BitVector* kill = GetKillSet(block);
-  BitVector* live_in = GetLiveInSet(block);
+  BitVectorView<size_t> live_out = GetLiveOutSet(block);
+  BitVectorView<size_t> kill = GetKillSet(block);
+  BitVectorView<size_t> live_in = GetLiveInSet(block);
   // If live_out is updated (because of backward branches), we need to make
   // sure instructions in live_out are also in live_in, unless they are killed
   // by this block.
-  return live_in->UnionIfNotIn(live_out, kill);
+  return live_in.UnionIfNotIn(live_out, kill);
+}
+
+void SsaLivenessAnalysis::DoCheckNoLiveInIrreducibleLoop(const HBasicBlock& block) const {
+  DCHECK(block.IsLoopHeader());
+  DCHECK(block.GetLoopInformation()->IsIrreducible());
+  BitVectorView<size_t> live_in = GetLiveInSet(block);
+  // To satisfy our liveness algorithm, we need to ensure loop headers of
+  // irreducible loops do not have any live-in instructions, except constants
+  // and the current method, which can be trivially re-materialized.
+  for (uint32_t idx : live_in.Indexes()) {
+    HInstruction* instruction = GetInstructionFromSsaIndex(idx);
+    DCHECK(instruction->GetBlock()->IsEntryBlock()) << instruction->DebugName();
+    DCHECK(!instruction->IsParameterValue());
+    DCHECK(instruction->IsCurrentMethod() || instruction->IsConstant())
+        << instruction->DebugName();
+  }
 }
 
 void LiveInterval::DumpWithContext(std::ostream& stream,

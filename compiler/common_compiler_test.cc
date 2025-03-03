@@ -32,6 +32,7 @@
 #include "driver/compiled_code_storage.h"
 #include "driver/compiler_options.h"
 #include "jni/java_vm_ext.h"
+#include "instrumentation-inl.h"
 #include "interpreter/interpreter.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -40,7 +41,6 @@
 #include "oat/oat_quick_method_header.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
-#include "utils/atomic_dex_ref_map-inl.h"
 
 namespace art HIDDEN {
 
@@ -306,7 +306,11 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
                                              storage.GetStackMap(),
                                              storage.GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
-    GetRuntime()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ method_code);
+    instrumentation::Instrumentation* instr = GetRuntime()->GetInstrumentation();
+    const void* entrypoint = instr->GetInitialEntrypoint(method->GetAccessFlags(), method_code);
+    CHECK(!instr->IsForcedInterpretOnly());
+    CHECK(!instr->EntryExitStubsInstalled());
+    instr->UpdateMethodsCode(method, entrypoint);
   }
 }
 

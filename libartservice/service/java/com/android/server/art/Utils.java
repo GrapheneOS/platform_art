@@ -67,6 +67,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -202,6 +203,14 @@ public final class Utils {
     public static boolean isNativeAbi(@NonNull String abiName) {
         return abiName.equals(Constants.getNative64BitAbi())
                 || abiName.equals(Constants.getNative32BitAbi());
+    }
+
+    public static List<String> getNativeIsas() {
+        return Arrays.asList(Constants.getNative64BitAbi(), Constants.getNative32BitAbi())
+                .stream()
+                .filter(Objects::nonNull)
+                .map(VMRuntime::getInstructionSet)
+                .toList();
     }
 
     /**

@@ -33,6 +33,7 @@ class CommonTransactionTestCompilerCallbacks : public CompilerCallbacks {
   void AddUncompilableMethod([[maybe_unused]] MethodReference ref) override {}
   void AddUncompilableClass([[maybe_unused]] ClassReference ref) override {}
   void ClassRejected([[maybe_unused]] ClassReference ref) override {}
+  bool IsUncompilableMethod([[maybe_unused]] MethodReference ref) override { return false; }
 
   verifier::VerifierDeps* GetVerifierDeps() const override { return nullptr; }
 

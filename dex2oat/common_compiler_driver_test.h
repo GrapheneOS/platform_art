@@ -68,7 +68,6 @@ class CommonCompilerDriverTest : public CommonCompilerTest {
 
  private:
   MemMap image_reservation_;
-  void* inaccessible_page_;
 };
 
 }  // namespace art

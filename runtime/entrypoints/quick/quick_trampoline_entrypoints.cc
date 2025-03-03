@@ -1930,8 +1930,17 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
                     fsc.GetStartFprRegs(reserved_area),
                     out_args_sp);
 
+    bool uses_critical_args = critical_native;
+
+#ifdef ART_USE_RESTRICTED_MODE
+    // IsCriticalNative() always returns false so check if the method is actually a critical native
+    // method. If it is then it won't need the JNI environment or jclass arguments.
+    constexpr uint32_t mask = kAccCriticalNative | kAccNative;
+    uses_critical_args = (method->GetAccessFlags() & mask) == mask;
+#endif
+
     // First 2 parameters are always excluded for CriticalNative methods.
-    if (LIKELY(!critical_native)) {
+    if (LIKELY(!uses_critical_args)) {
       // jni environment is always first argument
       sm_.AdvancePointer(self->GetJniEnv());
 

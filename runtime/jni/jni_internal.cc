@@ -43,6 +43,7 @@
 #include "handle_scope.h"
 #include "hidden_api.h"
 #include "indirect_reference_table-inl.h"
+#include "instrumentation.h"
 #include "interpreter/interpreter.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"

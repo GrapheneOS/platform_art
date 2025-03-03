@@ -29,7 +29,21 @@ public class Main extends TestCase {
     testNegativeArraySize();
     testSmaliFilledNewArray();
     testSmaliFillArrayData();
-    testSmaliVerifyError();
+
+    // Ensure the elements in filled-new-array must be assignable
+    // to the array component type.
+    testSmaliVerifyError("FilledNewArrayVerifyError");
+
+    // Ensure invalid array types `[J` and `[D` are rejected.
+    testSmaliVerifyError("FilledNewArrayVerifyErrorJ");
+    testSmaliVerifyError("FilledNewArrayVerifyErrorD");
+
+    // Test that `filled-new-array` with `[Z`, `B`, `[C`, `[S` or `[F` throws `InternalError`.
+    testSmaliInternalError("FilledNewArrayInternalErrorZ");
+    testSmaliInternalError("FilledNewArrayInternalErrorB");
+    testSmaliInternalError("FilledNewArrayInternalErrorC");
+    testSmaliInternalError("FilledNewArrayInternalErrorS");
+    testSmaliInternalError("FilledNewArrayInternalErrorF");
   }
 
   static void $opt$TestAllocations() {
@@ -205,16 +219,27 @@ public class Main extends TestCase {
     }
   }
 
-  public static void testSmaliVerifyError() throws Exception {
+  public static void testSmaliVerifyError(String name) throws Exception {
     Error error = null;
-    // Ensure the elements in filled-new-array must be assignable
-    // to the array component type.
     try {
-      Class.forName("FilledNewArrayVerifyError");
+      Class.forName(name);
     } catch (VerifyError e) {
       error = e;
     }
     assertNotNull(error);
+  }
+
+  public static void testSmaliInternalError(String name) throws Exception {
+    Throwable t = null;
+    try {
+      Class<?> c = Class.forName(name);
+      Method m = c.getMethod("fail");
+      m.invoke(null);
+    } catch (InvocationTargetException e) {
+      t = e.getCause();
+      assertTrue(t instanceof InternalError);
+    }
+    assertNotNull(t);
   }
 
   public static void testSmaliFillArrayData() throws Exception {

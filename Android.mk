@@ -274,6 +274,52 @@ build-art: build-art-target
 .PHONY: build-art-target
 build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUTS)
 
+TARGET_BOOT_IMAGE_SYSTEM_DIR := $(PRODUCT_OUT)/system/apex/art_boot_images
+TARGET_ART_APEX_SYSTEM := $(PRODUCT_OUT)/system/apex/com.android.art
+TARGET_BOOT_IMAGE_PROFILE := $(TARGET_ART_APEX_SYSTEM).testing/etc/boot-image.prof
+
+.PHONY: build-art-simulator-profile
+build-art-simulator-profile: $(HOST_OUT_EXECUTABLES)/profmand $(TARGET_CORE_IMG_DEX_FILES) \
+		$(PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION)
+	mkdir -p $(dir $(TARGET_BOOT_IMAGE_PROFILE))
+	# Generate a profile from the core boot jars. This allows the simulator and boot image to use a
+	# stable profile that is generated on the host.
+	$(HOST_OUT_EXECUTABLES)/profmand \
+	  --output-profile-type=boot \
+	  --create-profile-from=$(PRODUCT_DEX_PREOPT_BOOT_IMAGE_PROFILE_LOCATION) \
+	  $(foreach jar,$(TARGET_CORE_IMG_DEX_FILES),--apk=$(jar)) \
+	  $(foreach jar,$(TARGET_CORE_IMG_DEX_LOCATIONS),--dex-location=$(jar)) \
+	  --reference-profile-file=$(TARGET_BOOT_IMAGE_PROFILE)
+
+.PHONY: build-art-simulator-boot-image
+build-art-simulator-boot-image: $(HOST_OUT_EXECUTABLES)/generate-boot-image64 \
+		$(HOST_OUT_EXECUTABLES)/dex2oatd $(TARGET_CORE_IMG_DEX_FILES) build-art-simulator-profile
+	# Note: The target boot image needs to be in a trusted system directory to be used by the
+	# zygote or if -Xonly-use-system-oat-files is passed to the runtime.
+	rm -rf $(TARGET_BOOT_IMAGE_SYSTEM_DIR)
+	mkdir -p $(TARGET_BOOT_IMAGE_SYSTEM_DIR)/javalib
+	mkdir -p $(TARGET_ART_APEX_SYSTEM)/javalib
+	# Copy the core boot jars to the expected directory for generate-boot-image.
+	$(foreach i,$(call int_range_list, 1, $(words $(TARGET_CORE_IMG_JARS))), \
+	  cp $(word $(i),$(TARGET_CORE_IMG_DEX_FILES)) \
+	    $(TARGET_ART_APEX_SYSTEM)/javalib/$(word $(i),$(TARGET_CORE_IMG_JARS)).jar;)
+	# Generate a target boot image using the host dex2oat. Note: a boot image using a profile is
+	# required for certain run tests to pass.
+	$(HOST_OUT_EXECUTABLES)/generate-boot-image64 \
+	  --output-dir=$(TARGET_BOOT_IMAGE_SYSTEM_DIR)/javalib \
+	  --compiler-filter=speed-profile \
+	  --use-profile=true \
+	  --profile-file=$(TARGET_BOOT_IMAGE_PROFILE) \
+	  --dex2oat-bin=$(HOST_OUT_EXECUTABLES)/dex2oatd \
+	  --android-root=$(TARGET_OUT) \
+	  --android-root-for-location=true \
+	  --core-only=true \
+	  --instruction-set=$(TARGET_ARCH)
+
+# For simulator, build a target profile and boot image on the host.
+.PHONY: build-art-simulator
+build-art-simulator: build-art-simulator-profile build-art-simulator-boot-image
+
 PRIVATE_ART_APEX_DEPENDENCY_FILES := \
   bin/dalvikvm32 \
   bin/dalvikvm64 \

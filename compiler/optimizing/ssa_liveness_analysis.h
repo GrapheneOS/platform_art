@@ -19,6 +19,8 @@
 
 #include <iostream>
 
+#include "base/arena_bit_vector.h"
+#include "base/bit_vector.h"
 #include "base/intrusive_forward_list.h"
 #include "base/iteration_range.h"
 #include "base/macros.h"
@@ -37,17 +39,20 @@ class BlockInfo : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   BlockInfo(ScopedArenaAllocator* allocator, const HBasicBlock& block, size_t number_of_ssa_values)
       : block_(block),
-        live_in_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness),
-        live_out_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness),
-        kill_(allocator, number_of_ssa_values, false, kArenaAllocSsaLiveness) {
+        live_in_(ArenaBitVector::CreateFixedSize(
+            allocator, number_of_ssa_values, kArenaAllocSsaLiveness)),
+        live_out_(ArenaBitVector::CreateFixedSize(
+            allocator, number_of_ssa_values, kArenaAllocSsaLiveness)),
+        kill_(ArenaBitVector::CreateFixedSize(
+            allocator, number_of_ssa_values, kArenaAllocSsaLiveness)) {
     UNUSED(block_);
   }
 
  private:
   const HBasicBlock& block_;
-  ArenaBitVector live_in_;
-  ArenaBitVector live_out_;
-  ArenaBitVector kill_;
+  BitVectorView<size_t> live_in_;
+  BitVectorView<size_t> live_out_;
+  BitVectorView<size_t> kill_;
 
   friend class SsaLivenessAnalysis;
 
@@ -1184,16 +1189,16 @@ class SsaLivenessAnalysis : public ValueObject {
 
   void Analyze();
 
-  BitVector* GetLiveInSet(const HBasicBlock& block) const {
-    return &block_infos_[block.GetBlockId()]->live_in_;
+  BitVectorView<size_t> GetLiveInSet(const HBasicBlock& block) const {
+    return block_infos_[block.GetBlockId()]->live_in_;
   }
 
-  BitVector* GetLiveOutSet(const HBasicBlock& block) const {
-    return &block_infos_[block.GetBlockId()]->live_out_;
+  BitVectorView<size_t> GetLiveOutSet(const HBasicBlock& block) const {
+    return block_infos_[block.GetBlockId()]->live_out_;
   }
 
-  BitVector* GetKillSet(const HBasicBlock& block) const {
-    return &block_infos_[block.GetBlockId()]->kill_;
+  BitVectorView<size_t> GetKillSet(const HBasicBlock& block) const {
+    return block_infos_[block.GetBlockId()]->kill_;
   }
 
   HInstruction* GetInstructionFromSsaIndex(size_t index) const {
@@ -1266,10 +1271,10 @@ class SsaLivenessAnalysis : public ValueObject {
 
   static void ProcessEnvironment(HInstruction* instruction,
                                  HInstruction* actual_user,
-                                 BitVector* live_in);
+                                 BitVectorView<size_t> live_in);
   static void RecursivelyProcessInputs(HInstruction* instruction,
                                        HInstruction* actual_user,
-                                       BitVector* live_in);
+                                       BitVectorView<size_t> live_in);
 
   // Returns whether `instruction` in an HEnvironment held by `env_holder`
   // should be kept live by the HEnvironment.
@@ -1294,18 +1299,10 @@ class SsaLivenessAnalysis : public ValueObject {
     if (!block.IsLoopHeader() || !block.GetLoopInformation()->IsIrreducible()) {
       return;
     }
-    BitVector* live_in = GetLiveInSet(block);
-    // To satisfy our liveness algorithm, we need to ensure loop headers of
-    // irreducible loops do not have any live-in instructions, except constants
-    // and the current method, which can be trivially re-materialized.
-    for (uint32_t idx : live_in->Indexes()) {
-      HInstruction* instruction = GetInstructionFromSsaIndex(idx);
-      DCHECK(instruction->GetBlock()->IsEntryBlock()) << instruction->DebugName();
-      DCHECK(!instruction->IsParameterValue());
-      DCHECK(instruction->IsCurrentMethod() || instruction->IsConstant())
-          << instruction->DebugName();
-    }
+    DoCheckNoLiveInIrreducibleLoop(block);
   }
+
+  void DoCheckNoLiveInIrreducibleLoop(const HBasicBlock& block) const;
 
   HGraph* const graph_;
   CodeGenerator* const codegen_;

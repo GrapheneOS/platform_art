@@ -18,6 +18,11 @@
 #define ART_LIBARTBASE_BASE_OS_H_
 
 #include <stdint.h>
+#include <sys/types.h>
+
+#include <cstddef>
+#include <memory>
+#include <string>
 
 namespace unix_file {
 class FdFile;
@@ -27,8 +32,15 @@ namespace art {
 
 using File = ::unix_file::FdFile;
 
-// Interface to the underlying OS platform.
+struct FileWithRange {
+  std::unique_ptr<File> file;
+  off_t start;
+  size_t length;
 
+  static FileWithRange Invalid();
+};
+
+// Interface to the underlying OS platform.
 class OS {
  public:
   // Open an existing file with read only access.
@@ -56,6 +68,20 @@ class OS {
 
   // Get the size of a file (or -1 if it does not exist).
   static int64_t GetFileSizeBytes(const char* name);
+
+  // Open an existing file or an entry in a zip file with read only access.
+  // `name_and_zip_entry` should be either a path to an existing file, or a path to a zip file and
+  // the name of the zip entry, separated by `zip_separator`.
+  // `alignment` is the expected alignment of the specified zip entry, in bytes. Only applicable if
+  // `name_and_zip_entry` points to a zip entry.
+  // Returns `file` being the file at the specified path and the range being the entire range of the
+  // file, if `name_and_zip_entry` points to a file. Returns `file` being the zip file and the range
+  // being the range of the zip entry, if `name_and_zip_entry` points to a zip entry. Returns `file`
+  // being nullptr on failure.
+  static FileWithRange OpenFileDirectlyOrFromZip(const std::string& name_and_zip_entry,
+                                                 const char* zip_separator,
+                                                 size_t alignment,
+                                                 std::string* error_msg);
 };
 
 }  // namespace art

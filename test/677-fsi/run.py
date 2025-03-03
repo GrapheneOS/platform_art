@@ -26,7 +26,7 @@ def run(ctx, args):
   # Only keep the lines we're interested in.
   ctx.run(fr"sed -i '/Hello World/!d' '{args.stdout_file}'")
   ctx.run(
-      fr"sed -i '/^.*: oat file has dex code, but APK has uncompressed dex code/!d' '{args.stderr_file}'"
+      fr"sed -i '/^.*: Oat file has dex code, but APK has uncompressed dex code/!d' '{args.stderr_file}'"
   )
 
   # Remove part of message containing filename.

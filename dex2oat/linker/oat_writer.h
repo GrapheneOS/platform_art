@@ -261,7 +261,6 @@ class OatWriter {
   // to actually write it.
   class DexMethodVisitor;
   class OatDexMethodVisitor;
-  class InitBssLayoutMethodVisitor;
   class InitOatClassesMethodVisitor;
   class LayoutCodeMethodVisitor;
   class LayoutReserveOffsetCodeMethodVisitor;
@@ -302,7 +301,11 @@ class OatWriter {
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
   size_t InitDataImgRelRoLayout(size_t offset);
+  void InitBssAndRelRoData();
   void InitBssLayout(InstructionSet instruction_set);
+  void AddBssReference(const DexFileReference& ref,
+                       size_t number_of_indexes,
+                       /*inout*/ SafeMap<const DexFile*, BitVector>* references);
 
   size_t WriteClassOffsets(OutputStream* out, size_t file_offset, size_t relative_offset);
   size_t WriteClasses(OutputStream* out, size_t file_offset, size_t relative_offset);

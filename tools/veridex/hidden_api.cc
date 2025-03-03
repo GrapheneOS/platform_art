@@ -34,7 +34,7 @@ HiddenApi::HiddenApi(const char* filename, const ApiListFilter& api_list_filter)
     std::vector<std::string> values = android::base::Split(str, ",");
     const std::string& signature = values[0];
 
-    hiddenapi::ApiList membership;
+    hiddenapi::ApiList membership = hiddenapi::ApiList::Invalid();
     bool success = hiddenapi::ApiList::FromNames(values.begin() + 1, values.end(), &membership);
     if (!success) {
       LOG(ERROR) << "Unknown ApiList flag: " << str;

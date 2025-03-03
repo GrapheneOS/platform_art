@@ -37,22 +37,18 @@ static constexpr const bool kDebugZipMapDirectly = false;
 
 using android::base::StringPrintf;
 
-uint32_t ZipEntry::GetUncompressedLength() {
-  return zip_entry_->uncompressed_length;
-}
+uint32_t ZipEntry::GetUncompressedLength() const { return zip_entry_->uncompressed_length; }
 
-uint32_t ZipEntry::GetCrc32() {
-  return zip_entry_->crc32;
-}
+uint32_t ZipEntry::GetCrc32() const { return zip_entry_->crc32; }
 
-bool ZipEntry::IsUncompressed() {
-  return zip_entry_->method == kCompressStored;
-}
+bool ZipEntry::IsUncompressed() const { return zip_entry_->method == kCompressStored; }
 
 bool ZipEntry::IsAlignedTo(size_t alignment) const {
   DCHECK(IsPowerOfTwo(alignment)) << alignment;
   return IsAlignedParam(zip_entry_->offset, static_cast<int>(alignment));
 }
+
+off_t ZipEntry::GetOffset() const { return zip_entry_->offset; }
 
 ZipEntry::~ZipEntry() {
   delete zip_entry_;
@@ -232,6 +228,13 @@ static void SetCloseOnExec(int fd) {
 
 ZipArchive* ZipArchive::Open(const char* filename, std::string* error_msg) {
   DCHECK(filename != nullptr);
+
+  // Don't call into `OpenArchive` on file absence. `OpenArchive` prints a warning even if the file
+  // absence is expected.
+  if (!OS::FileExists(filename)) {
+    *error_msg = StringPrintf("Failed to open '%s': File not found", filename);
+    return nullptr;
+  }
 
   ZipArchiveHandle handle;
   const int32_t error = OpenArchive(filename, &handle);

@@ -18,10 +18,9 @@
 #define ART_LIBARTBASE_BASE_ZIP_ARCHIVE_H_
 
 #include <stdint.h>
+
 #include <memory>
 #include <string>
-
-#include <android-base/logging.h>
 
 #include "globals.h"
 #include "mem_map.h"
@@ -67,11 +66,12 @@ class ZipEntry {
                               std::string* error_msg,
                               size_t alignment);
 
-  uint32_t GetUncompressedLength();
-  uint32_t GetCrc32();
+  uint32_t GetUncompressedLength() const;
+  uint32_t GetCrc32() const;
 
-  bool IsUncompressed();
+  bool IsUncompressed() const;
   bool IsAlignedTo(size_t alignment) const;
+  off_t GetOffset() const;
 
  private:
   ZipEntry(ZipArchiveHandle handle,

@@ -63,7 +63,12 @@ ENTRY art_jni_dlsym_lookup_stub
     bic    ip, #TAGGED_JNI_SP_MASK                    // ArtMethod** sp
     ldr    ip, [ip]                                   // ArtMethod* method
     ldr    ip, [ip, #ART_METHOD_ACCESS_FLAGS_OFFSET]  // uint32_t access_flags
+#ifdef ART_USE_RESTRICTED_MODE
+    // Critical native methods are disabled and treated as normal native methods instead.
+    tst    ip, #(ACCESS_FLAGS_METHOD_IS_FAST_NATIVE)
+#else
     tst    ip, #(ACCESS_FLAGS_METHOD_IS_FAST_NATIVE | ACCESS_FLAGS_METHOD_IS_CRITICAL_NATIVE)
+#endif
     bne    .Llookup_stub_fast_or_critical_native
     blx    artFindNativeMethod
     b      .Llookup_stub_continue

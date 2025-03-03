@@ -28,7 +28,7 @@
 
 namespace art {
 
-CommonCompilerDriverTest::CommonCompilerDriverTest() : inaccessible_page_(nullptr) {}
+CommonCompilerDriverTest::CommonCompilerDriverTest() {}
 CommonCompilerDriverTest::~CommonCompilerDriverTest() {}
 
 void CommonCompilerDriverTest::CompileAll(jobject class_loader,
@@ -44,13 +44,7 @@ void CommonCompilerDriverTest::CompileAll(jobject class_loader,
                                timings,
                                &compiler_options_->image_classes_);
 
-  // Verification results in the `callback_` should not be used during compilation.
-  down_cast<QuickCompilerCallbacks*>(callbacks_.get())->SetVerificationResults(
-      reinterpret_cast<VerificationResults*>(inaccessible_page_));
   compiler_driver_->CompileAll(class_loader, dex_files, timings);
-  down_cast<QuickCompilerCallbacks*>(callbacks_.get())->SetVerificationResults(
-      verification_results_.get());
-
   compiler_driver_->FreeThreadPools();
 }
 
@@ -107,19 +101,9 @@ void CommonCompilerDriverTest::SetUp() {
   CommonCompilerTest::SetUp();
 
   CreateCompilerDriver();
-
-  // Note: We cannot use MemMap because some tests tear down the Runtime and destroy
-  // the gMaps, so when destroying the MemMap, the test would crash.
-  const size_t page_size = MemMap::GetPageSize();
-  inaccessible_page_ = mmap(nullptr, page_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  CHECK(inaccessible_page_ != MAP_FAILED) << strerror(errno);
 }
 
 void CommonCompilerDriverTest::TearDown() {
-  if (inaccessible_page_ != nullptr) {
-    munmap(inaccessible_page_, MemMap::GetPageSize());
-    inaccessible_page_ = nullptr;
-  }
   image_reservation_.Reset();
   compiler_driver_.reset();
   verification_results_.reset();

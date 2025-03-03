@@ -102,6 +102,11 @@ class PACKED(4) OatMethodOffsets {
 
 class OatFile {
  public:
+  // The zip separator. This has to be the one that Bionic's dlopen recognizes because oat files are
+  // opened through dlopen in `DlOpenOatFile`. This is different from the ART's zip separator for
+  // MultiDex.
+  static constexpr const char* kZipSeparator = "!/";
+
   // Open an oat file. Returns null on failure.
   // The `dex_filenames` argument, if provided, overrides the dex locations
   // from oat file when opening the dex files if they are not embedded in the

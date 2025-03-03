@@ -26,17 +26,24 @@ namespace art HIDDEN {
 // Verify that Location is trivially copyable.
 static_assert(std::is_trivially_copyable<Location>::value, "Location should be trivially copyable");
 
+static inline ArrayRef<Location> AllocateInputLocations(HInstruction* instruction,
+                                                        ArenaAllocator* allocator) {
+  size_t input_count = instruction->InputCount();
+  Location* array = allocator->AllocArray<Location>(input_count, kArenaAllocLocationSummary);
+  return {array, input_count};
+}
+
 LocationSummary::LocationSummary(HInstruction* instruction,
                                  CallKind call_kind,
                                  bool intrinsified,
                                  ArenaAllocator* allocator)
-    : inputs_(instruction->InputCount(), allocator->Adapter(kArenaAllocLocationSummary)),
+    : inputs_(AllocateInputLocations(instruction, allocator)),
       temps_(allocator->Adapter(kArenaAllocLocationSummary)),
+      stack_mask_(nullptr),
       call_kind_(call_kind),
       intrinsified_(intrinsified),
       has_custom_slow_path_calling_convention_(false),
       output_overlaps_(Location::kOutputOverlap),
-      stack_mask_(nullptr),
       register_mask_(0),
       live_registers_(RegisterSet::Empty()),
       custom_slow_path_caller_saves_(RegisterSet::Empty()) {

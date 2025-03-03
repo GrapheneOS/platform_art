@@ -23,7 +23,9 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "arch/instruction_set.h"
 #include "base/compiler_filter.h"
@@ -182,6 +184,8 @@ class OatFileAssistant {
                           int oat_fd,
                           int zip_fd);
 
+  EXPORT ~OatFileAssistant();
+
   // A convenient factory function that accepts ISA, class loader context, and compiler filter in
   // strings. Returns the created instance and ClassLoaderContext on success, or returns nullptr and
   // outputs an error message if it fails to parse the input strings.
@@ -295,6 +299,8 @@ class OatFileAssistant {
   // ASLR. The odex file is treated as if it were read-only.
   //
   // Returns the status of the odex file for the dex location.
+  //
+  // For testing purposes only.
   OatStatus OdexFileStatus();
 
   // When the dex files is compiled on the target device, the oat file is the
@@ -302,6 +308,8 @@ class OatFileAssistant {
   // (possibly-out-of-date) offset for ASLR.
   //
   // Returns the status of the oat file for the dex location.
+  //
+  // For testing purposes only.
   OatStatus OatFileStatus();
 
   OatStatus GetBestStatus() {
@@ -356,10 +364,11 @@ class OatFileAssistant {
   // anonymous dex file(s) created by AnonymousDexVdexLocation.
   EXPORT static bool IsAnonymousVdexBasename(const std::string& basename);
 
-  bool ClassLoaderContextIsOkay(const OatFile& oat_file) const;
+  bool ClassLoaderContextIsOkay(const OatFile& oat_file, /*out*/ std::string* error_msg) const;
 
   // Validates the boot class path checksum of an OatFile.
-  EXPORT bool ValidateBootClassPathChecksums(const OatFile& oat_file);
+  EXPORT bool ValidateBootClassPathChecksums(const OatFile& oat_file,
+                                             /*out*/ std::string* error_msg);
 
   // Validates the given bootclasspath and bootclasspath checksums found in an oat header.
   static bool ValidateBootClassPathChecksums(OatFileAssistantContext* ofa_context,
@@ -369,20 +378,34 @@ class OatFileAssistant {
                                              /*out*/ std::string* error_msg);
 
  private:
+  enum class OatFileType {
+    kNone,
+    kOat,
+    kVdex,
+    kDm,
+  };
+
   class OatFileInfo {
    public:
-    // Initially the info is for no file in particular. It will treat the
-    // file as out of date until Reset is called with a real filename to use
-    // the cache for.
-    // Pass true for is_oat_location if the information associated with this
-    // OatFileInfo is for the oat location, as opposed to the odex location.
-    OatFileInfo(OatFileAssistant* oat_file_assistant, bool is_oat_location);
+    // Empty info. Treated as kOatCannotOpen.
+    // Use constructors in subclasses to construct a real instance.
+    explicit OatFileInfo(OatFileAssistant* oat_file_assistant)
+        : oat_file_assistant_(oat_file_assistant), filename_(""), is_oat_location_(false) {}
 
-    bool IsOatLocation();
+    virtual ~OatFileInfo() = default;
 
-    const std::string* Filename();
+    // ART code is compiled with `-fno-rtti`, so we need a virtual function to return type
+    // information.
+    virtual OatFileType GetType() { return OatFileType::kNone; }
 
-    const char* DisplayFilename();
+    // Returns a string indicating the location of the oat file, for debugging purposes only.
+    virtual const char* GetLocationDebugString() { return "none"; }
+
+    bool IsOatLocation() const;
+
+    const std::string* Filename() const;
+
+    const char* DisplayFilename() const;
 
     // Returns true if this oat file can be used for running code. The oat
     // file can be used for running code as long as it is not out of date with
@@ -393,32 +416,25 @@ class OatFileAssistant {
     bool IsUseable();
 
     // Returns the status of this oat file.
-    OatStatus Status();
+    // Optionally, returns `error_msg` showing why the status is not `kOatUpToDate`.
+    OatStatus Status(/*out*/ std::string* error_msg = nullptr);
 
     // Return the DexOptNeeded value for this oat file with respect to the given target compilation
     // filter and dexopt trigger.
     DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
                                  const DexOptTrigger dexopt_trigger);
 
+    // Returns true if the file exists.
+    virtual bool FileExists() const;
+
     // Returns the loaded file.
     // Loads the file if needed. Returns null if the file failed to load.
     // The caller shouldn't clean up or free the returned pointer.
-    const OatFile* GetFile();
+    // Optionally, returns `error_msg` showing why the file failed to load.
+    const OatFile* GetFile(/*out*/ std::string* error_msg = nullptr);
 
     // Returns true if the file is opened executable.
     bool IsExecutable();
-
-    // Clear any cached information about the file that depends on the
-    // contents of the file. This does not reset the provided filename.
-    void Reset();
-
-    // Clear any cached information and switch to getting info about the oat
-    // file with the given filename.
-    void Reset(const std::string& filename,
-               bool use_fd,
-               int zip_fd = -1,
-               int vdex_fd = -1,
-               int oat_fd = -1);
 
     // Release the loaded oat file for runtime use.
     // Returns null if the oat file hasn't been loaded or is out of date.
@@ -435,6 +451,26 @@ class OatFileAssistant {
     // TODO(b/256664509): Clean this up.
     bool CheckDisableCompactDex();
 
+   protected:
+    // Constructs a real instance.
+    // Pass true for is_oat_location if the information associated with this
+    // OatFileInfo is for the oat location, as opposed to the odex location.
+    OatFileInfo(OatFileAssistant* oat_file_assistant,
+                const std::string& filename,
+                bool is_oat_location)
+        : oat_file_assistant_(oat_file_assistant),
+          filename_(filename),
+          is_oat_location_(is_oat_location) {}
+
+    // Loads the file.
+    virtual std::unique_ptr<OatFile> LoadFile(std::string* error_msg) const {
+      *error_msg = "Not implemented";
+      return nullptr;
+    }
+
+    OatFileAssistant* const oat_file_assistant_;
+    const std::string filename_;
+
    private:
     // Returns true if the oat file is usable but at least one dexopt trigger is matched. This
     // function should only be called if the oat file is usable.
@@ -449,27 +485,96 @@ class OatFileAssistant {
     // the OatFileInfo object.
     std::unique_ptr<OatFile> ReleaseFile();
 
-    OatFileAssistant* oat_file_assistant_;
     const bool is_oat_location_;
 
-    bool filename_provided_ = false;
-    std::string filename_;
+    // A pair of the loaded file and the error message, if `GetFile` has been attempted.
+    // `std::nullopt` if `GetFile` has not been attempted.
+    std::optional<std::pair<std::unique_ptr<OatFile>, std::string>> file_ = std::nullopt;
 
-    int zip_fd_ = -1;
-    int oat_fd_ = -1;
-    int vdex_fd_ = -1;
-    bool use_fd_ = false;
-
-    bool load_attempted_ = false;
-    std::unique_ptr<OatFile> file_;
-
-    bool status_attempted_ = false;
-    OatStatus status_ = OatStatus::kOatCannotOpen;
+    // A pair of the oat status and the error message, if `Status` has been attempted.
+    // `std::nullopt` if `Status` has not been attempted.
+    std::optional<std::pair<OatStatus, std::string>> status_ = std::nullopt;
 
     // For debugging only.
     // If this flag is set, the file has been released to the user and the
     // OatFileInfo object is in a bad state and should no longer be used.
     bool file_released_ = false;
+  };
+
+  class OatFileInfoBackedByOat : public OatFileInfo {
+   public:
+    OatFileInfoBackedByOat(OatFileAssistant* oat_file_assistant,
+                           const std::string& filename,
+                           bool is_oat_location,
+                           bool use_fd,
+                           int zip_fd = -1,
+                           int vdex_fd = -1,
+                           int oat_fd = -1)
+        : OatFileInfo(oat_file_assistant, filename, is_oat_location),
+          use_fd_(use_fd),
+          zip_fd_(zip_fd),
+          vdex_fd_(vdex_fd),
+          oat_fd_(oat_fd) {}
+
+    OatFileType GetType() override { return OatFileType::kOat; }
+
+    const char* GetLocationDebugString() override {
+      return IsOatLocation() ? "odex in dalvik-cache" : "odex next to the dex file";
+    }
+
+    bool FileExists() const override;
+
+   protected:
+    std::unique_ptr<OatFile> LoadFile(std::string* error_msg) const override;
+
+   private:
+    const bool use_fd_;
+    const int zip_fd_;
+    const int vdex_fd_;
+    const int oat_fd_;
+  };
+
+  class OatFileInfoBackedByVdex : public OatFileInfo {
+   public:
+    OatFileInfoBackedByVdex(OatFileAssistant* oat_file_assistant,
+                            const std::string& filename,
+                            bool is_oat_location,
+                            bool use_fd,
+                            int zip_fd = -1,
+                            int vdex_fd = -1)
+        : OatFileInfo(oat_file_assistant, filename, is_oat_location),
+          use_fd_(use_fd),
+          zip_fd_(zip_fd),
+          vdex_fd_(vdex_fd) {}
+
+    OatFileType GetType() override { return OatFileType::kVdex; }
+
+    const char* GetLocationDebugString() override {
+      return IsOatLocation() ? "vdex in dalvik-cache" : "vdex next to the dex file";
+    }
+
+    bool FileExists() const override;
+
+   protected:
+    std::unique_ptr<OatFile> LoadFile(std::string* error_msg) const override;
+
+   private:
+    const bool use_fd_;
+    const int zip_fd_;
+    const int vdex_fd_;
+  };
+
+  class OatFileInfoBackedByDm : public OatFileInfo {
+   public:
+    OatFileInfoBackedByDm(OatFileAssistant* oat_file_assistant, const std::string& filename)
+        : OatFileInfo(oat_file_assistant, filename, /*is_oat_location=*/false) {}
+
+    OatFileType GetType() override { return OatFileType::kDm; }
+
+    const char* GetLocationDebugString() override { return "dm"; }
+
+   protected:
+    std::unique_ptr<OatFile> LoadFile(std::string* error_msg) const override;
   };
 
   // Return info for the best oat file.
@@ -488,7 +593,7 @@ class OatFileAssistant {
 
   // Return the status for a given opened oat file with respect to the dex
   // location.
-  OatStatus GivenOatFileStatus(const OatFile& file);
+  OatStatus GivenOatFileStatus(const OatFile& file, /*out*/ std::string* error_msg);
 
   // Gets the dex checksum required for an up-to-date oat file.
   // Returns cached result from GetMultiDexChecksum.
@@ -533,9 +638,6 @@ class OatFileAssistant {
   // skipped.
   ClassLoaderContext* context_;
 
-  // Whether or not the parent directory of the dex file is writable.
-  bool dex_parent_writable_ = false;
-
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
   const InstructionSet isa_ = InstructionSet::kNone;
@@ -556,22 +658,11 @@ class OatFileAssistant {
   std::optional<std::string> cached_required_dex_checksums_error_;
   bool required_dex_checksums_attempted_ = false;
 
-  // The AOT-compiled file of an app when the APK of the app is in /data.
-  OatFileInfo odex_;
-  // The AOT-compiled file of an app when the APK of the app is on a read-only partition
-  // (for example /system).
-  OatFileInfo oat_;
+  // Empty oat file info, used as a placeholder.
+  OatFileInfo empty_info_ = OatFileInfo(this);
 
-  // The vdex-only file next to `odex_` when `odex_' cannot be used (for example
-  // it is out of date).
-  OatFileInfo vdex_for_odex_;
-  // The vdex-only file next to 'oat_` when `oat_' cannot be used (for example
-  // it is out of date).
-  OatFileInfo vdex_for_oat_;
-
-  // The vdex-only file next to the apk.
-  OatFileInfo dm_for_odex_;
-  OatFileInfo dm_for_oat_;
+  // Oat file info candidates, ordered by precedence.
+  std::vector<std::unique_ptr<OatFileInfo>> info_list_;
 
   // File descriptor corresponding to apk, dex file, or zip.
   int zip_fd_;

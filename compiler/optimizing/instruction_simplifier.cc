@@ -301,7 +301,7 @@ bool InstructionSimplifierVisitor::TryCombineVecMultiplyAccumulate(HVecMul* mul)
       return false;
   }
 
-  ArenaAllocator* allocator = mul->GetBlock()->GetGraph()->GetAllocator();
+  ArenaAllocator* allocator = GetGraph()->GetAllocator();
   if (!mul->HasOnlyOneNonEnvironmentUse()) {
     return false;
   }
@@ -3637,8 +3637,8 @@ bool InstructionSimplifierVisitor::TrySubtractionChainSimplification(
   bool is_x_negated = is_y_negated ^ ((x == right) && y->IsSub());
   int64_t const3_val = ComputeAddition(type, const1_val, const2_val);
   HBasicBlock* block = instruction->GetBlock();
-  HConstant* const3 = block->GetGraph()->GetConstant(type, const3_val);
-  ArenaAllocator* allocator = instruction->GetAllocator();
+  HConstant* const3 = GetGraph()->GetConstant(type, const3_val);
+  ArenaAllocator* allocator = GetGraph()->GetAllocator();
   HInstruction* z;
 
   if (is_x_negated) {

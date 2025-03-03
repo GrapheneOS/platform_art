@@ -155,8 +155,8 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
       // Instructions live at the top of catch blocks or irreducible loop header
       // were forced to spill.
       if (kIsDebugBuild) {
-        BitVector* live = liveness_.GetLiveInSet(*block);
-        for (uint32_t idx : live->Indexes()) {
+        BitVectorView<size_t> live = liveness_.GetLiveInSet(*block);
+        for (uint32_t idx : live.Indexes()) {
           LiveInterval* interval = liveness_.GetInstructionFromSsaIndex(idx)->GetLiveInterval();
           LiveInterval* sibling = interval->GetSiblingAt(block->GetLifetimeStart());
           // `GetSiblingAt` returns the sibling that contains a position, but there could be
@@ -168,8 +168,8 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
         }
       }
     } else {
-      BitVector* live = liveness_.GetLiveInSet(*block);
-      for (uint32_t idx : live->Indexes()) {
+      BitVectorView<size_t> live = liveness_.GetLiveInSet(*block);
+      for (uint32_t idx : live.Indexes()) {
         LiveInterval* interval = liveness_.GetInstructionFromSsaIndex(idx)->GetLiveInterval();
         for (HBasicBlock* predecessor : block->GetPredecessors()) {
           ConnectSplitSiblings(interval, predecessor, block);

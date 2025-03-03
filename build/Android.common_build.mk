@@ -46,8 +46,13 @@ ifeq ($(ART_BUILD_HOST_DEBUG),false)
 $(info Disabling ART_BUILD_HOST_DEBUG)
 endif
 
+ifeq ($(ART_USE_RESTRICTED_MODE),true)
+# TODO(Simulator): Support read barriers.
+ART_USE_READ_BARRIER := false
+else
 # Enable the read barrier by default.
 ART_USE_READ_BARRIER ?= true
+endif
 
 ART_CPP_EXTENSION := .cc
 

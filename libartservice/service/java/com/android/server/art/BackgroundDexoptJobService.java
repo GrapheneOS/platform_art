@@ -31,6 +31,9 @@ import com.android.server.art.model.ArtServiceJobInterface;
  * Entry point for the callback from the job scheduler. This class is instantiated by the system
  * automatically.
  *
+ * This class is for all ART Service jobs, not only the background dexopt job but also the
+ * Pre-reboot Dexopt job. We cannot change its name because its hardcoded on the platform side.
+ *
  * @hide
  */
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)

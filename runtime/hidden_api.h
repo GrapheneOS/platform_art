@@ -241,6 +241,7 @@ uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_);
 // `member` should be denied.
 template <typename T>
 bool HandleCorePlatformApiViolation(T* member,
+                                    ApiList api_list,
                                     uint32_t runtime_flags,
                                     const AccessContext& caller_context,
                                     const AccessContext& callee_context,
@@ -266,7 +267,7 @@ inline ArtMethod* GetInterfaceMemberIfProxy(ArtMethod* method)
 ALWAYS_INLINE inline uint32_t CreateRuntimeFlags_Impl(uint32_t dex_flags) {
   uint32_t runtime_flags = 0u;
 
-  ApiList api_list(dex_flags);
+  ApiList api_list = ApiList::FromDexFlags(dex_flags);
   DCHECK(api_list.IsValid());
 
   if (api_list.Contains(ApiList::Sdk())) {

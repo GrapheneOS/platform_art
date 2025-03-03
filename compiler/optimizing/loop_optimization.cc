@@ -3095,7 +3095,7 @@ bool HLoopOptimization::TryReplaceWithLastValue(HLoopInformation* loop_info,
         if (other_loop_info == nullptr || !other_loop_info->IsIn(*loop_info)) {
           user->RemoveAsUserOfInput(index);
           user->SetRawEnvAt(index, replacement);
-          replacement->AddEnvUseAt(user, index);
+          replacement->AddEnvUseAt(graph_->GetAllocator(), user, index);
         }
       }
     }

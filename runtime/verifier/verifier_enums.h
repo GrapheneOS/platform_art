@@ -81,9 +81,11 @@ enum VerifyError : uint32_t {
   VERIFY_ERROR_ACCESS_METHOD =     1 << 7,   // IllegalAccessError.
   VERIFY_ERROR_CLASS_CHANGE =      1 << 8,   // IncompatibleClassChangeError.
   VERIFY_ERROR_INSTANTIATION =     1 << 9,   // InstantiationError.
-  VERIFY_ERROR_LOCKING =           1 << 10,  // Could not guarantee balanced locking. This should
+  VERIFY_ERROR_FILLED_NEW_ARRAY =  1 << 10,  // Unsupported `filled-new-array/-range` component
+                                             // type. Interpreter throws `InternalError.
+  VERIFY_ERROR_LOCKING =           1 << 11,  // Could not guarantee balanced locking. This should
                                              // be punted to the interpreter with access checks.
-  VERIFY_ERROR_RUNTIME_THROW =     1 << 11,  // The interpreter found an instruction that will
+  VERIFY_ERROR_RUNTIME_THROW =     1 << 12,  // The interpreter found an instruction that will
                                              // throw. Used for app compatibility for apps < T.
 };
 std::ostream& operator<<(std::ostream& os, VerifyError rhs);

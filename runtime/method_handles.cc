@@ -782,7 +782,8 @@ static bool DoMethodHandleInvokeMethod(Thread* self,
     if (called_method->IsDefaultConflicting()) {
       ThrowIncompatibleClassChangeErrorForMethodConflict(called_method);
     } else {
-      ThrowAbstractMethodError(called_method);
+      ThrowAbstractMethodError(called_method,
+                               shadow_frame.GetVRegReference(operands->GetOperand(0)));
     }
     return false;
   }

@@ -80,6 +80,9 @@ Supported options:
       host. The default on target is based on the ISA of this binary.
   --core-only=true|false: If true, only compile ART jars. Otherwise, also compile core-icu4j and
       conscrypt. Default: false
+  --android-root-for-location=true|false: If true, use --android-root as a prefix to the dex
+      locations. This allows non-device paths to the bootclasspath jars to be used, for example: to
+      generate a boot image on host that can be used on host. Default: false
   --: Arguments following '--' are directly passed to dex2oat.
 )";
 
@@ -94,6 +97,7 @@ struct Options {
   std::string profile_file = "";
   std::string instruction_set = "";
   bool core_only = false;
+  bool android_root_for_location = false;
   std::vector<std::string> dex2oat_options;
 };
 
@@ -133,7 +137,12 @@ int GenerateBootImage(const Options& options) {
 
   std::vector<std::string> dex_files =
       GetLibCoreDexFileNames(options.android_root, options.core_only);
-  std::vector<std::string> dex_locations = GetLibCoreDexLocations(options.core_only);
+  std::vector<std::string> dex_locations;
+  if (options.android_root_for_location) {
+    dex_locations = dex_files;
+  } else {
+    dex_locations = GetLibCoreDexLocations(options.core_only);
+  }
   args.push_back("--runtime-arg");
   args.push_back("-Xbootclasspath:" + Join(dex_files, ":"));
   args.push_back("--runtime-arg");
@@ -209,6 +218,12 @@ int Main(int argc, char** argv) {
         Usage(ART_FORMAT("Unrecognized --core-only value: '{}'", arg));
       }
       options.core_only = result == ParseBoolResult::kTrue;
+    } else if (ConsumePrefix(&arg, "--android-root-for-location=")) {
+      ParseBoolResult result = ParseBool(arg);
+      if (result == ParseBoolResult::kError) {
+        Usage(ART_FORMAT("Unrecognized --android-root-for-location value: '{}'", arg));
+      }
+      options.android_root_for_location = result == ParseBoolResult::kTrue;
     } else if (arg == "--") {
       for (i++; i < argc; i++) {
         options.dex2oat_options.push_back(argv[i]);

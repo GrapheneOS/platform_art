@@ -759,6 +759,11 @@ if True:
       if prebuild_mode:
         run_checker = True
 
+        if os.environ.get("ART_USE_RESTRICTED_MODE") == "true":
+          # TODO(Simulator): support checker runs.
+          run_checker = False
+          cfg_output_dir = tmp_dir
+
         if not target_mode:
           cfg_output_dir = tmp_dir
           checker_args = f"--arch={host_arch_name.upper()}"

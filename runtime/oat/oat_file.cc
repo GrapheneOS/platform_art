@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <sstream>
 #include <type_traits>
 
@@ -40,6 +41,7 @@
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "base/utils.h"
+#include "base/zip_archive.h"
 #include "class_loader_context.h"
 #include "dex/art_dex_file_loader.h"
 #include "dex/dex_file.h"
@@ -344,6 +346,7 @@ bool OatFileBase::LoadVdex(int vdex_fd,
                                       vdex_end_ - vdex_begin_,
                                       /*mmap_reuse=*/vdex_begin_ != nullptr,
                                       vdex_fd,
+                                      /*start=*/0,
                                       s.st_size,
                                       vdex_filename,
                                       low_4gb,
@@ -782,9 +785,14 @@ bool OatFileBase::Setup(int zip_fd,
     std::string dex_file_name = dex_file_location;
     if (!dex_filenames.empty()) {
       dex_file_name.replace(/*pos*/ 0u, primary_location.size(), primary_location_replacement);
-      // If the location does not contain path and matches the file name component,
-      // use the provided file name also as the location.
-      // TODO: Do we need this for anything other than tests?
+      // If the location (the `--dex-location` passed to dex2oat) only contains the basename and
+      // matches the basename in the provided file name, use the provided file name also as the
+      // location.
+      // This is needed when the location on device is unknown at compile-time, typically during
+      // Cloud Compilation because the compilation is done on the server and the apk is later
+      // installed on device into `/data/app/<random_string>`.
+      // This is not needed during dexpreopt because the location on device is known to be a certain
+      // location in /system, /product, etc.
       if (dex_file_location.find('/') == std::string::npos &&
           dex_file_name.size() > dex_file_location.size() &&
           dex_file_name[dex_file_name.size() - dex_file_location.size() - 1u] == '/' &&
@@ -1622,6 +1630,9 @@ class ElfOatFile final : public OatFileBase {
 
  private:
   bool ElfFileOpen(File* file,
+                   off_t start,
+                   size_t file_length,
+                   const std::string& file_location,
                    bool executable,
                    bool low_4gb,
                    /*inout*/ MemMap* reservation,  // Where to load if not null.
@@ -1640,12 +1651,18 @@ bool ElfOatFile::Load(const std::string& elf_filename,
                       /*inout*/ MemMap* reservation,
                       /*out*/ std::string* error_msg) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-  std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
+
+  // Mirrors the alignment in the Bionic's dlopen. Actually, ART's MemMap only requires 4096 byte
+  // alignment, but we want to be more strict here, to reflect what the Bionic's dlopen would be
+  // able to load.
+  auto [file, start, length] = OS::OpenFileDirectlyOrFromZip(
+      elf_filename, kZipSeparator, /*alignment=*/MemMap::GetPageSize(), error_msg);
   if (file == nullptr) {
-    *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
     return false;
   }
-  return ElfOatFile::ElfFileOpen(file.get(), executable, low_4gb, reservation, error_msg);
+
+  return ElfOatFile::ElfFileOpen(
+      file.get(), start, length, elf_filename, executable, low_4gb, reservation, error_msg);
 }
 
 bool ElfOatFile::Load(int oat_fd,
@@ -1658,27 +1675,41 @@ bool ElfOatFile::Load(int oat_fd,
     int duped_fd = DupCloexec(oat_fd);
     std::unique_ptr<File> file = std::make_unique<File>(duped_fd, false);
     if (file == nullptr) {
-      *error_msg = StringPrintf("Failed to open oat filename for reading: %s",
-                                strerror(errno));
+      *error_msg = StringPrintf("Failed to open oat file for reading: %s", strerror(errno));
       return false;
     }
-    return ElfOatFile::ElfFileOpen(file.get(), executable, low_4gb, reservation, error_msg);
+    int64_t file_length = file->GetLength();
+    if (file_length < 0) {
+      *error_msg = StringPrintf("Failed to get file length of oat file: %s", strerror(errno));
+      return false;
+    }
+    return ElfOatFile::ElfFileOpen(file.get(),
+                                   /*start=*/0,
+                                   file_length,
+                                   file->GetPath(),
+                                   executable,
+                                   low_4gb,
+                                   reservation,
+                                   error_msg);
   }
   return false;
 }
 
 bool ElfOatFile::ElfFileOpen(File* file,
+                             off_t start,
+                             size_t file_length,
+                             const std::string& file_location,
                              bool executable,
                              bool low_4gb,
                              /*inout*/ MemMap* reservation,
                              /*out*/ std::string* error_msg) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-  elf_file_.reset(ElfFile::Open(file, low_4gb, error_msg));
+  elf_file_.reset(ElfFile::Open(file, start, file_length, file_location, low_4gb, error_msg));
   if (elf_file_ == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
   }
-  bool loaded = elf_file_->Load(file, executable, low_4gb, reservation, error_msg);
+  bool loaded = elf_file_->Load(executable, low_4gb, reservation, error_msg);
   DCHECK(loaded || !error_msg->empty());
   return loaded;
 }
@@ -1690,9 +1721,7 @@ class OatFileBackedByVdex final : public OatFileBase {
         oat_header_(nullptr) {}
 
   ~OatFileBackedByVdex() {
-    if (oat_header_ != nullptr) {
-      operator delete (oat_header_, oat_header_->GetHeaderSize());
-    }
+    OatHeader::Delete(oat_header_);
   }
 
   static OatFileBackedByVdex* Open(const std::vector<const DexFile*>& dex_files,

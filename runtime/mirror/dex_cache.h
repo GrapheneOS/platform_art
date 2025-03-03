@@ -308,9 +308,10 @@ class MANAGED DexCache final : public Object {
   // WARNING: This does not free the memory since it is in LinearAlloc.
   EXPORT void ResetNativeArrays() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ObjPtr<String> GetLocation() REQUIRES_SHARED(Locks::mutator_lock_);
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  ObjPtr<String> GetLocation(bool allow_location_mismatch = false)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   String* GetResolvedString(dex::StringIndex string_idx) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);

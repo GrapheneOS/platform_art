@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.Utils.Abi;
+
 import android.os.Build;
 
 import androidx.annotation.NonNull;
@@ -23,6 +25,9 @@ import androidx.annotation.RequiresApi;
 
 import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.art.model.DexMetadata;
+import com.android.server.art.model.DexoptParams;
+
+import java.util.List;
 
 /**
  * A class to report dex2oat metrics to StatsD.
@@ -41,6 +46,23 @@ public class Dex2OatStatsReporter {
                 translateDexMetadataType(dexMetadataType), getApkType(dexInfo), translateIsa(isa),
                 result.status, result.exitCode, result.signal, (int) (artifactsSize / 1024),
                 (int) compilationTime);
+    }
+
+    public static void reportSkipped(int appId, @NonNull String compilationReason,
+            @DexMetadata.Type int dexMetadataType, @NonNull DetailedDexInfo dexInfo,
+            @NonNull List<Abi> abis) {
+        Dex2OatResult skipped = Dex2OatResult.notRun();
+
+        for (Abi abi : abis) {
+            ArtStatsLog.write(ArtStatsLog.ART_DEX2OAT_REPORTED, appId,
+                    translateCompilerFilter(DexoptParams.COMPILER_FILTER_NOOP),
+                    translateCompilationReason(compilationReason), dexMetadataType,
+                    getApkType(dexInfo), translateIsa(abi.isa()), skipped.status, skipped.exitCode,
+                    skipped.signal,
+                    0, // artifacts size
+                    0 // compilation time
+            );
+        }
     }
 
     private static int translateCompilerFilter(String compilerFilter) {
@@ -66,6 +88,8 @@ public class Dex2OatStatsReporter {
             case "everything" ->
                 ArtStatsLog
                         .ART_DEX2_OAT_REPORTED__COMPILER_FILTER__ART_COMPILATION_FILTER_EVERYTHING;
+            case "skip" ->
+                ArtStatsLog.ART_DEX2_OAT_REPORTED__COMPILER_FILTER__ART_COMPILATION_FILTER_SKIP;
             default ->
                 ArtStatsLog.ART_DEX2_OAT_REPORTED__COMPILER_FILTER__ART_COMPILATION_FILTER_UNKNOWN;
         };

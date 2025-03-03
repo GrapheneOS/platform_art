@@ -722,8 +722,7 @@ class Heap {
   EXPORT bool ObjectIsInBootImageSpace(ObjPtr<mirror::Object> obj) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsInBootImageOatFile(const void* p) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsInBootImageOatFile(const void* p) const;
 
   // Get the start address of the boot images if any; otherwise returns 0.
   uint32_t GetBootImagesStartAddress() const {

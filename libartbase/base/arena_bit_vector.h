@@ -17,13 +17,14 @@
 #ifndef ART_LIBARTBASE_BASE_ARENA_BIT_VECTOR_H_
 #define ART_LIBARTBASE_BASE_ARENA_BIT_VECTOR_H_
 
+#include <algorithm>
+
 #include "arena_object.h"
 #include "base/arena_allocator.h"
 #include "bit_vector.h"
 
 namespace art {
 
-class ArenaAllocator;
 class ScopedArenaAllocator;
 
 /*
@@ -53,6 +54,22 @@ class ArenaBitVector : public BitVector, public ArenaObject<kArenaAllocGrowableB
 
   ArenaBitVector(ArenaBitVector&&) = default;
   ArenaBitVector(const ArenaBitVector&) = delete;
+
+  template <typename StorageType = size_t, typename Allocator>
+  static BitVectorView<StorageType> CreateFixedSize(
+      Allocator* allocator, size_t bits, ArenaAllocKind kind = kArenaAllocGrowableBitMap) {
+    static_assert(std::is_same_v<Allocator, ArenaAllocator> ||
+                  std::is_same_v<Allocator, ScopedArenaAllocator>);
+    size_t num_elements = BitVectorView<StorageType>::BitsToWords(bits);
+    StorageType* storage = allocator->template AllocArray<StorageType>(num_elements, kind);
+    BitVectorView<StorageType> result(storage, bits);
+    if (std::is_same_v<Allocator, ScopedArenaAllocator>) {
+      result.ClearAllBits();
+    } else {
+      DCHECK(!result.IsAnyBitSet());
+    }
+    return result;
+  }
 };
 
 }  // namespace art

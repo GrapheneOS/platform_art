@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_INL_H_
-#define ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_INL_H_
+#ifndef ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_INL_H_
+#define ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_INL_H_
 
 #include "atomic_dex_ref_map.h"
 
@@ -147,4 +147,4 @@ inline std::vector<const DexFile*> AtomicDexRefMap<DexFileReferenceType, Value>:
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_INL_H_
+#endif  // ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_INL_H_

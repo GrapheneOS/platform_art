@@ -248,7 +248,7 @@ TEST_F(NodeTest, ParentEnvironment) {
       graph->GetArtMethod(),
       /*dex_pc=*/ 0,
       /*holder=*/ nullptr);
-  parent1->CopyFrom(ArrayRef<HInstruction* const>(&parameter1, 1u));
+  parent1->CopyFrom(GetAllocator(), ArrayRef<HInstruction* const>(&parameter1, 1u));
 
   ASSERT_EQ(parameter1->GetEnvUses().SizeSlow(), 2u);
 
@@ -258,7 +258,7 @@ TEST_F(NodeTest, ParentEnvironment) {
       graph->GetArtMethod(),
       /*dex_pc=*/ 0,
       /*holder=*/ nullptr);
-  parent2->CopyFrom(ArrayRef<HInstruction* const>(&parameter1, 1u));
+  parent2->CopyFrom(GetAllocator(), ArrayRef<HInstruction* const>(&parameter1, 1u));
   parent1->SetAndCopyParentChain(GetAllocator(), parent2);
 
   // One use for parent2, and one other use for the new parent of parent1.

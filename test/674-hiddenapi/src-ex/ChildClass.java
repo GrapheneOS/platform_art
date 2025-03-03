@@ -121,8 +121,10 @@ public class ChildClass {
         expected = Behaviour.Granted;
         invokesMemberCallback = false;
       } else if (parentDomain == DexDomain.CorePlatform && childDomain == DexDomain.Platform) {
-        expected = (hiddenness == Hiddenness.BlocklistAndCorePlatformApi)
-            ? Behaviour.Granted : Behaviour.Denied;
+        expected = (hiddenness == Hiddenness.Unsupported
+                           || hiddenness == Hiddenness.BlocklistAndCorePlatformApi)
+                ? Behaviour.Granted
+                : Behaviour.Denied;
         invokesMemberCallback = false;
       } else if (isSameBoot) {
         expected = Behaviour.Granted;

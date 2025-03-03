@@ -1014,7 +1014,7 @@ public final class ArtManagerLocal {
     public void dump(@NonNull PrintWriter pw,
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, boolean verifySdmSignatures) {
         try (var pin = mInjector.createArtdPin()) {
-            new DumpHelper(this).dump(pw, snapshot, verifySdmSignatures);
+            new DumpHelper(this, verifySdmSignatures).dump(pw, snapshot);
         }
     }
 
@@ -1043,8 +1043,8 @@ public final class ArtManagerLocal {
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
             boolean verifySdmSignatures) {
         try (var pin = mInjector.createArtdPin()) {
-            new DumpHelper(this).dumpPackage(pw, snapshot,
-                    Utils.getPackageStateOrThrow(snapshot, packageName), verifySdmSignatures);
+            new DumpHelper(this, verifySdmSignatures)
+                    .dumpPackage(pw, snapshot, Utils.getPackageStateOrThrow(snapshot, packageName));
         }
     }
 

@@ -45,7 +45,7 @@ class HiddenApi {
 
   hiddenapi::ApiList GetApiList(const std::string& name) const {
     auto it = api_list_.find(name);
-    return (it == api_list_.end()) ? hiddenapi::ApiList() : it->second;
+    return (it == api_list_.end()) ? hiddenapi::ApiList::Invalid() : it->second;
   }
 
   bool ShouldReport(const std::string& signature) const {

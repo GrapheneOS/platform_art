@@ -190,7 +190,7 @@ class HiddenApiTest : public CommonRuntimeTest {
         const uint32_t actual_visibility = field.GetAccessFlags() & kAccVisibilityFlags;
         CHECK_EQ(actual_visibility, expected_visibility)
             << "Field " << name << " in class " << accessor.GetDescriptorView();
-        return hiddenapi::ApiList(field.GetHiddenapiFlags());
+        return hiddenapi::ApiList::FromDexFlags(field.GetHiddenapiFlags());
       }
     }
 
@@ -219,7 +219,7 @@ class HiddenApiTest : public CommonRuntimeTest {
         const uint32_t actual_visibility = method.GetAccessFlags() & kAccVisibilityFlags;
         CHECK_EQ(actual_visibility, expected_visibility)
             << "Method " << name << " in class " << accessor.GetDescriptorView();
-        return hiddenapi::ApiList(method.GetHiddenapiFlags());
+        return hiddenapi::ApiList::FromDexFlags(method.GetHiddenapiFlags());
       }
     }
 
@@ -700,8 +700,9 @@ TEST_F(HiddenApiTest, InstanceFieldCorePlatformApiMatch) {
       << "LMain;->ifield:I,unsupported,core-platform-api" << std::endl;
   auto dex_file = RunHiddenapiEncode(flags_csv, {}, dex);
   ASSERT_NE(dex_file.get(), nullptr);
-  ASSERT_EQ(hiddenapi::ApiList::CorePlatformApi() |
-  hiddenapi::ApiList::Unsupported(), GetIFieldHiddenFlags(*dex_file));
+  ASSERT_EQ(hiddenapi::ApiList::Combine(hiddenapi::ApiList::CorePlatformApi(),
+                                        hiddenapi::ApiList::Unsupported()),
+            GetIFieldHiddenFlags(*dex_file));
 }
 
 TEST_F(HiddenApiTest, InstanceFieldTestApiMatch) {
@@ -712,8 +713,9 @@ TEST_F(HiddenApiTest, InstanceFieldTestApiMatch) {
       << "LMain;->ifield:I,unsupported,test-api" << std::endl;
   auto dex_file = RunHiddenapiEncode(flags_csv, {}, dex);
   ASSERT_NE(dex_file.get(), nullptr);
-  ASSERT_EQ(hiddenapi::ApiList::TestApi()
-  | hiddenapi::ApiList::Unsupported(), GetIFieldHiddenFlags(*dex_file));
+  ASSERT_EQ(
+      hiddenapi::ApiList::Combine(hiddenapi::ApiList::TestApi(), hiddenapi::ApiList::Unsupported()),
+      GetIFieldHiddenFlags(*dex_file));
 }
 
 TEST_F(HiddenApiTest, InstanceFieldUnknownFlagMatch) {

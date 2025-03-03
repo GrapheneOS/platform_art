@@ -37,5 +37,7 @@ art_cc_binary {
         "libelffile",
         "liblzma",
         "liblog",
+        "libz", // For "libartbase".
+        "libziparchive", // For "libartbase".
     ],
 }

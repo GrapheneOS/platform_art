@@ -1341,7 +1341,7 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
 
 static std::string GetHiddenapiFlagStr(uint32_t hiddenapi_flags) {
   std::stringstream ss;
-  hiddenapi::ApiList api_list(hiddenapi_flags);
+  hiddenapi::ApiList api_list = hiddenapi::ApiList::FromDexFlags(hiddenapi_flags);
   api_list.Dump(ss);
   std::string str_api_list = ss.str();
   std::transform(str_api_list.begin(), str_api_list.end(), str_api_list.begin(), ::toupper);

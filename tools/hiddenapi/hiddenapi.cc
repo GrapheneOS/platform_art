@@ -898,7 +898,7 @@ class HiddenApi final {
               CHECK(!force_assign_all_ || api_list_found)
                   << "Could not find hiddenapi flags for dex entry: " << signature;
               if (api_list_found && it->second.GetIntValue() > max_hiddenapi_level_.GetIntValue()) {
-                ApiList without_domain(it->second.GetIntValue());
+                ApiList without_domain = ApiList::FromDexFlags(it->second.GetIntValue());
                 LOG(ERROR) << "Hidden api flag " << without_domain << " for member " << signature
                            << " in " << input_path << " exceeds maximum allowable flag "
                            << max_hiddenapi_level_;
@@ -956,7 +956,7 @@ class HiddenApi final {
       CHECK(api_flag_map.find(signature) == api_flag_map.end()) << path << ":" << line_number
           << ": Duplicate entry: " << signature << kErrorHelp;
 
-      ApiList membership;
+      ApiList membership = ApiList::Invalid();
 
       std::vector<std::string>::iterator apiListBegin = values.begin() + 1;
       std::vector<std::string>::iterator apiListEnd = values.end();
@@ -1098,7 +1098,7 @@ class HiddenApi final {
   //
   // By default this returns a GetIntValue() that is guaranteed to be bigger than
   // any valid value returned by GetIntValue().
-  ApiList max_hiddenapi_level_;
+  ApiList max_hiddenapi_level_ = ApiList::Invalid();
 
   // Whether the input is only a fragment of the whole bootclasspath and may
   // not include a complete set of classes. That requires the tool to ignore missing

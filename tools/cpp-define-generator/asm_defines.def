@@ -23,6 +23,7 @@
 #include "art_method.def"
 #include "code_item.def"
 #include "lockword.def"
+#include "instrumentation.def"
 #include "mirror_array.def"
 #include "mirror_class.def"
 #include "mirror_object.def"

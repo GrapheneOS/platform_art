@@ -2032,14 +2032,12 @@ TEST_F(Dex2oatTest, LoadOutOfDateOatFile) {
                                                       /*low_4gb=*/false,
                                                       &error_msg));
       ASSERT_TRUE(elf_file != nullptr) << error_msg;
-      ASSERT_TRUE(elf_file->Load(file.get(),
-                                 /*executable=*/false,
+      ASSERT_TRUE(elf_file->Load(/*executable=*/false,
                                  /*low_4gb=*/false,
                                  /*reservation=*/nullptr,
                                  &error_msg))
           << error_msg;
-      const uint8_t* base_address = elf_file->Is64Bit() ? elf_file->GetImpl64()->GetBaseAddress() :
-                                                          elf_file->GetImpl32()->GetBaseAddress();
+      const uint8_t* base_address = elf_file->GetBaseAddress();
       const uint8_t* oatdata = elf_file->FindDynamicSymbolAddress("oatdata");
       ASSERT_TRUE(oatdata != nullptr);
       ASSERT_TRUE(oatdata > base_address);

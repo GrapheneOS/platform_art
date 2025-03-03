@@ -215,6 +215,11 @@ inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos,
   const void* src_raw = src->GetRawData(sizeof(T), src_pos);
   if (sizeof(T) == sizeof(uint8_t)) {
     memcpy(dst_raw, src_raw, count);
+  } else if (sizeof(T) == sizeof(uint32_t)) {
+    // b/392789466 Avoids copy using float registers on aarch64 for better performance.
+    uint32_t* d = reinterpret_cast<uint32_t*>(dst_raw);
+    const uint32_t* s = reinterpret_cast<const uint32_t*>(src_raw);
+    ArrayForwardCopy<uint32_t>(d, s, count);
   } else {
     T* d = reinterpret_cast<T*>(dst_raw);
     const T* s = reinterpret_cast<const T*>(src_raw);

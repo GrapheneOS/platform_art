@@ -97,17 +97,27 @@ static void ThrowWrappedException(const char* exception_descriptor,
 
 // AbstractMethodError
 
-void ThrowAbstractMethodError(ArtMethod* method) {
+void ThrowAbstractMethodError(ArtMethod* method, ObjPtr<mirror::Object> receiver) {
+  std::string klass = (receiver == nullptr)
+      ? "null"
+      : mirror::Class::PrettyClass(receiver->GetClass());
   ThrowException("Ljava/lang/AbstractMethodError;", nullptr,
-                 StringPrintf("abstract method \"%s\"",
-                              ArtMethod::PrettyMethod(method).c_str()).c_str());
+                 StringPrintf("abstract method \"%s\" on receiver %s",
+                              ArtMethod::PrettyMethod(method).c_str(),
+                              klass.c_str()).c_str());
 }
 
-void ThrowAbstractMethodError(uint32_t method_idx, const DexFile& dex_file) {
+void ThrowAbstractMethodError(uint32_t method_idx,
+                              const DexFile& dex_file,
+                              ObjPtr<mirror::Object> receiver) {
+  std::string klass = (receiver == nullptr)
+      ? "null"
+      : mirror::Class::PrettyClass(receiver->GetClass());
   ThrowException("Ljava/lang/AbstractMethodError;", /* referrer= */ nullptr,
-                 StringPrintf("abstract method \"%s\"",
+                 StringPrintf("abstract method \"%s\" on receiver %s",
                               dex_file.PrettyMethod(method_idx,
-                                                    /* with_signature= */ true).c_str()).c_str());
+                                                    /* with_signature= */ true).c_str(),
+                              klass.c_str()).c_str());
 }
 
 // ArithmeticException

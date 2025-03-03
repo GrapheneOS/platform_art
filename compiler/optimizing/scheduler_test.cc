@@ -118,9 +118,9 @@ class SchedulerTest : public CommonCompilerTest, public OptimizingUnitTestHelper
                                                      div_check);
     div_check->SetRawEnvironment(environment);
     environment->SetRawEnvAt(0, add2);
-    add2->AddEnvUseAt(div_check->GetEnvironment(), 0);
+    add2->AddEnvUseAt(GetAllocator(), div_check->GetEnvironment(), 0);
     environment->SetRawEnvAt(1, mul);
-    mul->AddEnvUseAt(div_check->GetEnvironment(), 1);
+    mul->AddEnvUseAt(GetAllocator(), div_check->GetEnvironment(), 1);
 
     TestSchedulingGraph scheduling_graph(GetScopedAllocator());
     // Instructions must be inserted in reverse order into the scheduling graph.

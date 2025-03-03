@@ -1138,11 +1138,12 @@ class RuntimeImageHelper {
 
     std::unique_ptr<const InstructionSetFeatures> isa_features =
         InstructionSetFeatures::FromCppDefines();
-    std::unique_ptr<OatHeader> oat_header(
+    std::unique_ptr<OatHeader, decltype(&OatHeader::Delete)> oat_header(
         OatHeader::Create(kRuntimeQuickCodeISA,
                           isa_features.get(),
                           number_of_dex_files,
-                          &key_value_store));
+                          &key_value_store),
+        &OatHeader::Delete);
 
     // Create the byte array containing the oat header and dex checksums.
     uint32_t checksums_size = checksums.size() * sizeof(uint32_t);

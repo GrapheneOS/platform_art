@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_
-#define ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_
+#ifndef ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_H_
+#define ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_H_
 
 #include "base/atomic.h"
 #include "base/dchecked_vector.h"
@@ -31,6 +31,9 @@ class DexFile;
 template <typename DexFileReferenceType, typename Value>
 class AtomicDexRefMap {
  public:
+  // Verified methods. The method array is fixed to avoid needing a lock to extend it.
+  using ElementArray = dchecked_vector<Atomic<Value>>;
+
   AtomicDexRefMap() {}
   ~AtomicDexRefMap() {}
 
@@ -68,13 +71,11 @@ class AtomicDexRefMap {
 
   void ClearEntries();
 
- private:
-  // Verified methods. The method array is fixed to avoid needing a lock to extend it.
-  using ElementArray = dchecked_vector<Atomic<Value>>;
-  using DexFileArrays = SafeMap<const DexFile*, ElementArray>;
-
   const ElementArray* GetArray(const DexFile* dex_file) const;
   ElementArray* GetArray(const DexFile* dex_file);
+
+ private:
+  using DexFileArrays = SafeMap<const DexFile*, ElementArray>;
 
   static size_t NumberOfDexIndices(const DexFile* dex_file);
 
@@ -83,4 +84,4 @@ class AtomicDexRefMap {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ATOMIC_DEX_REF_MAP_H_
+#endif  // ART_DEX2OAT_UTILS_ATOMIC_DEX_REF_MAP_H_
