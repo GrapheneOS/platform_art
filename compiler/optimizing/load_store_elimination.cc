@@ -785,8 +785,10 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       // Treat it as a normal load if it is a removable singleton.
     }
 
-    const FieldInfo& field = instruction->GetFieldInfo();
-    VisitGetLocation(instruction, heap_location_collector_.GetFieldHeapLocation(object, &field));
+    const FieldInfo& field_info = instruction->GetFieldInfo();
+    size_t idx = heap_location_collector_.GetFieldHeapLocation(object, &field_info);
+    RecordFieldInfo(&field_info, idx);
+    VisitGetLocation(instruction, idx);
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) override {
@@ -801,9 +803,10 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       // Treat it as a normal store if it is a removable singleton.
     }
 
-    const FieldInfo& field = instruction->GetFieldInfo();
+    const FieldInfo& field_info = instruction->GetFieldInfo();
     HInstruction* value = instruction->InputAt(1);
-    size_t idx = heap_location_collector_.GetFieldHeapLocation(object, &field);
+    size_t idx = heap_location_collector_.GetFieldHeapLocation(object, &field_info);
+    RecordFieldInfo(&field_info, idx);
     VisitSetLocation(instruction, idx, value);
   }
 
@@ -813,9 +816,11 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       return;
     }
 
-    const FieldInfo& field = instruction->GetFieldInfo();
+    const FieldInfo& field_info = instruction->GetFieldInfo();
     HInstruction* cls = instruction->InputAt(0);
-    VisitGetLocation(instruction, heap_location_collector_.GetFieldHeapLocation(cls, &field));
+    size_t idx = heap_location_collector_.GetFieldHeapLocation(cls, &field_info);
+    RecordFieldInfo(&field_info, idx);
+    VisitGetLocation(instruction, idx);
   }
 
   void VisitStaticFieldSet(HStaticFieldSet* instruction) override {
@@ -824,10 +829,11 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       return;
     }
 
-    const FieldInfo& field = instruction->GetFieldInfo();
+    const FieldInfo& field_info = instruction->GetFieldInfo();
     HInstruction* cls = instruction->InputAt(0);
     HInstruction* value = instruction->InputAt(1);
-    size_t idx = heap_location_collector_.GetFieldHeapLocation(cls, &field);
+    size_t idx = heap_location_collector_.GetFieldHeapLocation(cls, &field_info);
+    RecordFieldInfo(&field_info, idx);
     VisitSetLocation(instruction, idx, value);
   }
 
@@ -1544,9 +1550,6 @@ void LSEVisitor::VisitGetLocation(HInstruction* instruction, size_t idx) {
   uint32_t block_id = instruction->GetBlock()->GetBlockId();
   ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block_id];
   ValueRecord& record = heap_values[idx];
-  if (instruction->IsFieldAccess()) {
-    RecordFieldInfo(&instruction->GetFieldInfo(), idx);
-  }
   DCHECK(record.value.IsUnknown() || record.value.Equals(ReplacementOrValue(record.value)));
   loads_and_stores_.push_back({ instruction, idx });
   if ((record.value.IsDefault() || record.value.NeedsNonLoopPhi()) &&
@@ -1587,9 +1590,6 @@ void LSEVisitor::VisitGetLocation(HInstruction* instruction, size_t idx) {
 void LSEVisitor::VisitSetLocation(HInstruction* instruction, size_t idx, HInstruction* value) {
   DCHECK_NE(idx, HeapLocationCollector::kHeapLocationNotFound);
   DCHECK(!IsStore(value)) << value->DebugName();
-  if (instruction->IsFieldAccess()) {
-    RecordFieldInfo(&instruction->GetFieldInfo(), idx);
-  }
   // value may already have a substitute.
   value = FindSubstitute(value);
   HBasicBlock* block = instruction->GetBlock();

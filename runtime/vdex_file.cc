@@ -569,6 +569,7 @@ ClassStatus VdexFile::ComputeClassStatus(Thread* self, Handle<mirror::Class> cls
         class_linker, self, source_desc, source_desc_length, class_loader));
 
     if (destination == nullptr || source == nullptr) {
+      cls->SetHasTypeChecksFailure();
       // The interpreter / compiler can handle a missing class.
       continue;
     }

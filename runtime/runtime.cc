@@ -1325,7 +1325,6 @@ void Runtime::InitNonZygoteOrPostFork(
     if (!odrefresh::UploadStatsIfAvailable(&err)) {
       LOG(WARNING) << "Failed to upload odrefresh metrics: " << err;
     }
-    metrics::SetupCallbackForDeviceStatus();
     metrics::ReportDeviceMetrics();
   }
 

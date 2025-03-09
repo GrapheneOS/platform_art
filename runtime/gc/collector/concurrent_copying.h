@@ -464,6 +464,7 @@ class ConcurrentCopying : public GarbageCollector {
   Atomic<uint64_t> rb_slow_path_ns_;
   Atomic<uint64_t> rb_slow_path_count_;
   Atomic<uint64_t> rb_slow_path_count_gc_;
+  uint64_t app_slow_path_start_time_;
   mutable Mutex rb_slow_path_histogram_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Histogram<uint64_t> rb_slow_path_time_histogram_ GUARDED_BY(rb_slow_path_histogram_lock_);
   uint64_t rb_slow_path_count_total_ GUARDED_BY(rb_slow_path_histogram_lock_);

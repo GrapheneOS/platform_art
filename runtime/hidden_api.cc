@@ -68,11 +68,11 @@ static const std::vector<std::string> kWarningExemptions = {
     "Lsun/misc/Unsafe;",
 };
 
-// Intra-core APIs that aren't also core platform APIs. These may be used by the
-// non-updatable ICU module and hence are effectively de-facto core platform
-// APIs.
 // TODO(b/377676642): Fix API annotations and delete this.
 static const std::vector<std::string> kCorePlatformApiExemptions = {
+    // Intra-core APIs that aren't also core platform APIs. These may be used by
+    // the non-updatable ICU module and hence are effectively de-facto core
+    // platform APIs.
     "Ldalvik/annotation/compat/VersionCodes;",
     "Ldalvik/annotation/optimization/ReachabilitySensitive;",
     "Ldalvik/system/BlockGuard/Policy;->onNetwork",
@@ -86,6 +86,13 @@ static const std::vector<std::string> kCorePlatformApiExemptions = {
     "Lsun/security/util/DerEncoder;",
     "Lsun/security/x509/AlgorithmId;->derEncode",
     "Lsun/security/x509/AlgorithmId;->get",
+    // These are new system module APIs that are accessed unflagged (cf.
+    // b/400041178 and b/400041556).
+    "Ldalvik/system/VMDebug;->setCurrentProcessName",
+    "Ldalvik/system/VMDebug;->addApplication",
+    "Ldalvik/system/VMDebug;->removeApplication",
+    "Ldalvik/system/VMDebug;->setUserId",
+    "Ldalvik/system/VMDebug;->setWaitingForDebugger",
 };
 
 static inline std::ostream& operator<<(std::ostream& os, AccessMethod value) {

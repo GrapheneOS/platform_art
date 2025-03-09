@@ -24,9 +24,7 @@
 #include <memory>
 #include <string>
 
-namespace unix_file {
-class FdFile;
-}  // namespace unix_file
+#include "unix_file/fd_file.h"
 
 namespace art {
 

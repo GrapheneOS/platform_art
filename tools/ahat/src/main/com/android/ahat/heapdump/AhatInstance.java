@@ -616,10 +616,10 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
 
   /**
    * Returns a sample path from a GC root to this instance. The first element
-   * of the returned path is a GC root object. This instance is included as
-   * the last element of the path with an empty field description.
+   * of the returned path is a GC root object. The last element of the
+   * returned path is 'this' with an empty field description.
    * <p>
-   * If the instance is strongly reachable, a path of string references will
+   * If the instance is strongly reachable, a path of strong references will
    * be returned. If the instance is weakly reachable, the returned path will
    * include a soft/weak/phantom/finalizer reference somewhere along it.
    * Returns null if this instance is not reachable.
@@ -631,7 +631,18 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
     if (isUnreachable()) {
       return null;
     }
+    return getSamplePath();
+  }
 
+  /**
+   * Returns a sample path to this instance.
+   * If the instance is reachable, this returns a path from a GC root.
+   * Otherwise this returns an arbitrary path leading to the instance.
+   *
+   * @return sample path to this instance
+   * @see PathElement
+   */
+  public List<PathElement> getSamplePath() {
     List<PathElement> path = new ArrayList<PathElement>();
 
     AhatInstance dom = this;
@@ -653,7 +664,7 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
    * Returns null if the given instance has no next instance to the gc root.
    */
   private static PathElement getNextPathElementToGcRoot(AhatInstance inst) {
-    if (inst.isRoot()) {
+    if (inst.isRoot() || inst.mNextInstanceToGcRoot == null) {
       return null;
     }
     return new PathElement(inst.mNextInstanceToGcRoot, inst.mNextInstanceToGcRootField);
@@ -714,19 +725,20 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
   }
 
   /**
-   * Determine the reachability of the all instances reachable from the given
-   * root instance. Initializes the following fields:
+   * Determine the reachability of instances.
+   * Initializes the following fields:
    *   mReachability
    *   mNextInstanceToGcRoot
    *   mNextInstanceToGcRootField
    *   mReverseReferences
    *
+   * @param root root used for determining which instances are reachable.
+   * @param insts the list of all instances.
    * @param progress used to track progress of the traversal.
-   * @param numInsts upper bound on the total number of instances reachable
-   *                 from the root, solely used for the purposes of tracking
-   *                 progress.
+   * @param numInsts the number of instances, for tracking progress.
    */
-  static void computeReachability(SuperRoot root, Progress progress, long numInsts) {
+  static void computeReachability(
+      SuperRoot root, Iterable<AhatInstance> insts, Progress progress, long numInsts) {
     // Start by doing a breadth first search through strong references.
     // Then continue the breadth first through each weaker kind of reference.
     progress.start("Computing reachability", numInsts);
@@ -765,6 +777,30 @@ public abstract class AhatInstance implements Diffable<AhatInstance> {
         // heap dump.
         if (ref.src != root) {
           ref.ref.mReverseReferences.add(ref.src);
+        }
+      }
+    }
+
+    // Initialize reachability related fields for unreachable instances,
+    // just in case people want to explore more about where unreachable
+    // instances come from.
+    for (AhatInstance inst : insts) {
+      if (inst.isUnreachable()) {
+        progress.advance();
+        for (Reference ref : inst.getReferences()) {
+          if (ref.ref.mReverseReferences == null) {
+            ref.ref.mReverseReferences = new ArrayList<AhatInstance>();
+          }
+          ref.ref.mReverseReferences.add(ref.src);
+
+          // An unreachable instance doesn't have a path to GC root, but it's
+          // still useful to see a sample path of who is referencing the
+          // object. To avoid introducing cycles in the sample path, we force
+          // the sample paths to have objects in increasing id order.
+          if (ref.ref.mNextInstanceToGcRoot == null && ref.src.mId < ref.ref.mId) {
+            ref.ref.mNextInstanceToGcRoot = ref.src;
+            ref.ref.mNextInstanceToGcRootField = ref.field;
+          }
         }
       }
     }

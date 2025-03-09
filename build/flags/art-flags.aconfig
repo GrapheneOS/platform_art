@@ -55,6 +55,15 @@ flag {
 }
 
 flag {
+  namespace: "system_performance"
+  name: "executable_method_file_offsets_v2"
+  is_exported: true
+  description: "This flag includes the API for getting the compiled native executable offset info for a java executable"
+  bug: "400457896"
+  is_fixed_read_only: true
+}
+
+flag {
   name: "art_service_v3"
   namespace: "art_mainline"
   description: "Flag for all new ART Service APIs added in the 25Q2 version of the ART module."

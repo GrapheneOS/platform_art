@@ -128,25 +128,27 @@ constexpr std::optional<int32_t> EncodeDatumId(DatumId datum_id) {
           statsd::ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_TOTAL_COLLECTION_TIME_MS);
     case DatumId::kYoungGcThroughputAvg:
       return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_COLLECTION_THROUGHPUT_AVG_MB_PER_SEC);
+          statsd::
+              ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_COLLECTION_THROUGHPUT_AVG_MB_PER_SEC);
     case DatumId::kFullGcThroughputAvg:
       return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_COLLECTION_THROUGHPUT_AVG_MB_PER_SEC);
+          statsd::
+              ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_COLLECTION_THROUGHPUT_AVG_MB_PER_SEC);
     case DatumId::kYoungGcTracingThroughputAvg:
       return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_TRACING_THROUGHPUT_AVG_MB_PER_SEC);
+          statsd::
+              ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_TRACING_THROUGHPUT_AVG_MB_PER_SEC);
     case DatumId::kFullGcTracingThroughputAvg:
       return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_TRACING_THROUGHPUT_AVG_MB_PER_SEC);
+          statsd::
+              ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_TRACING_THROUGHPUT_AVG_MB_PER_SEC);
     case DatumId::kGcWorldStopTime:
-      return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_TIME_US);
+      return std::make_optional(statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_TIME_US);
     case DatumId::kGcWorldStopTimeDelta:
       return std::make_optional(
           statsd::ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_WORLD_STOP_TIME_US);
     case DatumId::kGcWorldStopCount:
-      return std::make_optional(
-          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_COUNT);
+      return std::make_optional(statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_COUNT);
     case DatumId::kGcWorldStopCountDelta:
       return std::make_optional(
           statsd::ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_WORLD_STOP_COUNT);
@@ -195,6 +197,14 @@ constexpr std::optional<int32_t> EncodeDatumId(DatumId datum_id) {
     case DatumId::kTimeElapsedDelta:
       return std::make_optional(
           statsd::ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_TIME_ELAPSED_MS);
+    case DatumId::kAppSlowPathDuringYoungGcDurationDelta:
+      return std::make_optional(
+          statsd::
+              ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_APP_SLOW_PATH_DURING_YOUNG_GENERATION_COLLECTION_DURATION_MILLIS);
+    case DatumId::kAppSlowPathDuringFullGcDurationDelta:
+      return std::make_optional(
+          statsd::
+              ART_DATUM_DELTA_REPORTED__KIND__ART_DATUM_DELTA_GC_APP_SLOW_PATH_DURING_FULL_HEAP_COLLECTION_DURATION_MILLIS);
   }
 }
 
@@ -215,18 +225,18 @@ constexpr int32_t EncodeCompileFilter(CompilerFilterReporting filter) {
     case CompilerFilterReporting::kSpeed:
       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_SPEED;
     case CompilerFilterReporting::kEverythingProfile:
-      return statsd::
-          ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_EVERYTHING_PROFILE;
+      return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_EVERYTHING_PROFILE;
     case CompilerFilterReporting::kEverything:
       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_EVERYTHING;
     case CompilerFilterReporting::kError:
       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_ERROR;
     case CompilerFilterReporting::kUnknown:
-       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_UNKNOWN;
+      return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_UNKNOWN;
     case CompilerFilterReporting::kRunFromApk:
-       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_FAKE_RUN_FROM_APK;
+      return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_FAKE_RUN_FROM_APK;
     case CompilerFilterReporting::kRunFromApkFallback:
-       return statsd::ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_FAKE_RUN_FROM_APK_FALLBACK;
+      return statsd::
+          ART_DATUM_REPORTED__COMPILE_FILTER__ART_COMPILATION_FILTER_FAKE_RUN_FROM_APK_FALLBACK;
   }
 }
 

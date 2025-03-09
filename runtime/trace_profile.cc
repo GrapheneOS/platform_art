@@ -181,13 +181,13 @@ void RecordMethodsOnThreadStack(Thread* thread, uintptr_t* method_trace_buffer)
   visitor.WalkStack(true);
 
   // Create method entry events for all methods currently on the thread's stack.
-  uint64_t init_time = TimestampCounter::GetNanoTime(TimestampCounter::GetTimestamp());
+  uint64_t init_ts = TimestampCounter::GetTimestamp();
   // Set the lsb to 0 to indicate method entry.
-  init_time = init_time & ~1;
+  init_ts = init_ts & ~1;
   size_t index = kAlwaysOnTraceBufSize - 1;
   for (auto smi = visitor.stack_methods_.rbegin(); smi != visitor.stack_methods_.rend(); smi++) {
     method_trace_buffer[index--] = reinterpret_cast<uintptr_t>(*smi);
-    method_trace_buffer[index--] = init_time;
+    method_trace_buffer[index--] = init_ts;
 
     if (index < kMaxEntriesAfterFlush) {
       // To keep the implementation simple, ignore methods deep down the stack. If the call stack
@@ -512,7 +512,7 @@ size_t TraceProfiler::DumpLongRunningMethodBuffer(uint32_t thread_id,
   uint8_t* curr_buffer_ptr = buffer + kAlwaysOnTraceHeaderSize;
 
   int num_records = 0;
-  uintptr_t prev_timestamp_action_encoding = 0;
+  uintptr_t prev_time_action_encoding = 0;
   uintptr_t prev_method_ptr = 0;
   size_t end_index = end_trace_entries - method_trace_entries;
   for (size_t i = kAlwaysOnTraceBufSize - 1; i >= end_index;) {
@@ -523,20 +523,24 @@ size_t TraceProfiler::DumpLongRunningMethodBuffer(uint32_t thread_id,
     }
 
     bool is_method_exit = event & 0x1;
-    uint64_t timestamp_action_encoding;
+    uint64_t event_time;
     uintptr_t method_ptr;
     if (is_method_exit) {
       // Method exit. We only have timestamp here.
-      timestamp_action_encoding = event;
+      event_time = TimestampCounter::GetMicroTime(event & ~0x1);
     } else {
       // method entry
       method_ptr = event;
-      timestamp_action_encoding = method_trace_entries[i--];
+      event_time = TimestampCounter::GetMicroTime(method_trace_entries[i--] & ~0x1);
     }
 
-    int64_t timestamp_action_diff = timestamp_action_encoding - prev_timestamp_action_encoding;
-    curr_buffer_ptr = EncodeSignedLeb128(curr_buffer_ptr, timestamp_action_diff);
-    prev_timestamp_action_encoding = timestamp_action_encoding;
+    uint64_t time_action_encoding = event_time << 1;
+    if (is_method_exit) {
+      time_action_encoding |= 1;
+    }
+    int64_t time_action_diff = time_action_encoding - prev_time_action_encoding;
+    curr_buffer_ptr = EncodeSignedLeb128(curr_buffer_ptr, time_action_diff);
+    prev_time_action_encoding = time_action_encoding;
 
     if (!is_method_exit) {
       int64_t method_diff = method_ptr - prev_method_ptr;
@@ -716,7 +720,9 @@ void TraceData::DumpData(std::ostringstream& os) {
     }
 
     methods = traced_methods_;
-    threads = traced_threads_;
+    if (trace_type_ != LowOverheadTraceType::kLongRunningMethods) {
+      threads = traced_threads_;
+    }
   }
 
   // Dump the information about traced_methods and threads

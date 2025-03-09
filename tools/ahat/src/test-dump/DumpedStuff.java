@@ -174,6 +174,16 @@ public class DumpedStuff extends SuperDumpedStuff {
     // Intentionally empty
   };
 
+  private static class Unreachable {
+    public Object anchor;
+    public Object self;
+
+    public Unreachable(Object anchor) {
+      this.self = this;
+      this.anchor = anchor;
+    }
+  }
+
   public String basicString = "hello, world";
   public String nonAscii = "Sigma (Ʃ) is not ASCII";
   public String embeddedZero = "embedded\0...";  // Non-ASCII for string compression purposes.
@@ -227,6 +237,8 @@ public class DumpedStuff extends SuperDumpedStuff {
   Object binderToken = new android.os.Binder();
   Object namedBinderToken = new android.os.Binder("awesomeToken");
 
+  Object unreachableAnchor = new Object();
+
   // Allocate those objects that we need to not be GC'd before taking the heap
   // dump.
   public void shouldNotGc() {
@@ -236,6 +248,8 @@ public class DumpedStuff extends SuperDumpedStuff {
         new WeakReference(
         new SoftReference(
         new PhantomReference(new Object(), referenceQueue))))));
+
+    new Unreachable(unreachableAnchor);
   }
 
   static {

@@ -318,9 +318,9 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env,
 
 static jobject VMDebug_getExecutableMethodFileOffsetsNative(JNIEnv* env,
                                                             jclass,
-                                                            jobject javaMethod) {
+                                                            jobject javaExecutable) {
   ScopedObjectAccess soa(env);
-  ObjPtr<mirror::Executable> m = soa.Decode<mirror::Executable>(javaMethod);
+  ObjPtr<mirror::Executable> m = soa.Decode<mirror::Executable>(javaExecutable);
   if (m == nullptr) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
                                    "Could not find mirror::Executable for supplied jobject");
@@ -712,7 +712,7 @@ static JNINativeMethod gMethods[] = {
     NATIVE_METHOD(
         VMDebug,
         getExecutableMethodFileOffsetsNative,
-        "(Ljava/lang/reflect/Method;)Ldalvik/system/VMDebug$ExecutableMethodFileOffsets;"),
+        "(Ljava/lang/reflect/Executable;)Ldalvik/system/VMDebug$ExecutableMethodFileOffsets;"),
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {

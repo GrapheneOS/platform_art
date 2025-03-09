@@ -416,7 +416,7 @@ inline ArtField* ResolveFieldWithAccessChecks(Thread* self,
     return nullptr;
   }
 
-  if (resolve_field_type != 0u) {
+  if (resolve_field_type != 0u && caller->GetDeclaringClass()->HasTypeChecksFailure()) {
     StackArtFieldHandleScope<1> rhs(self);
     ReflectiveHandle<ArtField> field_handle(rhs.NewHandle(resolved_field));
     if (resolved_field->ResolveType().IsNull()) {

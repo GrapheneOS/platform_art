@@ -288,6 +288,9 @@ class EXPORT MANAGED Class final : public Object {
 
   ALWAYS_INLINE void SetHasDefaultMethods() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  ALWAYS_INLINE void SetHasTypeChecksFailure() REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool HasTypeChecksFailure() REQUIRES_SHARED(Locks::mutator_lock_);
+
   ALWAYS_INLINE void SetFinalizable() REQUIRES_SHARED(Locks::mutator_lock_) {
     uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
     SetAccessFlagsDuringLinking(flags | kAccClassIsFinalizable);

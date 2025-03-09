@@ -317,8 +317,6 @@ def setup_test_env():
       # Use only part of the cores since fully loading the device tends to lead to timeouts.
       fraction = 1.0 if env.ART_TEST_ON_VM else 0.75
       n_thread = max(1, int(get_target_cpu_count() * fraction))
-      if device_name == 'fugu':
-        n_thread = 1
   else:
     device_name = "host"
     if n_thread == 0:
@@ -1211,7 +1209,7 @@ def main():
   if build:
     build_targets = []
     # Build only the needed shards (depending on the selected tests).
-    shards = set(re.search("(\d\d)-", t).group(1) for t in tests)
+    shards = set(re.search(r"(\d\d)-", t).group(1) for t in tests)
     if any("hiddenapi" in t for t in tests):
       shards.add("HiddenApi")  # Include special HiddenApi shard.
     for mode in ['host', 'target', 'jvm']:

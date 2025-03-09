@@ -71,25 +71,27 @@
   METRIC(FullGcDuration, MetricsCounter)
 
 // Increasing counter metrics, reported as Value Metrics in delta increments.
-#define ART_VALUE_METRICS(METRIC)                              \
-  METRIC(GcWorldStopTimeDelta, MetricsDeltaCounter)            \
-  METRIC(GcWorldStopCountDelta, MetricsDeltaCounter)           \
-  METRIC(YoungGcScannedBytesDelta, MetricsDeltaCounter)        \
-  METRIC(YoungGcFreedBytesDelta, MetricsDeltaCounter)          \
-  METRIC(YoungGcDurationDelta, MetricsDeltaCounter)            \
-  METRIC(FullGcScannedBytesDelta, MetricsDeltaCounter)         \
-  METRIC(FullGcFreedBytesDelta, MetricsDeltaCounter)           \
-  METRIC(FullGcDurationDelta, MetricsDeltaCounter)             \
-  METRIC(JitMethodCompileTotalTimeDelta, MetricsDeltaCounter)  \
-  METRIC(JitMethodCompileCountDelta, MetricsDeltaCounter)      \
-  METRIC(ClassVerificationTotalTimeDelta, MetricsDeltaCounter) \
-  METRIC(ClassVerificationCountDelta, MetricsDeltaCounter)     \
-  METRIC(ClassLoadingTotalTimeDelta, MetricsDeltaCounter)      \
-  METRIC(TotalBytesAllocatedDelta, MetricsDeltaCounter)        \
-  METRIC(TotalGcCollectionTimeDelta, MetricsDeltaCounter)      \
-  METRIC(YoungGcCountDelta, MetricsDeltaCounter)               \
-  METRIC(FullGcCountDelta, MetricsDeltaCounter)                \
-  METRIC(TimeElapsedDelta, MetricsDeltaCounter)
+#define ART_VALUE_METRICS(METRIC)                                    \
+  METRIC(GcWorldStopTimeDelta, MetricsDeltaCounter)                  \
+  METRIC(GcWorldStopCountDelta, MetricsDeltaCounter)                 \
+  METRIC(YoungGcScannedBytesDelta, MetricsDeltaCounter)              \
+  METRIC(YoungGcFreedBytesDelta, MetricsDeltaCounter)                \
+  METRIC(YoungGcDurationDelta, MetricsDeltaCounter)                  \
+  METRIC(FullGcScannedBytesDelta, MetricsDeltaCounter)               \
+  METRIC(FullGcFreedBytesDelta, MetricsDeltaCounter)                 \
+  METRIC(FullGcDurationDelta, MetricsDeltaCounter)                   \
+  METRIC(JitMethodCompileTotalTimeDelta, MetricsDeltaCounter)        \
+  METRIC(JitMethodCompileCountDelta, MetricsDeltaCounter)            \
+  METRIC(ClassVerificationTotalTimeDelta, MetricsDeltaCounter)       \
+  METRIC(ClassVerificationCountDelta, MetricsDeltaCounter)           \
+  METRIC(ClassLoadingTotalTimeDelta, MetricsDeltaCounter)            \
+  METRIC(TotalBytesAllocatedDelta, MetricsDeltaCounter)              \
+  METRIC(TotalGcCollectionTimeDelta, MetricsDeltaCounter)            \
+  METRIC(YoungGcCountDelta, MetricsDeltaCounter)                     \
+  METRIC(FullGcCountDelta, MetricsDeltaCounter)                      \
+  METRIC(TimeElapsedDelta, MetricsDeltaCounter)                      \
+  METRIC(AppSlowPathDuringYoungGcDurationDelta, MetricsDeltaCounter) \
+  METRIC(AppSlowPathDuringFullGcDurationDelta, MetricsDeltaCounter)
 
 #define ART_METRICS(METRIC) \
   ART_EVENT_METRICS(METRIC) \

@@ -32,14 +32,11 @@
 #include "base/mutex.h"
 #include "base/os.h"
 #include "base/safe_map.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "instrumentation.h"
 #include "runtime_globals.h"
 #include "thread_pool.h"
-
-namespace unix_file {
-class FdFile;
-}  // namespace unix_file
 
 namespace art HIDDEN {
 
@@ -111,10 +108,7 @@ enum class TraceOutputMode {
 // We need 3 entries to store 64-bit timestamp counter as two 32-bit values on 32-bit architectures.
 static constexpr uint32_t kNumEntriesForWallClock =
     (kRuntimePointerSize == PointerSize::k64) ? 2 : 3;
-// Timestamps are stored as two 32-bit balues on 32-bit architectures.
-static constexpr uint32_t kNumEntriesForDualClock = (kRuntimePointerSize == PointerSize::k64)
-                                                        ? kNumEntriesForWallClock + 1
-                                                        : kNumEntriesForWallClock + 2;
+static constexpr uint32_t kNumEntriesForDualClock = kNumEntriesForWallClock + 1;
 
 // These define offsets in bytes for the individual fields of a trace entry. These are used by the
 // JITed code when storing a trace entry.
@@ -206,7 +200,7 @@ class TraceWriter {
               size_t buffer_size,
               int num_trace_buffers,
               int trace_format_version,
-              uint64_t clock_overhead_ns);
+              uint32_t clock_overhead_ns);
 
   // This encodes all the events in the per-thread trace buffer and writes it to the trace file /
   // buffer. This acquires streaming lock to prevent any other threads writing concurrently. It is
@@ -344,8 +338,8 @@ class TraceWriter {
                         uint16_t thread_id,
                         uint32_t method_index,
                         TraceAction action,
-                        uint64_t thread_clock_diff,
-                        uint64_t wall_clock_diff) REQUIRES(trace_writer_lock_);
+                        uint32_t thread_clock_diff,
+                        uint32_t wall_clock_diff) REQUIRES(trace_writer_lock_);
 
   // Encodes the header for the events block. This assumes that there is enough space reserved to
   // encode the entry.
@@ -419,7 +413,7 @@ class TraceWriter {
   size_t num_records_;
 
   // Clock overhead.
-  const uint64_t clock_overhead_ns_;
+  const uint32_t clock_overhead_ns_;
 
   std::vector<std::atomic<size_t>> owner_tids_;
   std::unique_ptr<uintptr_t[]> trace_buffer_;
@@ -521,7 +515,7 @@ class Trace final : public instrumentation::InstrumentationListener, public Clas
   static void RemoveListeners() REQUIRES(Locks::mutator_lock_);
 
   void MeasureClockOverhead();
-  uint64_t GetClockOverheadNanoSeconds();
+  uint32_t GetClockOverheadNanoSeconds();
 
   void CompareAndUpdateStackTrace(Thread* thread, std::vector<ArtMethod*>* stack_trace)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -607,12 +601,12 @@ class Trace final : public instrumentation::InstrumentationListener, public Clas
       // how to annotate this.
       NO_THREAD_SAFETY_ANALYSIS;
 
-  void ReadClocks(Thread* thread, uint64_t* thread_clock_diff, uint64_t* timestamp_counter);
+  void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* timestamp_counter);
 
   void LogMethodTraceEvent(Thread* thread,
                            ArtMethod* method,
                            TraceAction action,
-                           uint64_t thread_clock_diff,
+                           uint32_t thread_clock_diff,
                            uint64_t timestamp_counter) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Singleton instance of the Trace or null when no method tracing is active.

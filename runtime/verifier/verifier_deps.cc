@@ -746,6 +746,7 @@ bool VerifierDeps::VerifyDexFileAndUpdateStatus(
           class_linker, self, source_desc, source_desc_length, class_loader));
 
       if (destination == nullptr || source == nullptr) {
+        deps.verified_classes_[class_def_index] = false;
         // We currently don't use assignability information for unresolved
         // types, as the status of the class using unresolved types will be soft
         // fail in the vdex.

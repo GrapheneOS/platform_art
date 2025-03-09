@@ -95,6 +95,7 @@ void Iteration::Reset(GcCause gc_cause, bool clear_soft_references) {
   timings_.Reset();
   pause_times_.clear();
   duration_ns_ = 0;
+  app_slow_path_duration_ms_ = 0;
   bytes_scanned_ = 0;
   clear_soft_references_ = clear_soft_references;
   gc_cause_ = gc_cause;
@@ -268,6 +269,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     gc_freed_bytes_delta_->Add(current_iteration->GetFreedBytes());
     gc_duration_->Add(NsToMs(current_iteration->GetDurationNs()));
     gc_duration_delta_->Add(NsToMs(current_iteration->GetDurationNs()));
+    gc_app_slow_path_during_gc_duration_delta_->Add(current_iteration->GetAppSlowPathDurationMs());
   }
 
   // Report some metrics via the ATrace interface, to surface them in Perfetto.

@@ -128,6 +128,16 @@ class MANAGED MethodHandleImpl : public MethodHandle {
                                                         Handle<MethodType> method_type)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
+  EXPORT static ObjPtr<mirror::MethodHandleImpl> Create(Thread* const self,
+                                                        Handle<Field> field,
+                                                        MethodHandle::Kind kind,
+                                                        Handle<MethodType> method_type)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
+  static MemberOffset TargetOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(MethodHandleImpl, target_));
+  }
+
  private:
   HeapReference<mirror::Field> field_;
   HeapReference<mirror::Object> target_class_or_info_;  // Unused by the runtime.

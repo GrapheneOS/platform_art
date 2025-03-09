@@ -1336,6 +1336,16 @@ inline void Class::SetHasDefaultMethods() {
   SetAccessFlagsDuringLinking(flags | kAccHasDefaultMethod);
 }
 
+inline void Class::SetHasTypeChecksFailure() {
+  uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+  SetAccessFlags(flags | kAccHasTypeChecksFailure);
+}
+
+inline bool Class::HasTypeChecksFailure() {
+  uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+  return (flags & kAccHasTypeChecksFailure) != 0u;
+}
+
 inline void Class::ClearFinalizable() {
   // We're clearing the finalizable flag only for `Object` and `Enum`
   // during early setup without the boot image.

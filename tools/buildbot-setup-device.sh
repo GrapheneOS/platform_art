@@ -93,13 +93,6 @@ adb shell setprop ctl.stop llkd-1
 
 product_name=$(adb shell getprop ro.build.product)
 
-if [ "x$product_name" = xfugu ]; then
-  # Kill logd first, so that when we set the adb buffer size later in this file,
-  # it is brought up again.
-  msginfo "Killing logd, seen leaking on fugu/N"
-  adb shell pkill -9 -U logd logd && msginfo "...logd killed"
-fi
-
 # Update date on device if the difference with host is more than one hour.
 if [ $abs_time_difference_in_seconds -gt $seconds_per_hour ]; then
   msginfo "Update date on device"

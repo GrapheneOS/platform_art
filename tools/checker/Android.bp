@@ -29,11 +29,6 @@ python_binary_host {
         "**/*.py",
     ],
     main: "checker.py",
-    version: {
-        py3: {
-            embedded_launcher: true,
-        },
-    },
     test_suites: [
         "general-tests",
         "mts-art",

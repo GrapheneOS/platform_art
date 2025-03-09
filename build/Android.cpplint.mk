@@ -42,6 +42,11 @@ ART_CPPLINT_CFG := $(addprefix $(LOCAL_PATH)/, $(call all-subdir-named-files,CPP
 .PHONY: cpplint-art
 cpplint-art: cpplint-art-phony
 
+# "mm cpplint-art-all" to manually execute cpplint.py on all files (very slow).
+.PHONY: cpplint-art-all
+cpplint-art-all:
+	$(ART_CPPLINT) $(ART_CPPLINT_FLAGS) $(ART_CPPLINT_SRC)
+
 OUT_CPPLINT := $(TARGET_COMMON_OUT_ROOT)/cpplint
 
 # Build up the list of all targets for linting the ART source files.

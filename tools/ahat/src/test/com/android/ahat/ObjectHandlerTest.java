@@ -16,12 +16,19 @@
 
 package com.android.ahat;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import com.android.ahat.heapdump.AhatInstance;
 import com.android.ahat.heapdump.AhatSnapshot;
-import java.io.IOException;
+import com.android.ahat.heapdump.Site;
+
 import org.junit.Test;
 
-import static org.junit.Assert.assertNotNull;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ObjectHandlerTest {
   @Test
@@ -70,5 +77,32 @@ public class ObjectHandlerTest {
 
     AhatHandler handler = new ObjectHandler(dump.getAhatSnapshot());
     TestHandler.testNoCrash(handler, "http://localhost:7100/object?id=" + object.getId());
+  }
+
+  @Test
+  public void noCrashUnreachable() throws IOException {
+    // Exercise the case where the object is unreachable.
+    // We had bugs in the past where trying to print the sample path for any
+    // unreachable instance would lead to an infinite loop or null pointer
+    // exception.
+
+    // Our unreachable object should be the only reference to the
+    // unreachableAnchor instance, aside from dumpedStuff.
+    TestDump dump = TestDump.getTestDump();
+
+    AhatInstance anchor = dump.getDumpedAhatInstance("unreachableAnchor");
+    assertNotNull(anchor);
+
+    List<AhatInstance> reverse = anchor.getReverseReferences();
+    assertEquals(2, reverse.size());
+
+    AhatInstance unreachable = reverse.get(0);
+    if (!unreachable.isUnreachable()) {
+      unreachable = reverse.get(1);
+    }
+    assertTrue(unreachable.isUnreachable());
+
+    AhatHandler handler = new ObjectHandler(dump.getAhatSnapshot());
+    TestHandler.testNoCrash(handler, "http://localhost:7100/object?id=" + unreachable.getId());
   }
 }

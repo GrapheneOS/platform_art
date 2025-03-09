@@ -2442,13 +2442,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     UNREACHABLE();
   }
 
-  virtual bool IsFieldAccess() const {
-    return false;
-  }
-
   virtual const FieldInfo& GetFieldInfo() const {
-    CHECK(IsFieldAccess()) << "Only callable on field accessors not " << DebugName() << " "
-                           << *this;
     LOG(FATAL) << "Must be overridden by field accessors. Not implemented by " << *this;
     UNREACHABLE();
   }
@@ -6105,7 +6099,6 @@ class HInstanceFieldGet final : public HExpression<1> {
     return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
   }
 
-  bool IsFieldAccess() const override { return true; }
   const FieldInfo& GetFieldInfo() const override { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   DataType::Type GetFieldType() const { return field_info_.GetFieldType(); }
@@ -6179,7 +6172,6 @@ class HInstanceFieldSet final : public HExpression<2> {
     return (obj == InputAt(0)) && art::CanDoImplicitNullCheckOn(GetFieldOffset().Uint32Value());
   }
 
-  bool IsFieldAccess() const override { return true; }
   const FieldInfo& GetFieldInfo() const override { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   DataType::Type GetFieldType() const { return field_info_.GetFieldType(); }
@@ -7252,7 +7244,6 @@ class HStaticFieldGet final : public HExpression<1> {
     return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
   }
 
-  bool IsFieldAccess() const override { return true; }
   const FieldInfo& GetFieldInfo() const override { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   DataType::Type GetFieldType() const { return field_info_.GetFieldType(); }
@@ -7306,7 +7297,6 @@ class HStaticFieldSet final : public HExpression<2> {
   }
 
   bool IsClonable() const override { return true; }
-  bool IsFieldAccess() const override { return true; }
   const FieldInfo& GetFieldInfo() const override { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   DataType::Type GetFieldType() const { return field_info_.GetFieldType(); }

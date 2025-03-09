@@ -1,11 +1,11 @@
 # compiler: R8
-# compiler_version: 8.9.19-dev
+# compiler_version: 8.10.9-dev
 # min_api: 35
-# compiler_hash: b6b2b638738ed9914c3cbc7103ae1a236354c1b4
+# compiler_hash: a7ad18a70460b799d0482e497c109a75bf7f91de
 # common_typos_disable
 # {"id":"com.android.tools.r8.mapping","version":"2.2"}
-# pg_map_id: e381cdb92198880e7b46db4aaea8369ad60617c62144964c6424590112d04f37
-# pg_map_hash: SHA-256 e381cdb92198880e7b46db4aaea8369ad60617c62144964c6424590112d04f37
+# pg_map_id: edbbcc48c7b01d8c2f908b650b78ba301895bb3a321ccf9468aaf6b721e19d39
+# pg_map_hash: SHA-256 edbbcc48c7b01d8c2f908b650b78ba301895bb3a321ccf9468aaf6b721e19d39
 DumpedStuff -> DumpedStuff:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
     java.lang.ref.WeakReference aShortWeakPathToSamplePathObject -> A
@@ -40,7 +40,8 @@ DumpedStuff -> DumpedStuff:
     java.lang.Object fakeBinderService -> U
     java.lang.Object binderToken -> V
     java.lang.Object namedBinderToken -> W
-    java.lang.String modifiedStaticField -> X
+    java.lang.Object unreachableAnchor -> X
+    java.lang.String modifiedStaticField -> Y
     java.lang.String basicString -> d
     java.lang.String nonAscii -> e
     java.lang.String embeddedZero -> f
@@ -70,26 +71,27 @@ DumpedStuff -> DumpedStuff:
       # {"id":"com.android.tools.r8.residualsignature","signature":"[Ll;"}
     DumpedStuff$Reference aLongStrongPathToSamplePathObject -> z
       # {"id":"com.android.tools.r8.residualsignature","signature":"Lm;"}
-    1:6:void <clinit>():242:242 -> <clinit>
+    1:6:void <clinit>():256:256 -> <clinit>
     1:1:void <init>(boolean):45:45 -> <init>
-    2:11:void <init>(boolean):177:186 -> <init>
-    12:17:void <init>(boolean):188:193 -> <init>
-    18:20:void <init>(boolean):196:198 -> <init>
-    21:22:void <init>(boolean):205:206 -> <init>
-    23:23:void <init>(boolean):209:209 -> <init>
-    24:29:void <init>(boolean):218:223 -> <init>
-    30:33:void <init>(boolean):225:228 -> <init>
-    34:34:void <init>(boolean):46:46 -> <init>
-    35:35:void <init>(boolean):49:49 -> <init>
-    36:36:void <init>(boolean):51:51 -> <init>
-    37:39:void <init>(boolean):55:57 -> <init>
-    40:41:void <init>(boolean):60:61 -> <init>
-    42:44:void <init>(boolean):65:67 -> <init>
-    45:52:void <init>(boolean):70:77 -> <init>
-    53:55:void <init>(boolean):82:84 -> <init>
-    56:58:void <init>(boolean):87:89 -> <init>
-    59:59:void <init>(boolean):93:93 -> <init>
-    60:61:void <init>(boolean):95:96 -> <init>
+    2:11:void <init>(boolean):187:196 -> <init>
+    12:17:void <init>(boolean):198:203 -> <init>
+    18:20:void <init>(boolean):206:208 -> <init>
+    21:22:void <init>(boolean):215:216 -> <init>
+    23:23:void <init>(boolean):219:219 -> <init>
+    24:29:void <init>(boolean):228:233 -> <init>
+    30:33:void <init>(boolean):235:238 -> <init>
+    34:34:void <init>(boolean):240:240 -> <init>
+    35:35:void <init>(boolean):46:46 -> <init>
+    36:36:void <init>(boolean):49:49 -> <init>
+    37:37:void <init>(boolean):51:51 -> <init>
+    38:40:void <init>(boolean):55:57 -> <init>
+    41:42:void <init>(boolean):60:61 -> <init>
+    43:45:void <init>(boolean):65:67 -> <init>
+    46:53:void <init>(boolean):70:77 -> <init>
+    54:56:void <init>(boolean):82:84 -> <init>
+    57:59:void <init>(boolean):87:89 -> <init>
+    60:60:void <init>(boolean):93:93 -> <init>
+    61:62:void <init>(boolean):95:96 -> <init>
     1:8:void allocateObjectAtOverriddenSite():42:42 -> b
     1:7:void allocateObjectAtKnownSite():30:30 -> c
     8:10:void allocateObjectAtKnownSite():31:31 -> c
@@ -97,7 +99,8 @@ DumpedStuff -> DumpedStuff:
     14:16:void allocateObjectAtKnownSite():33:33 -> c
     17:20:void allocateObjectAtKnownSite():34:34 -> c
     1:8:void allocateObjectAtKnownSubSite():38:38 -> d
-    1:40:void shouldNotGc():233:233 -> e
+    1:39:void shouldNotGc():245:245 -> e
+    40:47:void shouldNotGc():252:252 -> e
 DumpedStuff$AddedObject -> a:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
     1:4:void <init>():109:109 -> <init>
@@ -112,13 +115,13 @@ DumpedStuff$BinderService -> c:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
     1:1:void <init>(DumpedStuff-IA):0:0 -> <init>
       # {"id":"com.android.tools.r8.synthesized"}
-      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lq;)V"}
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lr;)V"}
     2:2:void <init>():169:169 -> <init>
 DumpedStuff$FakeBinderService -> d:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
     1:1:void <init>(DumpedStuff-IA):0:0 -> <init>
       # {"id":"com.android.tools.r8.synthesized"}
-      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lq;)V"}
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lr;)V"}
     2:2:void <init>():173:173 -> <init>
 DumpedStuff$IBinderInterfaceImpostor -> g:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
@@ -178,7 +181,14 @@ DumpedStuff$StackSmasher -> o:
 DumpedStuff$UnchangedObject -> p:
 # {"id":"sourceFile","fileName":"DumpedStuff.java"}
     1:4:void <init>():115:115 -> <init>
-DumpedStuff-IA -> q:
+DumpedStuff$Unreachable -> q:
+# {"id":"sourceFile","fileName":"DumpedStuff.java"}
+    java.lang.Object anchor -> a
+    java.lang.Object self -> b
+    1:3:void <init>(java.lang.Object):181:181 -> <init>
+    4:5:void <init>(java.lang.Object):182:182 -> <init>
+    6:8:void <init>(java.lang.Object):183:183 -> <init>
+DumpedStuff-IA -> r:
 # {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
 # {"id":"com.android.tools.r8.synthesized"}
 Main -> Main:

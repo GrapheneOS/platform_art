@@ -59,6 +59,9 @@ static constexpr uint32_t kAccObsoleteObject =        0x00200000;  // class (run
 // Set during boot image compilation to indicate that the class is
 // not initialized at compile time and not in the list of preloaded classes.
 static constexpr uint32_t kAccInBootImageAndNotInPreloadedClasses = 0x00400000;  // class (runtime)
+// Set after verification if at least one of the class's method has unresolved
+// type checks failures.
+static constexpr uint32_t kAccHasTypeChecksFailure = 0x00800000;  // class (runtime)
 // This is set by the class linker during LinkInterfaceMethods. It is used by a method
 // to represent that it was copied from its declaring class into another class.
 // We need copies of the original method because the method may end up in different

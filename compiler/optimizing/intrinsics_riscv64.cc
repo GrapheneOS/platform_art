@@ -5783,8 +5783,8 @@ void IntrinsicLocationsBuilderRISCV64::VisitMethodHandleInvokeExact(HInvoke* inv
   // The last input is MethodType object corresponding to the call-site.
   locations->SetInAt(number_of_args, Location::RequiresRegister());
 
-  locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(calling_convention.GetMethodLocation());
+  locations->AddRegisterTemps(2);
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke) {
@@ -5799,17 +5799,67 @@ void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke
       locations->InAt(invoke->GetNumberOfArguments()).AsRegister<XRegister>();
 
   // Call site should match with MethodHandle's type.
-  XRegister temp = locations->GetTemp(0).AsRegister<XRegister>();
+  XRegister temp = locations->GetTemp(1).AsRegister<XRegister>();
   __ Loadwu(temp, method_handle, mirror::MethodHandle::MethodTypeOffset().Int32Value());
   codegen_->MaybeUnpoisonHeapReference(temp);
   __ Bne(call_site_type, temp, slow_path->GetEntryLabel());
 
-  __ Loadwu(temp, method_handle, mirror::MethodHandle::HandleKindOffset().Int32Value());
-  __ AddConst32(temp, temp, -mirror::MethodHandle::Kind::kInvokeStatic);
-  __ Bnez(temp, slow_path->GetEntryLabel());
-
-  XRegister method = locations->GetTemp(1).AsRegister<XRegister>();
+  XRegister method = locations->GetTemp(0).AsRegister<XRegister>();
   __ Loadd(method, method_handle, mirror::MethodHandle::ArtFieldOrMethodOffset().Int32Value());
+
+  Riscv64Label execute_target_method;
+
+  XRegister method_handle_kind = locations->GetTemp(2).AsRegister<XRegister>();
+  __ Loadd(method_handle_kind,
+           method_handle, mirror::MethodHandle::HandleKindOffset().Int32Value());
+  __ Li(temp, mirror::MethodHandle::Kind::kInvokeStatic);
+  __ Beq(method_handle_kind, temp, &execute_target_method);
+
+  if (invoke->AsInvokePolymorphic()->CanTargetInstanceMethod()) {
+    XRegister receiver = locations->InAt(1).AsRegister<XRegister>();
+
+    // Receiver shouldn't be null for all the following cases.
+    __ Beqz(receiver, slow_path->GetEntryLabel());
+
+    __ Li(temp, mirror::MethodHandle::Kind::kInvokeDirect);
+    // No dispatch is needed for invoke-direct.
+    __ Beq(method_handle_kind, temp, &execute_target_method);
+
+    Riscv64Label non_virtual_dispatch;
+    __ Li(temp, mirror::MethodHandle::Kind::kInvokeVirtual);
+    __ Bne(method_handle_kind, temp, &non_virtual_dispatch);
+
+    // Skip virtual dispatch if `method` is private.
+    __ Loadd(temp, method, ArtMethod::AccessFlagsOffset().Int32Value());
+    __ Andi(temp, temp, kAccPrivate);
+    __ Bnez(temp, &execute_target_method);
+
+    XRegister receiver_class = locations->GetTemp(2).AsRegister<XRegister>();
+    // If method is defined in the receiver's class, execute it as it is.
+    __ Loadd(temp, method, ArtMethod::DeclaringClassOffset().Int32Value());
+    __ Loadd(receiver_class, receiver, mirror::Object::ClassOffset().Int32Value());
+    codegen_->MaybeUnpoisonHeapReference(receiver_class);
+
+    // We're not emitting the read barrier for the receiver_class, so false negatives just go
+    // through the virtual dispath below.
+    __ Beq(temp, receiver_class, &execute_target_method);
+
+    // MethodIndex is uint16_t.
+    __ Loadhu(temp, method, ArtMethod::MethodIndexOffset().Int32Value());
+
+    constexpr uint32_t vtable_offset =
+        mirror::Class::EmbeddedVTableOffset(art::PointerSize::k64).Int32Value();
+    __ Sh3Add(temp, temp, receiver_class);
+    __ Loadd(method, temp, vtable_offset);
+    __ J(&execute_target_method);
+    __ Bind(&non_virtual_dispatch);
+  }
+
+  // Checks above are jumping to `execute_target_method` is they succeed. If none match, try to
+  // handle in the slow path.
+  __ J(slow_path->GetEntryLabel());
+
+  __ Bind(&execute_target_method);
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kRiscv64PointerSize);
   __ Loadd(RA, method, entry_point.SizeValue());
   __ Jalr(RA);

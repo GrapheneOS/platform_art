@@ -190,6 +190,7 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   metrics::MetricsBase<uint64_t>* gc_freed_bytes_delta_;
   metrics::MetricsBase<uint64_t>* gc_duration_;
   metrics::MetricsBase<uint64_t>* gc_duration_delta_;
+  metrics::MetricsBase<uint64_t>* gc_app_slow_path_during_gc_duration_delta_;
   uint64_t total_thread_cpu_time_ns_;
   uint64_t total_time_ns_;
   uint64_t total_freed_objects_;

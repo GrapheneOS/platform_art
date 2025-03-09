@@ -68,18 +68,16 @@ bool ProcessThreadOrMethodInfo(std::unique_ptr<File>& file,
   uint64_t id = ReadNumber(num_bytes_for_id, header);
   int length = ReadNumber(2, header + num_bytes_for_id);
 
-  char* name = new char[length];
-  if (!file->ReadFully(name, length)) {
-    delete[] name;
+  std::unique_ptr<char[]> name(new char[length]);
+  if (!file->ReadFully(name.get(), length)) {
     return false;
   }
-  std::string str(name, length);
+  std::string str(name.get(), length);
   std::replace(str.begin(), str.end(), '\t', ' ');
   if (str[str.length() - 1] == '\n') {
     str.erase(str.length() - 1);
   }
   name_map.emplace(id, str);
-  delete[] name;
   return true;
 }
 
@@ -158,9 +156,8 @@ bool ProcessTraceEntries(std::unique_ptr<File>& file,
   int num_records = ReadNumber(3, header + offset);
   offset += 3;
   int total_size = ReadNumber(4, header + offset);
-  uint8_t* buffer = new uint8_t[total_size];
-  if (!file->ReadFully(buffer, total_size)) {
-    delete[] buffer;
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[total_size]);
+  if (!file->ReadFully(buffer.get(), total_size)) {
     return false;
   }
 
@@ -181,11 +178,11 @@ bool ProcessTraceEntries(std::unique_ptr<File>& file,
   std::string thread_name = thread_map[thread_id];
   bool print_thread_events = (thread_name.compare(thread_name_filter) == 0);
 
-  const uint8_t* current_buffer_ptr = buffer;
+  const uint8_t* current_buffer_ptr = buffer.get();
   int64_t prev_method_value = 0;
   for (int i = 0; i < num_records; i++) {
     int64_t diff = 0;
-    if (!DecodeSignedLeb128Checked(&current_buffer_ptr, buffer + total_size - 1, &diff)) {
+    if (!DecodeSignedLeb128Checked(&current_buffer_ptr, buffer.get() + total_size - 1, &diff)) {
       LOG(FATAL) << "Reading past the buffer???";
     }
     int64_t curr_method_value = prev_method_value + diff;
