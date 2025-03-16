@@ -1724,37 +1724,13 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   hidden_api_policy_ = runtime_options.GetOrDefault(Opt::HiddenApiPolicy);
   DCHECK_IMPLIES(is_zygote_, hidden_api_policy_ == hiddenapi::EnforcementPolicy::kDisabled);
 
-  // Set core platform API enforcement policy. Always enabled if the platform
-  // SDK level is 36+, otherwise the checks are disabled by default and can be
-  // enabled with a command line flag. AndroidRuntime will pass the flag if a
-  // system property is set.
-  {
-    bool always_enable = false;
-#ifdef ART_TARGET_ANDROID
-    int device_sdk_version = android_get_device_api_level();
-    if (device_sdk_version >= 36) {
-      always_enable = true;
-    } else if (device_sdk_version == 35) {
-      std::string codename =
-          android::base::GetProperty("ro.build.version.codename", /*default_value=*/"");
-      always_enable = (codename == "Baklava");
-    }
-#endif
-    const char* reason;
-    if (always_enable) {
-      core_platform_api_policy_ = hiddenapi::EnforcementPolicy::kEnabled;
-      reason = "for Android 16+";
-    } else {
-      core_platform_api_policy_ = runtime_options.GetOrDefault(Opt::CorePlatformApiPolicy);
-      reason = "by runtime option";
-    }
-    if (core_platform_api_policy_ != hiddenapi::EnforcementPolicy::kDisabled) {
-      LOG(INFO) << "Core platform API "
-                << (core_platform_api_policy_ == hiddenapi::EnforcementPolicy::kEnabled
-                        ? "enforcement"
-                        : "reporting")
-                << " enabled " << reason;
-    }
+  // Set core platform API enforcement policy. The checks are disabled by default and
+  // can be enabled with a command line flag. AndroidRuntime will pass the flag if
+  // a system property is set.
+  core_platform_api_policy_ = runtime_options.GetOrDefault(Opt::CorePlatformApiPolicy);
+  if (core_platform_api_policy_ != hiddenapi::EnforcementPolicy::kDisabled) {
+    LOG(INFO) << "Core platform API reporting enabled, enforcing="
+        << (core_platform_api_policy_ == hiddenapi::EnforcementPolicy::kEnabled ? "true" : "false");
   }
 
   // Dex2Oat's Runtime does not need the signal chain or the fault handler

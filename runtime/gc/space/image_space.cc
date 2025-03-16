@@ -1967,9 +1967,9 @@ bool ImageSpace::BootImageLayout::CompileBootclasspathElements(
   std::string art_filename = ExpandLocation(base_filename, bcp_index);
   std::string vdex_filename = ImageHeader::GetVdexLocationFromImageLocation(art_filename);
   std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(art_filename);
-  android::base::unique_fd art_fd(memfd_create_compat(art_filename.c_str(), /*flags=*/ 0));
-  android::base::unique_fd vdex_fd(memfd_create_compat(vdex_filename.c_str(), /*flags=*/ 0));
-  android::base::unique_fd oat_fd(memfd_create_compat(oat_filename.c_str(), /*flags=*/ 0));
+  android::base::unique_fd art_fd(memfd_create(art_filename.c_str(), /*flags=*/ 0));
+  android::base::unique_fd vdex_fd(memfd_create(vdex_filename.c_str(), /*flags=*/ 0));
+  android::base::unique_fd oat_fd(memfd_create(oat_filename.c_str(), /*flags=*/ 0));
   if (art_fd.get() == -1 || vdex_fd.get() == -1 || oat_fd.get() == -1) {
     *error_msg = StringPrintf("Failed to create memfd handles for compiling bootclasspath for %s",
                               boot_class_path_locations_[bcp_index].c_str());

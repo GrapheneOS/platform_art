@@ -24,6 +24,8 @@
 
 #ifdef __BIONIC__
 #include <sys/pidfd.h>
+#else
+#include <sys/syscall.h>
 #endif
 
 namespace art {
@@ -33,9 +35,6 @@ namespace art {
   return android::base::unique_fd(pidfd_open(pid, flags));
 #else
   // There is no glibc wrapper for pidfd_open.
-#ifndef SYS_pidfd_open
-  constexpr int SYS_pidfd_open = 434;
-#endif
   return android::base::unique_fd(syscall(SYS_pidfd_open, pid, flags));
 #endif
 }

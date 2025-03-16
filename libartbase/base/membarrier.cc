@@ -21,10 +21,11 @@
 
 #if !defined(_WIN32)
 #include <sys/syscall.h>
-#include <sys/utsname.h>
 #include <unistd.h>
 #endif
+
 #include "macros.h"
+#include "utils.h"
 
 #if __has_include(<linux/membarrier.h>)
 
@@ -52,26 +53,7 @@ static bool IsMemBarrierSupported() {
   // MEMBARRIER_CMD_PRIVATE_EXPEDITED is supported since Linux 4.14.
   // MEMBARRIER_CMD_PRIVATE_EXPEDITED_SYNC_CORE is supported since Linux 4.16.
   // Lowest Linux version useful for ART is 4.14.
-  static constexpr int kRequiredMajor = 4;
-  static constexpr int kRequiredMinor = 14;
-  struct utsname uts;
-  int major, minor;
-  if (uname(&uts) != 0 ||
-      strcmp(uts.sysname, "Linux") != 0 ||
-      sscanf(uts.release, "%d.%d", &major, &minor) != 2 ||
-      (major < kRequiredMajor || (major == kRequiredMajor && minor < kRequiredMinor))) {
-    return false;
-  }
-#if defined(__BIONIC__)
-  // Avoid calling membarrier on older Android versions where membarrier may be barred by seccomp
-  // causing the current process to be killed. The probing here could be considered expensive so
-  // endeavour not to repeat too often.
-  int api_level = android_get_device_api_level();
-  if (api_level < __ANDROID_API_Q__) {
-    return false;
-  }
-#endif  // __BIONIC__
-  return true;
+  return IsKernelVersionAtLeast(4, 14);
 }
 
 int membarrier(MembarrierCommand command) {

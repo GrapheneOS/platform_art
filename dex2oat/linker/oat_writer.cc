@@ -111,6 +111,33 @@ inline uint32_t CodeAlignmentSize(uint32_t header_offset, const CompiledMethod& 
 
 }  // anonymous namespace
 
+bool OatKeyValueStore::PutNonDeterministic(const std::string& k,
+                                           const std::string& v,
+                                           bool allow_truncation) {
+  size_t length = OatHeader::GetNonDeterministicFieldLength(k);
+  DCHECK_GT(length, 0u);
+  if (v.length() <= length) {
+    map_.Put(k, v);
+    return true;
+  }
+  if (allow_truncation) {
+    LOG(WARNING) << "Key value store field " << k << " too long. Truncating";
+    map_.Put(k, v.substr(/*pos=*/0, length));
+    return true;
+  }
+  return false;
+}
+
+void OatKeyValueStore::Put(const std::string& k, const std::string& v) {
+  DCHECK(OatHeader::IsDeterministicField(k));
+  map_.Put(k, v);
+}
+
+void OatKeyValueStore::Put(const std::string& k, bool v) {
+  DCHECK(OatHeader::IsDeterministicField(k));
+  map_.Put(k, v ? OatHeader::kTrueValue : OatHeader::kFalseValue);
+}
+
 // .bss mapping offsets used for BCP DexFiles.
 struct OatWriter::BssMappingInfo {
   // Offsets set in PrepareLayout.
@@ -550,7 +577,7 @@ bool OatWriter::WriteAndOpenDexFiles(
 
 bool OatWriter::StartRoData(const std::vector<const DexFile*>& dex_files,
                             OutputStream* oat_rodata,
-                            SafeMap<std::string, std::string>* key_value_store) {
+                            OatKeyValueStore* key_value_store) {
   CHECK(write_state_ == WriteState::kStartRoData);
 
   // Record the ELF rodata section offset, i.e. the beginning of the OAT data.
@@ -1972,9 +1999,18 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
   return true;
 }
 
-size_t OatWriter::InitOatHeader(uint32_t num_dex_files,
-                                SafeMap<std::string, std::string>* key_value_store) {
+size_t OatWriter::InitOatHeader(uint32_t num_dex_files, OatKeyValueStore* key_value_store) {
   TimingLogger::ScopedTiming split("InitOatHeader", timings_);
+
+  // `key_value_store` only exists in the first oat file in a multi-image boot image.
+  if (key_value_store != nullptr) {
+    // Add non-deterministic fields if they don't exist. These fields should always exist with fixed
+    // lengths.
+    for (auto [field, length] : OatHeader::kNonDeterministicFieldsAndLengths) {
+      key_value_store->map_.FindOrAdd(std::string(field));
+    }
+  }
+
   // Check that oat version when runtime was compiled matches the oat version
   // when dex2oat was compiled. We have seen cases where they got out of sync.
   constexpr std::array<uint8_t, 4> dex2oat_oat_version = OatHeader::kOatVersion;
@@ -1982,7 +2018,7 @@ size_t OatWriter::InitOatHeader(uint32_t num_dex_files,
   oat_header_ = OatHeader::Create(GetCompilerOptions().GetInstructionSet(),
                                   GetCompilerOptions().GetInstructionSetFeatures(),
                                   num_dex_files,
-                                  key_value_store,
+                                  key_value_store != nullptr ? &key_value_store->map_ : nullptr,
                                   oat_data_offset_);
   size_oat_header_ += sizeof(OatHeader);
   size_oat_header_key_value_store_ += oat_header_->GetHeaderSize() - sizeof(OatHeader);
@@ -2751,10 +2787,7 @@ bool OatWriter::WriteHeader(OutputStream* out) {
 
   // Update checksum with header data.
   DCHECK_EQ(oat_header_->GetChecksum(), 0u);  // For checksum calculation.
-  const uint8_t* header_begin = reinterpret_cast<const uint8_t*>(oat_header_);
-  const uint8_t* header_end = oat_header_->GetKeyValueStore() + oat_header_->GetKeyValueStoreSize();
-  uint32_t old_checksum = oat_checksum_;
-  oat_checksum_ = adler32(old_checksum, header_begin, header_end - header_begin);
+  oat_header_->ComputeChecksum(&oat_checksum_);
   oat_header_->SetChecksum(oat_checksum_);
 
   const size_t file_offset = oat_data_offset_;

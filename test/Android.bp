@@ -725,7 +725,6 @@ art_cc_defaults {
         "1959-redefine-object-instrument/fake_redef_object.cc",
         "1960-obsolete-jit-multithread-native/native_say_hi.cc",
         "1964-add-to-dex-classloader-file/add_to_loader.cc",
-        "1963-add-to-dex-classloader-in-memory/check_memfd_create.cc",
         "2012-structural-redefinition-failures-jni-id/set-jni-id-used.cc",
         "2031-zygote-compiled-frame-deopt/native-wait.cc",
         "2038-hiddenapi-jvmti-ext/hiddenapi_ext.cc",

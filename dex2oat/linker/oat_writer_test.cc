@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "android-base/stringprintf.h"
+#include "oat_writer.h"
 
+#include <cstdint>
+
+#include "android-base/stringprintf.h"
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
 #include "base/file_utils.h"
@@ -35,6 +38,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "gtest/gtest.h"
 #include "linker/elf_writer.h"
 #include "linker/elf_writer_quick.h"
 #include "linker/multi_oat_relative_patcher.h"
@@ -104,7 +108,7 @@ class OatTest : public CommonCompilerDriverTest {
   bool WriteElf(File* vdex_file,
                 File* oat_file,
                 const std::vector<const DexFile*>& dex_files,
-                SafeMap<std::string, std::string>& key_value_store,
+                OatKeyValueStore& key_value_store,
                 bool verify) {
     TimingLogger timings("WriteElf", false, false);
     ClearBootImageOption();
@@ -124,7 +128,7 @@ class OatTest : public CommonCompilerDriverTest {
   bool WriteElf(File* vdex_file,
                 File* oat_file,
                 const std::vector<const char*>& dex_filenames,
-                SafeMap<std::string, std::string>& key_value_store,
+                OatKeyValueStore& key_value_store,
                 bool verify,
                 CopyOption copy,
                 ProfileCompilationInfo* profile_compilation_info) {
@@ -143,7 +147,7 @@ class OatTest : public CommonCompilerDriverTest {
                 File* oat_file,
                 File&& dex_file_fd,
                 const char* location,
-                SafeMap<std::string, std::string>& key_value_store,
+                OatKeyValueStore& key_value_store,
                 bool verify,
                 CopyOption copy,
                 ProfileCompilationInfo* profile_compilation_info = nullptr) {
@@ -159,7 +163,7 @@ class OatTest : public CommonCompilerDriverTest {
   bool DoWriteElf(File* vdex_file,
                   File* oat_file,
                   OatWriter& oat_writer,
-                  SafeMap<std::string, std::string>& key_value_store,
+                  OatKeyValueStore& key_value_store,
                   bool verify,
                   CopyOption copy) {
     std::unique_ptr<ElfWriter> elf_writer = CreateElfWriterQuick(
@@ -426,7 +430,7 @@ TEST_F(OatTest, WriteRead) {
   }
 
   ScratchFile tmp_base, tmp_oat(tmp_base, ".oat"), tmp_vdex(tmp_base, ".vdex");
-  SafeMap<std::string, std::string> key_value_store;
+  OatKeyValueStore key_value_store;
   key_value_store.Put(OatHeader::kBootClassPathChecksumsKey, "testkey");
   bool success = WriteElf(tmp_vdex.GetFile(),
                           tmp_oat.GetFile(),
@@ -494,6 +498,67 @@ TEST_F(OatTest, WriteRead) {
   }
 }
 
+TEST_F(OatTest, ChecksumDeterminism) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  SetupCompiler(/*compiler_options=*/{});
+
+  if (kCompile) {
+    TimingLogger timings("OatTest::ChecksumDeterminism", /*precise=*/false, /*verbose=*/false);
+    CompileAll(/*class_loader=*/nullptr, class_linker->GetBootClassPath(), &timings);
+  }
+
+  auto write_elf_and_get_checksum = [&](OatKeyValueStore& key_value_store,
+                                        /*out*/ uint32_t* checksum) {
+    ScratchFile tmp_base, tmp_oat(tmp_base, ".oat"), tmp_vdex(tmp_base, ".vdex");
+
+    bool success = WriteElf(tmp_vdex.GetFile(),
+                            tmp_oat.GetFile(),
+                            class_linker->GetBootClassPath(),
+                            key_value_store,
+                            /*verify=*/false);
+    ASSERT_TRUE(success);
+
+    std::string error_msg;
+    std::unique_ptr<OatFile> oat_file(OatFile::Open(/*zip_fd=*/-1,
+                                                    tmp_oat.GetFilename(),
+                                                    tmp_oat.GetFilename(),
+                                                    /*executable=*/false,
+                                                    /*low_4gb=*/true,
+                                                    &error_msg));
+    ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
+    const OatHeader& oat_header = oat_file->GetOatHeader();
+    ASSERT_TRUE(oat_header.IsValid());
+    *checksum = oat_header.GetChecksum();
+  };
+
+  uint32_t checksum_1, checksum_2, checksum_3;
+
+  {
+    OatKeyValueStore key_value_store;
+    key_value_store.Put(OatHeader::kBootClassPathChecksumsKey, "testkey");
+    ASSERT_NO_FATAL_FAILURE(write_elf_and_get_checksum(key_value_store, &checksum_1));
+  }
+
+  {
+    // Put non-deterministic fields. This should not affect the checksum.
+    OatKeyValueStore key_value_store;
+    key_value_store.Put(OatHeader::kBootClassPathChecksumsKey, "testkey");
+    key_value_store.PutNonDeterministic(OatHeader::kDex2OatCmdLineKey, "cmdline");
+    key_value_store.PutNonDeterministic(OatHeader::kApexVersionsKey, "apex-versions");
+    ASSERT_NO_FATAL_FAILURE(write_elf_and_get_checksum(key_value_store, &checksum_2));
+    EXPECT_EQ(checksum_1, checksum_2);
+  }
+
+  {
+    // Put deterministic fields. This should affect the checksum.
+    OatKeyValueStore key_value_store;
+    key_value_store.Put(OatHeader::kBootClassPathChecksumsKey, "testkey");
+    key_value_store.Put(OatHeader::kClassPathKey, "classpath");
+    ASSERT_NO_FATAL_FAILURE(write_elf_and_get_checksum(key_value_store, &checksum_3));
+    EXPECT_NE(checksum_1, checksum_3);
+  }
+}
+
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
@@ -548,7 +613,7 @@ TEST_F(OatTest, EmptyTextSection) {
   CompileAll(class_loader, dex_files, &timings);
 
   ScratchFile tmp_base, tmp_oat(tmp_base, ".oat"), tmp_vdex(tmp_base, ".vdex");
-  SafeMap<std::string, std::string> key_value_store;
+  OatKeyValueStore key_value_store;
   bool success = WriteElf(tmp_vdex.GetFile(),
                           tmp_oat.GetFile(),
                           dex_files,
@@ -617,7 +682,7 @@ void OatTest::TestDexFileInput(bool verify, bool low_4gb, bool use_profile) {
   input_dexfiles.push_back(std::move(dex_file2_data));
   scratch_files.push_back(&dex_file2);
 
-  SafeMap<std::string, std::string> key_value_store;
+  OatKeyValueStore key_value_store;
   {
     // Test using the AddDexFileSource() interface with the dex files.
     ScratchFile tmp_base, tmp_oat(tmp_base, ".oat"), tmp_vdex(tmp_base, ".vdex");
@@ -746,7 +811,7 @@ void OatTest::TestZipFileInput(bool verify, CopyOption copy) {
   success = zip_builder.Finish();
   ASSERT_TRUE(success) << strerror(errno);
 
-  SafeMap<std::string, std::string> key_value_store;
+  OatKeyValueStore key_value_store;
   {
     // Test using the AddDexFileSource() interface with the zip file.
     std::vector<const char*> input_filenames = { zip_file.GetFilename().c_str() };
@@ -865,7 +930,7 @@ void OatTest::TestZipFileInputWithEmptyDex() {
   success = zip_builder.Finish();
   ASSERT_TRUE(success) << strerror(errno);
 
-  SafeMap<std::string, std::string> key_value_store;
+  OatKeyValueStore key_value_store;
   std::vector<const char*> input_filenames = { zip_file.GetFilename().c_str() };
   ScratchFile oat_file, vdex_file(oat_file, ".vdex");
   std::unique_ptr<ProfileCompilationInfo> profile_compilation_info(new ProfileCompilationInfo());

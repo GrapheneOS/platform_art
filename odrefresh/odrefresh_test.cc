@@ -48,12 +48,14 @@
 namespace art {
 namespace odrefresh {
 
+using ::android::base::Basename;
 using ::android::base::Split;
 using ::android::modules::sdklevel::IsAtLeastU;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::EndsWith;
 using ::testing::Not;
 using ::testing::ResultOf;
 using ::testing::Return;
@@ -336,7 +338,7 @@ TEST_F(OdRefreshTest, BootImageMainlineExtension) {
                                         FdOf(framework_jar_),
                                         FdOf(conscrypt_jar_),
                                         FdOf(framework_wifi_jar_)))),
-          Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot-conscrypt.oat")),
+          Contains(Flag("--oat-location=", dalvik_cache_dir_ + "/x86_64/boot.oat")),
           Not(Contains(Flag("--base=", _))),
           Contains(Flag("--boot-image=", _)),
           Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
@@ -435,11 +437,15 @@ TEST_F(OdRefreshTest, BootClasspathJarsFallback) {
 }
 
 TEST_F(OdRefreshTest, AllSystemServerJars) {
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(AllOf(Contains(Flag("--dex-file=", location_provider_jar_)),
-                                        Contains("--class-loader-context=PCL[]"),
-                                        Not(Contains(Flag("--class-loader-context-fds=", _))),
-                                        Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(AllOf(
+          Contains(Flag("--dex-file=", location_provider_jar_)),
+          Contains("--class-loader-context=PCL[]"),
+          Not(Contains(Flag("--class-loader-context-fds=", _))),
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))),
+          Contains(Flag("--oat-location=",
+                        EndsWith("@" + Basename(location_provider_jar_) + "@classes.odex"))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -447,7 +453,9 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
           Contains(Flag("--dex-file=", services_jar_)),
           Contains(Flag("--class-loader-context=", ART_FORMAT("PCL[{}]", location_provider_jar_))),
           Contains(Flag("--class-loader-context-fds=", FdOf(location_provider_jar_))),
-          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))),
+          Contains(
+              Flag("--oat-location=", EndsWith("@" + Basename(services_jar_) + "@classes.odex"))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -457,7 +465,9 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
                         ART_FORMAT("PCL[];PCL[{}:{}]", location_provider_jar_, services_jar_))),
           Contains(ListFlag("--class-loader-context-fds=",
                             ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))),
-          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))),
+          Contains(Flag("--oat-location=",
+                        EndsWith("@" + Basename(services_foo_jar_) + "@classes.odex"))))))
       .WillOnce(Return(0));
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -467,7 +477,9 @@ TEST_F(OdRefreshTest, AllSystemServerJars) {
                         ART_FORMAT("PCL[];PCL[{}:{}]", location_provider_jar_, services_jar_))),
           Contains(ListFlag("--class-loader-context-fds=",
                             ElementsAre(FdOf(location_provider_jar_), FdOf(services_jar_)))),
-          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))))))
+          Contains(Flag("--cache-info-fd=", FdOf(cache_info_xml_))),
+          Contains(Flag("--oat-location=",
+                        EndsWith("@" + Basename(services_bar_jar_) + "@classes.odex"))))))
       .WillOnce(Return(0));
 
   EXPECT_EQ(

@@ -490,12 +490,11 @@ class OatDumper {
     // Print the key-value store.
     {
       os << "KEY VALUE STORE:\n";
-      size_t index = 0;
+      uint32_t offset = 0;
       const char* key;
       const char* value;
-      while (oat_header.GetStoreKeyValuePairByIndex(index, &key, &value)) {
+      while (oat_header.GetNextStoreKeyValuePair(&offset, &key, &value)) {
         os << key << " = " << value << "\n";
-        index++;
       }
       os << "\n";
     }

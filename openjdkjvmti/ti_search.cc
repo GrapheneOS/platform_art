@@ -278,7 +278,7 @@ jvmtiError SearchUtil::AddToDexClassLoaderInMemory(jvmtiEnv* jvmti_env,
   // lot of code as well.
 
   // Create a memfd
-  art::File file(art::memfd_create_compat("JVMTI InMemory Added dex file", 0), /*check-usage*/true);
+  art::File file(art::memfd_create("JVMTI InMemory Added dex file", 0), /*check-usage*/true);
   if (file.Fd() < 0) {
     char* reason = strerror(errno);
     JVMTI_LOG(ERROR, jvmti_env) << "Unable to create memfd due to " << reason;

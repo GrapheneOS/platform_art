@@ -20,12 +20,10 @@
 #include <stdio.h>
 #if !defined(_WIN32)
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 #include <unistd.h>
-#endif
-#if defined(__BIONIC__)
-#include <linux/memfd.h>  // To access memfd flags.
 #endif
 
 #include <android-base/logging.h>
@@ -35,7 +33,7 @@
 
 namespace art {
 
-#if defined(__NR_memfd_create)
+#if defined(__linux__)
 
 int memfd_create(const char* name, unsigned int flags) {
   // Check kernel version supports memfd_create(). Some older kernels segfault executing
@@ -54,40 +52,6 @@ int memfd_create(const char* name, unsigned int flags) {
 
   return syscall(__NR_memfd_create, name, flags);
 }
-
-#else  // __NR_memfd_create
-
-int memfd_create([[maybe_unused]] const char* name, [[maybe_unused]] unsigned int flags) {
-  errno = ENOSYS;
-  return -1;
-}
-
-#endif  // __NR_memfd_create
-
-// This is a wrapper that will attempt to simulate memfd_create if normal running fails.
-int memfd_create_compat(const char* name, unsigned int flags) {
-  int res = memfd_create(name, flags);
-  if (res >= 0) {
-    return res;
-  }
-#if !defined(_WIN32)
-  // Try to create an anonymous file with tmpfile that we can use instead.
-  if (flags == 0) {
-    FILE* file = tmpfile();
-    if (file != nullptr) {
-      // We want the normal 'dup' semantics since memfd_create without any flags isn't CLOEXEC.
-      // Unfortunately on some android targets we will compiler error if we use dup directly and so
-      // need to use fcntl.
-      int nfd = fcntl(fileno(file), F_DUPFD, /*lowest allowed fd*/ 0);
-      fclose(file);
-      return nfd;
-    }
-  }
-#endif
-  return res;
-}
-
-#if defined(__BIONIC__)
 
 static bool IsSealFutureWriteSupportedInternal() {
   android::base::unique_fd fd(art::memfd_create("test_android_memfd", MFD_ALLOW_SEALING));
@@ -110,12 +74,17 @@ bool IsSealFutureWriteSupported() {
   return is_seal_future_write_supported;
 }
 
-#else
+#else  // __linux__
+
+int memfd_create([[maybe_unused]] const char* name, [[maybe_unused]] unsigned int flags) {
+  errno = ENOSYS;
+  return -1;
+}
 
 bool IsSealFutureWriteSupported() {
   return false;
 }
 
-#endif
+#endif  // __linux__
 
 }  // namespace art

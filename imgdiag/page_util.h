@@ -56,6 +56,19 @@ bool GetPageFrameNumbers(art::File& page_map_file,
                          /*out*/ ArrayRef<uint64_t> page_frame_numbers,
                          /*out*/ std::string& error_msg);
 
+struct ProcFiles {
+  // A File for reading /proc/<pid>/mem.
+  File mem;
+  // A File for reading /proc/<pid>/pagemap.
+  File pagemap;
+  // A File for reading /proc/kpageflags.
+  File kpageflags;
+  // A File for reading /proc/kpagecount.
+  File kpagecount;
+};
+
+bool OpenProcFiles(pid_t pid, /*out*/ ProcFiles& files, /*out*/ std::string& error_msg);
+
 }  // namespace art
 
 #endif  // ART_IMGDIAG_PAGE_UTIL_H_

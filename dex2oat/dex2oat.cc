@@ -500,15 +500,6 @@ class ThreadLocalHashOverride {
   Handle<mirror::Object> old_field_value_;
 };
 
-class OatKeyValueStore : public SafeMap<std::string, std::string> {
- public:
-  using SafeMap::Put;
-
-  iterator Put(const std::string& k, bool v) {
-    return SafeMap::Put(k, v ? OatHeader::kTrueValue : OatHeader::kFalseValue);
-  }
-};
-
 class Dex2Oat final {
  public:
   explicit Dex2Oat(TimingLogger* timings)
@@ -893,7 +884,7 @@ class Dex2Oat final {
     }
 
     // Fill some values into the key-value store for the oat header.
-    key_value_store_.reset(new OatKeyValueStore());
+    key_value_store_.reset(new linker::OatKeyValueStore());
 
     // Automatically force determinism for the boot image and boot image extensions in a host build.
     if (!kIsTargetBuild && (IsBootImage() || IsBootImageExtension())) {
@@ -978,7 +969,8 @@ class Dex2Oat final {
         }
         oss << argv[i];
       }
-      key_value_store_->Put(OatHeader::kDex2OatCmdLineKey, oss.str());
+      key_value_store_->PutNonDeterministic(
+          OatHeader::kDex2OatCmdLineKey, oss.str(), /*allow_truncation=*/true);
     }
     key_value_store_->Put(OatHeader::kDebuggableKey, compiler_options_->debuggable_);
     key_value_store_->Put(OatHeader::kNativeDebuggableKey,
@@ -1696,7 +1688,10 @@ class Dex2Oat final {
         CompilerFilter::DependsOnImageChecksum(original_compiler_filter)) {
       std::string versions =
           apex_versions_argument_.empty() ? runtime->GetApexVersions() : apex_versions_argument_;
-      key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
+      if (!key_value_store_->PutNonDeterministic(OatHeader::kApexVersionsKey, versions)) {
+        LOG(ERROR) << "Cannot store apex versions string because it's too long";
+        return dex2oat::ReturnCode::kOther;
+      }
     }
 
     // Now that we have adjusted whether we generate an image, encode it in the
@@ -2915,7 +2910,7 @@ class Dex2Oat final {
 
   std::unique_ptr<CompilerOptions> compiler_options_;
 
-  std::unique_ptr<OatKeyValueStore> key_value_store_;
+  std::unique_ptr<linker::OatKeyValueStore> key_value_store_;
 
   std::unique_ptr<VerificationResults> verification_results_;
 

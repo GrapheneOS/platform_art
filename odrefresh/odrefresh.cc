@@ -1762,7 +1762,6 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oat(
     }
   }
 
-  args.Add("--oat-location=%s", artifacts.OatPath());
   std::pair<std::string, const char*> location_kind_pairs[] = {
       std::make_pair(artifacts.ImagePath(), artifacts.ImageKind()),
       std::make_pair(artifacts.OatPath(), "oat"),
@@ -1910,9 +1909,16 @@ OnDeviceRefresh::RunDex2oatForBootClasspath(const std::string& staging_dir,
                                                  preloaded_classes_file,
                                                  strerror(errno)));
     }
+    args.Add("--oat-location=%s", OdrArtifacts::ForBootImage(output_path).OatPath());
   } else {
     // Mainline extension.
     args.Add("--compiler-filter=%s", kMainlineCompilerFilter);
+    // For boot image extensions, dex2oat takes the oat location of the primary boot image and
+    // expends it with the name of the first input dex file.
+    args.Add("--oat-location=%s",
+             OdrArtifacts::ForBootImage(
+                 GetPrimaryBootImagePath(/*on_system=*/false, /*minimal=*/false, isa))
+                 .OatPath());
   }
 
   const OdrSystemProperties& system_properties = config_.GetSystemProperties();
@@ -2079,6 +2085,8 @@ WARN_UNUSED CompilationResult OnDeviceRefresh::RunDex2oatForSystemServer(
     }
     args.Add("--class-loader-context-fds=%s", Join(fds, ':'));
   }
+
+  args.Add("--oat-location=%s", OdrArtifacts::ForSystemServer(output_path).OatPath());
 
   const OdrSystemProperties& system_properties = config_.GetSystemProperties();
   args.AddRuntimeIfNonEmpty("-Xms%s", system_properties.GetOrEmpty("dalvik.vm.dex2oat-Xms"))

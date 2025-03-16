@@ -9,14 +9,6 @@
 
 [
 {
-  description: "Os.memfd_create() only supports bionic-based platforms.",
-  result: EXEC_FAILED,
-  modes: [host],
-  names: ["libcore.android.system.OsTest#testMemfdCreate",
-          "libcore.android.system.OsTest#testMemfdCreateErrno",
-          "libcore.android.system.OsTest#testMemfdCreateFlags"]
-},
-{
   description: "Assert.java differences between vogar and junit.",
   result: EXEC_FAILED,
   modes: [host],
@@ -42,15 +34,6 @@
   result: EXEC_FAILED,
   modes: [device],
   names: ["libcore.libcore.io.OsTest#testUnixDomainSockets_in_file_system"]
-},
-{
-  description: "TCP_USER_TIMEOUT is not defined on host's tcp.h (glibc-2.15-4.8).",
-  result: EXEC_FAILED,
-  modes: [host],
-  names: ["libcore.android.system.OsConstantsTest#testTcpUserTimeoutIsDefined",
-          "libcore.libcore.io.OsTest#test_socket_tcpUserTimeout_setAndGet",
-          "libcore.libcore.io.OsTest#test_socket_tcpUserTimeout_doesNotWorkOnDatagramSocket"],
-  bug: 30402085
 },
 {
   description: "Issue with incorrect device time (1970)",

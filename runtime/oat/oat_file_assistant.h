@@ -446,11 +446,6 @@ class OatFileAssistant {
     // the OatFileInfo object.
     std::unique_ptr<OatFile> ReleaseFileForUse();
 
-    // Check if we should reject vdex containing cdex code as part of the cdex
-    // deprecation.
-    // TODO(b/256664509): Clean this up.
-    bool CheckDisableCompactDex();
-
    protected:
     // Constructs a real instance.
     // Pass true for is_oat_location if the information associated with this

@@ -70,6 +70,29 @@ enum class CopyOption {
   kOnlyIfCompressed
 };
 
+class OatKeyValueStore {
+ public:
+  // Puts a key value pair whose key is in `OatHeader::kNonDeterministicFieldsAndLengths`.
+  bool PutNonDeterministic(const std::string& k,
+                           const std::string& v,
+                           bool allow_truncation = false);
+
+  // Puts a key value pair whose key is in `OatHeader::kDeterministicFields`.
+  void Put(const std::string& k, const std::string& v);
+
+  // Puts a key value pair whose key is in `OatHeader::kDeterministicFields`.
+  void Put(const std::string& k, bool v);
+
+  // Makes sure calls with `const char*` falls into the overload for `std::string`, not the one for
+  // `bool`.
+  void Put(const std::string& k, const char* v) { Put(k, std::string(v)); }
+
+ private:
+  SafeMap<std::string, std::string> map_;
+
+  friend class OatWriter;
+};
+
 // OatHeader         variable length with count of D OatDexFiles
 //
 // TypeLookupTable[0] one descriptor to class def index hash table for each OatDexFile.
@@ -167,7 +190,7 @@ class OatWriter {
   // Start writing .rodata, including supporting data structures for dex files.
   bool StartRoData(const std::vector<const DexFile*>& dex_files,
                    OutputStream* oat_rodata,
-                   SafeMap<std::string, std::string>* key_value_store);
+                   OatKeyValueStore* key_value_store);
   // Initialize the writer with the given parameters.
   void Initialize(const CompilerDriver* compiler_driver,
                   const VerificationResults* verification_results,
@@ -291,7 +314,7 @@ class OatWriter {
   void WriteVerifierDeps(verifier::VerifierDeps* verifier_deps,
                          /*out*/std::vector<uint8_t>* buffer);
 
-  size_t InitOatHeader(uint32_t num_dex_files, SafeMap<std::string, std::string>* key_value_store);
+  size_t InitOatHeader(uint32_t num_dex_files, OatKeyValueStore* key_value_store);
   size_t InitClassOffsets(size_t offset);
   size_t InitOatClasses(size_t offset);
   size_t InitOatMaps(size_t offset);

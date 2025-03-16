@@ -32,7 +32,6 @@
 #include "intrinsics_utils.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
-#include "mirror/method_handle_impl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/reference.h"
 #include "mirror/string.h"
@@ -4242,17 +4241,13 @@ void IntrinsicLocationsBuilderX86_64::VisitMethodHandleInvokeExact(HInvoke* invo
   InvokeDexCallingConventionVisitorX86_64 calling_convention;
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 
-  uint32_t number_of_args = invoke->GetNumberOfArguments();
+  locations->SetInAt(0, Location::RequiresRegister());
 
   // Accomodating LocationSummary for underlying invoke-* call.
+  uint32_t number_of_args = invoke->GetNumberOfArguments();
   for (uint32_t i = 1; i < number_of_args; ++i) {
     locations->SetInAt(i, calling_convention.GetNextLocation(invoke->InputAt(i)->GetType()));
   }
-
-  // Passing MethodHandle object as the last parameter: accessors implementation rely on it.
-  DCHECK_EQ(invoke->InputAt(0)->GetType(), DataType::Type::kReference);
-  Location receiver_mh_loc = calling_convention.GetNextLocation(DataType::Type::kReference);
-  locations->SetInAt(0, receiver_mh_loc);
 
   // The last input is MethodType object corresponding to the call-site.
   locations->SetInAt(number_of_args, Location::RequiresRegister());
@@ -4260,29 +4255,17 @@ void IntrinsicLocationsBuilderX86_64::VisitMethodHandleInvokeExact(HInvoke* invo
   locations->AddTemp(Location::RequiresRegister());
   // Hidden arg for invoke-interface.
   locations->AddTemp(Location::RegisterLocation(RAX));
-
-  if (!receiver_mh_loc.IsRegister()) {
-    locations->AddTemp(Location::RequiresRegister());
-  }
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMethodHandleInvokeExact(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
-  X86_64Assembler* assembler = codegen_->GetAssembler();
 
-  Location receiver_mh_loc = locations->InAt(0);
-  CpuRegister method_handle = receiver_mh_loc.IsRegister()
-      ? receiver_mh_loc.AsRegister<CpuRegister>()
-      : locations->GetTemp(2).AsRegister<CpuRegister>();
-
-  if (!receiver_mh_loc.IsRegister()) {
-    DCHECK(receiver_mh_loc.IsStackSlot());
-    __ movl(method_handle, Address(CpuRegister(RSP), receiver_mh_loc.GetStackIndex()));
-  }
+  CpuRegister method_handle = locations->InAt(0).AsRegister<CpuRegister>();
 
   SlowPathCode* slow_path =
       new (codegen_->GetScopedAllocator()) InvokePolymorphicSlowPathX86_64(invoke, method_handle);
   codegen_->AddSlowPath(slow_path);
+  X86_64Assembler* assembler = codegen_->GetAssembler();
 
   CpuRegister call_site_type =
       locations->InAt(invoke->GetNumberOfArguments()).AsRegister<CpuRegister>();
@@ -4295,18 +4278,10 @@ void IntrinsicCodeGeneratorX86_64::VisitMethodHandleInvokeExact(HInvoke* invoke)
   CpuRegister method = CpuRegister(kMethodRegisterArgument);
   __ movq(method, Address(method_handle, mirror::MethodHandle::ArtFieldOrMethodOffset()));
 
-  Label execute_target_method;
-  Label method_dispatch;
   Label static_dispatch;
+  Label execute_target_method;
 
   Address method_handle_kind = Address(method_handle, mirror::MethodHandle::HandleKindOffset());
-
-  __ cmpl(method_handle_kind, Immediate(mirror::MethodHandle::kFirstAccessorKind));
-  __ j(kLess, &method_dispatch);
-  __ movq(method, Address(method_handle, mirror::MethodHandleImpl::TargetOffset()));
-  __ Jump(&execute_target_method);
-
-  __ Bind(&method_dispatch);
   if (invoke->AsInvokePolymorphic()->CanTargetInstanceMethod()) {
     CpuRegister receiver = locations->InAt(1).AsRegister<CpuRegister>();
 

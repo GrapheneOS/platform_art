@@ -220,7 +220,11 @@ apex_test {
     native_shared_libs: ["libart"],
     multilib: {
         both: {
-            binaries: ["imgdiag"],
+            binaries: [
+                "imgdiag",
+                "pageinfo",
+                "find_unshared_pages",
+            ],
         },
         first: {
             binaries: ["odrefresh"],

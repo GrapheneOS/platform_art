@@ -63,7 +63,7 @@ class CommonCompilerTestImpl::CodeAndMetadata {
     const uint32_t capacity = RoundUp(code_offset + code_size, page_size);
 
     // Create a memfd handle with sufficient capacity.
-    android::base::unique_fd mem_fd(art::memfd_create_compat("test code", /*flags=*/ 0));
+    android::base::unique_fd mem_fd(art::memfd_create("test code", /*flags=*/ 0));
     CHECK_GE(mem_fd.get(), 0);
     int err = ftruncate(mem_fd, capacity);
     CHECK_EQ(err, 0);

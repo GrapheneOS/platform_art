@@ -18,6 +18,9 @@
 #define ART_RUNTIME_OAT_OAT_H_
 
 #include <array>
+#include <cstddef>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "base/compiler_filter.h"
@@ -44,8 +47,8 @@ std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 class EXPORT PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: Restore to 16 KB ELF alignment.
-  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '5', '8', '\0'}};
+  // Last oat version changed reason: Ensure oat checksum determinism across hosts and devices.
+  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '5', '9', '\0'}};
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
@@ -59,6 +62,34 @@ class EXPORT PACKED(4) OatHeader {
   static constexpr const char* kCompilationReasonKey = "compilation-reason";
   static constexpr const char* kRequiresImage = "requires-image";
 
+  // Fields listed here are key value store fields that are deterministic across hosts and devices,
+  // meaning they should have exactly the same value when the oat file is generated on different
+  // hosts and devices for the same app / boot image and for the same device model with the same
+  // compiler options. If you are adding a new field that doesn't hold this property, put it in
+  // `kNonDeterministicFieldsAndLengths` and assign a length limit.
+  //
+  // When writing the oat header, the non-deterministic fields are padded to their length limits and
+  // excluded from the oat checksum computation. This makes the oat checksum deterministic across
+  // hosts and devices, which is important for Cloud Compilation, where we generate an oat file on a
+  // host and use it on a device.
+  static constexpr std::array<std::string_view, 9> kDeterministicFields{
+      kDebuggableKey,
+      kNativeDebuggableKey,
+      kCompilerFilter,
+      kClassPathKey,
+      kBootClassPathKey,
+      kBootClassPathChecksumsKey,
+      kConcurrentCopying,
+      kCompilationReasonKey,
+      kRequiresImage,
+  };
+
+  static constexpr std::array<std::pair<std::string_view, size_t>, 2>
+      kNonDeterministicFieldsAndLengths{
+          std::make_pair(kDex2OatCmdLineKey, 2048),
+          std::make_pair(kApexVersionsKey, 1024),
+      };
+
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";
 
@@ -69,6 +100,24 @@ class EXPORT PACKED(4) OatHeader {
                            const SafeMap<std::string, std::string>* variable_data,
                            uint32_t base_oat_offset = 0u);
   static void Delete(OatHeader* header);
+
+  static constexpr bool IsDeterministicField(std::string_view key) {
+    for (std::string_view field : kDeterministicFields) {
+      if (field == key) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static constexpr size_t GetNonDeterministicFieldLength(std::string_view key) {
+    for (auto [field, length] : kNonDeterministicFieldsAndLengths) {
+      if (field == key) {
+        return length;
+      }
+    }
+    return 0;
+  }
 
   bool IsValid() const;
   std::string GetValidationErrorMessage() const;
@@ -116,7 +165,13 @@ class EXPORT PACKED(4) OatHeader {
   uint32_t GetKeyValueStoreSize() const;
   const uint8_t* GetKeyValueStore() const;
   const char* GetStoreValueByKey(const char* key) const;
-  bool GetStoreKeyValuePairByIndex(size_t index, const char** key, const char** value) const;
+
+  // Returns the next key-value pair, at the given offset. On success, updates `offset`.
+  // The expected use case is to start the iteration with an offset initialized to zero and
+  // repeatedly call this function with the same offset pointer, until the function returns false.
+  bool GetNextStoreKeyValuePair(/*inout*/ uint32_t* offset,
+                                /*out*/ const char** key,
+                                /*out*/ const char** value) const;
 
   size_t GetHeaderSize() const;
   bool IsDebuggable() const;
@@ -126,6 +181,8 @@ class EXPORT PACKED(4) OatHeader {
   bool RequiresImage() const;
 
   const uint8_t* GetOatAddress(StubType type) const;
+
+  void ComputeChecksum(/*inout*/ uint32_t* checksum) const;
 
  private:
   bool KeyHasValue(const char* key, const char* value, size_t value_size) const;

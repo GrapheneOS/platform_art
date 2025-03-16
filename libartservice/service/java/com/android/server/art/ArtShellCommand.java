@@ -171,23 +171,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "dump": {
-                boolean verifySdmSignatures = false;
-
-                String opt;
-                while ((opt = getNextOption()) != null) {
-                    switch (opt) {
-                        case "--verify-sdm-signatures":
-                            verifySdmSignatures = true;
-                            break;
-                    }
-                }
-
                 String packageName = getNextArg();
                 if (packageName != null) {
-                    mInjector.getArtManagerLocal().dumpPackage(
-                            pw, snapshot, packageName, verifySdmSignatures);
+                    mInjector.getArtManagerLocal().dumpPackage(pw, snapshot, packageName);
                 } else {
-                    mInjector.getArtManagerLocal().dump(pw, snapshot, verifySdmSignatures);
+                    mInjector.getArtManagerLocal().dump(pw, snapshot);
                 }
                 return 0;
             }
@@ -1084,13 +1072,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Cleanup obsolete files, such as dexopt artifacts that are outdated or");
         pw.println("    correspond to dex container files that no longer exist.");
         pw.println();
-        pw.println("  dump [--verify-sdm-signatures] [PACKAGE_NAME]");
+        pw.println("  dump [PACKAGE_NAME]");
         pw.println("    Dump the dexopt state in text format to stdout.");
         pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
         pw.println("    is for the given package.");
-        pw.println("    Options:");
-        pw.println("      --verify-sdm-signatures Also verify SDM file signatures and include");
-        pw.println("        their statuses.");
         pw.println();
         pw.println("  dexopt-packages -r REASON");
         pw.println("    Run batch dexopt for the given reason.");

@@ -41,47 +41,6 @@ using android::base::StringPrintf;
 
 namespace {
 
-struct ProcFiles {
-  // A File for reading /proc/<pid>/mem.
-  File mem;
-  // A File for reading /proc/<pid>/pagemap.
-  File pagemap;
-  // A File for reading /proc/kpageflags.
-  File kpageflags;
-  // A File for reading /proc/kpagecount.
-  File kpagecount;
-};
-
-bool OpenFile(const char* file_name, /*out*/ File& file, /*out*/ std::string& error_msg) {
-  std::unique_ptr<File> file_ptr = std::unique_ptr<File>{OS::OpenFileForReading(file_name)};
-  if (file_ptr == nullptr) {
-    error_msg = StringPrintf("Failed to open file: %s", file_name);
-    return false;
-  }
-  file = std::move(*file_ptr);
-  return true;
-}
-
-bool OpenProcFiles(pid_t pid, /*out*/ ProcFiles& files, /*out*/ std::string& error_msg) {
-  if (!OpenFile("/proc/kpageflags", files.kpageflags, error_msg)) {
-    return false;
-  }
-  if (!OpenFile("/proc/kpagecount", files.kpagecount, error_msg)) {
-    return false;
-  }
-  std::string mem_file_name =
-      StringPrintf("/proc/%ld/mem", static_cast<long>(pid));  // NOLINT [runtime/int]
-  if (!OpenFile(mem_file_name.c_str(), files.mem, error_msg)) {
-    return false;
-  }
-  std::string pagemap_file_name =
-      StringPrintf("/proc/%ld/pagemap", static_cast<long>(pid));  // NOLINT [runtime/int]
-  if (!OpenFile(pagemap_file_name.c_str(), files.pagemap, error_msg)) {
-    return false;
-  }
-  return true;
-}
-
 void DumpPageInfo(uint64_t virtual_page_index, ProcFiles& proc_files, std::ostream& os,
                   size_t page_size) {
   const uint64_t virtual_page_addr = virtual_page_index * page_size;

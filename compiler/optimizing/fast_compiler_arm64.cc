@@ -33,7 +33,6 @@
 #pragma GCC diagnostic ignored "-Wshadow"
 #include "aarch64/disasm-aarch64.h"
 #include "aarch64/macro-assembler-aarch64.h"
-#include "aarch64/disasm-aarch64.h"
 #pragma GCC diagnostic pop
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
@@ -120,8 +119,6 @@ class FastCompilerARM64 : public FastCompiler {
         code_generation_data_(CodeGenerationData::Create(arena_stack, InstructionSet::kArm64)),
         vreg_locations_(dex_compilation_unit.GetCodeItemAccessor().RegistersSize(),
                         allocator->Adapter()),
-        branch_targets_(dex_compilation_unit.GetCodeItemAccessor().InsnsSizeInCodeUnits(),
-                        allocator->Adapter()),
         has_frame_(false),
         core_spill_mask_(0u),
         fpu_spill_mask_(0u),
@@ -203,10 +200,6 @@ class FastCompilerARM64 : public FastCompiler {
   // Return the existing register location for `reg`.
   Location GetExistingRegisterLocation(uint32_t reg, DataType::Type type);
 
-  // Move dex registers holding constants into physical registers. Used when
-  // branching.
-  void MoveConstantsToRegisters();
-
   // Generate code for one instruction.
   bool ProcessDexInstruction(const Instruction& instruction,
                              uint32_t dex_pc,
@@ -220,10 +213,6 @@ class FastCompilerARM64 : public FastCompiler {
 
   // Generate code for doing a Java invoke.
   bool HandleInvoke(const Instruction& instruction, uint32_t dex_pc, InvokeType invoke_type);
-
-  // Generate code for IF_* instructions.
-  template<vixl::aarch64::Condition kCond, bool kCompareWithZero>
-  bool If_21_22t(const Instruction& instruction, uint32_t dex_pc);
 
   // Generate code for doing a runtime invoke.
   void InvokeRuntime(QuickEntrypointEnum entrypoint, uint32_t dex_pc);
@@ -267,21 +256,6 @@ class FastCompilerARM64 : public FastCompiler {
   bool CanBeNull(uint32_t vreg_index) const {
     return !(is_non_null_mask_ & (1 << vreg_index));
   }
-
-  // Get the label associated with the given `dex_pc`.
-  vixl::aarch64::Label* GetLabelOf(uint32_t dex_pc) {
-    return &branch_targets_[dex_pc];
-  }
-
-  // If we need to abort compilation, clear branch targets, required by vixl.
-  void AbortCompilation() {
-    for (vixl::aarch64::Label& label : branch_targets_) {
-      if (label.IsLinked()) {
-        __ Bind(&label);
-      }
-    }
-  }
-
 
   // Compiler utilities.
   //
@@ -327,9 +301,6 @@ class FastCompilerARM64 : public FastCompiler {
 
   // The current location of each dex register.
   ArenaVector<Location> vreg_locations_;
-
-  // A vector of size code units for dex pcs that are branch targets.
-  ArenaVector<vixl::aarch64::Label> branch_targets_;
 
   // Whether we've created a frame for this compiled method.
   bool has_frame_;
@@ -403,17 +374,6 @@ bool FastCompilerARM64::InitializeParameters() {
   return true;
 }
 
-void FastCompilerARM64::MoveConstantsToRegisters() {
-  for (uint32_t i = 0; i < vreg_locations_.size(); ++i) {
-    Location location  = vreg_locations_[i];
-    if (location.IsConstant()) {
-      vreg_locations_[i] =
-          CreateNewRegisterLocation(i, DataType::Type::kInt32, /* next= */ nullptr);
-      MoveLocation(vreg_locations_[i], location, DataType::Type::kInt32);
-    }
-  }
-}
-
 bool FastCompilerARM64::ProcessInstructions() {
   DCHECK(GetCodeItemAccessor().HasCodeItem());
 
@@ -430,11 +390,6 @@ bool FastCompilerARM64::ProcessInstructions() {
     if (it != end) {
       const DexInstructionPcPair& next_pair = *it;
       next = &next_pair.Inst();
-    }
-    vixl::aarch64::Label* label = GetLabelOf(pair.DexPc());
-    if (label->IsLinked()) {
-      MoveConstantsToRegisters();
-      __ Bind(label);
     }
 
     if (!ProcessDexInstruction(pair.Inst(), pair.DexPc(), next)) {
@@ -821,11 +776,6 @@ bool FastCompilerARM64::HandleInvoke(const Instruction& instruction,
     } else if (invoke_type == kInterface) {
       offset = resolved_method->GetImtIndex();
     }
-
-    if (resolved_method->IsStringConstructor()) {
-      unimplemented_reason_ = "StringConstructor";
-      return false;
-    }
   }
 
   // Given we are calling a method, generate a frame.
@@ -1065,104 +1015,6 @@ bool FastCompilerARM64::CanGenerateCodeFor(ArtField* field, bool can_receiver_be
   return true;
 }
 
-#define DO_CASE(arm_op, op, other) \
-    case arm_op: { \
-      if (constant op other) { \
-        __ B(label); \
-      } \
-      return true; \
-    } \
-
-template<vixl::aarch64::Condition kCond, bool kCompareWithZero>
-bool FastCompilerARM64::If_21_22t(const Instruction& instruction, uint32_t dex_pc) {
-  DCHECK_EQ(kCompareWithZero ? Instruction::Format::k21t : Instruction::Format::k22t,
-            Instruction::FormatOf(instruction.Opcode()));
-  EnsureHasFrame();
-  int32_t target_offset = kCompareWithZero ? instruction.VRegB_21t() : instruction.VRegC_22t();
-  DCHECK_EQ(target_offset, instruction.GetTargetOffset());
-  if (target_offset < 0) {
-    // TODO: Support for negative branches requires two passes.
-    unimplemented_reason_ = "NegativeBranch";
-    return false;
-  }
-  int32_t register_index = kCompareWithZero ? instruction.VRegA_21t() : instruction.VRegA_22t();
-  vixl::aarch64::Label* label = GetLabelOf(dex_pc + target_offset);
-  Location location = vreg_locations_[register_index];
-
-  if (kCompareWithZero) {
-    // We are going to branch, move all constants to registers to make the merge
-    // point use the same locations.
-    MoveConstantsToRegisters();
-    if (location.IsConstant()) {
-      DCHECK(location.GetConstant()->IsIntConstant());
-      int32_t constant = location.GetConstant()->AsIntConstant()->GetValue();
-      switch (kCond) {
-        DO_CASE(vixl::aarch64::eq, ==, 0);
-        DO_CASE(vixl::aarch64::ne, !=, 0);
-        DO_CASE(vixl::aarch64::lt, <, 0);
-        DO_CASE(vixl::aarch64::le, <=, 0);
-        DO_CASE(vixl::aarch64::gt, >, 0);
-        DO_CASE(vixl::aarch64::ge, >=, 0);
-      }
-      return true;
-    } else if (location.IsRegister()) {
-      CPURegister reg = CPURegisterFrom(location, DataType::Type::kInt32);
-      switch (kCond) {
-        case vixl::aarch64::eq: {
-          __ Cbz(Register(reg), label);
-          return true;
-        }
-        case vixl::aarch64::ne: {
-          __ Cbnz(Register(reg), label);
-          return true;
-        }
-        default: {
-          __ Cmp(Register(reg), 0);
-          __ B(kCond, label);
-          return true;
-        }
-      }
-    } else {
-      DCHECK(location.IsStackSlot());
-      unimplemented_reason_ = "CompareWithZeroOnStackSlot";
-    }
-    return false;
-  }
-
-  // !kCompareWithZero
-  Location other_location = vreg_locations_[instruction.VRegB_22t()];
-  // We are going to branch, move all constants to registers to make the merge
-  // point use the same locations.
-  MoveConstantsToRegisters();
-  if (location.IsConstant() && other_location.IsConstant()) {
-    int32_t constant = location.GetConstant()->AsIntConstant()->GetValue();
-    int32_t other_constant = other_location.GetConstant()->AsIntConstant()->GetValue();
-    switch (kCond) {
-      DO_CASE(vixl::aarch64::eq, ==, other_constant);
-      DO_CASE(vixl::aarch64::ne, !=, other_constant);
-      DO_CASE(vixl::aarch64::lt, <, other_constant);
-      DO_CASE(vixl::aarch64::le, <=, other_constant);
-      DO_CASE(vixl::aarch64::gt, >, other_constant);
-      DO_CASE(vixl::aarch64::ge, >=, other_constant);
-    }
-    return true;
-  }
-  // Reload the locations, which can now be registers.
-  location = vreg_locations_[register_index];
-  other_location = vreg_locations_[instruction.VRegB_22t()];
-  if (location.IsRegister() && other_location.IsRegister()) {
-    CPURegister reg = CPURegisterFrom(location, DataType::Type::kInt32);
-    CPURegister other_reg = CPURegisterFrom(other_location, DataType::Type::kInt32);
-    __ Cmp(Register(reg), Register(other_reg));
-    __ B(kCond, label);
-    return true;
-  }
-
-  unimplemented_reason_ = "UnimplementedCompare";
-  return false;
-}
-#undef DO_CASE
-
 bool FastCompilerARM64::ProcessDexInstruction(const Instruction& instruction,
                                               uint32_t dex_pc,
                                               const Instruction* next) {
@@ -1239,17 +1091,15 @@ bool FastCompilerARM64::ProcessDexInstruction(const Instruction& instruction,
     }
 
 #define IF_XX(comparison, cond) \
-    case Instruction::IF_##cond: \
-      return If_21_22t<comparison, /* kCompareWithZero= */ false>(instruction, dex_pc); \
-    case Instruction::IF_##cond##Z: \
-      return If_21_22t<comparison, /* kCompareWithZero= */ true>(instruction, dex_pc);
+    case Instruction::IF_##cond: break; \
+    case Instruction::IF_##cond##Z: break
 
-    IF_XX(vixl::aarch64::eq, EQ);
-    IF_XX(vixl::aarch64::ne, NE);
-    IF_XX(vixl::aarch64::lt, LT);
-    IF_XX(vixl::aarch64::le, LE);
-    IF_XX(vixl::aarch64::gt, GT);
-    IF_XX(vixl::aarch64::ge, GE);
+    IF_XX(HEqual, EQ);
+    IF_XX(HNotEqual, NE);
+    IF_XX(HLessThan, LT);
+    IF_XX(HLessThanOrEqual, LE);
+    IF_XX(HGreaterThan, GT);
+    IF_XX(HGreaterThanOrEqual, GE);
 
     case Instruction::GOTO:
     case Instruction::GOTO_16:
@@ -1264,15 +1114,6 @@ bool FastCompilerARM64::ProcessDexInstruction(const Instruction& instruction,
       MoveLocation(convention.GetReturnLocation(return_type_),
                    vreg_locations_[register_index],
                    return_type_);
-      if (has_frame_) {
-        // We may have used the "record last instruction before return in return
-        // register" optimization (see `CreateNewRegisterLocation`),
-        // so set the returned register back to a callee save location in case the
-        // method has a frame and there are instructions after this return that
-        // may use this register.
-        uint32_t register_code = kAvailableCalleeSaveRegisters[register_index].GetCode();
-        vreg_locations_[register_index] = Location::RegisterLocation(register_code);
-      }
       DropFrameAndReturn();
       return true;
     }
@@ -2119,16 +1960,13 @@ bool FastCompilerARM64::ProcessDexInstruction(const Instruction& instruction,
 bool FastCompilerARM64::Compile() {
   if (!InitializeParameters()) {
     DCHECK(HitUnimplemented());
-    AbortCompilation();
     return false;
   }
   if (!ProcessInstructions()) {
     DCHECK(HitUnimplemented());
-    AbortCompilation();
     return false;
   }
   if (HitUnimplemented()) {
-    AbortCompilation();
     return false;
   }
   if (!has_frame_) {
@@ -2140,30 +1978,7 @@ bool FastCompilerARM64::Compile() {
                                                             /* is_debuggable= */ false);
   }
   code_generation_data_->GetStackMapStream()->EndMethod(assembler_.CodeSize());
-  assembler_.FinalizeCode();
-
-  if (VLOG_IS_ON(jit)) {
-    // Dump the generated code
-    {
-      ScopedObjectAccess soa(Thread::Current());
-      VLOG(jit) << "Dumping generated fast baseline code for " << method_->PrettyMethod();
-    }
-    FILE* file = tmpfile();
-    MacroAssembler* masm = GetVIXLAssembler();
-    PrintDisassembler print_disasm(file);
-    vixl::aarch64::Instruction* dis_start =
-        masm->GetBuffer()->GetStartAddress<vixl::aarch64::Instruction*>();
-    vixl::aarch64::Instruction* dis_end =
-        masm->GetBuffer()->GetEndAddress<vixl::aarch64::Instruction*>();
-    print_disasm.DisassembleBuffer(dis_start, dis_end);
-    fseek(file, 0L, SEEK_SET);
-    char buffer[1024];
-    const char* line;
-    while ((line = fgets(buffer, sizeof(buffer), file)) != nullptr) {
-      VLOG(jit) << std::string(line);
-    }
-    fclose(file);
-  }
+  GetVIXLAssembler()->FinalizeCode();
   return true;
 }
 

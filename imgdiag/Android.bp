@@ -110,10 +110,9 @@ art_cc_test {
 }
 
 cc_defaults {
-    name: "pageinfo-defaults",
+    name: "page_util-defaults",
     host_supported: true,
     srcs: [
-        "page_info.cc",
         "page_util.cc",
     ],
     defaults: ["art_defaults"],
@@ -122,6 +121,8 @@ cc_defaults {
 
     shared_libs: [
         "libbase",
+        "libartbase",
+        "libart",
     ],
     static_libs: [
         "libprocinfo",
@@ -142,10 +143,21 @@ cc_defaults {
 
 art_cc_binary {
     name: "pageinfo",
-    defaults: ["pageinfo-defaults"],
-    shared_libs: [
-        "libart",
-        "libartbase",
+    defaults: ["page_util-defaults"],
+    srcs: [
+        "page_info.cc",
+    ],
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
+art_cc_binary {
+    name: "find_unshared_pages",
+    defaults: ["page_util-defaults"],
+    srcs: [
+        "find_unshared_pages.cc",
     ],
     apex_available: [
         "com.android.art",

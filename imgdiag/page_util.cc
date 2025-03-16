@@ -97,4 +97,34 @@ bool GetPageFrameNumbers(File& page_map_file,
   return true;
 }
 
+bool OpenFile(const char* file_name, /*out*/ File& file, /*out*/ std::string& error_msg) {
+  std::unique_ptr<File> file_ptr = std::unique_ptr<File>{OS::OpenFileForReading(file_name)};
+  if (file_ptr == nullptr) {
+    error_msg = StringPrintf("Failed to open file: %s", file_name);
+    return false;
+  }
+  file = std::move(*file_ptr);
+  return true;
+}
+
+bool OpenProcFiles(pid_t pid, /*out*/ ProcFiles& files, /*out*/ std::string& error_msg) {
+  if (!OpenFile("/proc/kpageflags", files.kpageflags, error_msg)) {
+    return false;
+  }
+  if (!OpenFile("/proc/kpagecount", files.kpagecount, error_msg)) {
+    return false;
+  }
+  std::string mem_file_name =
+      StringPrintf("/proc/%ld/mem", static_cast<long>(pid));  // NOLINT [runtime/int]
+  if (!OpenFile(mem_file_name.c_str(), files.mem, error_msg)) {
+    return false;
+  }
+  std::string pagemap_file_name =
+      StringPrintf("/proc/%ld/pagemap", static_cast<long>(pid));  // NOLINT [runtime/int]
+  if (!OpenFile(pagemap_file_name.c_str(), files.pagemap, error_msg)) {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace art

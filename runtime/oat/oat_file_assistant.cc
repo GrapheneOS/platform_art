@@ -322,10 +322,6 @@ int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fil
                                       bool profile_changed,
                                       bool downgrade) {
   OatFileInfo& info = GetBestInfo();
-  if (info.CheckDisableCompactDex()) {  // TODO(b/256664509): Clean this up.
-    VLOG(oat) << "Should recompile: disable cdex";
-    return kDex2OatFromScratch;
-  }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(
       target_compiler_filter, GetDexOptTrigger(target_compiler_filter, profile_changed, downgrade));
   if (dexopt_needed != kNoDexOptNeeded && info.GetType() == OatFileType::kDm) {
@@ -344,10 +340,6 @@ bool OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fi
                                        DexOptTrigger dexopt_trigger,
                                        /*out*/ DexOptStatus* dexopt_status) {
   OatFileInfo& info = GetBestInfo();
-  if (info.CheckDisableCompactDex()) {  // TODO(b/256664509): Clean this up.
-    dexopt_status->location_ = kLocationNoneOrError;
-    return true;
-  }
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target_compiler_filter, dexopt_trigger);
   dexopt_status->location_ = GetLocation(info);
   return dexopt_needed != kNoDexOptNeeded;
@@ -1189,19 +1181,6 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
   }
 
   return std::unique_ptr<OatFile>();
-}
-
-// Check if we should reject vdex containing cdex code as part of the cdex
-// deprecation.
-// TODO(b/256664509): Clean this up.
-bool OatFileAssistant::OatFileInfo::CheckDisableCompactDex() {
-  const OatFile* oat_file = GetFile();
-  if (oat_file == nullptr) {
-    return false;
-  }
-  const VdexFile* vdex_file = oat_file->GetVdexFile();
-  return vdex_file != nullptr && vdex_file->HasDexSection() &&
-         !vdex_file->HasOnlyStandardDexFiles();
 }
 
 // TODO(calin): we could provide a more refined status here
