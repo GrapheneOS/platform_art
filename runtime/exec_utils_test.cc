@@ -102,7 +102,7 @@ class NeverFallbackExecUtils : public TestingExecUtils {
   }
 };
 
-class ExecUtilsTest : public CommonRuntimeTest, public testing::WithParamInterface<bool> {
+class ExecUtilsTest : public CommonRuntimeTest, public ::testing::WithParamInterface<bool> {
  protected:
   void SetUp() override {
     CommonRuntimeTest::SetUp();
@@ -390,6 +390,6 @@ TEST_P(ExecUtilsTest, ExecNewProcessGroupFalse) {
                                    &error_msg);
 }
 
-INSTANTIATE_TEST_SUITE_P(AlwaysOrNeverFallback, ExecUtilsTest, testing::Values(true, false));
+INSTANTIATE_TEST_SUITE_P(AlwaysOrNeverFallback, ExecUtilsTest, ::testing::Values(true, false));
 
 }  // namespace art

@@ -1525,18 +1525,19 @@ TEST_P(TwoTypesConversionsTestGroup, StoreLoopLoadStoreLoad) {
   EXPECT_INS_REMOVED(read1);
   EXPECT_INS_REMOVED(read2);
 
-  if (load_type1 != DataType::Type::kInt32 && load_type2 != load_type1) {
-    GTEST_SKIP() << "FIXME: Missing type conversions. Bug: 341476044";
-  }
-  // Note: Sometimes we create two type conversions when one is enough (Int32->Int16->Int8).
-  // We currently rely on the instruction simplifier to remove the intermediate conversion.
+  // Note: If the `load_type2` is not larger than the `load_type1`, we avoid
+  // the intermediate conversion and use `param` directly for the second load.
+  DataType::Type read2_input_type = DataType::Size(load_type2) <= DataType::Size(load_type1)
+      ? DataType::Type::kInt32
+      : load_type1;
   HInstruction* current = ret->InputAt(0);
-  if (!DataType::IsTypeConversionImplicit(load_type1, load_type2)) {
+  if (!DataType::IsTypeConversionImplicit(read2_input_type, load_type2)) {
     ASSERT_TRUE(current->IsTypeConversion()) << current->DebugName();
     ASSERT_EQ(load_type2, current->GetType());
     current = current->InputAt(0);
   }
-  if (!DataType::IsTypeConversionImplicit(DataType::Type::kInt32, load_type1)) {
+  if (!DataType::IsTypeConversionImplicit(DataType::Type::kInt32, read2_input_type)) {
+    ASSERT_EQ(read2_input_type, load_type1);
     ASSERT_TRUE(current->IsTypeConversion()) << current->DebugName();
     ASSERT_EQ(load_type1, current->GetType()) << load_type2;
     current = current->InputAt(0);
@@ -1589,7 +1590,6 @@ TEST_P(TwoTypesConversionsTestGroup, MergingConvertedValueStore) {
     EXPECT_INS_REMOVED(phi_write) << "\n" << param_type << "/" << load_type;
     ASSERT_EQ(param, ret_input) << ret_input->DebugName();
   } else {
-    GTEST_SKIP() << "FIXME: Missing type conversions. Bug: 341476044";
     EXPECT_INS_RETAINED(phi_write) << "\n" << param_type << "/" << load_type;
     ASSERT_TRUE(ret_input->IsPhi()) << ret_input->DebugName();
     HInstruction* pre_header_input = ret_input->InputAt(0);
@@ -1654,22 +1654,25 @@ TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
     EXPECT_INS_REMOVED(phi_write) << "\n" << load_type1 << "/" << load_type2;
     ASSERT_EQ(param, ret_input) << ret_input->DebugName();
   } else {
-    GTEST_SKIP() << "FIXME: Missing type conversions. Bug: 341476044";
     EXPECT_INS_RETAINED(phi_write) << "\n" << load_type1 << "/" << load_type2;
     ASSERT_TRUE(ret_input->IsPhi()) << ret_input->DebugName();
     HInstruction* pre_header_input = ret_input->InputAt(0);
     HInstruction* loop_body_input = ret_input->InputAt(1);
     ASSERT_EQ(param, pre_header_input) << pre_header_input->DebugName();
     ASSERT_TRUE(loop_body_input->IsTypeConversion());
-    // Note: Sometimes we create two type conversions when one is enough (Int32->Int16->Int8).
-    // We currently rely on the instruction simplifier to remove the intermediate conversion.
     HInstruction* current = loop_body_input;
-    if (!DataType::IsTypeConversionImplicit(load_type1, load_type2)) {
+    // Note: If the `load_type2` is not larger than the `load_type1`, we avoid
+    // the intermediate conversion and use Phi directly for the second load.
+    DataType::Type read2_input_type = DataType::Size(load_type2) <= DataType::Size(load_type1)
+        ? DataType::Type::kInt32
+        : load_type1;
+    if (!DataType::IsTypeConversionImplicit(read2_input_type, load_type2)) {
       ASSERT_TRUE(current->IsTypeConversion()) << current->DebugName();
       ASSERT_EQ(load_type2, current->GetType());
       current = current->InputAt(0);
     }
-    if (!DataType::IsTypeConversionImplicit(DataType::Type::kInt32, load_type1)) {
+    if (!DataType::IsTypeConversionImplicit(DataType::Type::kInt32, read2_input_type)) {
+      ASSERT_EQ(read2_input_type, load_type1);
       ASSERT_TRUE(current->IsTypeConversion()) << current->DebugName();
       ASSERT_EQ(load_type1, current->GetType()) << load_type2;
       current = current->InputAt(0);
@@ -1678,18 +1681,115 @@ TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
   }
 }
 
-auto Int32AndSmallerTypesGenerator() {
-  return testing::Values(DataType::Type::kInt32,
-                         DataType::Type::kInt16,
-                         DataType::Type::kInt8,
-                         DataType::Type::kUint16,
-                         DataType::Type::kUint8);
+TEST_P(TwoTypesConversionsTestGroup, MergingConvertedValueStorePhiDeduplication) {
+  auto [load_type1, load_type2] = GetParam();
+  DataType::Type field_type1 = FieldTypeForLoadType(load_type1);
+  DataType::Type field_type2 = FieldTypeForLoadType(load_type2);
+  DataType::Type phi_field_type = DataType::Type::kInt32;  // "phi field" can hold the full value.
+  CHECK(DataType::IsTypeConversionImplicit(load_type1, phi_field_type));
+  CHECK(DataType::IsTypeConversionImplicit(load_type2, phi_field_type));
+  DataType::Type param_type = DataType::Type::kInt32;
+
+  HBasicBlock* return_block = InitEntryMainExitGraph();
+  auto [pre_header, loop_header, loop_body] = CreateForLoopWithInstructions(return_block);
+
+  HInstruction* param = MakeParam(param_type);
+  HInstruction* object = MakeParam(DataType::Type::kReference);
+
+  // Initialize the two "phi fields".
+  HInstruction* pre_header_write1 =
+      MakeIFieldSet(pre_header, object, param, phi_field_type, MemberOffset(40));
+  HInstruction* pre_header_write2 =
+      MakeIFieldSet(pre_header, object, param, phi_field_type, MemberOffset(60));
+
+  // In the body, we read the "phi fields", store and load the values to different fields
+  // to force type conversion, and store back to the "phi fields".
+  HInstanceFieldGet* phi_read1 = MakeIFieldGet(loop_body, object, phi_field_type, MemberOffset(40));
+  HInstanceFieldGet* phi_read2 = MakeIFieldGet(loop_body, object, phi_field_type, MemberOffset(60));
+  HInstruction* conversion_write1 =
+      MakeIFieldSet(loop_body, object, phi_read1, field_type1, MemberOffset(32));
+  HInstruction* conversion_write2 =
+      MakeIFieldSet(loop_body, object, phi_read2, field_type2, MemberOffset(52));
+  HInstanceFieldGet* conversion_read1 =
+      MakeIFieldGet(loop_body, object, field_type1, MemberOffset(32));
+  conversion_read1->SetType(load_type1);
+  HInstanceFieldGet* conversion_read2 =
+      MakeIFieldGet(loop_body, object, field_type2, MemberOffset(52));
+  conversion_read2->SetType(load_type2);
+  HInstruction* phi_write1 =
+      MakeIFieldSet(loop_body, object, conversion_read1, phi_field_type, MemberOffset(40));
+  HInstruction* phi_write2 =
+      MakeIFieldSet(loop_body, object, conversion_read2, phi_field_type, MemberOffset(60));
+
+  HInstanceFieldGet* final_read1 =
+      MakeIFieldGet(return_block, object, phi_field_type, MemberOffset(40));
+  HInstanceFieldGet* final_read2 =
+      MakeIFieldGet(return_block, object, phi_field_type, MemberOffset(60));
+  HAdd* add = MakeBinOp<HAdd>(return_block, DataType::Type::kInt32, final_read1, final_read2);
+  HInstruction* ret = MakeReturn(return_block, add);
+
+  PerformLSE();
+
+  EXPECT_INS_RETAINED(pre_header_write1);
+  EXPECT_INS_RETAINED(pre_header_write2);
+  EXPECT_INS_RETAINED(conversion_write1);
+  EXPECT_INS_RETAINED(conversion_write2);
+  EXPECT_INS_REMOVED(phi_read1);
+  EXPECT_INS_REMOVED(phi_read2);
+  EXPECT_INS_REMOVED(conversion_read1);
+  EXPECT_INS_REMOVED(conversion_read2);
+  EXPECT_INS_REMOVED(final_read1);
+  EXPECT_INS_REMOVED(final_read2);
+
+  HInstruction* ret_input = ret->InputAt(0);
+  ASSERT_EQ(add, ret_input) << ret_input->DebugName();
+  HInstruction* add_lhs = add->InputAt(0);
+  HInstruction* add_rhs = add->InputAt(1);
+  if (load_type1 == load_type2) {
+    ASSERT_EQ(add_lhs, add_rhs);
+  } else {
+    ASSERT_NE(add_lhs, add_rhs);
+  }
+  if (DataType::IsTypeConversionImplicit(param_type, load_type1)) {
+    EXPECT_INS_REMOVED(phi_write1) << "\n" << load_type1 << "/" << load_type2;
+    ASSERT_EQ(param, add_lhs) << ret_input->DebugName();
+  } else {
+    EXPECT_INS_RETAINED(phi_write1) << "\n" << load_type1 << "/" << load_type2;
+    ASSERT_TRUE(add_lhs->IsPhi()) << add_lhs->DebugName();
+    HInstruction* pre_header_input = add_lhs->InputAt(0);
+    HInstruction* loop_body_input = add_lhs->InputAt(1);
+    ASSERT_EQ(param, pre_header_input) << pre_header_input->DebugName();
+    ASSERT_TRUE(loop_body_input->IsTypeConversion());
+    ASSERT_EQ(load_type1, loop_body_input->GetType());
+    ASSERT_EQ(add_lhs, loop_body_input->InputAt(0));
+  }
+  if (DataType::IsTypeConversionImplicit(param_type, load_type2)) {
+    EXPECT_INS_REMOVED(phi_write2) << "\n" << load_type1 << "/" << load_type2;
+    ASSERT_EQ(param, add_rhs) << ret_input->DebugName();
+  } else {
+    EXPECT_INS_RETAINED(phi_write2) << "\n" << load_type1 << "/" << load_type2;
+    ASSERT_TRUE(add_rhs->IsPhi()) << add_rhs->DebugName();
+    HInstruction* pre_header_input = add_rhs->InputAt(0);
+    HInstruction* loop_body_input = add_rhs->InputAt(1);
+    ASSERT_EQ(param, pre_header_input) << pre_header_input->DebugName();
+    ASSERT_TRUE(loop_body_input->IsTypeConversion());
+    ASSERT_EQ(load_type2, loop_body_input->GetType());
+    ASSERT_EQ(add_rhs, loop_body_input->InputAt(0));
+  }
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    LoadStoreEliminationTest,
-    TwoTypesConversionsTestGroup,
-    testing::Combine(Int32AndSmallerTypesGenerator(), Int32AndSmallerTypesGenerator()));
+auto Int32AndSmallerTypesGenerator() {
+  return ::testing::Values(DataType::Type::kInt32,
+                           DataType::Type::kInt16,
+                           DataType::Type::kInt8,
+                           DataType::Type::kUint16,
+                           DataType::Type::kUint8);
+}
+
+INSTANTIATE_TEST_SUITE_P(LoadStoreEliminationTest,
+                         TwoTypesConversionsTestGroup,
+                         ::testing::Combine(Int32AndSmallerTypesGenerator(),
+                                            Int32AndSmallerTypesGenerator()));
 
 // // ENTRY
 // obj = new Obj();

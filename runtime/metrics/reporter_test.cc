@@ -399,7 +399,7 @@ TEST_F(MetricsReporterTest, CompilerFilter) {
 }
 
 // Test class for period spec parsing
-class ReportingPeriodSpecTest : public testing::Test {
+class ReportingPeriodSpecTest : public ::testing::Test {
  public:
   void VerifyFalse(const std::string& spec_str) {
     Verify(spec_str, false, false, false, {});

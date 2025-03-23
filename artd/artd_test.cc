@@ -43,6 +43,7 @@
 
 #include "aidl/com/android/server/art/ArtConstants.h"
 #include "aidl/com/android/server/art/BnArtd.h"
+#include "aidl/com/android/server/art/OutputArtifacts.h"
 #include "android-base/collections.h"
 #include "android-base/errors.h"
 #include "android-base/file.h"
@@ -58,6 +59,7 @@
 #include "base/common_art_test.h"
 #include "base/macros.h"
 #include "base/pidfd.h"
+#include "base/time_utils.h"
 #include "exec_utils.h"
 #include "file_utils.h"
 #include "gmock/gmock.h"
@@ -94,6 +96,7 @@ using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::RuntimeArtifactsPath;
+using ::aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Append;
 using ::android::base::Dirname;
@@ -130,10 +133,12 @@ using ::testing::Property;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SetArgPointee;
+using ::testing::StartsWith;
 using ::testing::StrEq;
 using ::testing::UnorderedElementsAreArray;
 using ::testing::WithArg;
 
+using PermissionSettings = OutputArtifacts::PermissionSettings;
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
 using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
 using TmpProfilePath = ProfilePath::TmpProfilePath;
@@ -153,10 +158,10 @@ ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& l
   });
 }
 
-void CheckContent(const std::string& path, const std::string& expected_content) {
+void CheckContent(const std::string& path, const Matcher<std::string>& expected_content_matcher) {
   std::string actual_content;
   ASSERT_TRUE(ReadFileToString(path, &actual_content));
-  EXPECT_EQ(actual_content, expected_content);
+  EXPECT_THAT(actual_content, expected_content_matcher);
 }
 
 void CheckOtherReadable(const std::string& path, bool expected_value) {
@@ -384,24 +389,24 @@ class ArtdTest : public CommonArtTest {
     };
     struct stat st;
     ASSERT_EQ(stat(scratch_path_.c_str(), &st), 0);
+    permission_settings_ = {
+        .dirFsPermission =
+            FsPermission{
+                .uid = static_cast<int32_t>(st.st_uid),
+                .gid = static_cast<int32_t>(st.st_gid),
+                .isOtherReadable = true,
+                .isOtherExecutable = true,
+            },
+        .fileFsPermission =
+            FsPermission{
+                .uid = static_cast<int32_t>(st.st_uid),
+                .gid = static_cast<int32_t>(st.st_gid),
+                .isOtherReadable = true,
+            },
+    };
     output_artifacts_ = OutputArtifacts{
         .artifactsPath = artifacts_path_,
-        .permissionSettings =
-            OutputArtifacts::PermissionSettings{
-                .dirFsPermission =
-                    FsPermission{
-                        .uid = static_cast<int32_t>(st.st_uid),
-                        .gid = static_cast<int32_t>(st.st_gid),
-                        .isOtherReadable = true,
-                        .isOtherExecutable = true,
-                    },
-                .fileFsPermission =
-                    FsPermission{
-                        .uid = static_cast<int32_t>(st.st_uid),
-                        .gid = static_cast<int32_t>(st.st_gid),
-                        .isOtherReadable = true,
-                    },
-            },
+        .permissionSettings = permission_settings_,
     };
     clc_1_ = GetTestDexFileName("Main");
     clc_2_ = GetTestDexFileName("Nested");
@@ -417,6 +422,12 @@ class ArtdTest : public CommonArtTest {
     dm_path_ = DexMetadataPath{.dexPath = dex_file_};
     std::filesystem::create_directories(
         std::filesystem::path(OR_FATAL(BuildFinalProfilePath(tmp_profile_path_))).parent_path());
+
+    sdm_sdc_paths_ = {
+        .dexPath = dex_file_,
+        .isa = isa_,
+        .isInDalvikCache = false,
+    };
   }
 
   void TearDown() override {
@@ -547,6 +558,7 @@ class ArtdTest : public CommonArtTest {
   std::string dex_file_;
   std::string isa_;
   ArtifactsPath artifacts_path_;
+  PermissionSettings permission_settings_;
   OutputArtifacts output_artifacts_;
   std::string clc_1_;
   std::string clc_2_;
@@ -560,6 +572,8 @@ class ArtdTest : public CommonArtTest {
   TmpProfilePath tmp_profile_path_;
   bool dex_file_other_readable_ = true;
   bool profile_other_readable_ = true;
+
+  SecureDexMetadataWithCompanionPaths sdm_sdc_paths_;
 
  private:
   void InitFilesBeforeDexopt() {
@@ -699,6 +713,79 @@ TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
   EXPECT_FALSE(std::filesystem::exists(oat_dir + "/b.odex"));
   EXPECT_TRUE(std::filesystem::exists(oat_dir + "/b.vdex"));
   EXPECT_FALSE(std::filesystem::exists(oat_dir + "/b.art"));
+}
+
+TEST_F(ArtdTest, maybeCreateSdc) {
+  // Unable to create OatFileAssistantContext on host to get APEX versions.
+  TEST_DISABLED_FOR_HOST();
+
+  std::string sdm_file = OR_FAIL(BuildSdmPath(sdm_sdc_paths_));
+  std::string sdc_file = OR_FAIL(BuildSdcPath(sdm_sdc_paths_));
+  CreateFile(sdm_file);
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  CheckContent(sdc_file, StartsWith("sdm-timestamp-ns="));
+}
+
+TEST_F(ArtdTest, maybeCreateSdcAlreadyCreated) {
+  // Unable to create OatFileAssistantContext on host to get APEX versions.
+  TEST_DISABLED_FOR_HOST();
+
+  std::string sdm_file = OR_FAIL(BuildSdmPath(sdm_sdc_paths_));
+  std::string sdc_file = OR_FAIL(BuildSdcPath(sdm_sdc_paths_));
+  CreateFile(sdm_file);
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  struct stat sdc_st;
+  ASSERT_EQ(stat(sdc_file.c_str(), &sdc_st), 0);
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  struct stat new_sdc_st;
+  ASSERT_EQ(stat(sdc_file.c_str(), &new_sdc_st), 0);
+
+  EXPECT_EQ(TimeSpecToNs(sdc_st.st_mtim), TimeSpecToNs(new_sdc_st.st_mtim));
+}
+
+TEST_F(ArtdTest, maybeCreateSdcOutdatedTimestamp) {
+  // Unable to create OatFileAssistantContext on host to get APEX versions.
+  TEST_DISABLED_FOR_HOST();
+
+  std::string sdm_file = OR_FAIL(BuildSdmPath(sdm_sdc_paths_));
+  std::string sdc_file = OR_FAIL(BuildSdcPath(sdm_sdc_paths_));
+  CreateFile(sdm_file);
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  struct stat sdc_st;
+  ASSERT_EQ(stat(sdc_file.c_str(), &sdc_st), 0);
+
+  // Simulate that the SDM file is updated.
+  CreateFile(sdm_file);
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  struct stat new_sdc_st;
+  ASSERT_EQ(stat(sdc_file.c_str(), &new_sdc_st), 0);
+
+  // The SDC file should be updated.
+  EXPECT_LT(TimeSpecToNs(sdc_st.st_mtim), TimeSpecToNs(new_sdc_st.st_mtim));
+}
+
+TEST_F(ArtdTest, maybeCreateSdcNoSdm) {
+  std::string sdc_file = OR_FAIL(BuildSdcPath(sdm_sdc_paths_));
+
+  ASSERT_STATUS_OK(artd_->maybeCreateSdc(
+      {.sdcPath = sdm_sdc_paths_, .permissionSettings = permission_settings_}));
+
+  EXPECT_FALSE(std::filesystem::exists(sdc_file));
 }
 
 TEST_F(ArtdTest, dexopt) {
@@ -2143,15 +2230,23 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpClassesAndMethods) {
   CheckContent(output_profile.profilePath.tmpPath, "dump");
 }
 
+static std::string EncodeLocationForDalvikCache(const std::string& location) {
+  std::string encoded = location.substr(/*pos=*/1);  // Remove the leading '/';
+  std::replace(encoded.begin(), encoded.end(), '/', '@');
+  return encoded;
+}
+
 class ArtdCleanupTest : public ArtdTest {
  protected:
   void SetUpForCleanup() {
     // Unmanaged files.
     CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/1.odex");
+    CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/1.arm64.sdm");
     CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/oat/1.odex");
     CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/oat/1.txt");
     CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/oat/arm64/1.txt");
     CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/oat/arm64/1.tmp");
+    CreateGcKeptFile(android_data_ + "/user_de/0/com.android.foo/oat/arm64/1.sdc");
 
     // Files to keep.
     CreateGcKeptFile(android_data_ + "/misc/profiles/cur/1/com.android.foo/primary.prof");
@@ -2179,6 +2274,15 @@ class ArtdCleanupTest : public ArtdTest {
                      "/123456-7890/user/1/com.android.foo/cache/oat_primary/arm64/base.art");
     CreateGcKeptFile(android_data_ +
                      "/user/0/com.android.foo/cache/not_oat_dir/oat_primary/arm64/base.art");
+    CreateGcKeptFile(android_data_ +
+                     "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/base.arm64.sdm");
+    CreateGcKeptFile(android_data_ +
+                     "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/oat/arm64/base.sdc");
+    CreateGcKeptFile(android_data_ +
+                     "/app/~~jhrwafasr==/com.android.qux-bredcweff==/base.arm64.sdm");
+    CreateGcKeptFile(android_data_ + "/dalvik-cache/arm64/" +
+                     EncodeLocationForDalvikCache(android_data_) +
+                     "@app@~~jhrwafasr==@com.android.qux-bredcweff==@base.apk@classes.sdc");
 
     // Files to remove.
     CreateGcRemovedFile(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof");
@@ -2220,6 +2324,26 @@ class ArtdCleanupTest : public ArtdTest {
                         "/user/0/com.android.foo/cache/oat_primary/arm64/different_dex.art");
     CreateGcRemovedFile(android_data_ +
                         "/user/0/com.android.foo/cache/oat_primary/different_isa/base.art");
+    CreateGcRemovedFile(android_data_ +
+                        "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/different_dex.arm64.sdm");
+    CreateGcRemovedFile(
+        android_data_ +
+        "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/oat/arm64/different_dex.sdc");
+    CreateGcRemovedFile(android_data_ +
+                        "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/base.different_isa.sdm");
+    CreateGcRemovedFile(
+        android_data_ +
+        "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/oat/different_isa/base.sdc");
+    CreateGcRemovedFile(android_data_ +
+                        "/app/~~jhrwafasr==/com.android.qux-bredcweff==/different_dex.arm64.sdm");
+    CreateGcRemovedFile(
+        android_data_ + "/dalvik-cache/arm64/" + EncodeLocationForDalvikCache(android_data_) +
+        "@app@~~jhrwafasr==@com.android.qux-bredcweff==@different_dex.apk@classes.sdc");
+    CreateGcRemovedFile(android_data_ +
+                        "/app/~~jhrwafasr==/com.android.qux-bredcweff==/base.different_isa.sdm");
+    CreateGcRemovedFile(android_data_ + "/dalvik-cache/different_isa/" +
+                        EncodeLocationForDalvikCache(android_data_) +
+                        "@app@~~jhrwafasr==@com.android.qux-bredcweff==@base.apk@classes.sdc");
   }
 
   void CreateGcRemovedFile(const std::string& path) {
@@ -2258,6 +2382,18 @@ class ArtdCleanupTest : public ArtdTest {
                 ArtifactsPath{.dexPath = android_data_ + "/user_de/0/com.android.foo/aaa/1.apk",
                               .isa = "arm64",
                               .isInDalvikCache = false}},
+        },
+        {
+            SecureDexMetadataWithCompanionPaths{
+                .dexPath =
+                    android_data_ + "/app/~~fadsfgadg==/com.android.baz-fadsfgadg==/base.apk",
+                .isa = "arm64",
+                .isInDalvikCache = false},
+            SecureDexMetadataWithCompanionPaths{
+                .dexPath =
+                    android_data_ + "/app/~~jhrwafasr==/com.android.qux-bredcweff==/base.apk",
+                .isa = "arm64",
+                .isInDalvikCache = true},
         },
         {
             RuntimeArtifactsPath{
@@ -2348,6 +2484,19 @@ TEST_F(ArtdTest, isInDalvikCache) {
   EXPECT_THAT(is_in_dalvik_cache("/foo"), HasValue(true));
 }
 
+TEST_F(ArtdTest, deleteSdmSdcFiles) {
+  CreateFile(scratch_path_ + "/a/b.arm64.sdm", "**");     // 2 bytes.
+  CreateFile(scratch_path_ + "/a/oat/arm64/b.sdc", "*");  // 1 byte.
+
+  int64_t result = -1;
+  ASSERT_STATUS_OK(artd_->deleteSdmSdcFiles(
+      {.dexPath = scratch_path_ + "/a/b.apk", .isa = "arm64", .isInDalvikCache = false}, &result));
+  EXPECT_EQ(result, 2 + 1);
+
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/b.arm64.sdm"));
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.sdc"));
+}
+
 TEST_F(ArtdTest, deleteRuntimeArtifacts) {
   std::vector<std::string> removed_files;
   std::vector<std::string> kept_files;
@@ -2413,6 +2562,8 @@ TEST_F(ArtdTest, deleteRuntimeArtifactsAndroidDataNotExist) {
   EXPECT_EQ(aidl_return, 0);
 }
 
+// Verifies that `deleteRuntimeArtifacts` doesn't treat "*" as a wildcard. It should either treat it
+// as a normal character in the path or reject it. The caller is never supposed to use a wildcard.
 TEST_F(ArtdTest, deleteRuntimeArtifactsSpecialChars) {
   std::vector<std::string> removed_files;
   std::vector<std::string> kept_files;
@@ -2430,25 +2581,18 @@ TEST_F(ArtdTest, deleteRuntimeArtifactsSpecialChars) {
   CreateKeptFile(android_data_ + "/user/0/com.android.foo/cache/oat_primary/arm64/base.art");
 
   CreateRemovedFile(android_data_ + "/user/0/*/cache/oat_primary/arm64/base.art");
-  CreateRemovedFile(android_data_ + "/user/0/com.android.foo/cache/oat_primary/*/base.art");
   CreateRemovedFile(android_data_ + "/user/0/com.android.foo/cache/oat_primary/arm64/*.art");
 
   int64_t aidl_return;
-  ASSERT_TRUE(
-      artd_
-          ->deleteRuntimeArtifacts({.packageName = "*", .dexPath = "/a/b/base.apk", .isa = "arm64"},
-                                   &aidl_return)
-          .isOk());
-  ASSERT_TRUE(artd_
-                  ->deleteRuntimeArtifacts(
-                      {.packageName = "com.android.foo", .dexPath = "/a/b/*.apk", .isa = "arm64"},
-                      &aidl_return)
-                  .isOk());
-  ASSERT_TRUE(artd_
-                  ->deleteRuntimeArtifacts(
-                      {.packageName = "com.android.foo", .dexPath = "/a/b/base.apk", .isa = "*"},
-                      &aidl_return)
-                  .isOk());
+  ASSERT_STATUS_OK(artd_->deleteRuntimeArtifacts(
+      {.packageName = "*", .dexPath = "/a/b/base.apk", .isa = "arm64"}, &aidl_return));
+  ASSERT_STATUS_OK(artd_->deleteRuntimeArtifacts(
+      {.packageName = "com.android.foo", .dexPath = "/a/b/*.apk", .isa = "arm64"}, &aidl_return));
+  ASSERT_FALSE(artd_
+                   ->deleteRuntimeArtifacts(
+                       {.packageName = "com.android.foo", .dexPath = "/a/b/base.apk", .isa = "*"},
+                       &aidl_return)
+                   .isOk());
 
   for (const std::string& path : removed_files) {
     EXPECT_FALSE(std::filesystem::exists(path)) << ART_FORMAT("'{}' should be removed", path);
@@ -2494,6 +2638,19 @@ TEST_F(ArtdTest, getVdexFileSize) {
                                                   .isInDalvikCache = false},
                                     &aidl_return)
                   .isOk());
+  EXPECT_EQ(aidl_return, 1);
+}
+
+TEST_F(ArtdTest, getSdmFileSize) {
+  CreateFile(scratch_path_ + "/a/b.arm64.sdm", std::string(1, '*'));
+
+  int64_t aidl_return = -1;
+  ASSERT_TRUE(
+      artd_
+          ->getSdmFileSize(
+              {.dexPath = scratch_path_ + "/a/b.apk", .isa = "arm64", .isInDalvikCache = false},
+              &aidl_return)
+          .isOk());
   EXPECT_EQ(aidl_return, 1);
 }
 

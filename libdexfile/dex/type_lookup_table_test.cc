@@ -49,14 +49,14 @@ TEST_P(TypeLookupTableTest, Find) {
 
 INSTANTIATE_TEST_CASE_P(FindNonExistingClassWithoutCollisions,
                         TypeLookupTableTest,
-                        testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
+                        ::testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
 INSTANTIATE_TEST_CASE_P(FindNonExistingClassWithCollisions,
                         TypeLookupTableTest,
-                        testing::Values(DescriptorClassDefIdxPair("LDA;", dex::kDexNoIndex)));
+                        ::testing::Values(DescriptorClassDefIdxPair("LDA;", dex::kDexNoIndex)));
 INSTANTIATE_TEST_CASE_P(FindClassNoCollisions,
                         TypeLookupTableTest,
-                        testing::Values(DescriptorClassDefIdxPair("LC;", 2U)));
+                        ::testing::Values(DescriptorClassDefIdxPair("LC;", 2U)));
 INSTANTIATE_TEST_CASE_P(FindClassWithCollisions,
                         TypeLookupTableTest,
-                        testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
+                        ::testing::Values(DescriptorClassDefIdxPair("LAB;", 1U)));
 }  // namespace art

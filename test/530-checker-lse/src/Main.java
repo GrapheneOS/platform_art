@@ -4507,5 +4507,7 @@ public class Main {
     assertLongEquals(testOverlapLoop(50), 7778742049l);
     assertIntEquals($noinline$testPartialEscape1(new TestClass(), true), 1);
     assertIntEquals($noinline$testPartialEscape1(new TestClass(), false), 0);
+
+    TypeConversions.main();
   }
 }

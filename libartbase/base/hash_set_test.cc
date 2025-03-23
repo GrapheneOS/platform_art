@@ -39,7 +39,7 @@ struct IsEmptyFnString {
   }
 };
 
-class HashSetTest : public testing::Test {
+class HashSetTest : public ::testing::Test {
  public:
   HashSetTest() : seed_(97421), unique_number_(0) {
   }

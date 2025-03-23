@@ -21,6 +21,10 @@
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 
 namespace art {
+
+// Enable the simulator debugger, disabled by default.
+static constexpr bool kSimDebuggerEnabled = false;
+
 namespace arm64 {
 
 // VIXL has not been tested on 32bit architectures, so Simulator is not always
@@ -48,6 +52,8 @@ CodeSimulatorArm64::CodeSimulatorArm64()
 
   simulator_ = new Simulator(decoder_, stdout, std::move(stack));
   simulator_->SetVectorLengthInBits(kArm64DefaultSVEVectorLength);
+  simulator_->DisableGCSCheck();
+  simulator_->SetDebuggerEnabled(kSimDebuggerEnabled);
 }
 
 CodeSimulatorArm64::~CodeSimulatorArm64() {

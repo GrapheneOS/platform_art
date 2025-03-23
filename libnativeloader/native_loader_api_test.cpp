@@ -38,7 +38,7 @@ using ::testing::StrEq;
 class NativeLoaderLazyTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    jni_mock = std::make_unique<testing::NiceMock<MockJni>>();
+    jni_mock = std::make_unique<::testing::NiceMock<MockJni>>();
     env = std::make_unique<JNIEnv>();
     env->functions = CreateJNINativeInterface();
   }

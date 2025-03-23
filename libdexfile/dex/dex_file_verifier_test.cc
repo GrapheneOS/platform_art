@@ -56,7 +56,7 @@ static void FixUpChecksum(uint8_t* dex_file) {
   header->checksum_ = adler_checksum;
 }
 
-class DexFileVerifierTest : public testing::Test {
+class DexFileVerifierTest : public ::testing::Test {
  protected:
   DexFile* GetDexFile(const uint8_t* dex_bytes, size_t length) {
     auto container = std::make_shared<MemoryDexFileContainer>(dex_bytes, length);

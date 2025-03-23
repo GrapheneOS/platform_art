@@ -23,12 +23,13 @@
 
 #include <cstring>
 
-#include "base/common_art_test.h"
+#include "base/testing.h"
 #include "gtest/gtest.h"
 
 #ifdef ART_TARGET_ANDROID
 #include "android-modules-utils/sdk_level.h"
 #include "android/api-level.h"
+#include "nativehelper/JniInvocation.h"
 #endif
 
 namespace {
@@ -58,7 +59,7 @@ bool PaletteDebugStoreIsSupported() {
 
 }  // namespace
 
-class PaletteClientTest : public testing::Test {};
+class PaletteClientTest : public ::testing::Test {};
 
 TEST_F(PaletteClientTest, SchedPriority) {
   int32_t tid = GetTid();
@@ -92,16 +93,25 @@ TEST_F(PaletteClientTest, Ashmem) {
 #endif
 }
 
-class PaletteClientJniTest : public art::CommonArtTest {};
-
-TEST_F(PaletteClientJniTest, JniInvocation) {
+TEST_F(PaletteClientTest, JniInvocation) {
+#ifndef ART_TARGET_ANDROID
+  // On host we need to use the runtime linked into the test to start a VM (e.g.
+  // by inheriting CommonArtTest), while on device it needs to launch the
+  // runtime through libnativehelper. Let's not bother on host since this test
+  // is only for native API coverage on device.
+  GTEST_SKIP() << "Will only spin up a VM on Android";
+#else
   bool enabled;
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteShouldReportJniInvocations(&enabled));
 
+  // Load the default JNI_CreateJavaVM implementation, i.e., libart.so.
+  JniInvocation jni_invocation;
+  ASSERT_TRUE(jni_invocation.Init(/*library=*/ nullptr));
+
   std::string boot_class_path_string =
-      GetClassPathOption("-Xbootclasspath:", GetLibCoreDexFileNames());
-  std::string boot_class_path_locations_string =
-      GetClassPathOption("-Xbootclasspath-locations:", GetLibCoreDexLocations());
+      art::testing::GetClassPathOption("-Xbootclasspath:", art::testing::GetLibCoreDexFileNames());
+  std::string boot_class_path_locations_string = art::testing::GetClassPathOption(
+      "-Xbootclasspath-locations:", art::testing::GetLibCoreDexLocations());
 
   JavaVMOption options[] = {
       {.optionString = boot_class_path_string.c_str(), .extraInfo = nullptr},
@@ -123,6 +133,7 @@ TEST_F(PaletteClientJniTest, JniInvocation) {
   PaletteNotifyEndJniInvocation(env);
 
   EXPECT_EQ(JNI_OK, jvm->DestroyJavaVM());
+#endif
 }
 
 TEST_F(PaletteClientTest, SetTaskProfiles) {

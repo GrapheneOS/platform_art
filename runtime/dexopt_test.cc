@@ -202,6 +202,38 @@ void DexoptTest::GenerateOatForTest(const char* dex_location, CompilerFilter::Fi
   GenerateOatForTest(dex_location, filter, /*with_alternate_image=*/false);
 }
 
+void DexoptTest::GenerateSdmDmForTest(const std::string& dex_location,
+                                      const std::string& sdm_location,
+                                      const std::string& dm_location,
+                                      CompilerFilter::Filter filter,
+                                      bool include_app_image,
+                                      const char* compilation_reason,
+                                      const std::vector<std::string>& extra_args) {
+  std::string tmp_dir = GetScratchDir() + "/sdm_tmp";
+  ASSERT_EQ(0, mkdir(tmp_dir.c_str(), 0700));
+
+  std::string odex_location = tmp_dir + "/TestDex.odex";
+  std::string vdex_location = tmp_dir + "/TestDex.vdex";
+  std::string art_location;
+
+  std::vector<std::string> extra_args_with_app_image = extra_args;
+  if (include_app_image) {
+    art_location = tmp_dir + "/TestDex.art";
+    extra_args_with_app_image.push_back("--app-image-file=" + art_location);
+  }
+
+  // Generate temporary ODEX, VDEX, and ART files in order to create the SDM and DM files from.
+  ASSERT_NO_FATAL_FAILURE(GenerateOdexForTest(
+      dex_location, odex_location, filter, compilation_reason, extra_args_with_app_image));
+
+  // Create the SDM and DM files.
+  ASSERT_NO_FATAL_FAILURE(CreateSecureDexMetadata(odex_location, art_location, sdm_location));
+  ASSERT_NO_FATAL_FAILURE(CreateDexMetadata(vdex_location, dm_location, /*page_aligned=*/true));
+
+  // Cleanup the temporary files.
+  ASSERT_NO_FATAL_FAILURE(ClearDirectory(tmp_dir.c_str()));
+}
+
 void DexoptTest::ReserveImageSpace() {
   MemMap::Init();
 

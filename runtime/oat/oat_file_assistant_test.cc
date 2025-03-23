@@ -33,6 +33,7 @@
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
 #include "art_field-inl.h"
+#include "base/file_utils.h"
 #include "base/os.h"
 #include "base/utils.h"
 #include "class_linker.h"
@@ -52,7 +53,7 @@ namespace art HIDDEN {
 class OatFileAssistantBaseTest : public DexoptTest {};
 
 class OatFileAssistantTest : public OatFileAssistantBaseTest,
-                             public testing::WithParamInterface<bool> {
+                             public ::testing::WithParamInterface<bool> {
  public:
   void SetUp() override {
     DexoptTest::SetUp();
@@ -2183,6 +2184,310 @@ TEST_P(OatFileAssistantTest, ShouldRecompileForImageFromSpeedProfile) {
             oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
 }
 
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file, and the SDC file is in odex
+// location.
+// Expect: The best artifact location should be kLocationSdmOdex. Dexopt should be performed only if
+// the compiler filter is better than "speed-profile".
+//
+// The legacy version should return kDex2OatFromScratch if the target compiler filter is better than
+// "verify".
+TEST_P(OatFileAssistantTest, SdmUpToDate) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "cloud",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationSdmOdex);
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeed,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationSdmOdex);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationSdmOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationSdmOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file, and the SDC file is in oat
+// location.
+// Expect: The best artifact location should be kLocationSdmOat.
+TEST_P(OatFileAssistantTest, SdmUpToDateSdcInOatLocation) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  std::string oat_location;
+  std::string error_msg;
+  ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
+      dex_location, kRuntimeISA, &oat_location, &error_msg))
+      << error_msg;
+  std::string sdc_location = GetSdcFilename(oat_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "cloud",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationSdmOat);
+}
+
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file, and the SDM file contains no
+// ART file.
+// Expect: The best artifact location should be kLocationSdmOdex.
+TEST_P(OatFileAssistantTest, SdmUpToDateNoArt) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/false,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "cloud",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationSdmOdex);
+}
+
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file. Meanwhile, we have an ODEX
+// file that is also up to date.
+// Expect: The ODEX file is preferred over the SDM file. The best artifact location should be
+// kLocationOdex.
+TEST_P(OatFileAssistantTest, SdmAndOdexUpToDate) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  ASSERT_NO_FATAL_FAILURE(GenerateOdexForTest(dex_location,
+                                              odex_location,
+                                              CompilerFilter::kSpeedProfile,
+                                              /*compilation_reason=*/"bg-dexopt"));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "bg-dexopt",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationOdex);
+}
+
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file. Meanwhile, we have a VDEX
+// file that is also up to date.
+// Expect: The SDM file is preferred over the VDEX file. The best artifact location should be
+// kLocationSdmOdex.
+TEST_P(OatFileAssistantTest, SdmAndVdexUpToDate) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  ASSERT_NO_FATAL_FAILURE(GenerateOdexForTest(dex_location,
+                                              odex_location,
+                                              CompilerFilter::kSpeedProfile,
+                                              /*compilation_reason=*/"bg-dexopt"));
+  ASSERT_EQ(0, unlink(odex_location.c_str()));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "cloud",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationSdmOdex);
+}
+
+// Case: We have SDM, DM, and SDC files for a compressed DEX file.
+// Expect: The SDM file is still picked. Dexopt should be performed if the compiler filter is
+// "speed-profile" or above.
+TEST_P(OatFileAssistantTest, SdmUpToDateCompressedDex) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud",
+                                               /*extra_args=*/{"--copy-dex-files=false"}));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, runtime_->GetApexVersions(), sdc_location));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(&oat_file_assistant,
+                                       "speed-profile",
+                                       "cloud",
+                                       "up-to-date",
+                                       OatFileAssistant::kLocationSdmOdex);
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpeedProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationSdmOdex);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationSdmOdex);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
+// Case: We have SDM, DM, and SDC files for an uncompressed DEX file, but the SDC file contains the
+// wrong APEX versions.
+// Expect: The SDM file is rejected, while the DM file is still picked. Dexopt should be performed
+// if the compiler filter is better than "verify".
+TEST_P(OatFileAssistantTest, SdmApexVersionMismatch) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string sdm_location =
+      GetScratchDir() + ART_FORMAT("/TestDex.{}.sdm", GetInstructionSetString(kRuntimeISA));
+  std::string dm_location = GetScratchDir() + "/TestDex.dm";
+  std::string sdc_location = GetOdexDir() + "/TestDex.sdc";
+  Copy(GetMultiDexUncompressedAlignedSrc1(), dex_location);
+
+  ASSERT_NO_FATAL_FAILURE(GenerateSdmDmForTest(dex_location,
+                                               sdm_location,
+                                               dm_location,
+                                               CompilerFilter::kSpeedProfile,
+                                               /*include_app_image=*/true,
+                                               /*compilation_reason=*/"cloud"));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateSecureDexMetadataCompanion(sdm_location, "wrong-apex-version", sdc_location));
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+
+  VerifyOptimizationStatusWithInstance(
+      &oat_file_assistant, "verify", "vdex", "up-to-date", OatFileAssistant::kLocationDm);
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kSpaceProfile,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/true,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationDm);
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpaceProfile));
+
+  VerifyGetDexOptNeeded(&oat_file_assistant,
+                        CompilerFilter::kVerify,
+                        default_trigger_,
+                        /*expected_dexopt_needed=*/false,
+                        /*expected_is_vdex_usable=*/true,
+                        /*expected_location=*/OatFileAssistant::kLocationDm);
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
+}
+
 class CollectDexCacheVisitor : public DexCacheVisitor {
  public:
   explicit CollectDexCacheVisitor(
@@ -2593,6 +2898,8 @@ TEST_P(OatFileAssistantTest, ValidateBootClassPathChecksums) {
 //    - Oat file corrupted after status check, before reload unexecutable
 //    because it's unrelocated and no dex2oat
 
-INSTANTIATE_TEST_SUITE_P(WithOrWithoutRuntime, OatFileAssistantTest, testing::Values(true, false));
+INSTANTIATE_TEST_SUITE_P(WithOrWithoutRuntime,
+                         OatFileAssistantTest,
+                         ::testing::Values(true, false));
 
 }  // namespace art

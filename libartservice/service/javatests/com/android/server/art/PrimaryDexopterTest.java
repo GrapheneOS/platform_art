@@ -16,6 +16,7 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
@@ -62,6 +63,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.zip.ZipFile;
 
 @SmallTest
@@ -156,50 +158,52 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         mUsedEmbeddedProfiles = new ArrayList<>();
     }
 
-    @Test
-    public void testDexoptInputVdex() throws Exception {
-        // null.
-        doReturn(dexoptIsNeeded(ArtifactsLocation.NONE_OR_ERROR))
+    private void checkDexoptInputVdex(
+            @ArtifactsLocation int location, Supplier<VdexPath> inputVdexMatcher) throws Exception {
+        doReturn(dexoptIsNeeded(location))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(mArtdDexoptResult)
-                .when(mArtd)
-                .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), any(),
-                        anyInt(), any(), any());
-
-        // ArtifactsPath, isInDalvikCache=true.
-        doReturn(dexoptIsNeeded(ArtifactsLocation.DALVIK_CACHE))
-                .when(mArtd)
-                .getDexoptNeeded(eq(mDexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(mArtdDexoptResult)
-                .when(mArtd)
-                .dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
-                        deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPathAsInput(
-                                mDexPath, "arm", true /* isInDalvikCache */))),
-                        any(), anyInt(), any(), any());
-
-        // ArtifactsPath, isInDalvikCache=false.
-        doReturn(dexoptIsNeeded(ArtifactsLocation.NEXT_TO_DEX))
-                .when(mArtd)
-                .getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(mArtdDexoptResult)
-                .when(mArtd)
-                .dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(), any(),
-                        deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPathAsInput(
-                                mSplit0DexPath, "arm64", false /* isInDalvikCache */))),
-                        any(), anyInt(), any(), any());
-
-        // DexMetadataPath.
-        doReturn(dexoptIsNeeded(ArtifactsLocation.DM))
-                .when(mArtd)
-                .getDexoptNeeded(eq(mSplit0DexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(mArtdDexoptResult)
-                .when(mArtd)
-                .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(), isNull(), any(),
-                        anyInt(), any(), any());
 
         List<DexContainerFileDexoptResult> results = mPrimaryDexopter.dexopt();
         verifyStatusAllOk(results);
+        verify(mArtd).dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(),
+                inputVdexMatcher.get(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    public void testDexoptInputVdexNoneOrError() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.NONE_OR_ERROR, () -> isNull());
+    }
+
+    @Test
+    public void testDexoptInputVdexDalvikCache() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.DALVIK_CACHE, () -> {
+            return deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPathAsInput(
+                    mDexPath, "arm64", true /* isInDalvikCache */)));
+        });
+    }
+
+    @Test
+    public void testDexoptInputVdexNextToDex() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.NEXT_TO_DEX, () -> {
+            return deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPathAsInput(
+                    mDexPath, "arm64", false /* isInDalvikCache */)));
+        });
+    }
+
+    @Test
+    public void testDexoptInputVdexDm() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.DM, () -> isNull());
+    }
+
+    @Test
+    public void testDexoptInputVdexSdmDalvikCache() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.SDM_DALVIK_CACHE, () -> isNull());
+    }
+
+    @Test
+    public void testDexoptInputVdexSdmNextToDex() throws Exception {
+        checkDexoptInputVdex(ArtifactsLocation.SDM_NEXT_TO_DEX, () -> isNull());
     }
 
     @Test
@@ -943,6 +947,52 @@ public class PrimaryDexopterTest extends PrimaryDexopterTestBase {
         for (DexContainerFileDexoptResult result : results) {
             assertThat(result.getStatus()).isEqualTo(DexoptResult.DEXOPT_PERFORMED);
         }
+    }
+
+    @Test
+    public void testMaybeCreateSdc() throws Exception {
+        mDexoptParams = new DexoptParams.Builder("install")
+                                .setCompilerFilter("speed-profile")
+                                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
+                                .build();
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+
+        mPrimaryDexopter.dexopt();
+
+        FsPermission dirFsPermission = AidlUtils.buildFsPermission(Process.SYSTEM_UID /* uid */,
+                Process.SYSTEM_UID /* gid */, false /* isOtherReadable */,
+                true /* isOtherExecutable */);
+        FsPermission fileFsPermission = AidlUtils.buildFsPermission(
+                Process.SYSTEM_UID /* uid */, SHARED_GID /* gid */, true /* isOtherReadable */);
+        PermissionSettings permissionSettings = AidlUtils.buildPermissionSettings(
+                dirFsPermission, fileFsPermission, null /* seContext */);
+
+        verify(mArtd).maybeCreateSdc(deepEq(AidlUtils.buildOutputSecureDexMetadataCompanion(
+                mDexPath, "arm64", false /* isInDalvikCache */, permissionSettings)));
+        verify(mArtd).maybeCreateSdc(deepEq(AidlUtils.buildOutputSecureDexMetadataCompanion(
+                mDexPath, "arm", false /* isInDalvikCache */, permissionSettings)));
+        verify(mArtd).maybeCreateSdc(deepEq(AidlUtils.buildOutputSecureDexMetadataCompanion(
+                mSplit0DexPath, "arm64", false /* isInDalvikCache */, permissionSettings)));
+        verify(mArtd).maybeCreateSdc(deepEq(AidlUtils.buildOutputSecureDexMetadataCompanion(
+                mSplit0DexPath, "arm", false /* isInDalvikCache */, permissionSettings)));
+    }
+
+    @Test
+    public void testMaybeCreateSdcCompilerFilterSkip() throws Exception {
+        mDexoptParams = new DexoptParams.Builder("install")
+                                .setCompilerFilter(DexoptParams.COMPILER_FILTER_NOOP)
+                                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
+                                .build();
+        mPrimaryDexopter =
+                new PrimaryDexopter(mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
+
+        mPrimaryDexopter.dexopt();
+
+        verify(mArtd, times(4)).maybeCreateSdc(any());
+        verify(mArtd, never())
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                        any());
     }
 
     private void checkDexoptWithProfile(IArtd artd, String dexPath, String isa, ProfilePath profile,

@@ -36,7 +36,7 @@ namespace art {
 namespace linker {
 
 // Base class providing infrastructure for architecture-specific tests.
-class RelativePatcherTest : public testing::Test {
+class RelativePatcherTest : public ::testing::Test {
  protected:
   RelativePatcherTest(InstructionSet instruction_set, const std::string& variant)
       : storage_(/*swap_fd=*/ -1),

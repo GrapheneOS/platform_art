@@ -46,7 +46,6 @@ using ::android::base::ParseBool;
 using ::android::base::ParseBoolResult;
 using ::android::base::StringPrintf;
 using ::art::testing::GetLibCoreDexFileNames;
-using ::art::testing::GetLibCoreDexLocations;
 
 constexpr const char* kUsage = R"(
 A commandline tool to generate a primary boot image for testing.
@@ -141,7 +140,7 @@ int GenerateBootImage(const Options& options) {
   if (options.android_root_for_location) {
     dex_locations = dex_files;
   } else {
-    dex_locations = GetLibCoreDexLocations(options.core_only);
+    dex_locations = GetLibCoreDexFileNames(/*prefix=*/"", options.core_only);
   }
   args.push_back("--runtime-arg");
   args.push_back("-Xbootclasspath:" + Join(dex_files, ":"));

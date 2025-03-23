@@ -150,7 +150,7 @@ class BuildTestContext:
                        stderr=subprocess.STDOUT,
                        stdout=subprocess.PIPE)
     if REPORT_SLOW_COMMANDS:
-      m = re.search("([0-9\.]+)user", p.stdout)
+      m = re.search(r"([0-9\.]+)user", p.stdout)
       assert m, p.stdout
       t = float(m.group(1))
       if t > 1.0:
@@ -253,7 +253,8 @@ class BuildTestContext:
       use_smali=True,
       use_jasmin=True,
       javac_source_arg="1.8",
-      javac_target_arg="1.8"
+      javac_target_arg="1.8",
+      delete_srcs=True,
     ):
     javac_classpath = javac_classpath.copy()  # Do not modify default value.
 
@@ -504,6 +505,15 @@ class BuildTestContext:
         make_hiddenapi(Path("classes.dex"), Path("classes2.dex"))
       else:
         make_hiddenapi(Path("classes.dex"))
+
+    # Clean up intermediate files.
+    if self.target or self.host:
+      for f in self.test_dir.glob("**/*.class"):
+        f.unlink()
+    if delete_srcs and "-checker-" not in self.test_name:
+      for ext in ["java", "smali", "j"]:
+        for f in self.test_dir.glob(f"**/*.{ext}"):
+          f.unlink()
 
     # Create a single dex jar with two dex files for multidex.
     if need_dex:

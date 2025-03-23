@@ -52,7 +52,7 @@ static void registerSignalHandler() {
   sigaction(SIGSEGV, &sa, nullptr);
 }
 
-class TestZygoteMemory : public testing::Test {
+class TestZygoteMemory : public ::testing::Test {
  public:
   void BasicTest() {
     // Zygote JIT memory only works on kernels that don't segfault on flush.

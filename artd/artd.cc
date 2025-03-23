@@ -84,6 +84,7 @@
 #include "fstab/fstab.h"
 #include "oat/oat_file_assistant.h"
 #include "oat/oat_file_assistant_context.h"
+#include "oat/sdc_file.h"
 #include "odrefresh/odrefresh.h"
 #include "path_utils.h"
 #include "profman/profman_result.h"
@@ -115,9 +116,11 @@ using ::aidl::com::android::server::art::IArtdNotification;
 using ::aidl::com::android::server::art::MergeProfileOptions;
 using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
+using ::aidl::com::android::server::art::OutputSecureDexMetadataCompanion;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::RuntimeArtifactsPath;
+using ::aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Basename;
 using ::android::base::Dirname;
@@ -235,6 +238,10 @@ ArtifactsLocation ArtifactsLocationToAidl(OatFileAssistant::Location location) {
       return ArtifactsLocation::NEXT_TO_DEX;
     case OatFileAssistant::Location::kLocationDm:
       return ArtifactsLocation::DM;
+    case OatFileAssistant::Location::kLocationSdmOat:
+      return ArtifactsLocation::SDM_DALVIK_CACHE;
+    case OatFileAssistant::Location::kLocationSdmOdex:
+      return ArtifactsLocation::SDM_NEXT_TO_DEX;
       // No default. All cases should be explicitly handled, or the compilation will fail.
   }
   // This should never happen. Just in case we get a non-enumerator value.
@@ -269,20 +276,18 @@ Result<void> PrepareArtifactsDir(const std::string& path, const FsPermission& fs
   return {};
 }
 
-Result<void> PrepareArtifactsDirs(const OutputArtifacts& output_artifacts,
+Result<void> PrepareArtifactsDirs(const std::string& dex_path,
+                                  const std::string& isa_str,
+                                  const FsPermission& dir_fs_permission,
                                   /*out*/ std::string* oat_dir_path) {
-  if (output_artifacts.artifactsPath.isInDalvikCache) {
-    return {};
-  }
-
   std::filesystem::path oat_path(
-      OR_RETURN(BuildArtifactsPath(output_artifacts.artifactsPath)).oat_path);
+      OR_RETURN(BuildOatPath(dex_path, isa_str, /*is_in_dalvik_cache=*/false)));
   std::filesystem::path isa_dir = oat_path.parent_path();
   std::filesystem::path oat_dir = isa_dir.parent_path();
   DCHECK_EQ(oat_dir.filename(), "oat");
 
-  OR_RETURN(PrepareArtifactsDir(oat_dir, output_artifacts.permissionSettings.dirFsPermission));
-  OR_RETURN(PrepareArtifactsDir(isa_dir, output_artifacts.permissionSettings.dirFsPermission));
+  OR_RETURN(PrepareArtifactsDir(oat_dir, dir_fs_permission));
+  OR_RETURN(PrepareArtifactsDir(isa_dir, dir_fs_permission));
   *oat_dir_path = oat_dir;
   return {};
 }
@@ -992,6 +997,64 @@ ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
   return ScopedAStatus::ok();
 }
 
+ndk::ScopedAStatus Artd::maybeCreateSdc(const OutputSecureDexMetadataCompanion& in_outputSdc) {
+  RETURN_FATAL_IF_PRE_REBOOT(options_);
+
+  if (in_outputSdc.permissionSettings.seContext.has_value()) {
+    // SDM files are for primary dex files.
+    return Fatal("'seContext' must be null");
+  }
+
+  std::string sdm_path = OR_RETURN_FATAL(BuildSdmPath(in_outputSdc.sdcPath));
+  std::string sdc_path = OR_RETURN_FATAL(BuildSdcPath(in_outputSdc.sdcPath));
+
+  Result<std::unique_ptr<File>> sdm_file = OpenFileForReading(sdm_path);
+  if (!sdm_file.ok()) {
+    if (sdm_file.error().code() == ENOENT) {
+      // No SDM file found. That's typical.
+      return ScopedAStatus::ok();
+    }
+    return NonFatal(sdm_file.error().message());
+  }
+  struct stat sdm_st = OR_RETURN_NON_FATAL(Fstat(*sdm_file.value()));
+
+  std::string error_msg;
+  std::unique_ptr<SdcReader> sdc_reader = SdcReader::Load(sdc_path, &error_msg);
+  if (sdc_reader != nullptr && sdc_reader->GetSdmTimestampNs() == TimeSpecToNs(sdm_st.st_mtim)) {
+    // Already has an SDC file for the SDM file.
+    return ScopedAStatus::ok();
+  }
+
+  std::string oat_dir_path;  // For restorecon, can be empty if the artifacts are in dalvik-cache.
+  if (!in_outputSdc.sdcPath.isInDalvikCache) {
+    OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputSdc.sdcPath.dexPath,
+                                             in_outputSdc.sdcPath.isa,
+                                             in_outputSdc.permissionSettings.dirFsPermission,
+                                             &oat_dir_path));
+
+    // Unlike the two `restorecon_` calls in `dexopt`, we only need one restorecon here because SDM
+    // files are for primary dex files, whose oat directory doesn't have an MLS label.
+    OR_RETURN_NON_FATAL(restorecon_(oat_dir_path, /*se_context=*/std::nullopt, /*recurse=*/true));
+  }
+
+  OatFileAssistantContext* ofa_context = OR_RETURN_NON_FATAL(GetOatFileAssistantContext());
+
+  std::unique_ptr<NewFile> sdc_file = OR_RETURN_NON_FATAL(
+      NewFile::Create(sdc_path, in_outputSdc.permissionSettings.fileFsPermission));
+  SdcWriter writer(File(DupCloexec(sdc_file->Fd()), sdc_file->TempPath(), /*check_usage=*/true));
+
+  writer.SetSdmTimestampNs(TimeSpecToNs(sdm_st.st_mtim));
+  writer.SetApexVersions(ofa_context->GetApexVersions());
+
+  if (!writer.Save(&error_msg)) {
+    return NonFatal(error_msg);
+  }
+
+  OR_RETURN_NON_FATAL(sdc_file->CommitOrAbandon());
+
+  return ScopedAStatus::ok();
+}
+
 ndk::ScopedAStatus Artd::dexopt(
     const OutputArtifacts& in_outputArtifacts,
     const std::string& in_dexFile,
@@ -1029,12 +1092,15 @@ ndk::ScopedAStatus Artd::dexopt(
   }
 
   std::string oat_dir_path;  // For restorecon, can be empty if the artifacts are in dalvik-cache.
-  OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts, &oat_dir_path));
-
-  // First-round restorecon. artd doesn't have the permission to create files with the
-  // `apk_data_file` label, so we need to restorecon the "oat" directory first so that files will
-  // inherit `dalvikcache_data_file` rather than `apk_data_file`.
   if (!in_outputArtifacts.artifactsPath.isInDalvikCache) {
+    OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts.artifactsPath.dexPath,
+                                             in_outputArtifacts.artifactsPath.isa,
+                                             in_outputArtifacts.permissionSettings.dirFsPermission,
+                                             &oat_dir_path));
+
+    // First-round restorecon. artd doesn't have the permission to create files with the
+    // `apk_data_file` label, so we need to restorecon the "oat" directory first so that files will
+    // inherit `dalvikcache_data_file` rather than `apk_data_file`.
     OR_RETURN_NON_FATAL(restorecon_(
         oat_dir_path, in_outputArtifacts.permissionSettings.seContext, /*recurse=*/true));
   }
@@ -1274,12 +1340,14 @@ ScopedAStatus Artd::createCancellationSignal(
   return ScopedAStatus::ok();
 }
 
-ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
-                            const std::vector<ArtifactsPath>& in_artifactsToKeep,
-                            const std::vector<VdexPath>& in_vdexFilesToKeep,
-                            const std::vector<RuntimeArtifactsPath>& in_runtimeArtifactsToKeep,
-                            bool in_keepPreRebootStagedFiles,
-                            int64_t* _aidl_return) {
+ScopedAStatus Artd::cleanup(
+    const std::vector<ProfilePath>& in_profilesToKeep,
+    const std::vector<ArtifactsPath>& in_artifactsToKeep,
+    const std::vector<VdexPath>& in_vdexFilesToKeep,
+    const std::vector<SecureDexMetadataWithCompanionPaths>& in_SdmSdcFilesToKeep,
+    const std::vector<RuntimeArtifactsPath>& in_runtimeArtifactsToKeep,
+    bool in_keepPreRebootStagedFiles,
+    int64_t* _aidl_return) {
   RETURN_FATAL_IF_PRE_REBOOT(options_);
   std::unordered_set<std::string> files_to_keep;
   for (const ProfilePath& profile : in_profilesToKeep) {
@@ -1296,6 +1364,10 @@ ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
   for (const VdexPath& vdex : in_vdexFilesToKeep) {
     RETURN_FATAL_IF_ARG_IS_PRE_REBOOT(vdex, "vdexFilesToKeep");
     files_to_keep.insert(OR_RETURN_FATAL(BuildVdexPath(vdex)));
+  }
+  for (const SecureDexMetadataWithCompanionPaths& sdm_sdc : in_SdmSdcFilesToKeep) {
+    files_to_keep.insert(OR_RETURN_FATAL(BuildSdmPath(sdm_sdc)));
+    files_to_keep.insert(OR_RETURN_FATAL(BuildSdcPath(sdm_sdc)));
   }
   std::string android_data = OR_RETURN_NON_FATAL(GetAndroidDataOrError());
   std::string android_expand = OR_RETURN_NON_FATAL(GetAndroidExpandOrError());
@@ -1360,6 +1432,17 @@ ScopedAStatus Artd::isInDalvikCache(const std::string& in_dexFile, bool* _aidl_r
   return NonFatal(ART_FORMAT("Fstab entries not found for '{}'", in_dexFile));
 }
 
+ScopedAStatus Artd::deleteSdmSdcFiles(const SecureDexMetadataWithCompanionPaths& in_SdmSdcPaths,
+                                      int64_t* _aidl_return) {
+  RETURN_FATAL_IF_PRE_REBOOT(options_);
+
+  std::string sdm_path = OR_RETURN_FATAL(BuildSdmPath(in_SdmSdcPaths));
+  std::string sdc_path = OR_RETURN_FATAL(BuildSdcPath(in_SdmSdcPaths));
+
+  *_aidl_return = GetSizeAndDeleteFile(sdm_path) + GetSizeAndDeleteFile(sdc_path);
+  return ScopedAStatus::ok();
+}
+
 ScopedAStatus Artd::deleteRuntimeArtifacts(const RuntimeArtifactsPath& in_runtimeArtifactsPath,
                                            int64_t* _aidl_return) {
   RETURN_FATAL_IF_PRE_REBOOT(options_);
@@ -1390,6 +1473,14 @@ ScopedAStatus Artd::getVdexFileSize(const VdexPath& in_vdexPath, int64_t* _aidl_
   RETURN_FATAL_IF_ARG_IS_PRE_REBOOT(in_vdexPath, "vdexPath");
   std::string vdex_path = OR_RETURN_FATAL(BuildVdexPath(in_vdexPath));
   *_aidl_return = GetSize(vdex_path).value_or(0);
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::getSdmFileSize(const SecureDexMetadataWithCompanionPaths& in_sdmPath,
+                                        int64_t* _aidl_return) {
+  RETURN_FATAL_IF_PRE_REBOOT(options_);
+  std::string sdm_path = OR_RETURN_FATAL(BuildSdmPath(in_sdmPath));
+  *_aidl_return = GetSize(sdm_path).value_or(0);
   return ScopedAStatus::ok();
 }
 

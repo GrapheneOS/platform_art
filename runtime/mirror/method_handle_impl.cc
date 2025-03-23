@@ -58,6 +58,19 @@ ObjPtr<mirror::MethodHandleImpl> MethodHandleImpl::Create(Thread* const self,
   return mh.Get();
 }
 
+ObjPtr<mirror::MethodHandleImpl> MethodHandleImpl::Create(Thread* const self,
+                                                          Handle<Field> field,
+                                                          MethodHandle::Kind kind,
+                                                          Handle<MethodType> method_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::MethodHandleImpl> mh(hs.NewHandle(ObjPtr<MethodHandleImpl>::DownCast(
+      WellKnownClasses::java_lang_invoke_MethodHandleImpl_fieldInit->NewObject<'L', 'I', 'L'>(
+          self, field, static_cast<uint32_t>(kind), method_type))));
+
+  return mh.Get();
+}
+
 void MethodHandle::VisitTarget(ReflectiveValueVisitor* v) {
   void* target = GetTargetField();
   void* result;

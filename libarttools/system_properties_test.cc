@@ -30,7 +30,7 @@ class MockSystemProperties : public SystemProperties {
   MOCK_METHOD(std::string, GetProperty, (const std::string& key), (const, override));
 };
 
-class SystemPropertiesTest : public testing::Test {
+class SystemPropertiesTest : public ::testing::Test {
  protected:
   MockSystemProperties system_properties_;
 };

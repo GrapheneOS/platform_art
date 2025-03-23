@@ -23,7 +23,7 @@
 
 namespace art {
 
-class ArenaAllocatorTest : public testing::Test {
+class ArenaAllocatorTest : public ::testing::Test {
  protected:
   size_t NumberOfArenas(ArenaAllocator* allocator) {
     size_t result = 0u;

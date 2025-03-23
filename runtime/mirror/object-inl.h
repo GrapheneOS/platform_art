@@ -941,7 +941,8 @@ inline void Object::VerifyTransaction() {
 
 class Object::DumpRefsVisitor {
  public:
-  explicit DumpRefsVisitor(std::ostream& os) : os_(os) {}
+  explicit DumpRefsVisitor(std::ostream& os, bool dump_type_of)
+      : os_(os), dump_type_of_(dump_type_of) {}
 
   ALWAYS_INLINE void operator()(mirror::Object* obj,
                                 MemberOffset offset,
@@ -949,7 +950,10 @@ class Object::DumpRefsVisitor {
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref != nullptr) {
-      os_ << "ref[" << offset << "] = " << ref << " (" << ref->PrettyTypeOf() << ")\n";
+      os_ << "\nref[" << offset << "] = " << ref;
+      if (dump_type_of_) {
+        os_ << " (" << ref->PrettyTypeOf() << ")";
+      }
     }
   }
 
@@ -957,8 +961,10 @@ class Object::DumpRefsVisitor {
                                 ObjPtr<mirror::Reference> ref) const
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!ref.IsNull()) {
-      os_ << "referant[" << mirror::Reference::ReferentOffset() << "] = " << ref.Ptr() << " ("
-          << ref->PrettyTypeOf() << ")\n";
+      os_ << "\nreferant[" << mirror::Reference::ReferentOffset() << "] = " << ref.Ptr() << " (";
+      if (dump_type_of_) {
+        os_ << " (" << ref->PrettyTypeOf() << ")";
+      }
     }
   }
 
@@ -972,16 +978,20 @@ class Object::DumpRefsVisitor {
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = root->AsMirrorPtr();
-    os_ << "root[" << root << "] = " << ref << " (" << ref->PrettyTypeOf() << ")\n";
+    os_ << "\nroot[" << root << "] = " << ref;
+    if (dump_type_of_) {
+      os_ << " (" << ref->PrettyTypeOf() << ")\n";
+    }
   }
 
  private:
   std::ostream& os_;
+  bool dump_type_of_;
 };
 
 template <bool kDumpNativeRoots>
-void Object::DumpReferences(std::ostream& os) {
-  DumpRefsVisitor visitor(os);
+void Object::DumpReferences(std::ostream& os, bool dump_type_of) {
+  DumpRefsVisitor visitor(os, dump_type_of);
   VisitReferences<kDumpNativeRoots>(visitor, visitor);
 }
 

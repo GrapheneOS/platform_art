@@ -255,6 +255,21 @@ TEST_F(PathUtilsTest, BuildVdexPath) {
       HasValue("/a/oat/arm64/b.vdex"));
 }
 
+TEST_F(PathUtilsTest, BuildSdmPath) {
+  EXPECT_THAT(BuildSdmPath({.dexPath = "/a/b.apk", .isa = "arm64", .isInDalvikCache = false}),
+              HasValue("/a/b.arm64.sdm"));
+}
+
+TEST_F(PathUtilsTest, BuildSdcPath) {
+  EXPECT_THAT(BuildSdcPath({.dexPath = "/a/b.apk", .isa = "arm64", .isInDalvikCache = false}),
+              HasValue("/a/oat/arm64/b.sdc"));
+}
+
+TEST_F(PathUtilsTest, BuildSdcPathDalvikCache) {
+  EXPECT_THAT(BuildSdcPath({.dexPath = "/a/b.apk", .isa = "arm64", .isInDalvikCache = true}),
+              HasValue(android_data_ + "/dalvik-cache/arm64/a@b.apk@classes.sdc"));
+}
+
 }  // namespace
 }  // namespace artd
 }  // namespace art

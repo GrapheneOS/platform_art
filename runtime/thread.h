@@ -643,6 +643,9 @@ class EXPORT Thread {
   // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
   uint64_t GetCpuMicroTime() const;
 
+  // Returns the thread-specific CPU-time clock in nanoseconds or -1 if unavailable.
+  uint64_t GetCpuNanoTime() const;
+
   mirror::Object* GetPeer() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(Thread::Current() == this) << "Use GetPeerFromOtherThread instead";
     CHECK(tlsPtr_.jpeer == nullptr);

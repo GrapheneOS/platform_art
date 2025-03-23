@@ -19,6 +19,7 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -185,6 +186,13 @@ class OatFile {
                                const std::string& location,
                                ClassLoaderContext* context,
                                std::string* error_msg);
+
+  static OatFile* OpenFromSdm(const std::string& sdm_filename,
+                              const std::string& sdc_filename,
+                              const std::string& dm_filename,
+                              const std::string& dex_filename,
+                              bool executable,
+                              /*out*/ std::string* error_msg);
 
   // Set the start of the app image.
   // Needed for initializing app image relocations in the .data.img.rel.ro section.
@@ -426,6 +434,8 @@ class OatFile {
   // Returns the mapping info of `dex_file` if found in the BcpBssInfo, or nullptr otherwise.
   const BssMappingInfo* FindBcpMappingInfo(const DexFile* dex_file) const;
 
+  std::optional<std::string_view> GetApexVersions() const;
+
  protected:
   OatFile(const std::string& filename, bool executable);
 
@@ -517,6 +527,9 @@ class OatFile {
   // Dex files opened directly from a file referenced from the oat file or specifed
   // by the `dex_filenames` parameter, in case the OatFile does not embed the dex code.
   std::vector<std::unique_ptr<const DexFile>> external_dex_files_;
+
+  // If set, overrides the APEX versions in the header.
+  std::optional<std::string> override_apex_versions_ = std::nullopt;
 
   friend class gc::collector::FakeOatFile;  // For modifying begin_ and end_.
   friend class OatClass;

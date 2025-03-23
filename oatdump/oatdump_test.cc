@@ -22,7 +22,7 @@ namespace art {
 
 INSTANTIATE_TEST_SUITE_P(DynamicOrStatic,
                          OatDumpTest,
-                         testing::Values(Flavor::kDynamic, Flavor::kStatic));
+                         ::testing::Values(Flavor::kDynamic, Flavor::kStatic));
 
 // Disable tests on arm and arm64 as they are taking too long to run. b/27824283.
 #define TEST_DISABLED_FOR_ARM_AND_ARM64() \

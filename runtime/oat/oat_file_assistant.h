@@ -123,8 +123,14 @@ class OatFileAssistant {
     kLocationOat = 1,
     // In the "oat" folder next to the dex file.
     kLocationOdex = 2,
-    // In the DM file. This means the only usable file is the vdex file.
+    // In the dm file. This means the only usable file is the vdex file.
     kLocationDm = 3,
+    // The oat and art files are in the sdm file next to the dex file. The vdex file is in the dm
+    // file next to the dex file. The sdc file is in the global "dalvik-cache" folder.
+    kLocationSdmOat = 4,
+    // The oat and art files are in the sdm file next to the dex file. The vdex file is in the dm
+    // file next to the dex file. The sdc file is next to the dex file.
+    kLocationSdmOdex = 5,
   };
 
   // Represents the status of the current oat file and/or vdex file.
@@ -381,6 +387,7 @@ class OatFileAssistant {
   enum class OatFileType {
     kNone,
     kOat,
+    kSdm,
     kVdex,
     kDm,
   };
@@ -527,6 +534,33 @@ class OatFileAssistant {
     const int zip_fd_;
     const int vdex_fd_;
     const int oat_fd_;
+  };
+
+  class OatFileInfoBackedBySdm : public OatFileInfo {
+   public:
+    OatFileInfoBackedBySdm(OatFileAssistant* oat_file_assistant,
+                           const std::string& sdm_filename,
+                           bool is_oat_location,
+                           const std::string& dm_filename,
+                           const std::string& sdc_filename)
+        : OatFileInfo(oat_file_assistant, sdm_filename, is_oat_location),
+          dm_filename_(dm_filename),
+          sdc_filename_(sdc_filename) {}
+
+    OatFileType GetType() override { return OatFileType::kSdm; }
+
+    const char* GetLocationDebugString() override {
+      return IsOatLocation() ? "sdm with sdc in dalvik-cache" : "sdm with sdc next to the dex file";
+    }
+
+    bool FileExists() const override;
+
+   protected:
+    std::unique_ptr<OatFile> LoadFile(std::string* error_msg) const override;
+
+   private:
+    const std::string dm_filename_;
+    const std::string sdc_filename_;
   };
 
   class OatFileInfoBackedByVdex : public OatFileInfo {

@@ -104,7 +104,8 @@ static void TestSignalBlocking(const std::function<void()>& fn) {
 
   fn();
 
-  if (testing::Test::HasFatalFailure()) return;
+  if (::testing::Test::HasFatalFailure())
+    return;
   ASSERT_EQ(0, RealSigprocmask(SIG_SETMASK, nullptr, &mask));
   ASSERT_FALSE(sigismember64(&mask, SIGSEGV));
 }
@@ -266,7 +267,7 @@ DISABLE_HWASAN void fault_address_tag_impl() {
 
   auto* tagged_null = reinterpret_cast<int*>(0x2bULL << 56);
   EXPECT_EXIT(
-      { [[maybe_unused]] volatile int load = *tagged_null; }, testing::ExitedWithCode(0), "");
+      { [[maybe_unused]] volatile int load = *tagged_null; }, ::testing::ExitedWithCode(0), "");
 
   // Our sigaction implementation always implements the "clear unknown bits"
   // semantics for oldact.sa_flags regardless of kernel version so we rely on it
@@ -275,9 +276,10 @@ DISABLE_HWASAN void fault_address_tag_impl() {
   ASSERT_EQ(0, sigaction(SIGSEGV, &action, nullptr));
   ASSERT_EQ(0, sigaction(SIGSEGV, nullptr, &action));
   if (action.sa_flags & SA_EXPOSE_TAGBITS) {
-      EXPECT_EXIT({ [[maybe_unused]] volatile int load = *tagged_null; },
-                  testing::ExitedWithCode(0x2b),
-                  "");
+    EXPECT_EXIT(
+        { [[maybe_unused]] volatile int load = *tagged_null; },
+        ::testing::ExitedWithCode(0x2b),
+        "");
   }
 }
 #endif

@@ -908,7 +908,7 @@ if True:
     os.makedirs(dst.parent, exist_ok=True)
     txt = runner.read_text()
     txt = txt.replace(Path(tmp_dir).name, "${TMP_DIR}")  # Make it deterministic.
-    txt = re.sub('\[run-test:\d+\]', '[run-test:(line-number)]', txt)
+    txt = re.sub(r'\[run-test:\d+\]', '[run-test:(line-number)]', txt)
     dst.write_text(txt)
 
   if args.create_runner or save_runner_dir:

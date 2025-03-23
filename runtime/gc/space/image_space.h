@@ -260,9 +260,13 @@ class ImageSpace : public MemMapSpace {
       const std::string& image_location,
       bool boot_image_extension = false);
 
-  // Returns true if the APEX versions in the OAT header match the given APEX versions.
-  static bool ValidateApexVersions(const OatHeader& oat_header,
-                                   const std::string& apex_versions,
+  // Returns true if the APEX versions of the OAT file match the given APEX versions.
+  static bool ValidateApexVersions(const OatFile& oat_file,
+                                   std::string_view runtime_apex_versions,
+                                   std::string* error_msg);
+
+  static bool ValidateApexVersions(std::string_view oat_apex_versions,
+                                   std::string_view runtime_apex_versions,
                                    const std::string& file_location,
                                    std::string* error_msg);
 

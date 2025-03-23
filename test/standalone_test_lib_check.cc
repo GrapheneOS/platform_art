@@ -180,6 +180,6 @@ TEST(StandaloneTestAllowedLibDeps, test) {
     disallowed_libs.push_back(dyn_lib_dep);
   }
 
-  EXPECT_THAT(disallowed_libs, testing::IsEmpty())
+  EXPECT_THAT(disallowed_libs, ::testing::IsEmpty())
       << path_to_self.value() << " has disallowed shared library dependencies.";
 }

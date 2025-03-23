@@ -113,6 +113,8 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     continue;
                 }
 
+                onDexoptStart(dexInfo);
+
                 String compilerFilter = adjustCompilerFilter(mParams.getCompilerFilter(), dexInfo);
                 DexMetadataInfo dmInfo =
                         mInjector.getDexMetadataHelper().getDexMetadataInfo(buildDmPath(dexInfo));
@@ -199,14 +201,15 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                     long sizeBeforeBytes = 0;
                     Dex2OatResult dex2OatResult = Dex2OatResult.notRun();
                     @DexoptResult.DexoptResultExtendedStatusFlags int extendedStatusFlags = 0;
+                    DexoptTarget<DexInfoType> target = null;
                     try {
-                        var target = DexoptTarget.<DexInfoType>builder()
-                                             .setDexInfo(dexInfo)
-                                             .setIsa(abi.isa())
-                                             .setIsInDalvikCache(isInDalvikCache)
-                                             .setCompilerFilter(compilerFilter)
-                                             .setDmPath(dmInfo.dmPath())
-                                             .build();
+                        target = DexoptTarget.<DexInfoType>builder()
+                                         .setDexInfo(dexInfo)
+                                         .setIsa(abi.isa())
+                                         .setIsInDalvikCache(isInDalvikCache)
+                                         .setCompilerFilter(compilerFilter)
+                                         .setDmPath(dmInfo.dmPath())
+                                         .build();
                         var options = GetDexoptNeededOptions.builder()
                                               .setProfileMerged(profileMerged)
                                               .setFlags(mParams.getFlags())
@@ -316,6 +319,9 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                         AsLog.i(String.format("Dexopt result: [packageName = %s] %s",
                                 mPkgState.getPackageName(), result));
                         results.add(result);
+
+                        onDexoptTargetResult(target, status);
+
                         if (status != DexoptResult.DEXOPT_SKIPPED
                                 && status != DexoptResult.DEXOPT_PERFORMED) {
                             succeeded = false;
@@ -626,7 +632,10 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
                 return VdexPath.artifactsPath(AidlUtils.buildArtifactsPathAsInput(
                         dexPath, isa, false /* isInDalvikCache */));
             case ArtifactsLocation.DM:
-                // The DM file is passed to dex2oat as a separate flag whenever it exists.
+            case ArtifactsLocation.SDM_DALVIK_CACHE:
+            case ArtifactsLocation.SDM_NEXT_TO_DEX:
+                // In these cases, the VDEX file is in the DM file. The whole DM file is passed to
+                // dex2oat as a separate flag whenever it exists.
                 return null;
             default:
                 // This should never happen as the value is got from artd.
@@ -733,6 +742,18 @@ public abstract class Dexopter<DexInfoType extends DetailedDexInfo> {
      * should be passed.
      */
     @Nullable protected abstract DexMetadataPath buildDmPath(@NonNull DexInfoType dexInfo);
+
+    /**
+     * Called at an early stage during dexopt of every dex file, even before dexopt is skipped by
+     * the noop compiler filter.
+     */
+    protected void onDexoptStart(@NonNull DexInfoType dexInfo) throws RemoteException {}
+
+    /**
+     * Called once for every dex file and every ABI when dexopt has a result.
+     */
+    protected void onDexoptTargetResult(@NonNull DexoptTarget<DexInfoType> target,
+            @DexoptResult.DexoptResultStatus int status) throws RemoteException {}
 
     @AutoValue
     abstract static class DexoptTarget<DexInfoType extends DetailedDexInfo> {

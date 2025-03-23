@@ -514,9 +514,9 @@ size_t TraceProfiler::DumpLongRunningMethodBuffer(uint32_t thread_id,
   int num_records = 0;
   uintptr_t prev_time_action_encoding = 0;
   uintptr_t prev_method_ptr = 0;
-  size_t end_index = end_trace_entries - method_trace_entries;
-  for (size_t i = kAlwaysOnTraceBufSize - 1; i >= end_index;) {
-    uintptr_t event = method_trace_entries[i--];
+  int64_t end_index = end_trace_entries - method_trace_entries;
+  for (int64_t i = kAlwaysOnTraceBufSize; i > end_index;) {
+    uintptr_t event = method_trace_entries[--i];
     if (event == 0x1) {
       // This is a placeholder event. Ignore this event.
       continue;
@@ -527,11 +527,11 @@ size_t TraceProfiler::DumpLongRunningMethodBuffer(uint32_t thread_id,
     uintptr_t method_ptr;
     if (is_method_exit) {
       // Method exit. We only have timestamp here.
-      event_time = TimestampCounter::GetMicroTime(event & ~0x1);
+      event_time = TimestampCounter::GetNanoTime(event & ~0x1);
     } else {
       // method entry
       method_ptr = event;
-      event_time = TimestampCounter::GetMicroTime(method_trace_entries[i--] & ~0x1);
+      event_time = TimestampCounter::GetNanoTime(method_trace_entries[--i] & ~0x1);
     }
 
     uint64_t time_action_encoding = event_time << 1;
@@ -590,7 +590,7 @@ void TraceProfiler::FlushBufferAndRecordTraceEvent(ArtMethod* method,
   size_t num_occupied_entries = (processed_events_ptr - *method_trace_curr_ptr);
   size_t index = kAlwaysOnTraceBufSize;
 
-  std::unique_ptr<uint8_t> buffer_ptr(new uint8_t[kBufSizeForEncodedData]);
+  std::unique_ptr<uint8_t[]> buffer_ptr(new uint8_t[kBufSizeForEncodedData]);
   size_t num_bytes;
   if (num_occupied_entries > kMaxEntriesAfterFlush) {
     // If we don't have sufficient space just record a placeholder exit and flush all the existing
@@ -659,7 +659,7 @@ void TraceDumpCheckpoint::Run(Thread* thread) {
     std::unordered_set<ArtMethod*> traced_methods;
     if (trace_data_->GetTraceType() == LowOverheadTraceType::kLongRunningMethods) {
       uintptr_t* method_trace_curr_ptr = *(thread->GetTraceBufferCurrEntryPtr());
-      std::unique_ptr<uint8_t> buffer_ptr(new uint8_t[kBufSizeForEncodedData]);
+      std::unique_ptr<uint8_t[]> buffer_ptr(new uint8_t[kBufSizeForEncodedData]);
       size_t num_bytes = TraceProfiler::DumpLongRunningMethodBuffer(thread->GetTid(),
                                                                     method_trace_entries,
                                                                     method_trace_curr_ptr,

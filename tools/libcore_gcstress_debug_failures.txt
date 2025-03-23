@@ -29,7 +29,8 @@
   description: "Timeouts on host with gcstress and debug.",
   result: EXEC_FAILED,
   modes: [host],
-  names: ["jsr166.ForkJoinPoolTest#testIsQuiescent",
+  names: ["jsr166.ConcurrentSkipListSetTest#testRecursiveSubSets",
+          "jsr166.ForkJoinPoolTest#testIsQuiescent",
           "jsr166.ScheduledExecutorSubclassTest#testTimedInvokeAll4",
           "jsr166.StampedLockTest#testWriteAfterReadLock",
           "jsr166.StampedLockTest#testReadTryLock_Interruptible",
@@ -37,6 +38,7 @@
           "jsr166.StampedLockTest#testReadLockInterruptibly",
           "jsr166.StampedLockTest#testWriteLockInterruptibly",
           "jsr166.TimeUnitTest#testConvert",
+          "jsr166.TreeMapTest#testRecursiveSubMaps",
           "jsr166.TreeSetTest#testRecursiveSubSets",
           "libcore.java.lang.OldThreadTest#test_getState",
           "libcore.java.lang.StringTest#testFastPathString_wellFormedUtf8Sequence",
@@ -53,7 +55,8 @@
           "org.apache.harmony.tests.java.lang.ref.ReferenceQueueTest#test_removeJ",
           "org.apache.harmony.tests.java.lang.ProcessManagerTest#testSleep",
           "org.apache.harmony.tests.java.util.TimerTest#testOverdueTaskExecutesImmediately",
-          "org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet_hasNext"
+          "org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet_hasNext",
+          "test.java.util.Collections.RacingCollections#main"
   ]
 },
 {

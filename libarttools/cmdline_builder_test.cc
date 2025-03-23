@@ -28,7 +28,7 @@ namespace {
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 
-class CmdlineBuilderTest : public testing::Test {
+class CmdlineBuilderTest : public ::testing::Test {
  protected:
   CmdlineBuilder args_;
 };

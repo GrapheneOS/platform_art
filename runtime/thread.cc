@@ -1485,12 +1485,21 @@ void Thread::GetThreadName(std::string& name) const {
 
 uint64_t Thread::GetCpuMicroTime() const {
 #if defined(__linux__)
+  return Thread::GetCpuNanoTime() / 1000;
+#else  // __APPLE__
+  UNIMPLEMENTED(WARNING);
+  return -1;
+#endif
+}
+
+uint64_t Thread::GetCpuNanoTime() const {
+#if defined(__linux__)
   clockid_t cpu_clock_id;
   pthread_getcpuclockid(tlsPtr_.pthread_self, &cpu_clock_id);
   timespec now;
   clock_gettime(cpu_clock_id, &now);
-  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) +
-         static_cast<uint64_t>(now.tv_nsec) / UINT64_C(1000);
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) +
+         static_cast<uint64_t>(now.tv_nsec);
 #else  // __APPLE__
   UNIMPLEMENTED(WARNING);
   return -1;
@@ -3328,8 +3337,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     return nullptr;
   }
 
-  dex::ProtoIndex proto_idx =
-      method->GetDexFile()->GetIndexForProtoId(interface_method->GetPrototype());
+  dex::ProtoIndex proto_idx = interface_method->GetProtoIndex();
   Handle<mirror::MethodType> method_type_object(hs.NewHandle<mirror::MethodType>(
       class_linker->ResolveMethodType(soa.Self(), proto_idx, interface_method)));
   if (method_type_object == nullptr) {

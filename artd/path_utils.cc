@@ -45,6 +45,7 @@ using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::RuntimeArtifactsPath;
+using ::aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Error;
 using ::android::base::Result;
@@ -107,6 +108,7 @@ std::vector<std::string> ListManagedFiles(const std::string& android_data,
   for (const std::string& data_root : {android_data, android_expand + "/*"}) {
     // Artifacts for primary dex files.
     patterns.push_back(data_root + "/app/*/*/oat/**");
+    patterns.push_back(data_root + "/app/*/*/*.sdm");
 
     for (const char* user_dir : {"/user", "/user_de"}) {
       std::string data_dir = data_root + user_dir + "/*/*";
@@ -148,9 +150,17 @@ std::vector<std::string> ListRuntimeArtifactsFiles(
   return tools::Glob(patterns, gListRootDir);
 }
 
+static Result<InstructionSet> ValidateAndGetIsa(const std::string& isa_str) {
+  InstructionSet isa = GetInstructionSetFromString(isa_str.c_str());
+  if (isa == InstructionSet::kNone) {
+    return Errorf("Instruction set '{}' is invalid", isa_str);
+  }
+  return isa;
+}
+
 Result<void> ValidateRuntimeArtifactsPath(const RuntimeArtifactsPath& runtime_artifacts_path) {
   OR_RETURN(ValidatePathElement(runtime_artifacts_path.packageName, "packageName"));
-  OR_RETURN(ValidatePathElement(runtime_artifacts_path.isa, "isa"));
+  OR_RETURN(ValidateAndGetIsa(runtime_artifacts_path.isa));
   OR_RETURN(ValidateDexPath(runtime_artifacts_path.dexPath));
   return {};
 }
@@ -159,32 +169,36 @@ Result<std::string> BuildArtBinPath(const std::string& binary_name) {
   return ART_FORMAT("{}/bin/{}", OR_RETURN(GetArtRootOrError()), binary_name);
 }
 
-Result<RawArtifactsPath> BuildArtifactsPath(const ArtifactsPath& artifacts_path) {
-  OR_RETURN(ValidateDexPath(artifacts_path.dexPath));
+Result<std::string> BuildOatPath(const std::string& dex_path,
+                                 const std::string& isa_str,
+                                 bool is_in_dalvik_cache) {
+  OR_RETURN(ValidateDexPath(dex_path));
+  InstructionSet isa = OR_RETURN(ValidateAndGetIsa(isa_str));
 
-  InstructionSet isa = GetInstructionSetFromString(artifacts_path.isa.c_str());
-  if (isa == InstructionSet::kNone) {
-    return Errorf("Instruction set '{}' is invalid", artifacts_path.isa);
-  }
-
+  std::string oat_path;
   std::string error_msg;
-  RawArtifactsPath path;
-  if (artifacts_path.isInDalvikCache) {
+  if (is_in_dalvik_cache) {
     // Apps' OAT files are never in ART APEX data.
-    if (!OatFileAssistant::DexLocationToOatFilename(artifacts_path.dexPath,
+    if (!OatFileAssistant::DexLocationToOatFilename(dex_path,
                                                     isa,
                                                     /*deny_art_apex_data_files=*/true,
-                                                    &path.oat_path,
+                                                    &oat_path,
                                                     &error_msg)) {
-      return Error() << error_msg;
+      return Errorf("{}", error_msg);
     }
   } else {
-    if (!OatFileAssistant::DexLocationToOdexFilename(
-            artifacts_path.dexPath, isa, &path.oat_path, &error_msg)) {
-      return Error() << error_msg;
+    if (!OatFileAssistant::DexLocationToOdexFilename(dex_path, isa, &oat_path, &error_msg)) {
+      return Errorf("{}", error_msg);
     }
   }
 
+  return oat_path;
+}
+
+Result<RawArtifactsPath> BuildArtifactsPath(const ArtifactsPath& artifacts_path) {
+  RawArtifactsPath path;
+  path.oat_path = OR_RETURN(
+      BuildOatPath(artifacts_path.dexPath, artifacts_path.isa, artifacts_path.isInDalvikCache));
   path.vdex_path = ReplaceFileExtension(path.oat_path, kVdexExtension);
   path.art_path = ReplaceFileExtension(path.oat_path, kArtExtension);
 
@@ -301,6 +315,19 @@ Result<std::string> BuildProfileOrDmPath(const ProfilePath& profile_path) {
 Result<std::string> BuildVdexPath(const VdexPath& vdex_path) {
   DCHECK(vdex_path.getTag() == VdexPath::artifactsPath);
   return OR_RETURN(BuildArtifactsPath(vdex_path.get<VdexPath::artifactsPath>())).vdex_path;
+}
+
+Result<std::string> BuildSdmPath(const SecureDexMetadataWithCompanionPaths& sdm_path) {
+  // `sdm_path.isInDalvikCache` is intentionally ignored because it's only applicable to SDC files.
+  OR_RETURN(ValidateDexPath(sdm_path.dexPath));
+  OR_RETURN(ValidateAndGetIsa(sdm_path.isa));
+  return ReplaceFileExtension(sdm_path.dexPath, ART_FORMAT(".{}{}", sdm_path.isa, kSdmExtension));
+}
+
+Result<std::string> BuildSdcPath(const SecureDexMetadataWithCompanionPaths& sdc_path) {
+  std::string oat_path =
+      OR_RETURN(BuildOatPath(sdc_path.dexPath, sdc_path.isa, sdc_path.isInDalvikCache));
+  return ReplaceFileExtension(oat_path, ".sdc");
 }
 
 bool PreRebootFlag(const ProfilePath& profile_path) {

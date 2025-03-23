@@ -715,6 +715,15 @@ std::string GetDmFilename(const std::string& dex_location) {
   return ReplaceFileExtension(dex_location, kDmExtension);
 }
 
+std::string GetSdmFilename(const std::string& dex_location, InstructionSet isa) {
+  return ReplaceFileExtension(dex_location,
+                              StringPrintf("%s%s", GetInstructionSetString(isa), kSdmExtension));
+}
+
+std::string GetSdcFilename(const std::string& oat_location) {
+  return ReplaceFileExtension(oat_location, kSdcExtension);
+}
+
 // check for the file in /system, followed by /system_ext
 std::string GetSystemOdexFilenameForApex(std::string_view location, InstructionSet isa) {
   DCHECK(LocationIsOnApex(location));

@@ -595,6 +595,7 @@ void RegisterAllocatorLinearScan::DumpAllIntervals(std::ostream& stream) const {
 
 // By the book implementation of a linear scan register allocator.
 void RegisterAllocatorLinearScan::LinearScan() {
+  size_t last_position = std::numeric_limits<size_t>::max();
   while (!unhandled_->empty()) {
     // (1) Remove interval with the lowest start position from unhandled.
     LiveInterval* current = unhandled_->back();
@@ -612,49 +613,64 @@ void RegisterAllocatorLinearScan::LinearScan() {
            !unhandled_->back()->IsHighInterval());
 
     size_t position = current->GetStart();
+    if (position != last_position) {
+      // Remember the inactive_ size here since the ones moved to inactive_ from
+      // active_ below shouldn't need to be re-checked.
+      size_t inactive_intervals_to_handle = inactive_.size();
 
-    // Remember the inactive_ size here since the ones moved to inactive_ from
-    // active_ below shouldn't need to be re-checked.
-    size_t inactive_intervals_to_handle = inactive_.size();
+      // (2) Remove currently active intervals that are dead at this position.
+      //     Move active intervals that have a lifetime hole at this position
+      //     to inactive.
+      auto active_kept_end = std::remove_if(
+          active_.begin(),
+          active_.end(),
+          [this, position](LiveInterval* interval) {
+            if (interval->IsDeadAt(position)) {
+              handled_.push_back(interval);
+              return true;
+            } else if (!interval->Covers(position)) {
+              inactive_.push_back(interval);
+              return true;
+            } else {
+              return false;  // Keep this interval.
+            }
+          });
+      active_.erase(active_kept_end, active_.end());
 
-    // (2) Remove currently active intervals that are dead at this position.
-    //     Move active intervals that have a lifetime hole at this position
-    //     to inactive.
-    auto active_kept_end = std::remove_if(
-        active_.begin(),
-        active_.end(),
-        [this, position](LiveInterval* interval) {
-          if (interval->IsDeadAt(position)) {
-            handled_.push_back(interval);
-            return true;
-          } else if (!interval->Covers(position)) {
-            inactive_.push_back(interval);
-            return true;
-          } else {
-            return false;  // Keep this interval.
-          }
-        });
-    active_.erase(active_kept_end, active_.end());
+      // (3) Remove currently inactive intervals that are dead at this position.
+      //     Move inactive intervals that cover this position to active.
+      auto inactive_to_handle_end = inactive_.begin() + inactive_intervals_to_handle;
+      auto inactive_kept_end = std::remove_if(
+          inactive_.begin(),
+          inactive_to_handle_end,
+          [this, position](LiveInterval* interval) {
+            DCHECK(interval->GetStart() < position || interval->IsFixed());
+            if (interval->IsDeadAt(position)) {
+              handled_.push_back(interval);
+              return true;
+            } else if (interval->Covers(position)) {
+              active_.push_back(interval);
+              return true;
+            } else {
+              return false;  // Keep this interval.
+            }
+          });
+      inactive_.erase(inactive_kept_end, inactive_to_handle_end);
 
-    // (3) Remove currently inactive intervals that are dead at this position.
-    //     Move inactive intervals that cover this position to active.
-    auto inactive_to_handle_end = inactive_.begin() + inactive_intervals_to_handle;
-    auto inactive_kept_end = std::remove_if(
-        inactive_.begin(),
-        inactive_to_handle_end,
-        [this, position](LiveInterval* interval) {
-          DCHECK(interval->GetStart() < position || interval->IsFixed());
-          if (interval->IsDeadAt(position)) {
-            handled_.push_back(interval);
-            return true;
-          } else if (interval->Covers(position)) {
-            active_.push_back(interval);
-            return true;
-          } else {
-            return false;  // Keep this interval.
-          }
-        });
-    inactive_.erase(inactive_kept_end, inactive_to_handle_end);
+      last_position = position;
+    } else {
+      // Active and inactive intervals should not change for the same position.
+      DCHECK(std::none_of(active_.begin(),
+                          active_.end(),
+                          [position](LiveInterval* interval) {
+                            return interval->IsDeadAt(position) || !interval->Covers(position);
+                          }));
+      DCHECK(std::none_of(inactive_.begin(),
+                          inactive_.end(),
+                          [position](LiveInterval* interval) {
+                            return interval->IsDeadAt(position) || interval->Covers(position);
+                          }));
+    }
 
     if (current->IsHighInterval() && !current->GetLowInterval()->HasRegister()) {
       DCHECK(!current->HasRegister());

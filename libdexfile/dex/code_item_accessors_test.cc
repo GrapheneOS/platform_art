@@ -26,7 +26,7 @@
 
 namespace art {
 
-class CodeItemAccessorsTest : public testing::Test {};
+class CodeItemAccessorsTest : public ::testing::Test {};
 
 std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8_t>* data) {
   data->resize(MemMap::GetPageSize());

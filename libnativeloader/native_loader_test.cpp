@@ -131,7 +131,7 @@ class MockPlatform : public Platform {
     ON_CALL(*this, NativeBridgeIsSupported(_)).WillByDefault(Return(is_bridged_));
     ON_CALL(*this, NativeBridgeIsPathSupported(_)).WillByDefault(Return(is_bridged_));
     ON_CALL(*this, mock_get_exported_namespace(_, _))
-        .WillByDefault(testing::Invoke([](bool, const char* name) -> mock_namespace_handle {
+        .WillByDefault(::testing::Invoke([](bool, const char* name) -> mock_namespace_handle {
           if (namespaces.find(name) != namespaces.end()) {
             return namespaces[name];
           }
@@ -274,8 +274,8 @@ class NativeLoaderTest : public ::testing::TestWithParam<bool> {
   bool IsBridged() { return GetParam(); }
 
   void SetUp() override {
-    mock = std::make_unique<testing::NiceMock<MockPlatform>>(IsBridged());
-    jni_mock = std::make_unique<testing::NiceMock<MockJni>>();
+    mock = std::make_unique<::testing::NiceMock<MockPlatform>>(IsBridged());
+    jni_mock = std::make_unique<::testing::NiceMock<MockJni>>();
 
     env = std::make_unique<JNIEnv>();
     env->functions = CreateJNINativeInterface();
@@ -379,7 +379,7 @@ TEST_P(NativeLoaderTest, OpenNativeLibraryWithoutClassloaderAndCallerLocation) {
   EXPECT_EQ(errmsg, nullptr);
 }
 
-INSTANTIATE_TEST_SUITE_P(NativeLoaderTests, NativeLoaderTest, testing::Bool());
+INSTANTIATE_TEST_SUITE_P(NativeLoaderTests, NativeLoaderTest, ::testing::Bool());
 
 /////////////////////////////////////////////////////////////////
 
@@ -439,8 +439,8 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
 
     ON_CALL(*jni_mock, JniObject_getParent(StrEq(class_loader))).WillByDefault(Return(nullptr));
 
-    EXPECT_CALL(*mock, NativeBridgeIsPathSupported(_)).Times(testing::AnyNumber());
-    EXPECT_CALL(*mock, NativeBridgeInitialized()).Times(testing::AnyNumber());
+    EXPECT_CALL(*mock, NativeBridgeIsPathSupported(_)).Times(::testing::AnyNumber());
+    EXPECT_CALL(*mock, NativeBridgeInitialized()).Times(::testing::AnyNumber());
 
     EXPECT_CALL(*mock, mock_create_namespace(
                            Eq(IsBridged()), StartsWith(expected_namespace_prefix + "-"), nullptr,
@@ -684,7 +684,7 @@ TEST_P(NativeLoaderTest_Create, TwoApks) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(NativeLoaderTests_Create, NativeLoaderTest_Create, testing::Bool());
+INSTANTIATE_TEST_SUITE_P(NativeLoaderTests_Create, NativeLoaderTest_Create, ::testing::Bool());
 
 const std::function<Result<bool>(const struct ConfigEntry&)> always_true =
     [](const struct ConfigEntry&) -> Result<bool> { return true; };

@@ -97,7 +97,6 @@ LINT_BASELINE_FILENAME = "lint-baseline.xml"
 # when ignoring their `run` script), even if not exactly as they would
 # with the original ART run-test harness.
 runnable_test_exceptions = frozenset([
-  "055-enum-performance",
   "059-finalizer-throw",
   "080-oom-throw",
   "133-static-invoke-super",
@@ -133,6 +132,8 @@ known_failing_tests = frozenset([
   "004-SignalTest",
   "004-UnsafeTest",
   "051-thread",
+  # 055-enum-performance is time sensitive and disabled in test.py
+  "055-enum-performance",
   "086-null-super",
   "087-gc-after-link",
   "136-daemon-jni-shutdown",

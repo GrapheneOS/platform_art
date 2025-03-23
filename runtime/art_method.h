@@ -31,6 +31,7 @@
 #include "base/pointer_size.h"
 #include "base/runtime_debug.h"
 #include "dex/dex_file_structs.h"
+#include "dex/dex_file_types.h"
 #include "dex/modifiers.h"
 #include "dex/primitive.h"
 #include "interpreter/mterp/nterp.h"
@@ -974,6 +975,8 @@ class EXPORT ArtMethod final {
   int32_t GetLineNumFromDexPC(uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_);
 
   const dex::ProtoId& GetPrototype() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  const dex::ProtoIndex GetProtoIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const dex::TypeList* GetParameterTypeList() REQUIRES_SHARED(Locks::mutator_lock_);
 

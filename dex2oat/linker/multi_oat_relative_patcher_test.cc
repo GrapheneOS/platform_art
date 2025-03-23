@@ -27,7 +27,7 @@ namespace linker {
 
 static const MethodReference kNullMethodRef = MethodReference(nullptr, 0u);
 
-class MultiOatRelativePatcherTest : public testing::Test {
+class MultiOatRelativePatcherTest : public ::testing::Test {
  protected:
   class MockPatcher : public RelativePatcher {
    public:

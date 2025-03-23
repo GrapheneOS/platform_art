@@ -357,7 +357,7 @@ TEST_F(FdFileTest, CopySparseFullCopy) {
   TEST_DISABLED_FOR_HOST();
 
   auto verify_fullcopy = [&](size_t empty_prefix, size_t empty_suffix) {
-    SCOPED_TRACE(testing::Message() << "prefix:" << empty_prefix << ", suffix:" << empty_suffix);
+    SCOPED_TRACE(::testing::Message() << "prefix:" << empty_prefix << ", suffix:" << empty_suffix);
 
     std::unique_ptr<art::ScratchFile> src;
     ASSERT_NO_FATAL_FAILURE(CreateSparseSourceFile(empty_prefix, empty_suffix, src));
@@ -435,9 +435,9 @@ TEST_F(FdFileTest, CopySparsePartialCopy) {
                                 size_t copy_end_offset) {
     // The copy starts <copy_start_offset> from the start of the source file.
     // The copy ends <copy_end_offset> from the end of the source file.
-    SCOPED_TRACE(testing::Message() << "prefix:" << empty_prefix << ", suffix:" << empty_suffix
-                 << ", copy_start_offset:" << copy_start_offset << ", copy_end_offset:"
-                 << copy_end_offset);
+    SCOPED_TRACE(::testing::Message() << "prefix:" << empty_prefix << ", suffix:" << empty_suffix
+                                      << ", copy_start_offset:" << copy_start_offset
+                                      << ", copy_end_offset:" << copy_end_offset);
 
     std::unique_ptr<art::ScratchFile> src;
     ASSERT_NO_FATAL_FAILURE(CreateSparseSourceFile(empty_prefix, empty_suffix, src));

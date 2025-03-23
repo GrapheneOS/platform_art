@@ -34,8 +34,8 @@ class ArtMethod;
 static constexpr size_t kAlwaysOnTraceBufSize = 2048;
 
 // The typical frequency at which the timestamp counters are updated is 24576000.
-// 2^22 (4194304) corresponds to about 170ms at that frequency.
-static constexpr size_t kLongRunningMethodThreshold = 1 << 22;
+// 2^23 (8388608) corresponds to about 341ms at that frequency.
+static constexpr size_t kLongRunningMethodThreshold = 1 << 23;
 
 enum class LowOverheadTraceType {
   kLongRunningMethods,

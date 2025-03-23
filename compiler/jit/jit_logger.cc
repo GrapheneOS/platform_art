@@ -201,6 +201,9 @@ static uint32_t GetElfMach() {
 #elif defined(__x86_64__)
   static const uint32_t kElfMachX64 = 0x3E;
   return kElfMachX64;
+#elif defined(__riscv__) || defined(__riscv)
+  static const uint32_t kElfMachRISCV = 0xF3;
+  return kElfMachRISCV;
 #else
   UNIMPLEMENTED(WARNING) << "Unsupported architecture in JitLogger";
   return 0;

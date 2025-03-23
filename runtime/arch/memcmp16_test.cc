@@ -30,8 +30,7 @@ class RandGen {
   uint32_t val_;
 };
 
-class MemCmp16Test : public testing::Test {
-};
+class MemCmp16Test : public ::testing::Test {};
 
 // A simple implementation to compare against.
 // Note: this version is equivalent to the generic one used when no optimized version is available.

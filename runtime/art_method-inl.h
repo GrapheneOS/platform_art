@@ -481,6 +481,10 @@ inline const dex::ProtoId& ArtMethod::GetPrototype() {
   return dex_file->GetMethodPrototype(dex_file->GetMethodId(GetDexMethodIndex()));
 }
 
+inline const dex::ProtoIndex ArtMethod::GetProtoIndex() {
+  return GetDexFile()->GetIndexForProtoId(GetPrototype());
+}
+
 inline const dex::TypeList* ArtMethod::GetParameterTypeList() {
   DCHECK(!IsProxyMethod());
   const DexFile* dex_file = GetDexFile();

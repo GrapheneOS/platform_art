@@ -32,6 +32,7 @@
 #include "base/memory_tool.h"
 #include "base/mutex.h"
 #include "base/os.h"
+#include "base/testing.h"
 #include "base/unix_file/fd_file.h"
 #include "dex/art_dex_file_loader.h"
 #include "dex/compact_dex_file.h"
@@ -152,19 +153,29 @@ class CommonArtTestImpl {
   virtual std::vector<std::string> GetLibCoreModuleNames() const;
 
   // Gets the paths of the libcore dex files for given modules.
-  std::vector<std::string> GetLibCoreDexFileNames(const std::vector<std::string>& modules) const;
+  std::vector<std::string> GetLibCoreDexFileNames(const std::vector<std::string>& modules) const {
+    return art::testing::GetLibCoreDexFileNames(modules);
+  }
 
   // Gets the paths of the libcore dex files.
-  std::vector<std::string> GetLibCoreDexFileNames() const;
+  std::vector<std::string> GetLibCoreDexFileNames() const {
+    return GetLibCoreDexFileNames(GetLibCoreModuleNames());
+  }
 
   // Gets the on-host or on-device locations of the libcore dex files for given modules.
-  std::vector<std::string> GetLibCoreDexLocations(const std::vector<std::string>& modules) const;
+  std::vector<std::string> GetLibCoreDexLocations(const std::vector<std::string>& modules) const {
+    return art::testing::GetLibCoreDexLocations(modules);
+  }
 
   // Gets the on-host or on-device locations of the libcore dex files.
-  std::vector<std::string> GetLibCoreDexLocations() const;
+  std::vector<std::string> GetLibCoreDexLocations() const {
+    return GetLibCoreDexLocations(GetLibCoreModuleNames());
+  }
 
   static std::string GetClassPathOption(const char* option,
-                                        const std::vector<std::string>& class_path);
+                                        const std::vector<std::string>& class_path) {
+    return art::testing::GetClassPathOption(option, class_path);
+  }
 
   // Retuerns the filename for a test dex (i.e. XandY or ManyMethods).
   std::string GetTestDexFileName(const char* name) const;
@@ -227,21 +238,15 @@ class CommonArtTestImpl {
   static std::string GetAndroidTool(const char* name, InstructionSet isa = InstructionSet::kX86_64);
 
  protected:
-  static bool IsHost() {
-    return !art::kIsTargetBuild;
+  static bool IsHost() { return art::testing::IsHost(); }
+
+  static std::string GetAndroidBuildTop() { return art::testing::GetAndroidBuildTop(); }
+
+  static std::string GetAndroidHostOut() { return art::testing::GetAndroidHostOut(); }
+
+  static std::string GetHostBootClasspathInstallRoot() {
+    return art::testing::GetHostBootClasspathInstallRoot();
   }
-
-  // Returns ${ANDROID_BUILD_TOP}. Ensure it has tailing /.
-  static std::string GetAndroidBuildTop();
-
-  // Returns ${ANDROID_HOST_OUT}.
-  static std::string GetAndroidHostOut();
-
-  // Returns the path where boot classpath and boot image files are installed
-  // for host tests (by the art_common mk module, typically built through "m
-  // art-host-tests"). Different in CI where they are unpacked from the
-  // art-host-tests.zip file.
-  static std::string GetHostBootClasspathInstallRoot();
 
   // File location to boot.art, e.g. /apex/com.android.art/javalib/boot.art
   static std::string GetCoreArtLocation();
@@ -300,10 +305,10 @@ class CommonArtTestBase : public TestType, public CommonArtTestImpl {
   }
 };
 
-using CommonArtTest = CommonArtTestBase<testing::Test>;
+using CommonArtTest = CommonArtTestBase<::testing::Test>;
 
 template <typename Param>
-using CommonArtTestWithParam = CommonArtTestBase<testing::TestWithParam<Param>>;
+using CommonArtTestWithParam = CommonArtTestBase<::testing::TestWithParam<Param>>;
 
 // Returns a list of PIDs of the processes whose process name (the first commandline argument) fully
 // matches the given name.

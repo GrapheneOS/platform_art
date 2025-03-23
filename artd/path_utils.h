@@ -55,6 +55,10 @@ android::base::Result<void> ValidateRuntimeArtifactsPath(
 
 android::base::Result<std::string> BuildArtBinPath(const std::string& binary_name);
 
+android::base::Result<std::string> BuildOatPath(const std::string& dex_path,
+                                                const std::string& isa_str,
+                                                bool is_in_dalvik_cache);
+
 // Returns the absolute paths to files built from the `ArtifactsPath`.
 android::base::Result<RawArtifactsPath> BuildArtifactsPath(
     const aidl::com::android::server::art::ArtifactsPath& artifacts_path);
@@ -95,6 +99,12 @@ android::base::Result<std::string> BuildProfileOrDmPath(
 
 android::base::Result<std::string> BuildVdexPath(
     const aidl::com::android::server::art::VdexPath& vdex_path);
+
+android::base::Result<std::string> BuildSdmPath(
+    const aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths& sdm_path);
+
+android::base::Result<std::string> BuildSdcPath(
+    const aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths& sdc_path);
 
 // Takes an argument of type `WritableProfilePath`. Returns the pre-reboot flag by value if the
 // argument is const, or by reference otherwise.

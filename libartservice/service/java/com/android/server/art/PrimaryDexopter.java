@@ -38,6 +38,7 @@ import com.android.modules.utils.pm.PackageStateModulesUtils;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
 import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
 
@@ -176,6 +177,44 @@ public class PrimaryDexopter extends Dexopter<DetailedPrimaryDexInfo> {
     @Nullable
     protected DexMetadataPath buildDmPath(@NonNull DetailedPrimaryDexInfo dexInfo) {
         return AidlUtils.buildDexMetadataPath(dexInfo.dexPath());
+    }
+
+    @Override
+    protected void onDexoptStart(@NonNull DetailedPrimaryDexInfo dexInfo) throws RemoteException {
+        if (!mInjector.isPreReboot() && android.content.pm.Flags.cloudCompilationPm()) {
+            boolean isInDalvikCache = isInDalvikCache();
+            for (Abi abi : getAllAbis(dexInfo)) {
+                maybeCreateSdc(dexInfo, abi.isa(), isInDalvikCache);
+            }
+        }
+    }
+
+    private void maybeCreateSdc(@NonNull DetailedPrimaryDexInfo dexInfo, @NonNull String isa,
+            boolean isInDalvikCache) throws RemoteException {
+        // SDC file doesn't contain sensitive data, so it can always to public.
+        PermissionSettings permissionSettings =
+                getPermissionSettings(dexInfo, true /* canBePublic */);
+        OutputSecureDexMetadataCompanion outputSdc =
+                AidlUtils.buildOutputSecureDexMetadataCompanion(
+                        dexInfo.dexPath(), isa, isInDalvikCache, permissionSettings);
+
+        try {
+            mInjector.getArtd().maybeCreateSdc(outputSdc);
+        } catch (ServiceSpecificException e) {
+            AsLog.e("Failed to create sdc for " + AidlUtils.toString(outputSdc.sdcPath), e);
+        }
+    }
+
+    @Override
+    protected void onDexoptTargetResult(@NonNull DexoptTarget<DetailedPrimaryDexInfo> target,
+            @DexoptResult.DexoptResultStatus int status) throws RemoteException {
+        // An optimization to release disk space as soon as possible. The SDM and SDC files would be
+        // deleted by the file GC anyway if not deleted here.
+        if (status == DexoptResult.DEXOPT_PERFORMED && !mInjector.isPreReboot()) {
+            mInjector.getArtd().deleteSdmSdcFiles(
+                    AidlUtils.buildSecureDexMetadataWithCompanionPaths(
+                            target.dexInfo().dexPath(), target.isa(), target.isInDalvikCache()));
+        }
     }
 
     private boolean isSharedLibrary() {

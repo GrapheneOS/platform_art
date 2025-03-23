@@ -27,7 +27,7 @@
 
 namespace art {
 
-class DexFileLoaderTest : public testing::Test {};
+class DexFileLoaderTest : public ::testing::Test {};
 
 static constexpr char kLocationString[] = "/a/dex/file/location";
 

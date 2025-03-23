@@ -44,13 +44,6 @@
 #include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #endif
 
-#if defined(__BIONIC__)
-// membarrier(2) is only supported for target builds (b/111199492).
-#include <linux/membarrier.h>
-// NOLINTNEXTLINE - inclusion of syscall is dependent on arch
-#include <sys/syscall.h>
-#endif
-
 #if defined(__linux__)
 #include <linux/unistd.h>
 // NOLINTNEXTLINE - inclusion of syscall is dependent on arch

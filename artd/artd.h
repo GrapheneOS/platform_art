@@ -38,6 +38,7 @@
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "aidl/com/android/server/art/BnArtdCancellationSignal.h"
 #include "aidl/com/android/server/art/BnArtdNotification.h"
+#include "aidl/com/android/server/art/SecureDexMetadataWithCompanionPaths.h"
 #include "android-base/result.h"
 #include "android-base/thread_annotations.h"
 #include "android-base/unique_fd.h"
@@ -217,6 +218,10 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       int32_t in_dexoptTrigger,
       aidl::com::android::server::art::GetDexoptNeededResult* _aidl_return) override;
 
+  ndk::ScopedAStatus maybeCreateSdc(
+      const aidl::com::android::server::art::OutputSecureDexMetadataCompanion& in_outputSdc)
+      override;
+
   ndk::ScopedAStatus dexopt(
       const aidl::com::android::server::art::OutputArtifacts& in_outputArtifacts,
       const std::string& in_dexFile,
@@ -240,6 +245,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::vector<aidl::com::android::server::art::ProfilePath>& in_profilesToKeep,
       const std::vector<aidl::com::android::server::art::ArtifactsPath>& in_artifactsToKeep,
       const std::vector<aidl::com::android::server::art::VdexPath>& in_vdexFilesToKeep,
+      const std::vector<aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths>&
+          in_SdmSdcFilesToKeep,
       const std::vector<aidl::com::android::server::art::RuntimeArtifactsPath>&
           in_runtimeArtifactsToKeep,
       bool in_keepPreRebootStagedFiles,
@@ -248,6 +255,10 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   ndk::ScopedAStatus cleanUpPreRebootStagedFiles() override;
 
   ndk::ScopedAStatus isInDalvikCache(const std::string& in_dexFile, bool* _aidl_return) override;
+
+  ndk::ScopedAStatus deleteSdmSdcFiles(
+      const aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths& in_sdmSdcPaths,
+      int64_t* _aidl_return) override;
 
   ndk::ScopedAStatus deleteRuntimeArtifacts(
       const aidl::com::android::server::art::RuntimeArtifactsPath& in_runtimeArtifactsPath,
@@ -259,6 +270,10 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   ndk::ScopedAStatus getVdexFileSize(const aidl::com::android::server::art::VdexPath& in_vdexPath,
                                      int64_t* _aidl_return) override;
+
+  ndk::ScopedAStatus getSdmFileSize(
+      const aidl::com::android::server::art::SecureDexMetadataWithCompanionPaths& in_sdmPath,
+      int64_t* _aidl_return) override;
 
   ndk::ScopedAStatus getRuntimeArtifactsSize(
       const aidl::com::android::server::art::RuntimeArtifactsPath& in_runtimeArtifactsPath,

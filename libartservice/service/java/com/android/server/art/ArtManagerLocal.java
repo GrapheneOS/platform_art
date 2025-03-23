@@ -202,8 +202,8 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Deletes dexopt artifacts of a package, including the artifacts for primary dex files and the
-     * ones for secondary dex files. This includes VDEX, ODEX, and ART files.
+     * Deletes dexopt artifacts (including cloud dexopt artifacts) of a package, for primary dex
+     * files and for secondary dex files. This includes VDEX, ODEX, ART, SDM, and SDC files.
      *
      * Also deletes runtime artifacts of the package, though they are not dexopt artifacts.
      *
@@ -231,6 +231,9 @@ public final class ArtManagerLocal {
             }
             for (RuntimeArtifactsPath runtimeArtifacts : list.runtimeArtifacts()) {
                 freedBytes += mInjector.getArtd().deleteRuntimeArtifacts(runtimeArtifacts);
+            }
+            for (SecureDexMetadataWithCompanionPaths sdmSdcFiles : list.sdmFiles()) {
+                freedBytes += mInjector.getArtd().deleteSdmSdcFiles(sdmSdcFiles);
             }
             return DeleteResult.create(freedBytes);
         } catch (RemoteException e) {
@@ -390,13 +393,17 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Resets the dexopt state of the package as if the package is newly installed.
+     * Resets the dexopt state of the package as if the package is newly installed without cloud
+     * dexopt artifacts (SDM files).
      *
-     * More specifically, it clears reference profiles, current profiles, any code compiled from
-     * those local profiles, and runtime artifacts. If there is an external profile (e.g., a cloud
-     * profile), the code compiled from that profile will be kept.
+     * More specifically,
+     * - It clears current profiles, reference profiles, and all dexopt artifacts (including cloud
+     *   dexopt artifacts).
+     * - If there is an external profile (e.g., a cloud profile), the reference profile will be
+     *   re-created from that profile, and dexopt artifacts will be regenerated for that profile.
      *
-     * For secondary dex files, it also clears all dexopt artifacts.
+     * For secondary dex files, it clears all profiles and dexopt artifacts without regeneration
+     * because secondary dex files are supposed to be unknown at install time.
      *
      * @hide
      */
@@ -1056,6 +1063,10 @@ public final class ArtManagerLocal {
             for (RuntimeArtifactsPath runtimeArtifacts : artifactLists.runtimeArtifacts()) {
                 artifactsSize += artd.getRuntimeArtifactsSize(runtimeArtifacts);
             }
+            for (SecureDexMetadataWithCompanionPaths sdmFile : artifactLists.sdmFiles()) {
+                // We don't count SDC files because they are presumed to be tiny.
+                artifactsSize += artd.getSdmFileSize(sdmFile);
+            }
 
             ProfileLists profileLists = mInjector.getArtFileManager().getProfiles(pkgState, pkg,
                     ArtFileManager.Options.builder()
@@ -1119,6 +1130,7 @@ public final class ArtManagerLocal {
             // - The dexopt artifacts, if they are up-to-date and the app is not hibernating.
             // - Only the VDEX part of the dexopt artifacts, if the dexopt artifacts are outdated
             //   but the VDEX part is still usable and the app is not hibernating.
+            // - The SDM and SDC files, if they are up-to-date and the app is not hibernating.
             // - The runtime artifacts, if dexopt artifacts are fully or partially usable and the
             //   usable parts don't contain AOT-compiled code. (This logic must be aligned with the
             //   one that determines when runtime images can be loaded in
@@ -1126,6 +1138,7 @@ public final class ArtManagerLocal {
             List<ProfilePath> profilesToKeep = new ArrayList<>();
             List<ArtifactsPath> artifactsToKeep = new ArrayList<>();
             List<VdexPath> vdexFilesToKeep = new ArrayList<>();
+            List<SecureDexMetadataWithCompanionPaths> sdmSdcFilesToKeep = new ArrayList<>();
             List<RuntimeArtifactsPath> runtimeArtifactsToKeep = new ArrayList<>();
 
             for (PackageState pkgState : snapshot.getPackageStates().values()) {
@@ -1146,11 +1159,12 @@ public final class ArtManagerLocal {
                             mInjector.getArtFileManager().getUsableArtifacts(pkgState, pkg);
                     artifactsToKeep.addAll(artifactLists.artifacts());
                     vdexFilesToKeep.addAll(artifactLists.vdexFiles());
+                    sdmSdcFilesToKeep.addAll(artifactLists.sdmFiles());
                     runtimeArtifactsToKeep.addAll(artifactLists.runtimeArtifacts());
                 }
             }
             return mInjector.getArtd().cleanup(profilesToKeep, artifactsToKeep, vdexFilesToKeep,
-                    runtimeArtifactsToKeep,
+                    sdmSdcFilesToKeep, runtimeArtifactsToKeep,
                     SdkLevel.isAtLeastV() && mInjector.getPreRebootDexoptJob().hasStarted());
         } catch (RemoteException e) {
             Utils.logArtdException(e);

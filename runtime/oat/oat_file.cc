@@ -20,25 +20,34 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <type_traits>
 
+#include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "arch/instruction_set_features.h"
 #include "art_method.h"
+#include "base/array_ref.h"
 #include "base/bit_vector.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/logging.h"  // For VLOG_IS_ON.
+#include "base/macros.h"
 #include "base/mem_map.h"
 #include "base/os.h"
 #include "base/pointer_size.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
+#include "base/time_utils.h"
 #include "base/unix_file/fd_file.h"
 #include "base/utils.h"
 #include "base/zip_archive.h"
@@ -59,6 +68,7 @@
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "oat.h"
+#include "oat/sdc_file.h"
 #include "oat_file-inl.h"
 #include "oat_file_manager.h"
 #include "runtime-inl.h"
@@ -173,6 +183,14 @@ class OatFileBase : public OatFile {
                                   ArrayRef<File> dex_files,
                                   /*inout*/ MemMap* reservation,  // Where to load if not null.
                                   /*out*/ std::string* error_msg);
+
+  template <typename kOatFileBaseSubType>
+  static OatFileBase* OpenOatFileFromSdm(const std::string& sdm_filename,
+                                         const std::string& sdc_filename,
+                                         const std::string& dm_filename,
+                                         const std::string& dex_filename,
+                                         bool executable,
+                                         /*out*/ std::string* error_msg);
 
  protected:
   OatFileBase(const std::string& filename, bool executable) : OatFile(filename, executable) {}
@@ -310,6 +328,61 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
   }
 
   if (!ret->Setup(zip_fd, dex_filenames, dex_files, error_msg)) {
+    return nullptr;
+  }
+
+  return ret.release();
+}
+
+template <typename kOatFileBaseSubType>
+OatFileBase* OatFileBase::OpenOatFileFromSdm(const std::string& sdm_filename,
+                                             const std::string& sdc_filename,
+                                             const std::string& dm_filename,
+                                             const std::string& dex_filename,
+                                             bool executable,
+                                             /*out*/ std::string* error_msg) {
+  std::string elf_filename = sdm_filename + kZipSeparator + "primary.odex";
+  std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(elf_filename, executable));
+
+  struct stat sdm_st;
+  if (stat(sdm_filename.c_str(), &sdm_st) != 0) {
+    *error_msg = ART_FORMAT("Failed to stat sdm file '{}': {}", sdm_filename, strerror(errno));
+    return nullptr;
+  }
+
+  std::unique_ptr<SdcReader> sdc_reader = SdcReader::Load(sdc_filename, error_msg);
+  if (sdc_reader == nullptr) {
+    return nullptr;
+  }
+  if (sdc_reader->GetSdmTimestampNs() != TimeSpecToNs(sdm_st.st_mtim)) {
+    // The sdm file had been replaced after the sdc file was created.
+    *error_msg = ART_FORMAT("Obsolete sdc file '{}'", sdc_filename);
+    return nullptr;
+  }
+  // The apex-versions value in the sdc file, written by ART Service, is the value of
+  // `Runtime::GetApexVersions` at the time where the sdm file was first seen on device. We use it
+  // to override the APEX versions in the oat header. This is for detecting samegrade placebos.
+  ret->override_apex_versions_ = sdc_reader->GetApexVersions();
+
+  if (!ret->Load(elf_filename, executable, /*low_4gb=*/false, /*reservation=*/nullptr, error_msg)) {
+    return nullptr;
+  }
+
+  if (!ret->ComputeFields(elf_filename, error_msg)) {
+    return nullptr;
+  }
+
+  ret->PreSetup(elf_filename);
+
+  ret->vdex_ = VdexFile::OpenFromDm(dm_filename, ret->vdex_begin_, ret->vdex_end_, error_msg);
+  if (ret->vdex_ == nullptr) {
+    return nullptr;
+  }
+
+  if (!ret->Setup(/*zip_fd=*/-1,
+                  ArrayRef<const std::string>(&dex_filename, /*size=*/1u),
+                  /*dex_files=*/{},
+                  error_msg)) {
     return nullptr;
   }
 
@@ -1330,11 +1403,11 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
   return false;
 #else
   {
-    UniqueCPtr<char> absolute_path(realpath(elf_filename.c_str(), nullptr));
-    if (absolute_path == nullptr) {
-      *error_msg = StringPrintf("Failed to find absolute path for '%s'", elf_filename.c_str());
-      return false;
-    }
+    // `elf_filename` is in the format of `/path/to/oat` or `/path/to/zip!/primary.odex`. We can
+    // reuse `GetDexCanonicalLocation` to resolve the real path of the part before "!" even though
+    // `elf_filename` does not refer to a dex file.
+    static_assert(std::string_view(kZipSeparator).starts_with(DexFileLoader::kMultiDexSeparator));
+    std::string absolute_path = DexFileLoader::GetDexCanonicalLocation(elf_filename.c_str());
 #ifdef ART_TARGET_ANDROID
     android_dlextinfo extinfo = {};
     extinfo.flags = ANDROID_DLEXT_FORCE_LOAD;   // Force-load, don't reuse handle
@@ -1350,9 +1423,9 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
     }
 
     if (strncmp(kAndroidArtApexDefaultPath,
-                absolute_path.get(),
+                absolute_path.c_str(),
                 sizeof(kAndroidArtApexDefaultPath) - 1) != 0 ||
-        absolute_path.get()[sizeof(kAndroidArtApexDefaultPath) - 1] != '/') {
+        absolute_path.c_str()[sizeof(kAndroidArtApexDefaultPath) - 1] != '/') {
       // Use the system namespace for OAT files outside the ART APEX. Search
       // paths and links don't matter here, but permitted paths do, and the
       // system namespace is configured to allow loading from all appropriate
@@ -1361,7 +1434,7 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
       extinfo.library_namespace = GetSystemLinkerNamespace();
     }
 
-    dlopen_handle_ = android_dlopen_ext(absolute_path.get(), RTLD_NOW, &extinfo);
+    dlopen_handle_ = android_dlopen_ext(absolute_path.c_str(), RTLD_NOW, &extinfo);
     if (reservation != nullptr && dlopen_handle_ != nullptr) {
       // Find used pages from the reservation.
       struct dl_iterate_context {
@@ -1435,7 +1508,7 @@ bool DlOpenOatFile::Dlopen(const std::string& elf_filename,
       return false;
     }
     MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
-    dlopen_handle_ = dlopen(absolute_path.get(), RTLD_NOW);
+    dlopen_handle_ = dlopen(absolute_path.c_str(), RTLD_NOW);
     if (dlopen_handle_ != nullptr) {
       if (!host_dlopen_handles_.insert(dlopen_handle_).second) {
         dlclose(dlopen_handle_);
@@ -2034,6 +2107,38 @@ OatFile* OatFile::OpenFromVdex(int zip_fd,
   return OatFileBackedByVdex::Open(zip_fd, std::move(vdex_file), location, context, error_msg);
 }
 
+OatFile* OatFile::OpenFromSdm(const std::string& sdm_filename,
+                              const std::string& sdc_filename,
+                              const std::string& dm_filename,
+                              const std::string& dex_filename,
+                              bool executable,
+                              /*out*/ std::string* error_msg) {
+  ScopedTrace trace("Open sdm file " + sdm_filename);
+  CHECK(!sdm_filename.empty());
+  CHECK(!sdc_filename.empty());
+  CHECK(!dm_filename.empty());
+  CHECK(!dex_filename.empty());
+
+  // Check if the dm file exists, to fail fast. The dm file contains the vdex that is essential for
+  // using the odex in the sdm file.
+  if (!OS::FileExists(dm_filename.c_str())) {
+    *error_msg =
+        ART_FORMAT("Not loading sdm file because dm file '{}' does not exist", dm_filename);
+    return nullptr;
+  }
+
+  // Try dlopen first, as it is required for native debuggability. This will fail fast if dlopen is
+  // disabled.
+  OatFile* with_dlopen = OatFileBase::OpenOatFileFromSdm<DlOpenOatFile>(
+      sdm_filename, sdc_filename, dm_filename, dex_filename, executable, error_msg);
+  if (with_dlopen != nullptr) {
+    return with_dlopen;
+  }
+
+  return OatFileBase::OpenOatFileFromSdm<ElfOatFile>(
+      sdm_filename, sdc_filename, dm_filename, dex_filename, executable, error_msg);
+}
+
 OatFile::OatFile(const std::string& location, bool is_executable)
     : location_(location),
       vdex_(nullptr),
@@ -2584,6 +2689,15 @@ uint32_t OatDexFile::GetDexVersion() const {
 
 bool OatFile::IsBackedByVdexOnly() const {
   return oat_dex_files_storage_.size() >= 1 && oat_dex_files_storage_[0]->IsBackedByVdexOnly();
+}
+
+std::optional<std::string_view> OatFile::GetApexVersions() const {
+  if (override_apex_versions_.has_value()) {
+    return override_apex_versions_;
+  }
+  const char* oat_apex_versions =
+      GetOatHeader().GetStoreValueByKeyUnsafe(OatHeader::kApexVersionsKey);
+  return oat_apex_versions != nullptr ? std::make_optional(oat_apex_versions) : std::nullopt;
 }
 
 }  // namespace art

@@ -1692,6 +1692,15 @@ void ThreadList::SweepInterpreterCaches(IsMarkedVisitor* visitor) const {
   }
 }
 
+void ThreadList::ClearInterpreterCaches() const {
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  for (const auto& thread : list_) {
+    thread->GetInterpreterCache()->Clear(thread);
+  }
+}
+
 uint32_t ThreadList::AllocThreadId(Thread* self) {
   MutexLock mu(self, *Locks::allocated_thread_ids_lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {

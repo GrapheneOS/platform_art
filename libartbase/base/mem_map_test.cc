@@ -899,17 +899,17 @@ TEST_F(MemMapTest, Reservation) {
 
 namespace {
 
-class DumpMapsOnFailListener : public testing::EmptyTestEventListener {
-  void OnTestPartResult(const testing::TestPartResult& result) override {
+class DumpMapsOnFailListener : public ::testing::EmptyTestEventListener {
+  void OnTestPartResult(const ::testing::TestPartResult& result) override {
     switch (result.type()) {
-      case testing::TestPartResult::kFatalFailure:
+      case ::testing::TestPartResult::kFatalFailure:
         art::PrintFileToLog("/proc/self/maps", android::base::LogSeverity::ERROR);
         break;
 
       // TODO: Could consider logging on EXPECT failures.
-      case testing::TestPartResult::kNonFatalFailure:
-      case testing::TestPartResult::kSkip:
-      case testing::TestPartResult::kSuccess:
+      case ::testing::TestPartResult::kNonFatalFailure:
+      case ::testing::TestPartResult::kSkip:
+      case ::testing::TestPartResult::kSuccess:
         break;
     }
   }
@@ -921,5 +921,5 @@ class DumpMapsOnFailListener : public testing::EmptyTestEventListener {
 extern "C"
 __attribute__((visibility("default"))) __attribute__((used))
 void ArtTestGlobalInit() {
-  testing::UnitTest::GetInstance()->listeners().Append(new DumpMapsOnFailListener());
+  ::testing::UnitTest::GetInstance()->listeners().Append(new DumpMapsOnFailListener());
 }

@@ -351,10 +351,10 @@ TEST_P(SpaceCreateTest, AllocAndFreeListTestBody) {
 
 INSTANTIATE_TEST_CASE_P(CreateRosAllocSpace,
                         SpaceCreateTest,
-                        testing::Values(kMallocSpaceRosAlloc));
+                        ::testing::Values(kMallocSpaceRosAlloc));
 INSTANTIATE_TEST_CASE_P(CreateDlMallocSpace,
                         SpaceCreateTest,
-                        testing::Values(kMallocSpaceDlMalloc));
+                        ::testing::Values(kMallocSpaceDlMalloc));
 
 }  // namespace space
 }  // namespace gc

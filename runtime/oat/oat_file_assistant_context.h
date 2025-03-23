@@ -76,7 +76,7 @@ class OatFileAssistantContext {
   const std::vector<std::string>* GetBcpChecksums(size_t bcp_index, std::string* error_msg);
   // Returns a string that represents the apex versions of boot classpath jars. See
   // `Runtime::apex_versions_` for the encoding format.
-  const std::string& GetApexVersions();
+  EXPORT const std::string& GetApexVersions();
 
  private:
   std::unique_ptr<RuntimeOptions> runtime_options_;

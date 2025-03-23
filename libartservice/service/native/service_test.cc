@@ -30,7 +30,7 @@ using ::android::base::testing::WithMessage;
 
 using std::literals::operator""s;  // NOLINT
 
-class ArtServiceTest : public testing::Test {};
+class ArtServiceTest : public ::testing::Test {};
 
 TEST_F(ArtServiceTest, ValidatePathElementOk) {
   EXPECT_THAT(ValidatePathElement("com.android.foo", "packageName"), Ok());
@@ -110,7 +110,7 @@ TEST_F(ArtServiceTest, ValidateDexPathNul) {
 class ArtServiceGcTest : public CommonRuntimeTest {};
 
 TEST_F(ArtServiceGcTest, GetGarbageCollector) {
-  EXPECT_THAT(GetGarbageCollector(), testing::HasSubstr("CollectorType"));
+  EXPECT_THAT(GetGarbageCollector(), ::testing::HasSubstr("CollectorType"));
 }
 
 }  // namespace

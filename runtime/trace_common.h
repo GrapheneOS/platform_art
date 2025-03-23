@@ -47,7 +47,7 @@ class TimestampCounter {
     // access is disabled only for 32-bit processes even when 64-bit processes can accesses the
     // timer from user space. These are not reflected in the HWCAP_EVTSTRM capability.So just
     // fallback to clock_gettime on these processes. See b/289178149 for more discussion.
-    t = MicroTime();
+    t = NanoTime();
 #elif defined(__aarch64__)
     // See Arm Architecture Registers  Armv8 section System Registers
     asm volatile("mrs %0, cntvct_el0" : "=r"(t));
@@ -59,7 +59,7 @@ class TimestampCounter {
 #elif defined(__riscv)
     asm volatile("rdtime %0" : "=r"(t));
 #else
-    t = MicroTime();
+    t = NanoTime();
 #endif
     return t;
   }
@@ -67,36 +67,36 @@ class TimestampCounter {
   static void InitializeTimestampCounters() {
     // It is sufficient to initialize this once for the entire execution. Just return if it is
     // already initialized.
-    if (tsc_to_microsec_scaling_factor > 0.0) {
+    if (tsc_to_nanosec_scaling_factor > 0.0) {
       return;
     }
 
 #if defined(__arm__)
     // On ARM 32 bit, we don't always have access to the timestamp counters from
     // user space. Seem comment in GetTimestamp for more details.
-    tsc_to_microsec_scaling_factor = 1.0;
+    tsc_to_nanosec_scaling_factor = 1.0;
 #elif defined(__aarch64__)
-    double seconds_to_microseconds = 1000 * 1000;
+    double seconds_to_nanoseconds = 1000 * 1000;
     uint64_t freq = 0;
     // See Arm Architecture Registers  Armv8 section System Registers
     asm volatile("mrs %0,  cntfrq_el0" : "=r"(freq));
     if (freq == 0) {
       // It is expected that cntfrq_el0 is correctly setup during system initialization but some
       // devices don't do this. In such cases fall back to computing the frequency. See b/315139000.
-      tsc_to_microsec_scaling_factor = computeScalingFactor();
+      tsc_to_nanosec_scaling_factor = computeScalingFactor();
     } else {
-      tsc_to_microsec_scaling_factor = seconds_to_microseconds / static_cast<double>(freq);
+      tsc_to_nanosec_scaling_factor = seconds_to_nanoseconds / static_cast<double>(freq);
     }
 #elif defined(__i386__) || defined(__x86_64__)
-    tsc_to_microsec_scaling_factor = GetScalingFactorForX86();
+    tsc_to_nanosec_scaling_factor = GetScalingFactorForX86();
 #else
-    tsc_to_microsec_scaling_factor = 1.0;
+    tsc_to_nanosec_scaling_factor = 1.0;
 #endif
   }
 
-  static ALWAYS_INLINE uint64_t GetMicroTime(uint64_t counter) {
-    DCHECK(tsc_to_microsec_scaling_factor > 0.0) << tsc_to_microsec_scaling_factor;
-    return tsc_to_microsec_scaling_factor * counter;
+  static ALWAYS_INLINE uint64_t GetNanoTime(uint64_t counter) {
+    DCHECK(tsc_to_nanosec_scaling_factor > 0.0) << tsc_to_nanosec_scaling_factor;
+    return tsc_to_nanosec_scaling_factor * counter;
   }
 
  private:
@@ -107,12 +107,12 @@ class TimestampCounter {
   // step using these two samples. However, that would require a change in Android Studio which is
   // the main consumer of these profiles. For now, just compute the frequency of tsc updates here.
   static double computeScalingFactor() {
-    uint64_t start = MicroTime();
+    uint64_t start = NanoTime();
     uint64_t start_tsc = GetTimestamp();
     // Sleep for one millisecond.
     usleep(1000);
     uint64_t diff_tsc = GetTimestamp() - start_tsc;
-    uint64_t diff_time = MicroTime() - start;
+    uint64_t diff_time = NanoTime() - start;
     double scaling_factor = static_cast<double>(diff_time) / diff_tsc;
     DCHECK(scaling_factor > 0.0) << scaling_factor;
     return scaling_factor;
@@ -150,18 +150,18 @@ class TimestampCounter {
     }
     double coreCrystalFreq = ecx;
     // frequency = coreCrystalFreq * (ebx / eax)
-    // scaling_factor = seconds_to_microseconds / frequency
-    //                = seconds_to_microseconds * eax / (coreCrystalFreq * ebx)
-    double seconds_to_microseconds = 1000 * 1000;
-    double scaling_factor = (seconds_to_microseconds * eax) / (coreCrystalFreq * ebx);
+    // scaling_factor = seconds_to_nanoseconds / frequency
+    //                = seconds_to_nanoseconds * eax / (coreCrystalFreq * ebx)
+    double seconds_to_nanoseconds = 1000 * 1000;
+    double scaling_factor = (seconds_to_nanoseconds * eax) / (coreCrystalFreq * ebx);
     return scaling_factor;
   }
 #endif
 
-  // Scaling factor to convert timestamp counter into wall clock time reported in micro seconds.
+  // Scaling factor to convert timestamp counter into wall clock time reported in nano seconds.
   // This is initialized at the start of tracing using the timestamp counter update frequency.
   // See InitializeTimestampCounters for more details.
-  static double tsc_to_microsec_scaling_factor;
+  static double tsc_to_nanosec_scaling_factor;
 };
 
 }  // namespace art

@@ -67,7 +67,7 @@ bool operator<(const IFLTestValue2& lhs, const IFLTestValue2& rhs) {
     ASSERT_TRUE(std::equal((expected).begin(), (expected).end(), (value).begin())); \
   } while (false)
 
-class IntrusiveForwardListTest : public testing::Test {
+class IntrusiveForwardListTest : public ::testing::Test {
  public:
   template <typename ListType>
   void IteratorToConstIterator();

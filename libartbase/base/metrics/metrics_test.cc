@@ -31,7 +31,7 @@ using test::CounterValue;
 using test::GetBuckets;
 using test::TestBackendBase;
 
-class MetricsTest : public testing::Test {};
+class MetricsTest : public ::testing::Test {};
 
 TEST_F(MetricsTest, SimpleCounter) {
   MetricsCounter<DatumId::kClassVerificationTotalTime> test_counter;

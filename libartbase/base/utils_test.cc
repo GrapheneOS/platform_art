@@ -22,7 +22,7 @@
 
 namespace art {
 
-class UtilsTest : public testing::Test {};
+class UtilsTest : public ::testing::Test {};
 
 TEST_F(UtilsTest, PrettySize) {
   EXPECT_EQ("1024MB", PrettySize(1 * GB));
@@ -114,10 +114,10 @@ TEST_F(UtilsTest, Split) {
 }
 
 TEST_F(UtilsTest, GetProcessStatus) {
-  EXPECT_THAT(GetProcessStatus("Name"),
-              testing::AnyOf(
-                  "art_libartbase_",    // Test binary name: `art_libartbase_test`.
-                  "art_standalone_"));  // Test binary name: `art_standalone_libartbase_test`.
+  EXPECT_THAT(
+      GetProcessStatus("Name"),
+      ::testing::AnyOf("art_libartbase_",    // Test binary name: `art_libartbase_test`.
+                       "art_standalone_"));  // Test binary name: `art_standalone_libartbase_test`.
   EXPECT_EQ("R (running)", GetProcessStatus("State"));
   EXPECT_EQ("<unknown>", GetProcessStatus("tate"));
   EXPECT_EQ("<unknown>", GetProcessStatus("e"));

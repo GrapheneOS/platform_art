@@ -920,19 +920,11 @@ def default_run(ctx, args, **kwargs):
   if SIMPLEPERF:
     dalvikvm_cmdline = f"simpleperf record {dalvikvm_cmdline} && simpleperf report"
 
-  def sanitize_dex2oat_cmdline(cmdline: str) -> str:
-    args = []
-    for arg in cmdline.split(" "):
-      if arg == "--class-loader-context=&":
-        arg = "--class-loader-context=\&"
-      args.append(arg)
-    return " ".join(args)
-
   # Remove whitespace.
-  dex2oat_cmdline = sanitize_dex2oat_cmdline(dex2oat_cmdline)
+  dex2oat_cmdline = re.sub(" +", " ", dex2oat_cmdline)
   dalvikvm_cmdline = re.sub(" +", " ", dalvikvm_cmdline)
   dm_cmdline = re.sub(" +", " ", dm_cmdline)
-  vdex_cmdline = sanitize_dex2oat_cmdline(vdex_cmdline)
+  vdex_cmdline = re.sub(" +", " ", vdex_cmdline)
   profman_cmdline = re.sub(" +", " ", profman_cmdline)
 
   # Use an empty ASAN_OPTIONS to enable defaults.

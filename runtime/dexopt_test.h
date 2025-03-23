@@ -64,6 +64,16 @@ class DexoptTest : public Dex2oatEnvironmentTest {
   // Generate a standard oat file in the oat location.
   void GenerateOatForTest(const char* dex_location, CompilerFilter::Filter filter);
 
+  // Generate sdm and dm files for the purposes of test.
+  // If `include_app_image` is true, generates an app image and includes it in the sdm file.
+  void GenerateSdmDmForTest(const std::string& dex_location,
+                            const std::string& sdm_location,
+                            const std::string& dm_location,
+                            CompilerFilter::Filter filter,
+                            bool include_app_image,
+                            const char* compilation_reason = nullptr,
+                            const std::vector<std::string>& extra_args = {});
+
   bool Dex2Oat(const std::vector<std::string>& args, std::string* error_msg);
 
  private:

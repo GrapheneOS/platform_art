@@ -27,4 +27,15 @@ enum ArtifactsLocation {
     NEXT_TO_DEX = 2,
     /** In the dex metadata file. This means the only usable artifact is the VDEX file. */
     DM = 3,
+    /**
+     * The OAT and ART files are in the SDM file next to the dex file. The VDEX file is in the DM
+     * file next to the dex file. The SDC file is in the global "dalvik-cache" folder. (This happens
+     * typically when the app is in incremental-fs.)
+     */
+    SDM_DALVIK_CACHE = 4,
+    /**
+     * The OAT and ART files are in the SDM file next to the dex file. The VDEX file is in the DM
+     * file next to the dex file. The SDC file is next to the dex file.
+     */
+    SDM_NEXT_TO_DEX = 5,
 }

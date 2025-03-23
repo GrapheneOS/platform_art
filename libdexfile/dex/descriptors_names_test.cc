@@ -20,7 +20,7 @@
 
 namespace art {
 
-class DescriptorsNamesTest : public testing::Test {};
+class DescriptorsNamesTest : public ::testing::Test {};
 
 TEST_F(DescriptorsNamesTest, PrettyDescriptor_ArrayReferences) {
   EXPECT_EQ("java.lang.Class[]", PrettyDescriptor("[Ljava/lang/Class;"));

@@ -496,16 +496,16 @@ TEST_P(LoopReferenceTypePropagationTestGroup, RunVisitTest) {
 
 INSTANTIATE_TEST_SUITE_P(ReferenceTypePropagationTest,
                          LoopReferenceTypePropagationTestGroup,
-                         testing::Combine(testing::Values(ShuffleOrder::kAlmostTopological,
-                                                          ShuffleOrder::kReverseTopological,
-                                                          ShuffleOrder::kTopological,
-                                                          ShuffleOrder::kRandom),
-                                          testing::Values(-1, 10, 40),
-                                          testing::Values(0, 1),
-                                          testing::Values(InitialNullState::kAllNonNull,
-                                                          InitialNullState::kAllNull,
-                                                          InitialNullState::kHalfNull,
-                                                          InitialNullState::kRandom)));
+                         ::testing::Combine(::testing::Values(ShuffleOrder::kAlmostTopological,
+                                                              ShuffleOrder::kReverseTopological,
+                                                              ShuffleOrder::kTopological,
+                                                              ShuffleOrder::kRandom),
+                                            ::testing::Values(-1, 10, 40),
+                                            ::testing::Values(0, 1),
+                                            ::testing::Values(InitialNullState::kAllNonNull,
+                                                              InitialNullState::kAllNull,
+                                                              InitialNullState::kHalfNull,
+                                                              InitialNullState::kRandom)));
 
 TEST_P(NonLoopReferenceTypePropagationTestGroup, RunVisitTest) {
   RunVisitListTest([&](std::vector<HInstruction*>& lst) { MutateList(lst, GetParam()); });
@@ -513,9 +513,9 @@ TEST_P(NonLoopReferenceTypePropagationTestGroup, RunVisitTest) {
 
 INSTANTIATE_TEST_SUITE_P(ReferenceTypePropagationTest,
                          NonLoopReferenceTypePropagationTestGroup,
-                         testing::Values(ShuffleOrder::kAlmostTopological,
-                                         ShuffleOrder::kReverseTopological,
-                                         ShuffleOrder::kTopological,
-                                         ShuffleOrder::kRandom));
+                         ::testing::Values(ShuffleOrder::kAlmostTopological,
+                                           ShuffleOrder::kReverseTopological,
+                                           ShuffleOrder::kTopological,
+                                           ShuffleOrder::kRandom));
 
 }  // namespace art

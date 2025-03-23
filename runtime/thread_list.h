@@ -227,6 +227,7 @@ class ThreadList {
   EXPORT void SweepInterpreterCaches(IsMarkedVisitor* visitor) const
       REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_);
 
+  void ClearInterpreterCaches() const REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_);
   // Return a copy of the thread list.
   std::list<Thread*> GetList() REQUIRES(Locks::thread_list_lock_) {
     return list_;

@@ -34,7 +34,7 @@ constexpr const char* kNativeBridgeLibrary8 = "libnativebridge8-test-case.so";
 
 namespace android {
 
-class NativeBridgeTest : public testing::Test {
+class NativeBridgeTest : public ::testing::Test {
  protected:
   NativeBridgeTest() : temp_dir_() {
     app_data_dir_ = std::string(temp_dir_.path);

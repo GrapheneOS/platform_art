@@ -503,7 +503,7 @@ void SemiSpace::SweepSystemWeaks() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime* runtime = Runtime::Current();
   runtime->SweepSystemWeaks(this);
-  runtime->GetThreadList()->SweepInterpreterCaches(this);
+  runtime->GetThreadList()->ClearInterpreterCaches();
 }
 
 bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {

@@ -69,10 +69,10 @@ bool GetCap(pid_t pid, cap_flag_t flag, cap_value_t value) {
   return flag_value == CAP_SET;
 }
 
-class ArtExecTest : public testing::Test {
+class ArtExecTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    testing::Test::SetUp();
+    ::testing::Test::SetUp();
     if (!kIsTargetAndroid) {
       GTEST_SKIP() << "art_exec is for device only";
     }

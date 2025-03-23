@@ -41,7 +41,7 @@ enum class Flavor {
   kStatic,   // oatdump(d)s, dex2oat(d)s
 };
 
-class OatDumpTest : public CommonRuntimeTest, public testing::WithParamInterface<Flavor> {
+class OatDumpTest : public CommonRuntimeTest, public ::testing::WithParamInterface<Flavor> {
  protected:
   virtual void SetUp() {
     CommonRuntimeTest::SetUp();

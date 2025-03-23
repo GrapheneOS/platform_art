@@ -26,7 +26,7 @@
 
 namespace art {
 
-class UtfTest : public testing::Test {};
+class UtfTest : public ::testing::Test {};
 
 TEST_F(UtfTest, GetLeadingUtf16Char) {
   EXPECT_EQ(0xffff, GetLeadingUtf16Char(0xeeeeffff));

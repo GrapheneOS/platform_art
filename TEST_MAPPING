@@ -140,9 +140,6 @@
       "name": "art-run-test-053-wait-some"
     },
     {
-      "name": "art-run-test-055-enum-performance"
-    },
-    {
       "name": "art-run-test-057-math-intrinsics"
     },
     {
@@ -1629,9 +1626,6 @@
     },
     {
       "name": "art-run-test-053-wait-some[com.google.android.art.apex]"
-    },
-    {
-      "name": "art-run-test-055-enum-performance[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-057-math-intrinsics[com.google.android.art.apex]"
@@ -3137,9 +3131,6 @@
       "name": "art-run-test-053-wait-some"
     },
     {
-      "name": "art-run-test-055-enum-performance"
-    },
-    {
       "name": "art-run-test-057-math-intrinsics"
     },
     {
@@ -4628,9 +4619,6 @@
     },
     {
       "name": "art-run-test-053-wait-some"
-    },
-    {
-      "name": "art-run-test-055-enum-performance"
     },
     {
       "name": "art-run-test-057-math-intrinsics"

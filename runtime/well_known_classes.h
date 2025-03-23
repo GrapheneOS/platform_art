@@ -141,6 +141,7 @@ struct EXPORT WellKnownClasses {
   static ArtMethod* java_lang_ThreadGroup_threadTerminated;
   static ArtMethod* java_lang_invoke_MethodHandle_asType;
   static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
+  static ArtMethod* java_lang_invoke_MethodHandleImpl_fieldInit;
   static ArtMethod* java_lang_invoke_MethodHandleImpl_init;
   static ArtMethod* java_lang_invoke_MethodHandles_lookup;
   static ArtMethod* java_lang_invoke_MethodHandles_makeIdentity;

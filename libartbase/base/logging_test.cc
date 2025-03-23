@@ -32,7 +32,7 @@ static void SimpleAborter(const char* msg) {
   _exit(1);
 }
 
-class LoggingTest : public testing::Test {
+class LoggingTest : public ::testing::Test {
  protected:
   LoggingTest() {
     // In our abort tests we really don't want the runtime to create a real dump.

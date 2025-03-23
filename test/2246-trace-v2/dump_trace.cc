@@ -182,7 +182,8 @@ bool ProcessTraceEntries(std::unique_ptr<File>& file,
   int64_t prev_method_value = 0;
   for (int i = 0; i < num_records; i++) {
     int64_t diff = 0;
-    if (!DecodeSignedLeb128Checked(&current_buffer_ptr, buffer.get() + total_size - 1, &diff)) {
+    if (!DecodeSignedLeb128Checked<int64_t>(
+            &current_buffer_ptr, buffer.get() + total_size - 1, &diff)) {
       LOG(FATAL) << "Reading past the buffer???";
     }
     int64_t curr_method_value = prev_method_value + diff;
@@ -201,9 +202,9 @@ bool ProcessTraceEntries(std::unique_ptr<File>& file,
                       &ignored_method_depth);
     }
     // Read timestamps
-    DecodeUnsignedLeb128(&current_buffer_ptr);
+    DecodeUnsignedLeb128<uint64_t>(&current_buffer_ptr);
     if (is_dual_clock) {
-      DecodeUnsignedLeb128(&current_buffer_ptr);
+      DecodeUnsignedLeb128<uint64_t>(&current_buffer_ptr);
     }
   }
   current_depth_map[thread_id] = current_depth;

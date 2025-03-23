@@ -202,6 +202,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         params.mIsPreReboot = true;
         params.mExpectedOutputIsPreReboot = true;
         params.mExpectedDeletesRuntimeArtifacts = false;
+        params.mExpectedDeletesSdmSdcFiles = false;
         list.add(params);
 
         params = new Params();
@@ -385,6 +386,17 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                             PKG_NAME, "/somewhere/app/foo/split_0.apk", "arm")));
         }
 
+        if (mParams.mExpectedDeletesSdmSdcFiles) {
+            // Only delete SDM and SDC files for successful dexopt operations, namely the first one
+            // and the fourth one.
+            doReturn(1l).when(mArtd).deleteSdmSdcFiles(
+                    deepEq(AidlUtils.buildSecureDexMetadataWithCompanionPaths(
+                            "/somewhere/app/foo/base.apk", "arm64", mParams.mIsInDalvikCache)));
+            doReturn(1l).when(mArtd).deleteSdmSdcFiles(
+                    deepEq(AidlUtils.buildSecureDexMetadataWithCompanionPaths(
+                            "/somewhere/app/foo/split_0.apk", "arm", mParams.mIsInDalvikCache)));
+        }
+
         assertThat(mPrimaryDexopter.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
@@ -415,6 +427,10 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
 
         if (!mParams.mExpectedDeletesRuntimeArtifacts) {
             verify(mArtd, times(0)).deleteRuntimeArtifacts(any());
+        }
+
+        if (!mParams.mExpectedDeletesSdmSdcFiles) {
+            verify(mArtd, times(0)).deleteSdmSdcFiles(any());
         }
     }
 
@@ -451,6 +467,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
         public boolean mExpectedIsHiddenApiPolicyEnabled = true;
         public boolean mExpectedOutputIsPreReboot = false;
         public boolean mExpectedDeletesRuntimeArtifacts = true;
+        public boolean mExpectedDeletesSdmSdcFiles = true;
 
         public String toString() {
             return String.format("isInDalvikCache=%b,"
@@ -477,7 +494,8 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                             + "expectedIsDebuggable=%b,"
                             + "expectedIsHiddenApiPolicyEnabled=%b,"
                             + "expectedOutputIsPreReboot=%b,"
-                            + "expectedDeleteRuntimeArtifacts=%b",
+                            + "expectedDeletesRuntimeArtifacts=%b,"
+                            + "expectedDeletesSdmSdcFiles=%b",
                     mIsInDalvikCache, mHiddenApiEnforcementPolicy, mIsVmSafeMode, mIsDebuggable,
                     mIsSystemUi, mIsLauncher, mIsUseEmbeddedDex, mIsSanboxSdkLib,
                     mRequestedCompilerFilter, mCallbackReturnedCompilerFilter, mForce,
@@ -485,7 +503,7 @@ public class PrimaryDexopterParameterizedTest extends PrimaryDexopterTestBase {
                     mForceCompilerFilter, mAlwaysDebuggable, mExpectedCallbackInputCompilerFilter,
                     mExpectedCompilerFilter, mExpectedDexoptTrigger, mExpectedIsDebuggable,
                     mExpectedIsHiddenApiPolicyEnabled, mExpectedOutputIsPreReboot,
-                    mExpectedDeletesRuntimeArtifacts);
+                    mExpectedDeletesRuntimeArtifacts, mExpectedDeletesSdmSdcFiles);
         }
     }
 }

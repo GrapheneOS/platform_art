@@ -132,7 +132,7 @@ TEST_F(OdrMetricsRecordTest, HappyPath) {
 
 TEST_F(OdrMetricsRecordTest, EmptyInput) {
   OdrMetricsRecord record{};
-  ASSERT_THAT(record.ReadFromFile(file_path_), testing::Not(Ok()));
+  ASSERT_THAT(record.ReadFromFile(file_path_), ::testing::Not(Ok()));
 }
 
 TEST_F(OdrMetricsRecordTest, UnexpectedInput) {

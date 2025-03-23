@@ -20,13 +20,16 @@
 #include <sys/wait.h>
 
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "android-base/file.h"
 #include "android-base/result.h"
 #include "android-base/strings.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/macros.h"
 #include "base/os.h"
 #include "base/stl_util.h"
@@ -40,6 +43,7 @@
 #include "gc/space/image_space.h"
 #include "gtest/gtest.h"
 #include "oat/oat_file_assistant.h"
+#include "oat/sdc_file.h"
 #include "runtime.h"
 #include "ziparchive/zip_writer.h"
 
@@ -256,7 +260,9 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     return WEXITSTATUS(res.status_code);
   }
 
-  void CreateDexMetadata(const std::string& vdex, const std::string& out_dm) {
+  void CreateDexMetadata(const std::string& vdex,
+                         const std::string& out_dm,
+                         bool page_aligned = false) {
     // Read the vdex bytes.
     std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex.c_str()));
     std::vector<uint8_t> data(vdex_file->GetLength());
@@ -265,12 +271,54 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
     // Zip the content.
     FILE* file = fopen(out_dm.c_str(), "wbe");
     ZipWriter writer(file);
-    writer.StartEntry("primary.vdex", ZipWriter::kAlign32);
+    writer.StartAlignedEntry(
+        "primary.vdex", /*flags=*/0, /*alignment=*/page_aligned ? kMaxPageSize : 4);
     writer.WriteBytes(data.data(), data.size());
     writer.FinishEntry();
     writer.Finish();
     fflush(file);
     fclose(file);
+  }
+
+  void CreateSecureDexMetadata(const std::string& odex,
+                               const std::string& art,
+                               const std::string& out_sdm) {
+    // Zip the content.
+    std::unique_ptr<File> sdm_file(OS::CreateEmptyFileWriteOnly(out_sdm.c_str()));
+    ASSERT_NE(sdm_file, nullptr);
+    ZipWriter writer(fdopen(sdm_file->Fd(), "wb"));
+
+    std::string odex_data;
+    ASSERT_TRUE(android::base::ReadFileToString(odex, &odex_data));
+    writer.StartAlignedEntry("primary.odex", /*flags=*/0, /*alignment=*/kMaxPageSize);
+    writer.WriteBytes(odex_data.data(), odex_data.size());
+    writer.FinishEntry();
+
+    if (!art.empty()) {
+      std::string art_data;
+      ASSERT_TRUE(android::base::ReadFileToString(art, &art_data));
+      writer.StartAlignedEntry("primary.art", /*flags=*/0, /*alignment=*/kMaxPageSize);
+      writer.WriteBytes(art_data.data(), art_data.size());
+      writer.FinishEntry();
+    }
+
+    writer.Finish();
+    ASSERT_EQ(sdm_file->FlushClose(), 0);
+  }
+
+  void CreateSecureDexMetadataCompanion(const std::string& sdm,
+                                        const std::string& apex_versions,
+                                        const std::string& out_sdc) {
+    struct stat sdm_st;
+    ASSERT_EQ(stat(sdm.c_str(), &sdm_st), 0);
+
+    std::unique_ptr<File> sdc_file(OS::CreateEmptyFileWriteOnly(out_sdc.c_str()));
+    ASSERT_NE(sdc_file, nullptr);
+    SdcWriter sdc_writer(std::move(*sdc_file));
+    sdc_writer.SetSdmTimestampNs(TimeSpecToNs(sdm_st.st_mtim));
+    sdc_writer.SetApexVersions(apex_versions);
+    std::string error_msg;
+    ASSERT_TRUE(sdc_writer.Save(&error_msg)) << error_msg;
   }
 };
 

@@ -153,6 +153,15 @@ interface IArtd {
             int dexoptTrigger);
 
     /**
+     * Creates a secure dex metadata companion (SDC) file for the secure dex metadata (SDM) file, if
+     * the SDM file exists while the SDC file doesn't exist (meaning the SDM file is seen the first
+     * time).
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    void maybeCreateSdc(in com.android.server.art.OutputSecureDexMetadataCompanion outputSdc);
+
+    /**
      * Dexopts a dex file for the given instruction set.
      *
      * Throws fatal and non-fatal errors. When dexopt fails, the non-fatal status includes an error
@@ -200,6 +209,7 @@ interface IArtd {
     long cleanup(in List<com.android.server.art.ProfilePath> profilesToKeep,
             in List<com.android.server.art.ArtifactsPath> artifactsToKeep,
             in List<com.android.server.art.VdexPath> vdexFilesToKeep,
+            in List<com.android.server.art.SecureDexMetadataWithCompanionPaths> SdmSdcFilesToKeep,
             in List<com.android.server.art.RuntimeArtifactsPath> runtimeArtifactsToKeep,
             boolean keepPreRebootStagedFiles);
 
@@ -219,6 +229,16 @@ interface IArtd {
      * Throws fatal and non-fatal errors.
      */
     boolean isInDalvikCache(@utf8InCpp String dexFile);
+
+    /**
+     * Deletes the SDM and SDC files and returns the released space, in bytes.
+     *
+     * Not supported in Pre-reboot Dexopt mode.
+     *
+     * Throws fatal errors. Logs and ignores non-fatal errors.
+     */
+    long deleteSdmSdcFiles(
+            in com.android.server.art.SecureDexMetadataWithCompanionPaths sdmSdcPaths);
 
     /**
      * Deletes runtime artifacts and returns the released space, in bytes.
@@ -249,6 +269,16 @@ interface IArtd {
      * Throws fatal errors. Logs and ignores non-fatal errors.
      */
     long getVdexFileSize(in com.android.server.art.VdexPath vdexPath);
+
+    /**
+     * Returns the size of the SDM file, in bytes, or 0 if it doesn't exist or a non-fatal error
+     * occurred.
+     *
+     * Not supported in Pre-reboot Dexopt mode.
+     *
+     * Throws fatal errors. Logs and ignores non-fatal errors.
+     */
+    long getSdmFileSize(in com.android.server.art.SecureDexMetadataWithCompanionPaths sdmPath);
 
     /**
      * Returns the size of the runtime artifacts, in bytes, or 0 if they don't exist or a non-fatal

@@ -373,7 +373,7 @@ const uint8_t* OatHeader::GetKeyValueStore() const {
   return key_value_store_;
 }
 
-const char* OatHeader::GetStoreValueByKey(const char* key) const {
+const char* OatHeader::GetStoreValueByKeyUnsafe(const char* key) const {
   std::string_view key_view(key);
 
   uint32_t offset = 0;

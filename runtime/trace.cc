@@ -61,8 +61,8 @@ namespace art HIDDEN {
 struct MethodTraceRecord {
   ArtMethod* method;
   TraceAction action;
-  uint32_t wall_clock_time;
-  uint32_t thread_cpu_time;
+  uint64_t wall_clock_time;
+  uint64_t thread_cpu_time;
 };
 
 using android::base::StringPrintf;
@@ -95,7 +95,7 @@ static constexpr size_t kScalingFactorEncodedEntries = 6;
 // The key identifying the tracer to update instrumentation.
 static constexpr const char* kTracerInstrumentationKey = "Tracer";
 
-double TimestampCounter::tsc_to_microsec_scaling_factor = -1;
+double TimestampCounter::tsc_to_nanosec_scaling_factor = -1;
 
 Trace* Trace::the_trace_ = nullptr;
 pthread_t Trace::sampling_pthread_ = 0U;
@@ -288,7 +288,7 @@ bool UseFastTraceListeners(TraceClockSource clock_source) {
 
 void Trace::MeasureClockOverhead() {
   if (UseThreadCpuClock(clock_source_)) {
-    Thread::Current()->GetCpuMicroTime();
+    Thread::Current()->GetCpuNanoTime();
   }
   if (UseWallClock(clock_source_)) {
     TimestampCounter::GetTimestamp();
@@ -296,11 +296,12 @@ void Trace::MeasureClockOverhead() {
 }
 
 // Compute an average time taken to measure clocks.
-uint32_t Trace::GetClockOverheadNanoSeconds() {
+uint64_t Trace::GetClockOverheadNanoSeconds() {
   Thread* self = Thread::Current();
-  uint64_t start = self->GetCpuMicroTime();
+  uint64_t start = self->GetCpuNanoTime();
 
-  for (int i = 4000; i > 0; i--) {
+  const uint64_t numIter = 4000;
+  for (int i = numIter; i > 0; i--) {
     MeasureClockOverhead();
     MeasureClockOverhead();
     MeasureClockOverhead();
@@ -311,8 +312,8 @@ uint32_t Trace::GetClockOverheadNanoSeconds() {
     MeasureClockOverhead();
   }
 
-  uint64_t elapsed_us = self->GetCpuMicroTime() - start;
-  return static_cast<uint32_t>(elapsed_us / 32);
+  uint64_t elapsed_ns = self->GetCpuNanoTime() - start;
+  return elapsed_ns / (numIter * 8);
 }
 
 static void GetSample(Thread* thread, void* arg) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -347,7 +348,7 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
   // Update the thread's stack trace sample.
   thread->SetStackTraceSample(stack_trace);
   // Read timer clocks to use for all events in this trace.
-  uint32_t thread_clock_diff = 0;
+  uint64_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   if (old_stack_trace == nullptr) {
@@ -896,14 +897,14 @@ TraceWriter::TraceWriter(File* trace_file,
                          size_t buffer_size,
                          int num_trace_buffers,
                          int trace_format_version,
-                         uint32_t clock_overhead_ns)
+                         uint64_t clock_overhead_ns)
     : trace_file_(trace_file),
       trace_output_mode_(output_mode),
       clock_source_(clock_source),
       buf_(new uint8_t[std::max(kMinBufSize, buffer_size)]()),
       buffer_size_(std::max(kMinBufSize, buffer_size)),
       trace_format_version_(trace_format_version),
-      start_time_(TimestampCounter::GetMicroTime(TimestampCounter::GetTimestamp())),
+      start_time_(TimestampCounter::GetNanoTime(TimestampCounter::GetTimestamp())),
       overflow_(false),
       num_records_(0),
       clock_overhead_ns_(clock_overhead_ns),
@@ -920,8 +921,7 @@ TraceWriter::TraceWriter(File* trace_file,
   // fetches the monotonic timer from other places and matches these times to
   // construct a cpu profile. See b/318052824 for more context.
   uint64_t start_time_monotonic =
-      start_time_ +
-      (MicroTime() - TimestampCounter::GetMicroTime(TimestampCounter::GetTimestamp()));
+      start_time_ + (NanoTime() - TimestampCounter::GetNanoTime(TimestampCounter::GetTimestamp()));
   uint16_t trace_version = GetTraceVersion(clock_source_, trace_format_version_);
   if (output_mode == TraceOutputMode::kStreaming) {
     trace_version |= 0xF0U;
@@ -933,7 +933,8 @@ TraceWriter::TraceWriter(File* trace_file,
     Append4LE(buf_.get(), kTraceMagicValue);
     Append2LE(buf_.get() + 4, trace_version);
     Append2LE(buf_.get() + 6, kTraceHeaderLength);
-    Append8LE(buf_.get() + 8, start_time_monotonic);
+    // Use microsecond precision for V1 format.
+    Append8LE(buf_.get() + 8, (start_time_monotonic / 1000));
     if (trace_version >= kTraceVersionDualClock) {
       uint16_t record_size = GetRecordSize(clock_source_, trace_format_version_);
       Append2LE(buf_.get() + 16, record_size);
@@ -1004,7 +1005,7 @@ Trace::Trace(File* trace_file,
 std::string TraceWriter::CreateSummary(int flags) {
   std::ostringstream os;
   // Compute elapsed time.
-  uint64_t elapsed = TimestampCounter::GetMicroTime(TimestampCounter::GetTimestamp()) - start_time_;
+  uint64_t elapsed = TimestampCounter::GetNanoTime(TimestampCounter::GetTimestamp()) - start_time_;
   os << StringPrintf("%cversion\n", kTraceTokenChar);
   os << StringPrintf("%d\n", GetTraceVersion(clock_source_, trace_format_version_));
   os << StringPrintf("data-file-overflow=%s\n", overflow_ ? "true" : "false");
@@ -1017,11 +1018,15 @@ std::string TraceWriter::CreateSummary(int flags) {
   } else {
     os << StringPrintf("clock=wall\n");
   }
-  os << StringPrintf("elapsed-time-usec=%" PRIu64 "\n", elapsed);
+  if (trace_format_version_ == Trace::kFormatV1) {
+    os << StringPrintf("elapsed-time-usec=%" PRIu64 "\n", elapsed / 1000);
+  } else {
+    os << StringPrintf("elapsed-time-nsec=%" PRIu64 "\n", elapsed);
+  }
   if (trace_output_mode_ != TraceOutputMode::kStreaming) {
     os << StringPrintf("num-method-calls=%zd\n", num_records_);
   }
-  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns_);
+  os << StringPrintf("clock-call-overhead-nsec=%" PRIu64 "\n", clock_overhead_ns_);
   os << StringPrintf("vm=art\n");
   os << StringPrintf("pid=%d\n", getpid());
   if ((flags & Trace::kTraceCountAllocs) != 0) {
@@ -1173,7 +1178,7 @@ void Trace::FieldWritten([[maybe_unused]] Thread* thread,
 }
 
 void Trace::MethodEntered(Thread* thread, ArtMethod* method) {
-  uint32_t thread_clock_diff = 0;
+  uint64_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   LogMethodTraceEvent(thread, method, kTraceMethodEnter, thread_clock_diff, timestamp_counter);
@@ -1183,14 +1188,14 @@ void Trace::MethodExited(Thread* thread,
                          ArtMethod* method,
                          [[maybe_unused]] instrumentation::OptionalFrame frame,
                          [[maybe_unused]] JValue& return_value) {
-  uint32_t thread_clock_diff = 0;
+  uint64_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   LogMethodTraceEvent(thread, method, kTraceMethodExit, thread_clock_diff, timestamp_counter);
 }
 
 void Trace::MethodUnwind(Thread* thread, ArtMethod* method, [[maybe_unused]] uint32_t dex_pc) {
-  uint32_t thread_clock_diff = 0;
+  uint64_t thread_clock_diff = 0;
   uint64_t timestamp_counter = 0;
   ReadClocks(thread, &thread_clock_diff, &timestamp_counter);
   LogMethodTraceEvent(thread, method, kTraceUnroll, thread_clock_diff, timestamp_counter);
@@ -1219,15 +1224,15 @@ void Trace::WatchedFramePop([[maybe_unused]] Thread* self,
   LOG(ERROR) << "Unexpected WatchedFramePop event in tracing";
 }
 
-void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint64_t* timestamp_counter) {
+void Trace::ReadClocks(Thread* thread, uint64_t* thread_clock_diff, uint64_t* timestamp_counter) {
   if (UseThreadCpuClock(clock_source_)) {
     uint64_t clock_base = thread->GetTraceClockBase();
     if (UNLIKELY(clock_base == 0)) {
       // First event, record the base time in the map.
-      uint64_t time = thread->GetCpuMicroTime();
+      uint64_t time = thread->GetCpuNanoTime();
       thread->SetTraceClockBase(time);
     } else {
-      *thread_clock_diff = thread->GetCpuMicroTime() - clock_base;
+      *thread_clock_diff = thread->GetCpuNanoTime() - clock_base;
     }
   }
   if (UseWallClock(clock_source_)) {
@@ -1542,6 +1547,11 @@ void TraceWriter::ReadValuesFromRecord(uintptr_t* method_trace_entries,
   record.wall_clock_time = 0;
   if (has_thread_cpu_clock) {
     record.thread_cpu_time = method_trace_entries[record_index++];
+    if (art::kRuntimePointerSize == PointerSize::k32) {
+      // On 32-bit architectures threadcputime is stored as two 32-bit values.
+      uint64_t high_bits = method_trace_entries[record_index++];
+      record.thread_cpu_time = (high_bits << 32 | record.thread_cpu_time);
+    }
   }
   if (has_wall_clock) {
     uint64_t timestamp = method_trace_entries[record_index++];
@@ -1550,7 +1560,7 @@ void TraceWriter::ReadValuesFromRecord(uintptr_t* method_trace_entries,
       uint64_t high_timestamp = method_trace_entries[record_index++];
       timestamp = (high_timestamp << 32 | timestamp);
     }
-    record.wall_clock_time = TimestampCounter::GetMicroTime(timestamp) - start_time_;
+    record.wall_clock_time = TimestampCounter::GetNanoTime(timestamp) - start_time_;
   }
 }
 
@@ -1635,8 +1645,8 @@ size_t TraceWriter::FlushEntriesFormatV2(uintptr_t* method_trace_entries,
   bool has_thread_cpu_clock = UseThreadCpuClock(clock_source_);
   bool has_wall_clock = UseWallClock(clock_source_);
   size_t num_entries = GetNumEntries(clock_source_);
-  uint32_t prev_wall_timestamp = 0;
-  uint32_t prev_thread_timestamp = 0;
+  uint64_t prev_wall_timestamp = 0;
+  uint64_t prev_thread_timestamp = 0;
   uint64_t prev_method_action_encoding = 0;
   size_t entry_index = kPerThreadBufSize;
   size_t curr_record_index = 0;
@@ -1727,7 +1737,7 @@ void TraceWriter::FlushBuffer(uintptr_t* method_trace_entries,
 void Trace::LogMethodTraceEvent(Thread* thread,
                                 ArtMethod* method,
                                 TraceAction action,
-                                uint32_t thread_clock_diff,
+                                uint64_t thread_clock_diff,
                                 uint64_t timestamp_counter) {
   // This method is called in both tracing modes (method and sampling). In sampling mode, this
   // method is only called by the sampling thread. In method tracing mode, it can be called
@@ -1770,7 +1780,13 @@ void Trace::LogMethodTraceEvent(Thread* thread,
   method = method->GetNonObsoleteMethod();
   current_entry[entry_index++] = reinterpret_cast<uintptr_t>(method) | action;
   if (UseThreadCpuClock(clock_source_)) {
-    current_entry[entry_index++] = thread_clock_diff;
+    if (art::kRuntimePointerSize == PointerSize::k32) {
+      // On 32-bit architectures store threadcputimer as two 32-bit values.
+      current_entry[entry_index++] = static_cast<uint32_t>(thread_clock_diff);
+      current_entry[entry_index++] = thread_clock_diff >> 32;
+    } else {
+      current_entry[entry_index++] = thread_clock_diff;
+    }
   }
   if (UseWallClock(clock_source_)) {
     if (art::kRuntimePointerSize == PointerSize::k32) {
@@ -1787,8 +1803,8 @@ void TraceWriter::EncodeEventEntry(uint8_t* ptr,
                                    uint16_t thread_id,
                                    uint32_t method_index,
                                    TraceAction action,
-                                   uint32_t thread_clock_diff,
-                                   uint32_t wall_clock_diff) {
+                                   uint64_t thread_clock_diff,
+                                   uint64_t wall_clock_diff) {
   static constexpr size_t kPacketSize = 14U;  // The maximum size of data in a packet.
   DCHECK(method_index < (1 << (32 - TraceActionBits)));
   uint32_t method_value = (method_index << TraceActionBits) | action;
@@ -1796,12 +1812,15 @@ void TraceWriter::EncodeEventEntry(uint8_t* ptr,
   Append4LE(ptr + 2, method_value);
   ptr += 6;
 
+  static constexpr uint64_t ns_to_us = 1000;
+  uint32_t thread_clock_diff_us = thread_clock_diff / ns_to_us;
+  uint32_t wall_clock_diff_us = wall_clock_diff / ns_to_us;
   if (UseThreadCpuClock(clock_source_)) {
-    Append4LE(ptr, thread_clock_diff);
+    Append4LE(ptr, thread_clock_diff_us);
     ptr += 4;
   }
   if (UseWallClock(clock_source_)) {
-    Append4LE(ptr, wall_clock_diff);
+    Append4LE(ptr, wall_clock_diff_us);
   }
   static_assert(kPacketSize == 2 + 4 + 4 + 4, "Packet size incorrect.");
 }

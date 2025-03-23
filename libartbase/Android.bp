@@ -323,10 +323,8 @@ art_cc_library_static {
     srcs: [
         "base/testing.cc",
     ],
-    header_libs: [
-        "libbase_headers",
-        "art_libartbase_headers",
-    ],
+    header_libs: ["art_libartbase_headers"],
+    export_header_lib_headers: ["art_libartbase_headers"],
 }
 
 art_cc_defaults {

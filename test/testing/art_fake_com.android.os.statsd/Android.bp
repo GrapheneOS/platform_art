@@ -45,7 +45,7 @@ cc_library_shared {
 apex {
     name: "art_fake_com.android.os.statsd",
     defaults: [
-        "s-launched-apex-module",
+        "r-launched-apex-module",
     ],
     compile_multilib: "both",
     native_shared_libs: [
@@ -55,6 +55,5 @@ apex {
     key: "com.android.art.key",
     certificate: ":com.android.art.certificate",
     file_contexts: ":com.android.os.statsd-file_contexts",
-    min_sdk_version: "30",
     visibility: ["//visibility:private"],
 }

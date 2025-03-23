@@ -2240,8 +2240,16 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
         return false;
       }
 
+      const char* oat_apex_versions =
+          oat_header->GetStoreValueByKeyUnsafe(OatHeader::kApexVersionsKey);
+      if (oat_apex_versions == nullptr) {
+        *error_msg = StringPrintf("Missing apex versions in special root in runtime image '%s'",
+                                  space->GetImageLocation().c_str());
+        return false;
+      }
+
       // Validate the apex versions.
-      if (!gc::space::ImageSpace::ValidateApexVersions(*oat_header,
+      if (!gc::space::ImageSpace::ValidateApexVersions(oat_apex_versions,
                                                        runtime->GetApexVersions(),
                                                        space->GetImageLocation(),
                                                        error_msg)) {
@@ -10569,7 +10577,7 @@ ObjPtr<mirror::MethodHandle> ClassLinker::ResolveMethodHandleForField(
     return nullptr;
   }
 
-  StackHandleScope<4> hs(self);
+  StackHandleScope<5> hs(self);
   ObjPtr<mirror::Class> array_of_class = GetClassRoot<mirror::ObjectArray<mirror::Class>>(this);
   Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
       mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_params)));
@@ -10629,7 +10637,8 @@ ObjPtr<mirror::MethodHandle> ClassLinker::ResolveMethodHandleForField(
     return nullptr;
   }
 
-  uintptr_t target = reinterpret_cast<uintptr_t>(target_field);
+  Handle<mirror::Field> target(hs.NewHandle(
+      mirror::Field::CreateFromArtField(self, target_field, /*force_resolve=*/ true)));
   return mirror::MethodHandleImpl::Create(self, target, kind, method_type);
 }
 

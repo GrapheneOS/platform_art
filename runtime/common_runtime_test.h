@@ -244,10 +244,10 @@ class CommonRuntimeTestBase : public TestType, public CommonRuntimeTestImpl {
   }
 };
 
-using CommonRuntimeTest = CommonRuntimeTestBase<testing::Test>;
+using CommonRuntimeTest = CommonRuntimeTestBase<::testing::Test>;
 
 template <typename Param>
-using CommonRuntimeTestWithParam = CommonRuntimeTestBase<testing::TestWithParam<Param>>;
+using CommonRuntimeTestWithParam = CommonRuntimeTestBase<::testing::TestWithParam<Param>>;
 
 // Sets a CheckJni abort hook to catch failures. Note that this will cause CheckJNI to carry on
 // rather than aborting, so be careful!

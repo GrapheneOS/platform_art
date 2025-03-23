@@ -42,7 +42,7 @@ namespace art HIDDEN {
 static constexpr bool kKeepDisassembledFiles = false;
 
 // We put this into a class as gtests are self-contained, so this helper needs to be in an h-file.
-class AssemblerTestBase : public testing::Test {
+class AssemblerTestBase : public ::testing::Test {
  public:
   AssemblerTestBase() {}
 

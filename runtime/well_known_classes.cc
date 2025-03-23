@@ -95,6 +95,7 @@ ArtMethod* WellKnownClasses::java_lang_ThreadGroup_add;
 ArtMethod* WellKnownClasses::java_lang_ThreadGroup_threadTerminated;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandleImpl_fieldInit;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandleImpl_init;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
 ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_makeIdentity;
@@ -645,6 +646,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       "invokeExact",
       "([Ljava/lang/Object;)Ljava/lang/Object;",
       pointer_size);
+  java_lang_invoke_MethodHandleImpl_fieldInit = CacheMethod(
+    j_l_i_MethodHandleImpl.Get(),
+    /*is_static=*/ false,
+    "<init>",
+    "(Ljava/lang/reflect/Field;ILjava/lang/invoke/MethodType;)V",
+    pointer_size);
   java_lang_invoke_MethodHandleImpl_init = CacheMethod(
       j_l_i_MethodHandleImpl.Get(),
       /*is_static=*/ false,
@@ -955,6 +962,7 @@ void WellKnownClasses::Clear() {
   java_lang_invoke_MethodHandle_asType = nullptr;
   java_lang_invoke_MethodHandle_invokeExact = nullptr;
   java_lang_invoke_MethodHandleImpl_init = nullptr;
+  java_lang_invoke_MethodHandleImpl_fieldInit = nullptr;
   java_lang_invoke_MethodHandles_lookup = nullptr;
   java_lang_invoke_MethodHandles_makeIdentity = nullptr;
   java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;

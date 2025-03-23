@@ -178,7 +178,7 @@ class HeapLocation : public ArenaObject<kArenaAllocLSA> {
 
 // A HeapLocationCollector collects all relevant heap locations and keeps
 // an aliasing matrix for all locations.
-class HeapLocationCollector : public HGraphVisitor {
+class HeapLocationCollector final : public HGraphVisitor {
  public:
   static constexpr size_t kHeapLocationNotFound = -1;
   // Start with a single uint32_t word. That's enough bits for pair-wise
@@ -458,7 +458,9 @@ class HeapLocationCollector : public HGraphVisitor {
     }
   }
 
-  void VisitFieldAccess(HInstruction* ref, const FieldInfo& field_info) {
+  void VisitFieldAccess(HFieldAccess* instruction) override {
+    HInstruction* ref = instruction->InputAt(0);
+    const FieldInfo& field_info = instruction->GetFieldInfo();
     DataType::Type type = field_info.GetFieldType();
     const uint16_t declaring_class_def_index = field_info.GetDeclaringClassDefIndex();
     const size_t offset = field_info.GetFieldOffset().SizeValue();
@@ -486,23 +488,23 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitInstanceFieldGet(HInstanceFieldGet* instruction) override {
-    VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     CreateReferenceInfoForReferenceType(instruction);
+    VisitFieldAccess(instruction);
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) override {
-    VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     has_heap_stores_ = true;
+    VisitFieldAccess(instruction);
   }
 
   void VisitStaticFieldGet(HStaticFieldGet* instruction) override {
-    VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     CreateReferenceInfoForReferenceType(instruction);
+    VisitFieldAccess(instruction);
   }
 
   void VisitStaticFieldSet(HStaticFieldSet* instruction) override {
-    VisitFieldAccess(instruction->InputAt(0), instruction->GetFieldInfo());
     has_heap_stores_ = true;
+    VisitFieldAccess(instruction);
   }
 
   // We intentionally don't collect HUnresolvedInstanceField/HUnresolvedStaticField accesses

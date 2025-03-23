@@ -234,9 +234,9 @@ TEST_P(InstanceOfInstructionSimplifierTestGroup, ExactClassCheckCastOther) {
 
 INSTANTIATE_TEST_SUITE_P(InstructionSimplifierTest,
                          InstanceOfInstructionSimplifierTestGroup,
-                         testing::Values(InstanceOfKind::kSelf,
-                                         InstanceOfKind::kUnrelatedLoaded,
-                                         InstanceOfKind::kUnrelatedUnloaded,
-                                         InstanceOfKind::kSupertype));
+                         ::testing::Values(InstanceOfKind::kSelf,
+                                           InstanceOfKind::kUnrelatedLoaded,
+                                           InstanceOfKind::kUnrelatedUnloaded,
+                                           InstanceOfKind::kSupertype));
 
 }  // namespace art

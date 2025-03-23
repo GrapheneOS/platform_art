@@ -26,7 +26,7 @@ import os
 def build(ctx):
   if ctx.jvm:
     return  # The test does not build on JVM
-  ctx.default_build(use_hiddenapi=True)
+  ctx.default_build(use_hiddenapi=True, delete_srcs=False)
 
   # Move the jar file into the resource folder to be bundled with the test.
   os.mkdir(ctx.test_dir / "res")

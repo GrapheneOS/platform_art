@@ -27,7 +27,7 @@ def build(ctx):
   # hidden API access flags in dex files. DexFileVerifier is not invoked on boot
   # class path dex files, so the boot jar loads fine in the latter case.
 
-  ctx.default_build(use_hiddenapi=True)
+  ctx.default_build(use_hiddenapi=True, delete_srcs=False)
 
   # Move the jar file into the resource folder to be bundled with the test.
   os.mkdir(ctx.test_dir / "res")

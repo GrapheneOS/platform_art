@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <string>
 
+#include "android-base/logging.h"
+
 namespace art {
 
 enum TimeUnit {
@@ -122,6 +124,13 @@ void NanoSleep(uint64_t ns);
 // Initialize a timespec to either a relative time (ms,ns), or to the absolute
 // time corresponding to the indicated clock value plus the supplied offset.
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
+
+// Converts `timespec` to nanoseconds. The return value can be negative, which should be interpreted
+// as a time before the epoch.
+static constexpr int64_t TimeSpecToNs(timespec ts) {
+  DCHECK_GE(ts.tv_nsec, 0);  // According to POSIX.
+  return static_cast<int64_t>(ts.tv_sec) * INT64_C(1000000000) + ts.tv_nsec;
+}
 
 }  // namespace art
 

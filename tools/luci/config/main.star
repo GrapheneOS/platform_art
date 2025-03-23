@@ -47,7 +47,6 @@ luci.project(
     scheduler = "luci-scheduler.appspot.com",
     swarming = "chromium-swarm.appspot.com",
     acls = [
-        # Publicly readable.
         acl.entry(
             roles = [
                 acl.BUILDBUCKET_READER,
@@ -55,7 +54,7 @@ luci.project(
                 acl.PROJECT_CONFIGS_READER,
                 acl.SCHEDULER_READER,
             ],
-            groups = "all",
+            groups = "googlers",
         ),
         acl.entry(
             roles = [
@@ -76,7 +75,7 @@ luci.project(
         ),
         luci.binding(
             roles = "role/swarming.poolViewer",
-            groups = "all",
+            groups = "googlers",
         ),
     ],
 )

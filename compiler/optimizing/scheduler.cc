@@ -118,7 +118,7 @@ static bool IsFieldAccess(const HInstruction* instruction) {
 }
 
 static const FieldInfo* GetFieldInfo(const HInstruction* instruction) {
-  return &instruction->GetFieldInfo();
+  return &instruction->AsFieldAccess()->GetFieldInfo();
 }
 
 size_t SideEffectDependencyAnalysis::MemoryDependencyAnalysis::FieldAccessHeapLocation(

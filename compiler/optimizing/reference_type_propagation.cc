@@ -276,7 +276,8 @@ static void BoundTypeForClassCheck(HInstruction* check) {
     return;
   }
 
-  if (field_get->GetFieldInfo().GetField() != WellKnownClasses::java_lang_Object_shadowKlass) {
+  if (field_get->AsInstanceFieldGet()->GetFieldInfo().GetField() !=
+          WellKnownClasses::java_lang_Object_shadowKlass) {
     return;
   }
 

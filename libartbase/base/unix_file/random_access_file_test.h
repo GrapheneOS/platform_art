@@ -25,7 +25,7 @@
 
 namespace unix_file {
 
-class RandomAccessFileTest : public testing::Test {
+class RandomAccessFileTest : public ::testing::Test {
  protected:
   virtual ~RandomAccessFileTest() {
   }

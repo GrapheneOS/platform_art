@@ -363,6 +363,10 @@ art_cc_defaults {
         },
     },
     static_libs: [
+        // This dependency links the whole runtime statically into the test. Note that the boot
+        // classpath is not (normally) bundled with the test, so if the runtime is used to actually
+        // start a VM it may load the boot classpath from the device. Depending on the test
+        // configuration, that may not be in sync with the statically linked runtime.
         "libart-gtest",
     ],
     version_script: ":art-standalone-gtest-version",

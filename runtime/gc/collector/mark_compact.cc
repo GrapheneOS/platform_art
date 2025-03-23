@@ -65,12 +65,6 @@
 #include "com_android_art_flags.h"
 #endif
 
-#ifndef __BIONIC__
-#ifndef MREMAP_DONTUNMAP
-#define MREMAP_DONTUNMAP 4
-#endif
-#endif  // __BIONIC__
-
 // See aosp/2996596 for where these values came from.
 #ifndef UFFDIO_COPY_MODE_MMAP_TRYLOCK
 #define UFFDIO_COPY_MODE_MMAP_TRYLOCK (static_cast<uint64_t>(1) << 63)
@@ -828,7 +822,7 @@ class MarkCompact::ThreadFlipVisitor : public Closure {
     // Interpreter cache is thread-local so it needs to be swept either in a
     // flip, or a stop-the-world pause.
     CHECK(collector_->compacting_);
-    thread->SweepInterpreterCache(collector_);
+    thread->GetInterpreterCache()->Clear(thread);
     thread->AdjustTlab(collector_->black_objs_slide_diff_);
   }
 
@@ -4874,7 +4868,7 @@ void MarkCompact::VerifyNoMissingCardMarks() {
         if (!card_table->IsDirty(obj) &&
             reinterpret_cast<uint8_t*>(obj) + obj_size <= old_gen_end_) {
           std::ostringstream oss;
-          obj->DumpReferences</*kDumpNativeRoots=*/true>(oss);
+          obj->DumpReferences</*kDumpNativeRoots=*/true>(oss, /*dump_type_of=*/true);
           LOG(FATAL_WITHOUT_ABORT)
               << "Object " << obj << " (" << obj->PrettyTypeOf()
               << ") has references to mid-gen/young-gen:"
@@ -4919,21 +4913,21 @@ void MarkCompact::VerifyPostGCObjects(bool performed_compaction, uint8_t* mark_b
             for (mirror::Object* ref : invalid_refs) {
               oss << ref << " ";
             }
-            // Calling PrettyTypeOf() on a stale reference mostly results in
-            // segfault. Therefore, calling DumpReferences() in the end so that at
-            // least all the other data can be dumped.
             LOG(FATAL_WITHOUT_ABORT)
                 << "Object " << obj << " (" << obj->PrettyTypeOf() << ") has invalid references:\n"
-                << oss.str() << "\ncard = " << heap_->GetCardTable()->GetCard(obj)
+                << oss.str() << "\ncard = " << static_cast<int>(heap_->GetCardTable()->GetCard(obj))
                 << "\n prev-black-dense-end = " << static_cast<void*>(prev_black_dense_end_)
                 << "\n old-gen-end = " << static_cast<void*>(old_gen_end_)
                 << "\n mid-gen-end = " << static_cast<void*>(mid_gen_end_)
                 << "\n black-allocations-begin = " << static_cast<void*>(black_allocations_begin_);
+
+            // Calling PrettyTypeOf() on a stale reference mostly results in segfault.
             oss.str("");
+            obj->DumpReferences</*kDumpNativeRoots=*/true>(oss, /*dump_type_of=*/false);
+            LOG(FATAL_WITHOUT_ABORT) << "\n references =\n" << oss.str();
+
             heap_->GetVerification()->LogHeapCorruption(
-                /*holder=*/nullptr, MemberOffset(0), obj, /*fatal=*/false);
-            obj->DumpReferences</*kDumpNativeRoots=*/true>(oss);
-            LOG(FATAL) << "\n references =\n" << oss.str();
+                /*holder=*/nullptr, MemberOffset(0), obj, /*fatal=*/true);
           }
           last_visited_obj = obj;
         };

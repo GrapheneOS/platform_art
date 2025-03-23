@@ -45,6 +45,15 @@ difficult to approximate, even to within an order of magnitude.
 The triggering heuristic
 ------------------------
 
+We compute the total amount of native memory allocated as the sum of
+
+1. memory allocated, but not yet deallocated, by the system memory allocator, as reported by
+   `mallinfo()`, and
+
+2. the number of bytes registered via `VMRuntime.registerNativeAllocation()` and not yet
+   unregistered via `VMRuntime.registerNativeFree()`. This includes non-malloc-allocated objects
+   allocated via `NativeAllocationRegistry`.
+
 Though we use mallinfo() to track native allocation, this call itself can be expensive, and thus
 we perform this check fairly rarely. More precisely, we do so only after the application has
 called `NativeAllocationRegistry.registerNativeAllocation()` a certain number of times or
@@ -59,7 +68,7 @@ The actual computation for triggering a native-allocation-GC is performed by
 1. An adjusted heap size for GC triggering. This consists of the Java heap size at which we would
    normally trigger a GC plus an allowance for native heap size. This allowance currently consists
    of one half (background processes) or three halves (foreground processes) of
-   `NativeAllocationGcWatermark()`. The latter is HeapMaxFree (typically 32MB) plus 1/8 of the
+   `NativeAllocationGcWatermark()`. The latter is `HeapMaxFree` (typically 32MB) plus 1/8 of the
    currently targeted heap size. For a foreground process, this allowance would typically be in
    the 50-100 MB range for something other than a low-end device.
 
@@ -88,3 +97,12 @@ is solid with scudo and jemalloc on Android, and minimally usable for testing el
 
 (Some of this assumes typical current (May 2024) configuration constants, and may need to be
 updated.)
+
+Workaround for excessive native GCs
+-----------------------------------
+
+If an application routinely allocates and deallocates large amounts of memory without requiring
+the GC, it may be preferable to bypass the system allocator, for example by using mmap directly.
+This will avoid unnecessary GC triggering. This is clearly much more convenient for a small number
+of large allocations than for small allocations. It could also be addressed with a new ART API,
+but so far we have not found this necessary.

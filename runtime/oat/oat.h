@@ -164,7 +164,14 @@ class EXPORT PACKED(4) OatHeader {
 
   uint32_t GetKeyValueStoreSize() const;
   const uint8_t* GetKeyValueStore() const;
-  const char* GetStoreValueByKey(const char* key) const;
+  const char* GetStoreValueByKeyUnsafe(const char* key) const;
+
+  const char* GetStoreValueByKey(const char* key) const {
+    // Do not get apex versions from the oat header directly. Use `OatFile::GetApexVersions`
+    // instead.
+    DCHECK_NE(std::string_view(key), kApexVersionsKey);
+    return GetStoreValueByKeyUnsafe(key);
+  }
 
   // Returns the next key-value pair, at the given offset. On success, updates `offset`.
   // The expected use case is to start the iteration with an offset initialized to zero and

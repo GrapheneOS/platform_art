@@ -219,13 +219,12 @@ TEST_F(ElfWriterTest, CheckDynamicSection) {
                        size_t bss_methods_offset,
                        size_t bss_roots_offset,
                        size_t dex_section_size,
-                       /*out*/ size_t *number_of_dynamic_symbols) {
-    SCOPED_TRACE(testing::Message() << "rodata_size: " << rodata_size
-                 << ", text_size: " << text_size
+                       /*out*/ size_t* number_of_dynamic_symbols) {
+    SCOPED_TRACE(::testing::Message()
+                 << "rodata_size: " << rodata_size << ", text_size: " << text_size
                  << ", data_img_rel_ro_size: " << data_img_rel_ro_size
                  << ", data_img_rel_ro_app_image_offset: " << data_img_rel_ro_app_image_offset
-                 << ", bss_size: " << bss_size
-                 << ", bss_methods_offset: " << bss_methods_offset
+                 << ", bss_size: " << bss_size << ", bss_methods_offset: " << bss_methods_offset
                  << ", bss_roots_offset: " << bss_roots_offset
                  << ", dex_section_size: " << dex_section_size);
 
