@@ -170,7 +170,8 @@ function run_dex2oat() {
     done
     # Create oat file directory.
     verbose_run mkdir -p $(dirname "$dex_file")/oat/$ISA
-    local oat_file="${dex_file:1}"
+    local oat_file="$(realpath $dex_file)"
+    local oat_file="${oat_file:1}"
     local oat_file="${oat_file//\//@}"
     if [[ $dex_file != *.dex ]]; then
       local oat_file=$ANDROID_DATA/dalvik-cache/$ISA/${oat_file}@classes.dex
@@ -628,9 +629,6 @@ if [ "$JIT_PROFILE" = "yes" ]; then
           &> "$ANDROID_DATA/profile_gen.log"
   EXIT_STATUS=$?
 
-  # Remove generated oat files.
-  cleanup_oat_directory_for_classpath "$@"
-
   if [ $EXIT_STATUS != 0 ]; then
     echo "Profile run failed: " >&2
     cat "$ANDROID_DATA/profile_gen.log" >&2
@@ -673,9 +671,6 @@ if [ "$PERF" != "" ]; then
     echo "Perf data saved in: $ANDROID_DATA/perf.data. Generated oat files not removed."
   fi
 else
-  # Perf needs the odex files we generate for proper symbolization, so only remove them
-  # when not running with perf.
-  cleanup_oat_directory_for_classpath "$@"
   # Perf output is placed under $ANDROID_DATA so not cleaned when perf options used.
   clean_android_data
 fi

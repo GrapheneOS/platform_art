@@ -70,7 +70,7 @@ class FastCompiler {
   }
 
   virtual ArrayRef<const uint8_t> GetCode() const = 0;
-  virtual ScopedArenaVector<uint8_t> GetStackMaps() const = 0;
+  virtual ScopedArenaVector<uint8_t> BuildStackMaps() const = 0;
   virtual ArrayRef<const uint8_t> GetCfiData() const = 0;
   virtual int32_t GetFrameSize() const = 0;
   virtual uint32_t GetNumberOfJitRoots() const = 0;

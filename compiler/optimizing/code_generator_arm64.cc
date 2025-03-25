@@ -1537,28 +1537,25 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
 void CodeGeneratorARM64::GenerateFrameExit() {
   if (!HasEmptyFrame()) {
     MaybeRecordTraceEvent(/* is_method_entry= */ false);
-    DropFrameAndReturn(GetAssembler(),
-                       GetVIXLAssembler(),
-                       dchecked_integral_cast<int32_t>(GetFrameSize()),
-                       GetCoreSpillSize(),
-                       GetFramePreservedCoreRegisters(),
-                       FrameEntrySpillSize(),
-                       GetFramePreservedFPRegisters());
+    PopFrameAndReturn(GetAssembler(),
+                      dchecked_integral_cast<int32_t>(GetFrameSize()),
+                      GetFramePreservedCoreRegisters(),
+                      GetFramePreservedFPRegisters());
   } else {
     __ Ret();
   }
 }
 
-void CodeGeneratorARM64::DropFrameAndReturn(Arm64Assembler* assembler,
-                                            vixl::aarch64::MacroAssembler* vixl_assembler,
-                                            int32_t frame_size,
-                                            uint32_t core_spill_size,
-                                            CPURegList preserved_core_registers,
-                                            uint32_t frame_entry_spill_size,
-                                            CPURegList preserved_fp_registers) {
+void CodeGeneratorARM64::PopFrameAndReturn(Arm64Assembler* assembler,
+                                           int32_t frame_size,
+                                           CPURegList preserved_core_registers,
+                                           CPURegList preserved_fp_registers) {
   DCHECK(!preserved_core_registers.IsEmpty());
+  uint32_t core_spill_size = preserved_core_registers.GetTotalSizeInBytes();
+  uint32_t frame_entry_spill_size = preserved_fp_registers.GetTotalSizeInBytes() + core_spill_size;
   uint32_t core_spills_offset = frame_size - core_spill_size;
   uint32_t fp_spills_offset = frame_size - frame_entry_spill_size;
+  vixl::aarch64::MacroAssembler* vixl_assembler = assembler->GetVIXLAssembler();
 
   CPURegister lowest_spill;
   if (core_spills_offset == kXRegSizeInBytes) {

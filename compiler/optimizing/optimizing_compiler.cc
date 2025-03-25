@@ -1345,8 +1345,9 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   ArenaAllocator allocator(runtime->GetJitArenaPool());
 
   std::vector<uint8_t> debug_info;
-  debug::MethodDebugInfo method_debug_info = {};
-  if (compiler_options.GenerateAnyDebugInfo()) {
+
+  auto create_method_debug_info = [&]() {
+    debug::MethodDebugInfo method_debug_info = {};
     DCHECK(method_debug_info.custom_name.empty());
     method_debug_info.dex_file = dex_file;
     method_debug_info.class_def_index = class_def_idx;
@@ -1358,7 +1359,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     method_debug_info.is_native_debuggable = compiler_options.GetNativeDebuggable();
     method_debug_info.is_code_address_text_relative = false;
     method_debug_info.is_optimized = true;
-  }
+    return method_debug_info;
+  };
 
   if (UNLIKELY(method->IsNative())) {
     // Use GenericJniTrampoline for critical native methods in debuggable runtimes. We don't
@@ -1405,6 +1407,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
 
     // Add debug info after we know the code location but before we update entry-point.
     if (compiler_options.GenerateAnyDebugInfo()) {
+      debug::MethodDebugInfo method_debug_info = create_method_debug_info();
       // Simpleperf relies on art_jni_trampoline to detect jni methods.
       method_debug_info.custom_name = "art_jni_trampoline";
       method_debug_info.code_address = reinterpret_cast<uintptr_t>(code);
@@ -1485,10 +1488,11 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   if (fast_compiler != nullptr) {
     ArrayRef<const uint8_t> reserved_code;
     ArrayRef<const uint8_t> reserved_data;
+    ScopedArenaVector<uint8_t> stack_maps = fast_compiler->BuildStackMaps();
     if (!code_cache->Reserve(self,
                              region,
                              fast_compiler->GetCode().size(),
-                             fast_compiler->GetStackMaps().size(),
+                             stack_maps.size(),
                              fast_compiler->GetNumberOfJitRoots(),
                              method,
                              /*out*/ &reserved_code,
@@ -1498,11 +1502,11 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     }
     const uint8_t* code = reserved_code.data() + OatQuickMethodHeader::InstructionAlignedSize();
     if (compiler_options.GenerateAnyDebugInfo()) {
+      debug::MethodDebugInfo method_debug_info = create_method_debug_info();
       method_debug_info.code_address = reinterpret_cast<uintptr_t>(code);
       method_debug_info.code_size = fast_compiler->GetCode().size();
       method_debug_info.frame_size_in_bytes = fast_compiler->GetFrameSize();
-      method_debug_info.code_info = fast_compiler->GetStackMaps().size() == 0
-          ? nullptr : fast_compiler->GetStackMaps().data();
+      method_debug_info.code_info = stack_maps.size() == 0 ? nullptr : stack_maps.data();
       method_debug_info.cfi = ArrayRef<const uint8_t>(fast_compiler->GetCfiData());
       debug_info = GenerateJitDebugInfo(method_debug_info);
     }
@@ -1526,7 +1530,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                             fast_compiler->GetCode(),
                             reserved_data,
                             roots,
-                            ArrayRef<const uint8_t>(fast_compiler->GetStackMaps()),
+                            ArrayRef<const uint8_t>(stack_maps),
                             debug_info,
                             /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                             compilation_kind,
@@ -1569,6 +1573,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
 
     // Add debug info after we know the code location but before we update entry-point.
     if (compiler_options.GenerateAnyDebugInfo()) {
+      debug::MethodDebugInfo method_debug_info = create_method_debug_info();
       method_debug_info.code_address = reinterpret_cast<uintptr_t>(code);
       method_debug_info.code_size = codegen->GetAssembler()->CodeSize();
       method_debug_info.frame_size_in_bytes = codegen->GetFrameSize();

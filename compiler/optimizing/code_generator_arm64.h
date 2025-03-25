@@ -661,13 +661,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void GenerateFrameEntry() override;
   void GenerateFrameExit() override;
 
-  static void DropFrameAndReturn(Arm64Assembler* assembler,
-                                 vixl::aarch64::MacroAssembler* vixl_assembler,
-                                 int32_t frame_size,
-                                 uint32_t core_spill_size,
-                                 vixl::aarch64::CPURegList preserved_core_registers,
-                                 uint32_t frame_entry_spill_size,
-                                 vixl::aarch64::CPURegList preserved_fp_registers);
+  static void PopFrameAndReturn(Arm64Assembler* assembler,
+                                int32_t frame_size,
+                                vixl::aarch64::CPURegList preserved_core_registers,
+                                vixl::aarch64::CPURegList preserved_fp_registers);
 
   vixl::aarch64::CPURegList GetFramePreservedCoreRegisters() const;
   vixl::aarch64::CPURegList GetFramePreservedFPRegisters() const;

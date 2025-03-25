@@ -1392,6 +1392,18 @@ art_cc_test {
     test_config: "art-gtests-target-chroot.xml",
 }
 
+art_cc_test {
+    name: "ArtTest",
+    data: [
+        // We need the ART testing apex, which contains debug binaries and other utilities.
+        ":com.android.art.testing",
+        // Archive which contains all run-test data and test-specific bash scripts to run them.
+        ":art-test-target-fg",
+    ],
+    test_suites: ["general-tests"],
+    test_config: "ArtTest.xml",
+}
+
 csuite_test {
     name: "csuite-app-compile-launch",
     test_config_template: "csuite-app-compile-launch.xml",
