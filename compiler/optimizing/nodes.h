@@ -6065,7 +6065,7 @@ class HFieldAccess : public HInstruction {
                uint16_t declaring_class_def_index,
                const DexFile& dex_file,
                uint32_t dex_pc)
-      : HInstruction(kind, field_type, side_effects, dex_pc),
+      : HInstruction(kind, side_effects, dex_pc),
         field_info_(field,
                     field_offset,
                     field_type,
@@ -6109,6 +6109,7 @@ class HInstanceFieldGet final : public HExpression<1, HFieldAccess> {
                     declaring_class_def_index,
                     dex_file,
                     dex_pc) {
+    SetPackedField<TypeField>(field_type);
     SetRawInputAt(0, object);
   }
 
@@ -7243,6 +7244,7 @@ class HStaticFieldGet final : public HExpression<1, HFieldAccess> {
                     declaring_class_def_index,
                     dex_file,
                     dex_pc) {
+    SetPackedField<TypeField>(field_type);
     SetRawInputAt(0, cls);
   }
 

@@ -193,6 +193,7 @@
    ldr     x1, [sp]
    mov     x2, xPC
    mov     x3, #0
+   mov     x4, xFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    // Zero extension (nterp_get_instance_field_offset returns uint32_t) of the return value is
@@ -275,6 +276,7 @@
    .else
    mov     x3, #0
    .endif
+   mov     x4, xFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    // Zero extension (nterp_get_instance_field_offset returns uint32_t) of the return value is

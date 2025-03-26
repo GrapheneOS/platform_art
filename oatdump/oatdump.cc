@@ -637,42 +637,22 @@ class OatDumper {
 
     if (options_.export_dex_location_) {
       std::string error_msg;
-      std::string vdex_filename = GetVdexFilename(oat_file_.GetLocation());
-      if (!OS::FileExists(vdex_filename.c_str())) {
-        os << "File " << vdex_filename.c_str() << " does not exist\n";
-        return false;
-      }
-
-      DexFileUniqV vdex_dex_files;
-      std::unique_ptr<const VdexFile> vdex_file = OpenVdex(vdex_filename,
-                                                           &vdex_dex_files,
-                                                           &error_msg);
-      if (vdex_file.get() == nullptr) {
-        os << "Failed to open vdex file: " << error_msg << "\n";
-        return false;
-      }
-      if (oat_dex_files_.size() != vdex_dex_files.size()) {
-        os << "Dex files number in Vdex file does not match Dex files number in Oat file: "
-           << vdex_dex_files.size() << " vs " << oat_dex_files_.size() << '\n';
-        return false;
-      }
-
-      size_t i = 0;
-      for (const auto& vdex_dex_file : vdex_dex_files) {
-        const OatDexFile* oat_dex_file = oat_dex_files_[i];
+      for (const OatDexFile* oat_dex_file : oat_dex_files_) {
         CHECK(oat_dex_file != nullptr);
-        CHECK(vdex_dex_file != nullptr);
-
-        if (!vdex_dex_file->IsDexContainerFirstEntry()) {
+        const DexFile* dex_file = OpenDexFile(oat_dex_file, &error_msg);
+        if (dex_file == nullptr) {
+          os << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
+             << "': " << error_msg;
+          return false;
+        }
+        if (!dex_file->IsDexContainerFirstEntry()) {
           // All the data was already exported together with the primary dex file.
           continue;
         }
-
-        if (!ExportDexFile(os, *oat_dex_file, vdex_dex_file.get(), /*used_dexlayout=*/ false)) {
+        if (!ExportDexFile(os, dex_file)) {
           success = false;
           break;
         }
-        i++;
       }
     }
 
@@ -788,53 +768,6 @@ class OatDumper {
       }
     }
     return nullptr;
-  }
-
-  // Returns nullptr and updates error_msg if the Vdex file cannot be opened, otherwise all Dex
-  // files are stored in dex_files.
-  std::unique_ptr<const VdexFile> OpenVdex(const std::string& vdex_filename,
-                                           /* out */ DexFileUniqV* dex_files,
-                                           /* out */ std::string* error_msg) {
-    std::unique_ptr<const File> file(OS::OpenFileForReading(vdex_filename.c_str()));
-    if (file == nullptr) {
-      *error_msg = "Could not open file " + vdex_filename + " for reading.";
-      return nullptr;
-    }
-
-    int64_t vdex_length = file->GetLength();
-    if (vdex_length == -1) {
-      *error_msg = "Could not read the length of file " + vdex_filename;
-      return nullptr;
-    }
-
-    MemMap mmap = MemMap::MapFile(
-        file->GetLength(),
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE,
-        file->Fd(),
-        /* start offset= */ 0,
-        /* low_4gb= */ false,
-        vdex_filename.c_str(),
-        error_msg);
-    if (!mmap.IsValid()) {
-      *error_msg = "Failed to mmap file " + vdex_filename + ": " + *error_msg;
-      return nullptr;
-    }
-
-    std::unique_ptr<VdexFile> vdex_file(new VdexFile(std::move(mmap)));
-    if (!vdex_file->IsValid()) {
-      *error_msg = "Vdex file is not valid";
-      return nullptr;
-    }
-
-    DexFileUniqV tmp_dex_files;
-    if (!vdex_file->OpenAllDexFiles(&tmp_dex_files, error_msg)) {
-      *error_msg = "Failed to open Dex files from Vdex: " + *error_msg;
-      return nullptr;
-    }
-
-    *dex_files = std::move(tmp_dex_files);
-    return vdex_file;
   }
 
   bool AddStatsObject(const void* address) {
@@ -962,20 +895,11 @@ class OatDumper {
     return success;
   }
 
-  // Backwards compatible Dex file export. If dex_file is nullptr (valid Vdex file not present) the
-  // Dex resource is extracted from the oat_dex_file and its checksum is repaired since it's not
-  // unquickened. Otherwise the dex_file has been fully unquickened and is expected to verify the
-  // original checksum.
-  bool ExportDexFile(std::ostream& os,
-                     const OatDexFile& oat_dex_file,
-                     const DexFile* dex_file,
-                     bool used_dexlayout) {
+  // Dex file export.
+  bool ExportDexFile(std::ostream& os, const DexFile* dex_file) {
     std::string error_msg;
-    std::string dex_file_location = oat_dex_file.GetDexFileLocation();
-
-    // If dex_file (from unquicken or dexlayout) is not available, the output DexFile size is the
-    // same as the one extracted from the Oat container (pre-oreo)
-    size_t fsize = dex_file == nullptr ? oat_dex_file.FileSize() : dex_file->Size();
+    std::string dex_file_location = dex_file->GetLocation();
+    size_t fsize = dex_file->GetHeader().ContainerSize();
 
     // Some quick checks just in case
     if (fsize == 0 || fsize < sizeof(DexFile::Header)) {
@@ -983,33 +907,15 @@ class OatDumper {
       return false;
     }
 
-    if (dex_file == nullptr) {
-      // Exported bytecode is quickened (dex-to-dex transformations present)
-      dex_file = OpenDexFile(&oat_dex_file, &error_msg);
-      if (dex_file == nullptr) {
-        os << "Failed to open dex file '" << dex_file_location << "': " << error_msg;
-        return false;
-      }
-
-      // Recompute checksum
-      reinterpret_cast<DexFile::Header*>(const_cast<uint8_t*>(dex_file->Begin()))->checksum_ =
-          dex_file->CalculateChecksum();
-    } else {
-      // If dexlayout was used to convert CompactDex back to StandardDex, checksum will be updated
-      // due to `update_checksum_` option, otherwise we expect a reproducible checksum.
-      if (!used_dexlayout) {
-        // Vdex unquicken output should match original input bytecode
-        uint32_t orig_checksum =
-            reinterpret_cast<DexFile::Header*>(const_cast<uint8_t*>(dex_file->Begin()))->checksum_;
-        if (orig_checksum != dex_file->CalculateChecksum()) {
-          os << "Unexpected checksum from unquicken dex file '" << dex_file_location << "'\n";
-          return false;
-        }
-      }
-      // Extend the data range to export all the dex files in the container.
-      CHECK(dex_file->IsDexContainerFirstEntry()) << dex_file_location;
-      fsize = dex_file->GetHeader().ContainerSize();
+    // We expect a reproducible checksum.
+    uint32_t orig_checksum =
+        reinterpret_cast<DexFile::Header*>(const_cast<uint8_t*>(dex_file->Begin()))->checksum_;
+    if (orig_checksum != dex_file->CalculateChecksum()) {
+      os << "Unexpected checksum from dex file '" << dex_file_location << "'\n";
+      return false;
     }
+    // Extend the data range to export all the dex files in the container.
+    CHECK(dex_file->IsDexContainerFirstEntry()) << dex_file_location;
 
     // Verify output directory exists
     if (!OS::DirectoryExists(options_.export_dex_location_)) {

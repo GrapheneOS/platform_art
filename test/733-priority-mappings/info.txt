@@ -1,0 +1,2 @@
+Basic check for our priority <--> niceness mapping infrastructure, in support
+of Thread.setPriority() and friends.

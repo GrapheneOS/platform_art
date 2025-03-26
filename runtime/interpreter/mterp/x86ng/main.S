@@ -2321,7 +2321,6 @@ SYMBOL(EndExecuteNterpImpl):
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
-NTERP_TRAMPOLINE nterp_get_instance_field_offset, NterpGetInstanceFieldOffset
 NTERP_TRAMPOLINE nterp_filled_new_array, NterpFilledNewArray
 NTERP_TRAMPOLINE nterp_filled_new_array_range, NterpFilledNewArrayRange
 NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
@@ -2329,6 +2328,27 @@ NTERP_TRAMPOLINE nterp_allocate_object, NterpAllocateObject
 NTERP_TRAMPOLINE nterp_get_method, NterpGetMethod
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 NTERP_TRAMPOLINE nterp_load_object, NterpLoadObject
+
+// Special case nterp_get_instance_field_offset as it requires 5 arguments.
+DEFINE_FUNCTION nterp_get_instance_field_offset
+  movd %ebx, %xmm0
+  SETUP_SAVE_REFS_ONLY_FRAME ebx
+  movd %xmm0, %ebx
+  INCREASE_FRAME 12
+  PUSH_ARG edi
+  PUSH_ARG ebx
+  PUSH_ARG edx
+  PUSH_ARG ecx
+  PUSH_ARG eax
+  call NterpGetInstanceFieldOffset
+  DECREASE_FRAME 32
+  RESTORE_IBASE_WITH_CFA
+  FETCH_INST_CLEAR_OPCODE
+  RESTORE_SAVE_REFS_ONLY_FRAME
+  cmpl LITERAL(0), %fs:THREAD_EXCEPTION_OFFSET
+  jne nterp_deliver_pending_exception
+  ret
+END_FUNCTION nterp_get_instance_field_offset
 
 DEFINE_FUNCTION nterp_deliver_pending_exception
     DELIVER_PENDING_EXCEPTION

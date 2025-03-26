@@ -177,7 +177,12 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava)
       hs.NewHandle(soa.Decode<mirror::Object>(runtime_->GetMainThreadGroup()));
   Handle<mirror::Object> thread =
       WellKnownClasses::java_lang_Thread_init->NewObject<'L', 'L', 'I', 'Z'>(
-          hs, self, thread_group, thread_name, kMinThreadPriority, /*daemon=*/ false);
+          hs,
+          self,
+          thread_group,
+          thread_name,
+          Thread::PriorityToNiceness(kMinThreadPriority),
+          /*daemon=*/false);
   ASSERT_FALSE(self->IsExceptionPending());
   ASSERT_TRUE(thread != nullptr);
 

@@ -19,6 +19,7 @@
 #include "code_generator_riscv64.h"
 #include "intrinsic_objects.h"
 #include "intrinsics_utils.h"
+#include "mirror/class.h"
 #include "optimizing/locations.h"
 #include "well_known_classes.h"
 
@@ -5852,12 +5853,58 @@ void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke
     __ Sh3Add(temp, temp, receiver_class);
     __ Loadd(method, temp, vtable_offset);
     __ J(&execute_target_method);
-    __ Bind(&non_virtual_dispatch);
-  }
 
-  // Checks above are jumping to `execute_target_method` is they succeed. If none match, try to
-  // handle in the slow path.
-  __ J(slow_path->GetEntryLabel());
+    __ Bind(&non_virtual_dispatch);
+    __ Li(temp, mirror::MethodHandle::Kind::kInvokeInterface);
+    __ Bne(method_handle_kind, temp, slow_path->GetEntryLabel());
+
+    // Skip virtual dispatch if `method` is private.
+    // Re-use method_handle_kind to store access flags.
+    XRegister access_flags = locations->GetTemp(2).AsRegister<XRegister>();
+    __ Loadwu(access_flags, method, ArtMethod::AccessFlagsOffset().Int32Value());
+    __ Andi(temp, access_flags, kAccPrivate);
+    __ Bnez(temp, &execute_target_method);
+
+    // The register T0 is required to be used for the hidden argument in
+    // art_quick_imt_conflict_trampoline. So prevent the assembler from using it.
+    ScratchRegisterScope srs(assembler);
+    srs.ExcludeXRegister(T0);
+
+    // Set the hidden argument.
+    __ Mv(T0, method);
+
+    Riscv64Label get_imt_index_from_method_index;
+    Riscv64Label do_imt_dispatch;
+
+    // Get IMT index.
+    // Not doing default conflict check as IMT index is set for all method which have
+    // kAccAbstract bit.
+    __ Andi(temp, access_flags, kAccAbstract);
+    __ Beqz(temp, &get_imt_index_from_method_index);
+
+    // imt_index is uint16_t
+    __ Loadhu(temp, method, ArtMethod::ImtIndexOffset().Int32Value());
+    __ J(&do_imt_dispatch);
+
+    // Default method, do method->GetMethodIndex() & (ImTable::kSizeTruncToPowerOfTwo - 1);
+    __ Bind(&get_imt_index_from_method_index);
+    __ Loadhu(temp, method, ArtMethod::MethodIndexOffset().Int32Value());
+    __ Andi(temp, temp, ImTable::kSizeTruncToPowerOfTwo - 1);
+
+    __ Bind(&do_imt_dispatch);
+    // Re-using `method` to store receiver class and ImTableEntry.
+    __ Loadd(method, receiver, mirror::Object::ClassOffset().Int32Value());
+    codegen_->MaybeUnpoisonHeapReference(method);
+
+    __ Loadd(method, method, mirror::Class::ImtPtrOffset(PointerSize::k64).Int32Value());
+    __ Sh3Add(temp, temp, method);
+    __ Loadd(method, temp, 0);
+
+    __ J(&execute_target_method);
+  } else {
+    // Not invoke-static and the first argument is not a reference type.
+    __ J(slow_path->GetEntryLabel());
+  }
 
   __ Bind(&execute_target_method);
   Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kRiscv64PointerSize);

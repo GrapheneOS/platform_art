@@ -1547,6 +1547,7 @@ END_FUNCTION \name
    movq 0(%rsp), %rsi
    movq rPC, %rdx
    movq $$0, %rcx
+   movq rFP, %r8
    call nterp_get_instance_field_offset
    testl %eax, %eax
    jns 1b
@@ -1581,6 +1582,7 @@ END_FUNCTION \name
    movq 0(%rsp), %rsi
    movq rPC, %rdx
    movq $$0, %rcx
+   movq rFP, %r8
    call nterp_get_instance_field_offset
    testl %eax, %eax
    jns 1b
@@ -1944,6 +1946,7 @@ NterpPutObjectInstanceField:
    movq 0(%rsp), %rsi
    movq rPC, %rdx
    // %rcx is already set.
+   movq rFP, %r8
    call nterp_get_instance_field_offset
    // Reload the value as it may have moved.
    GET_VREG %ecx, %rbp                     # ecx <- v[A]
@@ -1987,6 +1990,7 @@ NterpGetObjectInstanceField:
    movq 0(%rsp), %rsi
    movq rPC, %rdx
    movq $$0, %rcx
+   movq rFP, %r8
    call nterp_get_instance_field_offset
    testl %eax, %eax
    jns 1b

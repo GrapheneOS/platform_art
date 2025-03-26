@@ -252,7 +252,9 @@ class VdexFile {
         GetSectionHeader(VdexSection::kVerifierDepsSection).section_size);
   }
 
-  EXPORT bool IsValid() const;
+  bool IsValid() const {
+    return mmap_.Size() >= sizeof(VdexFileHeader) && GetVdexFileHeader().IsValid();
+  }
 
   // This method is for iterating over the dex files in the vdex. If `cursor` is null,
   // the first dex file is returned. If `cursor` is not null, it must point to a dex
@@ -267,10 +269,6 @@ class VdexFile {
     DCHECK_LT(dex_file_index, GetNumberOfDexFiles());
     return GetDexChecksumAt(dex_file_index);
   }
-
-  // Open all the dex files contained in this vdex file.
-  EXPORT bool OpenAllDexFiles(std::vector<std::unique_ptr<const DexFile>>* dex_files,
-                              std::string* error_msg) const;
 
   // Writes a vdex into `path` and returns true on success.
   // The vdex will not contain a dex section but will store checksums of `dex_files`,

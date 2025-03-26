@@ -1324,6 +1324,8 @@ class TwoTypesConversionsTestGroup : public LoadStoreEliminationTestBase<
     // a `HInstanceFieldGet` after constructing it.
     return (load_type == DataType::Type::kUint8) ? DataType::Type::kInt8 : load_type;
   }
+
+  void MergingTwiceConvertedValueStoreTest(bool extra_diamond);
 };
 
 TEST_P(TwoTypesConversionsTestGroup, StoreLoad) {
@@ -1601,7 +1603,7 @@ TEST_P(TwoTypesConversionsTestGroup, MergingConvertedValueStore) {
   }
 }
 
-TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
+void TwoTypesConversionsTestGroup::MergingTwiceConvertedValueStoreTest(bool extra_diamond) {
   auto [load_type1, load_type2] = GetParam();
   DataType::Type field_type1 = FieldTypeForLoadType(load_type1);
   DataType::Type field_type2 = FieldTypeForLoadType(load_type2);
@@ -1611,6 +1613,13 @@ TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
 
   HBasicBlock* return_block = InitEntryMainExitGraph();
   auto [pre_header, loop_header, loop_body] = CreateForLoopWithInstructions(return_block);
+  if (extra_diamond) {
+    // Out-of-date debug check in `MergePredecessorRecords()` used to crash when the merged
+    // values from all incoming paths needed the same phi placeholder with a conversion load.
+    // Create an extra diamond to check such merging. b/405552185
+    HInstruction* bool_param = MakeParam(DataType::Type::kBool);
+    std::tie(loop_body, std::ignore, std::ignore) = CreateDiamondPattern(loop_body, bool_param);
+  }
 
   HInstruction* param = MakeParam(DataType::Type::kInt32);
   HInstruction* object = MakeParam(DataType::Type::kReference);
@@ -1679,6 +1688,64 @@ TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
     }
     ASSERT_EQ(current, ret_input);
   }
+}
+
+TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStore) {
+  MergingTwiceConvertedValueStoreTest(/*extra_diamond=*/ false);
+}
+
+TEST_P(TwoTypesConversionsTestGroup, MergingTwiceConvertedValueStoreWithExtraDiamond) {
+  MergingTwiceConvertedValueStoreTest(/*extra_diamond=*/ true);
+}
+
+TEST_P(TwoTypesConversionsTestGroup, UnreplacedConversionLoadDuringStoreElimination) {
+  auto [load_type1, load_type2] = GetParam();
+  DataType::Type field_type1 = FieldTypeForLoadType(load_type1);
+  // Note: `load_type2` is not actually used for any load, we just write with `field_type2`.
+  DataType::Type field_type2 = FieldTypeForLoadType(load_type2);
+
+  HBasicBlock* return_block = InitEntryMainExitGraph();
+  HInstruction* param = MakeParam(DataType::Type::kInt32);
+  HInstruction* object = MakeParam(DataType::Type::kReference);
+  HInstruction* bool_param = MakeParam(DataType::Type::kBool);
+
+  auto [pre_header1, header1, body1] = CreateForLoopWithInstructions(return_block);
+  auto [pre_header2, header2, body2_end] = CreateForLoopWithInstructions(return_block);
+  auto [body2_start, body2_left, body2_right] = CreateDiamondPattern(body2_end, bool_param);
+
+  // Write the first field in the `pre_header1`, clobber it in `body1` and read it
+  // in `pre_header2`. LSE shall initially mark the load as depending on a loop
+  // phi placeholder but later determine that the load must be retained as is.
+  HInstruction* pre_header1_write1 =
+      MakeIFieldSet(pre_header1, object, param, field_type1, MemberOffset(40));
+  HInvoke* body1_invoke = MakeInvokeStatic(body1, DataType::Type::kVoid, {});
+  HInstanceFieldGet* pre_header2_read1 =
+      MakeIFieldGet(pre_header2, object, field_type1, MemberOffset(40));
+  pre_header2_read1->SetType(load_type1);
+
+  // Write the second field in `pre_header2`, `body2_start` and `body2_right`, making
+  // LSE keep these writes because the loop phi placeholder they feed shall remain
+  // live at the return instruction. The value written in `body2_start` is marked as
+  // requiring a loop phi, with or without type conversion based on the load types.
+  // When looking for stores to eliminate, we used to crash when processing the
+  // `body2_right_write2` because a loop phi requiring a type conversion as the "old
+  // value" was not handled correctly with these writes marked as kept. b/405553153
+  HInstruction* pre_header2_write2 =
+      MakeIFieldSet(pre_header2, object, param, field_type2, MemberOffset(40));
+  HInstruction* body2_start_write2 =
+      MakeIFieldSet(body2_start, object, pre_header2_read1, field_type2, MemberOffset(40));
+  HInstruction* body2_right_write2 =
+      MakeIFieldSet(body2_right, object, param, field_type2, MemberOffset(40));
+
+  HInstruction* ret = MakeReturn(return_block, param);
+  PerformLSE();
+
+  EXPECT_INS_RETAINED(pre_header1_write1);
+  EXPECT_INS_RETAINED(body1_invoke);
+  EXPECT_INS_RETAINED(pre_header2_read1);
+  EXPECT_INS_RETAINED(pre_header2_write2);
+  EXPECT_INS_RETAINED(body2_start_write2);
+  EXPECT_INS_RETAINED(body2_right_write2);
 }
 
 TEST_P(TwoTypesConversionsTestGroup, MergingConvertedValueStorePhiDeduplication) {

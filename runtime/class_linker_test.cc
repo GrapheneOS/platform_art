@@ -403,7 +403,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker_->FindSystemClass(self, descriptor.c_str())));
-    ASSERT_TRUE(klass != nullptr);
+    ASSERT_TRUE(klass != nullptr) << " Class: " << descriptor.c_str();
     std::string temp;
     EXPECT_STREQ(descriptor.c_str(), klass->GetDescriptor(&temp));
     EXPECT_OBJ_PTR_EQ(class_loader, klass->GetClassLoader());

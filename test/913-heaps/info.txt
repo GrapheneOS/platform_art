@@ -1,1 +1,2 @@
 Tests basic functions in the jvmti plugin.
+Output expectation depends on size of Java Thread objects.

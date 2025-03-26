@@ -391,8 +391,25 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t
   }
 }
 
+template <bool kStatic>
 ALWAYS_INLINE FLATTEN
-static ArtField* FindFieldFast(ArtMethod* caller, uint16_t field_index)
+static bool CanAccessFast(ArtField* field, ArtMethod* caller, const Instruction* inst)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (caller->SkipAccessChecks() || field == nullptr) {
+    return true;
+  }
+  bool is_put = kStatic ? IsInstructionSPut(inst->Opcode()) : IsInstructionIPut(inst->Opcode());
+  return field->IsPublic() &&
+      field->GetDeclaringClass()->IsPublic() &&
+      !(is_put && field->IsFinal());
+}
+
+template <bool kStatic>
+ALWAYS_INLINE FLATTEN
+static ArtField* FindFieldFast(ArtMethod* caller,
+                               uint16_t field_index,
+                               uint32_t* registers,
+                               const Instruction* inst)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (caller->IsObsolete()) {
     return nullptr;
@@ -403,6 +420,25 @@ static ArtField* FindFieldFast(ArtMethod* caller, uint16_t field_index)
   if (cls->GetDexTypeIndex() == field_id.class_idx_) {
     // Field is in the same class as the caller, no need to do access checks.
     return cls->FindDeclaredField(field_index);
+  }
+
+  if (!kStatic) {
+    mirror::Object* obj = reinterpret_cast32<mirror::Object*>(registers[inst->VRegB_22c()]);
+    if (obj != nullptr) {
+      mirror::Class* obj_cls = obj->GetClass();
+      if (obj_cls->GetDexTypeIndex() == field_id.class_idx_ &&
+          obj_cls->GetDexCache() == cls->GetDexCache()) {
+        ArtField* resolved_field = obj_cls->FindDeclaredField(field_index);
+        if (CanAccessFast<kStatic>(resolved_field, caller, inst)) {
+          return resolved_field;
+        }
+      }
+    }
+  }
+
+  ArtField* field = caller->GetDexCache()->GetResolvedField(field_index);
+  if (CanAccessFast<kStatic>(field, caller, inst)) {
+    return field;
   }
 
   return nullptr;
@@ -435,7 +471,7 @@ extern "C" size_t NterpGetStaticField(Thread* self,
   uint16_t field_index = inst->VRegB_21c();
   Instruction::Code opcode = inst->Opcode();
 
-  ArtField* resolved_field = FindFieldFast(caller, field_index);
+  ArtField* resolved_field = FindFieldFast</*kStatic=*/true>(caller, field_index, nullptr, inst);
   if (resolved_field == nullptr || !resolved_field->IsStatic()) {
     resolved_field = FindFieldSlow(
         self, caller, field_index, /*is_static=*/ true, IsInstructionSPut(opcode));
@@ -492,13 +528,14 @@ LIBART_PROTECTED
 extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
                                                 ArtMethod* caller,
                                                 const uint16_t* dex_pc_ptr,
-                                                size_t resolve_field_type)  // Resolve if not zero
+                                                size_t resolve_field_type,  // Resolve if not zero
+                                                uint32_t* registers)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   uint16_t field_index = inst->VRegC_22c();
   Instruction::Code opcode = inst->Opcode();
 
-  ArtField* resolved_field = FindFieldFast(caller, field_index);
+  ArtField* resolved_field = FindFieldFast</*kStatic=*/false>(caller, field_index, registers, inst);
   if (resolved_field == nullptr || resolved_field->IsStatic()) {
     resolved_field = FindFieldSlow(
         self, caller, field_index, /*is_static=*/ false, IsInstructionIPut(opcode));

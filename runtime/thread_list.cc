@@ -786,7 +786,8 @@ std::optional<std::string> ThreadList::WaitForSuspendBarrier(AtomicInteger* barr
   if (attempt_of_4 != 1) {
     // TODO: RequestSynchronousCheckpoint routinely passes attempt_of_4 = 0. Can
     // we avoid the getpriority() call?
-    if (getpriority(PRIO_PROCESS, 0 /* this thread */) > 0) {
+    if (getpriority(PRIO_PROCESS, 0 /* this thread */) >
+        Thread::PriorityToNiceness(kNormThreadPriority)) {
       // We're a low priority thread, and thus have a longer ANR timeout. Increase the suspend
       // timeout.
       avg_wait_multiplier = 3;

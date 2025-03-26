@@ -1141,6 +1141,7 @@
                   "692-vdex-inmem-loader",
                   "693-vdex-inmem-loader-evict",
                   "723-string-init-range",
+                  "733-priority-mappings",
                   "734-duplicate-fields",
                   "735-interface-clone",
                   "736-interface-super-Object",

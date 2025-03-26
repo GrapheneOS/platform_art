@@ -73,7 +73,7 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self,
   MemberOffset offset(0u);
   bool is_volatile;
   GetFieldInfo(self,
-               shadow_frame.GetMethod(),
+               shadow_frame,
                reinterpret_cast<const uint16_t*>(inst),
                is_static,
                /*resolve_field_type=*/ false,
@@ -157,7 +157,7 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self,
 // Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool transaction_active>
 ALWAYS_INLINE bool DoFieldPut(Thread* self,
-                              const ShadowFrame& shadow_frame,
+                              ShadowFrame& shadow_frame,
                               const Instruction* inst,
                               uint16_t inst_data,
                               const instrumentation::Instrumentation* instrumentation)
@@ -172,7 +172,7 @@ ALWAYS_INLINE bool DoFieldPut(Thread* self,
   MemberOffset offset(0u);
   bool is_volatile;
   GetFieldInfo(self,
-               shadow_frame.GetMethod(),
+               shadow_frame,
                reinterpret_cast<const uint16_t*>(inst),
                is_static,
                resolve_field_type,

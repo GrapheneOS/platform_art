@@ -603,6 +603,11 @@ class TestingChecker:
     self._checker.check_art_test_executable('art_runtime_tests')
     self._checker.check_art_test_executable('art_sigchain_tests')
 
+    # Some libraries are in odd location (libarttest(d) and libtiagent(d)).
+    # We intend to remove the whole testing apex, so just ignore those for now.
+    self._checker.ignore_path('lib*/com.android.art')
+    self._checker.ignore_path('lib*/com.android.art/lib*')
+
     # Check ART test tools.
     self._checker.check_executable('signal_dumper')
 

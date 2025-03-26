@@ -976,6 +976,9 @@ def default_run(ctx, args, **kwargs):
     # namespace, that gives libarttest(d).so full access to the internal ART
     # libraries.
     LD_LIBRARY_PATH = f"/data/{TEST_DIRECTORY}/com.android.art/lib{SUFFIX64}:{LD_LIBRARY_PATH}"
+    # TODO: Remove once testing apex is gone. The libs are copied into further subdirectory.
+    #       We intend to remove the testing apex, so this should be short lived work-around.
+    LD_LIBRARY_PATH = f"/apex/com.android.art/lib{SUFFIX64}/com.android.art/lib{SUFFIX64}:{LD_LIBRARY_PATH}"
     dlib = ("" if TEST_IS_NDEBUG else "d")
     art_test_internal_libraries = [
         f"libartagent{dlib}.so",

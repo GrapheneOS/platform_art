@@ -1588,9 +1588,11 @@ void LSEVisitor::MergePredecessorRecords(HBasicBlock* block) {
   for (size_t idx = 0u; idx != num_heap_locations; ++idx) {
     Value merged_value = MergePredecessorValues(block, idx);
     if (kIsDebugBuild) {
-      if (merged_value.NeedsPhi()) {
+      if (merged_value.NeedsNonLoopPhi() || merged_value.NeedsPlainLoopPhi()) {
         uint32_t block_id = merged_value.GetPhiPlaceholder().GetBlockId();
         CHECK(GetGraph()->GetBlocks()[block_id]->Dominates(block));
+      } else if (merged_value.NeedsConvertedLoopPhi()) {
+        CHECK(merged_value.GetLoopPhiConversionLoad()->GetBlock()->Dominates(block));
       } else if (merged_value.IsInstruction()) {
         CHECK(merged_value.GetInstruction()->GetBlock()->Dominates(block));
       }
@@ -2749,7 +2751,8 @@ void LSEVisitor::UpdateValueRecordForStoreElimination(/*inout*/ValueRecord* valu
     DCHECK(store_record != nullptr);
     *value_record = store_record->old_value_record;
   }
-  if (value_record->stored_by.NeedsPhi() &&
+  DCHECK(!value_record->stored_by.NeedsConvertedLoopPhi());
+  if ((value_record->stored_by.NeedsPlainLoopPhi() || value_record->stored_by.NeedsNonLoopPhi()) &&
       !phi_placeholders_to_search_for_kept_stores_.IsBitSet(
            PhiPlaceholderIndex(value_record->stored_by))) {
     // Some stores feeding this heap location may have been eliminated. Use the `stored_by`
@@ -2757,7 +2760,10 @@ void LSEVisitor::UpdateValueRecordForStoreElimination(/*inout*/ValueRecord* valu
     value_record->value = value_record->stored_by;
   }
   value_record->value = ReplacementOrValue(value_record->value);
-  if (value_record->value.NeedsNonLoopPhi()) {
+  if (value_record->value.NeedsConvertedLoopPhi()) {
+    // The Phi placeholder was unreplaceable. The load must be used as is if the value is needed.
+    value_record->value = Value::ForInstruction(value_record->value.GetLoopPhiConversionLoad());
+  } else if (value_record->value.NeedsNonLoopPhi()) {
     // Treat all Phi placeholders as requiring loop Phis at this point.
     // We do not want MaterializeLoopPhis() to call MaterializeNonLoopPhis().
     value_record->value =
@@ -2835,7 +2841,7 @@ void LSEVisitor::FindStoresWritingOldValues() {
     StoreRecord* store_record = store_records_[store_id];
     DCHECK(store_record != nullptr);
     UpdateValueRecordForStoreElimination(&store_record->old_value_record);
-    if (store_record->old_value_record.value.NeedsPhi()) {
+    if (store_record->old_value_record.value.NeedsPlainLoopPhi()) {
       DataType::Type type = store_record->stored_value->GetType();
       FindOldValueForPhiPlaceholder(store_record->old_value_record.value.GetPhiPlaceholder(), type);
       store_record->old_value_record.value =
