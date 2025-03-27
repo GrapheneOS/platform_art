@@ -16,7 +16,6 @@
 
 #include "dexopt_chroot_setup.h"
 
-#include <linux/mount.h>
 #include <sched.h>
 #include <sys/mount.h>
 #include <sys/stat.h>

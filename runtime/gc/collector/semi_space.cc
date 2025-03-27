@@ -609,9 +609,7 @@ mirror::Object* SemiSpace::IsMarked(mirror::Object* obj) {
   return mark_bitmap_->Test(obj) ? obj : nullptr;
 }
 
-bool SemiSpace::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object,
-                                            // SemiSpace does the GC in a pause. No CAS needed.
-                                            [[maybe_unused]] bool do_atomic_update) {
+bool SemiSpace::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) {
   mirror::Object* obj = object->AsMirrorPtr();
   if (obj == nullptr) {
     return true;
@@ -621,8 +619,8 @@ bool SemiSpace::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object
     return false;
   }
   if (new_obj != obj) {
-    // Write barrier is not necessary since it still points to the same object, just at a different
-    // address.
+    // SemiSpace does the GC in a pause. No CAS needed.  Write barrier is not necessary since it
+    // still points to the same object, just at a different address.
     object->Assign(new_obj);
   }
   return true;

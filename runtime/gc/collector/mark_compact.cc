@@ -500,7 +500,8 @@ MarkCompact::MarkCompact(Heap* heap)
       uffd_(kFdUnused),
       marking_done_(false),
       uffd_initialized_(false),
-      clamp_info_map_status_(ClampInfoStatus::kClampInfoNotDone) {
+      clamp_info_map_status_(ClampInfoStatus::kClampInfoNotDone),
+      prev_moving_space_end_at_compaction_(moving_space_begin_) {
   if (kIsDebugBuild) {
     updated_roots_.reset(new std::unordered_set<void*>());
   }
@@ -2985,6 +2986,7 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
   bump_pointer_space_->SetBlockSizes(thread_running_gc_,
                                      post_compact_end_ - begin,
                                      consumed_blocks_count);
+  prev_moving_space_end_at_compaction_ = static_cast<void*>(bump_pointer_space_->End());
   if (kIsDebugBuild) {
     size_t moving_space_size = bump_pointer_space_->Size();
     size_t los_size = 0;
@@ -4724,6 +4726,8 @@ void MarkCompact::ScanObject(mirror::Object* obj) {
                                << " prev_post_compact_end: " << prev_post_compact_end_
                                << " prev_black_allocations_begin: " << prev_black_allocations_begin_
                                << " prev_black_dense_end: " << prev_black_dense_end_
+                               << " prev_moving_space_end_at_compaction: "
+                               << prev_moving_space_end_at_compaction_
                                << " prev_gc_young: " << prev_gc_young_
                                << " prev_gc_performed_compaction: "
                                << prev_gc_performed_compaction_;
@@ -4950,8 +4954,7 @@ mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
   return marking_done_ && IsOnAllocStack(obj) ? obj : nullptr;
 }
 
-bool MarkCompact::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj,
-                                              [[maybe_unused]] bool do_atomic_update) {
+bool MarkCompact::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj) {
   mirror::Object* ref = obj->AsMirrorPtr();
   if (ref == nullptr) {
     return true;

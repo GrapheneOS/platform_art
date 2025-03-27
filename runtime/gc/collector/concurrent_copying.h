@@ -249,8 +249,7 @@ class ConcurrentCopying : public GarbageCollector {
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsMarkedInNonMovingSpace(mirror::Object* from_ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field,
-                                   bool do_atomic_update) override
+  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) override
       REQUIRES_SHARED(Locks::mutator_lock_);
   void SweepSystemWeaks(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);

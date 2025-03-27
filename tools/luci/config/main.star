@@ -20,6 +20,8 @@
 After modifying this file execute it ('./main.star') to regenerate the configs.
 """
 
+REPO_ROOT = "https://googleplex-android.googlesource.com"
+
 lucicfg.check_version("1.30.9", "Please update depot_tools")
 
 luci.builder.defaults.experiments.set({
@@ -129,9 +131,9 @@ luci.notifier_template(
 
 luci.console_view(
     name = "luci",
-    repo = "https://android.googlesource.com/platform/art",
+    repo = REPO_ROOT + "/platform/art",
     title = "ART LUCI Console",
-    refs = ["refs/heads/master"],
+    refs = ["refs/heads/main"],
     include_experimental_builds = True,
 )
 
@@ -149,28 +151,28 @@ luci.notifier(
 luci.gitiles_poller(
     name = "art",
     bucket = "ci",
-    repo = "https://android.googlesource.com/platform/art",
-    refs = ["refs/heads/master"],
+    repo = REPO_ROOT + "/platform/art",
+    refs = ["refs/heads/main"],
 )
 
 luci.gitiles_poller(
     name = "libcore",
     bucket = "ci",
-    repo = "https://android.googlesource.com/platform/libcore",
-    refs = ["refs/heads/master"],
+    repo = REPO_ROOT + "/platform/libcore",
+    refs = ["refs/heads/main"],
 )
 
 luci.gitiles_poller(
     name = "vogar",
     bucket = "ci",
-    repo = "https://android.googlesource.com/platform/external/vogar",
-    refs = ["refs/heads/master"],
+    repo = REPO_ROOT + "/platform/external/vogar",
+    refs = ["refs/heads/main"],
 )
 
 luci.gitiles_poller(
     name = "manifest",
     bucket = "ci",
-    repo = "https://android.googlesource.com/platform/manifest",
+    repo = REPO_ROOT + "/platform/manifest",
     refs = ["refs/heads/master-art"],
 )
 
@@ -297,9 +299,10 @@ def add_builder(mode,
         "gcstress": gcstress,
         "heap_poisoning": poison,
         "testrunner_args": testrunner_args,
+        "repo_root": REPO_ROOT,
     }
 
-    experiments = {"art.superproject": 100} if mode == "qemu" else {}
+    experiments = {"art.superproject": 0} if mode == "qemu" else {}
 
     ci_builder(name=name,
                category="|".join(category.split("|")[:-1]),

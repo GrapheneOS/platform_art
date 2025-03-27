@@ -3736,8 +3736,7 @@ void ConcurrentCopying::FinishPhase() {
   }
 }
 
-bool ConcurrentCopying::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field,
-                                                    bool do_atomic_update) {
+bool ConcurrentCopying::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) {
   mirror::Object* from_ref = field->AsMirrorPtr();
   if (from_ref == nullptr) {
     return true;
@@ -3747,17 +3746,15 @@ bool ConcurrentCopying::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror
     return false;
   }
   if (from_ref != to_ref) {
-    if (do_atomic_update) {
-      do {
-        if (field->AsMirrorPtr() != from_ref) {
-          // Concurrently overwritten by a mutator.
-          break;
-        }
-      } while (!field->CasWeakRelaxed(from_ref, to_ref));
-      // See comment in MarkHeapReference() for memory ordering.
-    } else {
-      field->Assign(to_ref);
+    // We have to update it while it may be concurrently overwritten by the mutator.
+    // If the mutator overwrites it, we're done.
+    while (UNLIKELY(!field->CasWeakRelaxed(from_ref, to_ref))) {
+      if (field->AsMirrorPtr() != from_ref) {
+        // Concurrently overwritten by a mutator.
+        break;
+      }
     }
+    // See comment in MarkHeapReference() for memory ordering.
   }
   return true;
 }

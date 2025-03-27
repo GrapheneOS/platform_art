@@ -160,10 +160,8 @@ class SemiSpace : public GarbageCollector {
       REQUIRES(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
-  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object,
-                                   bool do_atomic_update) override
-      REQUIRES(Locks::mutator_lock_)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
+  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) override
+      REQUIRES(Locks::mutator_lock_) REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
   // mark, otherwise we unmark.

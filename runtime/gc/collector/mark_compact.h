@@ -89,8 +89,8 @@ class YoungMarkCompact final : public GarbageCollector {
                   [[maybe_unused]] const RootInfo& info) override {
     UNIMPLEMENTED(FATAL);
   }
-  bool IsNullOrMarkedHeapReference([[maybe_unused]] mirror::HeapReference<mirror::Object>* obj,
-                                   [[maybe_unused]] bool do_atomic_update) override {
+  bool IsNullOrMarkedHeapReference(
+      [[maybe_unused]] mirror::HeapReference<mirror::Object>* obj) override {
     UNIMPLEMENTED(FATAL);
     UNREACHABLE();
   }
@@ -172,10 +172,8 @@ class MarkCompact final : public GarbageCollector {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
-  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj,
-                                   bool do_atomic_update) override
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_);
+  bool IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj) override
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
   void RevokeAllThreadLocalBuffers() override;
 
@@ -960,6 +958,7 @@ class MarkCompact final : public GarbageCollector {
   void* prev_post_compact_end_;
   void* prev_black_dense_end_;
   void* prev_black_allocations_begin_;
+  void* prev_moving_space_end_at_compaction_;
   bool prev_gc_young_;
   bool prev_gc_performed_compaction_;
   // Timestamp when the read-barrier is enabled

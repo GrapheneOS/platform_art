@@ -403,8 +403,7 @@ inline void MarkSweep::MarkObjectNonNullParallel(mirror::Object* obj) {
   }
 }
 
-bool MarkSweep::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref,
-                                            [[maybe_unused]] bool do_atomic_update) {
+bool MarkSweep::IsNullOrMarkedHeapReference(mirror::HeapReference<mirror::Object>* ref) {
   mirror::Object* obj = ref->AsMirrorPtr();
   if (obj == nullptr) {
     return true;

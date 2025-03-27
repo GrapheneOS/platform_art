@@ -325,7 +325,7 @@ void ReferenceProcessor::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
   mirror::HeapReference<mirror::Object>* referent = ref->GetReferentReferenceAddr();
   // do_atomic_update needs to be true because this happens outside of the reference processing
   // phase.
-  if (!collector->IsNullOrMarkedHeapReference(referent, /*do_atomic_update=*/true)) {
+  if (!collector->IsNullOrMarkedHeapReference(referent)) {
     if (UNLIKELY(collector->IsTransactionActive())) {
       // In transaction mode, keep the referent alive and avoid any reference processing to avoid the
       // issue of rolling back reference processing.  do_atomic_update needs to be true because this
@@ -405,11 +405,10 @@ SelfDeletingTask* ReferenceProcessor::CollectClearedReferences(Thread* self) {
 void ReferenceProcessor::ClearReferent(ObjPtr<mirror::Reference> ref) {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::reference_processor_lock_);
-  // Need to wait until reference processing is done since IsMarkedHeapReference does not have a
-  // CAS. If we do not wait, it can result in the GC un-clearing references due to race conditions.
-  // This also handles the race where the referent gets cleared after a null check but before
-  // IsMarkedHeapReference is called.
-  WaitUntilDoneProcessingReferences(self);
+  // If the collector requires the mutator to update references, the IsNullOrMarkedHeapReference
+  // now uses a CAS to perform the update, as with other reference forwarding. Since this also
+  // cannot introduce new strong references, we go ahead and do this even while processing
+  // references.
   if (Runtime::Current()->IsActiveTransaction()) {
     ref->ClearReferent<true>();
   } else {
