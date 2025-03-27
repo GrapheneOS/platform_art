@@ -429,15 +429,21 @@ static jstring VMRuntime_getCurrentInstructionSet(JNIEnv* env, jclass) {
   return env->NewStringUTF(GetInstructionSetString(kRuntimeISA));
 }
 
-static int VMRuntime_getSystemDaemonNiceness() {
+static void VMRuntime_setSystemDaemonThreadPriority([[maybe_unused]] JNIEnv* env,
+                                                    [[maybe_unused]] jclass klass) {
+#ifdef ART_TARGET_ANDROID
+  Thread* self = Thread::Current();
+  DCHECK(self != nullptr);
+  pid_t tid = self->GetTid();
   // We use a priority lower than the default for the system daemon threads (eg HeapTaskDaemon) to
-  // avoid jank due to CPU contention between GC and other UI-related threads. b/36631902.
+  // avoid jank due to CPU contentions between GC and other UI-related threads. b/36631902.
   // We may use a native priority that doesn't have a corresponding java.lang.Thread-level priority.
-  // Currently we use a niceness value between those corresponding to priority 4 and 5, which
-  // matches the traditional niceness 4 value with the traditional mapping.
-  static int systemDaemonNiceValue =
-      (6 * Thread::PriorityToNiceness(5) + 4 * Thread::PriorityToNiceness(4) + 5) / 10;
-  return systemDaemonNiceValue;
+  static constexpr int kSystemDaemonNiceValue = 4;  // priority 124
+  if (setpriority(PRIO_PROCESS, tid, kSystemDaemonNiceValue) != 0) {
+    PLOG(INFO) << *self << " setpriority(PRIO_PROCESS, " << tid << ", "
+               << kSystemDaemonNiceValue << ") failed";
+  }
+#endif
 }
 
 static void VMRuntime_setDedupeHiddenApiWarnings([[maybe_unused]] JNIEnv* env,
@@ -592,7 +598,7 @@ static JNINativeMethod gMethods[] = {
                   "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;I)V"),
     NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
     NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
-    CRITICAL_NATIVE_METHOD(VMRuntime, getSystemDaemonNiceness, "()I"),
+    NATIVE_METHOD(VMRuntime, setSystemDaemonThreadPriority, "()V"),
     NATIVE_METHOD(VMRuntime, setDedupeHiddenApiWarnings, "(Z)V"),
     NATIVE_METHOD(VMRuntime, setProcessPackageName, "(Ljava/lang/String;)V"),
     NATIVE_METHOD(VMRuntime, setProcessDataDirectory, "(Ljava/lang/String;)V"),

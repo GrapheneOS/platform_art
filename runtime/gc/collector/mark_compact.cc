@@ -337,6 +337,8 @@ static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 static constexpr bool kVerifyNoMissingCardMarks = kIsDebugBuild;
 // Verify that all references in post-GC objects are valid.
 static constexpr bool kVerifyPostGCObjects = kIsDebugBuild;
+// Assert during marking that GC-roots are valid.
+static constexpr bool kVerifyGcRootDuringMarking = kIsDebugBuild;
 // Number of compaction buffers reserved for mutator threads in SIGBUS feature
 // case. It's extremely unlikely that we will ever have more than these number
 // of mutator threads trying to access the moving-space during one compaction
@@ -480,6 +482,7 @@ void YoungMarkCompact::RunPhases() {
 
 MarkCompact::MarkCompact(Heap* heap)
     : GarbageCollector(heap, "concurrent mark compact"),
+      overflow_arrays_(nullptr),
       gc_barrier_(0),
       lock_("mark compact lock", kGenericBottomLock),
       sigbus_in_progress_count_{kSigbusCounterCompactionDoneMask, kSigbusCounterCompactionDoneMask},
@@ -1312,6 +1315,65 @@ bool MarkCompact::PrepareForCompaction() {
   return true;
 }
 
+template <typename Visitor>
+class MarkCompact::VisitReferencesVisitor {
+ public:
+  explicit VisitReferencesVisitor(Visitor visitor) : visitor_(visitor) {}
+
+  ALWAYS_INLINE void operator()(mirror::Object* obj,
+                                MemberOffset offset,
+                                [[maybe_unused]] bool is_static) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    visitor_(obj->GetFieldObject<mirror::Object>(offset));
+  }
+
+  ALWAYS_INLINE void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
+                                ObjPtr<mirror::Reference> ref) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    visitor_(ref.Ptr());
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
+    visitor_(root->AsMirrorPtr());
+  }
+
+ private:
+  Visitor visitor_;
+};
+
+void MarkCompact::VerifyNoMissingCardMarks() {
+  if (kVerifyNoMissingCardMarks) {
+    accounting::CardTable* card_table = heap_->GetCardTable();
+    for (const auto& space : heap_->GetContinuousSpaces()) {
+      auto obj_visitor = [&](mirror::Object* obj) {
+        VisitReferencesVisitor ref_visitor([&](mirror::Object* ref)
+            REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+          if (ref != nullptr && !IsMarked(ref)) {
+            CHECK(card_table->IsDirty(obj))
+                << "obj:" << obj << " (" << obj->PrettyTypeOf() << ") ref:" << ref
+                << " card:" << static_cast<int>(card_table->GetCard(obj))
+                << " space:" << space->GetName()
+                << " retention-policy:" << space->GetGcRetentionPolicy();
+          }
+        });
+        // We can't expect referent to hold the assertion.
+        obj->VisitReferences</*kVisitNativeRoots=*/true>(ref_visitor, VoidFunctor());
+      };
+      space->GetMarkBitmap()->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                               reinterpret_cast<uintptr_t>(space->End()),
+                                               obj_visitor);
+    }
+  }
+}
+
 class MarkCompact::VerifyRootMarkedVisitor : public SingleRootVisitor {
  public:
   explicit VerifyRootMarkedVisitor(MarkCompact* collector) : collector_(collector) { }
@@ -1348,6 +1410,7 @@ void MarkCompact::MarkingPause() {
   {
     // Handle the dirty objects as we are a concurrent GC
     WriterMutexLock mu(thread_running_gc_, *Locks::heap_bitmap_lock_);
+    VerifyNoMissingCardMarks();
     {
       MutexLock mu2(thread_running_gc_, *Locks::runtime_shutdown_lock_);
       MutexLock mu3(thread_running_gc_, *Locks::thread_list_lock_);
@@ -4135,11 +4198,35 @@ void MarkCompact::CompactionPhase() {
 template <size_t kBufferSize>
 class MarkCompact::ThreadRootsVisitor : public RootVisitor {
  public:
+  using RefType = StackReference<mirror::Object>;
+
   explicit ThreadRootsVisitor(MarkCompact* mark_compact, Thread* const self)
-        : mark_compact_(mark_compact), self_(self) {}
+      : mark_compact_(mark_compact), self_(self) {
+    if (kVerifyGcRootDuringMarking) {
+      verification_ = mark_compact->GetHeap()->GetVerification();
+    }
+  }
 
   ~ThreadRootsVisitor() {
-    Flush();
+    if (overflow_arr_start_ != nullptr) {
+      // Pass on the thread-local overflow array to the gc-thread for processing
+      // after checkpoint.
+      CHECK_GT(top_, overflow_arr_start_);
+      auto pair = std::make_pair(overflow_arr_start_, top_ - overflow_arr_start_);
+      MutexLock mu(self_, mark_compact_->lock_);
+      if (mark_compact_->overflow_arrays_ == nullptr) {
+        mark_compact_->overflow_arrays_ = new std::vector<std::pair<RefType*, size_t>>(1, pair);
+      } else {
+        mark_compact_->overflow_arrays_->push_back(pair);
+      }
+    } else {
+      // Since we don't reset mark-stack between the two stack-scan checkpoints
+      // in marking phase, we need to clear the stale references that are left
+      // unused in the stack.
+      for (; top_ < end_; top_++) {
+        top_->Assign(nullptr);
+      }
+    }
   }
 
   void VisitRoots(mirror::Object*** roots,
@@ -4148,6 +4235,9 @@ class MarkCompact::ThreadRootsVisitor : public RootVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; i++) {
       mirror::Object* obj = *roots[i];
+      if (kVerifyGcRootDuringMarking) {
+        CHECK(verification_->IsValidObject(obj)) << obj;
+      }
       if (mark_compact_->MarkObjectNonNullNoPush</*kParallel*/true>(obj)) {
         Push(obj);
       }
@@ -4160,6 +4250,9 @@ class MarkCompact::ThreadRootsVisitor : public RootVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; i++) {
       mirror::Object* obj = roots[i]->AsMirrorPtr();
+      if (kVerifyGcRootDuringMarking) {
+        CHECK(verification_->IsValidObject(obj)) << obj;
+      }
       if (mark_compact_->MarkObjectNonNullNoPush</*kParallel*/true>(obj)) {
         Push(obj);
       }
@@ -4167,37 +4260,49 @@ class MarkCompact::ThreadRootsVisitor : public RootVisitor {
   }
 
  private:
-  void Flush() REQUIRES_SHARED(Locks::mutator_lock_)
-               REQUIRES(Locks::heap_bitmap_lock_) {
-    StackReference<mirror::Object>* start;
-    StackReference<mirror::Object>* end;
-    {
-      MutexLock mu(self_, mark_compact_->lock_);
-      // Loop here because even after expanding once it may not be sufficient to
-      // accommodate all references. It's almost impossible, but there is no harm
-      // in implementing it this way.
-      while (!mark_compact_->mark_stack_->BumpBack(idx_, &start, &end)) {
-        mark_compact_->ExpandMarkStack();
+  void FetchBuffer() REQUIRES_SHARED(Locks::mutator_lock_) {
+    size_t requested_size;
+    ptrdiff_t new_top_offset;
+    if (LIKELY(overflow_arr_start_ == nullptr)) {
+      // During stack scanning threads can only be calling AtomicBumpBack() on
+      // the mark-stack.
+      if (mark_compact_->mark_stack_->AtomicBumpBack(kBufferSize, &top_, &end_)) {
+        return;
       }
+      new_top_offset = 0;
+      requested_size = kBufferSize;
+    } else {
+      DCHECK_GT(end_, overflow_arr_start_);
+      new_top_offset = end_ - overflow_arr_start_;
+      requested_size = 2 * new_top_offset;
     }
-    while (idx_ > 0) {
-      *start++ = roots_[--idx_];
-    }
-    DCHECK_EQ(start, end);
+    // realloc() acts like malloc() when overflow_arr_start_ is null.
+    overflow_arr_start_ =
+        static_cast<RefType*>(realloc(overflow_arr_start_, requested_size * sizeof(RefType)));
+    top_ = overflow_arr_start_ + new_top_offset;
+    end_ = overflow_arr_start_ + requested_size;
   }
 
   void Push(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_)
                                  REQUIRES(Locks::heap_bitmap_lock_) {
-    if (UNLIKELY(idx_ >= kBufferSize)) {
-      Flush();
+    if (UNLIKELY(top_ == end_)) {
+      FetchBuffer();
+      DCHECK_GE(end_ - top_, static_cast<ssize_t>(kBufferSize));
     }
-    roots_[idx_++].Assign(obj);
+    top_->Assign(obj);
+    top_++;
   }
 
-  StackReference<mirror::Object> roots_[kBufferSize];
-  size_t idx_ = 0;
+  // If mark-stack has slots available, [top_, end_) represents the slots
+  // acquired from the mark-stack for storing references. After mark-stack
+  // is full, [top_, end_) is the range in overflow array.
+  RefType* top_ = nullptr;
+  RefType* end_ = nullptr;
+  // Thread-local array of references to be used if and when mark-stack is full.
+  RefType* overflow_arr_start_ = nullptr;
   MarkCompact* const mark_compact_;
   Thread* const self_;
+  const Verification* verification_;
 };
 
 class MarkCompact::CheckpointMarkThreadRoots : public Closure {
@@ -4229,6 +4334,21 @@ class MarkCompact::CheckpointMarkThreadRoots : public Closure {
   MarkCompact* const mark_compact_;
 };
 
+inline void MarkCompact::ProcessMarkObject(mirror::Object* obj) {
+  DCHECK(obj != nullptr);
+  ScanObject</*kUpdateLiveWords=*/true>(obj);
+}
+
+void MarkCompact::ProcessMarkStackNonNull() {
+  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  while (!mark_stack_->IsEmpty()) {
+    mirror::Object* obj = mark_stack_->PopBack();
+    if (obj != nullptr) {
+      ProcessMarkObject(obj);
+    }
+  }
+}
+
 void MarkCompact::MarkRootsCheckpoint(Thread* self, Runtime* runtime) {
   // We revote TLABs later during paused round of marking.
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
@@ -4239,20 +4359,39 @@ void MarkCompact::MarkRootsCheckpoint(Thread* self, Runtime* runtime) {
   // run through the barrier including self.
   size_t barrier_count = thread_list->RunCheckpoint(&check_point);
   // Release locks then wait for all mutator threads to pass the barrier.
-  // If there are no threads to wait which implys that all the checkpoint functions are finished,
+  // If there are no threads to wait which implies that all the checkpoint functions are finished,
   // then no need to release locks.
-  if (barrier_count == 0) {
-    return;
+  if (barrier_count > 0) {
+    Locks::heap_bitmap_lock_->ExclusiveUnlock(self);
+    Locks::mutator_lock_->SharedUnlock(self);
+    {
+      ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
+      gc_barrier_.Increment(self, barrier_count);
+    }
+    Locks::mutator_lock_->SharedLock(self);
+    Locks::heap_bitmap_lock_->ExclusiveLock(self);
   }
-  Locks::heap_bitmap_lock_->ExclusiveUnlock(self);
-  Locks::mutator_lock_->SharedUnlock(self);
+  // We may have null in the mark-stack as some thread(s) may have not filled
+  // the buffer completely.
+  ProcessMarkStackNonNull();
+  std::vector<std::pair<StackReference<mirror::Object>*, size_t>>* vec = nullptr;
   {
-    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
-    gc_barrier_.Increment(self, barrier_count);
+    MutexLock mu(self, lock_);
+    if (overflow_arrays_ != nullptr) {
+      vec = overflow_arrays_;
+      overflow_arrays_ = nullptr;
+    }
   }
-  Locks::mutator_lock_->SharedLock(self);
-  Locks::heap_bitmap_lock_->ExclusiveLock(self);
-  ProcessMarkStack();
+  if (vec != nullptr) {
+    for (auto [arr, size] : *vec) {
+      for (size_t i = 0; i < size; i++) {
+        ProcessMarkObject(arr[i].AsMirrorPtr());
+      }
+      free(arr);
+      ProcessMarkStack();
+    }
+    delete vec;
+  }
 }
 
 void MarkCompact::MarkNonThreadRoots(Runtime* runtime) {
@@ -4625,14 +4764,14 @@ void MarkCompact::ProcessMarkStack() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // TODO: try prefetch like in CMS
   while (!mark_stack_->IsEmpty()) {
-    mirror::Object* obj = mark_stack_->PopBack();
-    DCHECK(obj != nullptr);
-    ScanObject</*kUpdateLiveWords*/ true>(obj);
+    ProcessMarkObject(mark_stack_->PopBack());
   }
 }
 
 void MarkCompact::ExpandMarkStack() {
   const size_t new_size = mark_stack_->Capacity() * 2;
+  // TODO: We could reduce the overhead here by making the Resize() of
+  // AtomicStack take care of transferring references.
   std::vector<StackReference<mirror::Object>> temp(mark_stack_->Begin(),
                                                    mark_stack_->End());
   mark_stack_->Resize(new_size);
@@ -4733,8 +4872,13 @@ void MarkCompact::VisitRoots(mirror::Object*** roots,
       UpdateRoot(roots[i], moving_space_begin, moving_space_end, info);
     }
   } else {
+    const Verification* verification = GetHeap()->GetVerification();
     for (size_t i = 0; i < count; ++i) {
-      MarkObjectNonNull(*roots[i]);
+      mirror::Object* obj = *roots[i];
+      if (kVerifyGcRootDuringMarking) {
+        CHECK(verification->IsValidObject(obj)) << obj << " info:" << info;
+      }
+      MarkObjectNonNull(obj);
     }
   }
 }
@@ -4750,8 +4894,13 @@ void MarkCompact::VisitRoots(mirror::CompressedReference<mirror::Object>** roots
       UpdateRoot(roots[i], moving_space_begin, moving_space_end, info);
     }
   } else {
+    const Verification* verification = GetHeap()->GetVerification();
     for (size_t i = 0; i < count; ++i) {
-      MarkObjectNonNull(roots[i]->AsMirrorPtr());
+      mirror::Object* obj = roots[i]->AsMirrorPtr();
+      if (kVerifyGcRootDuringMarking) {
+        CHECK(verification->IsValidObject(obj)) << obj << " info:" << info;
+      }
+      MarkObjectNonNull(obj);
     }
   }
 }
@@ -4818,41 +4967,7 @@ void MarkCompact::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, this);
 }
 
-template <typename Visitor>
-class MarkCompact::VisitReferencesVisitor {
- public:
-  explicit VisitReferencesVisitor(Visitor visitor) : visitor_(visitor) {}
-
-  ALWAYS_INLINE void operator()(mirror::Object* obj,
-                                MemberOffset offset,
-                                [[maybe_unused]] bool is_static) const
-      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
-    visitor_(obj->GetFieldObject<mirror::Object>(offset));
-  }
-
-  ALWAYS_INLINE void operator()([[maybe_unused]] ObjPtr<mirror::Class> klass,
-                                ObjPtr<mirror::Reference> ref) const
-      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
-    visitor_(ref.Ptr());
-  }
-
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!root->IsNull()) {
-      VisitRoot(root);
-    }
-  }
-
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_) {
-    visitor_(root->AsMirrorPtr());
-  }
-
- private:
-  Visitor visitor_;
-};
-
-void MarkCompact::VerifyNoMissingCardMarks() {
+void MarkCompact::VerifyNoMissingGenerationalCardMarks() {
   if (kVerifyNoMissingCardMarks) {
     accounting::CardTable* card_table = heap_->GetCardTable();
     auto obj_visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -5198,7 +5313,7 @@ void MarkCompact::FinishPhase(bool performed_compaction) {
     // and card-dirtying by a mutator will spuriosely fail.
     ScopedPause pause(this);
     WriterMutexLock mu(thread_running_gc_, *Locks::heap_bitmap_lock_);
-    VerifyNoMissingCardMarks();
+    VerifyNoMissingGenerationalCardMarks();
   }
   if (kVerifyPostGCObjects && use_generational_) {
     ReaderMutexLock mu(thread_running_gc_, *Locks::mutator_lock_);

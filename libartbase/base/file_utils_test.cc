@@ -141,31 +141,6 @@ TEST_F(FileUtilsTest, GetArtRootSafe) {
   ASSERT_EQ(0, setenv("ANDROID_ART_ROOT", "/this/is/obviously/bogus", /* overwrite */ 1));
   EXPECT_EQ(GetArtRootSafe(&error_msg), "");
 
-  // Inferring the ART root from the location of libartbase only works on target.
-  if (kIsTargetBuild) {
-    // Disabled for now, as we cannot reliably use `GetRootContainingLibartbase`
-    // to find the ART root on target yet (see comment in `GetArtRootSafe`).
-    //
-    // TODO(b/129534335): Re-enable this part of the test on target when the
-    // only instance of libartbase is the one from the ART APEX.
-    if ((false)) {
-      // Unset ANDROID_ART_ROOT and see that it still returns something (as
-      // libartbase code is running).
-      ASSERT_EQ(0, unsetenv("ANDROID_ART_ROOT"));
-      std::string android_art_root3 = GetArtRootSafe(&error_msg);
-      // This should be the same as the other root (modulo realpath), otherwise
-      // the test setup is broken. On non-bionic. On bionic we can be running
-      // with a different libartbase that lives outside of ANDROID_ART_ROOT.
-      UniqueCPtr<char> real_root3(realpath(android_art_root3.c_str(), nullptr));
-#if !defined(__BIONIC__) || defined(__ANDROID__)
-      UniqueCPtr<char> real_root(realpath(android_art_root.c_str(), nullptr));
-      EXPECT_STREQ(real_root.get(), real_root3.get()) << error_msg;
-#else
-      EXPECT_STRNE(real_root3.get(), "") << error_msg;
-#endif
-    }
-  }
-
   // Reset ANDROID_ART_ROOT, as other things may depend on it.
   ASSERT_EQ(0, setenv("ANDROID_ART_ROOT", android_art_root_env.c_str(), /* overwrite */ 1));
 }

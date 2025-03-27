@@ -161,8 +161,10 @@ static constexpr bool kCompactZygote = kMovingCollector;
 // How many reserve entries are at the end of the allocation stack, these are only needed if the
 // allocation stack overflows.
 static constexpr size_t kAllocationStackReserveSize = 1024;
-// Default mark stack size in bytes.
-static const size_t kDefaultMarkStackSize = 64 * KB;
+// Default mark stack size in bytes. Use a smaller size for debug builds to
+// stress stack expansion logic in GC code.
+static const size_t kDefaultMarkStackSize =
+    kIsDebugBuild ? (kMaxPageSize / sizeof(StackReference<mirror::Object>)) : 64 * KB;
 // Define space name.
 static const char* kDlMallocSpaceName[2] = {"main dlmalloc space", "main dlmalloc space 1"};
 static const char* kRosAllocSpaceName[2] = {"main rosalloc space", "main rosalloc space 1"};

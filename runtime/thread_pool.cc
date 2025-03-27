@@ -154,7 +154,8 @@ void* ThreadPoolWorker::Callback(void* arg) {
   runtime->DetachCurrentThread(/* should_run_callbacks= */ false);
   // On zygote fork, we wait for this thread to exit completely. Set to highest Java priority
   // to speed that up.
-  SetPriorityForTid(0 /* this thread */, Thread::PriorityToNiceness(kMaxThreadPriority));
+  constexpr int kJavaMaxPrioNiceness = -8;
+  SetPriorityForTid(0 /* this thread */, kJavaMaxPrioNiceness);
   return nullptr;
 }
 

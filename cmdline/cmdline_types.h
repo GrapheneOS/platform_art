@@ -550,7 +550,7 @@ struct XGcOption {
   // These defaults are used when the command line arguments for -Xgc:
   // are either omitted completely or partially.
   gc::CollectorType collector_type_ = gc::kCollectorTypeDefault;
-  bool verify_pre_gc_heap_ = kIsDebugBuild;
+  bool verify_pre_gc_heap_ = false;
   bool verify_pre_sweeping_heap_ = kIsDebugBuild;
   bool generational_gc = kEnableGenerationalGCByDefault;
   bool verify_post_gc_heap_ = kIsDebugBuild;

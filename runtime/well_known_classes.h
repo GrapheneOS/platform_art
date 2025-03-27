@@ -183,9 +183,8 @@ struct EXPORT WellKnownClasses {
   static ArtField* java_lang_Thread_group;
   static ArtField* java_lang_Thread_lock;
   static ArtField* java_lang_Thread_name;
-  static ArtField* java_lang_Thread_niceness;
-  static ArtField* java_lang_Thread_nativePeer;
   static ArtField* java_lang_Thread_priority;
+  static ArtField* java_lang_Thread_nativePeer;
   static ArtField* java_lang_Thread_systemDaemon;
   static ArtField* java_lang_Thread_unparkedBeforeStart;
   static ArtField* java_lang_ThreadGroup_groups;

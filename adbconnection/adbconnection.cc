@@ -299,7 +299,7 @@ static art::ObjPtr<art::mirror::Object> CreateAdbConnectionThread(art::Thread* s
           system_thread_group_field->GetOffset()));
   return art::WellKnownClasses::java_lang_Thread_init
       ->NewObject<'L', 'L', 'I', 'Z'>(
-          hs, self, system_thread_group, thr_name, /*niceness=*/0, /*daemon=*/true)
+          hs, self, system_thread_group, thr_name, /*priority=*/0, /*daemon=*/true)
       .Get();
 }
 

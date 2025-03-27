@@ -29,6 +29,7 @@
 #define sigaddset64 sigaddset
 #define pthread_sigmask64 pthread_sigmask
 #define sigwait64 sigwait
+#define sigwaitinfo64 sigwaitinfo
 #endif
 
 namespace art HIDDEN {
@@ -53,14 +54,15 @@ class SignalSet {
     }
   }
 
-  int Wait() {
+  int Wait(siginfo_t* info) {
     // Sleep in sigwait() until a signal arrives. gdb causes EINTR failures.
-    int signal_number;
-    int rc = TEMP_FAILURE_RETRY(sigwait64(&set_, &signal_number));
-    if (rc != 0) {
-      PLOG(FATAL) << "sigwait failed";
+    while (true) {
+      int signal_number = TEMP_FAILURE_RETRY(sigwaitinfo64(&set_, info));
+      if (signal_number > 0) {
+        return signal_number;
+      }
+      PLOG(FATAL) << "sigwaitinfo failed";
     }
-    return signal_number;
   }
 
  private:

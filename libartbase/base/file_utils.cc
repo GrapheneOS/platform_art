@@ -92,33 +92,6 @@ static constexpr const char* kApexDefaultPath = "/apex/";
 static constexpr const char* kArtApexDataEnvVar = "ART_APEX_DATA";
 static constexpr const char* kBootImageStem = "boot";
 
-// Get the "root" directory containing the "lib" directory where this instance
-// of the libartbase library (which contains `GetRootContainingLibartbase`) is
-// located:
-// - on host this "root" is normally the Android Root (e.g. something like
-//   "$ANDROID_BUILD_TOP/out/host/linux-x86/");
-// - on target this "root" is normally the ART Root ("/apex/com.android.art").
-// Return the empty string if that directory cannot be found or if this code is
-// run on Windows or macOS.
-static std::string GetRootContainingLibartbase() {
-#if !defined(_WIN32) && !defined(__APPLE__)
-  // Check where libartbase is from, and derive from there.
-  Dl_info info;
-  if (dladdr(reinterpret_cast<const void*>(&GetRootContainingLibartbase), /* out */ &info) != 0) {
-    // Make a duplicate of the fname so dirname can modify it.
-    UniqueCPtr<char> fname(strdup(info.dli_fname));
-
-    char* dir1 = dirname(fname.get());  // This is the lib directory.
-    char* dir2 = dirname(dir1);         // This is the "root" directory.
-    if (OS::DirectoryExists(dir2)) {
-      std::string tmp = dir2;  // Make a copy here so that fname can be released.
-      return tmp;
-    }
-  }
-#endif
-  return "";
-}
-
 static const char* GetAndroidDirSafe(const char* env_var,
                                      const char* default_dir,
                                      bool must_exist,
@@ -154,7 +127,7 @@ static const char* GetAndroidDir(const char* env_var,
 
 std::string GetAndroidRootSafe(std::string* error_msg) {
 #ifdef _WIN32
-  UNUSED(kAndroidRootEnvVar, kAndroidRootDefaultPath, GetRootContainingLibartbase);
+  UNUSED(kAndroidRootEnvVar, kAndroidRootDefaultPath);
   *error_msg = "GetAndroidRootSafe unsupported for Windows.";
   return "";
 #else
@@ -162,16 +135,18 @@ std::string GetAndroidRootSafe(std::string* error_msg) {
   const char* dir = GetAndroidDirSafe(kAndroidRootEnvVar, kAndroidRootDefaultPath,
       /*must_exist=*/ true, &local_error_msg);
   if (dir == nullptr) {
-    // On host, libartbase is currently installed in "$ANDROID_ROOT/lib"
-    // (e.g. something like "$ANDROID_BUILD_TOP/out/host/linux-x86/lib". Use this
-    // information to infer the location of the Android Root (on host only).
-    //
-    // Note that this could change in the future, if we decided to install ART
-    // artifacts in a different location, e.g. within an "ART APEX" directory.
     if (!kIsTargetBuild) {
-      std::string root_containing_libartbase = GetRootContainingLibartbase();
-      if (!root_containing_libartbase.empty()) {
-        return root_containing_libartbase;
+      // On host we assume the gtest binaries are in subdirectories like
+      // .../host/testcases/art_runtime_tests/x86_64/art_runtime_tests/, so
+      // determine the root by going two levels up from that.
+      std::string argv;
+      if (android::base::ReadFileToString("/proc/self/cmdline", &argv)) {
+        // /proc/self/cmdline is the programs 'argv' with elements delimited by '\0'.
+        std::filesystem::path path(argv.substr(0, argv.find('\0')));
+        path = std::filesystem::absolute(path).parent_path();
+        if (path.has_relative_path()) {
+          return path.parent_path();
+        }
       }
     }
     *error_msg = std::move(local_error_msg);
@@ -210,7 +185,7 @@ std::string GetSystemExtRoot() {
 
 static std::string GetArtRootSafe(bool must_exist, /*out*/ std::string* error_msg) {
 #ifdef _WIN32
-  UNUSED(kAndroidArtRootEnvVar, kAndroidArtApexDefaultPath, GetRootContainingLibartbase);
+  UNUSED(kAndroidArtRootEnvVar, kAndroidArtApexDefaultPath);
   UNUSED(must_exist);
   *error_msg = "GetArtRootSafe unsupported for Windows.";
   return "";
@@ -224,30 +199,6 @@ static std::string GetArtRootSafe(bool must_exist, /*out*/ std::string* error_ms
       return "";
     }
     return android_art_root_from_env;
-  }
-
-  // On target, libartbase is normally installed in
-  // "$ANDROID_ART_ROOT/lib(64)" (e.g. something like
-  // "/apex/com.android.art/lib(64)". Use this information to infer the
-  // location of the ART Root (on target only).
-  if (kIsTargetBuild) {
-    // *However*, a copy of libartbase may still be installed outside the
-    // ART Root on some occasions, as ART target gtests install their binaries
-    // and their dependencies under the Android Root, i.e. "/system" (see
-    // b/129534335). For that reason, we cannot reliably use
-    // `GetRootContainingLibartbase` to find the ART Root. (Note that this is
-    // not really a problem in practice, as Android Q devices define
-    // ANDROID_ART_ROOT in their default environment, and will instead use
-    // the logic above anyway.)
-    //
-    // TODO(b/129534335): Re-enable this logic when the only instance of
-    // libartbase on target is the one from the ART APEX.
-    if ((false)) {
-      std::string root_containing_libartbase = GetRootContainingLibartbase();
-      if (!root_containing_libartbase.empty()) {
-        return root_containing_libartbase;
-      }
-    }
   }
 
   // Try the default path.

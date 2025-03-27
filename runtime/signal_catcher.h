@@ -17,11 +17,12 @@
 #ifndef ART_RUNTIME_SIGNAL_CATCHER_H_
 #define ART_RUNTIME_SIGNAL_CATCHER_H_
 
+#include <csignal>
 #include <optional>
 
 #include "android-base/unique_fd.h"
-#include "base/mutex.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 
 namespace art HIDDEN {
 
@@ -52,7 +53,7 @@ class SignalCatcher {
   void Output(const std::string& s);
   void SetHaltFlag(bool new_value) REQUIRES(!lock_);
   bool ShouldHalt() REQUIRES(!lock_);
-  int WaitForSignal(Thread* self, SignalSet& signals) REQUIRES(!lock_);
+  int WaitForSignal(Thread* self, SignalSet& signals, siginfo_t* info) REQUIRES(!lock_);
 
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond_ GUARDED_BY(lock_);

@@ -29,6 +29,8 @@
  * questions.
  */
 
+#define __BIONIC_DISABLE_MALLOC_USABLE_SIZE_FORTIFY_WARNINGS
+
 #include "ti_allocator.h"
 
 #if defined(__APPLE__)

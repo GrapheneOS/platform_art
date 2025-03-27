@@ -165,14 +165,14 @@ void SignalCatcher::HandleSigUsr1() {
   ProfileSaver::ForceProcessProfiles();
 }
 
-int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
+int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals, siginfo_t* info) {
   ScopedThreadStateChange tsc(self, ThreadState::kWaitingInMainSignalCatcherLoop);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
   // is met.  When the signal hits, we wake up, without any signal
   // handlers being invoked.
-  int signal_number = signals.Wait();
+  int signal_number = signals.Wait(info);
   if (!ShouldHalt()) {
     // Let the user know we got the signal, just in case the system's too screwed for us to
     // actually do what they want us to do...
@@ -207,7 +207,8 @@ void* SignalCatcher::Run(void* arg) {
   signals.Add(SIGUSR1);
 
   while (true) {
-    int signal_number = signal_catcher->WaitForSignal(self, signals);
+    siginfo_t info;
+    int signal_number = signal_catcher->WaitForSignal(self, signals, &info);
     if (signal_catcher->ShouldHalt()) {
       runtime->DetachCurrentThread();
       return nullptr;
