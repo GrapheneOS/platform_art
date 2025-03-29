@@ -15,10 +15,6 @@
  */
 
 #include <fcntl.h>
-// Glibc v2.19 doesn't include these in fcntl.h so host builds will fail without.
-#if !defined(FALLOC_FL_PUNCH_HOLE) || !defined(FALLOC_FL_KEEP_SIZE)
-#include <linux/falloc.h>
-#endif
 #include <linux/userfaultfd.h>
 #include <poll.h>
 #include <sys/ioctl.h>

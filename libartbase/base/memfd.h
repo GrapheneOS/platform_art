@@ -20,47 +20,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#if defined(__BIONIC__)
-#include <linux/memfd.h>  // To access memfd flags.
-#else
-
-// If memfd flags don't exist in the current toolchain, define them ourselves.
-#ifndef F_ADD_SEALS
-# define F_ADD_SEALS          (1033)
-#endif
-
-#ifndef F_GET_SEALS
-# define F_GET_SEALS          (1034)
-#endif
-
-#ifndef F_SEAL_SEAL
-# define F_SEAL_SEAL          0x0001
-#endif
-
-#ifndef F_SEAL_SHRINK
-# define F_SEAL_SHRINK        0x0002
-#endif
-
-#ifndef F_SEAL_GROW
-# define F_SEAL_GROW          0x0004
-#endif
-
-#ifndef F_SEAL_WRITE
-# define F_SEAL_WRITE         0x0008
-#endif
-
-#ifndef F_SEAL_FUTURE_WRITE
-# define F_SEAL_FUTURE_WRITE  0x0010
-#endif
-
-#ifndef MFD_CLOEXEC
-# define MFD_CLOEXEC    0x0001U
-#endif
-
-#ifndef MFD_ALLOW_SEALING
-# define MFD_ALLOW_SEALING    0x0002U
-#endif
-
+// This header is also used on Windows.
+#if __has_include(<sys/mman.h>)
+#include <sys/mman.h>
 #endif
 
 namespace art {

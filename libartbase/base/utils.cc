@@ -45,7 +45,6 @@
 #endif
 
 #if defined(__linux__)
-#include <linux/unistd.h>
 // NOLINTNEXTLINE - inclusion of syscall is dependent on arch
 #include <sys/syscall.h>
 #endif

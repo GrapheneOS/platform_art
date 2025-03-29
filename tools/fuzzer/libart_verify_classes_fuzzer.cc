@@ -41,6 +41,8 @@ int skipped_gc_iterations = 0;
 // TODO: These values were obtained from local experimenting. They can be changed after
 // further investigation.
 static constexpr int kMaxSkipGCIterations = 100;
+// Global variable to signal LSAN that we are not leaking memory.
+uint8_t* allocated_signal_stack = nullptr;
 
 namespace art {
 // A class to be friends with ClassLinker and access the internal FindDexCacheDataLocked method.
@@ -137,6 +139,15 @@ extern "C" int LLVMFuzzerInitialize([[maybe_unused]] int* argc, [[maybe_unused]]
   // Runtime::Start, give it away now with `TransitionFromSuspendedToRunnable` until we figure out
   // how to start a Runtime.
   art::Thread::Current()->TransitionFromRunnableToSuspended(art::ThreadState::kNative);
+
+  // Query the current stack and add it to the global variable. Otherwise LSAN complains about a
+  // non-existing leak.
+  stack_t ss;
+  if (sigaltstack(nullptr, &ss) == -1) {
+    PLOG(FATAL) << "sigaltstack failed";
+  }
+  allocated_signal_stack = reinterpret_cast<uint8_t*>(ss.ss_sp);
+
 
   return 0;
 }

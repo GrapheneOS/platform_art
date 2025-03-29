@@ -62,10 +62,6 @@
 #include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #endif
 
-#if defined(__linux__)
-#include <linux/unistd.h>
-#endif
-
 #ifdef ART_TARGET_ANDROID
 #include "android-modules-utils/sdk_level.h"
 #endif
