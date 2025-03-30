@@ -2933,7 +2933,8 @@ class JNI {
     return array;
   }
 
-  static bool IsClassLoaderNamespaceNativelyBridged(JNIEnv* env, jobject jclass_loader) {
+  static bool IsClassLoaderNamespaceNativelyBridged(JNIEnv* env, jobject jclass_loader)
+      REQUIRES(!Locks::mutator_lock_) {
 #if defined(ART_TARGET_ANDROID)
     android::NativeLoaderNamespace* ns =
         android::FindNativeLoaderNamespaceByClassLoader(env, jclass_loader);
