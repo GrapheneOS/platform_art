@@ -1412,6 +1412,49 @@ void CodeGeneratorARM64::MaybeIncrementHotness(HSuspendCheck* suspend_check, boo
   }
 }
 
+void CodeGeneratorARM64::GenerateFrame(Arm64Assembler* assembler,
+                                       int32_t frame_size,
+                                       CPURegList preserved_core_registers,
+                                       CPURegList preserved_fp_registers,
+                                       bool requires_current_method) {
+  // Stack layout:
+  //      sp[frame_size - 8]        : lr.
+  //      ...                       : other preserved core registers.
+  //      ...                       : other preserved fp registers.
+  //      ...                       : reserved frame space.
+  //      sp[0]                     : current method.
+  DCHECK(!preserved_core_registers.IsEmpty());
+  uint32_t core_spill_size = preserved_core_registers.GetTotalSizeInBytes();
+  uint32_t frame_entry_spill_size = preserved_fp_registers.GetTotalSizeInBytes() + core_spill_size;
+  uint32_t core_spills_offset = frame_size - core_spill_size;
+  uint32_t fp_spills_offset = frame_size - frame_entry_spill_size;
+  vixl::aarch64::MacroAssembler* vixl_assembler = assembler->GetVIXLAssembler();
+
+  // Save the current method if we need it, or if using STP reduces code
+  // size. Note that we do not do this in HCurrentMethod, as the
+  // instruction might have been removed in the SSA graph.
+  CPURegister lowest_spill;
+  if (core_spills_offset == kXRegSizeInBytes) {
+    // If there is no gap between the method and the lowest core spill, use
+    // aligned STP pre-index to store both. Max difference is 512. We do
+    // that to reduce code size even if we do not have to save the method.
+    DCHECK_LE(frame_size, 512);  // 32 core registers are only 256 bytes.
+    lowest_spill = preserved_core_registers.PopLowestIndex();
+    vixl_assembler->Stp(kArtMethodRegister, lowest_spill, MemOperand(sp, -frame_size, PreIndex));
+  } else if (requires_current_method) {
+    vixl_assembler->Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
+  } else {
+    vixl_assembler->Claim(frame_size);
+  }
+  assembler->cfi().AdjustCFAOffset(frame_size);
+  if (lowest_spill.IsValid()) {
+    assembler->cfi().RelOffset(DWARFReg(lowest_spill), core_spills_offset);
+    core_spills_offset += kXRegSizeInBytes;
+  }
+  assembler->SpillRegisters(preserved_core_registers, core_spills_offset);
+  assembler->SpillRegisters(preserved_fp_registers, fp_spills_offset);
+}
+
 void CodeGeneratorARM64::GenerateFrameEntry() {
   MacroAssembler* masm = GetVIXLAssembler();
 
@@ -1485,42 +1528,11 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     // Make sure the frame size isn't unreasonably large.
     DCHECK_LE(GetFrameSize(), GetMaximumFrameSize());
 
-    // Stack layout:
-    //      sp[frame_size - 8]        : lr.
-    //      ...                       : other preserved core registers.
-    //      ...                       : other preserved fp registers.
-    //      ...                       : reserved frame space.
-    //      sp[0]                     : current method.
-    int32_t frame_size = dchecked_integral_cast<int32_t>(GetFrameSize());
-    uint32_t core_spills_offset = frame_size - GetCoreSpillSize();
-    CPURegList preserved_core_registers = GetFramePreservedCoreRegisters();
-    DCHECK(!preserved_core_registers.IsEmpty());
-    uint32_t fp_spills_offset = frame_size - FrameEntrySpillSize();
-    CPURegList preserved_fp_registers = GetFramePreservedFPRegisters();
-
-    // Save the current method if we need it, or if using STP reduces code
-    // size. Note that we do not do this in HCurrentMethod, as the
-    // instruction might have been removed in the SSA graph.
-    CPURegister lowest_spill;
-    if (core_spills_offset == kXRegSizeInBytes) {
-      // If there is no gap between the method and the lowest core spill, use
-      // aligned STP pre-index to store both. Max difference is 512. We do
-      // that to reduce code size even if we do not have to save the method.
-      DCHECK_LE(frame_size, 512);  // 32 core registers are only 256 bytes.
-      lowest_spill = preserved_core_registers.PopLowestIndex();
-      __ Stp(kArtMethodRegister, lowest_spill, MemOperand(sp, -frame_size, PreIndex));
-    } else if (RequiresCurrentMethod()) {
-      __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
-    } else {
-      __ Claim(frame_size);
-    }
-    GetAssembler()->cfi().AdjustCFAOffset(frame_size);
-    if (lowest_spill.IsValid()) {
-      GetAssembler()->cfi().RelOffset(DWARFReg(lowest_spill), core_spills_offset);
-      core_spills_offset += kXRegSizeInBytes;
-    }
-    GetAssembler()->SpillRegisters(preserved_core_registers, core_spills_offset);
-    GetAssembler()->SpillRegisters(preserved_fp_registers, fp_spills_offset);
+    GenerateFrame(GetAssembler(),
+                  dchecked_integral_cast<int32_t>(GetFrameSize()),
+                  GetFramePreservedCoreRegisters(),
+                  GetFramePreservedFPRegisters(),
+                  RequiresCurrentMethod());
 
     if (GetGraph()->HasShouldDeoptimizeFlag()) {
       // Initialize should_deoptimize flag to 0.

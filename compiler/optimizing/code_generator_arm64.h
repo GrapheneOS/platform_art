@@ -658,6 +658,12 @@ class CodeGeneratorARM64 : public CodeGenerator {
                      OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorARM64() {}
 
+  static void GenerateFrame(Arm64Assembler* assembler,
+                            int32_t frame_size,
+                            vixl::aarch64::CPURegList preserved_core_registers,
+                            vixl::aarch64::CPURegList preserved_fp_registers,
+                            bool requires_current_method);
+
   void GenerateFrameEntry() override;
   void GenerateFrameExit() override;
 

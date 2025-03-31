@@ -293,8 +293,6 @@ art_gtest_postsubmit_only_module_names = [
 
 # ART gtests not supported in MTS.
 art_gtest_modules_excluded_from_mts = [
-    # TODO(b/347717488): Consider adding this test to ART MTS.
-    "libnativebridge-tests",
 ]
 
 # ART gtests supported in MTS that do not need root access to the device.

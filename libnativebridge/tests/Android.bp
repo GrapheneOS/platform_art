@@ -190,6 +190,7 @@ cc_test {
 
     test_suites: [
         "general-tests",
+        "mts-art",
     ],
 }
 
