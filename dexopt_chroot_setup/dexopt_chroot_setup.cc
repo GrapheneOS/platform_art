@@ -324,14 +324,24 @@ Result<void> BindMountRecursive(const std::string& source, const std::string& ta
       // Match paths for the "u:object_r:apk_tmp_file:s0" file context in
       // system/sepolicy/private/file_contexts.
       std::regex apk_tmp_file_re(R"re((/data|/mnt/expand/[^/]+)/app/vmdl[^/]+\.tmp(/.*)?)re");
-      std::smatch match;
-      if (std::regex_match(entry.mount_point, match, apk_tmp_file_re)) {
+      if (std::regex_match(entry.mount_point, apk_tmp_file_re)) {
         // Don't bother. The mount point is a temporary directory created by Package Manager during
         // app install. We won't be able to dexopt the app there anyway because it's not in the
         // Package Manager's snapshot.
         LOG(INFO) << ART_FORMAT("Skipped temporary mount point '{}'", entry.mount_point);
         continue;
       }
+
+      std::regex vendor_file_re(R"re(/data/vendor(/.*)?)re");
+      if (std::regex_match(entry.mount_point, vendor_file_re)) {
+        // We can't reliably bind-mount vendor-specific files because those files can have
+        // vendor-specific SELinux file contexts, which by design cannot be referenced by
+        // `dexopt_chroot_setup.te`. In practice, we don't need to bind-mount those files because
+        // they are unlikely to contain things useful to us.
+        LOG(INFO) << ART_FORMAT("Skipped vendor mount point '{}'", entry.mount_point);
+        continue;
+      }
+
       return result;
     }
   }

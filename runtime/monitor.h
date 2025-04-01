@@ -159,6 +159,7 @@ class Monitor {
   // attempt_of_4 is in 1..4 inclusive or 0. A non-zero value indicates that we are retrying
   // up to 4 times, and should only abort on 4. Zero means we are only trying once, with the
   // full suspend timeout instead of a quarter.
+  // May temporarily drop and reacquire the mutator lock.
   static void InflateThinLocked(Thread* self,
                                 Handle<mirror::Object> obj,
                                 LockWord lock_word,

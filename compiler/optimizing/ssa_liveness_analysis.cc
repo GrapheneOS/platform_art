@@ -351,7 +351,7 @@ static int RegisterOrLowRegister(Location location) {
   return location.IsPair() ? location.low() : location.reg();
 }
 
-int LiveInterval::FindFirstRegisterHint(size_t* free_until,
+int LiveInterval::FindFirstRegisterHint(ArrayRef<size_t> free_until,
                                         const SsaLivenessAnalysis& liveness) const {
   DCHECK(!IsHighInterval());
   if (IsTemp()) return kNoRegister;

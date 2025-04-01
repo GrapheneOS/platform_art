@@ -784,7 +784,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // Returns the first register hint that is at least free before
   // the value contained in `free_until`. If none is found, returns
   // `kNoRegister`.
-  int FindFirstRegisterHint(size_t* free_until, const SsaLivenessAnalysis& liveness) const;
+  int FindFirstRegisterHint(ArrayRef<size_t> free_until, const SsaLivenessAnalysis& liveness) const;
 
   // If there is enough at the definition site to find a register (for example
   // it uses the same input as the first input), returns the register as a hint.

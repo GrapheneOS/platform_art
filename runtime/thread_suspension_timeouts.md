@@ -1,7 +1,10 @@
 Thread Suspension timeouts in ART
 ---------------------------------
 ART occasionally needs to "suspend" threads for a variety of reasons. "Suspended" threads may
-continue to run, but may not access data structures related to the Java heap. Please see
+continue to run, but may not access data structures related to the Java heap. Threads that are
+blocked indefinitely in ways understood by ART, e.g. because they are waiting on a monitor,
+waiting for Java IO, or in normal (not `@CriticalNative` or `@FastNative`) JNI calls are
+considered to be already suspended, and not subject to this process. Please see
 `mutator_gc_coord.md` for details.
 
 The suspension process usually involves setting a flag for the thread to be "suspended", possibly
@@ -73,6 +76,10 @@ include:
   may again involve removing `@FastNative` or `@CriticalNative` annotations. For ART internal
   code, break up `ScopedObjectAccess` sections or the like, being careful to not hold native
   pointers to Java heap objects across such sections.
+- Avoid calling problem code that is known to not be as responsive to suspension requests as we
+  would like. The most common example of this is generation of Java stack traces. Usually this is
+  fine, but if done very frequently, especially from low priority threads, you may see a
+  non-negligible suspension timeout failure rate, or at least add appreciable jank.
 - Avoid excessive parallelism that is causing some threads to starve.
 - Reduce differences in thread priorities and, if necessary, avoid very low priority threads, for
   the same reason.

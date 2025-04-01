@@ -1112,6 +1112,8 @@ ObjPtr<mirror::Object> Monitor::MonitorEnter(Thread* self,
   obj = FakeLock(obj);
   uint32_t thread_id = self->GetThreadId();
   size_t contention_count = 0;
+  // Initial pure spin iterations before the GetMaxSpinsBeforeThinLockInflation() calls to
+  // sched_yield().
   constexpr size_t kExtraSpinIters = 100;
   int inflation_attempt = 1;
   StackHandleScope<1> hs(self);
@@ -1171,11 +1173,11 @@ ObjPtr<mirror::Object> Monitor::MonitorEnter(Thread* self,
           Runtime* runtime = Runtime::Current();
           if (contention_count
               <= kExtraSpinIters + runtime->GetMaxSpinsBeforeThinLockInflation()) {
-            // TODO: Consider switching the thread state to kWaitingForLockInflation when we are
-            // yielding.  Use sched_yield instead of NanoSleep since NanoSleep can wait much longer
+            // Use sched_yield instead of NanoSleep since NanoSleep can wait much longer
             // than the parameter you pass in. This can cause thread suspension to take excessively
             // long and make long pauses. See b/16307460.
             if (contention_count > kExtraSpinIters) {
+              self->CheckSuspend();
               sched_yield();
             }
           } else {

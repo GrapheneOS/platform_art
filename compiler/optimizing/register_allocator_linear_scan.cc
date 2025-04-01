@@ -701,7 +701,7 @@ void RegisterAllocatorLinearScan::LinearScan() {
   }
 }
 
-static void FreeIfNotCoverAt(LiveInterval* interval, size_t position, size_t* free_until) {
+static void FreeIfNotCoverAt(LiveInterval* interval, size_t position, ArrayRef<size_t> free_until) {
   DCHECK(!interval->IsHighInterval());
   // Note that the same instruction may occur multiple times in the input list,
   // so `free_until` may have changed already.
@@ -728,7 +728,7 @@ static void FreeIfNotCoverAt(LiveInterval* interval, size_t position, size_t* fr
 // Find a free register. If multiple are found, pick the register that
 // is free the longest.
 bool RegisterAllocatorLinearScan::TryAllocateFreeReg(LiveInterval* current) {
-  size_t* free_until = registers_array_;
+  ArrayRef<size_t> free_until(registers_array_, number_of_registers_);
 
   // First set all registers to be free.
   for (size_t i = 0; i < number_of_registers_; ++i) {
@@ -867,7 +867,8 @@ bool RegisterAllocatorLinearScan::IsBlocked(int reg) const {
       : blocked_fp_registers_[reg];
 }
 
-int RegisterAllocatorLinearScan::FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const {
+int RegisterAllocatorLinearScan::FindAvailableRegisterPair(ArrayRef<size_t> next_use,
+                                                           size_t starting_at) const {
   int reg = kNoRegister;
   // Pick the register pair that is used the last.
   for (size_t i = 0; i < number_of_registers_; ++i) {
@@ -900,7 +901,8 @@ bool RegisterAllocatorLinearScan::IsCallerSaveRegister(int reg) const {
   return (registers_blocked_for_call & (1u << reg)) != 0u;
 }
 
-int RegisterAllocatorLinearScan::FindAvailableRegister(size_t* next_use, LiveInterval* current) const {
+int RegisterAllocatorLinearScan::FindAvailableRegister(ArrayRef<size_t> next_use,
+                                                       LiveInterval* current) const {
   // We special case intervals that do not span a safepoint to try to find a caller-save
   // register if one is available. We iterate from 0 to the number of registers,
   // so if there are caller-save registers available at the end, we continue the iteration.
@@ -963,9 +965,8 @@ static ArenaVector<LiveInterval*>::iterator RemoveIntervalAndPotentialOtherHalf(
   }
 }
 
-bool RegisterAllocatorLinearScan::TrySplitNonPairOrUnalignedPairIntervalAt(size_t position,
-                                                                           size_t first_register_use,
-                                                                           size_t* next_use) {
+bool RegisterAllocatorLinearScan::TrySplitNonPairOrUnalignedPairIntervalAt(
+    size_t position, size_t first_register_use, ArrayRef<size_t> next_use) {
   for (auto it = active_.begin(), end = active_.end(); it != end; ++it) {
     LiveInterval* active = *it;
     // Special fixed intervals that represent multiple registers do not report having a register.
@@ -1013,7 +1014,7 @@ bool RegisterAllocatorLinearScan::AllocateBlockedReg(LiveInterval* current) {
   }
 
   // First set all registers as not being used.
-  size_t* next_use = registers_array_;
+  ArrayRef<size_t> next_use(registers_array_, number_of_registers_);
   for (size_t i = 0; i < number_of_registers_; ++i) {
     next_use[i] = kMaxLifetimePosition;
   }

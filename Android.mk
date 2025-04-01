@@ -252,14 +252,14 @@ LOCAL_PATH := $(art_path)
 build-art: build-art-host
 
 # For host, we extract the ICU data from the apex and install it to HOST_OUT/I18N_APEX.
-$(HOST_I18N_DATA): $(TARGET_OUT)/apex/$(I18N_APEX).apex $(HOST_OUT)/bin/deapexer
+$(HOST_I18N_DATA): $(TARGET_OUT)/apex/$(I18N_APEX).apex $(HOST_OUT)/bin/deapexer $(HOST_OUT)/bin/debugfs_static
 	$(call extract-from-apex,$(I18N_APEX))
 	rm -rf $(HOST_OUT)/$(I18N_APEX)
 	mkdir -p $(HOST_OUT)/$(I18N_APEX)/
 	cp -R $(TARGET_OUT)/apex/$(I18N_APEX)/etc/ $(HOST_OUT)/$(I18N_APEX)/
 	touch $@
 
-$(HOST_TZDATA_DATA): $(TARGET_OUT)/apex/$(TZDATA_APEX).apex $(HOST_OUT)/bin/deapexer
+$(HOST_TZDATA_DATA): $(TARGET_OUT)/apex/$(TZDATA_APEX).apex $(HOST_OUT)/bin/deapexer $(HOST_OUT)/bin/debugfs_static
 	$(call extract-from-apex,$(TZDATA_APEX))
 	rm -rf $(HOST_OUT)/$(TZDATA_APEX)
 	mkdir -p $(HOST_OUT)/$(TZDATA_APEX)/

@@ -93,8 +93,8 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   bool ValidateInternal(bool log_fatal_on_failure) const;
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
   void DumpAllIntervals(std::ostream& stream) const;
-  int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
-  int FindAvailableRegister(size_t* next_use, LiveInterval* current) const;
+  int FindAvailableRegisterPair(ArrayRef<size_t> next_use, size_t starting_at) const;
+  int FindAvailableRegister(ArrayRef<size_t> next_use, LiveInterval* current) const;
   bool IsCallerSaveRegister(int reg) const;
 
   // If any inputs require specific registers, block those registers
@@ -124,7 +124,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // Returns whether it was successful at finding such an interval.
   bool TrySplitNonPairOrUnalignedPairIntervalAt(size_t position,
                                                 size_t first_register_use,
-                                                size_t* next_use);
+                                                ArrayRef<size_t> next_use);
 
   // List of intervals for core registers that must be processed, ordered by start
   // position. Last entry is the interval that has the lowest start position.
