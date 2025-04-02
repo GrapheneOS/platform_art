@@ -80,7 +80,10 @@ class RegisterAllocator : public DeletableArenaObject<kArenaAllocRegisterAllocat
 
   // Split `interval` at a position between `from` and `to`. The method will try
   // to find an optimal split position.
-  LiveInterval* SplitBetween(LiveInterval* interval, size_t from, size_t to);
+  static LiveInterval* SplitBetween(LiveInterval* interval,
+                                    size_t from,
+                                    size_t to,
+                                    ArrayRef<HInstruction* const> instructions_from_positions);
 
   // Helper for calling the right typed codegen function for dumping a register.
   void DumpRegister(std::ostream& stream, int reg, RegisterType register_type) const {
@@ -94,6 +97,15 @@ class RegisterAllocator : public DeletableArenaObject<kArenaAllocRegisterAllocat
   // intervals with type `Void` to mark large sets of blocked registers for calls, catch
   // blocks and irreducible loop headers to save memory and improve performance.
   uint32_t GetRegisterMask(LiveInterval* interval, RegisterType register_type) const;
+
+  // Helper function for `GetRegisterMask()` specialized for intervals holding a register.
+  static uint32_t GetSingleRegisterMask(LiveInterval* interval, RegisterType register_type);
+
+  // Helper function for `GetRegisterMask()` specialized for intervals holding blocked registers.
+  static uint32_t GetBlockedRegistersMask(LiveInterval* interval,
+                                          ArrayRef<HInstruction* const> instructions_from_positions,
+                                          size_t number_of_registers,
+                                          uint32_t registers_blocked_for_call);
 
   ScopedArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;

@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include "base/arena_bit_vector.h"
+#include "base/array_ref.h"
 #include "base/bit_vector.h"
 #include "base/intrusive_forward_list.h"
 #include "base/iteration_range.h"
@@ -784,7 +785,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // Returns the first register hint that is at least free before
   // the value contained in `free_until`. If none is found, returns
   // `kNoRegister`.
-  int FindFirstRegisterHint(ArrayRef<size_t> free_until, const SsaLivenessAnalysis& liveness) const;
+  int FindFirstRegisterHint(ArrayRef<size_t> free_until,
+                            ArrayRef<HInstruction* const> instructions_from_positions) const;
 
   // If there is enough at the definition site to find a register (for example
   // it uses the same input as the first input), returns the register as a hint.
@@ -1148,7 +1150,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   static constexpr int kNoRegister = -1;
   static constexpr int kNoSpillSlot = -1;
 
-  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
+  friend class RegisterAllocatorTest;
 
   DISALLOW_COPY_AND_ASSIGN(LiveInterval);
 };
@@ -1209,17 +1211,23 @@ class SsaLivenessAnalysis : public ValueObject {
     return instructions_from_lifetime_position_[index];
   }
 
-  HBasicBlock* GetBlockFromPosition(size_t index) const {
-    HInstruction* instruction = GetInstructionFromPosition(index);
+  ArrayRef<HInstruction* const> GetInstructionsFromPositions() const {
+    return ArrayRef<HInstruction* const>(instructions_from_lifetime_position_);
+  }
+
+  static HBasicBlock* GetBlockFromPosition(
+      size_t index, ArrayRef<HInstruction* const> instructions_from_positions) {
+    HInstruction* instruction = instructions_from_positions[index];
     if (instruction == nullptr) {
       // If we are at a block boundary, get the block following.
-      instruction = GetInstructionFromPosition(index + 1);
+      instruction = instructions_from_positions[index + 1];
     }
     return instruction->GetBlock();
   }
 
-  bool IsAtBlockBoundary(size_t index) const {
-    return GetInstructionFromPosition(index) == nullptr;
+  static bool IsAtBlockBoundary(
+      size_t index, ArrayRef<HInstruction* const> instructions_from_positions) {
+    return instructions_from_positions[index] == nullptr;
   }
 
   HInstruction* GetTempUser(LiveInterval* temp) const {
@@ -1320,8 +1328,7 @@ class SsaLivenessAnalysis : public ValueObject {
   ScopedArenaVector<HInstruction*> instructions_from_lifetime_position_;
   size_t number_of_ssa_values_;
 
-  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
-  ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
+  friend class RegisterAllocatorTest;
 
   DISALLOW_COPY_AND_ASSIGN(SsaLivenessAnalysis);
 };

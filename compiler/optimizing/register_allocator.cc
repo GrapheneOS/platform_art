@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "register_allocator.h"
+#include "register_allocator-inl.h"
 
 #include <iostream>
 #include <sstream>
@@ -129,23 +129,24 @@ void RegisterAllocator::DumpRegister(std::ostream& stream,
 uint32_t RegisterAllocator::GetRegisterMask(LiveInterval* interval,
                                             RegisterType register_type) const {
   if (interval->HasRegister()) {
-    DCHECK_EQ(register_type == RegisterType::kFpRegister,
-              DataType::IsFloatingPointType(interval->GetType()));
-    DCHECK_LE(static_cast<size_t>(interval->GetRegister()), BitSizeOf<uint32_t>());
-    return 1u << interval->GetRegister();
+    return GetSingleRegisterMask(interval, register_type);
   } else if (interval->IsFixed()) {
-    DCHECK_EQ(interval->GetType(), DataType::Type::kVoid);
-    DCHECK(interval->GetFirstRange() != nullptr);
-    size_t start = interval->GetFirstRange()->GetStart();
-    bool blocked_for_call = liveness_.GetInstructionFromPosition(start / 2u) != nullptr;
+    size_t num_registers;
+    uint32_t registers_blocked_for_call;
     switch (register_type) {
       case RegisterType::kCoreRegister:
-        return blocked_for_call ? core_registers_blocked_for_call_
-                                : MaxInt<uint32_t>(num_core_registers_);
+        num_registers = num_core_registers_;
+        registers_blocked_for_call = core_registers_blocked_for_call_;
+        break;
       case RegisterType::kFpRegister:
-        return blocked_for_call ? fp_registers_blocked_for_call_
-                                : MaxInt<uint32_t>(num_fp_registers_);
+        num_registers = num_fp_registers_;
+        registers_blocked_for_call = fp_registers_blocked_for_call_;
+        break;
     }
+    return GetBlockedRegistersMask(interval,
+                                   liveness_.GetInstructionsFromPositions(),
+                                   num_registers,
+                                   registers_blocked_for_call);
   } else {
     return 0u;
   }
@@ -170,18 +171,13 @@ bool RegisterAllocator::ValidateIntervals(ArrayRef<LiveInterval* const> interval
   // that we cannot use in this static member function.
   auto get_register_mask = [&](LiveInterval* interval) {
     if (interval->HasRegister()) {
-      DCHECK_EQ(register_type == RegisterType::kFpRegister,
-                DataType::IsFloatingPointType(interval->GetType()));
-      DCHECK_LE(static_cast<size_t>(interval->GetRegister()), BitSizeOf<uint32_t>());
-      return 1u << interval->GetRegister();
+      return GetSingleRegisterMask(interval, register_type);
     } else if (interval->IsFixed()) {
-      DCHECK_EQ(interval->GetType(), DataType::Type::kVoid);
-      DCHECK(interval->GetFirstRange() != nullptr);
-      size_t start = interval->GetFirstRange()->GetStart();
-      CHECK(liveness != nullptr);
-      bool blocked_for_call = liveness->GetInstructionFromPosition(start / 2u) != nullptr;
-      return blocked_for_call ? registers_blocked_for_call
-                              : MaxInt<uint32_t>(number_of_registers);
+      DCHECK(liveness != nullptr);
+      return GetBlockedRegistersMask(interval,
+                                     liveness->GetInstructionsFromPositions(),
+                                     number_of_registers,
+                                     registers_blocked_for_call);
     } else {
       return 0u;
     }
@@ -304,9 +300,15 @@ LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) 
   }
 }
 
-LiveInterval* RegisterAllocator::SplitBetween(LiveInterval* interval, size_t from, size_t to) {
-  HBasicBlock* block_from = liveness_.GetBlockFromPosition(from / 2);
-  HBasicBlock* block_to = liveness_.GetBlockFromPosition(to / 2);
+LiveInterval* RegisterAllocator::SplitBetween(
+    LiveInterval* interval,
+    size_t from,
+    size_t to,
+    ArrayRef<HInstruction* const> instructions_from_positions) {
+  HBasicBlock* block_from =
+      SsaLivenessAnalysis::GetBlockFromPosition(from / 2, instructions_from_positions);
+  HBasicBlock* block_to =
+      SsaLivenessAnalysis::GetBlockFromPosition(to / 2, instructions_from_positions);
   DCHECK(block_from != nullptr);
   DCHECK(block_to != nullptr);
 

@@ -63,6 +63,9 @@ class RegisterAllocatorTest : public CommonCompilerTest, public OptimizingUnitTe
                                                 /* log_fatal_on_failure= */ false);
   }
 
+  void TestFreeUntil(bool special_first);
+  void TestSpillInactive();
+
   std::unique_ptr<CompilerOptions> compiler_options_;
 };
 
@@ -398,60 +401,74 @@ TEST_F(RegisterAllocatorTest, DeadPhi) {
  * allocating for at the minimum lifetime position between the two inactive intervals.
  * This test only applies to the linear scan allocator.
  */
-TEST_F(RegisterAllocatorTest, FreeUntil) {
-  const std::vector<uint16_t> data = TWO_REGISTERS_CODE_ITEM(
-    Instruction::CONST_4 | 0 | 0,
-    Instruction::RETURN);
+void RegisterAllocatorTest::TestFreeUntil(bool special_first) {
+  HBasicBlock* block = InitEntryMainExitGraphWithReturnVoid();
+  HInstruction* const0 = graph_->GetIntConstant(0);
 
-  HGraph* graph = CreateCFG(data);
-  SsaDeadPhiElimination(graph).Run();
-  x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-  SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+  HAdd* add = MakeBinOp<HAdd>(block, DataType::Type::kInt32, const0, const0);
+  HInstruction* placeholder1 = MakeUnOp<HNeg>(block, DataType::Type::kInt32, const0);
+  HInstruction* placeholder2 = MakeUnOp<HNeg>(block, DataType::Type::kInt32, const0);
+  HInstruction* ret = MakeReturn(block, add);
+
+  graph_->ComputeDominanceInformation();
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
   liveness.Analyze();
-  RegisterAllocatorLinearScan register_allocator(GetScopedAllocator(), &codegen, liveness);
 
-  // Add an artifical range to cover the temps that will be put in the unhandled list.
-  LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
-  unhandled->AddLoopRange(0, 60);
+  // Avoid allocating the register for the `const0` when used by the `add`.
+  add->GetLocations()->SetInAt(0, Location::ConstantLocation(const0));
+  ASSERT_TRUE(add->GetLocations()->InAt(1).IsConstant());
 
-  // Populate the instructions in the liveness object, to please the register allocator.
-  for (size_t i = 0; i < 60; ++i) {
-    liveness.instructions_from_lifetime_position_.push_back(
-        graph->GetEntryBlock()->GetFirstInstruction());
+  // Record placeholder positions for blocking intervals and remove placeholders.
+  size_t blocking_pos1 = placeholder1->GetLiveInterval()->GetStart();
+  size_t blocking_pos2 = placeholder2->GetLiveInterval()->GetStart();
+  auto& const0_uses = const0->GetLiveInterval()->uses_;
+  ASSERT_EQ(4, std::distance(const0_uses.begin(), const0_uses.end()));
+  auto add_it = std::next(const0_uses.begin());
+  ASSERT_TRUE(add_it->GetUser() == add);
+  for (HInstruction* placeholder : {placeholder1, placeholder2}) {
+    block->RemoveInstruction(placeholder);
+    ASSERT_TRUE(std::next(add_it)->GetUser() == placeholder);
+    const0_uses.erase_after(add_it);
+    // Set the block again in the dead placeholders to allow `liveness` to retrieve the block.
+    placeholder->SetBlock(block);
   }
 
-  // For SSA value intervals, only an interval resulted from a split may intersect
-  // with inactive intervals.
-  unhandled = register_allocator.Split(unhandled, 5);
+  RegisterAllocatorLinearScan register_allocator(GetScopedAllocator(), &codegen, liveness);
 
-  // Add three temps holding the same register, and starting at different positions.
-  // Put the one that should be picked in the middle of the inactive list to ensure
-  // we do not depend on an order.
-  LiveInterval* interval =
-      LiveInterval::MakeFixedInterval(GetScopedAllocator(), 0, DataType::Type::kInt32);
-  interval->AddRange(40, 50);
-  register_allocator.inactive_.push_back(interval);
+  // Test two variants, so that we hit the desired configuration once, no matter the order
+  // in which the register allocator inserts the blocking intervals into inactive intervals.
+  size_t call_pos = special_first ? blocking_pos2 : blocking_pos1;
+  size_t special_pos = special_first ? blocking_pos1 : blocking_pos2;
+  register_allocator.block_registers_for_call_interval_->AddRange(call_pos, call_pos + 1);
+  register_allocator.block_registers_special_interval_->AddRange(special_pos, special_pos + 1);
 
-  interval = LiveInterval::MakeFixedInterval(GetScopedAllocator(), 0, DataType::Type::kInt32);
-  interval->AddRange(20, 30);
-  register_allocator.inactive_.push_back(interval);
+  // Set just one register available to make all intervals compete for the same.
+  bool* blocked_registers = codegen.GetBlockedCoreRegisters();
+  std::fill_n(blocked_registers + 1, codegen.GetNumberOfCoreRegisters() - 1, true);
 
-  interval = LiveInterval::MakeFixedInterval(GetScopedAllocator(), 0, DataType::Type::kInt32);
-  interval->AddRange(60, 70);
-  register_allocator.inactive_.push_back(interval);
+  register_allocator.AllocateRegistersInternal();
 
-  register_allocator.number_of_registers_ = 1;
-  register_allocator.registers_array_ = GetAllocator()->AllocArray<size_t>(1);
-  register_allocator.current_register_type_ = RegisterAllocator::RegisterType::kCoreRegister;
-  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
+  std::pair<size_t, int> expected_add_start_and_reg[] = {
+    {add->GetLifetimePosition(), 0},
+    {blocking_pos1, -1},
+  };
+  LiveInterval* li = add->GetLiveInterval();
+  for (const std::pair<size_t, int>& expected_start_and_reg : expected_add_start_and_reg) {
+    ASSERT_TRUE(li != nullptr);
+    ASSERT_EQ(expected_start_and_reg.first, li->GetStart());
+    ASSERT_EQ(expected_start_and_reg.second, li->GetRegister());
+    li = li->GetNextSibling();
+  }
+  ASSERT_TRUE(li == nullptr);
+}
 
-  ASSERT_TRUE(register_allocator.TryAllocateFreeReg(unhandled));
+TEST_F(RegisterAllocatorTest, FreeUntilCallFirst) {
+  TestFreeUntil(/*special_first=*/ false);
+}
 
-  // Check that we have split the interval.
-  ASSERT_EQ(1u, register_allocator.unhandled_->size());
-  // Check that we know need to find a new register where the next interval
-  // that uses the register starts.
-  ASSERT_EQ(20u, register_allocator.unhandled_->front()->GetStart());
+TEST_F(RegisterAllocatorTest, FreeUntilSpecialFirst) {
+  TestFreeUntil(/*special_first=*/ true);
 }
 
 HGraph* RegisterAllocatorTest::BuildIfElseWithPhi(HPhi** phi,
@@ -733,22 +750,12 @@ TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
 // register would lead to spilling an inactive interval at the wrong
 // position.
 // This test only applies to the linear scan allocator.
-TEST_F(RegisterAllocatorTest, SpillInactive) {
-  // Create a synthesized graph to please the register_allocator and
-  // ssa_liveness_analysis code.
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->SetEntryBlock(entry);
+void RegisterAllocatorTest::TestSpillInactive() {
+  HBasicBlock* block = InitEntryMainExitGraphWithReturnVoid();
   HInstruction* one = MakeParam(DataType::Type::kInt32);
   HInstruction* two = MakeParam(DataType::Type::kInt32);
   HInstruction* three = MakeParam(DataType::Type::kInt32);
   HInstruction* four = MakeParam(DataType::Type::kInt32);
-
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  entry->AddSuccessor(block);
-  MakeExit(block);
 
   // We create a synthesized user requesting a register, to avoid just spilling the
   // intervals.
@@ -801,33 +808,31 @@ TEST_F(RegisterAllocatorTest, SpillInactive) {
       new (GetAllocator()) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
   locations->SetOut(Location::RequiresRegister());
 
-  x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-  SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
   // Populate the instructions in the liveness object, to please the register allocator.
-  for (size_t i = 0; i < 32; ++i) {
-    liveness.instructions_from_lifetime_position_.push_back(user);
-  }
+  liveness.instructions_from_lifetime_position_.assign(32, user);
 
   RegisterAllocatorLinearScan register_allocator(GetScopedAllocator(), &codegen, liveness);
-  register_allocator.unhandled_core_intervals_.push_back(fourth);
-  register_allocator.unhandled_core_intervals_.push_back(third);
-  register_allocator.unhandled_core_intervals_.push_back(second);
-  register_allocator.unhandled_core_intervals_.push_back(first);
+  register_allocator.unhandled_core_intervals_.assign({fourth, third, second, first});
 
   // Set just one register available to make all intervals compete for the same.
-  register_allocator.number_of_registers_ = 1;
-  register_allocator.registers_array_ = GetAllocator()->AllocArray<size_t>(1);
-  register_allocator.current_register_type_ = RegisterAllocator::RegisterType::kCoreRegister;
-  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
-  register_allocator.LinearScan();
+  bool* blocked_registers = codegen.GetBlockedCoreRegisters();
+  std::fill_n(blocked_registers + 1, codegen.GetNumberOfCoreRegisters() - 1, true);
+
+  // We have set up all intervals manually and we want `AllocateRegistersInternal()` to run
+  // the linear scan without processing instructions - check that the linear order is empty.
+  ASSERT_TRUE(codegen.GetGraph()->GetLinearOrder().empty());
+  register_allocator.AllocateRegistersInternal();
 
   // Test that there is no conflicts between intervals.
-  ScopedArenaVector<LiveInterval*> intervals(GetScopedAllocator()->Adapter());
-  intervals.push_back(first);
-  intervals.push_back(second);
-  intervals.push_back(third);
-  intervals.push_back(fourth);
+  ScopedArenaVector<LiveInterval*> intervals({first, second, third, fourth},
+                                             GetScopedAllocator()->Adapter());
   ASSERT_TRUE(ValidateIntervals(intervals, codegen));
+}
+
+TEST_F(RegisterAllocatorTest, SpillInactive) {
+  TestSpillInactive();
 }
 
 }  // namespace art

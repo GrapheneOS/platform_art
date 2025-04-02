@@ -776,6 +776,17 @@ class OptimizingUnitTestHelper {
   }
 
   template <typename Type>
+  Type* MakeUnOp(HBasicBlock* block,
+                 DataType::Type result_type,
+                 HInstruction* input,
+                 uint32_t dex_pc = kNoDexPc) {
+    static_assert(std::is_base_of_v<HUnaryOperation, Type>);
+    Type* insn = new (GetAllocator()) Type(result_type, input, dex_pc);
+    AddOrInsertInstruction(block, insn);
+    return insn;
+  }
+
+  template <typename Type>
   Type* MakeBinOp(HBasicBlock* block,
                   DataType::Type result_type,
                   HInstruction* left,

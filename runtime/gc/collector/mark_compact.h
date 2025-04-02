@@ -141,6 +141,8 @@ class MarkCompact final : public GarbageCollector {
   // Called by SIGBUS handler. NO_THREAD_SAFETY_ANALYSIS for mutator-lock, which
   // is asserted in the function.
   bool SigbusHandler(siginfo_t* info) REQUIRES(!lock_) NO_THREAD_SAFETY_ANALYSIS;
+  // Called by SIGSYS handler to detect seccomp deny-listed syscalls.
+  bool SigsysHandler(siginfo_t* info, void* context);
 
   GcType GetGcType() const override { return kGcTypePartial; }
 

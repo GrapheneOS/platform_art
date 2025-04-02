@@ -1512,9 +1512,11 @@ std::string Runtime::GetApexVersions(ArrayRef<const std::string> boot_class_path
     if (info == apex_infos.end() || info->second->getIsFactory()) {
       result += '/';
     } else {
-      // In case lastUpdateMillis field is populated in apex-info-list.xml, we
-      // prefer to use it as version scheme. If the field is missing we
-      // fallback to the version code of the APEX.
+      // In case lastUpdateMillis field is populated in apex-info-list.xml, we prefer to use it as
+      // version scheme.
+      // If the field is missing we fallback to the version code of the APEX. This only happens
+      // when apexd cannot stat the APEX, which should be very rare in practice because we would
+      // probably have crashed already due to apexd failing to mount the APEX.
       uint64_t version = info->second->hasLastUpdateMillis()
           ? info->second->getLastUpdateMillis()
           : info->second->getVersionCode();

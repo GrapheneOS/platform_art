@@ -296,7 +296,10 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
     // Split just before first register use.
     size_t first_register_use = current->FirstRegisterUse();
     if (first_register_use != kNoLifetime) {
-      LiveInterval* split = SplitBetween(current, current->GetStart(), first_register_use - 1);
+      LiveInterval* split = SplitBetween(current,
+                                         current->GetStart(),
+                                         first_register_use - 1,
+                                         liveness_.GetInstructionsFromPositions());
       // Don't add directly to `unhandled`, it needs to be sorted and the start
       // of this new interval might be after intervals already in the list.
       AddSorted(&unhandled, split);
@@ -818,7 +821,7 @@ bool RegisterAllocatorLinearScan::TryAllocateFreeReg(LiveInterval* current) {
     }
   } else {
     DCHECK(!current->IsHighInterval());
-    int hint = current->FindFirstRegisterHint(free_until, liveness_);
+    int hint = current->FindFirstRegisterHint(free_until, liveness_.GetInstructionsFromPositions());
     if ((hint != kNoRegister)
         // For simplicity, if the hint we are getting for a pair cannot be used,
         // we are just going to allocate a new pair.
@@ -854,7 +857,10 @@ bool RegisterAllocatorLinearScan::TryAllocateFreeReg(LiveInterval* current) {
     // If the register is only available for a subset of live ranges
     // covered by `current`, split `current` before the position where
     // the register is not available anymore.
-    LiveInterval* split = SplitBetween(current, current->GetStart(), free_until[reg]);
+    LiveInterval* split = SplitBetween(current,
+                                       current->GetStart(),
+                                       free_until[reg],
+                                       liveness_.GetInstructionsFromPositions());
     DCHECK(split != nullptr);
     AddSorted(unhandled_, split);
   }
@@ -1120,7 +1126,10 @@ bool RegisterAllocatorLinearScan::AllocateBlockedReg(LiveInterval* current) {
       // If the first use of that instruction is after the last use of the found
       // register, we split this interval just before its first register use.
       AllocateSpillSlotFor(current);
-      LiveInterval* split = SplitBetween(current, current->GetStart(), first_register_use - 1);
+      LiveInterval* split = SplitBetween(current,
+                                         current->GetStart(),
+                                         first_register_use - 1,
+                                         liveness_.GetInstructionsFromPositions());
       DCHECK(current != split);
       AddSorted(unhandled_, split);
     }

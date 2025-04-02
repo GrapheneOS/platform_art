@@ -1549,12 +1549,16 @@ class Runtime {
   metrics::ArtMetrics metrics_;
   std::unique_ptr<metrics::MetricsReporter> metrics_reporter_;
 
-  // Apex versions of boot classpath jars concatenated in a string. The format
-  // is of the type:
-  // '/apex1_version/apex2_version//'
+  // Apex timestamps of boot classpath jars concatenated in a string, one timestamp per jar, in the
+  // same order as the boot classpath. Each entry is a slash (`/`) followed by the mtime of the
+  // owning apex, in seconds, stringified without leading zeros, indicating the apex install time.
+  // - If an apex contributes multiple jars to the boot classpath, the apex timestamp is repeated.
+  // - If an apex is in the factory version, we only encode a slash (`/`) (like the third and fourth
+  //   entries in the example below).
+  // - If a jar is not owned by an apex, we don't encode it at all (not even a slash).
   //
-  // When the apex is the factory version, we don't encode it (for example in
-  // the third entry in the example above).
+  // The format is of the type:
+  // '/apex_timestamp_1/apex_timestamp_2//'
   std::string apex_versions_;
 
   // The info about the application code paths.

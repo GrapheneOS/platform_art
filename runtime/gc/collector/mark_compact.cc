@@ -896,9 +896,10 @@ void MarkCompact::InitMovingSpaceFirstObjects(size_t vec_len, size_t to_space_pa
 
   // Find the first live word.
   size_t chunk_idx = to_space_page_idx * (gPageSize / kOffsetChunkSize);
-  DCHECK_LT(chunk_idx, vec_len);
+  CHECK_LT(chunk_idx, vec_len);
   // Find the first live word in the space
-  for (; chunk_info_vec_[chunk_idx] == 0; chunk_idx++) {
+  while (chunk_info_vec_[chunk_idx] == 0) {
+    chunk_idx++;
     if (chunk_idx >= vec_len) {
       // We don't have any live data on the moving-space.
       moving_first_objs_count_ = to_space_page_idx;
@@ -3540,6 +3541,12 @@ void MarkCompact::KernelPreparation() {
       KernelPrepareRangeForUffd(data.begin_, data.shadow_.Begin(), data.shadow_.Size());
     }
   }
+}
+
+bool MarkCompact::SigsysHandler(siginfo_t* info, void* context) {
+  CHECK_EQ(info->si_signo, SIGSYS);
+  DCHECK_NE(context, nullptr);
+  return false;
 }
 
 bool MarkCompact::SigbusHandler(siginfo_t* info) {

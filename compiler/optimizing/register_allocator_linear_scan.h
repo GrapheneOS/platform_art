@@ -193,8 +193,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;
 
-  ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
-  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
+  friend class RegisterAllocatorTest;
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocatorLinearScan);
 };
