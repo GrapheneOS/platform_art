@@ -40,7 +40,7 @@ bool SideEffectsAnalysis::Run() {
   for (HBasicBlock* block : graph_->GetPostOrder()) {
     SideEffects effects = SideEffects::None();
     // Update `effects` with the side effects of all instructions in this block.
-    for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
+    for (HInstructionIteratorPrefetchNext inst_it(block->GetInstructions()); !inst_it.Done();
          inst_it.Advance()) {
       HInstruction* instruction = inst_it.Current();
       effects = effects.Union(instruction->GetSideEffects());

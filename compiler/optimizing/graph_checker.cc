@@ -279,7 +279,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Visit this block's list of phis.
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     // Ensure this block's list of phis contains only phis.
     if (!current->IsPhi()) {
@@ -296,7 +296,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Visit this block's list of instructions.
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     // Ensure this block's list of instructions does not contains phis.
     if (current->IsPhi()) {
@@ -539,8 +539,9 @@ bool GraphChecker::ContainedInItsBlockList(HInstruction* instruction) {
     const HInstructionList& instruction_list = instruction->IsPhi() ?
                                                    instruction->GetBlock()->GetPhis() :
                                                    instruction->GetBlock()->GetInstructions();
-    for (HInstructionIterator list_it(instruction_list); !list_it.Done(); list_it.Advance()) {
-        map_it->second.insert(list_it.Current());
+    for (HInstructionIteratorPrefetchNext list_it(instruction_list); !list_it.Done();
+         list_it.Advance()) {
+      map_it->second.insert(list_it.Current());
     }
   }
   return map_it->second.find(instruction) != map_it->second.end();
@@ -718,7 +719,8 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     const HTryBoundary& entry = instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
     for (HBasicBlock* catch_block : entry.GetExceptionHandlers()) {
       const HEnvironment* environment = catch_block->GetFirstInstruction()->GetEnvironment();
-      for (HInstructionIterator phi_it(catch_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      for (HInstructionIteratorPrefetchNext phi_it(catch_block->GetPhis()); !phi_it.Done();
+           phi_it.Advance()) {
         HPhi* catch_phi = phi_it.Current()->AsPhi();
         if (environment->GetInstructionAt(catch_phi->GetRegNumber()) == nullptr) {
           AddError(
@@ -1148,7 +1150,7 @@ void GraphChecker::VisitPhi(HPhi* phi) {
   // created for constants which were untyped in DEX. Note that this test can be skipped for
   // a synthetic phi (indicated by lack of a virtual register).
   if (phi->GetRegNumber() != kNoRegNumber) {
-    for (HInstructionIterator phi_it(phi->GetBlock()->GetPhis());
+    for (HInstructionIteratorPrefetchNext phi_it(phi->GetBlock()->GetPhis());
          !phi_it.Done();
          phi_it.Advance()) {
       HPhi* other_phi = phi_it.Current()->AsPhi();
@@ -1365,7 +1367,7 @@ void GraphChecker::CheckWriteBarrier(HInstruction* instruction,
   // B) There's no instruction between them that can trigger a GC.
   HInstruction* object = HuntForOriginalReference(instruction->InputAt(0));
   bool found = false;
-  for (HBackwardInstructionIterator it(instruction); !it.Done(); it.Advance()) {
+  for (HBackwardInstructionIteratorPrefetchNext it(instruction); !it.Done(); it.Advance()) {
     if (instruction->GetKind() == it.Current()->GetKind() &&
         object == HuntForOriginalReference(it.Current()->InputAt(0)) &&
         get_write_barrier_kind(it.Current()) == WriteBarrierKind::kEmitBeingReliedOn) {

@@ -118,7 +118,8 @@ inline void RemoveSuspendChecks(HGraph* graph) {
       if (block->GetLoopInformation() != nullptr) {
         block->GetLoopInformation()->SetSuspendCheck(nullptr);
       }
-      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done();
+           it.Advance()) {
         HInstruction* current = it.Current();
         if (current->IsSuspendCheck()) {
           current->GetBlock()->RemoveInstruction(current);

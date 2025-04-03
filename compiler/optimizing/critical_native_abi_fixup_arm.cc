@@ -51,7 +51,7 @@ bool CriticalNativeAbiFixupArm::Run() {
   }
 
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInvokeStaticOrDirect() &&
           instruction->AsInvokeStaticOrDirect()->GetCodePtrLocation() ==

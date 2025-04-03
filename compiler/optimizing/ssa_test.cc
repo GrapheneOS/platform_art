@@ -72,10 +72,10 @@ class SsaPrettyPrinter : public HPrettyPrinter {
 static void ReNumberInstructions(HGraph* graph) {
   int id = 0;
   for (HBasicBlock* block : graph->GetBlocks()) {
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       it.Current()->SetId(id++);
     }
   }
@@ -90,7 +90,7 @@ void SsaTest::TestCode(const std::vector<uint16_t>& data, const char* expected) 
 
   // Test that phis had their type set.
   for (HBasicBlock* block : graph->GetBlocks()) {
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       ASSERT_NE(it.Current()->GetType(), DataType::Type::kVoid);
     }
   }

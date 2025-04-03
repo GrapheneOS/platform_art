@@ -1618,7 +1618,8 @@ static HInstruction* FindOrConstructNonLoopPhi(
     HBasicBlock* block,
     const ScopedArenaVector<HInstruction*>& phi_inputs,
     DataType::Type type) {
-  for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+  for (HInstructionIteratorPrefetchNext phi_it(block->GetPhis()); !phi_it.Done();
+       phi_it.Advance()) {
     HInstruction* phi = phi_it.Current();
     DCHECK_EQ(phi->InputCount(), phi_inputs.size());
     auto cmp = [](HInstruction* lhs, const HUserRecord<HInstruction*>& rhs) {
@@ -2241,7 +2242,8 @@ bool LSEVisitor::MaterializeLoopPhis(ArrayRef<const size_t> phi_placeholder_inde
     size_t idx = phi_placeholder.GetHeapLocation();
     HBasicBlock* block = GetGraph()->GetBlocks()[phi_placeholder.GetBlockId()];
     ArrayRef<HBasicBlock* const> predecessors(block->GetPredecessors());
-    for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+    for (HInstructionIteratorPrefetchNext phi_it(block->GetPhis()); !phi_it.Done();
+         phi_it.Advance()) {
       HInstruction* phi = phi_it.Current();
       DCHECK_EQ(phi->InputCount(), predecessors.size());
       ArrayRef<HUserRecord<HInstruction*>> phi_inputs = phi->GetInputRecords();

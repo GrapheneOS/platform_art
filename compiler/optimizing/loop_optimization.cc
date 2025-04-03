@@ -788,7 +788,7 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   // the last value and remove the induction cycle.
   // Examples: for (int i = 0; x != null;   i++) { .... no i .... }
   //           for (int i = 0; i < 10; i++, k++) { .... no k .... } return k;
-  for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(header->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
     if (TrySetPhiInduction(phi, /*restrict_uses*/ true) &&
         TryAssignLastValue(node->loop_info, phi, preheader, /*collect_loop_uses*/ false)) {
@@ -1162,7 +1162,7 @@ bool HLoopOptimization::CanVectorizeDataFlow(LoopNode* node,
 
     // Scan the loop-body instructions, starting a right-hand-side tree traversal at each
     // left-hand-side occurrence, which allows passing down attributes down the use tree.
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       if (!VectorizeDef(node, it.Current(), /*generate_code*/ false)) {
         return false;  // failure to vectorize a left-hand-side
       }
@@ -1639,7 +1639,8 @@ void HLoopOptimization::GenerateNewLoopPredicated(LoopNode* node,
        block_it.Advance()) {
     HBasicBlock* cur_block = block_it.Current();
 
-    for (HInstructionIterator it(cur_block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(cur_block->GetInstructions()); !it.Done();
+         it.Advance()) {
       auto i = vector_map_->find(it.Current());
       if (i != vector_map_->end()) {
         HInstruction* instr = i->second;
@@ -1686,7 +1687,8 @@ void HLoopOptimization::GenerateNewLoopBodyOnce(LoopNode* node,
       continue;
     }
 
-    for (HInstructionIterator it(cur_block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(cur_block->GetInstructions()); !it.Done();
+         it.Advance()) {
       bool vectorized_def = VectorizeDef(node, it.Current(), /*generate_code*/ true);
       DCHECK(vectorized_def);
     }
@@ -1703,7 +1705,8 @@ void HLoopOptimization::GenerateNewLoopBodyOnce(LoopNode* node,
       continue;
     }
 
-    for (HInstructionIterator it(cur_block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(cur_block->GetInstructions()); !it.Done();
+         it.Advance()) {
       auto i = vector_map_->find(it.Current());
       if (i != vector_map_->end() && !i->second->IsInBlock()) {
         Insert(vector_body_, i->second);
@@ -2978,7 +2981,7 @@ bool HLoopOptimization::TrySetSimpleLoopHeader(HBasicBlock* block, /*out*/ HPhi*
   // (1) optional reductions in loop,
   // (2) the main induction, used in loop control.
   HPhi* phi = nullptr;
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     if (TrySetPhiReduction(it.Current()->AsPhi())) {
       continue;
     } else if (phi == nullptr) {
@@ -3018,7 +3021,7 @@ bool HLoopOptimization::IsEmptyBody(HBasicBlock* block) {
   if (!block->GetPhis().IsEmpty()) {
     return false;
   }
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* instruction = it.Current();
     if (!instruction->IsGoto() && iset_->find(instruction) == iset_->end()) {
       return false;
@@ -3118,7 +3121,7 @@ bool HLoopOptimization::TryAssignLastValue(HLoopInformation* loop_info,
 }
 
 void HLoopOptimization::RemoveDeadInstructions(const HInstructionList& list) {
-  for (HBackwardInstructionIterator i(list); !i.Done(); i.Advance()) {
+  for (HBackwardInstructionIteratorPrefetchNext i(list); !i.Done(); i.Advance()) {
     HInstruction* instruction = i.Current();
     if (instruction->IsDeadAndRemovable()) {
       simplified_ = true;

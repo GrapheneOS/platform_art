@@ -16,14 +16,16 @@
 
 #include "well_known_classes.h"
 
-#include <stdlib.h>
-
-#include <sstream>
-
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
+#include <stdlib.h>
 
+#include <cstddef>
+#include <sstream>
+
+#include "art_field.h"
 #include "art_method-inl.h"
+#include "art_method.h"
 #include "base/casts.h"
 #include "base/pointer_size.h"
 #include "class_linker.h"
@@ -49,6 +51,7 @@ jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_NeverCompile;
 jclass WellKnownClasses::dalvik_annotation_optimization_NeverInline;
+jclass WellKnownClasses::dalvik_system_VirtualThreadFrame__array;
 jclass WellKnownClasses::java_lang_annotation_Annotation__array;
 jclass WellKnownClasses::java_lang_ClassValue;
 jclass WellKnownClasses::java_lang_Record;
@@ -83,6 +86,7 @@ ArtMethod* WellKnownClasses::java_lang_Integer_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Long_valueOf;
 ArtMethod* WellKnownClasses::java_lang_NoClassDefFoundError_init;
 ArtMethod* WellKnownClasses::java_lang_OutOfMemoryError_init;
+ArtMethod* WellKnownClasses::java_lang_Runnable_run;
 ArtMethod* WellKnownClasses::java_lang_Runtime_nativeLoad;
 ArtMethod* WellKnownClasses::java_lang_RuntimeException_init;
 ArtMethod* WellKnownClasses::java_lang_Short_valueOf;
@@ -90,6 +94,7 @@ ArtMethod* WellKnownClasses::java_lang_StackOverflowError_init;
 ArtMethod* WellKnownClasses::java_lang_String_charAt;
 ArtMethod* WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 ArtMethod* WellKnownClasses::java_lang_Thread_init;
+ArtMethod* WellKnownClasses::java_lang_Thread_parkVirtualInternal;
 ArtMethod* WellKnownClasses::java_lang_Thread_run;
 ArtMethod* WellKnownClasses::java_lang_ThreadGroup_add;
 ArtMethod* WellKnownClasses::java_lang_ThreadGroup_threadTerminated;
@@ -126,6 +131,12 @@ ArtField* WellKnownClasses::dalvik_system_DexFile_fileName;
 ArtField* WellKnownClasses::dalvik_system_DexPathList_dexElements;
 ArtField* WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 ArtField* WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadContext_parkedStates;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadContext_pinnedCarrierThread;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadParkedStates_frames;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadFrame_frame;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadFrame_refs;
+ArtField* WellKnownClasses::dalvik_system_VirtualThreadFrame_declaringClass;
 ArtField* WellKnownClasses::java_io_FileDescriptor_descriptor;
 ArtField* WellKnownClasses::java_lang_ref_Reference_disableIntrinsic;
 ArtField* WellKnownClasses::java_lang_ref_Reference_slowPathEnabled;
@@ -141,6 +152,7 @@ ArtField* WellKnownClasses::java_lang_Thread_priority;
 ArtField* WellKnownClasses::java_lang_Thread_nativePeer;
 ArtField* WellKnownClasses::java_lang_Thread_systemDaemon;
 ArtField* WellKnownClasses::java_lang_Thread_unparkedBeforeStart;
+ArtField* WellKnownClasses::java_lang_Thread_target;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_groups;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_ngroups;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
@@ -365,6 +377,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
       CacheClass(env, "dalvik/annotation/optimization/NeverCompile");
   dalvik_annotation_optimization_NeverInline =
       CacheClass(env, "dalvik/annotation/optimization/NeverInline");
+  dalvik_system_VirtualThreadFrame__array = CacheClass(env, "[Ldalvik/system/VirtualThreadFrame;");
 
   java_lang_annotation_Annotation__array = CacheClass(env, "[Ljava/lang/annotation/Annotation;");
   java_lang_ClassValue = CacheClass(env, "java/lang/ClassValue");
@@ -431,7 +444,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Long_value = CacheValueInBoxField(
       class_linker, self, "Ljava/lang/Long;", "J");
 
-  StackHandleScope<45u> hs(self);
+  StackHandleScope<49u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/BaseDexClassLoader;"));
   Handle<mirror::Class> d_s_dlcl =
@@ -450,6 +463,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/PathClassLoader;"));
   Handle<mirror::Class> d_s_vmr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMRuntime;"));
+  Handle<mirror::Class> d_s_vtc =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VirtualThreadContext;"));
+  Handle<mirror::Class> d_s_vtps = hs.NewHandle(
+      FindSystemClass(class_linker, self, "Ldalvik/system/VirtualThreadParkedStates;"));
+  Handle<mirror::Class> d_s_vtf =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VirtualThreadFrame;"));
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
   Handle<mirror::Class> j_l_bcl =
@@ -468,6 +487,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/NoClassDefFoundError;"));
   Handle<mirror::Class> j_l_OutOfMemoryError =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/OutOfMemoryError;"));
+  Handle<mirror::Class> j_l_Runnable =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Runnable;"));
   Handle<mirror::Class> j_l_RuntimeException =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/RuntimeException;"));
   Handle<mirror::Class> j_l_StackOverflowError =
@@ -602,6 +623,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       j_l_NoClassDefFoundError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
   java_lang_OutOfMemoryError_init = CacheMethod(
       j_l_OutOfMemoryError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_Runnable_run =
+      CacheMethod(j_l_Runnable.Get(), /*is_static=*/false, "run", "()V", pointer_size);
   java_lang_RuntimeException_init = CacheMethod(
       j_l_RuntimeException.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
   java_lang_StackOverflowError_init = CacheMethod(
@@ -623,6 +646,13 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       "<init>",
       "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V",
       pointer_size);
+  java_lang_Thread_parkVirtualInternal =
+      CacheMethod(j_l_Thread.Get(),
+                  /*is_static=*/true,
+                  "parkVirtualInternal",
+                  "(Ldalvik/system/VirtualThreadContext;Ldalvik/system/"
+                  "VirtualThreadParkedStates;Ldalvik/system/VirtualThreadParkingError;)V",
+                  pointer_size);
   java_lang_Thread_run = CacheMethod(
       j_l_Thread.Get(), /*is_static=*/ false, "run", "()V", pointer_size);
   java_lang_ThreadGroup_add = CacheMethod(
@@ -789,6 +819,32 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       /*is_static=*/ true,
       "nonSdkApiUsageConsumer",
       "Ljava/util/function/Consumer;");
+  dalvik_system_VirtualThreadContext_parkedStates =
+      CacheField(d_s_vtc.Get(),
+                 /*is_static=*/false,
+                 "parkedStates",
+                 "Ldalvik/system/VirtualThreadParkedStates;");
+  dalvik_system_VirtualThreadContext_pinnedCarrierThread = CacheField(d_s_vtc.Get(),
+                                                                      /*is_static=*/false,
+                                                                      "pinnedCarrierThread",
+                                                                      "Ljava/lang/Thread;");
+  dalvik_system_VirtualThreadParkedStates_frames =
+      CacheField(d_s_vtps.Get(),
+                 /*is_static=*/false,
+                 "frames",
+                 "[Ldalvik/system/VirtualThreadFrame;");
+  dalvik_system_VirtualThreadFrame_frame = CacheField(d_s_vtf.Get(),
+                                                      /*is_static=*/false,
+                                                      "frame",
+                                                      "[B");
+  dalvik_system_VirtualThreadFrame_refs = CacheField(d_s_vtf.Get(),
+                                                     /*is_static=*/false,
+                                                     "refs",
+                                                     "[Ljava/lang/Object;");
+  dalvik_system_VirtualThreadFrame_declaringClass = CacheField(d_s_vtf.Get(),
+                                                               /*is_static=*/false,
+                                                               "declaringClass",
+                                                               "Ljava/lang/Class;");
 
   java_io_FileDescriptor_descriptor = CacheField(
       j_i_fd.Get(), /*is_static=*/ false, "descriptor", "I");
@@ -814,6 +870,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       CacheField(j_l_Thread.Get(), /*is_static=*/ false, "systemDaemon", "Z");
   java_lang_Thread_unparkedBeforeStart =
       CacheField(j_l_Thread.Get(), /*is_static=*/ false, "unparkedBeforeStart", "Z");
+  java_lang_Thread_target =
+      CacheField(j_l_Thread.Get(), /*is_static=*/false, "target", "Ljava/lang/Runnable;");
 
   java_lang_ThreadGroup_groups =
       CacheField(j_l_tg.Get(), /*is_static=*/ false, "groups", "[Ljava/lang/ThreadGroup;");
@@ -914,6 +972,7 @@ void WellKnownClasses::Clear() {
   dalvik_annotation_optimization_FastNative = nullptr;
   dalvik_annotation_optimization_NeverCompile = nullptr;
   dalvik_annotation_optimization_NeverInline = nullptr;
+  dalvik_system_VirtualThreadFrame__array = nullptr;
   java_lang_annotation_Annotation__array = nullptr;
   java_lang_ClassValue = nullptr;
   java_lang_Record = nullptr;
@@ -949,6 +1008,7 @@ void WellKnownClasses::Clear() {
   java_lang_Long_valueOf = nullptr;
   java_lang_NoClassDefFoundError_init = nullptr;
   java_lang_OutOfMemoryError_init = nullptr;
+  java_lang_Runnable_run = nullptr;
   java_lang_Runtime_nativeLoad = nullptr;
   java_lang_RuntimeException_init = nullptr;
   java_lang_Short_valueOf = nullptr;
@@ -956,6 +1016,7 @@ void WellKnownClasses::Clear() {
   java_lang_String_charAt = nullptr;
   java_lang_Thread_dispatchUncaughtException = nullptr;
   java_lang_Thread_init = nullptr;
+  java_lang_Thread_parkVirtualInternal = nullptr;
   java_lang_Thread_run = nullptr;
   java_lang_ThreadGroup_add = nullptr;
   java_lang_ThreadGroup_threadTerminated = nullptr;

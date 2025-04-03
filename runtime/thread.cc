@@ -33,11 +33,9 @@
 #include <sstream>
 
 #include "android-base/file.h"
+#include "android-base/macros.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
-#include "unwindstack/AndroidUnwinder.h"
-
 #include "arch/context-inl.h"
 #include "arch/context.h"
 #include "art_field-inl.h"
@@ -72,6 +70,7 @@
 #include "gc/space/space-inl.h"
 #include "gc_root.h"
 #include "handle_scope-inl.h"
+#include "handle_scope.h"
 #include "indirect_reference_table-inl.h"
 #include "instrumentation.h"
 #include "intern_table.h"
@@ -82,6 +81,7 @@
 #include "jni/jni_internal.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/object.h"
 #include "mirror/object_array-alloc-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_frame_info.h"
@@ -96,6 +96,7 @@
 #include "oat/oat_quick_method_header.h"
 #include "oat/stack_map.h"
 #include "obj_ptr-inl.h"
+#include "obj_ptr.h"
 #include "object_lock.h"
 #include "palette/palette.h"
 #include "quick/quick_method_frame_info.h"
@@ -106,13 +107,14 @@
 #include "runtime-inl.h"
 #include "runtime.h"
 #include "runtime_callbacks.h"
-#include "scoped_thread_state_change-inl.h"
 #include "scoped_disable_public_sdk_checker.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "trace.h"
 #include "trace_profile.h"
+#include "unwindstack/AndroidUnwinder.h"
 #include "verify_object.h"
 #include "well_known_classes-inl.h"
 
@@ -671,10 +673,40 @@ void* Thread::CreateCallback(void* arg) {
     if (should_unpark) {
       self->Unpark();
     }
-    // Invoke the 'run' method of our java.lang.Thread.
+
     ObjPtr<mirror::Object> receiver = self->tlsPtr_.opeer;
-    WellKnownClasses::java_lang_Thread_run->InvokeVirtual<'V'>(self, receiver);
+    ObjPtr<mirror::Object> runnable =
+        WellKnownClasses::java_lang_Thread_target->GetObject(receiver);
+    // When the runnable is a VirtualThreadContext, don't run thread.run() and treat it as a virtual
+    // thread.
+    if (kIsVirtualThreadEnabled &&
+        UNLIKELY(
+            !runnable.IsNull() &&
+            runnable->InstanceOf(WellKnownClasses::dalvik_system_VirtualThreadContext.Get()))) {
+      self->SetVirtualThreadFlags(VirtualThreadFlag::kIsVirtual, true);
+      ObjPtr<mirror::Object> parked_states =
+          WellKnownClasses::dalvik_system_VirtualThreadContext_parkedStates->GetObject(runnable);
+      if (parked_states != nullptr) {
+        self->SetVirtualThreadFlags(VirtualThreadFlag::kUnparking, true);
+      }
+
+      // Invoke the Runnable.run() method to avoid holding a reference of opeer in the managed
+      // stack.
+      WellKnownClasses::java_lang_Runnable_run->InvokeInterface<'V'>(self, runnable);
+
+      // When a virtual thread is parked, we expect and clear the VirtualThreadParkingError used to
+      // unwind the native stack.
+      if (self->IsExceptionPending() && self->IsVirtualThreadParking()) {
+        DCHECK(self->GetException()->GetClass()->DescriptorEquals(
+            "Ldalvik/system/VirtualThreadParkingError;"));
+        self->ClearException();
+      }
+    } else {
+      // Invoke the 'run' method of our java.lang.Thread.
+      WellKnownClasses::java_lang_Thread_run->InvokeVirtual<'V'>(self, receiver);
+    }
   }
+
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self, /* should_run_callbacks= */ true);
 
@@ -4026,7 +4058,11 @@ std::unique_ptr<Context> Thread::QuickDeliverException(bool skip_method_exit_cal
   // listeners are installed and frame pop feature is supported.
   bool needs_deopt =
       instrumentation->HasMethodExitListeners() && Runtime::Current()->AreNonStandardExitsEnabled();
-  if (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter() || needs_deopt) {
+  // parkVirtualInternal throws an exception when parking a virtual thread. It's not a
+  // deoptimization request.
+  bool is_parking_vthread = this->IsVirtualThreadParking();
+  if (!is_parking_vthread &&
+      (Dbg::IsForcedInterpreterNeededForException(this) || IsForceInterpreter() || needs_deopt)) {
     NthCallerVisitor visitor(this, 0, false);
     visitor.WalkStack();
     if (visitor.GetCurrentQuickFrame() != nullptr) {

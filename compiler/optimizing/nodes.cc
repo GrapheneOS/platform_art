@@ -158,10 +158,11 @@ void HGraph::RemoveDeadBlocksInstructionsAsUsersAndDisconnect(
       if (block == nullptr) continue;
 
       // Remove as user.
-      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
         RemoveAsUser(it.Current());
       }
-      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done();
+           it.Advance()) {
         RemoveAsUser(it.Current());
       }
 
@@ -183,7 +184,8 @@ static void RemoveCatchPhiUsesOfDeadInstruction(HInstruction* insn) {
     HBasicBlock* user_block = use.GetUser()->GetBlock();
     DCHECK(use.GetUser()->IsPhi());
     DCHECK(user_block->IsCatchBlock());
-    for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+    for (HInstructionIteratorPrefetchNext phi_it(user_block->GetPhis()); !phi_it.Done();
+         phi_it.Advance()) {
       phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
     }
   }
@@ -425,7 +427,7 @@ HBasicBlock* HGraph::SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* succ
 
 // Reorder phi inputs to match reordering of the block's predecessors.
 static void FixPhisAfterPredecessorsReodering(HBasicBlock* block, size_t first, size_t second) {
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
     HInstruction* first_instr = phi->InputAt(first);
     HInstruction* second_instr = phi->InputAt(second);
@@ -524,7 +526,7 @@ void HGraph::TransformLoopToSinglePreheaderFormat(HBasicBlock* header) {
   DCHECK(found);
 
   // Fix the data-flow.
-  for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(header->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* header_phi = it.Current()->AsPhi();
 
     HPhi* preheader_phi = new (GetAllocator()) HPhi(GetAllocator(),
@@ -1367,7 +1369,7 @@ void HInstructionList::RemoveInstruction(HInstruction* instruction) {
 }
 
 bool HInstructionList::Contains(HInstruction* instruction) const {
-  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(*this); !it.Done(); it.Advance()) {
     if (it.Current() == instruction) {
       return true;
     }
@@ -1378,7 +1380,7 @@ bool HInstructionList::Contains(HInstruction* instruction) const {
 bool HInstructionList::FoundBefore(const HInstruction* instruction1,
                                    const HInstruction* instruction2) const {
   DCHECK_EQ(instruction1->GetBlock(), instruction2->GetBlock());
-  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(*this); !it.Done(); it.Advance()) {
     if (it.Current() == instruction2) {
       return false;
     }
@@ -1743,21 +1745,21 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
 }
 
 void HGraphVisitor::VisitPhis(HBasicBlock* block) {
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     DCHECK(it.Current()->IsPhi());
     VisitPhi(it.Current()->AsPhi());
   }
 }
 
 void HGraphVisitor::VisitNonPhiInstructions(HBasicBlock* block) {
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     DCHECK(!it.Current()->IsPhi());
     it.Current()->Accept(this);
   }
 }
 
 void HGraphVisitor::VisitNonPhiInstructionsHandleChanges(HBasicBlock* block) {
-  for (HInstructionIteratorHandleChanges it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
     DCHECK(!it.Current()->IsPhi());
     it.Current()->Accept(this);
   }
@@ -2258,7 +2260,7 @@ const HTryBoundary* HBasicBlock::ComputeTryEntryOfSuccessors() const {
 }
 
 bool HBasicBlock::HasThrowingInstructions() const {
-  for (HInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(GetInstructions()); !it.Done(); it.Advance()) {
     if (it.Current()->CanThrow()) {
       return true;
     }
@@ -2527,13 +2529,15 @@ void HBasicBlock::DisconnectFromSuccessors(BitVectorView<const size_t> visited) 
       if (successor->predecessors_.size() == 1u) {
         // The successor has just one predecessor left. Replace phis with the only
         // remaining input.
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        for (HInstructionIteratorPrefetchNext phi_it(successor->GetPhis()); !phi_it.Done();
+             phi_it.Advance()) {
           HPhi* phi = phi_it.Current()->AsPhi();
           phi->ReplaceWith(phi->InputAt(1 - this_index));
           successor->RemovePhi(phi);
         }
       } else {
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+        for (HInstructionIteratorPrefetchNext phi_it(successor->GetPhis()); !phi_it.Done();
+             phi_it.Advance()) {
           phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
         }
       }
@@ -2543,7 +2547,7 @@ void HBasicBlock::DisconnectFromSuccessors(BitVectorView<const size_t> visited) 
 }
 
 void HBasicBlock::RemoveCatchPhiUsesAndInstruction(bool building_dominator_tree) {
-  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
+  for (HBackwardInstructionIteratorPrefetchNext it(GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* insn = it.Current();
     RemoveCatchPhiUsesOfDeadInstruction(insn);
 
@@ -2556,7 +2560,7 @@ void HBasicBlock::RemoveCatchPhiUsesAndInstruction(bool building_dominator_tree)
     }
     RemoveInstruction(insn, /* ensure_safety= */ !building_dominator_tree);
   }
-  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(GetPhis()); !it.Done(); it.Advance()) {
     HPhi* insn = it.Current()->AsPhi();
     RemoveCatchPhiUsesOfDeadInstruction(insn);
 
@@ -2740,7 +2744,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   {
     // Skip the entry block, we do not need to update the entry's suspend check.
     for (HBasicBlock* block : GetReversePostOrderSkipEntryBlock()) {
-      for (HInstructionIterator instr_it(block->GetInstructions());
+      for (HInstructionIteratorPrefetchNext instr_it(block->GetInstructions());
            !instr_it.Done();
            instr_it.Advance()) {
         HInstruction* current = instr_it.Current();
@@ -2980,7 +2984,8 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   // We must do this after the other blocks have been inlined, otherwise ids of
   // constants could overlap with the inner graph.
   size_t parameter_index = 0;
-  for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(entry_block_->GetInstructions()); !it.Done();
+       it.Advance()) {
     HInstruction* current = it.Current();
     HInstruction* replacement = nullptr;
     if (current->IsNullConstant()) {

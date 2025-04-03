@@ -54,6 +54,8 @@ class LockCountData {
   // check shows that everything is OK wrt/ lock counting, false otherwise.
   EXPORT bool CheckAllMonitorsReleasedOrThrow(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  EXPORT bool IsEmpty() const REQUIRES_SHARED(Locks::mutator_lock_);
+
   template <typename T, typename... Args>
   void VisitMonitors(T visitor, Args&&... args) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (monitors_ != nullptr) {

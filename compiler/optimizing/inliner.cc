@@ -116,7 +116,7 @@ std::string HInliner::DepthString(int line) const {
 static size_t CountNumberOfInstructions(HGraph* graph) {
   size_t number_of_instructions = 0;
   for (HBasicBlock* block : graph->GetReversePostOrderSkipEntryBlock()) {
-    for (HInstructionIterator instr_it(block->GetInstructions());
+    for (HInstructionIteratorPrefetchNext instr_it(block->GetInstructions());
          !instr_it.Done();
          instr_it.Advance()) {
       ++number_of_instructions;
@@ -1948,7 +1948,8 @@ void HInliner::SubstituteArguments(HGraph* callee_graph,
   ArtMethod* const resolved_method = callee_graph->GetArtMethod();
   size_t parameter_index = 0;
   bool run_rtp = false;
-  for (HInstructionIterator instructions(callee_graph->GetEntryBlock()->GetInstructions());
+  for (HInstructionIteratorPrefetchNext instructions(
+           callee_graph->GetEntryBlock()->GetInstructions());
        !instructions.Done();
        instructions.Advance()) {
     HInstruction* current = instructions.Current();
@@ -2108,7 +2109,7 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
       }
     }
 
-    for (HInstructionIterator instr_it(block->GetInstructions());
+    for (HInstructionIteratorPrefetchNext instr_it(block->GetInstructions());
          !instr_it.Done();
          instr_it.Advance()) {
       if (++number_of_instructions > inlining_budget_) {

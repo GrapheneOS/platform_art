@@ -46,14 +46,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
 
   void AllocateRegisters() override;
 
-  bool Validate(bool log_fatal_on_failure) override {
-    current_register_type_ = RegisterType::kCoreRegister;
-    if (!ValidateInternal(log_fatal_on_failure)) {
-      return false;
-    }
-    current_register_type_ = RegisterType::kFpRegister;
-    return ValidateInternal(log_fatal_on_failure);
-  }
+  bool Validate(bool log_fatal_on_failure) override;
 
   size_t GetNumberOfSpillSlots() const {
     return int_spill_slots_.size()
@@ -64,23 +57,13 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   }
 
  private:
-  // Main methods of the allocator.
-  void LinearScan();
-  bool TryAllocateFreeReg(LiveInterval* interval);
-  bool AllocateBlockedReg(LiveInterval* interval);
+  class LinearScan;
 
   // Add `interval` in the given sorted list.
   static void AddSorted(ScopedArenaVector<LiveInterval*>* array, LiveInterval* interval);
 
-  // Returns whether `reg` is blocked by the code generator.
-  bool IsBlocked(int reg) const;
-
   // Update the interval for the register in `location` to cover [start, end).
   void BlockRegister(Location location, size_t position, bool will_call);
-
-  // Allocate a spill slot for the given interval. Should be called in linear
-  // order of interval starting positions.
-  void AllocateSpillSlotFor(LiveInterval* interval);
 
   // Allocate a spill slot for the given catch phi. Will allocate the same slot
   // for phis which share the same vreg. Must be called in reverse linear order
@@ -90,12 +73,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // Helper methods.
   void AllocateRegistersInternal();
   void ProcessInstruction(HInstruction* instruction);
-  bool ValidateInternal(bool log_fatal_on_failure) const;
-  void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
-  void DumpAllIntervals(std::ostream& stream) const;
-  int FindAvailableRegisterPair(ArrayRef<size_t> next_use, size_t starting_at) const;
-  int FindAvailableRegister(ArrayRef<size_t> next_use, LiveInterval* current) const;
-  bool IsCallerSaveRegister(int reg) const;
+  bool ValidateInternal(RegisterType current_register_type, bool log_fatal_on_failure) const;
 
   // If any inputs require specific registers, block those registers
   // at the position of this instruction.
@@ -120,12 +98,6 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // Try to remove the SuspendCheck at function entry. Returns true if it was successful.
   bool TryRemoveSuspendCheckEntry(HInstruction* instruction);
 
-  // Try splitting an active non-pair or unaligned pair interval at the given `position`.
-  // Returns whether it was successful at finding such an interval.
-  bool TrySplitNonPairOrUnalignedPairIntervalAt(size_t position,
-                                                size_t first_register_use,
-                                                ArrayRef<size_t> next_use);
-
   // List of intervals for core registers that must be processed, ordered by start
   // position. Last entry is the interval that has the lowest start position.
   // This list is initially populated before doing the linear scan.
@@ -133,21 +105,6 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
 
   // List of intervals for floating-point registers. Same comments as above.
   ScopedArenaVector<LiveInterval*> unhandled_fp_intervals_;
-
-  // Currently processed list of unhandled intervals. Either `unhandled_core_intervals_`
-  // or `unhandled_fp_intervals_`.
-  ScopedArenaVector<LiveInterval*>* unhandled_;
-
-  // List of intervals that have been processed.
-  ScopedArenaVector<LiveInterval*> handled_;
-
-  // List of intervals that are currently active when processing a new live interval.
-  // That is, they have a live range that spans the start of the new interval.
-  ScopedArenaVector<LiveInterval*> active_;
-
-  // List of intervals that are currently inactive when processing a new live interval.
-  // That is, they have a lifetime hole that spans the start of the new interval.
-  ScopedArenaVector<LiveInterval*> inactive_;
 
   // Fixed intervals for physical registers. Such intervals cover the positions
   // where an instruction requires a specific register.
@@ -176,19 +133,6 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
 
   // Instructions that need a safepoint.
   ScopedArenaVector<HInstruction*> safepoints_;
-
-  // The register type we're currently processing.
-  RegisterType current_register_type_;
-
-  // Number of registers for the current register kind (core or floating point).
-  size_t number_of_registers_;
-
-  // Temporary array, allocated ahead of time for simplicity.
-  size_t* registers_array_;
-
-  // Blocked registers, as decided by the code generator.
-  bool* const blocked_core_registers_;
-  bool* const blocked_fp_registers_;
 
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;

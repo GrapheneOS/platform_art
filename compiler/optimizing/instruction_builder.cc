@@ -324,7 +324,7 @@ HInstruction* HInstructionBuilder::LoadNullCheckedLocal(uint32_t register_index,
 void HInstructionBuilder::SetLoopHeaderPhiInputs() {
   for (size_t i = loop_headers_.size(); i > 0; --i) {
     HBasicBlock* block = loop_headers_[i - 1];
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
       size_t vreg = phi->GetRegNumber();
       for (HBasicBlock* predecessor : block->GetPredecessors()) {

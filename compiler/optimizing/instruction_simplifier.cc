@@ -3038,7 +3038,8 @@ static bool TryReplaceStringBuilderAppend(CodeGenerator* codegen, HInvoke* invok
   uint32_t num_args = 0u;
   bool has_fp_args = false;
   HInstruction* args[StringBuilderAppend::kMaxArgs];  // Added in reverse order.
-  for (HBackwardInstructionIterator iter(block->GetInstructions()); !iter.Done(); iter.Advance()) {
+  for (HBackwardInstructionIteratorPrefetchNext iter(block->GetInstructions()); !iter.Done();
+       iter.Advance()) {
     HInstruction* user = iter.Current();
     // Instructions of interest apply to `sb`, skip those that do not involve `sb`.
     if (user->InputCount() == 0u || user->InputAt(0u) != sb) {

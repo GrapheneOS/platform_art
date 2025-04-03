@@ -105,22 +105,10 @@ class MANAGED Array : public Object {
         + (index * component_size);
     return reinterpret_cast<void*>(data);
   }
-  template <size_t kComponentSize>
-  void* GetRawData(int32_t index) REQUIRES_SHARED(Locks::mutator_lock_) {
-    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset<kComponentSize>().Int32Value() +
-        + (index * kComponentSize);
-    return reinterpret_cast<void*>(data);
-  }
 
   const void* GetRawData(size_t component_size, int32_t index) const {
     intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(component_size).Int32Value() +
         + (index * component_size);
-    return reinterpret_cast<void*>(data);
-  }
-  template <size_t kComponentSize>
-  const void* GetRawData(int32_t index) const {
-    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset<kComponentSize>().Int32Value() +
-        + (index * kComponentSize);
     return reinterpret_cast<void*>(data);
   }
 
@@ -173,11 +161,19 @@ class MANAGED PrimitiveArray : public Array {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   const T* GetData() const ALWAYS_INLINE  REQUIRES_SHARED(Locks::mutator_lock_) {
-    return reinterpret_cast<const T*>(GetRawData<sizeof(T)>(0));
+    return GetData(0);
   }
 
-  T* GetData() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    return reinterpret_cast<T*>(GetRawData<sizeof(T)>(0));
+  T* GetData() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) { return GetData(0); }
+
+  const T* GetData(int32_t index) const ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset<sizeof(T)>().Int32Value();
+    return reinterpret_cast<T*>(data) + index;
+  }
+
+  T* GetData(int32_t index) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset<sizeof(T)>().Int32Value();
+    return reinterpret_cast<T*>(data) + index;
   }
 
   T Get(int32_t i) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
@@ -215,6 +211,10 @@ class MANAGED PrimitiveArray : public Array {
    * and the arrays non-null.
    */
   EXPORT void Memcpy(int32_t dst_pos, ObjPtr<PrimitiveArray<T>> src, int32_t src_pos, int32_t count)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  EXPORT void Memcpy(int32_t dst_pos, const T* src, int32_t src_pos, int32_t count)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  EXPORT void MemcpyTo(int32_t src_pos, T* dst, int32_t dst_pos, int32_t count)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:

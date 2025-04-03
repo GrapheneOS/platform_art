@@ -44,7 +44,8 @@ void SsaDeadPhiElimination::MarkDeadPhis() {
 
   // Add to the worklist phis referenced by non-phi instructions.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+    for (HInstructionIteratorPrefetchNext inst_it(block->GetPhis()); !inst_it.Done();
+         inst_it.Advance()) {
       HPhi* phi = inst_it.Current()->AsPhi();
       if (phi->IsDead()) {
         continue;
@@ -134,7 +135,8 @@ bool SsaRedundantPhiElimination::Run() {
   // Add all phis in the worklist. Order does not matter for correctness, and
   // neither will necessarily converge faster.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+    for (HInstructionIteratorPrefetchNext inst_it(block->GetPhis()); !inst_it.Done();
+         inst_it.Advance()) {
       worklist.push_back(inst_it.Current()->AsPhi());
     }
   }

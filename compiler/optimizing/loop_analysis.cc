@@ -49,7 +49,7 @@ void LoopAnalysis::CalculateLoopBasicProperties(HLoopInformation* loop_info,
       }
     }
 
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (it.Current()->GetType() == DataType::Type::kInt64) {
         analysis_results->has_long_type_instructions_ = true;
@@ -364,7 +364,8 @@ uint32_t X86_64LoopHelper::GetUnrollingFactor(HLoopInformation* loop_info,
     DCHECK(block);
     num_inst = 0;
 
-    for (HInstructionIterator it1(block->GetInstructions()); !it1.Done(); it1.Advance()) {
+    for (HInstructionIteratorPrefetchNext it1(block->GetInstructions()); !it1.Done();
+         it1.Advance()) {
       HInstruction* inst = it1.Current();
       DCHECK(inst);
 

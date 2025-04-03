@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <bitset>
+#include <cstdint>
 #include <deque>
 #include <iosfwd>
 #include <list>
@@ -33,6 +34,7 @@
 #include "base/pointer_size.h"
 #include "base/safe_map.h"
 #include "base/value_object.h"
+#include "com_android_art_flags.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "handle.h"
@@ -200,6 +202,15 @@ enum class WeakRefAccessState : int32_t {
   kDisabled
 };
 
+enum VirtualThreadFlag : uint8_t {
+  // This flag is set only when a virtual thread is running on the given carrier thread.
+  kIsVirtual = 1u,
+  // The flag is set when a virtual thread is being parked and unmounted from the carrier thread.
+  kParking = 1u << 1,
+  // The flag is set when a virtual thread is being unparked and mounted from the carrier thread.
+  kUnparking = 1u << 2,
+};
+
 // ART uses two types of ABI/code: quick and native.
 //
 // Quick code includes:
@@ -238,6 +249,10 @@ static constexpr StackType kNativeStackType = StackType::kHardware;
 // For simulator builds this is the kSimulated stack and for non-simulator builds this is the
 // kHardware stack.
 static constexpr StackType kQuickStackType = StackType::kHardware;
+
+static_assert(com::android::art::flags::virtual_thread_impl_v1() ==
+              COM_ANDROID_ART_FLAGS_VIRTUAL_THREAD_IMPL_V1);
+static constexpr bool kIsVirtualThreadEnabled = com::android::art::flags::virtual_thread_impl_v1();
 
 // See Thread.tlsPtr_.active_suspend1_barriers below for explanation.
 struct WrappedSuspend1Barrier {
@@ -869,6 +884,28 @@ class EXPORT Thread {
   // should be handled in java code) returns immediately
   void Park(bool is_absolute, int64_t time) REQUIRES_SHARED(Locks::mutator_lock_);
   void Unpark();
+
+  ALWAYS_INLINE void SetVirtualThreadFlags(uint8_t flags_mask, bool enabled) {
+    if (enabled) {
+      virtual_thread_flags = virtual_thread_flags | flags_mask;
+    } else {
+      virtual_thread_flags = virtual_thread_flags & (~flags_mask);
+    }
+  }
+
+  ALWAYS_INLINE bool IsVirtualThreadParking() const {
+    return AreVirtualThreadFlagsEnabled(VirtualThreadFlag::kIsVirtual |
+                                        VirtualThreadFlag::kParking);
+  }
+
+  ALWAYS_INLINE bool IsVirtualThreadUnparking() const {
+    return AreVirtualThreadFlagsEnabled(VirtualThreadFlag::kIsVirtual |
+                                        VirtualThreadFlag::kUnparking);
+  }
+
+  ALWAYS_INLINE bool AreVirtualThreadFlagsEnabled(uint8_t flags_mask) const {
+    return (virtual_thread_flags & flags_mask) == flags_mask;
+  }
 
  private:
   void NotifyLocked(Thread* self) REQUIRES(wait_mutex_);
@@ -1577,7 +1614,8 @@ class EXPORT Thread {
   }
 
   bool IsForceInterpreter() const {
-    return tls32_.force_interpreter_count != 0;
+    return (tls32_.force_interpreter_count != 0) ||
+           AreVirtualThreadFlagsEnabled(VirtualThreadFlag::kIsVirtual);
   }
 
   bool IncrementMakeVisiblyInitializedCounter() {
@@ -2445,6 +2483,12 @@ class EXPORT Thread {
 
   // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
   uint8_t debug_disallow_read_barrier_ = 0;
+
+  // The flag value should only be accessed by the carrier thread itself.
+  // When a virtual thread is mounted onto this carrier thread, this flag value is
+  // non-zero. See VirtualThreadFlag for the details.
+  // For a regular java thread, this value is always zero.
+  uint8_t virtual_thread_flags = 0;
 
   // Counters used only for debugging and error reporting.  Likely to wrap.  Small to avoid
   // increasing Thread size.

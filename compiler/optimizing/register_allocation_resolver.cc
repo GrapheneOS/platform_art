@@ -183,7 +183,8 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
     if (block->IsCatchBlock()) {
       // Catch phi values are set at runtime by the exception delivery mechanism.
     } else {
-      for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      for (HInstructionIteratorPrefetchNext inst_it(block->GetPhis()); !inst_it.Done();
+           inst_it.Advance()) {
         HInstruction* phi = inst_it.Current();
         for (size_t i = 0, e = block->GetPredecessors().size(); i < e; ++i) {
           HBasicBlock* predecessor = block->GetPredecessors()[i];

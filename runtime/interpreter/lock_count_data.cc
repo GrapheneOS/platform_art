@@ -75,6 +75,8 @@ void MonitorExitHelper(Thread* self, mirror::Object* obj) NO_THREAD_SAFETY_ANALY
   obj->MonitorExit(self);
 }
 
+bool LockCountData::IsEmpty() const { return monitors_ == nullptr || monitors_->empty(); }
+
 bool LockCountData::CheckAllMonitorsReleasedOrThrow(Thread* self) {
   DCHECK(self != nullptr);
   if (monitors_ != nullptr) {

@@ -17,12 +17,15 @@
 #ifndef ART_RUNTIME_INTERPRETER_SHADOW_FRAME_H_
 #define ART_RUNTIME_INTERPRETER_SHADOW_FRAME_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
 
 #include "base/locks.h"
 #include "base/macros.h"
+#include "handle.h"
+#include "handle_scope.h"
 #include "lock_count_data.h"
 #include "read_barrier.h"
 #include "stack_reference.h"
@@ -78,6 +81,11 @@ class ShadowFrame {
            (sizeof(StackReference<mirror::Object>) * num_vregs);
   }
 
+  // Compute size of interpreter ShadowFrame in bytes without a reference array.
+  static size_t ComputeSizeWithoutReferences(uint32_t num_vregs) {
+    return sizeof(ShadowFrame) + (sizeof(uint32_t) * num_vregs);
+  }
+
   // Create ShadowFrame in heap for deoptimization.
   static ShadowFrame* CreateDeoptimizedFrame(uint32_t num_vregs,
                                              ArtMethod* method,
@@ -103,6 +111,8 @@ class ShadowFrame {
     })
 
   ~ShadowFrame() {}
+
+  void AdvanceDexPc() REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint32_t NumberOfVRegs() const {
     return number_of_vregs_;

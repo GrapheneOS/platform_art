@@ -175,10 +175,10 @@ static void AddInputs(HBasicBlock* block,
                       BitVectorView<size_t> processed_instructions,
                       BitVectorView<size_t> discard_blocks,
                       ScopedArenaVector<HInstruction*>* worklist) {
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     AddInputs(it.Current(), processed_instructions, discard_blocks, worklist);
   }
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     AddInputs(it.Current(), processed_instructions, discard_blocks, worklist);
   }
 }

@@ -1915,15 +1915,13 @@ public class Main {
     c5.accept("hello there");
 
     // Failures
-    MethodHandle abstract_target =
-        MethodHandles.lookup()
-                    .findSpecial(Consumer.class,
-                                 acceptMethod.getName(),
-                                 MethodType.methodType(acceptMethod.getReturnType(),
-                                                       acceptMethod.getParameterTypes()),
-                                 c3.getClass());
     try {
-      abstract_target.invoke(c3, "hello");
+      MethodHandles.lookup()
+                  .findSpecial(Consumer.class,
+                               acceptMethod.getName(),
+                               MethodType.methodType(acceptMethod.getReturnType(),
+                                                     acceptMethod.getParameterTypes()),
+                               c3.getClass());
     } catch (IllegalAccessException e) {
       System.out.println("Got expected IAE when invoke-special on an abstract interface method");
     }

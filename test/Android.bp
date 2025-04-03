@@ -938,6 +938,7 @@ cc_defaults {
         "2262-miranda-methods/jni_invoke.cc",
         "2270-mh-internal-hiddenapi-use/mh-internal-hidden-api.cc",
         "2275-pthread-name/native_getname.cc",
+        "2392-virtual-thread-pinning-jni/jni.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],

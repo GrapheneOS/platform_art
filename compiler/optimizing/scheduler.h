@@ -524,7 +524,8 @@ class HScheduler {
       LatencyVisitor* latency_visitor) ALWAYS_INLINE {
     SchedulingGraph scheduling_graph(allocator, heap_location_collector);
     ScopedArenaVector<SchedulingNode*> scheduling_nodes(allocator->Adapter(kArenaAllocScheduler));
-    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HBackwardInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done();
+         it.Advance()) {
       HInstruction* instruction = it.Current();
       CHECK_EQ(instruction->GetBlock(), block)
           << instruction->DebugName()

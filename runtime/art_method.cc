@@ -633,7 +633,6 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
       return method_header;
     } else {
       if (kIsDebugBuild && code_cache->ContainsPc(reinterpret_cast<const void*>(pc))) {
-        code_cache->DumpAllCompiledMethods(LOG_STREAM(FATAL_WITHOUT_ABORT));
         LOG(FATAL)
             << PrettyMethod()
             << ", pc=" << std::hex << pc

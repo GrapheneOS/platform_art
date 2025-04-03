@@ -267,7 +267,7 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
     // We iterate to find the first instruction that always throws. If two instructions always
     // throw, the first one will throw and the second one will never be reached.
     HInstruction* throwing_invoke = nullptr;
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       if (it.Current()->IsInvoke() && it.Current()->AsInvoke()->AlwaysThrows()) {
         throwing_invoke = it.Current();
         break;
@@ -605,7 +605,8 @@ struct HDeadCodeElimination::TryBelongingInformation {
 bool HDeadCodeElimination::CanPerformTryRemoval(const TryBelongingInformation& try_belonging_info) {
   const ArenaVector<HBasicBlock*>& blocks = graph_->GetBlocks();
   for (uint32_t i : try_belonging_info.blocks_in_try.Indexes()) {
-    for (HInstructionIterator it(blocks[i]->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(blocks[i]->GetInstructions()); !it.Done();
+         it.Advance()) {
       if (it.Current()->CanThrow()) {
         return false;
       }
@@ -917,7 +918,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
   for (HBasicBlock* block : graph_->GetPostOrder()) {
     // Traverse this block's instructions in backward order and remove
     // the unused ones.
-    HBackwardInstructionIterator i(block->GetInstructions());
+    HBackwardInstructionIteratorPrefetchNext i(block->GetInstructions());
     // Skip the first iteration, as the last instruction of a block is
     // a branching instruction.
     DCHECK(i.Current()->IsControlFlow());
@@ -931,7 +932,8 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
     }
 
     // Same for Phis.
-    for (HBackwardInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+    for (HBackwardInstructionIteratorPrefetchNext phi_it(block->GetPhis()); !phi_it.Done();
+         phi_it.Advance()) {
       DCHECK(phi_it.Current()->IsPhi());
       HPhi* phi = phi_it.Current()->AsPhi();
       if (phi->IsPhiDeadAndRemovable()) {
@@ -950,7 +952,7 @@ void HDeadCodeElimination::UpdateGraphFlags() {
   bool has_always_throwing_invokes = false;
 
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsMonitorOperation()) {
         has_monitor_operations = true;

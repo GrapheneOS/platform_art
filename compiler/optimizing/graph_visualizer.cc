@@ -813,7 +813,7 @@ class HGraphVisualizerPrinter final : public HGraphDelegateVisitor {
   }
 
   void PrintInstructions(const HInstructionList& list) {
-    for (HInstructionIterator it(list); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(list); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       int bci = 0;
       size_t num_uses = instruction->GetUses().SizeSlow();
@@ -955,7 +955,7 @@ class HGraphVisualizerPrinter final : public HGraphDelegateVisitor {
       StartTag("locals");
       PrintInt("size", 0);
       PrintProperty("method", "None");
-      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
         AddIndent();
         HInstruction* instruction = it.Current();
         output_ << instruction->GetId() << " " << DataType::TypeId(instruction->GetType())

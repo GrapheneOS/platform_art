@@ -136,16 +136,29 @@ TEST_F(PaletteClientTest, JniInvocation) {
 #endif
 }
 
-TEST_F(PaletteClientTest, SetTaskProfiles) {
+// Run with the expectation to be both root and non-root, skipping the
+// inapplicable one. Useful when expected results depend on rootness, to make it
+// clear in test results which variant was executed.
+class PaletteClientRootParamTest : public ::testing::TestWithParam<bool> {
+ protected:
+  bool TestAsRoot() { return GetParam(); }
+  bool RunningAsRoot() { return getuid() == 0; }
+  bool ShouldSkip() { return TestAsRoot() != RunningAsRoot(); }
+};
+
+TEST_P(PaletteClientRootParamTest, SetTaskProfiles) {
 #ifndef ART_TARGET_ANDROID
   GTEST_SKIP() << "SetTaskProfiles is only supported on Android";
 #else
+  if (ShouldSkip()) {
+    GTEST_SKIP() << (RunningAsRoot() ? "Running as root" : "Not running as root");
+  }
   const char* profiles[] = {"ProcessCapacityHigh", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), &profiles[0], 2);
   if (PaletteSetTaskProfilesIsSupported(res)) {
     // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
     // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
-    if (getuid() == 0) {
+    if (TestAsRoot()) {
       EXPECT_EQ(PALETTE_STATUS_OK, res);
     } else {
       EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
@@ -154,16 +167,19 @@ TEST_F(PaletteClientTest, SetTaskProfiles) {
 #endif
 }
 
-TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
+TEST_P(PaletteClientRootParamTest, SetTaskProfilesCpp) {
 #ifndef ART_TARGET_ANDROID
   GTEST_SKIP() << "SetTaskProfiles is only supported on Android";
 #else
+  if (ShouldSkip()) {
+    GTEST_SKIP() << (RunningAsRoot() ? "Running as root" : "Not running as root");
+  }
   std::vector<std::string> profiles = {"ProcessCapacityHigh", "TimerSlackNormal"};
   palette_status_t res = PaletteSetTaskProfiles(GetTid(), profiles);
   if (PaletteSetTaskProfilesIsSupported(res)) {
     // SetTaskProfiles will only work fully if we run as root. Otherwise it'll
     // return false which is mapped to PALETTE_STATUS_FAILED_CHECK_LOG.
-    if (getuid() == 0) {
+    if (TestAsRoot()) {
       EXPECT_EQ(PALETTE_STATUS_OK, res);
     } else {
       EXPECT_EQ(PALETTE_STATUS_FAILED_CHECK_LOG, res);
@@ -171,6 +187,14 @@ TEST_F(PaletteClientTest, SetTaskProfilesCpp) {
   }
 #endif
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rootness,
+    PaletteClientRootParamTest,
+    ::testing::Bool(),
+    [](const ::testing::TestParamInfo<PaletteClientRootParamTest::ParamType>& info) {
+      return info.param ? "Root" : "NonRoot";
+    });
 
 TEST_F(PaletteClientTest, DebugStore) {
 #ifndef ART_TARGET_ANDROID

@@ -193,9 +193,9 @@ class HInstructionList : public ValueObject {
   friend class HBasicBlock;
   friend class HGraph;
   friend class HInstruction;
+  friend class HInstructionIteratorPrefetchNext;
   friend class HInstructionIterator;
-  friend class HInstructionIteratorHandleChanges;
-  friend class HBackwardInstructionIterator;
+  friend class HBackwardInstructionIteratorPrefetchNext;
 
   DISALLOW_COPY_AND_ASSIGN(HInstructionList);
 };
@@ -2691,9 +2691,9 @@ template <typename InnerIter> struct HSTLInstructionIterator;
 // Iterates over the instructions, while preserving the next instruction
 // in case the current instruction gets removed from the list by the user
 // of this iterator.
-class HInstructionIterator : public ValueObject {
+class HInstructionIteratorPrefetchNext : public ValueObject {
  public:
-  explicit HInstructionIterator(const HInstructionList& instructions)
+  explicit HInstructionIteratorPrefetchNext(const HInstructionList& instructions)
       : instruction_(instructions.first_instruction_) {
     next_ = Done() ? nullptr : instruction_->GetNext();
   }
@@ -2706,20 +2706,20 @@ class HInstructionIterator : public ValueObject {
   }
 
  private:
-  HInstructionIterator() : instruction_(nullptr), next_(nullptr) {}
+  HInstructionIteratorPrefetchNext() : instruction_(nullptr), next_(nullptr) {}
 
   HInstruction* instruction_;
   HInstruction* next_;
 
-  friend struct HSTLInstructionIterator<HInstructionIterator>;
+  friend struct HSTLInstructionIterator<HInstructionIteratorPrefetchNext>;
 };
 
 // Iterates over the instructions without saving the next instruction,
 // therefore handling changes in the graph potentially made by the user
 // of this iterator.
-class HInstructionIteratorHandleChanges : public ValueObject {
+class HInstructionIterator : public ValueObject {
  public:
-  explicit HInstructionIteratorHandleChanges(const HInstructionList& instructions)
+  explicit HInstructionIterator(const HInstructionList& instructions)
       : instruction_(instructions.first_instruction_) {
   }
 
@@ -2730,22 +2730,23 @@ class HInstructionIteratorHandleChanges : public ValueObject {
   }
 
  private:
-  HInstructionIteratorHandleChanges() : instruction_(nullptr) {}
+  HInstructionIterator() : instruction_(nullptr) {}
 
   HInstruction* instruction_;
 
-  friend struct HSTLInstructionIterator<HInstructionIteratorHandleChanges>;
+  friend struct HSTLInstructionIterator<HInstructionIterator>;
 };
 
 
-class HBackwardInstructionIterator : public ValueObject {
+class HBackwardInstructionIteratorPrefetchNext : public ValueObject {
  public:
-  explicit HBackwardInstructionIterator(const HInstructionList& instructions)
+  explicit HBackwardInstructionIteratorPrefetchNext(const HInstructionList& instructions)
       : instruction_(instructions.last_instruction_) {
     next_ = Done() ? nullptr : instruction_->GetPrevious();
   }
 
-  explicit HBackwardInstructionIterator(HInstruction* instruction) : instruction_(instruction) {
+  explicit HBackwardInstructionIteratorPrefetchNext(HInstruction* instruction)
+      : instruction_(instruction) {
     next_ = Done() ? nullptr : instruction_->GetPrevious();
   }
 
@@ -2757,12 +2758,12 @@ class HBackwardInstructionIterator : public ValueObject {
   }
 
  private:
-  HBackwardInstructionIterator() : instruction_(nullptr), next_(nullptr) {}
+  HBackwardInstructionIteratorPrefetchNext() : instruction_(nullptr), next_(nullptr) {}
 
   HInstruction* instruction_;
   HInstruction* next_;
 
-  friend struct HSTLInstructionIterator<HBackwardInstructionIterator>;
+  friend struct HSTLInstructionIterator<HBackwardInstructionIteratorPrefetchNext>;
 };
 
 template <typename InnerIter>
@@ -2774,9 +2775,9 @@ struct HSTLInstructionIterator : public ValueObject {
   using pointer = void;
   using reference = void;
 
-  static_assert(std::is_same_v<InnerIter, HBackwardInstructionIterator> ||
-                    std::is_same_v<InnerIter, HInstructionIterator> ||
-                    std::is_same_v<InnerIter, HInstructionIteratorHandleChanges>,
+  static_assert(std::is_same_v<InnerIter, HBackwardInstructionIteratorPrefetchNext> ||
+                    std::is_same_v<InnerIter, HInstructionIteratorPrefetchNext> ||
+                    std::is_same_v<InnerIter, HInstructionIterator>,
                 "Unknown wrapped iterator!");
 
   explicit HSTLInstructionIterator(InnerIter inner) : inner_(inner) {}

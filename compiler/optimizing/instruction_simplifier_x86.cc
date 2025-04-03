@@ -39,7 +39,7 @@ class InstructionSimplifierX86Visitor final : public HGraphVisitor {
   }
 
   void VisitBasicBlock(HBasicBlock* block) override {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInBlock()) {
         instruction->Accept(this);

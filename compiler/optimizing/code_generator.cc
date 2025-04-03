@@ -349,7 +349,7 @@ void CodeGenerator::Compile() {
     // It is necessary to make stepping over a statement work. Otherwise, any initial
     // instructions (e.g. moves) would be assumed to be the start of next statement.
     MaybeRecordNativeDebugInfoForBlockEntry(block->GetDexPc());
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasEnvironment()) {
         // Catch StackMaps are dealt with later on in `RecordCatchBlockInfo`.

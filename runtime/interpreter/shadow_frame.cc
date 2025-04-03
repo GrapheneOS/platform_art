@@ -16,7 +16,9 @@
 
 #include "shadow_frame.h"
 
+#include "android-base/macros.h"
 #include "art_method-inl.h"
+#include "shadow_frame-inl.h"
 
 namespace art HIDDEN {
 
@@ -41,6 +43,13 @@ mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
   } else {
     return GetVRegReference(NumberOfVRegs() - num_ins);
   }
+}
+
+void ShadowFrame::AdvanceDexPc() {
+  CodeItemDataAccessor accessor(this->GetMethod()->DexInstructionData());
+  const Instruction* instr = &accessor.InstructionAt(dex_pc_);
+  uint32_t new_dex_pc = dex_pc_ + instr->SizeInCodeUnits();
+  SetDexPC(new_dex_pc);
 }
 
 }  // namespace art

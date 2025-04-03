@@ -174,7 +174,7 @@ void SuperblockCloner::RemapOrigInternalOrIncomingEdge(HBasicBlock* orig_block,
   // in the end all of the phis in the copy successor have the same number of inputs - the number
   // of copy successor's predecessors.
   bool first_phi_met = false;
-  for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* orig_phi = it.Current()->AsPhi();
     HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(this_index);
@@ -204,7 +204,7 @@ void SuperblockCloner::AddCopyInternalEdge(HBasicBlock* orig_block,
   copy_block->AddSuccessor(copy_succ);
 
   size_t orig_index = orig_succ->GetPredecessorIndexOf(orig_block);
-  for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* orig_phi = it.Current()->AsPhi();
     HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(orig_index);
@@ -220,7 +220,7 @@ void SuperblockCloner::RemapCopyInternalEdge(HBasicBlock* orig_block,
   DCHECK(copy_block->HasSuccessor(orig_succ));
 
   size_t orig_index = orig_succ->GetPredecessorIndexOf(orig_block);
-  for (HInstructionIterator it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(orig_succ->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* orig_phi = it.Current()->AsPhi();
     HInstruction* orig_phi_input = orig_phi->InputAt(orig_index);
     orig_phi->AddInput(orig_phi_input);
@@ -504,7 +504,7 @@ void SuperblockCloner::ResolveDataFlow() {
   for (auto entry : *bb_map_) {
     HBasicBlock* orig_block = entry.first;
 
-    for (HInstructionIterator it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* orig_phi = it.Current()->AsPhi();
       HPhi* copy_phi = GetInstrCopy(orig_phi)->AsPhi();
       ResolvePhi(orig_phi);
@@ -512,7 +512,8 @@ void SuperblockCloner::ResolveDataFlow() {
     }
     if (kIsDebugBuild) {
       // Inputs of instruction copies must be already mapped to correspondent inputs copies.
-      for (HInstructionIterator it(orig_block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(orig_block->GetInstructions()); !it.Done();
+           it.Advance()) {
         CheckInstructionInputsRemapping(it.Current());
       }
     }
@@ -528,7 +529,7 @@ bool SuperblockCloner::CollectLiveOutsAndCheckClonable(HInstructionMap* live_out
   for (uint32_t idx : orig_bb_set_.Indexes()) {
     HBasicBlock* block = GetBlockById(idx);
 
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* instr = it.Current();
       DCHECK(instr->IsClonable());
 
@@ -537,7 +538,7 @@ bool SuperblockCloner::CollectLiveOutsAndCheckClonable(HInstructionMap* live_out
       }
     }
 
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instr = it.Current();
       if (!instr->IsClonable()) {
         return false;
@@ -967,7 +968,8 @@ void SuperblockCloner::CleanUp() {
   // As this is needed to be processed we also simplify phis with multiple same inputs here.
   for (auto entry : *bb_map_) {
     for (HBasicBlock* block : {entry.first, entry.second}) {
-      for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      for (HInstructionIteratorPrefetchNext inst_it(block->GetPhis()); !inst_it.Done();
+           inst_it.Advance()) {
         HPhi* phi = inst_it.Current()->AsPhi();
         if (ArePhiInputsTheSame(phi)) {
           phi->ReplaceWith(phi->InputAt(0));
@@ -988,7 +990,7 @@ HBasicBlock* SuperblockCloner::CloneBasicBlock(const HBasicBlock* orig_block) {
   graph->AddBlock(copy_block);
 
   // Clone all the phis and add them to the map.
-  for (HInstructionIterator it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(orig_block->GetPhis()); !it.Done(); it.Advance()) {
     HInstruction* orig_instr = it.Current();
     HInstruction* copy_instr = orig_instr->Clone(arena_);
     copy_block->AddPhi(copy_instr->AsPhi());
@@ -998,7 +1000,8 @@ HBasicBlock* SuperblockCloner::CloneBasicBlock(const HBasicBlock* orig_block) {
   }
 
   // Clone all the instructions and add them to the map.
-  for (HInstructionIterator it(orig_block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(orig_block->GetInstructions()); !it.Done();
+       it.Advance()) {
     HInstruction* orig_instr = it.Current();
     HInstruction* copy_instr = orig_instr->Clone(arena_);
     ReplaceInputsWithCopies(copy_instr);

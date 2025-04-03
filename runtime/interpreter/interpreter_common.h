@@ -17,19 +17,15 @@
 #ifndef ART_RUNTIME_INTERPRETER_INTERPRETER_COMMON_H_
 #define ART_RUNTIME_INTERPRETER_INTERPRETER_COMMON_H_
 
-#include "android-base/macros.h"
-#include "instrumentation.h"
-#include "interpreter.h"
-
+#include <android-base/logging.h>
+#include <android-base/stringprintf.h>
 #include <math.h>
 
 #include <atomic>
 #include <iostream>
 #include <sstream>
 
-#include <android-base/logging.h>
-#include <android-base/stringprintf.h>
-
+#include "android-base/macros.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/locks.h"
@@ -44,6 +40,9 @@
 #include "dex/dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
+#include "instrumentation.h"
+#include "interpreter.h"
+#include "interpreter/shadow_frame.h"
 #include "interpreter_cache-inl.h"
 #include "interpreter_switch_impl.h"
 #include "intrinsics_list.h"
@@ -58,8 +57,8 @@
 #include "mirror/string-inl.h"
 #include "obj_ptr.h"
 #include "stack.h"
-#include "thread.h"
 #include "thread-inl.h"
+#include "thread.h"
 #include "unstarted_runtime.h"
 #include "verifier/method_verifier.h"
 
@@ -121,6 +120,10 @@ EXPORT bool DoCall(ArtMethod* called_method,
                    uint16_t inst_data,
                    bool string_init,
                    JValue* result);
+
+// Fill the ShadowFrame from stored values in the parked virtual thread.
+EXPORT void FillVirtualThreadFrame(Thread* self, ShadowFrame* this_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Called by the switch interpreter to know if we can stay in it.
 bool ShouldStayInSwitchInterpreter(ArtMethod* method)
@@ -513,7 +516,6 @@ EXPORT bool MoveToExceptionHandler(Thread* self,
                                    ShadowFrame& shadow_frame,
                                    bool skip_listeners,
                                    bool skip_throw_listener) REQUIRES_SHARED(Locks::mutator_lock_);
-
 NO_RETURN EXPORT void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame)
     COLD_ATTR
     REQUIRES_SHARED(Locks::mutator_lock_);

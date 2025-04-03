@@ -744,7 +744,7 @@ bool HScheduler::IsSchedulable(const HBasicBlock* block) const {
     return false;
   }
   // Check whether all instructions in this block are schedulable.
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     if (!IsSchedulable(it.Current())) {
       return false;
     }

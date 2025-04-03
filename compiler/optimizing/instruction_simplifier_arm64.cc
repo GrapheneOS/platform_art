@@ -63,7 +63,7 @@ class InstructionSimplifierArm64Visitor final : public HGraphVisitor {
    */
   void VisitBasicBlock(HBasicBlock* block) override {
     // TODO: fragile iteration, provide more robust iterators?
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInBlock()) {
         instruction->Accept(this);

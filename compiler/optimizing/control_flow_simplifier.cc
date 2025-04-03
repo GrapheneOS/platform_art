@@ -39,7 +39,7 @@ static bool IsSimpleBlock(HBasicBlock* block) {
   DCHECK(block->GetPhis().IsEmpty());
 
   size_t num_instructions = 0u;
-  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* instruction = it.Current();
     if (instruction->IsControlFlow()) {
       return instruction->IsGoto() || instruction->IsReturn();
@@ -78,7 +78,7 @@ static std::pair<bool, HPhi*> HasAtMostOnePhiWithDifferentInputs(HBasicBlock* bl
   DCHECK_NE(index1, index2);
 
   HPhi* select_phi = nullptr;
-  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
     auto&& inputs = phi->GetInputs();
     if (inputs[index1] == inputs[index2]) {

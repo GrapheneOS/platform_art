@@ -32,7 +32,7 @@ namespace art HIDDEN {
 void SsaBuilder::FixNullConstantType() {
   // The order doesn't matter here.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* equality_instr = it.Current();
       if (!equality_instr->IsEqual() && !equality_instr->IsNotEqual()) {
         continue;
@@ -65,7 +65,7 @@ void SsaBuilder::FixNullConstantType() {
 void SsaBuilder::EquivalentPhisCleanup() {
   // The order doesn't matter here.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
       HPhi* next = phi->GetNextEquivalentPhiWithSameType();
       if (next != nullptr) {
@@ -87,7 +87,8 @@ void SsaBuilder::EquivalentPhisCleanup() {
 
 void SsaBuilder::FixEnvironmentPhis() {
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    for (HInstructionIterator it_phis(block->GetPhis()); !it_phis.Done(); it_phis.Advance()) {
+    for (HInstructionIteratorPrefetchNext it_phis(block->GetPhis()); !it_phis.Done();
+         it_phis.Advance()) {
       HPhi* phi = it_phis.Current()->AsPhi();
       // If the phi is not dead, or has no environment uses, there is nothing to do.
       if (!phi->IsDead() || !phi->HasEnvironmentUses()) continue;
@@ -240,14 +241,16 @@ void SsaBuilder::RunPrimitiveTypePropagation() {
 
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
     if (block->IsLoopHeader()) {
-      for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      for (HInstructionIteratorPrefetchNext phi_it(block->GetPhis()); !phi_it.Done();
+           phi_it.Advance()) {
         HPhi* phi = phi_it.Current()->AsPhi();
         if (phi->IsLive()) {
           worklist.push_back(phi);
         }
       }
     } else {
-      for (HInstructionIterator phi_it(block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      for (HInstructionIteratorPrefetchNext phi_it(block->GetPhis()); !phi_it.Done();
+           phi_it.Advance()) {
         // Eagerly compute the type of the phi, for quicker convergence. Note
         // that we don't need to add users to the worklist because we are
         // doing a reverse post-order visit, therefore either the phi users are
@@ -502,7 +505,7 @@ static bool HasPhiEquivalentAtLoopEntry(HGraph* graph) {
   // map.
   for (HBasicBlock* block : graph->GetReversePostOrder()) {
     if (block->IsLoopHeader()) {
-      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
         if (it.Current()->AsPhi()->HasEquivalentPhi()) {
           return true;
         }

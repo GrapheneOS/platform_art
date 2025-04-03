@@ -17,15 +17,23 @@
 #include "interpreter_common.h"
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <memory>
+#include <ostream>
 
+#include "android-base/logging.h"
 #include "base/casts.h"
 #include "base/pointer_size.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
+#include "com_android_art_flags.h"
 #include "debugger.h"
 #include "dex/dex_file_types.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle.h"
+#include "interpreter/shadow_frame.h"
 #include "intrinsics_enum.h"
 #include "intrinsics_list.h"
 #include "jit/jit.h"
@@ -39,16 +47,22 @@
 #include "mirror/emulated_stack_frame.h"
 #include "mirror/method_handle_impl-inl.h"
 #include "mirror/method_type-inl.h"
+#include "mirror/object.h"
 #include "mirror/object_array-alloc-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object_array.h"
 #include "mirror/var_handle.h"
+#include "obj_ptr.h"
 #include "reflection-inl.h"
 #include "reflection.h"
 #include "shadow_frame-inl.h"
 #include "stack.h"
 #include "thread-inl.h"
+#include "thread.h"
+#include "thread_state.h"
 #include "var_handles.h"
 #include "well_known_classes-inl.h"
+#include "well_known_classes.h"
 
 namespace art HIDDEN {
 namespace interpreter {
@@ -1234,6 +1248,12 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
       CREATE_SHADOW_FRAME(num_regs, called_method, /* dex pc */ 0);
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
+  // Restore the values of virtual registers if a virtual thread is unparking
+  if (kIsVirtualThreadEnabled && self->IsVirtualThreadUnparking()) {
+    FillVirtualThreadFrame(self, new_shadow_frame);
+  }
+  // TODO: Consider skip the following operations, e.g. copying registers, if
+  //   a virtual thread is unparking.
 
   // Initialize new shadow frame by copying the registers from the callee shadow frame.
   if (!shadow_frame.GetMethod()->SkipAccessChecks()) {
@@ -1351,6 +1371,103 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   }
 
   return !self->IsExceptionPending();
+}
+
+void FillVirtualThreadFrame(Thread* self, ShadowFrame* frame) {
+  ScopedAssertNoThreadSuspension ns("No thread suspension when filling virtual thread frame)");
+  ObjPtr<mirror::Object> jpeer = self->GetPeer();
+  ObjPtr<mirror::Object> v_context = WellKnownClasses::java_lang_Thread_target->GetObject(jpeer);
+  DCHECK(v_context->GetClass()->DescriptorEquals("Ldalvik/system/VirtualThreadContext;"))
+      << frame->GetMethod()->PrettyMethod();
+  ObjPtr<mirror::Object> parked_states =
+      WellKnownClasses::dalvik_system_VirtualThreadContext_parkedStates->GetObject(v_context);
+  DCHECK(!parked_states.IsNull()) << frame->GetMethod()->PrettyMethod();
+  ObjPtr<mirror::ObjectArray<mirror::Object>> frames =
+      WellKnownClasses::dalvik_system_VirtualThreadParkedStates_frames->GetObject(parked_states)
+          ->AsObjectArray<mirror::Object>();
+  DCHECK(!frames.IsNull()) << frame->GetMethod()->PrettyMethod();
+
+  // TODO(b/346542404): Cache the tail index in the VirtualThreadContext.
+  int32_t frames_size = frames->GetLength();
+  int32_t frame_index = -1;
+  bool is_last_frame_or_empty = true;
+  ObjPtr<mirror::Object> src_frame;
+  for (int32_t i = frames_size - 1; i >= 0; i--) {
+    ObjPtr<mirror::Object> obj = frames->Get(i);
+    if (!obj.IsNull()) {
+      if (frame_index != -1) {
+        is_last_frame_or_empty = false;
+        break;
+      }
+      frame_index = i;
+      src_frame = obj;
+    }
+  }
+
+  DCHECK(!src_frame.IsNull()) << frame->GetMethod()->PrettyMethod();
+  ObjPtr<mirror::ByteArray> frame_jbytes =
+      WellKnownClasses::dalvik_system_VirtualThreadFrame_frame->GetObject(src_frame)->AsByteArray();
+  DCHECK(!frame_jbytes.IsNull()) << frame->GetMethod()->PrettyMethod();
+  ObjPtr<mirror::Object> refs =
+      WellKnownClasses::dalvik_system_VirtualThreadFrame_refs->GetObject(src_frame);
+
+  size_t non_vref_size = frame_jbytes->GetLength();
+  DCHECK_EQ(non_vref_size, ShadowFrame::ComputeSizeWithoutReferences(frame->NumberOfVRegs()))
+      << frame->GetMethod()->PrettyMethod();
+
+  constexpr size_t vreg_offset = ShadowFrame::VRegsOffset();
+  static_assert(ShadowFrame::DexPCOffset() < vreg_offset,
+                "memcpy dex_pc will fail because frame_jbytes is a partial shadow frame.");
+  uint32_t dex_pc;
+  memcpy(&dex_pc, frame_jbytes->GetData() + ShadowFrame::DexPCOffset(), sizeof(uint32_t));
+
+  // Verify the frame on a debug build.
+  if (kIsDebugBuild) {
+    frame->CheckConsistentVRegs();
+    std::unique_ptr<uint8_t[]> frame_bytes(new uint8_t[non_vref_size]);
+    frame_jbytes->MemcpyTo(0, reinterpret_cast<int8_t*>(frame_bytes.get()), 0, non_vref_size);
+    ShadowFrame* sf = reinterpret_cast<ShadowFrame*>(frame_bytes.get());
+
+    CHECK_EQ(frame->NumberOfVRegs(), sf->NumberOfVRegs()) << frame->GetMethod()->PrettyMethod();
+    CHECK_EQ(frame->GetMethod(), sf->GetMethod()) << frame->GetMethod()->PrettyMethod();
+    CHECK_EQ(dex_pc, sf->GetDexPC()) << frame->GetMethod()->PrettyMethod();
+  }
+  frame->SetDexPC(dex_pc);
+
+  // Copy non-reference vregs.
+  frame_jbytes->MemcpyTo(vreg_offset,
+                         reinterpret_cast<int8_t*>(frame),
+                         vreg_offset,
+                         frame->NumberOfVRegs() * sizeof(uint32_t));
+
+  if (!refs.IsNull()) {
+    // Copy reference vregs.
+    ObjPtr<mirror::ObjectArray<mirror::Object>> objs = refs->AsObjectArray<mirror::Object>();
+    DCHECK_EQ(static_cast<uint32_t>(objs->GetLength()), frame->NumberOfVRegs())
+        << frame->GetMethod()->PrettyMethod();
+    for (uint32_t i = 0; i < frame->NumberOfVRegs(); i++) {
+      ObjPtr<mirror::Object> obj = objs->Get(i);
+      DCHECK(!obj.IsNull() || frame->GetVRegReference(i) == nullptr)
+          << frame->GetMethod()->PrettyMethod() << " vreg " << i
+          << " nullness mismatch: " << (obj.IsNull());
+
+      if (!obj.IsNull()) {
+        frame->SetVRegReference(i, obj);
+      }
+    }
+  }
+
+  // Remove the reference to the heap object and let the GC collect it.
+  frames->Set(frame_index, nullptr);
+  // If it's the last frame, the current dex instruction is an invoke-* instruction that
+  // calls from libcore to park the virtual thread. Let's move to the next instruction to unpark.
+  if (is_last_frame_or_empty) {
+    DCHECK(!Runtime::Current()->IsActiveTransaction()) << frame->GetMethod()->PrettyMethod();
+    WellKnownClasses::dalvik_system_VirtualThreadContext_parkedStates->SetObject<false>(v_context,
+                                                                                        nullptr);
+    self->SetVirtualThreadFlags(VirtualThreadFlag::kUnparking, false);
+    frame->AdvanceDexPc();
+  }
 }
 
 template<bool is_range>

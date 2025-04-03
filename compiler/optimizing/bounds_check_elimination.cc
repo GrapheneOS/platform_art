@@ -569,7 +569,8 @@ class BCEVisitor final : public HGraphVisitor {
     // TODO(solanes): Do this without a linear pass of the graph?
     GetGraph()->SetHasBoundsChecks(false);
     for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
-      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done();
+           it.Advance()) {
         HInstruction* instruction = it.Current();
         if (instruction->IsBoundsCheck()) {
           GetGraph()->SetHasBoundsChecks(true);
@@ -1951,7 +1952,8 @@ class BCEVisitor final : public HGraphVisitor {
       HBasicBlock* true_block = entry.second;
       HBasicBlock* new_preheader = true_block->GetSingleSuccessor();
       // Scan all instructions in a new deoptimization block.
-      for (HInstructionIterator it(true_block->GetInstructions()); !it.Done(); it.Advance()) {
+      for (HInstructionIteratorPrefetchNext it(true_block->GetInstructions()); !it.Done();
+           it.Advance()) {
         HInstruction* instruction = it.Current();
         DataType::Type type = instruction->GetType();
         HPhi* phi = nullptr;

@@ -128,7 +128,7 @@ bool LICM::Run() {
       // instruction that is not hoisted stops this optimization. Non-throwing instructions,
       // on the other hand, can still be hoisted.
       bool found_first_non_hoisted_visible_instruction_in_loop = !inner->IsLoopHeader();
-      for (HInstructionIterator inst_it(inner->GetInstructions());
+      for (HInstructionIteratorPrefetchNext inst_it(inner->GetInstructions());
            !inst_it.Done();
            inst_it.Advance()) {
         HInstruction* instruction = inst_it.Current();

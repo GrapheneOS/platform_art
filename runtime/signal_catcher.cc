@@ -143,7 +143,10 @@ void SignalCatcher::HandleSigQuit() {
   os << "Debug Store: " << DebugStoreGetString() << "\n";
 
   if (art_flags::always_enable_profile_code()) {
-    os << "LongRunningMethods: " << TraceProfiler::GetLongRunningMethodsString() << "\n";
+    std::string str = TraceProfiler::GetLongRunningMethodsString();
+    if (!str.empty()) {
+      os << "LongRunningMethods: " << str << "\n";
+    }
   }
 
   runtime->DumpForSigQuit(os);

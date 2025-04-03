@@ -170,7 +170,8 @@ static bool RewriteBreakLoopBody(const HLoopInformation* loop,
                                  HInstruction* upper,
                                  bool rewrite) {
   // Deal with Phis. Outside use prohibited, except for index (which gets exit value).
-  for (HInstructionIterator it(loop->GetHeader()->GetPhis()); !it.Done(); it.Advance()) {
+  for (HInstructionIteratorPrefetchNext it(loop->GetHeader()->GetPhis()); !it.Done();
+       it.Advance()) {
     HInstruction* exit_value = it.Current() == index ? upper : nullptr;
     if (!FixOutsideUse(loop, it.Current(), exit_value, rewrite)) {
       return false;
@@ -258,10 +259,11 @@ void HInductionVarAnalysis::VisitLoop(const HLoopInformation* loop) {
       continue;  // Inner loops visited later.
     }
     // Visit phi-operations and instructions.
-    for (HInstructionIterator it(loop_block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(loop_block->GetPhis()); !it.Done(); it.Advance()) {
       global_depth = TryVisitNodes(loop, it.Current(), global_depth, &visited_instructions);
     }
-    for (HInstructionIterator it(loop_block->GetInstructions()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(loop_block->GetInstructions()); !it.Done();
+         it.Advance()) {
       global_depth = TryVisitNodes(loop, it.Current(), global_depth, &visited_instructions);
     }
   }
@@ -1648,7 +1650,7 @@ bool HInductionVarAnalysis::IsPathologicalCase() {
       continue;
     }
 
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    for (HInstructionIteratorPrefetchNext it(block->GetPhis()); !it.Done(); it.Advance()) {
       DCHECK(it.Current()->IsLoopHeaderPhi());
       HPhi* phi = it.Current()->AsPhi();
       CalculateLoopHeaderPhisInARow(phi, cached_values, local_allocator);

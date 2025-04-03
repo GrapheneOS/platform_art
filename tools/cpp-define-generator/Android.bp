@@ -35,6 +35,9 @@ cc_object {
         "libart_headers",
         "libdexfile_all_headers", // For dex/modifiers.h
     ],
+    shared_libs: [
+        "art-aconfig-flags-lib", // For thread.h. Only the headers are needed.
+    ],
     cflags: [
         // Produce text file rather than binary.
         "-S",

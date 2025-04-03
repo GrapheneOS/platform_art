@@ -481,14 +481,10 @@ ArtMethod* RefineTargetMethod(Thread* self,
     if (referrer_class == declaring_class) {
       return target_method;
     }
-    if (declaring_class->IsInterface()) {
-      if (target_method->IsAbstract()) {
-        std::string msg =
-            "Method " + target_method->PrettyMethod() + " is abstract interface method!";
-        ThrowIllegalAccessException(msg.c_str());
-        return nullptr;
-      }
-    } else {
+    CHECK(!target_method->IsAbstract())
+        << "invoke-super MethodHandle can't target abstract methods: "
+        << target_method->PrettyMethod();
+    if (!declaring_class->IsInterface()) {
       ObjPtr<mirror::Class> super_class = referrer_class->GetSuperClass();
       uint16_t vtable_index = target_method->GetMethodIndex();
       DCHECK(super_class != nullptr);

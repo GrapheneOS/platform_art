@@ -316,7 +316,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitBasicBlock(HBasicBlock* block) {
   VisitPhis(block);
 
   // Handle instructions. Since RTP may add HBoundType instructions just after the
-  // last visited instruction, use `HInstructionIteratorHandleChanges` iterator.
+  // last visited instruction, use `HInstructionIterator` iterator.
   VisitNonPhiInstructionsHandleChanges(block);
 
   // Add extra nodes to bound types.
@@ -714,7 +714,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitCheckCast(HCheckCast* check_cast
   } else {
     // This is the first run of RTP and class is unresolved. Remove the binding.
     // The instruction itself is removed in VisitBoundType so as to not
-    // invalidate HInstructionIterator.
+    // invalidate HInstructionIteratorPrefetchNext.
     bound_type->ReplaceWith(bound_type->InputAt(0));
   }
 }

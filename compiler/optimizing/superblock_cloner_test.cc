@@ -319,7 +319,7 @@ TEST_F(SuperblockClonerTest, LoopPeelingMultipleBackEdges) {
 
   MakeIf(if_block, param_);
 
-  HInstructionIterator it(header->GetPhis());
+  HInstructionIteratorPrefetchNext it(header->GetPhis());
   DCHECK(!it.Done());
   HPhi* loop_phi = it.Current()->AsPhi();
   HInstruction* temp_add =
