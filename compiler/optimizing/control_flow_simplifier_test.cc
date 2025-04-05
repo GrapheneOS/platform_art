@@ -41,9 +41,6 @@ class ControlFlowSimplifierTest : public OptimizingUnitTest {
   bool CheckGraphAndTryControlFlowSimplifier() {
     graph_->BuildDominatorTree();
     EXPECT_TRUE(CheckGraph());
-
-    SideEffectsAnalysis side_effects(graph_);
-    side_effects.Run();
     return HControlFlowSimplifier(graph_, /*handles*/ nullptr, /*stats*/ nullptr).Run();
   }
 };

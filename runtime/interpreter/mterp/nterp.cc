@@ -391,25 +391,17 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t
   }
 }
 
-template <bool kIsPut>
+template <bool kStatic>
 ALWAYS_INLINE FLATTEN
-static bool CanAccessFastInternal(ArtField* field, ArtMethod* caller)
+static bool CanAccessFast(ArtField* field, ArtMethod* caller, const Instruction* inst)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (caller->SkipAccessChecks() || field == nullptr) {
     return true;
   }
+  bool is_put = kStatic ? IsInstructionSPut(inst->Opcode()) : IsInstructionIPut(inst->Opcode());
   return field->IsPublic() &&
       field->GetDeclaringClass()->IsPublic() &&
-      !(kIsPut && field->IsFinal());
-}
-
-template <bool kIsStatic>
-ALWAYS_INLINE FLATTEN
-static bool CanAccessFast(ArtField* field, ArtMethod* caller, const Instruction* inst)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  bool is_put = kIsStatic ? IsInstructionSPut(inst->Opcode()) : IsInstructionIPut(inst->Opcode());
-  return is_put ? CanAccessFastInternal</*kIsPut=*/true>(field, caller)
-                : CanAccessFastInternal</*kIsPut=*/false>(field, caller);
+      !(is_put && field->IsFinal());
 }
 
 template <bool kStatic>
@@ -530,49 +522,6 @@ extern "C" size_t NterpGetStaticField(Thread* self,
     UpdateCache(self, dex_pc_ptr, resolved_field);
   }
   return reinterpret_cast<size_t>(resolved_field);
-}
-
-// For faster execution, `cls` can be a from-space reference which is OK, as
-// we're only using native fields from that object, and checking for state
-// invariants that don't roll back (ie that the class is initialized).
-ALWAYS_INLINE FLATTEN
-static size_t NterpGetLocalStaticFieldInternal(mirror::Class* cls, const uint16_t* dex_pc_ptr)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  // We're checking if we're accessing a field of the currently executing class.
-  // We only need to check that the class is initialized, and don't need
-  // a synchrnonization barrier for this.
-  if (cls->GetStatus<kVerifyNone, /*kWithSynchronizationBarrier=*/ false>()
-          < ClassStatus::kInitialized) {
-    return 0u;
-  }
-  ArtField* resolved_field = cls->FindDeclaredField</*kOnlyLookAtIndex=*/true>(
-      Instruction::At(dex_pc_ptr)->VRegB_21c());
-  if (resolved_field != nullptr && resolved_field->IsStatic() && !resolved_field->IsVolatile()) {
-    return reinterpret_cast<size_t>(resolved_field);
-  }
-  return 0u;
-}
-
-// `cls` can be a from-space, see comment in `NterpGetLocalStaticFieldInternal`.
-FLATTEN
-extern "C" size_t NterpGetLocalStaticField(mirror::Class* cls, const uint16_t* dex_pc_ptr)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedAssertNoThreadSuspension sants("In nterp");
-  return NterpGetLocalStaticFieldInternal(cls, dex_pc_ptr);
-}
-
-// `cls` can be a from-space, see comment in `NterpGetLocalStaticFieldInternal`.
-FLATTEN
-extern "C" size_t NterpGetLocalStaticFieldForSPutObject(mirror::Class* cls,
-                                                        const uint16_t* dex_pc_ptr)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedAssertNoThreadSuspension sants("In nterp");
-  // For object store in methods that may have type check failures, we need to
-  // resolve the type of the field. In such a case, go to slow path.
-  if (cls->HasTypeChecksFailure()) {
-    return 0u;
-  }
-  return NterpGetLocalStaticFieldInternal(cls, dex_pc_ptr);
 }
 
 LIBART_PROTECTED

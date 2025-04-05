@@ -760,8 +760,6 @@ class Runtime {
     return (experimental_flags_ & flags) != ExperimentalFlags::kNone;
   }
 
-  void CreateJitCodeCache(bool rwx_memory_allowed);
-
   // Create the JIT and instrumentation and code cache.
   void CreateJit();
 

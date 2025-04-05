@@ -1126,7 +1126,6 @@ class EXPORT MANAGED Class final : public Object {
   ArtField* FindDeclaredField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <bool kOnlyLookAtIndex = false>
   ArtField* FindDeclaredField(uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

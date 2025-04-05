@@ -27,6 +27,8 @@ public class Main {
 
     private static WeakReference<Thread> WEAK_REF = null;
 
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
+
     public static void main(String[] args) throws InterruptedException {
         if (!com.android.art.flags.Flags.virtualThreadImplV1()) {
             return;
@@ -41,10 +43,10 @@ public class Main {
         // Verify that a carrier thread isn't reachable and leaked by the underlying
         // Virtual Thread implementation after parking the Virtual Thread.
         VirtualThreadContext context = startVirtualThreadAndGetParkedContext();
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         while (!WEAK_REF.refersTo(null)) {
-            if (System.currentTimeMillis() - startTime > 10 * 1000) {
-                throw new AssertionError("10s time out");
+            if (System.nanoTime() - startTime > 20 * NANOS_PER_SECOND) {
+                throw new AssertionError("20s time out");
             }
             System.gc();
         }

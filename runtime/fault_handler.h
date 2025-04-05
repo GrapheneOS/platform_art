@@ -34,12 +34,6 @@ namespace art HIDDEN {
 class ArtMethod;
 class FaultHandler;
 
-namespace gc {
-namespace collector {
-class MarkCompact;
-}  // namespace collector
-}  // namespace gc
-
 class FaultManager {
  public:
   FaultManager();
@@ -60,9 +54,6 @@ class FaultManager {
 
   // Try to handle a SIGBUS fault, returns true if successful.
   bool HandleSigbusFault(int sig, siginfo_t* info, void* context);
-
-  // Try to handle a SIGSYS fault, returns true if successful.
-  bool HandleSigsysFault(int sig, siginfo_t* info, void* context);
 
   // Added handlers are owned by the fault handler and will be freed on Shutdown().
   EXPORT void AddHandler(FaultHandler* handler, bool generated_code);
@@ -113,7 +104,6 @@ class FaultManager {
 
   std::vector<FaultHandler*> generated_code_handlers_;
   std::vector<FaultHandler*> other_handlers_;
-  gc::collector::MarkCompact* mark_compact_;
   bool initialized_;
 
   // We keep a certain number of generated code ranges locally to avoid too many

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  The spec may change in the future.
  */
 public class Main {
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
 
     public static void main(String[] args) throws InterruptedException {
         if (!com.android.art.flags.Flags.virtualThreadImplV1()) {
@@ -48,10 +49,10 @@ public class Main {
         });
 
         WeakReference<VirtualThreadContext> ref = startVirtualThreadAndGetParkedContext();
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         while (!ref.refersTo(null)) {
-            if (System.currentTimeMillis() - startTime > 10 * 1000) {
-                throw new AssertionError("10s time out");
+            if (System.nanoTime() - startTime > 20 * NANOS_PER_SECOND) {
+                throw new AssertionError("20s time out");
             }
             System.gc();
         }

@@ -160,10 +160,12 @@ public class Main {
         }
 
         void waitUntilAllThreadsWakeUp() {
+            // The constant multiplier needs to be significantly larger than 2 because the timer
+            // is single-threaded, and is slower in the interpreter mode.
+            long timeoutThresholdMs = mSleepDurationMs * 5;
             Object joined_signal;
             try {
-                // Time out if not all threads wake up before mSleepDurationMs * 2
-                joined_signal = mJoinedNotifier.poll(mSleepDurationMs * 2, TimeUnit.MILLISECONDS);
+                joined_signal = mJoinedNotifier.poll(timeoutThresholdMs, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -172,9 +174,9 @@ public class Main {
             debugPrintln("all " + mJoinedCounter.get() + " Threads joined at "
                     + df.format(new Date(endTime)));
             if (joined_signal == null) {
-                throw new AssertionError("Expected " + mNumOfThreads + " threads to"
+                throw new AssertionError("Expected " + mNumOfThreads + " threads to "
                         + "join, but only " + mJoinedCounter.get() + " threads joined within " +
-                        mSleepDurationMs * 2 + " ms.");
+                        timeoutThresholdMs + " ms.");
             }
             if (virtualThreadIds.size() != mNumOfThreads) {
                 throw new AssertionError("Expected " + mNumOfThreads + " threads, but only " +

@@ -31,12 +31,8 @@ ASM_DEFINE(ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT,
            art::MostSignificantBit(art::kAccMemorySharedMethod))
 ASM_DEFINE(ART_METHOD_IS_STATIC_FLAG,
            art::kAccStatic)
-ASM_DEFINE(ART_METHOD_IS_OBSOLETE_FLAG,
-           art::kAccObsoleteMethod)
 ASM_DEFINE(ART_METHOD_IS_STATIC_FLAG_BIT,
            art::MostSignificantBit(art::kAccStatic))
-ASM_DEFINE(ART_METHOD_IS_OBSOLETE_FLAG_BIT,
-           art::WhichPowerOf2(art::kAccObsoleteMethod))
 ASM_DEFINE(ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG,
            art::kAccNterpInvokeFastPathFlag)
 ASM_DEFINE(ART_METHOD_NTERP_INVOKE_FAST_PATH_FLAG_BIT,
