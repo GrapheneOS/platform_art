@@ -81,8 +81,16 @@ static void UpdateLoopPhisIn(ArenaAllocator* allocator,
 }
 
 bool LICM::Run() {
+  if (!graph_->HasLoops()) {
+    // Nothing to do.
+    return false;
+  }
+
   bool didLICM = false;
-  DCHECK(side_effects_.HasRun());
+  SideEffectsAnalysis side_effects(graph_);
+  side_effects.Run();
+
+  DCHECK(side_effects.HasRun());
 
   // Only used during debug.
   ArenaBitVector* visited = nullptr;
@@ -101,7 +109,7 @@ bool LICM::Run() {
     }
 
     HLoopInformation* loop_info = block->GetLoopInformation();
-    SideEffects loop_effects = side_effects_.GetLoopEffects(block);
+    SideEffects loop_effects = side_effects.GetLoopEffects(block);
     HBasicBlock* pre_header = loop_info->GetPreHeader();
 
     for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {

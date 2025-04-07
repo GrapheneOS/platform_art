@@ -357,10 +357,10 @@ class ValueSet : public ArenaObject<kArenaAllocGvn> {
  */
 class GlobalValueNumberer : public ValueObject {
  public:
-  GlobalValueNumberer(HGraph* graph, const SideEffectsAnalysis& side_effects)
+  explicit GlobalValueNumberer(HGraph* graph)
       : graph_(graph),
         allocator_(graph->GetArenaStack()),
-        side_effects_(side_effects),
+        side_effects_(nullptr),
         sets_(graph->GetBlocks().size(), nullptr, allocator_.Adapter(kArenaAllocGvn)),
         dominated_to_visit_(graph->GetBlocks().size(), allocator_.Adapter(kArenaAllocGvn)),
         successors_to_visit_(graph->GetBlocks().size(), allocator_.Adapter(kArenaAllocGvn)),
@@ -384,7 +384,7 @@ class GlobalValueNumberer : public ValueObject {
 
   HGraph* graph_;
   ScopedArenaAllocator allocator_;
-  const SideEffectsAnalysis& side_effects_;
+  SideEffectsAnalysis* side_effects_;
 
   ValueSet* FindSetFor(HBasicBlock* block) const {
     ValueSet* result = sets_[block->GetBlockId()];
@@ -432,7 +432,13 @@ class GlobalValueNumberer : public ValueObject {
 };
 
 bool GlobalValueNumberer::Run() {
-  DCHECK(side_effects_.HasRun());
+  if (graph_->HasLoops()) {
+    // SideEffectsAnalysis is only used when the graph has loops.
+    side_effects_ = new (&allocator_) SideEffectsAnalysis(graph_);
+    side_effects_->Run();
+    DCHECK(side_effects_->HasRun());
+  }
+
   sets_[graph_->GetEntryBlock()->GetBlockId()] = new (&allocator_) ValueSet(&allocator_);
 
   // Use the reverse post order to ensure the non back-edge predecessors of a block are
@@ -492,7 +498,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         } else {
           DCHECK(!block->GetLoopInformation()->IsIrreducible());
           DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
-          set->Kill(side_effects_.GetLoopEffects(block));
+          set->Kill(side_effects_->GetLoopEffects(block));
         }
       } else if (predecessors.size() > 1) {
         for (HBasicBlock* predecessor : predecessors) {
@@ -602,7 +608,7 @@ HBasicBlock* GlobalValueNumberer::FindVisitedBlockWithRecyclableSet(
 }
 
 bool GVNOptimization::Run() {
-  GlobalValueNumberer gvn(graph_, side_effects_);
+  GlobalValueNumberer gvn(graph_);
   return gvn.Run();
 }
 

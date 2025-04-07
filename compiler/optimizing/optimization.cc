@@ -68,8 +68,6 @@ namespace art HIDDEN {
 
 const char* OptimizationPassName(OptimizationPass pass) {
   switch (pass) {
-    case OptimizationPass::kSideEffectsAnalysis:
-      return SideEffectsAnalysis::kSideEffectsAnalysisPassName;
     case OptimizationPass::kInductionVarAnalysis:
       return HInductionVarAnalysis::kInductionPassName;
     case OptimizationPass::kGlobalValueNumbering:
@@ -160,7 +158,6 @@ OptimizationPass OptimizationPassByName(const std::string& pass_name) {
   X(OptimizationPass::kLoopOptimization);
   X(OptimizationPass::kReferenceTypePropagation);
   X(OptimizationPass::kScheduling);
-  X(OptimizationPass::kSideEffectsAnalysis);
 #ifdef ART_ENABLE_CODEGEN_arm
   X(OptimizationPass::kInstructionSimplifierArm);
   X(OptimizationPass::kCriticalNativeAbiFixupArm);
@@ -192,10 +189,9 @@ ArenaVector<HOptimization*> ConstructOptimizations(
     const DexCompilationUnit& dex_compilation_unit) {
   ArenaVector<HOptimization*> optimizations(allocator->Adapter());
 
-  // Some optimizations require SideEffectsAnalysis or HInductionVarAnalysis
+  // Some optimizations require HInductionVarAnalysis
   // instances. This method uses the nearest instance preceeding it in the pass
   // name list or fails fatally if no such analysis can be found.
-  SideEffectsAnalysis* most_recent_side_effects = nullptr;
   HInductionVarAnalysis* most_recent_induction = nullptr;
 
   // Loop over the requested optimizations.
@@ -211,9 +207,6 @@ ArenaVector<HOptimization*> ConstructOptimizations(
       //
       // Analysis passes (kept in most recent for subsequent passes).
       //
-      case OptimizationPass::kSideEffectsAnalysis:
-        opt = most_recent_side_effects = new (allocator) SideEffectsAnalysis(graph, pass_name);
-        break;
       case OptimizationPass::kInductionVarAnalysis:
         opt = most_recent_induction =
             new (allocator) HInductionVarAnalysis(graph, stats, pass_name);
@@ -222,12 +215,10 @@ ArenaVector<HOptimization*> ConstructOptimizations(
       // Passes that need prior analysis.
       //
       case OptimizationPass::kGlobalValueNumbering:
-        CHECK(most_recent_side_effects != nullptr);
-        opt = new (allocator) GVNOptimization(graph, *most_recent_side_effects, pass_name);
+        opt = new (allocator) GVNOptimization(graph, pass_name);
         break;
       case OptimizationPass::kInvariantCodeMotion:
-        CHECK(most_recent_side_effects != nullptr);
-        opt = new (allocator) LICM(graph, *most_recent_side_effects, stats, pass_name);
+        opt = new (allocator) LICM(graph, stats, pass_name);
         break;
       case OptimizationPass::kLoopOptimization:
         CHECK(most_recent_induction != nullptr);
@@ -235,9 +226,8 @@ ArenaVector<HOptimization*> ConstructOptimizations(
             graph, *codegen, most_recent_induction, stats, pass_name);
         break;
       case OptimizationPass::kBoundsCheckElimination:
-        CHECK(most_recent_side_effects != nullptr && most_recent_induction != nullptr);
-        opt = new (allocator) BoundsCheckElimination(
-            graph, *most_recent_side_effects, most_recent_induction, pass_name);
+        CHECK(most_recent_induction != nullptr);
+        opt = new (allocator) BoundsCheckElimination(graph, most_recent_induction, pass_name);
         break;
       //
       // Regular passes.

@@ -22,8 +22,6 @@
 
 namespace art HIDDEN {
 
-class SideEffectsAnalysis;
-
 class LoadStoreElimination : public HOptimization {
  public:
   // Controls whether to enable VLOG(compiler) logs explaining the transforms taking place.

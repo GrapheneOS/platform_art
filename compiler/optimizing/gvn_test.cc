@@ -47,9 +47,7 @@ TEST_F(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 
   graph_->BuildDominatorTree();
-  SideEffectsAnalysis side_effects(graph_);
-  side_effects.Run();
-  GVNOptimization(graph_, side_effects).Run();
+  GVNOptimization(graph_).Run();
 
   ASSERT_TRUE(to_remove->GetBlock() == nullptr);
   ASSERT_EQ(different_offset->GetBlock(), block);
@@ -71,9 +69,7 @@ TEST_F(GVNTest, GlobalFieldElimination) {
   MakeIFieldGet(join, parameter, DataType::Type::kBool, MemberOffset(42));
 
   graph_->BuildDominatorTree();
-  SideEffectsAnalysis side_effects(graph_);
-  side_effects.Run();
-  GVNOptimization(graph_, side_effects).Run();
+  GVNOptimization(graph_).Run();
 
   // Check that all field get instructions have been GVN'ed.
   ASSERT_TRUE(then->GetFirstInstruction()->IsGoto());
@@ -109,11 +105,7 @@ TEST_F(GVNTest, LoopFieldElimination) {
   ASSERT_EQ(field_get_in_return_block->GetBlock(), return_block);
 
   graph_->BuildDominatorTree();
-  {
-    SideEffectsAnalysis side_effects(graph_);
-    side_effects.Run();
-    GVNOptimization(graph_, side_effects).Run();
-  }
+  GVNOptimization(graph_).Run();
 
   // Check that all field get instructions are still there.
   ASSERT_EQ(field_get_in_loop_header->GetBlock(), loop_header);
@@ -124,11 +116,7 @@ TEST_F(GVNTest, LoopFieldElimination) {
 
   // Now remove the field set, and check that all field get instructions have been GVN'ed.
   loop_body->RemoveInstruction(field_set);
-  {
-    SideEffectsAnalysis side_effects(graph_);
-    side_effects.Run();
-    GVNOptimization(graph_, side_effects).Run();
-  }
+  GVNOptimization(graph_).Run();
 
   ASSERT_TRUE(field_get_in_loop_header->GetBlock() == nullptr);
   ASSERT_TRUE(field_get_in_loop_body->GetBlock() == nullptr);

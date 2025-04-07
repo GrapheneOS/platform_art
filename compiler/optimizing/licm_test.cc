@@ -59,9 +59,7 @@ class LICMTest : public OptimizingUnitTest {
   // Performs LICM optimizations (after proper set up).
   void PerformLICM() {
     graph_->BuildDominatorTree();
-    SideEffectsAnalysis side_effects(graph_);
-    side_effects.Run();
-    LICM(graph_, side_effects, nullptr).Run();
+    LICM(graph_, nullptr).Run();
   }
 
   // Specific basic blocks.

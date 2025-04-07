@@ -84,7 +84,6 @@ enum class OptimizationPass {
   kLoopOptimization,
   kReferenceTypePropagation,
   kScheduling,
-  kSideEffectsAnalysis,
   kWriteBarrierElimination,
 #ifdef ART_ENABLE_CODEGEN_arm
   kInstructionSimplifierArm,
@@ -121,17 +120,17 @@ OptimizationPass OptimizationPassByName(const std::string& pass_name);
 // an optional alternative name (nullptr denotes default), and
 // an optional pass dependence (kNone denotes no dependence).
 struct OptimizationDef {
-  OptimizationDef(OptimizationPass p, const char* pn, OptimizationPass d)
-      : pass(p), pass_name(pn), depends_on(d) {}
+  constexpr OptimizationDef(OptimizationPass p, const char* pn, OptimizationPass d)
+      : pass(p), depends_on(d), pass_name(pn) {}
   OptimizationPass pass;
-  const char* pass_name;
   OptimizationPass depends_on;
+  const char* pass_name;
 };
 
 // Helper method for optimization definition array entries.
-inline OptimizationDef OptDef(OptimizationPass pass,
-                              const char* pass_name = nullptr,
-                              OptimizationPass depends_on = OptimizationPass::kNone) {
+constexpr OptimizationDef OptDef(OptimizationPass pass,
+                                 const char* pass_name = nullptr,
+                                 OptimizationPass depends_on = OptimizationPass::kNone) {
   return OptimizationDef(pass, pass_name, depends_on);
 }
 

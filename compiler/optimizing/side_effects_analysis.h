@@ -20,17 +20,17 @@
 #include "base/arena_containers.h"
 #include "base/macros.h"
 #include "nodes.h"
-#include "optimization.h"
 
 namespace art HIDDEN {
 
-class SideEffectsAnalysis : public HOptimization {
+class SideEffectsAnalysis : public ArenaObject<kArenaAllocOptimization> {
  public:
-  explicit SideEffectsAnalysis(HGraph* graph, const char* pass_name = kSideEffectsAnalysisPassName)
-      : HOptimization(graph, pass_name),
-        graph_(graph),
-        block_effects_(graph->GetAllocator()->Adapter(kArenaAllocSideEffectsAnalysis)),
-        loop_effects_(graph->GetAllocator()->Adapter(kArenaAllocSideEffectsAnalysis)) {}
+  explicit SideEffectsAnalysis(HGraph* graph)
+      : graph_(graph),
+        block_effects_(graph_->GetBlocks().size(),
+                       graph->GetAllocator()->Adapter(kArenaAllocSideEffectsAnalysis)),
+        loop_effects_(graph_->GetBlocks().size(),
+                      graph->GetAllocator()->Adapter(kArenaAllocSideEffectsAnalysis)) {}
 
   SideEffects GetLoopEffects(HBasicBlock* block) const;
   SideEffects GetBlockEffects(HBasicBlock* block) const;
@@ -39,8 +39,6 @@ class SideEffectsAnalysis : public HOptimization {
   bool Run();
 
   bool HasRun() const { return has_run_; }
-
-  static constexpr const char* kSideEffectsAnalysisPassName = "side_effects";
 
  private:
   void UpdateLoopEffects(HLoopInformation* info, SideEffects effects);

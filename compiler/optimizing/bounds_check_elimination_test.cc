@@ -41,15 +41,12 @@ class BoundsCheckEliminationTest : public OptimizingUnitTest {
 
     InstructionSimplifier(graph_, /* codegen= */ nullptr).Run();
 
-    SideEffectsAnalysis side_effects(graph_);
-    side_effects.Run();
-
-    GVNOptimization(graph_, side_effects).Run();
+    GVNOptimization(graph_).Run();
 
     HInductionVarAnalysis induction(graph_);
     induction.Run();
 
-    BoundsCheckElimination(graph_, side_effects, &induction).Run();
+    BoundsCheckElimination(graph_, &induction).Run();
   }
 
   HInstruction* BuildSSAGraph1(int initial, int increment, IfCondition cond = kCondGE);

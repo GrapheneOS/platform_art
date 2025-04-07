@@ -19,11 +19,6 @@
 namespace art HIDDEN {
 
 bool SideEffectsAnalysis::Run() {
-  // Inlining might have created more blocks, so we need to increase the size
-  // if needed.
-  block_effects_.resize(graph_->GetBlocks().size());
-  loop_effects_.resize(graph_->GetBlocks().size());
-
   // In DEBUG mode, ensure side effects are properly initialized to empty.
   if (kIsDebugBuild) {
     for (HBasicBlock* block : graph_->GetReversePostOrder()) {

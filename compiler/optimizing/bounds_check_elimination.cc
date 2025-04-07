@@ -18,6 +18,7 @@
 
 #include <limits>
 
+#include "base/arena_allocator.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "induction_var_range.h"
@@ -2071,12 +2072,15 @@ bool BoundsCheckElimination::Run() {
     return false;
   }
 
+  SideEffectsAnalysis side_effects(graph_);
+  side_effects.Run();
+
   // Reverse post order guarantees a node's dominators are visited first.
   // We want to visit in the dominator-based order since if a value is known to
   // be bounded by a range at one instruction, it must be true that all uses of
   // that value dominated by that instruction fits in that range. Range of that
   // value can be narrowed further down in the dominator tree.
-  BCEVisitor visitor(graph_, side_effects_, induction_analysis_);
+  BCEVisitor visitor(graph_, side_effects, induction_analysis_);
   for (size_t i = 0, size = graph_->GetReversePostOrder().size(); i != size; ++i) {
     HBasicBlock* current = graph_->GetReversePostOrder()[i];
     if (visitor.IsAddedBlock(current)) {
