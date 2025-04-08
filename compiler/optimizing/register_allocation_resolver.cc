@@ -240,11 +240,9 @@ void RegisterAllocationResolver::UpdateSafepointLiveRegisters() {
         continue;
       }
       Location source = current->ToLocation();
-      for (SafepointPosition* safepoint_position = current->GetFirstSafepoint();
-           safepoint_position != nullptr;
-           safepoint_position = safepoint_position->GetNext()) {
-        DCHECK(current->CoversSlow(safepoint_position->GetPosition()));
-        LocationSummary* locations = safepoint_position->GetLocations();
+      for (const SafepointPosition& safepoint_position : current->GetSafepoints()) {
+        DCHECK(current->CoversSlow(safepoint_position.GetPosition()));
+        LocationSummary* locations = safepoint_position.GetLocations();
         switch (source.GetKind()) {
           case Location::kRegister:
           case Location::kFpuRegister: {
@@ -382,18 +380,16 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
       InsertParallelMoveAt(current->GetEnd(), interval->GetDefinedBy(), source, destination);
     }
 
-    for (SafepointPosition* safepoint_position = current->GetFirstSafepoint();
-         safepoint_position != nullptr;
-         safepoint_position = safepoint_position->GetNext()) {
-      DCHECK(current->CoversSlow(safepoint_position->GetPosition()));
+    for (const SafepointPosition& safepoint_position : current->GetSafepoints()) {
+      DCHECK(current->CoversSlow(safepoint_position.GetPosition()));
 
       if (current->GetType() == DataType::Type::kReference) {
         DCHECK(interval->GetDefinedBy()->IsActualObject())
             << interval->GetDefinedBy()->DebugName()
             << '(' << interval->GetDefinedBy()->GetId() << ')'
-            << "@" << safepoint_position->GetInstruction()->DebugName()
-            << '(' << safepoint_position->GetInstruction()->GetId() << ')';
-        LocationSummary* locations = safepoint_position->GetLocations();
+            << "@" << safepoint_position.GetInstruction()->DebugName()
+            << '(' << safepoint_position.GetInstruction()->GetId() << ')';
+        LocationSummary* locations = safepoint_position.GetLocations();
         if (current->GetParent()->HasSpillSlot()) {
           locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
         }

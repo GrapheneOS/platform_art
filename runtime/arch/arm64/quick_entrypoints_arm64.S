@@ -795,6 +795,9 @@ END art_quick_osr_stub
      */
 
 ENTRY art_quick_do_long_jump
+    // We don't use the LR, but it is needed for unwinding.
+    SAVE_REG_INCREASE_FRAME xLR, 16
+
     // Reserve space for the gprs + fprs;
     INCREASE_FRAME ARM64_LONG_JUMP_CONTEXT_SIZE
 
@@ -847,6 +850,7 @@ ENTRY art_quick_do_long_jump
     // Set SP. Do not access fprs_ and gprs_ from now, they are below SP.
     mov sp, xIP0
     .cfi_def_cfa_offset 0
+    .cfi_register xLR, xIP1
 
     REFRESH_MARKING_REGISTER
     REFRESH_SUSPEND_CHECK_REGISTER

@@ -547,6 +547,8 @@ void RegisterAllocatorLinearScan::CheckForFixedInputs(HInstruction* instruction,
 
 void RegisterAllocatorLinearScan::AddSafepointsFor(HInstruction* instruction) {
   LiveInterval* current = instruction->GetLiveInterval();
+  SafepointPositionList list;
+  auto before = list.before_begin();
   for (size_t safepoint_index = safepoints_.size(); safepoint_index > 0; --safepoint_index) {
     HInstruction* safepoint = safepoints_[safepoint_index - 1u];
     size_t safepoint_position = SafepointPosition::ComputePosition(safepoint);
@@ -567,8 +569,9 @@ void RegisterAllocatorLinearScan::AddSafepointsFor(HInstruction* instruction) {
       // Hole in the interval.
       continue;
     }
-    current->AddSafepoint(safepoint);
+    before = list.insert_after(before, *current->CreateSafepointPosition(safepoint));
   }
+  current->SetSafepointPositions(std::move(list));
 }
 
 void RegisterAllocatorLinearScan::CheckForFixedOutput(HInstruction* instruction, bool will_call) {

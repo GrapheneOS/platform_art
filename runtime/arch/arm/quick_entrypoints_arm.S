@@ -554,6 +554,11 @@ END art_quick_osr_stub
      * The r12 (IP) shall be clobbered rather than retrieved from gprs_.
      */
 ARM_ENTRY art_quick_do_long_jump
+    // We don't use the LR, but it is needed for unwinding.
+    str lr, [sp, #-8]!
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset lr, 0
+
     // Reserve space for the gprs + fprs;
     INCREASE_FRAME ARM_LONG_JUMP_CONTEXT_SIZE
 
@@ -572,6 +577,7 @@ ARM_ENTRY art_quick_do_long_jump
     ldr  sp, [sp, #52]    @ Load SP from gprs_ 52 = 4 * 13.
                           @ Do not access gprs_ from now, they are below SP.
     .cfi_def_cfa_offset 0
+    .cfi_register lr, r12
     REFRESH_MARKING_REGISTER
     bx   r12              @ Do long jump.
 END art_quick_do_long_jump

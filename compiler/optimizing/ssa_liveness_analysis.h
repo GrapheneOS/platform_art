@@ -228,11 +228,11 @@ inline IterationRange<Iterator> FindMatchingUseRange(Iterator first,
   return MakeIterationRange(begin, end);
 }
 
-class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness> {
+class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness>,
+                          public IntrusiveForwardListNode<SafepointPosition> {
  public:
   explicit SafepointPosition(HInstruction* instruction)
-      : instruction_(instruction),
-        next_(nullptr) {}
+      : instruction_(instruction) {}
 
   static size_t ComputePosition(HInstruction* instruction) {
     // We special case instructions emitted at use site, as their
@@ -247,16 +247,8 @@ class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness> {
     }
   }
 
-  void SetNext(SafepointPosition* next) {
-    next_ = next;
-  }
-
   size_t GetPosition() const {
     return ComputePosition(instruction_);
-  }
-
-  SafepointPosition* GetNext() const {
-    return next_;
   }
 
   LocationSummary* GetLocations() const {
@@ -269,10 +261,11 @@ class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness> {
 
  private:
   HInstruction* const instruction_;
-  SafepointPosition* next_;
 
   DISALLOW_COPY_AND_ASSIGN(SafepointPosition);
 };
+
+using SafepointPositionList = IntrusiveForwardList<SafepointPosition>;
 
 /**
  * An interval is a list of disjoint live ranges where an instruction is live.
@@ -631,21 +624,10 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   }
 
   bool HasWillCallSafepoint() const {
-    for (SafepointPosition* safepoint = first_safepoint_;
-         safepoint != nullptr;
-         safepoint = safepoint->GetNext()) {
-      if (safepoint->GetLocations()->WillCall()) return true;
-    }
-    return false;
-  }
-
-  SafepointPosition* FindSafepointJustBefore(size_t position) const {
-    for (SafepointPosition* safepoint = first_safepoint_, *previous = nullptr;
-         safepoint != nullptr;
-         previous = safepoint, safepoint = safepoint->GetNext()) {
-      if (safepoint->GetPosition() >= position) return previous;
-    }
-    return last_safepoint_;
+    return std::any_of(
+        safepoints_.begin(),
+        safepoints_.end(),
+        [](const SafepointPosition& safepoint) { return safepoint.GetLocations()->WillCall(); });
   }
 
   /**
@@ -666,18 +648,16 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     }
 
     LiveInterval* new_interval = new (allocator_) LiveInterval(allocator_, type_);
-    SafepointPosition* new_last_safepoint = FindSafepointJustBefore(position);
-    if (new_last_safepoint == nullptr) {
-      new_interval->first_safepoint_ = first_safepoint_;
-      new_interval->last_safepoint_ = last_safepoint_;
-      first_safepoint_ = last_safepoint_ = nullptr;
-    } else if (last_safepoint_ != new_last_safepoint) {
-      new_interval->last_safepoint_ = last_safepoint_;
-      new_interval->first_safepoint_ = new_last_safepoint->GetNext();
-      DCHECK(new_interval->first_safepoint_ != nullptr);
-      last_safepoint_ = new_last_safepoint;
-      last_safepoint_->SetNext(nullptr);
+
+    SafepointPositionList::const_iterator before = safepoints_.before_begin();
+    for (auto it = safepoints_.begin(), end = safepoints_.end(); it != end; ++it) {
+      if (it->GetPosition() >= position) {
+        break;
+      }
+      before = it;
     }
+    new_interval->safepoints_.splice_after(
+        new_interval->safepoints_.before_begin(), safepoints_, before, safepoints_.end());
 
     new_interval->next_sibling_ = next_sibling_;
     next_sibling_ = new_interval;
@@ -935,19 +915,17 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     UNREACHABLE();
   }
 
-  void AddSafepoint(HInstruction* instruction) {
-    SafepointPosition* safepoint = new (allocator_) SafepointPosition(instruction);
-    if (first_safepoint_ == nullptr) {
-      first_safepoint_ = last_safepoint_ = safepoint;
-    } else {
-      DCHECK_LE(last_safepoint_->GetPosition(), safepoint->GetPosition());
-      last_safepoint_->SetNext(safepoint);
-      last_safepoint_ = safepoint;
-    }
+  SafepointPosition* CreateSafepointPosition(HInstruction* instruction) {
+    return new (allocator_) SafepointPosition(instruction);
   }
 
-  SafepointPosition* GetFirstSafepoint() const {
-    return first_safepoint_;
+  void SetSafepointPositions(SafepointPositionList&& list) {
+    DCHECK(safepoints_.empty());
+    safepoints_.swap(list);
+  }
+
+  const SafepointPositionList& GetSafepoints() const {
+    return safepoints_;
   }
 
   // Resets the starting point for range-searching queries to the first range.
@@ -995,20 +973,19 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
         first_range_(nullptr),
         last_range_(nullptr),
         range_search_start_(nullptr),
-        first_safepoint_(nullptr),
-        last_safepoint_(nullptr),
+        safepoints_(),
         uses_(),
         env_uses_(),
-        type_(type),
         next_sibling_(nullptr),
         parent_(this),
+        defined_by_(defined_by),
+        high_or_low_interval_(nullptr),
+        type_(type),
         register_(reg),
         spill_slot_(kNoSpillSlot),
         is_fixed_(is_fixed),
         is_temp_(is_temp),
-        is_high_interval_(is_high_interval),
-        high_or_low_interval_(nullptr),
-        defined_by_(defined_by) {}
+        is_high_interval_(is_high_interval) {}
 
   // Searches for a LiveRange that either covers the given position or is the
   // first next LiveRange. Returns null if no such LiveRange exists. Ranges
@@ -1109,21 +1086,27 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   LiveRange* range_search_start_;
 
   // Safepoints where this interval is live.
-  SafepointPosition* first_safepoint_;
-  SafepointPosition* last_safepoint_;
+  SafepointPositionList safepoints_;
 
   // Uses of this interval. Only the parent interval keeps these lists.
   UsePositionList uses_;
   EnvUsePositionList env_uses_;
-
-  // The instruction type this interval corresponds to.
-  const DataType::Type type_;
 
   // Live interval that is the result of a split.
   LiveInterval* next_sibling_;
 
   // The first interval from which split intervals come from.
   LiveInterval* parent_;
+
+  // The instruction represented by this interval.
+  HInstruction* const defined_by_;
+
+  // If this interval needs a register pair, the high or low equivalent.
+  // `is_high_interval_` tells whether this holds the low or the high.
+  LiveInterval* high_or_low_interval_;
+
+  // The instruction type this interval corresponds to.
+  const DataType::Type type_;
 
   // The register allocated to this interval.
   int register_;
@@ -1139,13 +1122,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   // Whether this interval is a synthesized interval for register pair.
   const bool is_high_interval_;
-
-  // If this interval needs a register pair, the high or low equivalent.
-  // `is_high_interval_` tells whether this holds the low or the high.
-  LiveInterval* high_or_low_interval_;
-
-  // The instruction represented by this interval.
-  HInstruction* const defined_by_;
 
   static constexpr int kNoRegister = -1;
   static constexpr int kNoSpillSlot = -1;
@@ -1280,9 +1256,9 @@ class SsaLivenessAnalysis : public ValueObject {
   static void ProcessEnvironment(HInstruction* instruction,
                                  HInstruction* actual_user,
                                  BitVectorView<size_t> live_in);
-  static void RecursivelyProcessInputs(HInstruction* instruction,
-                                       HInstruction* actual_user,
-                                       BitVectorView<size_t> live_in);
+  static void ProcessInputs(HInstruction* instruction,
+                            HInstruction* actual_user,
+                            BitVectorView<size_t> live_in);
 
   // Returns whether `instruction` in an HEnvironment held by `env_holder`
   // should be kept live by the HEnvironment.
