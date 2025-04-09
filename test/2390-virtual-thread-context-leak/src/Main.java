@@ -48,25 +48,34 @@ public class Main {
             System.exit(1);
         });
 
-        WeakReference<VirtualThreadContext> ref = startVirtualThreadAndGetParkedContext();
+        WeakReference<VirtualThreadContext> ref = $noinline$startVirtualThreadAndGetParkedContext();
         long startTime = System.nanoTime();
         while (!ref.refersTo(null)) {
             if (System.nanoTime() - startTime > 20 * NANOS_PER_SECOND) {
                 throw new AssertionError("20s time out");
             }
-            System.gc();
+
+            runGcAndFinalization();
         }
     }
 
-    private static WeakReference<VirtualThreadContext> startVirtualThreadAndGetParkedContext() {
+    private static void runGcAndFinalization() {
+        for (int i = 0; i < 3; ++i) {
+            // Both GC and finalization are needed. Otherwise, the test could fail in the gcstress.
+            Runtime.getRuntime().gc();
+            System.runFinalization();
+        }
+    }
+
+    private static WeakReference<VirtualThreadContext> $noinline$startVirtualThreadAndGetParkedContext() {
         Thread carrier1 = Thread.startVirtual(Main::task);
         return new WeakReference<>(carrier1.getVirtualThreadContext());
     }
 
     private static void task() {
-        long threadId1 = getCarrierThreadId();
+        long threadId1 = $noinline$getCarrierThreadId();
         Thread.parkVirtual();
-        long threadId2 = getCarrierThreadId();
+        long threadId2 = $noinline$getCarrierThreadId();
         if (threadId1 == threadId2) {
             throw new RuntimeException("tid shouldn't normally be the same: "
                     + threadId1 + " != " + threadId2);
@@ -76,7 +85,7 @@ public class Main {
     /**
      * This method is extracted to avoid holding a reference to the carrier thread.
      */
-    private static long getCarrierThreadId() {
+    private static long $noinline$getCarrierThreadId() {
         return Thread.currentThread().threadId();
     }
 }

@@ -61,7 +61,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
       }
       current->SetLifetimePosition(lifetime_position);
     }
-    lifetime_position += 2;
+    lifetime_position += kLivenessPositionsPerInstruction;
 
     // Add a null marker to notify we are starting a block.
     instructions_from_lifetime_position_.push_back(nullptr);
@@ -79,7 +79,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
       }
       instructions_from_lifetime_position_.push_back(current);
       current->SetLifetimePosition(lifetime_position);
-      lifetime_position += 2;
+      lifetime_position += kLivenessPositionsPerInstruction;
     }
 
     block->SetLifetimeEnd(lifetime_position);
@@ -384,13 +384,14 @@ int LiveInterval::FindFirstRegisterHint(
   }
 
   if (IsSplit() &&
-      SsaLivenessAnalysis::IsAtBlockBoundary(GetStart() / 2, instructions_from_positions)) {
+      SsaLivenessAnalysis::IsAtBlockBoundary(
+          GetStart() / kLivenessPositionsPerInstruction, instructions_from_positions)) {
     // If the start of this interval is at a block boundary, we look at the
     // location of the interval in blocks preceding the block this interval
     // starts at. If one location is a register we return it as a hint. This
     // will avoid a move between the two blocks.
-    HBasicBlock* block =
-        SsaLivenessAnalysis::GetBlockFromPosition(GetStart() / 2, instructions_from_positions);
+    HBasicBlock* block = SsaLivenessAnalysis::GetBlockFromPosition(
+        GetStart() / kLivenessPositionsPerInstruction, instructions_from_positions);
     size_t next_register_use = FirstRegisterUse();
     for (HBasicBlock* predecessor : block->GetPredecessors()) {
       size_t position = predecessor->GetLifetimeEnd() - 1;

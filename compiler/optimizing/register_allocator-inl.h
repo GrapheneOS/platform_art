@@ -44,7 +44,8 @@ inline uint32_t RegisterAllocator::GetBlockedRegistersMask(
   DCHECK_EQ(interval->GetType(), DataType::Type::kVoid);
   DCHECK(interval->GetFirstRange() != nullptr);
   size_t start = interval->GetFirstRange()->GetStart();
-  bool blocked_for_call = instructions_from_positions[start / 2u] != nullptr;
+  bool blocked_for_call =
+      instructions_from_positions[start / kLivenessPositionsPerInstruction] != nullptr;
   return blocked_for_call ? registers_blocked_for_call : MaxInt<uint32_t>(number_of_registers);
 }
 

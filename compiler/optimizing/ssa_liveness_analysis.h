@@ -36,6 +36,14 @@ class SsaLivenessAnalysis;
 
 static constexpr int kNoRegister = -1;
 
+// Constants describing positions assigned to various data for an instruction.
+static constexpr size_t kLivenessPositionsPerInstruction = 2u;
+static constexpr size_t kLivenessPositionsForTemp = kLivenessPositionsPerInstruction - 1u;
+static constexpr size_t kLivenessPositionsToBlock = kLivenessPositionsPerInstruction - 1u;
+static constexpr size_t kLivenessPositionOfNormalUse = 1u;  // Inside instruction.
+static constexpr size_t kLivenessPositionOfFixedOutput = kLivenessPositionsPerInstruction - 1u;
+static constexpr size_t kLivenessPositionForMoveAfter = kLivenessPositionsPerInstruction - 1u;
+
 class BlockInfo : public ArenaObject<kArenaAllocSsaLiveness> {
  public:
   BlockInfo(ScopedArenaAllocator* allocator, const HBasicBlock& block, size_t number_of_ssa_values)
@@ -241,7 +249,7 @@ class SafepointPosition : public ArenaObject<kArenaAllocSsaLiveness>,
       // Currently only applies to implicit null checks, which are emitted
       // at the next instruction.
       DCHECK(instruction->IsNullCheck()) << instruction->DebugName();
-      return instruction->GetLifetimePosition() + 2;
+      return instruction->GetLifetimePosition() + kLivenessPositionsPerInstruction;
     } else {
       return instruction->GetLifetimePosition();
     }
@@ -301,7 +309,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     size_t position = instruction->GetLifetimePosition();
     UsePosition* new_use = new (allocator_) UsePosition(instruction, temp_index, position);
     uses_.push_front(*new_use);
-    AddRange(position, position + 1);
+    AddRange(position, position + kLivenessPositionsForTemp);
   }
 
   // Record use of an input. The use will be recorded as an environment use if
@@ -318,7 +326,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     }
 
     // Set the use within the instruction.
-    size_t position = actual_user->GetLifetimePosition() + 1;
+    size_t position = actual_user->GetLifetimePosition() + kLivenessPositionOfNormalUse;
     if (!is_environment) {
       if (locations->IsFixedInput(input_index) || locations->OutputUsesSameAs(input_index)) {
         // For fixed inputs and output same as input, the register allocator
@@ -342,7 +350,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       // The user uses the instruction multiple times, and one use dies before the other.
       // We update the use list so that the latter is first.
       DCHECK(!is_environment);
-      DCHECK(uses_.front().GetPosition() + 1 == position);
+      DCHECK(uses_.front().GetPosition() + kLivenessPositionOfNormalUse == position);
       UsePositionList::iterator next_pos = uses_.begin();
       UsePositionList::iterator insert_pos;
       do {
@@ -461,8 +469,12 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       // Instruction without uses.
       DCHECK(uses_.empty());
       DCHECK(from == defined_by_->GetLifetimePosition());
+      // TODO: The `kLivenessPositionsPerInstruction` below looks like a bug for calls coming
+      // from `RegisterAllocatorLinearScan::CheckForFixedOutput()` as the new range reaches
+      // into the next instruction. However, those call always take the `first_range_ != nullptr`
+      // path above. We should use another, simpler function for that.
       first_range_ = last_range_ = range_search_start_ =
-          new (allocator_) LiveRange(from, from + 2, nullptr);
+          new (allocator_) LiveRange(from, from + kLivenessPositionsPerInstruction, nullptr);
     }
   }
 
@@ -906,8 +918,9 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
             && interval->SameRegisterKind(*this)
             && interval->GetRegister() == GetRegister()) {
           // We found the input that has the same register. Check if it is live after
-          // `defined_by`_.
-          return !interval->CoversSlow(defined_by_->GetLifetimePosition() + 1);
+          // `defined_by_`.
+          return !interval->CoversSlow(
+              defined_by_->GetLifetimePosition() + kLivenessPositionOfNormalUse);
         }
       }
     }
@@ -1209,7 +1222,8 @@ class SsaLivenessAnalysis : public ValueObject {
   HInstruction* GetTempUser(LiveInterval* temp) const {
     // A temporary shares the same lifetime start as the instruction that requires it.
     DCHECK(temp->IsTemp());
-    HInstruction* user = GetInstructionFromPosition(temp->GetStart() / 2);
+    HInstruction* user =
+        GetInstructionFromPosition(temp->GetStart() / kLivenessPositionsPerInstruction);
     DCHECK_EQ(user, temp->GetUses().front().GetUser());
     return user;
   }
@@ -1218,10 +1232,6 @@ class SsaLivenessAnalysis : public ValueObject {
     // We use the input index to store the index of the temporary in the user's temporary list.
     DCHECK(temp->IsTemp());
     return temp->GetUses().front().GetInputIndex();
-  }
-
-  size_t GetMaxLifetimePosition() const {
-    return instructions_from_lifetime_position_.size() * 2 - 1;
   }
 
   size_t GetNumberOfSsaValues() const {
@@ -1300,8 +1310,10 @@ class SsaLivenessAnalysis : public ValueObject {
   // Temporary array used when computing live_in, live_out, and kill sets.
   ScopedArenaVector<HInstruction*> instructions_from_ssa_index_;
 
-  // Temporary array used when inserting moves in the graph.
+  // Compressed map from lifetime position to instruction (nullptr for block start).
+  // Indexed by the lifetime position divided by `kLivenessPositionsPerInstruction`.
   ScopedArenaVector<HInstruction*> instructions_from_lifetime_position_;
+
   size_t number_of_ssa_values_;
 
   friend class RegisterAllocatorTest;

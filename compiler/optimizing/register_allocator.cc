@@ -306,10 +306,10 @@ LiveInterval* RegisterAllocator::SplitBetween(
     size_t from,
     size_t to,
     ArrayRef<HInstruction* const> instructions_from_positions) {
-  HBasicBlock* block_from =
-      SsaLivenessAnalysis::GetBlockFromPosition(from / 2, instructions_from_positions);
-  HBasicBlock* block_to =
-      SsaLivenessAnalysis::GetBlockFromPosition(to / 2, instructions_from_positions);
+  HBasicBlock* block_from = SsaLivenessAnalysis::GetBlockFromPosition(
+      from / kLivenessPositionsPerInstruction, instructions_from_positions);
+  HBasicBlock* block_to = SsaLivenessAnalysis::GetBlockFromPosition(
+      to / kLivenessPositionsPerInstruction, instructions_from_positions);
   DCHECK(block_from != nullptr);
   DCHECK(block_to != nullptr);
 

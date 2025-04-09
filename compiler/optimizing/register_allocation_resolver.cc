@@ -541,30 +541,35 @@ void RegisterAllocationResolver::AddInputMoveFor(HInstruction* input,
   AddMove(move, source, destination, nullptr, input->GetType());
 }
 
-static bool IsInstructionStart(size_t position) {
-  return (position & 1) == 0;
+static bool IsMovePositionAtInstructionStart(size_t position) {
+  static_assert(IsPowerOfTwo(kLivenessPositionsPerInstruction));
+  return (position & (kLivenessPositionsPerInstruction - 1)) == 0;
 }
 
-static bool IsInstructionEnd(size_t position) {
-  return (position & 1) == 1;
+static bool IsMovePositionAfterInstruction(size_t position) {
+  static_assert(IsPowerOfTwo(kLivenessPositionsPerInstruction));
+  return (position & (kLivenessPositionsPerInstruction - 1)) == kLivenessPositionForMoveAfter;
 }
 
 void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
                                                       HInstruction* instruction,
                                                       Location source,
                                                       Location destination) const {
+  DCHECK(IsMovePositionAtInstructionStart(position) ||
+         IsMovePositionAfterInstruction(position)) << position;
   DCHECK(IsValidDestination(destination)) << destination;
   if (source.Equals(destination)) return;
 
-  HInstruction* at = liveness_.GetInstructionFromPosition(position / 2);
+  HInstruction* at =
+      liveness_.GetInstructionFromPosition(position / kLivenessPositionsPerInstruction);
   HParallelMove* move;
   if (at == nullptr) {
-    if (IsInstructionStart(position)) {
+    if (IsMovePositionAtInstructionStart(position)) {
       // Block boundary, don't do anything the connection of split siblings will handle it.
       return;
     } else {
       // Move must happen before the first instruction of the block.
-      at = liveness_.GetInstructionFromPosition((position + 1) / 2);
+      at = liveness_.GetInstructionFromPosition(position / kLivenessPositionsPerInstruction + 1);
       // Note that parallel moves may have already been inserted, so we explicitly
       // ask for the first instruction of the block: `GetInstructionFromPosition` does
       // not contain the `HParallelMove` instructions.
@@ -587,7 +592,7 @@ void RegisterAllocationResolver::InsertParallelMoveAt(size_t position,
         move = at->AsParallelMove();
       }
     }
-  } else if (IsInstructionEnd(position)) {
+  } else if (IsMovePositionAfterInstruction(position)) {
     // Move must happen after the instruction.
     DCHECK(!at->IsControlFlow());
     move = at->GetNext()->AsParallelMoveOrNull();
@@ -683,7 +688,7 @@ void RegisterAllocationResolver::InsertMoveAfter(HInstruction* instruction,
     return;
   }
 
-  size_t position = instruction->GetLifetimePosition() + 1;
+  size_t position = instruction->GetLifetimePosition() + kLivenessPositionForMoveAfter;
   HParallelMove* move = instruction->GetNext()->AsParallelMoveOrNull();
   // This is a parallel move for moving the output of an instruction. We need
   // to differentiate with input moves, moves for connecting siblings in a

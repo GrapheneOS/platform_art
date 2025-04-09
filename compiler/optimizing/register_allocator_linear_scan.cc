@@ -298,7 +298,7 @@ void RegisterAllocatorLinearScan::BlockRegister(Location location,
     }
   }
   DCHECK(interval->GetRegister() == reg);
-  interval->AddRange(position, position + 1u);
+  interval->AddRange(position, position + kLivenessPositionsToBlock);
 }
 
 void RegisterAllocatorLinearScan::AllocateRegistersInternal() {
@@ -321,8 +321,9 @@ void RegisterAllocatorLinearScan::AllocateRegistersInternal() {
       // intervals belonging to the live-in set of the catch/header block to be spilled.
       // TODO(ngeoffray): Phis in this block could be allocated in register.
       size_t position = block->GetLifetimeStart();
-      DCHECK_EQ(liveness_.GetInstructionFromPosition(position / 2u), nullptr);
-      block_registers_special_interval_->AddRange(position, position + 1u);
+      DCHECK_EQ(liveness_.GetInstructionFromPosition(position / kLivenessPositionsPerInstruction),
+                nullptr);
+      block_registers_special_interval_->AddRange(position, position + kLivenessPositionsToBlock);
     }
   }
 
@@ -408,8 +409,9 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
     // If a call will happen, add the range to a fixed interval that represents all the
     // caller-save registers blocked at call sites.
     const size_t position = instruction->GetLifetimePosition();
-    DCHECK_NE(liveness_.GetInstructionFromPosition(position / 2u), nullptr);
-    block_registers_for_call_interval_->AddRange(position, position + 1u);
+    DCHECK_NE(liveness_.GetInstructionFromPosition(position / kLivenessPositionsPerInstruction),
+              nullptr);
+    block_registers_for_call_interval_->AddRange(position, position + kLivenessPositionsToBlock);
   }
   CheckForTempLiveIntervals(instruction, will_call);
   CheckForSafepoint(instruction);
@@ -589,28 +591,28 @@ void RegisterAllocatorLinearScan::CheckForFixedOutput(HInstruction* instruction,
   if (output.IsUnallocated() && output.GetPolicy() == Location::kSameAsFirstInput) {
     Location first = locations->InAt(0);
     if (first.IsRegister() || first.IsFpuRegister()) {
-      current->SetFrom(position + 1u);
+      current->SetFrom(position + kLivenessPositionOfFixedOutput);
       current->SetRegister(first.reg());
     } else if (first.IsPair()) {
-      current->SetFrom(position + 1u);
+      current->SetFrom(position + kLivenessPositionOfFixedOutput);
       current->SetRegister(first.low());
       LiveInterval* high = current->GetHighInterval();
       high->SetRegister(first.high());
-      high->SetFrom(position + 1u);
+      high->SetFrom(position + kLivenessPositionOfFixedOutput);
     }
   } else if (output.IsRegister() || output.IsFpuRegister()) {
     // Shift the interval's start by one to account for the blocked register.
-    current->SetFrom(position + 1u);
+    current->SetFrom(position + kLivenessPositionOfFixedOutput);
     current->SetRegister(output.reg());
     BlockRegister(output, position, will_call);
     // Ensure that an explicit output register is marked as being allocated.
     codegen_->AddAllocatedRegister(output);
   } else if (output.IsPair()) {
-    current->SetFrom(position + 1u);
+    current->SetFrom(position + kLivenessPositionOfFixedOutput);
     current->SetRegister(output.low());
     LiveInterval* high = current->GetHighInterval();
     high->SetRegister(output.high());
-    high->SetFrom(position + 1u);
+    high->SetFrom(position + kLivenessPositionOfFixedOutput);
     BlockRegister(output.ToLow(), position, will_call);
     BlockRegister(output.ToHigh(), position, will_call);
     // Ensure that an explicit output register pair is marked as being allocated.
@@ -718,7 +720,8 @@ void RegisterAllocatorLinearScan::LinearScan::DumpInterval(std::ostream& stream,
   } else if (interval->IsFixed()) {
     DCHECK_EQ(interval->GetType(), DataType::Type::kVoid);
     size_t start = interval->GetFirstRange()->GetStart();
-    bool blocked_for_call = instructions_from_positions_[start / 2u] != nullptr;
+    bool blocked_for_call =
+        instructions_from_positions_[start / kLivenessPositionsPerInstruction] != nullptr;
     stream << (blocked_for_call ? "block-for-call" : "block-special");
   } else {
     stream << "spilled";
@@ -915,7 +918,7 @@ bool RegisterAllocatorLinearScan::LinearScan::TryAllocateFreeReg(LiveInterval* c
             // position to check whether the input is dead or is inactive after
             // `defined_by`.
             DCHECK(interval->CoversSlow(defined_by->GetLifetimePosition()));
-            size_t position = defined_by->GetLifetimePosition() + 1;
+            size_t position = defined_by->GetLifetimePosition() + kLivenessPositionOfNormalUse;
             FreeIfNotCoverAt(interval, position, free_until);
           }
         }
@@ -1228,7 +1231,8 @@ bool RegisterAllocatorLinearScan::LinearScan::AllocateBlockedReg(LiveInterval* c
         DumpInterval(std::cerr, current);
         DumpAllIntervals(std::cerr);
         // This situation has the potential to infinite loop, so we make it a non-debug CHECK.
-        HInstruction* at = instructions_from_positions_[first_register_use / 2];
+        HInstruction* at =
+            instructions_from_positions_[first_register_use / kLivenessPositionsPerInstruction];
         CHECK(false) << "There is not enough registers available for "
           << current->GetParent()->GetDefinedBy()->DebugName() << " "
           << current->GetParent()->GetDefinedBy()->GetId()

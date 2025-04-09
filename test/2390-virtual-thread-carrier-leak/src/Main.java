@@ -42,20 +42,28 @@ public class Main {
 
         // Verify that a carrier thread isn't reachable and leaked by the underlying
         // Virtual Thread implementation after parking the Virtual Thread.
-        VirtualThreadContext context = startVirtualThreadAndGetParkedContext();
+        VirtualThreadContext context = $noinline$startVirtualThreadAndGetParkedContext();
         long startTime = System.nanoTime();
         while (!WEAK_REF.refersTo(null)) {
             if (System.nanoTime() - startTime > 20 * NANOS_PER_SECOND) {
                 throw new AssertionError("20s time out");
             }
-            System.gc();
+            runGcAndFinalization();
         }
 
         Thread carrier2 = Thread.unparkVirtual(context);
         carrier2.join();
     }
 
-    private static VirtualThreadContext startVirtualThreadAndGetParkedContext() {
+    private static void runGcAndFinalization() {
+        for (int i = 0; i < 3; ++i) {
+            // Both GC and finalization are needed. Otherwise, the test could fail in the gcstress.
+            Runtime.getRuntime().gc();
+            System.runFinalization();
+        }
+    }
+
+    private static VirtualThreadContext $noinline$startVirtualThreadAndGetParkedContext() {
         Thread carrier1 = Thread.startVirtual(Main::task);
         WEAK_REF = new WeakReference<>(carrier1);
 
@@ -68,10 +76,10 @@ public class Main {
 
     private static void task() {
         int tid1 = Os.gettid();
-        long threadId1 = getCarrierThreadId();
+        long threadId1 = $noinline$getCarrierThreadId();
         Thread.parkVirtual();
         int tid2 = Os.gettid();
-        long threadId2 = getCarrierThreadId();
+        long threadId2 = $noinline$getCarrierThreadId();
         // Verify that the 2 carrier threads are not identical.
         if (tid1 == tid2) {
             throw new RuntimeException("tid shouldn't normally be the same: "
@@ -86,7 +94,7 @@ public class Main {
     /**
      * This method is extracted to avoid holding a reference to the carrier thread.
      */
-    private static long getCarrierThreadId() {
+    private static long $noinline$getCarrierThreadId() {
         return Thread.currentThread().threadId();
     }
 }
