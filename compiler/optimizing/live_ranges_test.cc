@@ -30,6 +30,9 @@ namespace art HIDDEN {
 
 class LiveRangesTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  protected:
+  // Define a shortcut for the `kLivenessPositionsPerInstruction`.
+  static constexpr size_t kLppi = kLivenessPositionsPerInstruction;
+
   HGraph* BuildGraph(const std::vector<uint16_t>& data);
 
   std::unique_ptr<CompilerOptions> compiler_options_;
@@ -52,12 +55,13 @@ TEST_F(LiveRangesTest, CFG1) {
    *  return 0;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
-   *       4: goto
+   *       1: constant0
+   *       2: goto
    *           |
-   *       8: return
+   *       4: return
    *           |
-   *       12: exit
+   *       6: exit
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
   const std::vector<uint16_t> data = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -71,12 +75,12 @@ TEST_F(LiveRangesTest, CFG1) {
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(8u, range->GetEnd());
+  ASSERT_EQ(4u * kLppi, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks()[1];
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
-  ASSERT_EQ(8u, block->GetLastInstruction()->GetLifetimePosition());
+  ASSERT_EQ(4u * kLppi, block->GetLastInstruction()->GetLifetimePosition());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -90,17 +94,18 @@ TEST_F(LiveRangesTest, CFG2) {
    *  return a;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
-   *       4: goto
+   *       1: constant0
+   *       2: goto
    *           |
-   *       8: equal
-   *       10: if
+   *       4: equal
+   *       5: if
    *       /       \
-   *   14: goto   18: goto
+   *    7: goto   9: goto
    *       \       /
-   *       22: return
+   *       11: return
    *         |
-   *       26: exit
+   *       13: exit
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
   const std::vector<uint16_t> data = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -115,12 +120,12 @@ TEST_F(LiveRangesTest, CFG2) {
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(22u, range->GetEnd());
+  ASSERT_EQ(11u * kLppi, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks()[3];
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
-  ASSERT_EQ(22u, block->GetLastInstruction()->GetLifetimePosition());
+  ASSERT_EQ(11u * kLppi, block->GetLastInstruction()->GetLifetimePosition());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -135,19 +140,20 @@ TEST_F(LiveRangesTest, CFG3) {
    *  return a;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
-   *       4: constant4
-   *       6: goto
+   *       1: constant0
+   *       2: constant4
+   *       3: goto
    *           |
-   *       10: equal
-   *       12: if
+   *       5: equal
+   *       6: if
    *       /       \
-   *   16: goto   20: goto
+   *    8: goto   10: goto
    *       \       /
-   *       22: phi
-   *       24: return
+   *       11: phi
+   *       12: return
    *         |
-   *       28: exit
+   *       14: exit
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
   const std::vector<uint16_t> data = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -163,10 +169,10 @@ TEST_F(LiveRangesTest, CFG3) {
   // Test for the 4 constant.
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(4u, range->GetStart());
+  ASSERT_EQ(2u * kLppi, range->GetStart());
   // Last use is the phi at the return block so instruction is live until
   // the end of the then block.
-  ASSERT_EQ(18u, range->GetEnd());
+  ASSERT_EQ(9u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 0 constant.
@@ -174,22 +180,22 @@ TEST_F(LiveRangesTest, CFG3) {
   // The then branch is a hole for this constant, therefore its interval has 2 ranges.
   // First range starts from the definition and ends at the if block.
   range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
   // 14 is the end of the if block.
-  ASSERT_EQ(14u, range->GetEnd());
+  ASSERT_EQ(7u * kLppi, range->GetEnd());
   // Second range is the else block.
   range = range->GetNext();
-  ASSERT_EQ(18u, range->GetStart());
+  ASSERT_EQ(9u * kLppi, range->GetStart());
   // Last use is the phi at the return block.
-  ASSERT_EQ(22u, range->GetEnd());
+  ASSERT_EQ(11u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the phi.
   interval = liveness.GetInstructionFromSsaIndex(2)->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(2)->GetLifetimePosition());
-  ASSERT_EQ(22u, range->GetStart());
-  ASSERT_EQ(24u, range->GetEnd());
+  ASSERT_EQ(11u * kLppi, liveness.GetInstructionFromSsaIndex(2)->GetLifetimePosition());
+  ASSERT_EQ(11u * kLppi, range->GetStart());
+  ASSERT_EQ(12u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -203,22 +209,23 @@ TEST_F(LiveRangesTest, Loop1) {
    *  return 5;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
-   *       4: constant5
-   *       6: constant4
-   *       8: goto
+   *       1: constant0
+   *       2: constant5
+   *       3: constant4
+   *       4: goto
    *           |
-   *       12: goto
+   *       6: goto
    *           |
-   *       14: phi
-   *       16: equal
-   *       18: if +++++
+   *       7: phi
+   *       8: equal
+   *       9: if +++++
    *        |       \ +
-   *        |     22: goto
+   *        |     11: goto
    *        |
-   *       26: return
+   *       13: return
    *         |
-   *       30: exit
+   *       15: exit
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
 
   const std::vector<uint16_t> data = TWO_REGISTERS_CODE_ITEM(
@@ -238,34 +245,34 @@ TEST_F(LiveRangesTest, Loop1) {
   // Test for the 0 constant.
   LiveInterval* interval = graph->GetIntConstant(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
   // Last use is the loop phi so instruction is live until
   // the end of the pre loop header.
-  ASSERT_EQ(14u, range->GetEnd());
+  ASSERT_EQ(7u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 4 constant.
   interval = graph->GetIntConstant(4)->GetLiveInterval();
   range = interval->GetFirstRange();
   // The instruction is live until the end of the loop.
-  ASSERT_EQ(6u, range->GetStart());
-  ASSERT_EQ(24u, range->GetEnd());
+  ASSERT_EQ(3u * kLppi, range->GetStart());
+  ASSERT_EQ(12u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 5 constant.
   interval = graph->GetIntConstant(5)->GetLiveInterval();
   range = interval->GetFirstRange();
   // The instruction is live until the return instruction after the loop.
-  ASSERT_EQ(4u, range->GetStart());
-  ASSERT_EQ(26u, range->GetEnd());
+  ASSERT_EQ(2u * kLppi, range->GetStart());
+  ASSERT_EQ(13u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the phi.
   interval = liveness.GetInstructionFromSsaIndex(3)->GetLiveInterval();
   range = interval->GetFirstRange();
   // Instruction is input of non-materialized Equal and hence live until If.
-  ASSERT_EQ(14u, range->GetStart());
-  ASSERT_EQ(19u, range->GetEnd());
+  ASSERT_EQ(7u * kLppi, range->GetStart());
+  ASSERT_EQ(9u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -279,23 +286,23 @@ TEST_F(LiveRangesTest, Loop2) {
    *  return a;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
+   *       1: constant0
+   *       2: goto
+   *           |
    *       4: goto
    *           |
-   *       8: goto
-   *           |
-   *       10: phi
-   *       12: equal
-   *       14: if +++++
+   *       5: phi
+   *       6: equal
+   *       7: if +++++
    *        |       \ +
-   *        |     18: add
-   *        |     20: goto
+   *        |     9: add
+   *        |     10: goto
    *        |
-   *       24: return
+   *       12: return
    *         |
-   *       28: exit
-   *
-   * We want to make sure the phi at 10 has a lifetime hole after the add at 20.
+   *       14: exit
+   * We want to make sure the phi at 5 has a lifetime hole after the add at 10.
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
 
   const std::vector<uint16_t> data = ONE_REGISTER_CODE_ITEM(
@@ -314,29 +321,29 @@ TEST_F(LiveRangesTest, Loop2) {
   HIntConstant* constant = liveness.GetInstructionFromSsaIndex(0)->AsIntConstant();
   LiveInterval* interval = constant->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
   // Last use is the loop phi so instruction is live until
   // the end of the pre loop header.
-  ASSERT_EQ(10u, range->GetEnd());
+  ASSERT_EQ(5u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the loop phi.
   HPhi* phi = liveness.GetInstructionFromSsaIndex(1)->AsPhi();
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(10u, range->GetStart());
-  ASSERT_EQ(19u, range->GetEnd());
+  ASSERT_EQ(5u * kLppi, range->GetStart());
+  ASSERT_EQ(9u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   range = range->GetNext();
   ASSERT_TRUE(range != nullptr);
-  ASSERT_EQ(22u, range->GetStart());
-  ASSERT_EQ(24u, range->GetEnd());
+  ASSERT_EQ(11u * kLppi, range->GetStart());
+  ASSERT_EQ(12u * kLppi, range->GetEnd());
 
   // Test for the add instruction.
   HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(18u, range->GetStart());
-  ASSERT_EQ(22u, range->GetEnd());
+  ASSERT_EQ(36u, range->GetStart());
+  ASSERT_EQ(44u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -353,22 +360,22 @@ TEST_F(LiveRangesTest, CFG4) {
    *  return b;
    *
    * Which becomes the following graph (numbered by lifetime position):
-   *       2: constant0
-   *       4: constant4
-   *       6: goto
+   *       1: constant0
+   *       2: constant4
+   *       3: goto
    *           |
-   *       10: equal
-   *       12: if
+   *       5: equal
+   *       6: if
    *       /       \
-   *   16: add    22: add
-   *   18: goto   24: goto
+   *    8: add    11: add
+   *    9: goto   12: goto
    *       \       /
-   *       26: phi
-   *       28: return
+   *       13: phi
+   *       14: return
    *         |
-   *       32: exit
-   *
-   * We want to make sure the constant0 has a lifetime hole after the 16: add.
+   *       16: exit
+   * We want to make sure the constant0 has a lifetime hole after the 8: add.
+   * (Above positions are multiplied by `kLivenessPositionsPerInstruction`, or `kLppi` for short.)
    */
   const std::vector<uint16_t> data = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
@@ -387,46 +394,46 @@ TEST_F(LiveRangesTest, CFG4) {
   // Test for the 0 constant.
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
-  ASSERT_EQ(2u, range->GetStart());
-  ASSERT_EQ(17u, range->GetEnd());
+  ASSERT_EQ(1u * kLppi, range->GetStart());
+  ASSERT_EQ(8u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   range = range->GetNext();
   ASSERT_TRUE(range != nullptr);
-  ASSERT_EQ(20u, range->GetStart());
-  ASSERT_EQ(23u, range->GetEnd());
+  ASSERT_EQ(10u * kLppi, range->GetStart());
+  ASSERT_EQ(11u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 4 constant.
   interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(4u, range->GetStart());
-  ASSERT_EQ(17u, range->GetEnd());
+  ASSERT_EQ(2u * kLppi, range->GetStart());
+  ASSERT_EQ(8u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   range = range->GetNext();
-  ASSERT_EQ(20u, range->GetStart());
-  ASSERT_EQ(23u, range->GetEnd());
+  ASSERT_EQ(10u * kLppi, range->GetStart());
+  ASSERT_EQ(11u * kLppi + kLivenessPositionOfNormalUse, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the first add.
   HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(16u, range->GetStart());
-  ASSERT_EQ(20u, range->GetEnd());
+  ASSERT_EQ(8u * kLppi, range->GetStart());
+  ASSERT_EQ(10u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the second add.
   add = liveness.GetInstructionFromSsaIndex(3)->AsAdd();
   interval = add->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(22u, range->GetStart());
-  ASSERT_EQ(26u, range->GetEnd());
+  ASSERT_EQ(11u * kLppi, range->GetStart());
+  ASSERT_EQ(13u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhi();
   ASSERT_TRUE(phi->GetUses().HasExactlyOneElement());
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
-  ASSERT_EQ(26u, range->GetStart());
-  ASSERT_EQ(28u, range->GetEnd());
+  ASSERT_EQ(13u * kLppi, range->GetStart());
+  ASSERT_EQ(14u * kLppi, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 

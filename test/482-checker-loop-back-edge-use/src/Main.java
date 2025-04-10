@@ -37,7 +37,7 @@ public class Main {
   /// CHECK-DAG:                   Goto            liveness:<<GotoLiv2:\d+>> loop:<<Loop2:B\d+>>
   /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 4 == <<ArgLoopUse>>
   //
   // Loop invariant exit check is hoisted from the loop by peeling.
 
@@ -58,7 +58,7 @@ public class Main {
   /// CHECK:                       Goto            liveness:<<GotoLiv2:\d+>>
   /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 4 == <<ArgLoopUse>>
 
   public static void loop3(boolean incoming) {
     // 'incoming' only needs a use at the outer loop's back edge.
@@ -89,8 +89,8 @@ public class Main {
   /// CHECK:                       Exit
   /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse1>>
-  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse2>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 4 == <<ArgLoopUse1>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 4 == <<ArgLoopUse2>>
 
   public static void loop5(boolean incoming) {
     // 'incoming' must have a use at both back edges.
@@ -111,7 +111,7 @@ public class Main {
   /// CHECK:                       Exit
   /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv2>> + 2 == <<ArgLoopUse>>
+  /// CHECK-EVAL:    <<GotoLiv2>> + 4 == <<ArgLoopUse>>
 
   public static void loop6(boolean incoming) {
     // 'incoming' must have a use only at the first loop's back edge.
@@ -133,7 +133,7 @@ public class Main {
   /// CHECK-EVAL:    <<InvokeLiv>> == <<ArgUse1>>
   /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse2>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 4 == <<ArgLoopUse>>
   //
   // Loop invariant exit check is hoisted from the loop by peeling.
 
@@ -154,7 +154,7 @@ public class Main {
   /// CHECK-DAG:                   Exit
   /// CHECK-EVAL:    <<IfLiv>> + 1 == <<ArgUse>>
   /// CHECK-EVAL:    <<GotoLiv1>> < <<GotoLiv2>>
-  /// CHECK-EVAL:    <<GotoLiv1>> + 2 == <<ArgLoopUse>>
+  /// CHECK-EVAL:    <<GotoLiv1>> + 4 == <<ArgLoopUse>>
   //
   // Loop invariant exit check is hoisted from the loop by peeling.
 

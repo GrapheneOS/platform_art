@@ -751,6 +751,9 @@ TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
 // position.
 // This test only applies to the linear scan allocator.
 void RegisterAllocatorTest::TestSpillInactive() {
+  // Define a shortcut for the `kLivenessPositionsPerInstruction`.
+  static constexpr size_t kLppi = kLivenessPositionsPerInstruction;
+
   HBasicBlock* block = InitEntryMainExitGraphWithReturnVoid();
   HInstruction* one = MakeParam(DataType::Type::kInt32);
   HInstruction* two = MakeParam(DataType::Type::kInt32);
@@ -764,23 +767,24 @@ void RegisterAllocatorTest::TestSpillInactive() {
   user->AddInput(one);
   LocationSummary* locations = new (GetAllocator()) LocationSummary(user, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  static constexpr size_t phi_ranges[][2] = {{20, 30}};
+  static constexpr size_t phi_ranges[][2] = {{10 * kLppi, 15 * kLppi}};
   BuildInterval(phi_ranges, arraysize(phi_ranges), GetScopedAllocator(), -1, user);
 
   // Create an interval with lifetime holes.
-  static constexpr size_t ranges1[][2] = {{0, 2}, {4, 6}, {8, 10}};
+  static constexpr size_t ranges1[][2] =
+      {{0u * kLppi, 2u * kLppi}, {4u * kLppi, 5u * kLppi}, {7u * kLppi, 8u * kLppi}};
   LiveInterval* first = BuildInterval(ranges1, arraysize(ranges1), GetScopedAllocator(), -1, one);
-  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 8));
-  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 7));
-  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 6));
+  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 7u * kLppi));
+  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 6u * kLppi));
+  first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 5u * kLppi));
 
   locations = new (GetAllocator()) LocationSummary(first->GetDefinedBy(), LocationSummary::kNoCall);
   locations->SetOut(Location::RequiresRegister());
-  first = first->SplitAt(1);
+  first = first->SplitAt(1u * kLppi);
 
   // Create an interval that conflicts with the next interval, to force the next
   // interval to call `AllocateBlockedReg`.
-  static constexpr size_t ranges2[][2] = {{2, 4}};
+  static constexpr size_t ranges2[][2] = {{2u * kLppi, 4u * kLppi}};
   LiveInterval* second = BuildInterval(ranges2, arraysize(ranges2), GetScopedAllocator(), -1, two);
   locations =
       new (GetAllocator()) LocationSummary(second->GetDefinedBy(), LocationSummary::kNoCall);
@@ -791,18 +795,18 @@ void RegisterAllocatorTest::TestSpillInactive() {
   // this interval and the first interval. We would have then put the interval with ranges
   // "[0, 2(, [4, 6(" in the list of handled intervals, even though we haven't processed intervals
   // before lifetime position 6 yet.
-  static constexpr size_t ranges3[][2] = {{2, 4}, {8, 10}};
+  static constexpr size_t ranges3[][2] = {{2u * kLppi, 4u * kLppi}, {7u * kLppi, 8u * kLppi}};
   LiveInterval* third = BuildInterval(ranges3, arraysize(ranges3), GetScopedAllocator(), -1, three);
-  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 8));
-  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 4));
-  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 3));
+  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 7u * kLppi));
+  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 4u * kLppi));
+  third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 3u * kLppi));
   locations = new (GetAllocator()) LocationSummary(third->GetDefinedBy(), LocationSummary::kNoCall);
   locations->SetOut(Location::RequiresRegister());
-  third = third->SplitAt(3);
+  third = third->SplitAt(3u * kLppi);
 
   // Because the first part of the split interval was considered handled, this interval
   // was free to allocate the same register, even though it conflicts with it.
-  static constexpr size_t ranges4[][2] = {{4, 6}};
+  static constexpr size_t ranges4[][2] = {{4u * kLppi, 5u * kLppi}};
   LiveInterval* fourth = BuildInterval(ranges4, arraysize(ranges4), GetScopedAllocator(), -1, four);
   locations =
       new (GetAllocator()) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
@@ -811,7 +815,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
   SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
   // Populate the instructions in the liveness object, to please the register allocator.
-  liveness.instructions_from_lifetime_position_.assign(32, user);
+  liveness.instructions_from_lifetime_position_.assign(16, user);
 
   RegisterAllocatorLinearScan register_allocator(GetScopedAllocator(), &codegen, liveness);
   register_allocator.unhandled_core_intervals_.assign({fourth, third, second, first});

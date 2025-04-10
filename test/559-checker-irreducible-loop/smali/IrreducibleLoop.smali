@@ -145,7 +145,7 @@
 ## CHECK-DAG: <<LoopPhi:i\d+>>  Phi [<<Arg>>,<<PhiInLoop:i\d+>>] liveness:<<ArgLoopPhiUse>> ranges:{[<<ArgLoopPhiUse>>,<<PhiInLoopUse:\d+>>)}
 ## CHECK-DAG: <<PhiInLoop>>     Phi [<<Arg>>,<<LoopPhi>>] liveness:<<PhiInLoopUse>> ranges:{[<<PhiInLoopUse>>,<<BackEdgeLifetimeEnd:\d+>>)}
 ## CHECK:                       Return liveness:<<ReturnLiveness:\d+>>
-## CHECK-EVAL:    <<ReturnLiveness>> == <<BackEdgeLifetimeEnd>> + 2
+## CHECK-EVAL:    <<ReturnLiveness>> == <<BackEdgeLifetimeEnd>> + 4
 .method public static liveness(II)I
    .registers 2
    if-eq p0, p1, :other_loop_entry

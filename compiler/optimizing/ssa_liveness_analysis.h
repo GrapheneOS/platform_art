@@ -37,7 +37,7 @@ class SsaLivenessAnalysis;
 static constexpr int kNoRegister = -1;
 
 // Constants describing positions assigned to various data for an instruction.
-static constexpr size_t kLivenessPositionsPerInstruction = 2u;
+static constexpr size_t kLivenessPositionsPerInstruction = 4u;
 static constexpr size_t kLivenessPositionsForTemp = kLivenessPositionsPerInstruction - 1u;
 static constexpr size_t kLivenessPositionsToBlock = kLivenessPositionsPerInstruction - 1u;
 static constexpr size_t kLivenessPositionOfNormalUse = 1u;  // Inside instruction.
