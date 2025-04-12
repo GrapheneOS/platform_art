@@ -20,13 +20,10 @@ Usage:
 TODO:
  * Add a user guide.
  * Dim 'image' and 'zygote' heap sizes slightly? Why do we even show these?
- * Let user re-sort sites objects info by clicking column headers.
- * Let user re-sort "Objects" list.
  * Show site context and heap and class filter in "Objects" view?
+ * Add option to sort on more table columns as desired.
  * Have a menu at the top of an object view with links to the sections?
  * Include ahat version and hprof file in the menu at the top of the page?
- * Heaped Table
-   - Make sortable by clicking on headers.
  * For HeapTable with single heap shown, the heap name isn't centered?
  * Consistently document functions.
  * Show version number with --version.
@@ -47,9 +44,6 @@ Things to Test:
  * That we don't show the 'extra' column in the DominatedList if we are
    showing all the instances.
  * Instance.getDexCacheLocation
-
-Reported Issues:
- * Request to be able to sort tables by size.
 
 Known Issues:
  * Line number decoding for allocations in proguarded classes.

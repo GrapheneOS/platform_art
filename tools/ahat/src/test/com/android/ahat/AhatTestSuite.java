@@ -21,24 +21,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 
 @RunWith(Suite.class)
-@Suite.SuiteClasses({
-  DiffFieldsTest.class,
-  DiffTest.class,
-  DominatorsTest.class,
-  HtmlEscaperTest.class,
-  InstanceTest.class,
-  NativeAllocationTest.class,
-  ObjectHandlerTest.class,
-  ObjectsHandlerTest.class,
-  OverviewHandlerTest.class,
-  PerformanceTest.class,
-  ProguardMapTest.class,
-  RootedHandlerTest.class,
-  QueryTest.class,
-  RiTest.class,
-  SiteHandlerTest.class,
-  SiteTest.class
-})
+@Suite.SuiteClasses({DiffFieldsTest.class, DiffTest.class, DominatorsTest.class,
+    HtmlEscaperTest.class, InstanceTest.class, NativeAllocationTest.class, ObjectHandlerTest.class,
+    ObjectsHandlerTest.class, OverviewHandlerTest.class, PerformanceTest.class,
+    ProguardMapTest.class, RootedHandlerTest.class, QueryTest.class, RiTest.class,
+    SiteHandlerTest.class, SiteTest.class, SorterTest.class})
 
 public class AhatTestSuite {
   public static void main(String[] args) {

@@ -35,7 +35,6 @@ class HRiscv64ShiftAdd final : public HBinaryOperation {
 
   uint32_t GetDistance() const { return GetPackedField<DistanceField>(); }
 
-  bool IsCommutative() const override { return false; }
   bool InstructionDataEquals(const HInstruction* other) const override {
     return GetPackedFields() == other->AsRiscv64ShiftAdd()->GetPackedFields();
   }

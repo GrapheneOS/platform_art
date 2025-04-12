@@ -57,8 +57,8 @@ public class PrimaryDexopterTestBase {
     protected static final long APP_VERSION_CODE = 1536036288l;
 
     @Rule
-    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
-            SystemProperties.class, Constants.class, PackageStateModulesUtils.class);
+    public StaticMockitoRule mockitoRule = new StaticMockitoRule(SystemProperties.class,
+            Constants.class, PackageStateModulesUtils.class, Dex2OatStatsReporter.class);
 
     @Mock protected PrimaryDexopter.Injector mInjector;
     @Mock protected IArtd mArtd;

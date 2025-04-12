@@ -34,7 +34,7 @@ void SsaLivenessAnalysis::Analyze() {
 }
 
 void SsaLivenessAnalysis::NumberInstructions() {
-  int ssa_index = 0;
+  size_t ssa_index = 0;
   size_t lifetime_position = 0;
   // Each instruction gets a lifetime position, and a block gets a lifetime
   // start and end position. Non-phi instructions have a distinct lifetime position than
@@ -84,13 +84,14 @@ void SsaLivenessAnalysis::NumberInstructions() {
 
     block->SetLifetimeEnd(lifetime_position);
   }
-  number_of_ssa_values_ = ssa_index;
+  DCHECK_EQ(GetNumberOfSsaValues(), ssa_index);
 }
 
 void SsaLivenessAnalysis::ComputeLiveness() {
+  size_t number_of_ssa_values = GetNumberOfSsaValues();
   for (HBasicBlock* block : graph_->GetLinearOrder()) {
     block_infos_[block->GetBlockId()] =
-        new (allocator_) BlockInfo(allocator_, *block, number_of_ssa_values_);
+        new (allocator_) BlockInfo(allocator_, *block, number_of_ssa_values);
   }
 
   // Compute the live ranges, as well as the initial live_in, live_out, and kill sets.

@@ -55,8 +55,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
 
   // Resolve outputs, including stack locations.
   // TODO: Use pointers of Location inside LiveInterval to avoid doing another iteration.
-  for (size_t i = 0, e = liveness_.GetNumberOfSsaValues(); i < e; ++i) {
-    HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
+  for (HInstruction* instruction : liveness_.GetInstructionsFromSsaIndexes()) {
     LiveInterval* current = instruction->GetLiveInterval();
     LocationSummary* locations = instruction->GetLocations();
     Location location = locations->Out();
@@ -143,8 +142,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
   }
 
   // Connect siblings and resolve inputs.
-  for (size_t i = 0, e = liveness_.GetNumberOfSsaValues(); i < e; ++i) {
-    HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
+  for (HInstruction* instruction : liveness_.GetInstructionsFromSsaIndexes()) {
     ConnectSiblings(instruction->GetLiveInterval());
   }
 
@@ -183,16 +181,14 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
     if (block->IsCatchBlock()) {
       // Catch phi values are set at runtime by the exception delivery mechanism.
     } else {
-      for (HInstructionIteratorPrefetchNext inst_it(block->GetPhis()); !inst_it.Done();
-           inst_it.Advance()) {
-        HInstruction* phi = inst_it.Current();
-        for (size_t i = 0, e = block->GetPredecessors().size(); i < e; ++i) {
-          HBasicBlock* predecessor = block->GetPredecessors()[i];
+      for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+        HPhi* phi = inst_it.Current()->AsPhi();
+        HInputsRef inputs = phi->GetInputs();
+        Location destination = phi->GetLiveInterval()->ToLocation();
+        for (auto [predecessor, input_index] : ZipCount(block->GetPredecessors())) {
           DCHECK_EQ(predecessor->GetNormalSuccessors().size(), 1u);
-          HInstruction* input = phi->InputAt(i);
-          Location source = input->GetLiveInterval()->GetLocationAt(
+          Location source = inputs[input_index]->GetLiveInterval()->GetLocationAt(
               predecessor->GetLifetimeEnd() - 1);
-          Location destination = phi->GetLiveInterval()->ToLocation();
           InsertParallelMoveAtExitOf(predecessor, phi, source, destination);
         }
       }
@@ -231,8 +227,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
 }
 
 void RegisterAllocationResolver::UpdateSafepointLiveRegisters() {
-  for (size_t i = 0, e = liveness_.GetNumberOfSsaValues(); i < e; ++i) {
-    HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
+  for (HInstruction* instruction : liveness_.GetInstructionsFromSsaIndexes()) {
     for (LiveInterval* current = instruction->GetLiveInterval();
          current != nullptr;
          current = current->GetNextSibling()) {

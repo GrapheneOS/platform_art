@@ -81,18 +81,22 @@ class SiteHandler implements AhatHandler {
     }
 
     doc.section("Objects Allocated");
-    SizeTable.table(doc, mSnapshot.isDiffed(),
-        new Column("Instances", Column.Align.RIGHT),
-        new Column("Δ", Column.Align.RIGHT, mSnapshot.isDiffed()),
-        new Column("Heap"),
-        new Column("Class"));
+    Comparator<Site.ObjectsInfo> defaultCompare = Sort.withPriority(
+        Sort.OBJECTS_INFO_BY_HEAP_NAME, Sort.OBJECTS_INFO_BY_SIZE, Sort.OBJECTS_INFO_BY_CLASS_NAME);
+    Sorter<Site.ObjectsInfo> sorter = new Sorter<>(query, defaultCompare);
+    sorter.addKey("Instances", Comparator.comparingLong(x -> x.numInstances));
+    sorter.addKey("Instances.delta",
+        Comparator.comparingLong(x -> x.numInstances - x.getBaseline().numInstances));
+
+    SizeTable.SortSpec<Site.ObjectsInfo> spec =
+        new SizeTable.SortSpec<>(sorter, "objects", x -> x.numBytes, x -> x.getBaseline().numBytes);
+    SizeTable.table(doc, mSnapshot.isDiffed(), spec,
+        new Column(sorter.link("Instances", "Instances"), Column.Align.RIGHT),
+        new Column(sorter.link("Instances.delta", "Δ"), Column.Align.RIGHT, mSnapshot.isDiffed()),
+        new Column("Heap"), new Column("Class"));
 
     List<Site.ObjectsInfo> infos = site.getObjectsInfos();
-    Comparator<Site.ObjectsInfo> compare = Sort.withPriority(
-        Sort.OBJECTS_INFO_BY_HEAP_NAME,
-        Sort.OBJECTS_INFO_BY_SIZE,
-        Sort.OBJECTS_INFO_BY_CLASS_NAME);
-    Collections.sort(infos, compare);
+    sorter.sort(infos);
     SubsetSelector<Site.ObjectsInfo> selector
       = new SubsetSelector(query, OBJECTS_ALLOCATED_ID, infos);
     for (Site.ObjectsInfo info : selector.selected()) {

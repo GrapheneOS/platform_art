@@ -226,4 +226,23 @@ class DocString {
   public String html() {
     return mStringBuilder.toString();
   }
+
+  @Override
+  public String toString() {
+    return html();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+
+    if (obj == null || getClass() != obj.getClass()) {
+      return false;
+    }
+
+    DocString other = (DocString) obj;
+    return html().equals(other.html());
+  }
 }

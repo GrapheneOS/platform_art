@@ -16,7 +16,6 @@ package art
 
 import (
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"android/soong/android"
@@ -47,20 +46,28 @@ func makeVarsProvider(ctx android.MakeVarsContext) {
 	ctx.Strict("LIBART_IMG_HOST_BASE_ADDRESS", ctx.Config().LibartImgHostBaseAddress())
 	ctx.Strict("LIBART_IMG_TARGET_BASE_ADDRESS", ctx.Config().LibartImgDeviceBaseAddress())
 
-	testMap := testMap(ctx.Config())
-	var testNames []string
-	for name := range testMap {
-		testNames = append(testNames, name)
-	}
+	testMap := make(map[string][]string)
+	testcasesContent := make(map[string]string)
+	ctx.VisitAllModuleProxies(func(m android.ModuleProxy) {
+		if provider, ok := android.OtherModuleProvider(ctx, m, testInstallInfoProvider); ok {
+			for k, v := range provider.Testcases {
+				if oldSrc, ok := testcasesContent[k]; ok {
+					ctx.ModuleErrorf(m, "Conflicting sources for %s: %s and %s", k, oldSrc, v)
+					return
+				}
+				testcasesContent[k] = v
+			}
+			for k, v := range provider.TestMap {
+				testMap[k] = append(testMap[k], v...)
+			}
+		}
+	})
 
-	sort.Strings(testNames)
-
-	for _, name := range testNames {
+	for _, name := range android.SortedKeys(testMap) {
 		ctx.Strict("ART_TEST_LIST_"+name, strings.Join(android.FirstUniqueStrings(testMap[name]), " "))
 	}
 
 	// Create list of copy commands to install the content of the testcases directory.
-	testcasesContent := testcasesContent(ctx.Config())
 	copy_cmds := []string{}
 	for _, key := range android.SortedKeys(testcasesContent) {
 		copy_cmds = append(copy_cmds, testcasesContent[key]+":"+key)

@@ -50,11 +50,10 @@ inline IterationRange<Iter> MakeIterationRange(const Iter& begin_it, const Iter&
   return IterationRange<Iter>(begin_it, end_it);
 }
 
-template <typename List>
-inline auto MakeIterationRange(List& list) -> IterationRange<decltype(list.begin())> {
-  static_assert(std::is_same_v<decltype(list.begin()), decltype(list.end())>,
-                "Different iterator types");
-  return MakeIterationRange(list.begin(), list.end());
+template <typename Container>
+inline auto MakeIterationRange(Container&& c) -> IterationRange<decltype(c.begin())> {
+  static_assert(std::is_same_v<decltype(c.begin()), decltype(c.end())>, "Different iterator types");
+  return MakeIterationRange(c.begin(), c.end());
 }
 
 template <typename Iter>

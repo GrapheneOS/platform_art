@@ -1174,8 +1174,7 @@ class SsaLivenessAnalysis : public ValueObject {
                      nullptr,
                      allocator_->Adapter(kArenaAllocSsaLiveness)),
         instructions_from_ssa_index_(allocator_->Adapter(kArenaAllocSsaLiveness)),
-        instructions_from_lifetime_position_(allocator_->Adapter(kArenaAllocSsaLiveness)),
-        number_of_ssa_values_(0) {
+        instructions_from_lifetime_position_(allocator_->Adapter(kArenaAllocSsaLiveness)) {
   }
 
   void Analyze();
@@ -1194,6 +1193,10 @@ class SsaLivenessAnalysis : public ValueObject {
 
   HInstruction* GetInstructionFromSsaIndex(size_t index) const {
     return instructions_from_ssa_index_[index];
+  }
+
+  ArrayRef<HInstruction* const> GetInstructionsFromSsaIndexes() const {
+    return ArrayRef<HInstruction* const>(instructions_from_ssa_index_);
   }
 
   HInstruction* GetInstructionFromPosition(size_t index) const {
@@ -1235,7 +1238,7 @@ class SsaLivenessAnalysis : public ValueObject {
   }
 
   size_t GetNumberOfSsaValues() const {
-    return number_of_ssa_values_;
+    return instructions_from_ssa_index_.size();
   }
 
   static constexpr const char* kLivenessPassName = "liveness";
@@ -1313,8 +1316,6 @@ class SsaLivenessAnalysis : public ValueObject {
   // Compressed map from lifetime position to instruction (nullptr for block start).
   // Indexed by the lifetime position divided by `kLivenessPositionsPerInstruction`.
   ScopedArenaVector<HInstruction*> instructions_from_lifetime_position_;
-
-  size_t number_of_ssa_values_;
 
   friend class RegisterAllocatorTest;
 

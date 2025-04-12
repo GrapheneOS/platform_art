@@ -137,8 +137,6 @@ class HX86AndNot final : public HBinaryOperation {
       : HBinaryOperation(kX86AndNot, result_type, left, right, SideEffects::None(), dex_pc) {
   }
 
-  bool IsCommutative() const override { return false; }
-
   template <typename T> static T Compute(T x, T y) { return ~x & y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const override {

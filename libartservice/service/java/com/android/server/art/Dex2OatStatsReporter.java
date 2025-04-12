@@ -186,9 +186,8 @@ public class Dex2OatStatsReporter {
 
     public record Dex2OatResult(int status, int exitCode, int signal) {
         public static Dex2OatResult notRun() {
-            return new Dex2OatResult(
-                    ArtStatsLog.ART_DEX2_OAT_REPORTED__RESULT_STATUS__EXEC_RESULT_STATUS_NOT_RUN,
-                    -1 /* exitCode */, 0 /* signal */);
+            return baseResultWithStatus(
+                    ArtStatsLog.ART_DEX2_OAT_REPORTED__RESULT_STATUS__EXEC_RESULT_STATUS_NOT_RUN);
         }
 
         public static Dex2OatResult exited(int exitCode) {
@@ -198,9 +197,17 @@ public class Dex2OatStatsReporter {
         }
 
         public static Dex2OatResult cancelled() {
-            return new Dex2OatResult(
-                    ArtStatsLog.ART_DEX2_OAT_REPORTED__RESULT_STATUS__EXEC_RESULT_STATUS_CANCELLED,
-                    -1 /* exitCode */, 0 /* signal */);
+            return baseResultWithStatus(
+                    ArtStatsLog.ART_DEX2_OAT_REPORTED__RESULT_STATUS__EXEC_RESULT_STATUS_CANCELLED);
+        }
+
+        public static Dex2OatResult failedToStart() {
+            return baseResultWithStatus(ArtStatsLog
+                            .ART_DEX2_OAT_REPORTED__RESULT_STATUS__EXEC_RESULT_STATUS_START_FAILED);
+        }
+
+        private static Dex2OatResult baseResultWithStatus(int status) {
+            return new Dex2OatResult(status, -1 /* exitCode */, 0 /* signal */);
         }
     }
 }

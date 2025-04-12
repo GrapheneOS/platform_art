@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 
+	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -28,6 +28,13 @@ import (
 )
 
 var supportedArches = []string{"arm", "arm64", "riscv64", "x86", "x86_64"}
+
+type testInstallInfo struct {
+	Testcases map[string]string
+	TestMap   map[string][]string
+}
+
+var testInstallInfoProvider = blueprint.NewProvider[testInstallInfo]()
 
 func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	var cflags []string
@@ -70,7 +77,7 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	// TODO: deprecate and then eventually remove ART_USE_GENERATIONAL_CC in favor of
 	// ART_USE_GENERATIONAL_GC
 	if !ctx.Config().IsEnvFalse("ART_USE_READ_BARRIER") && ctx.Config().ArtUseReadBarrier() &&
-	   !ctx.Config().IsEnvTrue("ART_USE_RESTRICTED_MODE") {
+		!ctx.Config().IsEnvTrue("ART_USE_RESTRICTED_MODE") {
 		// Used to change the read barrier type. Valid values are BAKER, TABLELOOKUP.
 		// The default is BAKER.
 		barrierType := ctx.Config().GetenvWithDefault("ART_READ_BARRIER_TYPE", "BAKER")
@@ -82,7 +89,7 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 			"-DART_READ_BARRIER_TYPE_IS_"+barrierType+"=1")
 
 		if !(ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_CC") ||
-		     ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_GC")) {
+			ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_GC")) {
 			cflags = append(cflags, "-DART_USE_GENERATIONAL_GC=1")
 		}
 		// Force CC only if ART_USE_READ_BARRIER was set to true explicitly during
@@ -94,7 +101,7 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	} else if gcType == "CMC" {
 		tlab = true
 		if !(ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_CC") ||
-		     ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_GC")) {
+			ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_GC")) {
 			cflags = append(cflags, "-DART_USE_GENERATIONAL_GC=1")
 		}
 	}
@@ -289,66 +296,47 @@ func prefer32Bit(ctx android.LoadHookContext) {
 	ctx.PrependProperties(p)
 }
 
-var testMapKey = android.NewOnceKey("artTests")
-
-func testMap(config android.Config) map[string][]string {
-	return config.Once(testMapKey, func() interface{} {
-		return make(map[string][]string)
-	}).(map[string][]string)
-}
-
-func testInstall(ctx android.InstallHookContext) {
-	testMap := testMap(ctx.Config())
-
-	var name string
-	if ctx.Host() {
-		name = "host_"
-	} else {
-		name = "device_"
+func testInstall(data *testInstallInfo) func(ctx android.InstallHookContext) {
+	return func(ctx android.InstallHookContext) {
+		var name string
+		if ctx.Host() {
+			name = "host_"
+		} else {
+			name = "device_"
+		}
+		name += ctx.Arch().ArchType.String() + "_" + ctx.ModuleName()
+		data.TestMap[name] = append(data.TestMap[name], ctx.Path().String())
 	}
-	name += ctx.Arch().ArchType.String() + "_" + ctx.ModuleName()
-
-	artTestMutex.Lock()
-	defer artTestMutex.Unlock()
-
-	tests := testMap[name]
-	tests = append(tests, ctx.Path().String())
-	testMap[name] = tests
-}
-
-var testcasesContentKey = android.NewOnceKey("artTestcasesContent")
-
-func testcasesContent(config android.Config) map[string]string {
-	return config.Once(testcasesContentKey, func() interface{} {
-		return make(map[string]string)
-	}).(map[string]string)
 }
 
 // Binaries and libraries also need to be copied in the testcases directory for
 // running tests on host.  This method adds module to the list of needed files.
 // The 'key' is the file in testcases and 'value' is the path to copy it from.
 // The actual copy will be done in make since soong does not do installations.
-func addTestcasesFile(ctx android.InstallHookContext) {
-	if ctx.Os() != ctx.Config().BuildOS || ctx.Target().HostCross || ctx.Module().IsSkipInstall() {
-		return
+func addTestcasesFile(data *testInstallInfo) func(ctx android.InstallHookContext) {
+	return func(ctx android.InstallHookContext) {
+		if ctx.Os() != ctx.Config().BuildOS || ctx.Target().HostCross || ctx.Module().IsSkipInstall() {
+			return
+		}
+
+		src := ctx.SrcPath().String()
+		path := strings.Split(ctx.Path().String(), "/")
+		// Keep last two parts of the install path (e.g. bin/dex2oat).
+		dst := strings.Join(path[len(path)-2:], "/")
+		if oldSrc, ok := data.Testcases[dst]; ok {
+			ctx.ModuleErrorf("Conflicting sources for %s: %s and %s", dst, oldSrc, src)
+		}
+		data.Testcases[dst] = src
 	}
-
-	testcasesContent := testcasesContent(ctx.Config())
-
-	artTestMutex.Lock()
-	defer artTestMutex.Unlock()
-
-	src := ctx.SrcPath().String()
-	path := strings.Split(ctx.Path().String(), "/")
-	// Keep last two parts of the install path (e.g. bin/dex2oat).
-	dst := strings.Join(path[len(path)-2:], "/")
-	if oldSrc, ok := testcasesContent[dst]; ok {
-		ctx.ModuleErrorf("Conflicting sources for %s: %s and %s", dst, oldSrc, src)
-	}
-	testcasesContent[dst] = src
 }
 
-var artTestMutex sync.Mutex
+func setTestInstallInfo(data *testInstallInfo) func(ctx android.ModuleContext) {
+	return func(ctx android.ModuleContext) {
+		if len(data.Testcases) > 0 || len(data.TestMap) > 0 {
+			android.SetProvider(ctx, testInstallInfoProvider, *data)
+		}
+	}
+}
 
 func init() {
 	artModuleTypes := []string{
@@ -396,7 +384,11 @@ func artLibrary() android.Module {
 	installCodegenCustomizer(module, staticAndSharedLibrary)
 
 	android.AddLoadHook(module, addImplicitFlags)
-	android.AddInstallHook(module, addTestcasesFile)
+	data := &testInstallInfo{
+		Testcases: make(map[string]string),
+	}
+	android.AddInstallHook(module, addTestcasesFile(data))
+	android.AddPostGenerateAndroidBuildActionsHook(module, setTestInstallInfo(data))
 	return module
 }
 
@@ -415,7 +407,11 @@ func artBinary() android.Module {
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
-	android.AddInstallHook(module, addTestcasesFile)
+	data := &testInstallInfo{
+		Testcases: make(map[string]string),
+	}
+	android.AddInstallHook(module, addTestcasesFile(data))
+	android.AddPostGenerateAndroidBuildActionsHook(module, setTestInstallInfo(data))
 	return module
 }
 
@@ -427,7 +423,11 @@ func artTest() android.Module {
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
-	android.AddInstallHook(module, testInstall)
+	data := &testInstallInfo{
+		TestMap: make(map[string][]string),
+	}
+	android.AddInstallHook(module, testInstall(data))
+	android.AddPostGenerateAndroidBuildActionsHook(module, setTestInstallInfo(data))
 	return module
 }
 
@@ -438,6 +438,10 @@ func artTestLibrary() android.Module {
 
 	android.AddLoadHook(module, addImplicitFlags)
 	android.AddLoadHook(module, prefer32Bit)
-	android.AddInstallHook(module, testInstall)
+	data := &testInstallInfo{
+		TestMap: make(map[string][]string),
+	}
+	android.AddInstallHook(module, testInstall(data))
+	android.AddPostGenerateAndroidBuildActionsHook(module, setTestInstallInfo(data))
 	return module
 }

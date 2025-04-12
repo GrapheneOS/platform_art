@@ -146,7 +146,7 @@ struct FNVHash {
 
 // Returns a copy of the passed vector that doesn't memory-own its entries.
 template <typename T>
-static inline std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::unique_ptr<T>>& src) {
+inline std::vector<T*> MakeNonOwningPointerVector(const std::vector<std::unique_ptr<T>>& src) {
   std::vector<T*> result;
   result.reserve(src.size());
   for (const std::unique_ptr<T>& t : src) {
@@ -224,26 +224,26 @@ class CountIter {
 };
 
 // Make an iteration range that returns a pair of the element and the index of the element.
-template <typename Iter>
-static inline IterationRange<ZipLeftIter<Iter, CountIter>> ZipCount(IterationRange<Iter> iter) {
-  return IterationRange(ZipLeftIter(iter.begin(), CountIter(0)),
-                        ZipLeftIter(iter.end(), CountIter(-1)));
+template <typename Container>
+inline auto ZipCount(Container&& c) -> IterationRange<ZipLeftIter<decltype(c.begin()), CountIter>>{
+  static_assert(std::is_same_v<decltype(c.begin()), decltype(c.end())>, "Different iterator types");
+  return IterationRange(ZipLeftIter(c.begin(), CountIter(0)), ZipLeftIter(c.end(), CountIter(-1)));
 }
 
 // Make an iteration range that returns a pair of the outputs of two iterators. Stops when the first
 // (left) one is exhausted. The left iterator must be at least as long as the right one.
 template <typename IterLeft, typename IterRight>
-static inline IterationRange<ZipLeftIter<IterLeft, IterRight>> ZipLeft(
+inline IterationRange<ZipLeftIter<IterLeft, IterRight>> ZipLeft(
     IterationRange<IterLeft> iter_left, IterationRange<IterRight> iter_right) {
   return IterationRange(ZipLeftIter(iter_left.begin(), iter_right.begin()),
                         ZipLeftIter(iter_left.end(), iter_right.end()));
 }
 
-static inline IterationRange<CountIter> Range(size_t start, size_t end) {
+inline IterationRange<CountIter> Range(size_t start, size_t end) {
   return IterationRange(CountIter(start), CountIter(end));
 }
 
-static inline IterationRange<CountIter> Range(size_t end) {
+inline IterationRange<CountIter> Range(size_t end) {
   return Range(0, end);
 }
 
@@ -294,7 +294,7 @@ struct FilterIterator {
 };
 
 template <typename BaseRange, typename FilterT>
-static inline auto Filter(BaseRange&& range, FilterT cond) {
+inline auto Filter(BaseRange&& range, FilterT cond) {
   auto end = range.end();
   auto start = std::find_if(range.begin(), end, cond);
   return MakeIterationRange(FilterIterator(start, cond, std::make_optional(end)),
@@ -314,7 +314,7 @@ template <typename InnerIter>
 using FilterNull = FilterIterator<InnerIter, NonNullFilter<typename InnerIter::value_type>>;
 
 template <typename InnerIter>
-static inline IterationRange<FilterNull<InnerIter>> FilterOutNull(IterationRange<InnerIter> inner) {
+inline IterationRange<FilterNull<InnerIter>> FilterOutNull(IterationRange<InnerIter> inner) {
   return Filter(inner, NonNullFilter<typename InnerIter::value_type>());
 }
 
