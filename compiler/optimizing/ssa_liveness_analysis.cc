@@ -105,11 +105,11 @@ void SsaLivenessAnalysis::ComputeLiveness() {
   ComputeLiveInAndLiveOutSets();
 }
 
-void SsaLivenessAnalysis::ProcessInputs(HInstruction* current,
-                                        HInstruction* actual_user,
-                                        BitVectorView<size_t> live_in) {
+void SsaLivenessAnalysis::RecursivelyProcessInputs(HInstruction* current,
+                                                   HInstruction* actual_user,
+                                                   BitVectorView<size_t> live_in) {
   HInputsRef inputs = current->GetInputs();
-  for (size_t i : Range(inputs.size())) {
+  for (size_t i = 0; i < inputs.size(); ++i) {
     HInstruction* input = inputs[i];
     bool has_in_location = current->GetLocations()->InAt(i).IsValid();
     bool has_out_location = input->GetLocations()->Out().IsValid();
@@ -127,14 +127,14 @@ void SsaLivenessAnalysis::ProcessInputs(HInstruction* current,
     } else if (has_out_location) {
       // `input` generates a result but it is not used by `current`.
     } else {
-      // `input` is inlined into `current`.
+      // `input` is inlined into `current`. Walk over its inputs and record
+      // uses at `current`.
       DCHECK(input->IsEmittedAtUseSite());
-      // Phis cannot be inlined.
+      // Check that the inlined input is not a phi. Recursing on loop phis could
+      // lead to an infinite loop.
       DCHECK(!input->IsPhi());
-      // Instructions with environments cannot be inlined.
-      // Note: An implicit null check is an exception but it's handled differently and it no
-      // longer has any uses during register allocation, therefore we cannot encounter it here.
       DCHECK(!input->HasEnvironment());
+      RecursivelyProcessInputs(input, actual_user, live_in);
     }
   }
 }
@@ -208,7 +208,6 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
 
-    HInstruction* actual_user = nullptr;
     for (HBackwardInstructionIteratorPrefetchNext back_it(block->GetInstructions());
          !back_it.Done();
          back_it.Advance()) {
@@ -226,22 +225,30 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
           CHECK(!current->GetLocations()->Out().IsValid());
           CHECK(!current->HasEnvironmentUses());
           if (current->IsNullCheck()) {
+            // Implicit null check is replaced by its input in all users before register
+            // allocation, so it does not have any uses at this point.
             CHECK(current->GetUses().empty());
           } else {
-            CHECK(current->GetUses().HasExactlyOneElement()) << current->DebugName();
-            HInstruction* user = current->GetUses().begin()->GetUser();
-            size_t index = current->GetUses().begin()->GetIndex();
-            CHECK(!user->GetLocations()->InAt(index).IsValid());
-            // The `user` must be in the range `(current, actual_user]`.
-            for (HInstruction* inst = current->GetNext(); inst != user; inst = inst->GetNext()) {
-              CHECK(inst != actual_user);  // Check that we're not going past the `actual_user`.
-              CHECK(inst->IsEmittedAtUseSite());
+            // TODO: Should we allow dead instructions marked as "emitted at use site"?
+            CHECK(!current->GetUses().empty());
+            for (const HUseListNode<HInstruction*>& use : current->GetUses()) {
+              HInstruction* user = use.GetUser();
+              size_t index = use.GetIndex();
+              CHECK(!user->GetLocations()->InAt(index).IsValid());
+            }
+            if (!current->GetUses().HasExactlyOneElement()) {
+              // If there is more than one user, there can be no unallocated locations.
+              // We do not have a way to record different locations for different use sites.
+              for (size_t i : Range(current->GetLocations()->GetInputCount())) {
+                CHECK(!current->GetLocations()->InAt(i).IsUnallocated());
+              }
+              for (size_t i : Range(current->GetLocations()->GetTempCount())) {
+                CHECK(!current->GetLocations()->GetTemp(i).IsUnallocated());
+              }
             }
           }
         }
       } else {
-        actual_user = current;
-
         // Process the environment first, because we know their uses come after
         // or at the same liveness position of inputs.
         ProcessEnvironment(current, current, live_in);
@@ -252,10 +259,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         if (check != nullptr) {
           ProcessEnvironment(check, current, live_in);
         }
+        RecursivelyProcessInputs(current, current, live_in);
       }
-
-      DCHECK(actual_user != nullptr);
-      ProcessInputs(current, actual_user, live_in);
     }
 
     // Kill phis defined in this block.

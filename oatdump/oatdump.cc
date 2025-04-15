@@ -1290,7 +1290,7 @@ class OatDumper {
                     const CodeInfo& code_info,
                     const OatFile::OatMethod& oat_method) {
     code_info.Dump(vios,
-                   oat_method.GetCodeOffset(),
+                   AdjustOffset(oat_method.GetCodeOffset()),
                    options_.dump_code_info_stack_maps_,
                    instruction_set_);
   }
@@ -1464,7 +1464,8 @@ class OatDumper {
         if (it != stack_maps.end()) {
           ScopedIndentation indent1(vios);
           for (StackMap stack_map : it->second) {
-            stack_map.Dump(vios, code_info, oat_method.GetCodeOffset(), instruction_set_);
+            stack_map.Dump(
+                vios, code_info, AdjustOffset(oat_method.GetCodeOffset()), instruction_set_);
           }
           stack_maps.erase(it);
         }

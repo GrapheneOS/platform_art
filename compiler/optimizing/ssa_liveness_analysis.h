@@ -1269,9 +1269,9 @@ class SsaLivenessAnalysis : public ValueObject {
   static void ProcessEnvironment(HInstruction* instruction,
                                  HInstruction* actual_user,
                                  BitVectorView<size_t> live_in);
-  static void ProcessInputs(HInstruction* instruction,
-                            HInstruction* actual_user,
-                            BitVectorView<size_t> live_in);
+  static void RecursivelyProcessInputs(HInstruction* instruction,
+                                       HInstruction* actual_user,
+                                       BitVectorView<size_t> live_in);
 
   // Returns whether `instruction` in an HEnvironment held by `env_holder`
   // should be kept live by the HEnvironment.
