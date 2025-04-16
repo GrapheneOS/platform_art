@@ -290,6 +290,9 @@ Runtime::Runtime()
       active_transaction_(false),
       verify_(verifier::VerifyMode::kNone),
       target_sdk_version_(static_cast<uint32_t>(SdkVersion::kUnset)),
+      sdk_version_(
+          android::base::GetUintProperty(
+              "ro.build.version.sdk", static_cast<uint32_t>(SdkVersion::kUnset))),
       compat_framework_(),
       implicit_null_checks_(false),
       implicit_so_checks_(false),

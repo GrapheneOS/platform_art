@@ -16,6 +16,7 @@
 
 #include "fault_handler.h"
 
+#include <signal.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/ucontext.h>
@@ -52,6 +53,10 @@ extern "C" NO_INLINE __attribute__((visibility("default"))) void art_sigbus_faul
   // Set a breakpoint here to be informed when a SIGBUS is unhandled by ART.
   VLOG(signals) << "Caught unknown SIGBUS in ART fault handler - chaining to next handler.";
 }
+extern "C" NO_INLINE __attribute__((visibility("default"))) void art_sigsys_fault() {
+  // Set a breakpoint here to be informed when a SIGSYS is unhandled by ART.
+  VLOG(signals) << "Caught unknown SIGSYS in ART fault handler - chaining to next handler.";
+}
 
 // Signal handler called on SIGSEGV.
 static bool art_sigsegv_handler(int sig, siginfo_t* info, void* context) {
@@ -63,9 +68,15 @@ static bool art_sigbus_handler(int sig, siginfo_t* info, void* context) {
   return fault_manager.HandleSigbusFault(sig, info, context);
 }
 
+// Signal handler called on SIGSYS.
+static bool art_sigsys_handler(int sig, siginfo_t* info, void* context) {
+  return fault_manager.HandleSigsysFault(sig, info, context);
+}
+
 FaultManager::FaultManager()
     : generated_code_ranges_lock_("FaultHandler generated code ranges lock",
                                   LockLevel::kGenericBottomLock),
+      mark_compact_(nullptr),
       initialized_(false) {}
 
 FaultManager::~FaultManager() {
@@ -87,6 +98,13 @@ static const char* SignalCodeName(int sig, int code) {
       case BUS_OBJERR: return "BUS_OBJERR";
       default:         return "BUS_UNKNOWN";
     }
+  } else if (sig == SIGSYS) {
+    switch (code) {
+      case SYS_SECCOMP:
+        return "SYS_SECCOMP";
+      default:
+        return "SYS_UNKNOWN";
+    }
   } else {
     return "UNKNOWN";
   }
@@ -98,12 +116,18 @@ static std::ostream& PrintSignalInfo(std::ostream& os, siginfo_t* info) {
      << " (" << SignalCodeName(info->si_signo, info->si_code) << ")";
   if (info->si_signo == SIGSEGV || info->si_signo == SIGBUS) {
     os << "\n" << "  si_addr: " << info->si_addr;
+  } else if (info->si_signo == SIGSYS) {
+    os << "\n" << " si_syscall: " << info->si_syscall;
   }
   return os;
 }
 
 void FaultManager::Init(bool use_sig_chain) {
   CHECK(!initialized_);
+  if (gUseUserfaultfd) {
+    mark_compact_ = Runtime::Current()->GetHeap()->MarkCompactCollector();
+    CHECK_NE(mark_compact_, nullptr);
+  }
   if (use_sig_chain) {
     sigset_t mask;
     sigfillset(&mask);
@@ -123,6 +147,9 @@ void FaultManager::Init(bool use_sig_chain) {
     if (gUseUserfaultfd) {
       sa.sc_sigaction = art_sigbus_handler;
       AddSpecialSignalHandlerFn(SIGBUS, &sa);
+
+      sa.sc_sigaction = art_sigsys_handler;
+      AddSpecialSignalHandlerFn(SIGSYS, &sa);
     }
 
     // Notify the kernel that we intend to use a specific `membarrier()` command.
@@ -170,6 +197,7 @@ void FaultManager::Release() {
     RemoveSpecialSignalHandlerFn(SIGSEGV, art_sigsegv_handler);
     if (gUseUserfaultfd) {
       RemoveSpecialSignalHandlerFn(SIGBUS, art_sigbus_handler);
+      RemoveSpecialSignalHandlerFn(SIGSYS, art_sigsys_handler);
     }
     initialized_ = false;
   }
@@ -221,6 +249,25 @@ bool FaultManager::HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* co
   return false;
 }
 
+bool FaultManager::HandleSigsysFault(int sig, siginfo_t* info, void* context) {
+  DCHECK_EQ(sig, SIGSYS);
+  if (VLOG_IS_ON(signals)) {
+    PrintSignalInfo(VLOG_STREAM(signals) << "Handling SIGSYS fault:\n", info);
+  }
+
+#ifdef TEST_NESTED_SIGNAL
+  // Simulate a crash in a handler.
+  raise(SIGSYS);
+#endif
+  if (mark_compact_->SigsysHandler(info, context)) {
+    return true;
+  }
+
+  // Set a breakpoint in this function to catch unhandled signals.
+  art_sigsys_fault();
+  return false;
+}
+
 bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, [[maybe_unused]] void* context) {
   DCHECK_EQ(sig, SIGBUS);
   if (VLOG_IS_ON(signals)) {
@@ -231,7 +278,7 @@ bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, [[maybe_unused]] 
   // Simulate a crash in a handler.
   raise(SIGBUS);
 #endif
-  if (Runtime::Current()->GetHeap()->MarkCompactCollector()->SigbusHandler(info)) {
+  if (mark_compact_->SigbusHandler(info)) {
     return true;
   }
 

@@ -5773,7 +5773,6 @@ void IntrinsicLocationsBuilderRISCV64::VisitMethodHandleInvokeExact(HInvoke* inv
 
   InvokeDexCallingConventionVisitorRISCV64 calling_convention;
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
-  locations->SetInAt(0, Location::RequiresRegister());
 
   // Accomodating LocationSummary for underlying invoke-* call.
   uint32_t number_of_args = invoke->GetNumberOfArguments();
@@ -5781,21 +5780,40 @@ void IntrinsicLocationsBuilderRISCV64::VisitMethodHandleInvokeExact(HInvoke* inv
     locations->SetInAt(i, calling_convention.GetNextLocation(invoke->InputAt(i)->GetType()));
   }
 
+  // Passing MethodHandle object as the last parameter: accessors implementation rely on it.
+  DCHECK_EQ(invoke->InputAt(0)->GetType(), DataType::Type::kReference);
+  Location receiver_mh_loc = calling_convention.GetNextLocation(DataType::Type::kReference);
+  locations->SetInAt(0, receiver_mh_loc);
+
   // The last input is MethodType object corresponding to the call-site.
   locations->SetInAt(number_of_args, Location::RequiresRegister());
 
   locations->AddTemp(calling_convention.GetMethodLocation());
   locations->AddRegisterTemps(2);
+
+  if (!receiver_mh_loc.IsRegister()) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
 void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
-  XRegister method_handle = locations->InAt(0).AsRegister<XRegister>();
+  Riscv64Assembler* assembler = GetAssembler();
+
+  Location receiver_mh_loc = locations->InAt(0);
+  XRegister method_handle = receiver_mh_loc.IsRegister()
+      ? locations->InAt(0).AsRegister<XRegister>()
+      : locations->GetTemp(3).AsRegister<XRegister>();
+
+  if (!receiver_mh_loc.IsRegister()) {
+    DCHECK(receiver_mh_loc.IsStackSlot());
+    __ Loadwu(method_handle, SP, receiver_mh_loc.GetStackIndex());
+  }
+
   SlowPathCodeRISCV64* slow_path =
       new (codegen_->GetScopedAllocator()) InvokePolymorphicSlowPathRISCV64(invoke, method_handle);
 
   codegen_->AddSlowPath(slow_path);
-  Riscv64Assembler* assembler = GetAssembler();
   XRegister call_site_type =
       locations->InAt(invoke->GetNumberOfArguments()).AsRegister<XRegister>();
 
@@ -5809,10 +5827,18 @@ void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke
   __ Loadd(method, method_handle, mirror::MethodHandle::ArtFieldOrMethodOffset().Int32Value());
 
   Riscv64Label execute_target_method;
+  Riscv64Label method_dispatch;
 
   XRegister method_handle_kind = locations->GetTemp(2).AsRegister<XRegister>();
-  __ Loadd(method_handle_kind,
-           method_handle, mirror::MethodHandle::HandleKindOffset().Int32Value());
+  __ Loadwu(method_handle_kind,
+            method_handle, mirror::MethodHandle::HandleKindOffset().Int32Value());
+
+  __ Li(temp, mirror::MethodHandle::Kind::kFirstAccessorKind);
+  __ Blt(method_handle_kind, temp, &method_dispatch);
+  __ Loadd(method, method_handle, mirror::MethodHandleImpl::TargetOffset().SizeValue());
+  __ J(&execute_target_method);
+
+  __ Bind(&method_dispatch);
   __ Li(temp, mirror::MethodHandle::Kind::kInvokeStatic);
   __ Beq(method_handle_kind, temp, &execute_target_method);
 
@@ -5831,7 +5857,7 @@ void IntrinsicCodeGeneratorRISCV64::VisitMethodHandleInvokeExact(HInvoke* invoke
     __ Bne(method_handle_kind, temp, &non_virtual_dispatch);
 
     // Skip virtual dispatch if `method` is private.
-    __ Loadd(temp, method, ArtMethod::AccessFlagsOffset().Int32Value());
+    __ Loadwu(temp, method, ArtMethod::AccessFlagsOffset().Int32Value());
     __ Andi(temp, temp, kAccPrivate);
     __ Bnez(temp, &execute_target_method);
 

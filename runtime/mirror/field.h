@@ -64,6 +64,9 @@ class MANAGED Field : public AccessibleObject {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
+  // Returns true if this field's value can change only once.
+  bool IsMonotonic() REQUIRES_SHARED(Locks::mutator_lock_);
+
   ALWAYS_INLINE Primitive::Type GetTypeAsPrimitiveType() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjPtr<mirror::Class> GetType() REQUIRES_SHARED(Locks::mutator_lock_);

@@ -340,22 +340,17 @@ ALWAYS_INLINE inline static void SetFieldValue(ObjPtr<mirror::Object> o,
   }
 }
 
-ALWAYS_INLINE inline static bool ThrowIAEIfRecordFinalField(ObjPtr<mirror::Field> field)
+ALWAYS_INLINE inline static bool ThrowIAEIfFieldIsNotOverwritable(ObjPtr<mirror::Field> field)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!(field->IsFinal())) {
-    return false;
-  }
-  ObjPtr<mirror::Class> declaring_class = field->GetDeclaringClass();
-  DCHECK(declaring_class != nullptr);
-  if (!(declaring_class->IsRecordClass())) {
+  if (!field->IsMonotonic()) {
     return false;
   }
 
   ThrowIllegalAccessException(
-          StringPrintf("Cannot set %s field %s of record class %s",
+          StringPrintf("Cannot set %s field %s of class %s",
               PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
               ArtField::PrettyField(field->GetArtField()).c_str(),
-              declaring_class->PrettyClass().c_str()).c_str());
+              field->GetDeclaringClass()->PrettyClass().c_str()).c_str());
 
   return true;
 }
@@ -369,7 +364,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
-  if (ThrowIAEIfRecordFinalField(f)) {
+  if (ThrowIAEIfFieldIsNotOverwritable(f)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
@@ -399,6 +394,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
+
   SetFieldValue(o, f, field_prim_type, true, unboxed_value);
 }
 
@@ -413,7 +409,7 @@ static void SetPrimitiveField(JNIEnv* env,
   if (!CheckReceiver(soa, javaObj, &f, &o)) {
     return;
   }
-  if (ThrowIAEIfRecordFinalField(f)) {
+  if (ThrowIAEIfFieldIsNotOverwritable(f)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }

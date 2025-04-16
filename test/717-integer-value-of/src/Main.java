@@ -42,16 +42,17 @@ public class Main {
                     cacheField.setAccessible(true);
 
                     Integer[] cache = (Integer[]) cacheField.get(integerCacheClass);
-                    Integer[] alt_cache = new Integer[cache.length];
-                    System.arraycopy(cache, 0, alt_cache, 0, cache.length);
+                    Integer originalZero = cache[0];
+                    Integer alternativeZero = new Integer(0);
 
                     // Let the main thread know that everything is set up.
                     synchronized (start_end) {
                         start_end.notify();
                     }
+
                     while (!start_end.flag) {
-                        cacheField.set(integerCacheClass, alt_cache);
-                        cacheField.set(integerCacheClass, cache);
+                        cache[0] = alternativeZero;
+                        cache[0] = originalZero;
                     }
                 } catch (Throwable t) {
                     throw new Error(t);
@@ -63,14 +64,14 @@ public class Main {
             start_end.wait();  // Wait for the thread to start.
         }
         // Previously, this may have used an invalid IntegerValueOfInfo (because of seeing
-        // the `alt_cache` which is not in the boot image) when asked to emit code after
-        // using a valid info (using `cache`) when requesting locations.
+        // the `alternativeZero` which is not in the boot image) when asked to emit code after
+        // using a valid info (using `originalZero`) when requesting locations.
         ensureJitCompiled(Main.class, "getAsInteger");
 
         start_end.flag = true;
         t.join();
 
-        Runtime.getRuntime().gc();  // Collect the `alt_cache`.
+        Runtime.getRuntime().gc();  // Collect the `alternativeZero`.
 
         // If `getAsInteger()` was miscompiled, it shall try to retrieve an Integer reference
         // from a collected array (low = 0, high = 0 means that this happens only for value 0),

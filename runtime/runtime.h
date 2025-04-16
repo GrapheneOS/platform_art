@@ -740,6 +740,10 @@ class Runtime {
     return is_running_on_memory_tool_;
   }
 
+  uint32_t GetSdkVersion() const {
+    return sdk_version_;
+  }
+
   void SetTargetSdkVersion(uint32_t version) {
     target_sdk_version_ = version;
   }
@@ -1360,6 +1364,11 @@ class Runtime {
 
   // Specifies target SDK version to allow workarounds for certain API levels.
   uint32_t target_sdk_version_;
+
+  // SDK version of the running OS.
+  // Field's value is equal to `ro.build.version.sdk` system property if it stores a valid integer
+  // or 0 (`SdkVersion::kUnset`) otherwise.
+  const uint32_t sdk_version_;
 
   // ART counterpart for the compat framework (go/compat-framework).
   CompatFramework compat_framework_;

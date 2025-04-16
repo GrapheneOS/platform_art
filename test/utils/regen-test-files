@@ -361,23 +361,8 @@ failing_tests_excluded_from_test_mapping = {
   # Empty.
 }
 
-# Tests failing because of linking issues, currently exluded from MTS
-# and Mainline Presubmits to minimize noise in continuous runs while
-# we investigate.
-#
-# Example of admissible values in this dictionary: same as for
-# `failing_tests_excluded_from_test_mapping` (see above).
-#
-# TODO(b/247108425): Address the linking issues and re-enable these
-# tests.
-failing_tests_excluded_from_mts_and_mainline_presubmits = {
-    "art_standalone_compiler_tests": ["JniCompilerTest*"],
-    "art_standalone_libartpalette_tests": ["PaletteClientJniTest*"],
-}
-
 failing_tests_excluded_from_mainline_presubmits = (
-  failing_tests_excluded_from_test_mapping |
-  failing_tests_excluded_from_mts_and_mainline_presubmits
+  failing_tests_excluded_from_test_mapping
 )
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
@@ -996,13 +981,6 @@ class Generator:
     configuration.appendChild(xml_comment)
     for module in flaky_tests_excluded_from_mts:
       for testcase in flaky_tests_excluded_from_mts[module]:
-        append_test_exclusion(f"{module} {testcase}")
-
-    # Excluded failing tests.
-    xml_comment = root.createComment(" Excluded failing tests (b/247108425). ")
-    configuration.appendChild(xml_comment)
-    for module in failing_tests_excluded_from_mts_and_mainline_presubmits:
-      for testcase in failing_tests_excluded_from_mts_and_mainline_presubmits[module]:
         append_test_exclusion(f"{module} {testcase}")
 
     xml_str = root.toprettyxml(indent = XML_INDENT, encoding = "utf-8")

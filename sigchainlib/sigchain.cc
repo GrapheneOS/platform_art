@@ -525,18 +525,27 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
     chains[signo].action_.sa_sigaction(signo, siginfo, ucontext_raw);
   } else {
     auto handler = chains[signo].action_.sa_handler;
-    if (handler == SIG_IGN) {
-      return;
-    } else if (handler == SIG_DFL) {
+    if (handler == SIG_DFL ||
+        (handler == SIG_IGN && signo == SIGSYS && siginfo->si_code == SYS_SECCOMP)) {
       // We'll only get here if debuggerd is disabled. In that case, whatever next tries to handle
       // the crash will have no way to know our ucontext, and thus no way to dump the original crash
       // stack (since we're on an alternate stack.) Let's remove our handler and return. Then the
       // pre-crash state is restored, the crash happens again, and the next handler gets a chance.
+      //
+      // If we receive SIGSYS from SECCOMP filter and the chained handler is SIG_IGN then we can't
+      // ignore as the kernel forces signal in that case. So we have to fallback to SIG_DFL.
       LogError("reverting to SIG_DFL handler for signal %d, ucontext %p", signo, ucontext);
       LogStack();
       struct sigaction dfl = {};
       dfl.sa_handler = SIG_DFL;
       linked_sigaction(signo, &dfl, nullptr);
+      if (handler != SIG_DFL) {
+        // In case of SECCOMP, we cannot rely on the syscall to be re-tried as SECCOMP sets up
+        // things as if the syscall has already returned. So we must raise the signal.
+        raise(signo);
+      }
+      return;
+    } else if (handler == SIG_IGN) {
       return;
     } else {
       handler(signo);
