@@ -115,6 +115,12 @@ public class Main {
     if (!s.equals("hello world")) {
       throw new Error("Unexpected string: " + s);
     }
+
+    Object[] array = new Object[1];
+    Object o = testBranchWithConstZero(array, false);
+    if (o != array) {
+      throw new Error("Unexpected result: " + o);
+    }
   }
 
   public static void invokePrivate() {
@@ -181,6 +187,14 @@ public class Main {
     forceGCStaticMethod();
     printStaticMethodWithObjectArg(o);
     forceGCStaticMethod();
+  }
+
+  public static Object testBranchWithConstZero(Object[] o, boolean branch) {
+    if (branch) {
+      o = null;
+    }
+    forceGCStaticMethod();
+    return o;
   }
 
   public static void printStaticMethod() {

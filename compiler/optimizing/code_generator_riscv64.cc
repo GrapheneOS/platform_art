@@ -2097,7 +2097,7 @@ int32_t InstructionCodeGeneratorRISCV64::VecAddress(LocationSummary* locations,
 
 void LocationsBuilderRISCV64::HandleBinaryOp(HBinaryOperation* instruction) {
   DCHECK_EQ(instruction->InputCount(), 2u);
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   DataType::Type type = instruction->GetResultType();
   switch (type) {
     case DataType::Type::kInt32:
@@ -2245,7 +2245,7 @@ void InstructionCodeGeneratorRISCV64::HandleBinaryOp(HBinaryOperation* instructi
 }
 
 void LocationsBuilderRISCV64::HandleCondition(HCondition* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   switch (instruction->InputAt(0)->GetType()) {
     case DataType::Type::kFloat32:
     case DataType::Type::kFloat64:
@@ -2325,7 +2325,7 @@ void LocationsBuilderRISCV64::HandleShift(HBinaryOperation* instruction) {
          instruction->IsRol() ||
          instruction->IsRor());
 
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   DataType::Type type = instruction->GetResultType();
   switch (type) {
     case DataType::Type::kInt32:
@@ -2493,8 +2493,7 @@ void CodeGeneratorRISCV64::CheckGCCardIsValid(XRegister object) {
 }
 
 void LocationsBuilderRISCV64::HandleFieldSet(HInstruction* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, ValueLocationForStore(instruction->InputAt(1)));
 }
@@ -2540,11 +2539,11 @@ void LocationsBuilderRISCV64::HandleFieldGet(HInstruction* instruction) {
 
   bool object_field_get_with_read_barrier =
       (instruction->GetType() == DataType::Type::kReference) && codegen_->EmitReadBarrier();
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_,
       instruction,
-      object_field_get_with_read_barrier
-          ? LocationSummary::kCallOnSlowPath
-          : LocationSummary::kNoCall);
+      object_field_get_with_read_barrier ? LocationSummary::kCallOnSlowPath
+                                         : LocationSummary::kNoCall);
 
   // Input for object receiver.
   locations->SetInAt(0, Location::RequiresRegister());
@@ -2700,7 +2699,7 @@ void InstructionCodeGeneratorRISCV64::VisitAboveOrEqual(HAboveOrEqual* instructi
 }
 
 void LocationsBuilderRISCV64::VisitAbs(HAbs* abs) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(abs);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, abs);
   switch (abs->GetResultType()) {
     case DataType::Type::kInt32:
     case DataType::Type::kInt64:
@@ -2771,10 +2770,11 @@ void LocationsBuilderRISCV64::VisitArrayGet(HArrayGet* instruction) {
   DataType::Type type = instruction->GetType();
   bool object_array_get_with_read_barrier =
       (type == DataType::Type::kReference) && codegen_->EmitReadBarrier();
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction,
-                      object_array_get_with_read_barrier ? LocationSummary::kCallOnSlowPath :
-                                                           LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_,
+     instruction,
+     object_array_get_with_read_barrier ? LocationSummary::kCallOnSlowPath
+                                        : LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (DataType::IsFloatingPointType(type)) {
@@ -2899,7 +2899,7 @@ void InstructionCodeGeneratorRISCV64::VisitArrayGet(HArrayGet* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitArrayLength(HArrayLength* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
@@ -2919,7 +2919,8 @@ void InstructionCodeGeneratorRISCV64::VisitArrayLength(HArrayLength* instruction
 
 void LocationsBuilderRISCV64::VisitArraySet(HArraySet* instruction) {
   bool needs_type_check = instruction->NeedsTypeCheck();
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_,
       instruction,
       needs_type_check ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
@@ -3079,7 +3080,7 @@ void InstructionCodeGeneratorRISCV64::VisitBelowOrEqual(HBelowOrEqual* instructi
 }
 
 void LocationsBuilderRISCV64::VisitBooleanNot(HBooleanNot* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
@@ -3212,8 +3213,7 @@ static size_t NumberOfCheckCastTemps(bool emit_read_barrier, TypeCheckKind type_
 void LocationsBuilderRISCV64::VisitCheckCast(HCheckCast* instruction) {
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
   LocationSummary::CallKind call_kind = codegen_->GetCheckCastCallKind(instruction);
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = LocationSummary::Create(allocator_, instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   if (type_check_kind == TypeCheckKind::kBitstringCheck) {
     locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)));
@@ -3421,8 +3421,7 @@ TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
 }
 
 void LocationsBuilderRISCV64::VisitClassTableGet(HClassTableGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
@@ -3448,7 +3447,7 @@ static int32_t GetExceptionTlsOffset() {
 }
 
 void LocationsBuilderRISCV64::VisitClearException(HClearException* instruction) {
-  new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary::CreateNoCall(allocator_, instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitClearException(
@@ -3457,8 +3456,8 @@ void InstructionCodeGeneratorRISCV64::VisitClearException(
 }
 
 void LocationsBuilderRISCV64::VisitClinitCheck(HClinitCheck* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
-      instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, Location::RequiresRegister());
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
@@ -3479,7 +3478,7 @@ void InstructionCodeGeneratorRISCV64::VisitClinitCheck(HClinitCheck* instruction
 void LocationsBuilderRISCV64::VisitCompare(HCompare* instruction) {
   DataType::Type compare_type = instruction->GetComparisonType();
 
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
 
   switch (compare_type) {
     case DataType::Type::kBool:
@@ -3585,8 +3584,7 @@ void InstructionCodeGeneratorRISCV64::VisitConstructorFence(
 }
 
 void LocationsBuilderRISCV64::VisitCurrentMethod(HCurrentMethod* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::RegisterLocation(kArtMethodRegister));
 }
 
@@ -3596,8 +3594,7 @@ void InstructionCodeGeneratorRISCV64::VisitCurrentMethod(
 }
 
 void LocationsBuilderRISCV64::VisitShouldDeoptimizeFlag(HShouldDeoptimizeFlag* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -3609,8 +3606,8 @@ void InstructionCodeGeneratorRISCV64::VisitShouldDeoptimizeFlag(
 }
 
 void LocationsBuilderRISCV64::VisitDeoptimize(HDeoptimize* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnSlowPath);
   InvokeRuntimeCallingConvention calling_convention;
   RegisterSet caller_saves = RegisterSet::Empty();
   caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -3630,8 +3627,7 @@ void InstructionCodeGeneratorRISCV64::VisitDeoptimize(HDeoptimize* instruction) 
 }
 
 void LocationsBuilderRISCV64::VisitDiv(HDiv* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   switch (instruction->GetResultType()) {
     case DataType::Type::kInt32:
     case DataType::Type::kInt64:
@@ -3708,8 +3704,7 @@ void InstructionCodeGeneratorRISCV64::VisitDivZeroCheck(HDivZeroCheck* instructi
 }
 
 void LocationsBuilderRISCV64::VisitDoubleConstant(HDoubleConstant* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::ConstantLocation(instruction));
 }
 
@@ -3733,8 +3728,7 @@ void LocationsBuilderRISCV64::VisitExit(HExit* instruction) {
 void InstructionCodeGeneratorRISCV64::VisitExit([[maybe_unused]] HExit* instruction) {}
 
 void LocationsBuilderRISCV64::VisitFloatConstant(HFloatConstant* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::ConstantLocation(instruction));
 }
 
@@ -3768,7 +3762,7 @@ void InstructionCodeGeneratorRISCV64::VisitGreaterThanOrEqual(HGreaterThanOrEqua
 }
 
 void LocationsBuilderRISCV64::VisitIf(HIf* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   if (IsBooleanValueOrMaterializedCondition(instruction->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
     if (GetGraph()->IsCompilingBaseline() &&
@@ -3875,8 +3869,7 @@ void LocationsBuilderRISCV64::VisitInstanceOf(HInstanceOf* instruction) {
       break;
   }
 
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = LocationSummary::Create(allocator_, instruction, call_kind);
   if (baker_read_barrier_slow_path) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   }
@@ -4109,7 +4102,7 @@ void InstructionCodeGeneratorRISCV64::VisitInstanceOf(HInstanceOf* instruction) 
 }
 
 void LocationsBuilderRISCV64::VisitIntConstant(HIntConstant* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::ConstantLocation(instruction));
 }
 
@@ -4206,7 +4199,7 @@ void LocationsBuilderRISCV64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* i
   // art::PrepareForRegisterAllocation.
   DCHECK(!instruction->IsStaticWithExplicitClinitCheck());
 
-  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  IntrinsicLocationsBuilderRISCV64 intrinsic(allocator_, codegen_);
   if (intrinsic.TryDispatch(instruction)) {
     return;
   }
@@ -4245,7 +4238,7 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeStaticOrDirect(
 }
 
 void LocationsBuilderRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruction) {
-  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  IntrinsicLocationsBuilderRISCV64 intrinsic(allocator_, codegen_);
   if (intrinsic.TryDispatch(instruction)) {
     return;
   }
@@ -4263,7 +4256,7 @@ void InstructionCodeGeneratorRISCV64::VisitInvokeVirtual(HInvokeVirtual* instruc
 }
 
 void LocationsBuilderRISCV64::VisitInvokePolymorphic(HInvokePolymorphic* instruction) {
-  IntrinsicLocationsBuilderRISCV64 intrinsic(GetGraph()->GetAllocator(), codegen_);
+  IntrinsicLocationsBuilderRISCV64 intrinsic(allocator_, codegen_);
   if (intrinsic.TryDispatch(instruction)) {
     return;
   }
@@ -4319,8 +4312,7 @@ void LocationsBuilderRISCV64::VisitLoadClass(HLoadClass* instruction) {
   LocationSummary::CallKind call_kind = (instruction->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = LocationSummary::Create(allocator_, instruction, call_kind);
   if (kUseBakerReadBarrier && requires_read_barrier && !instruction->NeedsEnvironment()) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   }
@@ -4457,8 +4449,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadClass(HLoadClass* instruction)
 }
 
 void LocationsBuilderRISCV64::VisitLoadException(HLoadException* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -4490,8 +4481,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadMethodType(HLoadMethodType* instr
 void LocationsBuilderRISCV64::VisitLoadString(HLoadString* instruction) {
   HLoadString::LoadKind load_kind = instruction->GetLoadKind();
   LocationSummary::CallKind call_kind = codegen_->GetLoadStringCallKind(instruction);
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = LocationSummary::Create(allocator_, instruction, call_kind);
   if (load_kind == HLoadString::LoadKind::kRuntimeCall) {
     InvokeRuntimeCallingConvention calling_convention;
     DCHECK_EQ(DataType::Type::kReference, instruction->GetType());
@@ -4582,7 +4572,7 @@ void InstructionCodeGeneratorRISCV64::VisitLoadString(HLoadString* instruction)
 }
 
 void LocationsBuilderRISCV64::VisitLongConstant(HLongConstant* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::ConstantLocation(instruction));
 }
 
@@ -4608,7 +4598,7 @@ void InstructionCodeGeneratorRISCV64::VisitMemoryBarrier(HMemoryBarrier* instruc
 }
 
 void LocationsBuilderRISCV64::VisitMethodEntryHook(HMethodEntryHook* instruction) {
-  new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnSlowPath);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitMethodEntryHook(HMethodEntryHook* instruction) {
@@ -4618,8 +4608,8 @@ void InstructionCodeGeneratorRISCV64::VisitMethodEntryHook(HMethodEntryHook* ins
 }
 
 void LocationsBuilderRISCV64::VisitMethodExitHook(HMethodExitHook* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnSlowPath);
   DataType::Type return_type = instruction->InputAt(0)->GetType();
   locations->SetInAt(0, Riscv64ReturnLocation(return_type));
 }
@@ -4639,8 +4629,8 @@ void InstructionCodeGeneratorRISCV64::VisitMin(HMin* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitMonitorOperation(HMonitorOperation* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
-      instruction, LocationSummary::kCallOnMainOnly);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
@@ -4656,8 +4646,7 @@ void InstructionCodeGeneratorRISCV64::VisitMonitorOperation(HMonitorOperation* i
 }
 
 void LocationsBuilderRISCV64::VisitMul(HMul* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   switch (instruction->GetResultType()) {
     case DataType::Type::kInt32:
     case DataType::Type::kInt64:
@@ -4707,7 +4696,7 @@ void InstructionCodeGeneratorRISCV64::VisitMul(HMul* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNeg(HNeg* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   switch (instruction->GetResultType()) {
     case DataType::Type::kInt32:
     case DataType::Type::kInt64:
@@ -4752,8 +4741,8 @@ void InstructionCodeGeneratorRISCV64::VisitNeg(HNeg* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNewArray(HNewArray* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -4768,8 +4757,8 @@ void InstructionCodeGeneratorRISCV64::VisitNewArray(HNewArray* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNewInstance(HNewInstance* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(
-      instruction, LocationSummary::kCallOnMainOnly);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
   locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
@@ -4781,7 +4770,7 @@ void InstructionCodeGeneratorRISCV64::VisitNewInstance(HNewInstance* instruction
 }
 
 void LocationsBuilderRISCV64::VisitNop(HNop* instruction) {
-  new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary::CreateNoCall(allocator_, instruction);
 }
 
 void InstructionCodeGeneratorRISCV64::VisitNop([[maybe_unused]] HNop* instruction) {
@@ -4789,7 +4778,7 @@ void InstructionCodeGeneratorRISCV64::VisitNop([[maybe_unused]] HNop* instructio
 }
 
 void LocationsBuilderRISCV64::VisitNot(HNot* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
@@ -4817,7 +4806,7 @@ void InstructionCodeGeneratorRISCV64::VisitNotEqual(HNotEqual* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitNullConstant(HNullConstant* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetOut(Location::ConstantLocation(instruction));
 }
 
@@ -4844,8 +4833,7 @@ void InstructionCodeGeneratorRISCV64::VisitOr(HOr* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitPackedSwitch(HPackedSwitch* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
 }
 
@@ -4900,7 +4888,7 @@ void InstructionCodeGeneratorRISCV64::VisitParallelMove(HParallelMove* instructi
 }
 
 void LocationsBuilderRISCV64::VisitParameterValue(HParameterValue* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   Location location = parameter_visitor_.GetNextLocation(instruction->GetType());
   if (location.IsStackSlot()) {
     location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
@@ -4916,7 +4904,7 @@ void InstructionCodeGeneratorRISCV64::VisitParameterValue(
 }
 
 void LocationsBuilderRISCV64::VisitPhi(HPhi* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
     locations->SetInAt(i, Location::Any());
   }
@@ -4932,8 +4920,7 @@ void LocationsBuilderRISCV64::VisitRem(HRem* instruction) {
   LocationSummary::CallKind call_kind =
       DataType::IsFloatingPointType(type) ? LocationSummary::kCallOnMainOnly
                                           : LocationSummary::kNoCall;
-  LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = LocationSummary::Create(allocator_, instruction, call_kind);
 
   switch (type) {
     case DataType::Type::kInt32:
@@ -4986,7 +4973,7 @@ void InstructionCodeGeneratorRISCV64::VisitRem(HRem* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitReturn(HReturn* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   DataType::Type return_type = instruction->InputAt(0)->GetType();
   DCHECK_NE(return_type, DataType::Type::kVoid);
   locations->SetInAt(0, Riscv64ReturnLocation(return_type));
@@ -5137,7 +5124,7 @@ void InstructionCodeGeneratorRISCV64::VisitUnresolvedStaticFieldSet(
 }
 
 void LocationsBuilderRISCV64::VisitSelect(HSelect* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   if (DataType::IsFloatingPointType(instruction->GetType())) {
     locations->SetInAt(0, FpuRegisterOrZeroBitPatternLocation(instruction->GetFalseValue()));
     locations->SetInAt(1, FpuRegisterOrZeroBitPatternLocation(instruction->GetTrueValue()));
@@ -5243,8 +5230,8 @@ void InstructionCodeGeneratorRISCV64::VisitSub(HSub* instruction) {
 }
 
 void LocationsBuilderRISCV64::VisitSuspendCheck(HSuspendCheck* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnSlowPath);
   // In suspend check slow path, usually there are no caller-save registers at all.
   // If SIMD instructions are present, however, we force spilling all live SIMD
   // registers in full width (since the runtime only saves/restores lower part).
@@ -5267,8 +5254,8 @@ void InstructionCodeGeneratorRISCV64::VisitSuspendCheck(HSuspendCheck* instructi
 }
 
 void LocationsBuilderRISCV64::VisitThrow(HThrow* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator_, instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
@@ -5300,7 +5287,7 @@ void LocationsBuilderRISCV64::VisitTypeConversion(HTypeConversion* instruction) 
     LOG(FATAL) << "Unexpected type conversion from " << input_type << " to " << result_type;
   }
 
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
 
   if (DataType::IsFloatingPointType(input_type)) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
@@ -5431,7 +5418,7 @@ void LocationsBuilderRISCV64::VisitRiscv64ShiftAdd(HRiscv64ShiftAdd* instruction
   DCHECK_EQ(instruction->GetType(), DataType::Type::kInt64)
       << "Unexpected ShiftAdd type: " << instruction->GetType();
 
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -5465,7 +5452,7 @@ void LocationsBuilderRISCV64::VisitBitwiseNegatedRight(HBitwiseNegatedRight* ins
   DCHECK(codegen_->GetInstructionSetFeatures().HasZbb());
   DCHECK(DataType::IsIntegralType(instruction->GetType())) << instruction->GetType();
 
-  LocationSummary* locations = new (GetGraph()->GetAllocator()) LocationSummary(instruction);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, instruction);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);

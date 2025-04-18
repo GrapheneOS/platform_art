@@ -431,6 +431,11 @@ void FastCompilerARM64::MoveConstantsToRegisters() {
           CreateNewRegisterLocation(i, DataType::Type::kInt32, /* next= */ nullptr);
       MoveLocation(vreg_locations_[i], location, DataType::Type::kInt32);
       DCHECK(!HitUnimplemented());
+      if (location.GetConstant()->IsArithmeticZero()) {
+        // In case we branch, we need to make sure a null value can be merged
+        // with an object value, so treat the 0 value as an object.
+        UpdateRegisterMask(i, /* is_object= */ true);
+      }
     }
   }
 }

@@ -434,8 +434,8 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
 void CodeGenerator::CreateCommonInvokeLocationSummary(
     HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor) {
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
-  LocationSummary* locations = new (allocator) LocationSummary(invoke,
-                                                               LocationSummary::kCallOnMainOnly);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnMainOnly);
 
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
@@ -592,7 +592,7 @@ void CodeGenerator::CreateStringBuilderAppendLocations(HStringBuilderAppend* ins
                                                        Location out) {
   ArenaAllocator* allocator = GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
+      LocationSummary::Create(allocator, instruction, LocationSummary::kCallOnMainOnly);
   locations->SetOut(out);
   instruction->GetLocations()->SetInAt(instruction->FormatIndex(),
                                        Location::ConstantLocation(instruction->GetFormat()));
@@ -647,7 +647,7 @@ void CodeGenerator::CreateUnresolvedFieldLocationSummary(
 
   ArenaAllocator* allocator = GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(field_access, LocationSummary::kCallOnMainOnly);
+      LocationSummary::Create(allocator, field_access, LocationSummary::kCallOnMainOnly);
 
   locations->AddTemp(calling_convention.GetFieldIndexLocation());
 
@@ -765,8 +765,9 @@ void CodeGenerator::CreateLoadClassRuntimeCallLocationSummary(HLoadClass* cls,
                                                               Location runtime_return_location) {
   DCHECK_EQ(cls->GetLoadKind(), HLoadClass::LoadKind::kRuntimeCall);
   DCHECK_EQ(cls->InputCount(), 1u);
-  LocationSummary* locations = new (cls->GetBlock()->GetGraph()->GetAllocator()) LocationSummary(
-      cls, LocationSummary::kCallOnMainOnly);
+  ArenaAllocator* allocator = cls->GetBlock()->GetGraph()->GetAllocator();
+  LocationSummary* locations =
+      LocationSummary::Create(allocator, cls, LocationSummary::kCallOnMainOnly);
   locations->SetInAt(0, Location::NoLocation());
   locations->AddTemp(runtime_type_index_location);
   locations->SetOut(runtime_return_location);
@@ -791,9 +792,9 @@ void CodeGenerator::CreateLoadMethodHandleRuntimeCallLocationSummary(
     Location runtime_proto_index_location,
     Location runtime_return_location) {
   DCHECK_EQ(method_handle->InputCount(), 1u);
+  ArenaAllocator* allocator = method_handle->GetBlock()->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (method_handle->GetBlock()->GetGraph()->GetAllocator()) LocationSummary(
-          method_handle, LocationSummary::kCallOnMainOnly);
+      LocationSummary::Create(allocator, method_handle, LocationSummary::kCallOnMainOnly);
   locations->SetInAt(0, Location::NoLocation());
   locations->AddTemp(runtime_proto_index_location);
   locations->SetOut(runtime_return_location);
@@ -811,9 +812,9 @@ void CodeGenerator::CreateLoadMethodTypeRuntimeCallLocationSummary(
     Location runtime_proto_index_location,
     Location runtime_return_location) {
   DCHECK_EQ(method_type->InputCount(), 1u);
+  ArenaAllocator* allocator = method_type->GetBlock()->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (method_type->GetBlock()->GetGraph()->GetAllocator()) LocationSummary(
-          method_type, LocationSummary::kCallOnMainOnly);
+      LocationSummary::Create(allocator, method_type, LocationSummary::kCallOnMainOnly);
   locations->SetInAt(0, Location::NoLocation());
   locations->AddTemp(runtime_proto_index_location);
   locations->SetOut(runtime_return_location);
@@ -1588,7 +1589,7 @@ LocationSummary* CodeGenerator::CreateThrowingSlowPathLocations(HInstruction* in
     call_kind = LocationSummary::kCallOnSlowPath;
   }
   LocationSummary* locations =
-      new (GetGraph()->GetAllocator()) LocationSummary(instruction, call_kind);
+      LocationSummary::Create(GetGraph()->GetAllocator(), instruction, call_kind);
   if (can_throw_into_catch_block && compiler_options_.GetImplicitNullChecks()) {
     locations->SetCustomSlowPathCallerSaves(caller_saves);  // Default: no caller-save registers.
   }
@@ -1812,9 +1813,8 @@ LocationSummary* CodeGenerator::CreateSystemArrayCopyLocationSummary(
   }
 
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
-  LocationSummary* locations = new (allocator) LocationSummary(invoke,
-                                                               LocationSummary::kCallOnSlowPath,
-                                                               kIntrinsified);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   // arraycopy(Object src, int src_pos, Object dest, int dest_pos, int length).
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(invoke->InputAt(1)));

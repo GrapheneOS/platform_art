@@ -371,7 +371,7 @@ class ParallelMoveResolverARMVIXL : public ParallelMoveResolverWithSwap {
 class LocationsBuilderARMVIXL : public HGraphVisitor {
  public:
   LocationsBuilderARMVIXL(HGraph* graph, CodeGeneratorARMVIXL* codegen)
-      : HGraphVisitor(graph), codegen_(codegen) {}
+      : HGraphVisitor(graph), codegen_(codegen), allocator_(graph->GetAllocator()) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
   void Visit##name(H##name* instr) override;
@@ -403,6 +403,7 @@ class LocationsBuilderARMVIXL : public HGraphVisitor {
   bool CanEncodeConstantAsImmediate(HConstant* input_cst, Opcode opcode);
 
   CodeGeneratorARMVIXL* const codegen_;
+  ArenaAllocator* const allocator_;
   InvokeDexCallingConventionVisitorARMVIXL parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARMVIXL);

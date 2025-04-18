@@ -117,7 +117,7 @@ class MarkCompact final : public GarbageCollector {
   using SigbusCounterType = uint32_t;
 
   static constexpr size_t kAlignment = kObjectAlignment;
-  static constexpr int kCopyMode = -1;
+  static constexpr int kUffdMode = -1;
   // Fake file descriptor for fall back mode (when uffd isn't available)
   static constexpr int kFallbackMode = -3;
   static constexpr int kFdUnused = -2;
@@ -641,6 +641,8 @@ class MarkCompact final : public GarbageCollector {
   // returns. Returns number of bytes (multiple of page-size) mapped.
   size_t CopyIoctl(
       void* dst, void* buffer, size_t length, bool return_on_contention, bool tolerate_enoent);
+  // Move 'len/page-size' pages from 'src' to 'dst'.
+  size_t MoveIoctl(void* dst, void* src, size_t len, bool tolerate_enoent);
 
   // Called after updating linear-alloc page(s) to map the page. It first
   // updates the state of the pages to kProcessedAndMapping and after ioctl to
@@ -681,6 +683,10 @@ class MarkCompact final : public GarbageCollector {
   // Scan old-gen for young GCs by looking for cards that are at least 'aged' in
   // the card-table corresponding to moving and non-moving spaces.
   void ScanOldGenObjects() REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Return free pages from 'from-space' that can be used to copy objects into
+  // and then passed onto userfaultfd ioctls. Return nullptr if no page is
+  // available. Size must be a multiple of page-size.
+  uint8_t* GetFreePagesForMapping(size_t size, bool atomic);
 
   // Verify that cards corresponding to objects containing references to
   // young-gen are dirty.
@@ -695,13 +701,15 @@ class MarkCompact final : public GarbageCollector {
   void VerifyPostGCObjects(bool performed_compaction, uint8_t* mark_bitmap_clear_end)
       REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Like ProcessMarkStack(), but ensures that a non-null popped reference is
-  // scanned.
+  // Like ProcessMarkStack(), but ignores null entries.
   void ProcessMarkStackNonNull() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
   // Process one object popped out of mark_stack. Expects obj to be non-null.
   void ProcessMarkObject(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
+  // Called to assess if it's safe to use MOVE ioctl, both from kernel bug-fixes
+  // as well as seccomp filter point of view.
+  bool MoveIoctlKernelCheck();
 
   // Vector to hold thread-local overflow arrays (and the number of entries in
   // there) of gc-roots found during mutator-stack scanning in marking phase.
@@ -815,10 +823,12 @@ class MarkCompact final : public GarbageCollector {
   // All the pages in [last_reclaimable_page_, last_reclaimed_page_) in
   // from-space are available to store compacted contents for batching until the
   // next time madvise is called.
-  uint8_t* last_reclaimable_page_;
+  // Declared atomic as gc-thread may write to it while mutators are accessing
+  // it concurrently.
+  std::atomic<uint8_t*> last_reclaimable_page_;
   // [cur_reclaimable_page_, last_reclaimed_page_) have been used to store
   // compacted contents for batching.
-  uint8_t* cur_reclaimable_page_;
+  std::atomic<uint8_t*> cur_reclaimable_page_;
 
   // Mark bits for non-moving space
   accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
@@ -867,6 +877,7 @@ class MarkCompact final : public GarbageCollector {
   // Set to true when doing young gen collection.
   bool young_gen_;
   const bool use_generational_;
+  bool use_move_ioctl_;
   // True while compacting.
   bool compacting_;
   // Mark bits for main space
@@ -925,7 +936,6 @@ class MarkCompact final : public GarbageCollector {
   // END HOT FIELDS: accessed per reference update
   // END HOT FIELDS: accessed per object
 
-  uint8_t* conc_compaction_termination_page_;
   PointerSize pointer_size_;
   // Userfault file descriptor, accessed only by the GC itself.
   // kFallbackMode value indicates that we are in the fallback mode.

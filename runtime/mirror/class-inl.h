@@ -1366,31 +1366,37 @@ inline ImTable* Class::FindSuperImt(PointerSize pointer_size) {
   return nullptr;
 }
 
+template <bool kOnlyLookAtIndex>
 ALWAYS_INLINE FLATTEN inline ArtField* Class::FindDeclaredField(uint32_t dex_field_idx) {
-  size_t num_fields = NumFields();
-  if (num_fields > 0) {
+  LengthPrefixedArray<ArtField>* array = GetFieldsPtrUnchecked();
+  DCHECK_IMPLIES(array != nullptr, array->size() != 0u);
+  if (array != nullptr) {
+    size_t size = array->size();
     // The field array is an ordered list of fields where there may be missing
     // indices. For example, it could be [40, 42], but in 90% of cases cases we have
     // [40, 41, 42]. The latter is the case we are optimizing for, where for
     // example `dex_field_idx` is 41, and we can just substract it with the
     // first field index (40) and directly access the array with that index (1).
-    uint32_t index = dex_field_idx - GetField(0)->GetDexFieldIndex();
-    if (index < num_fields) {
-      ArtField* field = GetField(index);
-      if (field->GetDexFieldIndex() == dex_field_idx) {
-        return field;
+    uint32_t index = dex_field_idx - array->At(0).GetDexFieldIndex();
+    if (index < size) {
+      ArtField& field = array->At(index);
+      if (field.GetDexFieldIndex() == dex_field_idx) {
+        return &field;
       }
     } else {
-      index = num_fields;
+      index = size;
+    }
+    if (kOnlyLookAtIndex) {
+      return nullptr;
     }
     // If there is a field, it's down the array. The array is ordered by field
     // index, so we know we can stop the search if `dex_field_idx` is greater
     // than the current field's index.
     for (; index > 0; --index) {
-      ArtField* field = GetField(index - 1);
-      if (field->GetDexFieldIndex() == dex_field_idx) {
-        return field;
-      } else if (field->GetDexFieldIndex() < dex_field_idx) {
+      ArtField& field = array->At(index - 1);
+      if (field.GetDexFieldIndex() == dex_field_idx) {
+        return &field;
+      } else if (field.GetDexFieldIndex() < dex_field_idx) {
         break;
       }
     }

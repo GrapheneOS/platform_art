@@ -1483,6 +1483,8 @@ END_FUNCTION \name
    .endif
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 2:
+%  fetch_static_field_from_fast_path("NterpGetLocalStaticField", success_label="1b", fail_label="9f", reload_rinst="0")
+9:
    EXPORT_PC
    movl rSELF:THREAD_SELF_OFFSET, ARG0
    movl 0(%esp), ARG1
@@ -1873,6 +1875,27 @@ OAT_ENTRY ExecuteNterpImpl
    jne  ${miss_label}
    movl __SIZEOF_POINTER__+THREAD_INTERPRETER_CACHE_OFFSET(%eax, %ecx, 1), ${dest_reg}
 
+%def fetch_static_field_from_fast_path(get_local, success_label, fail_label, reload_rinst):
+   movl 0(%esp), %eax
+   testl $$ART_METHOD_IS_OBSOLETE_FLAG, ART_METHOD_ACCESS_FLAGS_OFFSET(%eax)
+   jne ${fail_label}
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalStaticFieldInternal`.
+   movl ART_METHOD_DECLARING_CLASS_OFFSET(%eax), %eax
+   subl MACRO_LITERAL(8), %esp
+   pushl rPC
+   pushl %eax
+   call ${get_local}
+   addl MACRO_LITERAL(16), %esp
+   RESTORE_IBASE
+   FETCH_INST_CLEAR_OPCODE
+   .if ${reload_rinst}
+   // Reload the value as it may have moved.
+   GET_VREG rINST, rINST
+   .endif
+   cmpl MACRO_LITERAL(0), %eax
+   jne ${success_label}
+
 %def footer():
 /*
  * ===========================================================================
@@ -2100,6 +2123,8 @@ NterpPutObjectStaticField:
 4:
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 2:
+%  fetch_static_field_from_fast_path("NterpGetLocalStaticFieldForSPutObject", success_label="1b", fail_label="9f", reload_rinst="1")
+9:
    EXPORT_PC
    movl rSELF:THREAD_SELF_OFFSET, ARG0
    movl 0(%esp), ARG1
@@ -2150,6 +2175,8 @@ NterpGetObjectStaticField:
    SET_VREG_OBJECT %eax, rINST             # fp[A] <- value
    ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
 2:
+%  fetch_static_field_from_fast_path("NterpGetLocalStaticField", success_label="1b", fail_label="9f", reload_rinst="0")
+9:
    EXPORT_PC
    movl rSELF:THREAD_SELF_OFFSET, ARG0
    movl 0(%esp), ARG1

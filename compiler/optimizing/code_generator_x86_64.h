@@ -226,7 +226,7 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolverWithSwap {
 class LocationsBuilderX86_64 : public HGraphVisitor {
  public:
   LocationsBuilderX86_64(HGraph* graph, CodeGeneratorX86_64* codegen)
-      : HGraphVisitor(graph), codegen_(codegen) {}
+      : HGraphVisitor(graph), codegen_(codegen), allocator_(graph->GetAllocator()) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
   void Visit##name(H##name* instr) override;
@@ -256,6 +256,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
   bool CpuHasAvx2FeatureFlag();
 
   CodeGeneratorX86_64* const codegen_;
+  ArenaAllocator* const allocator_;
   InvokeDexCallingConventionVisitorX86_64 parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86_64);

@@ -546,6 +546,20 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
                            CallKind call_kind = kNoCall,
                            bool intrinsified = false);
 
+  static LocationSummary* Create(ArenaAllocator* allocator,
+                                 HInstruction* instruction,
+                                 CallKind call_kind,
+                                 bool intrinsified = false) {
+    return new (allocator) LocationSummary(instruction, call_kind, intrinsified, allocator);
+  }
+
+  ALWAYS_INLINE
+  static LocationSummary* CreateNoCall(ArenaAllocator* allocator,
+                                       HInstruction* instruction,
+                                       bool intrinsified = false) {
+    return Create(allocator, instruction, kNoCall, intrinsified);
+  }
+
   void SetInAt(uint32_t at, Location location) {
     inputs_[at] = location;
   }

@@ -102,7 +102,7 @@ void IntrinsicVisitor::ComputeValueOfLocations(HInvoke* invoke,
   }
 
   ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
-  LocationSummary* locations = new (allocator) LocationSummary(invoke, call_kind, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(allocator, invoke, call_kind, kIntrinsified);
   if (call_kind == LocationSummary::kCallOnMainOnly) {
     locations->SetInAt(0, Location::RegisterOrConstant(input));
     locations->AddTemp(first_argument_location);
@@ -187,7 +187,7 @@ void IntrinsicVisitor::CreateReferenceGetReferentLocations(HInvoke* invoke,
 
   ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());
 }
@@ -200,7 +200,7 @@ void IntrinsicVisitor::CreateReferenceRefersToLocations(HInvoke* invoke, CodeGen
 
   ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister());

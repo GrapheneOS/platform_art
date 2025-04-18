@@ -909,6 +909,7 @@ bool JitCodeCache::RemoveMethodLocked(ArtMethod* method, bool release_memory) {
           FreeCodeAndData(it->first);
         }
         VLOG(jit) << "JIT removed " << it->second->PrettyMethod() << ": " << it->first;
+        zombie_code_.erase(it->first);
         it = method_code_map_.erase(it);
       } else {
         ++it;

@@ -234,7 +234,7 @@ class FieldAccessCallingConventionRISCV64 : public FieldAccessCallingConvention 
 class LocationsBuilderRISCV64 : public HGraphVisitor {
  public:
   LocationsBuilderRISCV64(HGraph* graph, CodeGeneratorRISCV64* codegen)
-      : HGraphVisitor(graph), codegen_(codegen) {}
+      : HGraphVisitor(graph), codegen_(codegen), allocator_(graph->GetAllocator()) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) void Visit##name(H##name* instr) override;
 
@@ -256,9 +256,9 @@ class LocationsBuilderRISCV64 : public HGraphVisitor {
   void HandleFieldSet(HInstruction* instruction);
   void HandleFieldGet(HInstruction* instruction);
 
-  InvokeDexCallingConventionVisitorRISCV64 parameter_visitor_;
-
   CodeGeneratorRISCV64* const codegen_;
+  ArenaAllocator* const allocator_;
+  InvokeDexCallingConventionVisitorRISCV64 parameter_visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderRISCV64);
 };

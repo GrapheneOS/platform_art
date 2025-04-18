@@ -220,15 +220,13 @@ bool IntrinsicLocationsBuilderARM64::TryDispatch(HInvoke* invoke) {
 #define __ masm->
 
 static void CreateFPToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetOut(Location::RequiresRegister());
 }
 
 static void CreateIntToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresFpuRegister());
 }
@@ -276,15 +274,13 @@ void IntrinsicCodeGeneratorARM64::VisitFloatIntBitsToFloat(HInvoke* invoke) {
 }
 
 static void CreateIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 static void CreateIntIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -292,7 +288,7 @@ static void CreateIntIntToIntLocations(ArenaAllocator* allocator, HInvoke* invok
 
 static void CreateIntIntToIntSlowPathCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // Force kOutputOverlap; see comments in IntrinsicSlowPath::EmitNativeCode.
@@ -541,8 +537,7 @@ void IntrinsicCodeGeneratorARM64::VisitLongLowestOneBit(HInvoke* invoke) {
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
@@ -588,8 +583,7 @@ void IntrinsicCodeGeneratorARM64::VisitMathRint(HInvoke* invoke) {
 }
 
 static void CreateFPToIntPlusFPTempLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetOut(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresFpuRegister());
@@ -689,8 +683,7 @@ void IntrinsicCodeGeneratorARM64::VisitMemoryPeekShortNative(HInvoke* invoke) {
 }
 
 static void CreateIntIntToVoidLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
 }
@@ -736,8 +729,7 @@ void IntrinsicCodeGeneratorARM64::VisitMemoryPokeShortNative(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitThreadCurrentThread(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -839,12 +831,11 @@ static void CreateUnsafeGetLocations(ArenaAllocator* allocator,
                                      CodeGeneratorARM64* codegen,
                                      bool is_volatile = false) {
   bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetReference(invoke);
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke,
-                                      can_call
-                                          ? LocationSummary::kCallOnSlowPath
-                                          : LocationSummary::kNoCall,
-                                      kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator,
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
   if (can_call && kUseBakerReadBarrier) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
     if (ReadBarrierNeedsTemp(is_volatile, invoke)) {
@@ -862,8 +853,7 @@ static void CreateUnsafeGetLocations(ArenaAllocator* allocator,
 
 static void CreateUnsafeGetAbsoluteLocations(ArenaAllocator* allocator,
                                              HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -987,8 +977,7 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetByte(HInvoke* invoke) {
 }
 
 static void CreateUnsafePutLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   static constexpr int kOffsetIndex = 2;
   static constexpr int kValueIndex = 3;
   // Unused receiver.
@@ -1007,8 +996,7 @@ static void CreateUnsafePutLocations(ArenaAllocator* allocator, HInvoke* invoke)
 }
 
 static void CreateUnsafePutAbsoluteLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
   static constexpr int kAddressIndex = 1;
   static constexpr int kValueIndex = 2;
   // Unused receiver.
@@ -1306,12 +1294,11 @@ static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
                                      HInvoke* invoke,
                                      CodeGeneratorARM64* codegen) {
   const bool can_call = codegen->EmitReadBarrier() && IsUnsafeCASReference(invoke);
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke,
-                                      can_call
-                                          ? LocationSummary::kCallOnSlowPath
-                                          : LocationSummary::kNoCall,
-                                      kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator,
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
   if (can_call && kUseBakerReadBarrier) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   }
@@ -1885,12 +1872,11 @@ static void CreateUnsafeGetAndUpdateLocations(ArenaAllocator* allocator,
                                               HInvoke* invoke,
                                               CodeGeneratorARM64* codegen) {
   const bool can_call = codegen->EmitReadBarrier() && IsUnsafeGetAndSetReference(invoke);
-  LocationSummary* locations =
-      new (allocator) LocationSummary(invoke,
-                                      can_call
-                                          ? LocationSummary::kCallOnSlowPath
-                                          : LocationSummary::kNoCall,
-                                      kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator,
+      invoke,
+      can_call ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall,
+      kIntrinsified);
   if (can_call && kUseBakerReadBarrier) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   }
@@ -2029,12 +2015,12 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeGetAndSetReference(HInvoke* invo
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringCompareTo(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke,
-                                       invoke->InputAt(1)->CanBeNull()
-                                           ? LocationSummary::kCallOnSlowPath
-                                           : LocationSummary::kNoCall,
-                                       kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_,
+      invoke,
+      invoke->InputAt(1)->CanBeNull() ? LocationSummary::kCallOnSlowPath
+                                      : LocationSummary::kNoCall,
+      kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->AddRegisterTemps(3);
@@ -2259,8 +2245,7 @@ static const char* GetConstString(HInstruction* candidate, uint32_t* utf16_lengt
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringEquals(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
 
@@ -2493,8 +2478,8 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringIndexOf(HInvoke* invoke) {
-  LocationSummary* locations = new (allocator_) LocationSummary(
-      invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_, invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
   // We have a hand-crafted assembly stub that follows the runtime calling convention. So it's
   // best to align the inputs accordingly.
   InvokeRuntimeCallingConvention calling_convention;
@@ -2511,8 +2496,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringIndexOf(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
-  LocationSummary* locations = new (allocator_) LocationSummary(
-      invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_, invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
   // We have a hand-crafted assembly stub that follows the runtime calling convention. So it's
   // best to align the inputs accordingly.
   InvokeRuntimeCallingConvention calling_convention;
@@ -2527,8 +2512,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromBytes(HInvoke* invoke) {
-  LocationSummary* locations = new (allocator_) LocationSummary(
-      invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_, invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
@@ -2555,7 +2540,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromBytes(HInvoke* invoke)
 
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromChars(HInvoke* invoke) {
   LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
+      LocationSummary::Create(allocator_, invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
@@ -2575,8 +2560,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromChars(HInvoke* invoke)
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromString(HInvoke* invoke) {
-  LocationSummary* locations = new (allocator_) LocationSummary(
-      invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_, invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->SetOut(calling_convention.GetReturnLocation(DataType::Type::kReference));
@@ -2603,8 +2588,8 @@ static void CreateFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
   DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
 
-  LocationSummary* const locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
 
   locations->SetInAt(0, LocationFrom(calling_convention.GetFpuRegisterAt(0)));
@@ -2617,8 +2602,8 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invo
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
   DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
 
-  LocationSummary* const locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
+  LocationSummary* locations =
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnMainOnly, kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
 
   locations->SetInAt(0, LocationFrom(calling_convention.GetFpuRegisterAt(0)));
@@ -2633,8 +2618,7 @@ static void CreateFPFPFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke
   DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
   DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
 
-  LocationSummary* const locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator, invoke, kIntrinsified);
 
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetInAt(1, Location::RequiresFpuRegister());
@@ -2793,8 +2777,7 @@ void IntrinsicCodeGeneratorARM64::VisitMathNextAfter(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
@@ -2965,7 +2948,7 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
   }
 
   LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      LocationSummary::Create(allocator_, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   // arraycopy(char[] src, int src_pos, char[] dst, int dst_pos, int length).
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, LocationForSystemArrayCopyInput(invoke->InputAt(1)));
@@ -3840,8 +3823,7 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceRefersTo(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitThreadInterrupted(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -3861,8 +3843,7 @@ void IntrinsicCodeGeneratorARM64::VisitThreadInterrupted(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitReachabilityFence(HInvoke* invoke) {
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetInAt(0, Location::Any());
 }
 
@@ -3873,9 +3854,7 @@ void IntrinsicLocationsBuilderARM64::VisitCRC32Update(HInvoke* invoke) {
     return;
   }
 
-  LocationSummary* locations = new (allocator_) LocationSummary(invoke,
-                                                                LocationSummary::kNoCall,
-                                                                kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
 
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -4020,9 +3999,7 @@ void IntrinsicLocationsBuilderARM64::VisitCRC32UpdateBytes(HInvoke* invoke) {
   }
 
   LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke,
-                                       LocationSummary::kCallOnSlowPath,
-                                       kIntrinsified);
+      LocationSummary::Create(allocator_, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
 
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -4075,10 +4052,7 @@ void IntrinsicLocationsBuilderARM64::VisitCRC32UpdateByteBuffer(HInvoke* invoke)
     return;
   }
 
-  LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke,
-                                       LocationSummary::kNoCall,
-                                       kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
 
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
@@ -4118,9 +4092,7 @@ void IntrinsicLocationsBuilderARM64::VisitFP16ToFloat(HInvoke* invoke) {
     return;
   }
 
-  LocationSummary* locations = new (allocator_) LocationSummary(invoke,
-                                                                LocationSummary::kNoCall,
-                                                                kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresFpuRegister());
 }
@@ -4141,9 +4113,7 @@ void IntrinsicLocationsBuilderARM64::VisitFP16ToHalf(HInvoke* invoke) {
     return;
   }
 
-  LocationSummary* locations = new (allocator_) LocationSummary(invoke,
-                                                                LocationSummary::kNoCall,
-                                                                kIntrinsified);
+  LocationSummary* locations = LocationSummary::CreateNoCall(allocator_, invoke, kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetOut(Location::RequiresRegister());
 }
@@ -4929,7 +4899,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke,
 
   ArenaAllocator* allocator = codegen->GetGraph()->GetAllocator();
   LocationSummary* locations =
-      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      LocationSummary::Create(allocator, invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   // Require coordinates in registers. These are the object holding the value
   // to operate on (except for static fields) and index (for arrays and views).
@@ -5978,8 +5948,8 @@ void VarHandleSlowPathARM64::EmitByteArrayViewCode(CodeGenerator* codegen_in) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMethodHandleInvokeExact(HInvoke* invoke) {
-  LocationSummary* locations = new (allocator_)
-      LocationSummary(invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
+  LocationSummary* locations = LocationSummary::Create(
+      allocator_, invoke, LocationSummary::kCallOnMainAndSlowPath, kIntrinsified);
 
   InvokeDexCallingConventionVisitorARM64 calling_convention;
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));

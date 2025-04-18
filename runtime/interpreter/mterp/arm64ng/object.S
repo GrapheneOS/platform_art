@@ -363,6 +363,16 @@
    .endif
 
 %def op_sget_slow_path(volatile_load, maybe_extend, wide, is_object):
+   ldr     x0, [sp]
+   ldr     w1, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tbnz    w1, #ART_METHOD_IS_OBSOLETE_FLAG_BIT, .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalStaticFieldInternal`.
+   ldr     w0, [x0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     x1, xPC
+   bl      NterpGetLocalStaticField
+   cbnz    x0, .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
@@ -445,6 +455,20 @@
    b       .L${opcode}_resume_after_read_barrier
 
 %def op_sput_slow_path(volatile_store, wide, is_object):
+   ldr     x0, [sp]
+   ldr     w1, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tbnz    w1, #ART_METHOD_IS_OBSOLETE_FLAG_BIT, .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalStaticFieldInternal`.
+   ldr     w0, [x0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     x1, xPC
+   .if $is_object
+   bl      NterpGetLocalStaticFieldForSPutObject
+   .else
+   bl      NterpGetLocalStaticField
+   .endif
+   cbnz    x0, .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
