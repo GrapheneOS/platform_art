@@ -1,5 +1,7 @@
-// TODO These arrays should be generated automatically or have instructions for re-creation.
-// For now, the gc_is_marking offset can be adjusted by tweaking the last CL that made a
+// TODO These arrays should be generated automatically. To regenerate an array,
+// manually set JNICFITest::kGenerateExpected to true, and run:
+//     out/host/linux-x86/nativetest64/art_compiler_host_tests/art_compiler_host_tests '--gtest_filter=JNICFITest.*'
+// The gc_is_marking offset can be adjusted by tweaking the last CL that made a
 // similar change.
 
 static constexpr uint8_t expected_asm_kThumb2[] = {
@@ -21,78 +23,79 @@ static constexpr uint8_t expected_cfi_kThumb2[] = {
     0x5B, 0x06, 0x5C, 0x06, 0x5D, 0x06, 0x5E, 0x06, 0x5F, 0x44, 0x0E, 0x00,
     0xC5, 0xC6, 0xC7, 0xC8, 0xCA, 0xCB, 0xCE, 0x46, 0x0B, 0x0E, 0x60,
 };
+// 0x00000000: .cfi_def_cfa: R8 +0
 // 0x00000000: push {r5,r6,r7,r8,r10,r11,lr}
-// 0x00000004: .cfi_def_cfa_offset: 28
-// 0x00000004: .cfi_offset: r5 at cfa-28
-// 0x00000004: .cfi_offset: r6 at cfa-24
-// 0x00000004: .cfi_offset: r7 at cfa-20
-// 0x00000004: .cfi_offset: r8 at cfa-16
-// 0x00000004: .cfi_offset: r10 at cfa-12
-// 0x00000004: .cfi_offset: r11 at cfa-8
-// 0x00000004: .cfi_offset: r14 at cfa-4
+// 0x00000004: .cfi_def_cfa_offset: +28
+// 0x00000004: .cfi_offset: R5 -28
+// 0x00000004: .cfi_offset: R6 -24
+// 0x00000004: .cfi_offset: R7 -20
+// 0x00000004: .cfi_offset: R8 -16
+// 0x00000004: .cfi_offset: R10 -12
+// 0x00000004: .cfi_offset: R11 -8
+// 0x00000004: .cfi_offset: LR -4
 // 0x00000004: vpush {s16-s31}
-// 0x00000008: .cfi_def_cfa_offset: 92
-// 0x00000008: .cfi_offset_extended: r80 at cfa-92
-// 0x00000008: .cfi_offset_extended: r81 at cfa-88
-// 0x00000008: .cfi_offset_extended: r82 at cfa-84
-// 0x00000008: .cfi_offset_extended: r83 at cfa-80
-// 0x00000008: .cfi_offset_extended: r84 at cfa-76
-// 0x00000008: .cfi_offset_extended: r85 at cfa-72
-// 0x00000008: .cfi_offset_extended: r86 at cfa-68
-// 0x00000008: .cfi_offset_extended: r87 at cfa-64
-// 0x00000008: .cfi_offset_extended: r88 at cfa-60
-// 0x00000008: .cfi_offset_extended: r89 at cfa-56
-// 0x00000008: .cfi_offset_extended: r90 at cfa-52
-// 0x00000008: .cfi_offset_extended: r91 at cfa-48
-// 0x00000008: .cfi_offset_extended: r92 at cfa-44
-// 0x00000008: .cfi_offset_extended: r93 at cfa-40
-// 0x00000008: .cfi_offset_extended: r94 at cfa-36
-// 0x00000008: .cfi_offset_extended: r95 at cfa-32
+// 0x00000008: .cfi_def_cfa_offset: +92
+// 0x00000008: .cfi_offset_extended: reg80 -92
+// 0x00000008: .cfi_offset_extended: reg81 -88
+// 0x00000008: .cfi_offset_extended: reg82 -84
+// 0x00000008: .cfi_offset_extended: reg83 -80
+// 0x00000008: .cfi_offset_extended: reg84 -76
+// 0x00000008: .cfi_offset_extended: reg85 -72
+// 0x00000008: .cfi_offset_extended: reg86 -68
+// 0x00000008: .cfi_offset_extended: reg87 -64
+// 0x00000008: .cfi_offset_extended: reg88 -60
+// 0x00000008: .cfi_offset_extended: reg89 -56
+// 0x00000008: .cfi_offset_extended: reg90 -52
+// 0x00000008: .cfi_offset_extended: reg91 -48
+// 0x00000008: .cfi_offset_extended: reg92 -44
+// 0x00000008: .cfi_offset_extended: reg93 -40
+// 0x00000008: .cfi_offset_extended: reg94 -36
+// 0x00000008: .cfi_offset_extended: reg95 -32
 // 0x00000008: sub sp, #4
-// 0x0000000a: .cfi_def_cfa_offset: 96
+// 0x0000000a: .cfi_def_cfa_offset: +96
 // 0x0000000a: str r0, [sp]
 // 0x0000000c: str r1, [sp, #100]
 // 0x0000000e: vstr s0, [sp, #104]
 // 0x00000012: str r2, [sp, #108]
 // 0x00000014: str r3, [sp, #112]
 // 0x00000016: sub sp, #32
-// 0x00000018: .cfi_def_cfa_offset: 128
+// 0x00000018: .cfi_def_cfa_offset: +128
 // 0x00000018: add sp, #32
-// 0x0000001a: .cfi_def_cfa_offset: 96
-// 0x0000001a: .cfi_remember_state
+// 0x0000001a: .cfi_def_cfa_offset: +96
+// 0x0000001a: .cfi_remember_state:
 // 0x0000001a: add sp, #4
-// 0x0000001c: .cfi_def_cfa_offset: 92
+// 0x0000001c: .cfi_def_cfa_offset: +92
 // 0x0000001c: vpop {s16-s31}
-// 0x00000020: .cfi_def_cfa_offset: 28
-// 0x00000020: .cfi_restore_extended: r80
-// 0x00000020: .cfi_restore_extended: r81
-// 0x00000020: .cfi_restore_extended: r82
-// 0x00000020: .cfi_restore_extended: r83
-// 0x00000020: .cfi_restore_extended: r84
-// 0x00000020: .cfi_restore_extended: r85
-// 0x00000020: .cfi_restore_extended: r86
-// 0x00000020: .cfi_restore_extended: r87
-// 0x00000020: .cfi_restore_extended: r88
-// 0x00000020: .cfi_restore_extended: r89
-// 0x00000020: .cfi_restore_extended: r90
-// 0x00000020: .cfi_restore_extended: r91
-// 0x00000020: .cfi_restore_extended: r92
-// 0x00000020: .cfi_restore_extended: r93
-// 0x00000020: .cfi_restore_extended: r94
-// 0x00000020: .cfi_restore_extended: r95
+// 0x00000020: .cfi_def_cfa_offset: +28
+// 0x00000020: .cfi_restore_extended: reg80
+// 0x00000020: .cfi_restore_extended: reg81
+// 0x00000020: .cfi_restore_extended: reg82
+// 0x00000020: .cfi_restore_extended: reg83
+// 0x00000020: .cfi_restore_extended: reg84
+// 0x00000020: .cfi_restore_extended: reg85
+// 0x00000020: .cfi_restore_extended: reg86
+// 0x00000020: .cfi_restore_extended: reg87
+// 0x00000020: .cfi_restore_extended: reg88
+// 0x00000020: .cfi_restore_extended: reg89
+// 0x00000020: .cfi_restore_extended: reg90
+// 0x00000020: .cfi_restore_extended: reg91
+// 0x00000020: .cfi_restore_extended: reg92
+// 0x00000020: .cfi_restore_extended: reg93
+// 0x00000020: .cfi_restore_extended: reg94
+// 0x00000020: .cfi_restore_extended: reg95
 // 0x00000020: pop {r5,r6,r7,r8,r10,r11,lr}
-// 0x00000024: .cfi_def_cfa_offset: 0
-// 0x00000024: .cfi_restore: r5
-// 0x00000024: .cfi_restore: r6
-// 0x00000024: .cfi_restore: r7
-// 0x00000024: .cfi_restore: r8
-// 0x00000024: .cfi_restore: r10
-// 0x00000024: .cfi_restore: r11
-// 0x00000024: .cfi_restore: r14
+// 0x00000024: .cfi_def_cfa_offset: +0
+// 0x00000024: .cfi_restore: R5
+// 0x00000024: .cfi_restore: R6
+// 0x00000024: .cfi_restore: R7
+// 0x00000024: .cfi_restore: R8
+// 0x00000024: .cfi_restore: R10
+// 0x00000024: .cfi_restore: R11
+// 0x00000024: .cfi_restore: LR
 // 0x00000024: ldr r8, [tr, #32] ; is_gc_marking
 // 0x00000028: bx lr
-// 0x0000002a: .cfi_restore_state
-// 0x0000002a: .cfi_def_cfa_offset: 112
+// 0x0000002a: .cfi_restore_state:
+// 0x0000002a: .cfi_def_cfa_offset: +96
 
 static constexpr uint8_t expected_asm_kArm64[] = {
     0xFF, 0xC3, 0x02, 0xD1, 0xF3, 0x53, 0x05, 0xA9, 0xF5, 0x5B, 0x06, 0xA9,
@@ -119,84 +122,85 @@ static constexpr uint8_t expected_cfi_kArm64[] = {
     0x4A, 0x06, 0x4B, 0x44, 0x06, 0x4C, 0x06, 0x4D, 0x44, 0x06, 0x4E, 0x06,
     0x4F, 0x48, 0x0E, 0x00, 0x44, 0x0B, 0x0E, 0xB0, 0x01,
 };
+// 0x00000000: .cfi_def_cfa: W8 +0
 // 0x00000000: sub sp, sp, #0xb0 (176)
-// 0x00000004: .cfi_def_cfa_offset: 176
+// 0x00000004: .cfi_def_cfa_offset: +176
 // 0x00000004: stp tr, x20, [sp, #80]
-// 0x00000008: .cfi_offset: r19 at cfa-96
-// 0x00000008: .cfi_offset: r20 at cfa-88
+// 0x00000008: .cfi_offset: W19 -96
+// 0x00000008: .cfi_offset: W20 -88
 // 0x00000008: stp x21, x22, [sp, #96]
-// 0x0000000c: .cfi_offset: r21 at cfa-80
-// 0x0000000c: .cfi_offset: r22 at cfa-72
+// 0x0000000c: .cfi_offset: W21 -80
+// 0x0000000c: .cfi_offset: W22 -72
 // 0x0000000c: stp x23, x24, [sp, #112]
-// 0x00000010: .cfi_offset: r23 at cfa-64
-// 0x00000010: .cfi_offset: r24 at cfa-56
+// 0x00000010: .cfi_offset: W23 -64
+// 0x00000010: .cfi_offset: W24 -56
 // 0x00000010: stp x25, x26, [sp, #128]
-// 0x00000014: .cfi_offset: r25 at cfa-48
-// 0x00000014: .cfi_offset: r26 at cfa-40
+// 0x00000014: .cfi_offset: W25 -48
+// 0x00000014: .cfi_offset: W26 -40
 // 0x00000014: stp x27, x28, [sp, #144]
-// 0x00000018: .cfi_offset: r27 at cfa-32
-// 0x00000018: .cfi_offset: r28 at cfa-24
+// 0x00000018: .cfi_offset: W27 -32
+// 0x00000018: .cfi_offset: W28 -24
 // 0x00000018: stp x29, lr, [sp, #160]
-// 0x0000001c: .cfi_offset: r29 at cfa-16
-// 0x0000001c: .cfi_offset: r30 at cfa-8
+// 0x0000001c: .cfi_offset: W29 -16
+// 0x0000001c: .cfi_offset: W30 -8
 // 0x0000001c: stp d8, d9, [sp, #16]
-// 0x00000020: .cfi_offset_extended: r72 at cfa-160
-// 0x00000020: .cfi_offset_extended: r73 at cfa-152
+// 0x00000020: .cfi_offset_extended: B8 -160
+// 0x00000020: .cfi_offset_extended: B9 -152
 // 0x00000020: stp d10, d11, [sp, #32]
-// 0x00000024: .cfi_offset_extended: r74 at cfa-144
-// 0x00000024: .cfi_offset_extended: r75 at cfa-136
+// 0x00000024: .cfi_offset_extended: B10 -144
+// 0x00000024: .cfi_offset_extended: B11 -136
 // 0x00000024: stp d12, d13, [sp, #48]
-// 0x00000028: .cfi_offset_extended: r76 at cfa-128
-// 0x00000028: .cfi_offset_extended: r77 at cfa-120
+// 0x00000028: .cfi_offset_extended: B12 -128
+// 0x00000028: .cfi_offset_extended: B13 -120
 // 0x00000028: stp d14, d15, [sp, #64]
-// 0x0000002c: .cfi_offset_extended: r78 at cfa-112
-// 0x0000002c: .cfi_offset_extended: r79 at cfa-104
+// 0x0000002c: .cfi_offset_extended: B14 -112
+// 0x0000002c: .cfi_offset_extended: B15 -104
 // 0x0000002c: str x0, [sp]
 // 0x00000030: str w1, [sp, #184]
 // 0x00000034: str s0, [sp, #188]
 // 0x00000038: str w2, [sp, #192]
 // 0x0000003c: str w3, [sp, #196]
 // 0x00000040: sub sp, sp, #0x20 (32)
-// 0x00000044: .cfi_def_cfa_offset: 208
+// 0x00000044: .cfi_def_cfa_offset: +208
 // 0x00000044: add sp, sp, #0x20 (32)
-// 0x00000048: .cfi_def_cfa_offset: 176
-// 0x00000048: .cfi_remember_state
+// 0x00000048: .cfi_def_cfa_offset: +176
+// 0x00000048: .cfi_remember_state:
 // 0x00000048: ldp tr, x20, [sp, #80]
-// 0x0000004c: .cfi_restore: r19
-// 0x0000004c: .cfi_restore: r20
+// 0x0000004c: .cfi_restore: W19
+// 0x0000004c: .cfi_restore: W20
 // 0x0000004c: ldp x21, x22, [sp, #96]
-// 0x00000050: .cfi_restore: r21
-// 0x00000050: .cfi_restore: r22
+// 0x00000050: .cfi_restore: W21
+// 0x00000050: .cfi_restore: W22
 // 0x00000050: ldp x23, x24, [sp, #112]
-// 0x00000054: .cfi_restore: r23
-// 0x00000054: .cfi_restore: r24
+// 0x00000054: .cfi_restore: W23
+// 0x00000054: .cfi_restore: W24
 // 0x00000054: ldp x25, x26, [sp, #128]
-// 0x00000058: .cfi_restore: r25
-// 0x00000058: .cfi_restore: r26
+// 0x00000058: .cfi_restore: W25
+// 0x00000058: .cfi_restore: W26
 // 0x00000058: ldp x27, x28, [sp, #144]
-// 0x0000005c: .cfi_restore: r27
-// 0x0000005c: .cfi_restore: r28
+// 0x0000005c: .cfi_restore: W27
+// 0x0000005c: .cfi_restore: W28
 // 0x0000005c: ldp x29, lr, [sp, #160]
-// 0x00000060: .cfi_restore: r29
-// 0x00000060: .cfi_restore: r30
+// 0x00000060: .cfi_restore: W29
+// 0x00000060: .cfi_restore: W30
 // 0x00000060: ldp d8, d9, [sp, #16]
-// 0x00000064: .cfi_restore_extended: r72
-// 0x00000064: .cfi_restore_extended: r73
+// 0x00000064: .cfi_restore_extended: B8
+// 0x00000064: .cfi_restore_extended: B9
 // 0x00000064: ldp d10, d11, [sp, #32]
-// 0x00000068: .cfi_restore_extended: r74
-// 0x00000068: .cfi_restore_extended: r75
+// 0x00000068: .cfi_restore_extended: B10
+// 0x00000068: .cfi_restore_extended: B11
 // 0x00000068: ldp d12, d13, [sp, #48]
-// 0x0000006c: .cfi_restore_extended: r76
-// 0x0000006c: .cfi_restore_extended: r77
+// 0x0000006c: .cfi_restore_extended: B12
+// 0x0000006c: .cfi_restore_extended: B13
 // 0x0000006c: ldp d14, d15, [sp, #64]
-// 0x00000070: .cfi_restore_extended: r78
-// 0x00000070: .cfi_restore_extended: r79
+// 0x00000070: .cfi_restore_extended: B14
+// 0x00000070: .cfi_restore_extended: B15
 // 0x00000070: ldr w20, [tr, #32] ; is_gc_marking
 // 0x00000074: add sp, sp, #0xb0 (176)
-// 0x00000078: .cfi_def_cfa_offset: 0
+// 0x00000078: .cfi_def_cfa_offset: +0
 // 0x00000078: ret
-// 0x0000007c: .cfi_restore_state
-// 0x0000007c: .cfi_def_cfa_offset: 176
+// 0x0000007c: .cfi_restore_state:
+// 0x0000007c: .cfi_def_cfa_offset: +176
 
 static constexpr uint8_t expected_asm_kX86[] = {
     0x57, 0x56, 0x55, 0x83, 0xC4, 0xF4, 0x50, 0x89, 0x4C, 0x24, 0x24, 0xF3,
@@ -210,42 +214,43 @@ static constexpr uint8_t expected_cfi_kX86[] = {
     0x43, 0x0E, 0x20, 0x0A, 0x43, 0x0E, 0x10, 0x41, 0x0E, 0x0C, 0xC5, 0x41,
     0x0E, 0x08, 0xC6, 0x41, 0x0E, 0x04, 0xC7, 0x41, 0x0B, 0x0E, 0x20,
 };
+// 0x00000000: .cfi_def_cfa: EIP +0
 // 0x00000000: push edi
-// 0x00000001: .cfi_def_cfa_offset: 8
-// 0x00000001: .cfi_offset: r7 at cfa-8
+// 0x00000001: .cfi_def_cfa_offset: +8
+// 0x00000001: .cfi_offset: EDI -8
 // 0x00000001: push esi
-// 0x00000002: .cfi_def_cfa_offset: 12
-// 0x00000002: .cfi_offset: r6 at cfa-12
+// 0x00000002: .cfi_def_cfa_offset: +12
+// 0x00000002: .cfi_offset: ESI -12
 // 0x00000002: push ebp
-// 0x00000003: .cfi_def_cfa_offset: 16
-// 0x00000003: .cfi_offset: r5 at cfa-16
+// 0x00000003: .cfi_def_cfa_offset: +16
+// 0x00000003: .cfi_offset: EBP -16
 // 0x00000003: add esp, -12
-// 0x00000006: .cfi_def_cfa_offset: 28
+// 0x00000006: .cfi_def_cfa_offset: +28
 // 0x00000006: push eax
-// 0x00000007: .cfi_def_cfa_offset: 32
+// 0x00000007: .cfi_def_cfa_offset: +32
 // 0x00000007: mov [esp + 36], ecx
 // 0x0000000b: movss [esp + 40], xmm0
 // 0x00000011: mov [esp + 44], edx
 // 0x00000015: mov [esp + 48], ebx
 // 0x00000019: add esp, -32
-// 0x0000001c: .cfi_def_cfa_offset: 64
+// 0x0000001c: .cfi_def_cfa_offset: +64
 // 0x0000001c: add esp, 32
-// 0x0000001f: .cfi_def_cfa_offset: 32
-// 0x0000001f: .cfi_remember_state
+// 0x0000001f: .cfi_def_cfa_offset: +32
+// 0x0000001f: .cfi_remember_state:
 // 0x0000001f: add esp, 16
-// 0x00000022: .cfi_def_cfa_offset: 16
+// 0x00000022: .cfi_def_cfa_offset: +16
 // 0x00000022: pop ebp
-// 0x00000023: .cfi_def_cfa_offset: 12
-// 0x00000023: .cfi_restore: r5
+// 0x00000023: .cfi_def_cfa_offset: +12
+// 0x00000023: .cfi_restore: EBP
 // 0x00000023: pop esi
-// 0x00000024: .cfi_def_cfa_offset: 8
-// 0x00000024: .cfi_restore: r6
+// 0x00000024: .cfi_def_cfa_offset: +8
+// 0x00000024: .cfi_restore: ESI
 // 0x00000024: pop edi
-// 0x00000025: .cfi_def_cfa_offset: 4
-// 0x00000025: .cfi_restore: r7
+// 0x00000025: .cfi_def_cfa_offset: +4
+// 0x00000025: .cfi_restore: EDI
 // 0x00000025: ret
-// 0x00000026: .cfi_restore_state
-// 0x00000026: .cfi_def_cfa_offset: 32
+// 0x00000026: .cfi_restore_state:
+// 0x00000026: .cfi_def_cfa_offset: +32
 
 static constexpr uint8_t expected_asm_kX86_64[] = {
     0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x55, 0x53, 0x48, 0x83,
@@ -269,73 +274,74 @@ static constexpr uint8_t expected_cfi_kX86_64[] = {
     0x42, 0x0E, 0x20, 0xCC, 0x42, 0x0E, 0x18, 0xCD, 0x42, 0x0E, 0x10, 0xCE,
     0x42, 0x0E, 0x08, 0xCF, 0x41, 0x0B, 0x0E, 0x60,
 };
+// 0x00000000: .cfi_def_cfa: R8 +0
 // 0x00000000: push r15
-// 0x00000002: .cfi_def_cfa_offset: 16
-// 0x00000002: .cfi_offset: r15 at cfa-16
+// 0x00000002: .cfi_def_cfa_offset: +16
+// 0x00000002: .cfi_offset: R15 -16
 // 0x00000002: push r14
-// 0x00000004: .cfi_def_cfa_offset: 24
-// 0x00000004: .cfi_offset: r14 at cfa-24
+// 0x00000004: .cfi_def_cfa_offset: +24
+// 0x00000004: .cfi_offset: R14 -24
 // 0x00000004: push r13
-// 0x00000006: .cfi_def_cfa_offset: 32
-// 0x00000006: .cfi_offset: r13 at cfa-32
+// 0x00000006: .cfi_def_cfa_offset: +32
+// 0x00000006: .cfi_offset: R13 -32
 // 0x00000006: push r12
-// 0x00000008: .cfi_def_cfa_offset: 40
-// 0x00000008: .cfi_offset: r12 at cfa-40
+// 0x00000008: .cfi_def_cfa_offset: +40
+// 0x00000008: .cfi_offset: R12 -40
 // 0x00000008: push rbp
-// 0x00000009: .cfi_def_cfa_offset: 48
-// 0x00000009: .cfi_offset: r6 at cfa-48
+// 0x00000009: .cfi_def_cfa_offset: +48
+// 0x00000009: .cfi_offset: RBP -48
 // 0x00000009: push rbx
-// 0x0000000a: .cfi_def_cfa_offset: 56
-// 0x0000000a: .cfi_offset: r3 at cfa-56
+// 0x0000000a: .cfi_def_cfa_offset: +56
+// 0x0000000a: .cfi_offset: RBX -56
 // 0x0000000a: subq rsp, 40
-// 0x0000000e: .cfi_def_cfa_offset: 96
+// 0x0000000e: .cfi_def_cfa_offset: +96
 // 0x0000000e: movsd [rsp + 32], xmm15
-// 0x00000015: .cfi_offset: r32 at cfa-64
+// 0x00000015: .cfi_offset: XMM15 -64
 // 0x00000015: movsd [rsp + 24], xmm14
-// 0x0000001c: .cfi_offset: r31 at cfa-72
+// 0x0000001c: .cfi_offset: XMM14 -72
 // 0x0000001c: movsd [rsp + 16], xmm13
-// 0x00000023: .cfi_offset: r30 at cfa-80
+// 0x00000023: .cfi_offset: XMM13 -80
 // 0x00000023: movsd [rsp + 8], xmm12
-// 0x0000002a: .cfi_offset: r29 at cfa-88
+// 0x0000002a: .cfi_offset: XMM12 -88
 // 0x0000002a: movq [rsp], rdi
 // 0x0000002e: mov [rsp + 104], esi
 // 0x00000032: movss [rsp + 108], xmm0
 // 0x00000038: mov [rsp + 112], edx
 // 0x0000003c: mov [rsp + 116], ecx
 // 0x00000040: addq rsp, -32
-// 0x00000044: .cfi_def_cfa_offset: 128
+// 0x00000044: .cfi_def_cfa_offset: +128
 // 0x00000044: addq rsp, 32
-// 0x00000048: .cfi_def_cfa_offset: 96
-// 0x00000048: .cfi_remember_state
+// 0x00000048: .cfi_def_cfa_offset: +96
+// 0x00000048: .cfi_remember_state:
 // 0x00000048: movsd xmm12, [rsp + 8]
-// 0x0000004f: .cfi_restore: r29
+// 0x0000004f: .cfi_restore: XMM12
 // 0x0000004f: movsd xmm13, [rsp + 16]
-// 0x00000056: .cfi_restore: r30
+// 0x00000056: .cfi_restore: XMM13
 // 0x00000056: movsd xmm14, [rsp + 24]
-// 0x0000005d: .cfi_restore: r31
+// 0x0000005d: .cfi_restore: XMM14
 // 0x0000005d: movsd xmm15, [rsp + 32]
-// 0x00000064: .cfi_restore: r32
+// 0x00000064: .cfi_restore: XMM15
 // 0x00000064: addq rsp, 40
-// 0x00000068: .cfi_def_cfa_offset: 56
+// 0x00000068: .cfi_def_cfa_offset: +56
 // 0x00000068: pop rbx
-// 0x00000069: .cfi_def_cfa_offset: 48
-// 0x00000069: .cfi_restore: r3
+// 0x00000069: .cfi_def_cfa_offset: +48
+// 0x00000069: .cfi_restore: RBX
 // 0x00000069: pop rbp
-// 0x0000006a: .cfi_def_cfa_offset: 40
-// 0x0000006a: .cfi_restore: r6
+// 0x0000006a: .cfi_def_cfa_offset: +40
+// 0x0000006a: .cfi_restore: RBP
 // 0x0000006a: pop r12
-// 0x0000006c: .cfi_def_cfa_offset: 32
-// 0x0000006c: .cfi_restore: r12
+// 0x0000006c: .cfi_def_cfa_offset: +32
+// 0x0000006c: .cfi_restore: R12
 // 0x0000006c: pop r13
-// 0x0000006e: .cfi_def_cfa_offset: 24
-// 0x0000006e: .cfi_restore: r13
+// 0x0000006e: .cfi_def_cfa_offset: +24
+// 0x0000006e: .cfi_restore: R13
 // 0x0000006e: pop r14
-// 0x00000070: .cfi_def_cfa_offset: 16
-// 0x00000070: .cfi_restore: r14
+// 0x00000070: .cfi_def_cfa_offset: +16
+// 0x00000070: .cfi_restore: R14
 // 0x00000070: pop r15
-// 0x00000072: .cfi_def_cfa_offset: 8
-// 0x00000072: .cfi_restore: r15
+// 0x00000072: .cfi_def_cfa_offset: +8
+// 0x00000072: .cfi_restore: R15
 // 0x00000072: ret
-// 0x00000073: .cfi_restore_state
-// 0x00000073: .cfi_def_cfa_offset: 96
+// 0x00000073: .cfi_restore_state:
+// 0x00000073: .cfi_def_cfa_offset: +96
 

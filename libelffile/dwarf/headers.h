@@ -80,7 +80,6 @@ void WriteFDE(bool is64bit,
     writer.PushUint32(code_address);
     writer.PushUint32(code_size);
   }
-  writer.PushUleb128(0);  // Augmentation data size.
   writer.PushData(opcodes.data(), opcodes.size());
   writer.Pad(is64bit ? 8 : 4);
   writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);

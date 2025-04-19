@@ -21,6 +21,7 @@
 #include <sstream>
 #include <vector>
 
+#include "android-base/parseint.h"
 #include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "base/pointer_size.h"
@@ -47,17 +48,19 @@ class CFITest : public dwarf::DwarfTest {
     HexDump(f, actual_cfi);
     fprintf(f, "\n};\n");
     // Pretty-print CFI opcodes.
-    constexpr bool is64bit = false;
+    bool is64bit = Is64BitInstructionSet(isa);
     dwarf::DebugFrameOpCodeWriter<> initial_opcodes;
+    // Output a DW_CFA_def_cfa (reg + offset) in the CIE so that llvm-dwarfdump
+    // doesn't complain about DW_CFA_cfa_offset in the FDE.
+    initial_opcodes.DefCFA(dwarf::Reg(8), 0);
     dwarf::WriteCIE(is64bit, dwarf::Reg(8), initial_opcodes, &debug_frame_data_);
-    std::vector<uintptr_t> debug_frame_patches;
     dwarf::WriteFDE(is64bit,
                     /* cie_pointer= */ 0,
                     /* code_address= */ 0,
                     actual_asm.size(),
                     actual_cfi,
                     &debug_frame_data_);
-    ReformatCfi(Objdump(false, "-W"), &lines);
+    ReformatCfi(Objdump(isa, "--debug-frame"), &lines);
     // Pretty-print assembly.
     const uint8_t* asm_base = actual_asm.data();
     const uint8_t* asm_end = asm_base + actual_asm.size();
@@ -110,28 +113,20 @@ class CFITest : public dwarf::DwarfTest {
   // Find interesting parts of objdump output and prefix the lines with address.
   static void ReformatCfi(const std::vector<std::string>& lines,
                           std::vector<std::string>* output) {
-    std::string address;
+    uint32_t address = 0;
     for (const std::string& line : lines) {
       if (line.find("DW_CFA_nop") != std::string::npos) {
         // Ignore.
       } else if (line.find("DW_CFA_advance_loc") != std::string::npos) {
-        // The last 8 characters are the address.
-        address = "0x" + line.substr(line.size() - 8);
+        // Example line: "DW_CFA_advance_loc: 4 to 0x28"
+        size_t pos = line.rfind("0x");
+        ASSERT_NE(std::string::npos, pos);
+        bool success = android::base::ParseUint(line.substr(pos), &address);
+        ASSERT_TRUE(success);
       } else if (line.find("DW_CFA_") != std::string::npos) {
-        std::string new_line(line);
-        // "bad register" warning is caused by always using host (x86) objdump.
-        const char* bad_reg = "bad register: ";
-        size_t pos;
-        if ((pos = new_line.find(bad_reg)) != std::string::npos) {
-          new_line = new_line.replace(pos, strlen(bad_reg), "");
-        }
-        // Remove register names in parentheses since they have x86 names.
-        if ((pos = new_line.find(" (")) != std::string::npos) {
-          new_line = new_line.replace(pos, FindEndOf(new_line, ")") - pos, "");
-        }
         // Use the .cfi_ prefix.
-        new_line = ".cfi_" + new_line.substr(FindEndOf(new_line, "DW_CFA_"));
-        output->push_back(ART_FORMAT("{}: {}", address, new_line));
+        std::string new_line = ".cfi_" + line.substr(FindEndOf(line, "DW_CFA_"));
+        output->push_back(ART_FORMAT("0x{:08x}: {}", address, new_line));
       }
     }
   }

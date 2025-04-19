@@ -59,10 +59,8 @@ class DwarfTest : public CommonCompilerTest {
 
   // Pretty-print the generated DWARF data using objdump.
   template<typename ElfTypes>
-  std::vector<std::string> Objdump(const char* args) {
+  std::vector<std::string> ObjdumpImpl(InstructionSet isa, const char* args) {
     // Write simple elf file with just the DWARF sections.
-    InstructionSet isa =
-        (sizeof(typename ElfTypes::Addr) == 8) ? InstructionSet::kX86_64 : InstructionSet::kX86;
     ScratchFile file;
     FileOutputStream output_stream(file.GetFile());
     ElfBuilder<ElfTypes> builder(isa, &output_stream);
@@ -111,17 +109,17 @@ class DwarfTest : public CommonCompilerTest {
     return lines;
   }
 
-  std::vector<std::string> Objdump(bool is64bit, const char* args) {
-    if (is64bit) {
-      return Objdump<ElfTypes64>(args);
+  std::vector<std::string> Objdump(InstructionSet isa, const char* args) {
+    if (Is64BitInstructionSet(isa)) {
+      return ObjdumpImpl<ElfTypes64>(isa, args);
     } else {
-      return Objdump<ElfTypes32>(args);
+      return ObjdumpImpl<ElfTypes32>(isa, args);
     }
   }
 
   // Compare objdump output to the recorded checks.
-  void CheckObjdumpOutput(bool is64bit, const char* args) {
-    std::vector<std::string> actual_lines = Objdump(is64bit, args);
+  void CheckObjdumpOutput(InstructionSet isa, const char* args) {
+    std::vector<std::string> actual_lines = Objdump(isa, args);
     auto actual_line = actual_lines.begin();
     bool failed = false;
     for (const ExpectedLine& expected : expected_lines_) {
