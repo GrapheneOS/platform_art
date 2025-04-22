@@ -765,7 +765,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   HPhi* user = new (GetAllocator()) HPhi(GetAllocator(), 0, 1, DataType::Type::kInt32);
   user->SetBlock(block);
   user->AddInput(one);
-  LocationSummary* locations = new (GetAllocator()) LocationSummary(user, LocationSummary::kNoCall);
+  LocationSummary* locations = LocationSummary::CreateNoCall(GetAllocator(), user);
   locations->SetInAt(0, Location::RequiresRegister());
   static constexpr size_t phi_ranges[][2] = {{10 * kLppi, 15 * kLppi}};
   BuildInterval(phi_ranges, arraysize(phi_ranges), GetScopedAllocator(), -1, user);
@@ -778,7 +778,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 6u * kLppi));
   first->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 5u * kLppi));
 
-  locations = new (GetAllocator()) LocationSummary(first->GetDefinedBy(), LocationSummary::kNoCall);
+  locations = LocationSummary::CreateNoCall(GetAllocator(), first->GetDefinedBy());
   locations->SetOut(Location::RequiresRegister());
   first = first->SplitAt(1u * kLppi);
 
@@ -786,8 +786,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   // interval to call `AllocateBlockedReg`.
   static constexpr size_t ranges2[][2] = {{2u * kLppi, 4u * kLppi}};
   LiveInterval* second = BuildInterval(ranges2, arraysize(ranges2), GetScopedAllocator(), -1, two);
-  locations =
-      new (GetAllocator()) LocationSummary(second->GetDefinedBy(), LocationSummary::kNoCall);
+  locations = LocationSummary::CreateNoCall(GetAllocator(), second->GetDefinedBy());
   locations->SetOut(Location::RequiresRegister());
 
   // Create an interval that will lead to splitting the first interval. The bug occured
@@ -800,7 +799,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 7u * kLppi));
   third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 4u * kLppi));
   third->uses_.push_front(*new (GetScopedAllocator()) UsePosition(user, 0u, 3u * kLppi));
-  locations = new (GetAllocator()) LocationSummary(third->GetDefinedBy(), LocationSummary::kNoCall);
+  locations = LocationSummary::CreateNoCall(GetAllocator(), third->GetDefinedBy());
   locations->SetOut(Location::RequiresRegister());
   third = third->SplitAt(3u * kLppi);
 
@@ -808,8 +807,7 @@ void RegisterAllocatorTest::TestSpillInactive() {
   // was free to allocate the same register, even though it conflicts with it.
   static constexpr size_t ranges4[][2] = {{4u * kLppi, 5u * kLppi}};
   LiveInterval* fourth = BuildInterval(ranges4, arraysize(ranges4), GetScopedAllocator(), -1, four);
-  locations =
-      new (GetAllocator()) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
+  locations = LocationSummary::CreateNoCall(GetAllocator(), fourth->GetDefinedBy());
   locations->SetOut(Location::RequiresRegister());
 
   x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);

@@ -542,10 +542,6 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
     kCallOnMainOnly
   };
 
-  explicit LocationSummary(HInstruction* instruction,
-                           CallKind call_kind = kNoCall,
-                           bool intrinsified = false);
-
   static LocationSummary* Create(ArenaAllocator* allocator,
                                  HInstruction* instruction,
                                  CallKind call_kind,

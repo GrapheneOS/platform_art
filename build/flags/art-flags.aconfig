@@ -111,3 +111,12 @@ flag {
   is_fixed_read_only: true
   is_exported: false
 }
+
+flag {
+  name: "compile_sdk_int_constant"
+  namespace: "system_performance"
+  description: "Flag to enable use of SDK_INT as a compile-time constant"
+  bug: "204924812"
+  is_fixed_read_only: true
+  is_exported: false
+}

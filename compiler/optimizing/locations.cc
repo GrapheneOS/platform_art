@@ -54,14 +54,6 @@ LocationSummary::LocationSummary(HInstruction* instruction,
   }
 }
 
-LocationSummary::LocationSummary(HInstruction* instruction,
-                                 CallKind call_kind,
-                                 bool intrinsified)
-    : LocationSummary(instruction,
-                      call_kind,
-                      intrinsified,
-                      instruction->GetBlock()->GetGraph()->GetAllocator()) {}
-
 Location Location::RegisterOrConstant(HInstruction* instruction) {
   return instruction->IsConstant()
       ? Location::ConstantLocation(instruction)

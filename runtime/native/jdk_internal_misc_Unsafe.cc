@@ -365,6 +365,9 @@ static void Unsafe_putDoubleJD([[maybe_unused]] JNIEnv* env,
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
+// Disable optimizations on this method as latest clang-r563880 miscompiles it
+// b/411361340.
+#pragma clang optimize off
 static void Unsafe_copyMemory0(JNIEnv* env,
                                [[maybe_unused]] jobject unsafe,
                                jobject srcObj,
@@ -389,6 +392,7 @@ static void Unsafe_copyMemory0(JNIEnv* env,
          reinterpret_cast<uint8_t*>(src.Ptr()) + src_offset,
          memcpy_size);
 }
+#pragma clang optimize on
 
 static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
