@@ -202,7 +202,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
       continue;
     }
     HInstruction* at = liveness_.GetTempUser(temp);
-    size_t temp_index = liveness_.GetTempIndex(temp);
+    size_t temp_index = temp->GetTempIndex();
     LocationSummary* locations = at->GetLocations();
     switch (temp->GetType()) {
       case DataType::Type::kInt32:

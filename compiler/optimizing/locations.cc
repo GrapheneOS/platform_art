@@ -26,6 +26,11 @@ namespace art HIDDEN {
 // Verify that Location is trivially copyable.
 static_assert(std::is_trivially_copyable<Location>::value, "Location should be trivially copyable");
 
+inline LocationSummary::CallData::CallData(ArenaAllocator* allocator)
+    : stack_mask(allocator, /*start_bits=*/ 0, /*expandable=*/ true, kArenaAllocLocationSummary),
+      live_registers(RegisterSet::Empty()),
+      custom_slow_path_caller_saves(RegisterSet::Empty()) {}
+
 static inline ArrayRef<Location> AllocateInputLocations(HInstruction* instruction,
                                                         ArenaAllocator* allocator) {
   size_t input_count = instruction->InputCount();
@@ -39,18 +44,16 @@ LocationSummary::LocationSummary(HInstruction* instruction,
                                  ArenaAllocator* allocator)
     : inputs_(AllocateInputLocations(instruction, allocator)),
       temps_(allocator->Adapter(kArenaAllocLocationSummary)),
-      stack_mask_(nullptr),
+      call_data_(nullptr),
       call_kind_(call_kind),
       intrinsified_(intrinsified),
       has_custom_slow_path_calling_convention_(false),
       output_overlaps_(Location::kOutputOverlap),
-      register_mask_(0),
-      live_registers_(RegisterSet::Empty()),
-      custom_slow_path_caller_saves_(RegisterSet::Empty()) {
+      register_mask_(0) {
   instruction->SetLocations(this);
 
-  if (NeedsSafepoint()) {
-    stack_mask_ = ArenaBitVector::Create(allocator, 0, true, kArenaAllocLocationSummary);
+  if (CanCall()) {
+    call_data_ = new (allocator) CallData(allocator);
   }
 }
 

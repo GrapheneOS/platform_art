@@ -492,20 +492,18 @@ void RegisterAllocatorLinearScan::CheckForTempLiveIntervals(HInstruction* instru
       switch (temp.GetPolicy()) {
         case Location::kRequiresRegister: {
           LiveInterval* interval =
-              LiveInterval::MakeTempInterval(allocator_, DataType::Type::kInt32);
+              LiveInterval::MakeTempInterval(allocator_, DataType::Type::kInt32, i, position);
           temp_intervals_.push_back(interval);
-          interval->AddTempUse(instruction, i);
           unhandled_core_intervals_.push_back(interval);
           break;
         }
 
         case Location::kRequiresFpuRegister: {
           LiveInterval* interval =
-              LiveInterval::MakeTempInterval(allocator_, DataType::Type::kFloat64);
+              LiveInterval::MakeTempInterval(allocator_, DataType::Type::kFloat64, i, position);
           temp_intervals_.push_back(interval);
-          interval->AddTempUse(instruction, i);
           if (codegen_->NeedsTwoRegisters(DataType::Type::kFloat64)) {
-            interval->AddHighInterval(/* is_temp= */ true);
+            interval->AddHighTempInterval();
             LiveInterval* high = interval->GetHighInterval();
             temp_intervals_.push_back(high);
             unhandled_fp_intervals_.push_back(high);
@@ -1158,17 +1156,23 @@ bool RegisterAllocatorLinearScan::LinearScan::AllocateBlockedReg(LiveInterval* c
   // For each active interval, find the next use of its register after the
   // start of current.
   for (LiveInterval* active : active_) {
-    if (active->IsFixed()) {
+    size_t use = current->GetStart();
+    if (active->HasRegister()) {
+      size_t reg = active->GetRegister();
+      bool has_use_after = true;
+      if (!active->IsFixed() && !active->IsTemp()) {
+        use = active->FirstRegisterUseAfter(use);
+        has_use_after = use != kNoLifetime;
+      }
+      if (has_use_after) {
+        next_use[reg] = use;
+      }
+    } else {
+      DCHECK(active->IsFixed());
       uint32_t register_mask = GetRegisterMask(active);
       DCHECK_NE(register_mask, 0u);
       for (uint32_t reg : LowToHighBits(register_mask)) {
-        next_use[reg] = current->GetStart();
-      }
-    } else {
-      DCHECK(active->HasRegister());
-      size_t use = active->FirstRegisterUseAfter(current->GetStart());
-      if (use != kNoLifetime) {
-        next_use[active->GetRegister()] = use;
+        next_use[reg] = use;
       }
     }
   }

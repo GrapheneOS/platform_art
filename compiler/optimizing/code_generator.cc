@@ -1170,19 +1170,24 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   DCHECK_IMPLIES(!native_debug_info, instruction->HasEnvironment()) << *instruction;
 
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t register_mask = locations->GetRegisterMask();
-  DCHECK_EQ(register_mask & ~locations->GetLiveRegisters()->GetCoreRegisters(), 0u);
-  if (locations->OnlyCallsOnSlowPath()) {
-    // In case of slow path, we currently set the location of caller-save registers
-    // to register (instead of their stack location when pushed before the slow-path
-    // call). Therefore register_mask contains both callee-save and caller-save
-    // registers that hold objects. We must remove the spilled caller-save from the
-    // mask, since they will be overwritten by the callee.
-    uint32_t spills = GetSlowPathSpills(locations, /* core_registers= */ true);
-    register_mask &= ~spills;
-  } else {
-    // The register mask must be a subset of callee-save registers.
-    DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
+  uint32_t register_mask = 0u;
+  BitVector* stack_mask = nullptr;
+  if (locations->CanCall()) {
+    stack_mask = locations->GetStackMask();
+    register_mask = locations->GetRegisterMask();
+    DCHECK_EQ(register_mask & ~locations->GetLiveRegisters()->GetCoreRegisters(), 0u);
+    if (locations->OnlyCallsOnSlowPath()) {
+      // In case of slow path, we currently set the location of caller-save registers
+      // to register (instead of their stack location when pushed before the slow-path
+      // call). Therefore register_mask contains both callee-save and caller-save
+      // registers that hold objects. We must remove the spilled caller-save from the
+      // mask, since they will be overwritten by the callee.
+      uint32_t spills = GetSlowPathSpills(locations, /* core_registers= */ true);
+      register_mask &= ~spills;
+    } else {
+      // The register mask must be a subset of callee-save registers.
+      DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
+    }
   }
 
   uint32_t outer_dex_pc = dex_pc;
@@ -1208,12 +1213,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
       : (osr ? StackMap::Kind::OSR : StackMap::Kind::Default);
   bool needs_vreg_info = NeedsVregInfo(instruction, osr);
   StackMapStream* stack_map_stream = GetStackMapStream();
-  stack_map_stream->BeginStackMapEntry(outer_dex_pc,
-                                       native_pc,
-                                       register_mask,
-                                       locations->GetStackMask(),
-                                       kind,
-                                       needs_vreg_info);
+  stack_map_stream->BeginStackMapEntry(
+      outer_dex_pc, native_pc, register_mask, stack_mask, kind, needs_vreg_info);
 
   EmitEnvironment(environment, slow_path, needs_vreg_info);
   stack_map_stream->EndStackMapEntry();

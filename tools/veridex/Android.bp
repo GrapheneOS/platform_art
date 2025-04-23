@@ -76,13 +76,12 @@ genrule {
 }
 
 genrule {
-    name: "system_stub_dex",
+    name: "system-stubs.zip",
     visibility: ["//visibility:private"],
     srcs: [":system_stub_dex_d8_input_jar"],
     tools: ["d8"],
     out: [
-        "dex_dir/classes.dex",
-        "dex_dir/classes2.dex",
+        "system-stubs.zip",
     ],
     cmd: "mkdir -p $(genDir)/dex_dir &&" +
         "$(location d8) " +
@@ -91,7 +90,7 @@ genrule {
         "-JDcom.android.tools.r8.emitPermittedSubclassesAnnotationsInDex " +
         "-JXX:OnError=\"cat hs_err_pid%p.log\" " +
         "-JXX:CICompilerCount=6 -JXX:+UseDynamicNumberOfGCThreads " +
-        "--output $(genDir)/dex_dir " +
+        "--output $(out) " +
         "--min-api 1000 " +
         "$(in)",
 }
@@ -137,18 +136,6 @@ genrule {
         "ls -1 $(locations :oahl_stub_dex) | sort > $(genDir)/tmp/org.apache.http.legacy-stubs.zip.list && " +
         "$(locations soong_zip) -o $(genDir)/org.apache.http.legacy-stubs.zip " +
         " -j -l $(genDir)/tmp/org.apache.http.legacy-stubs.zip.list",
-}
-
-genrule {
-    name: "system-stubs.zip",
-    visibility: ["//visibility:private"],
-    srcs: [":system_stub_dex"],
-    tools: ["soong_zip"],
-    out: ["system-stubs.zip"],
-    cmd: "mkdir -p $(genDir)/tmp &&" +
-        "ls -1 $(locations :system_stub_dex) | sort > $(genDir)/tmp/system-stubs.zip.list && " +
-        "$(locations soong_zip) -o $(genDir)/system-stubs.zip" +
-        " -j -l $(genDir)/tmp/system-stubs.zip.list",
 }
 
 python_binary_host {

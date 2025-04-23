@@ -35,11 +35,12 @@ echo "Changing dirs to the build top"
 cd "$ANDROID_BUILD_TOP"
 
 # Make dist in order to easily get the boot and system server dex files
-# This will be stored in $ANDROID_PRODUCT_OUT/boot.zip
+# This will be stored in $DIST_DIR/boot.zip (usually out/dist/boot.zip)
 echo "Make dist"
 m dist
 echo "Copy boot.zip to $OUT_BOOT_ZIP"
-cp "$ANDROID_PRODUCT_OUT"/boot.zip $OUT_BOOT_ZIP
+DIST_DIR=${DIST_DIR:-out/dist}
+cp "$DIST_DIR"/boot.zip $OUT_BOOT_ZIP
 
 echo "Setting properties and clearing existing profiles"
 # If the device needs to be rebooted, it is better to set the properties

@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_LOCATIONS_H_
 #define ART_COMPILER_OPTIMIZING_LOCATIONS_H_
 
+#include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/array_ref.h"
@@ -647,52 +648,64 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   void SetCustomSlowPathCallerSaves(const RegisterSet& caller_saves) {
     DCHECK(OnlyCallsOnSlowPath());
     has_custom_slow_path_calling_convention_ = true;
-    custom_slow_path_caller_saves_ = caller_saves;
+    call_data_->custom_slow_path_caller_saves = caller_saves;
   }
 
   bool HasCustomSlowPathCallingConvention() const {
+    // Meaningful only for `kCallOnSlowPath`. Allow checking also for `kCallOnMainAndSlowPath`.
+    DCHECK(CallsOnSlowPath());
+    DCHECK_IMPLIES(CallsOnMainAndSlowPath(), !has_custom_slow_path_calling_convention_);
     return has_custom_slow_path_calling_convention_;
   }
 
   const RegisterSet& GetCustomSlowPathCallerSaves() const {
     DCHECK(HasCustomSlowPathCallingConvention());
-    return custom_slow_path_caller_saves_;
+    return call_data_->custom_slow_path_caller_saves;
   }
 
   void SetStackBit(uint32_t index) {
-    stack_mask_->SetBit(index);
+    DCHECK(CanCall());
+    call_data_->stack_mask.SetBit(index);
   }
 
   void ClearStackBit(uint32_t index) {
-    stack_mask_->ClearBit(index);
+    DCHECK(CanCall());
+    call_data_->stack_mask.ClearBit(index);
   }
 
   void SetRegisterBit(uint32_t reg_id) {
+    DCHECK(CanCall());
     register_mask_ |= (1 << reg_id);
   }
 
   uint32_t GetRegisterMask() const {
+    DCHECK(CanCall());
     return register_mask_;
   }
 
   bool RegisterContainsObject(uint32_t reg_id) {
+    DCHECK(CanCall());
     return RegisterSet::Contains(register_mask_, reg_id);
   }
 
   void AddLiveRegister(Location location) {
-    live_registers_.Add(location);
+    DCHECK(CanCall());
+    call_data_->live_registers.Add(location);
   }
 
   BitVector* GetStackMask() const {
-    return stack_mask_;
+    DCHECK(CanCall());
+    return &call_data_->stack_mask;
   }
 
   RegisterSet* GetLiveRegisters() {
-    return &live_registers_;
+    DCHECK(CanCall());
+    return &call_data_->live_registers;
   }
 
   size_t GetNumberOfLiveRegisters() const {
-    return live_registers_.GetNumberOfRegisters();
+    DCHECK(CanCall());
+    return call_data_->live_registers.GetNumberOfRegisters();
   }
 
   bool OutputUsesSameAs(uint32_t input_index) const {
@@ -719,6 +732,21 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   }
 
  private:
+  struct CallData : public ArenaObject<kArenaAllocLocationSummary> {
+   public:
+    explicit CallData(ArenaAllocator* allocator);
+
+    // Mask of objects that live in the stack.
+    ArenaBitVector stack_mask;
+
+    // Registers that are in use at this position.
+    RegisterSet live_registers;
+
+    // Custom slow path caller saves. Valid only if indicated by
+    // `has_custom_slow_path_calling_convention_`.
+    RegisterSet custom_slow_path_caller_saves;
+  };
+
   LocationSummary(HInstruction* instruction,
                   CallKind call_kind,
                   bool intrinsified,
@@ -728,8 +756,11 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   ArenaVector<Location> temps_;
   Location output_;
 
-  // Mask of objects that live in the stack.
-  BitVector* stack_mask_;
+  // Data asociated with a call, null for `kNoCall`.
+  // Note that `has_custom_slow_path_calling_convention_` and `register_mask_` logically belong
+  // to the `CallData` but we keep them in the `LocationSummary` to fill space that would be
+  // otherwise wasted as alignment padding instead of taking extra space in `CallData`.
+  CallData* call_data_;
 
   const CallKind call_kind_;
   // Whether these are locations for an intrinsified call.
@@ -742,13 +773,6 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
 
   // Mask of objects that live in register.
   uint32_t register_mask_;
-
-  // Registers that are in use at this position.
-  RegisterSet live_registers_;
-
-  // Custom slow path caller saves. Valid only if indicated by
-  // `has_custom_slow_path_calling_convention_`.
-  RegisterSet custom_slow_path_caller_saves_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, ExpectedInRegisterHint);
   ART_FRIEND_TEST(RegisterAllocatorTest, SameAsFirstInputHint);

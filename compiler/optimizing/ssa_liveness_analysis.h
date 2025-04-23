@@ -290,27 +290,37 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   static LiveInterval* MakeFixedInterval(ScopedArenaAllocator* allocator,
                                          int reg,
                                          DataType::Type type) {
-    return new (allocator) LiveInterval(allocator, type, nullptr, true, reg, false);
+    return new (allocator) LiveInterval(allocator, type, nullptr, true, reg);
   }
 
-  static LiveInterval* MakeTempInterval(ScopedArenaAllocator* allocator, DataType::Type type) {
-    return new (allocator) LiveInterval(allocator, type, nullptr, false, kNoRegister, true);
+  static LiveInterval* MakeTempInterval(ScopedArenaAllocator* allocator,
+                                        DataType::Type type,
+                                        size_t temp_index,
+                                        size_t position) {
+    int8_t checked_index = dchecked_integral_cast<int8_t>(temp_index);
+    LiveInterval* temp = new (allocator) LiveInterval(allocator,
+                                                      type,
+                                                      /*defined_by*/ nullptr,
+                                                      /*is_fixed=*/ false,
+                                                      /*reg=*/ kNoRegister,
+                                                      checked_index);
+    temp->AddRange(position, position + kLivenessPositionsForTemp);
+    return temp;
+  }
+
+  bool IsTemp() const {
+    static_assert(kNoTempIndex < 0);
+    return temp_index_ >= 0;
+  }
+
+  size_t GetTempIndex() const {
+    DCHECK(IsTemp());
+    return dchecked_integral_cast<size_t>(temp_index_);
   }
 
   bool IsFixed() const { return is_fixed_; }
-  bool IsTemp() const { return is_temp_; }
   // This interval is the result of a split.
   bool IsSplit() const { return parent_ != this; }
-
-  void AddTempUse(HInstruction* instruction, size_t temp_index) {
-    DCHECK(IsTemp());
-    DCHECK(GetUses().empty()) << "A temporary can only have one user";
-    DCHECK(GetEnvironmentUses().empty()) << "A temporary cannot have environment user";
-    size_t position = instruction->GetLifetimePosition();
-    UsePosition* new_use = new (allocator_) UsePosition(instruction, temp_index, position);
-    uses_.push_front(*new_use);
-    AddRange(position, position + kLivenessPositionsForTemp);
-  }
 
   // Record use of an input. The use will be recorded as an environment use if
   // `environment` is not null and as register use otherwise. If `actual_user`
@@ -456,8 +466,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   bool HasSpillSlot() const { return spill_slot_ != kNoSpillSlot; }
   void SetSpillSlot(int slot) {
-    DCHECK(!is_fixed_);
-    DCHECK(!is_temp_);
+    DCHECK(!IsFixed());
+    DCHECK(!IsTemp());
     spill_slot_ = slot;
   }
   int GetSpillSlot() const { return spill_slot_; }
@@ -561,10 +571,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   }
 
   size_t FirstRegisterUseAfter(size_t position) const {
-    if (is_temp_) {
-      return position == GetStart() ? position : kNoLifetime;
-    }
-
+    DCHECK(!IsTemp());
     if (IsDefiningPosition(position) && DefinitionRequiresRegister()) {
       return position;
     }
@@ -587,7 +594,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // Returns the location of the first register use for this live interval,
   // including a register definition if applicable.
   size_t FirstRegisterUse() const {
-    return FirstRegisterUseAfter(GetStart());
+    size_t start = GetStart();
+    return IsTemp() ? start : FirstRegisterUseAfter(start);
   }
 
   // Whether the interval requires a register rather than a stack location.
@@ -597,10 +605,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   }
 
   size_t FirstUseAfter(size_t position) const {
-    if (is_temp_) {
-      return position == GetStart() ? position : kNoLifetime;
-    }
-
+    DCHECK(!IsTemp());
     if (IsDefiningPosition(position)) {
       DCHECK(defined_by_->GetLocations()->Out().IsValid());
       return position;
@@ -650,8 +655,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
    * [position ... end)
    */
   LiveInterval* SplitAt(size_t position) {
-    DCHECK(!is_temp_);
-    DCHECK(!is_fixed_);
+    DCHECK(!IsTemp());
+    DCHECK(!IsFixed());
     DCHECK_GT(position, GetStart());
 
     if (GetEnd() <= position) {
@@ -844,29 +849,56 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     high_or_low_interval_ = high;
   }
 
-  void AddHighInterval(bool is_temp = false) {
+  void AddHighTempInterval() {
     DCHECK(IsParent());
     DCHECK(!HasHighInterval());
     DCHECK(!HasLowInterval());
-    high_or_low_interval_ = new (allocator_) LiveInterval(
-        allocator_, type_, defined_by_, false, kNoRegister, is_temp, true);
-    high_or_low_interval_->high_or_low_interval_ = this;
+    DCHECK(IsTemp());
+    LiveInterval* high = new (allocator_) LiveInterval(allocator_,
+                                                       type_,
+                                                       /*defined_by=*/ nullptr,
+                                                       /*is_fixed=*/ false,
+                                                       /*reg=*/ kNoRegister,
+                                                       temp_index_,
+                                                       /*is_high_interval=*/ true);
+    DCHECK(first_range_ != nullptr);
+    DCHECK(first_range_->GetNext() == nullptr);
+    high->AddRange(GetStart(), GetStart() + kLivenessPositionsForTemp);
+    DCHECK(uses_.empty());
+    DCHECK(env_uses_.empty());
+    high_or_low_interval_ = high;
+    high->high_or_low_interval_ = this;
+  }
+
+  void AddHighInterval() {
+    DCHECK(IsParent());
+    DCHECK(!HasHighInterval());
+    DCHECK(!HasLowInterval());
+    DCHECK(!IsTemp());
+    LiveInterval* high = new (allocator_) LiveInterval(allocator_,
+                                                       type_,
+                                                       defined_by_,
+                                                       /*is_fixed=*/ false,
+                                                       /*reg=*/ kNoRegister,
+                                                       kNoTempIndex,
+                                                       /*is_high_interval=*/ true);
     if (first_range_ != nullptr) {
-      high_or_low_interval_->first_range_ = first_range_->Dup(allocator_);
-      high_or_low_interval_->last_range_ = high_or_low_interval_->first_range_->GetLastRange();
-      high_or_low_interval_->range_search_start_ = high_or_low_interval_->first_range_;
+      high->first_range_ = first_range_->Dup(allocator_);
+      high->last_range_ = high->first_range_->GetLastRange();
+      high->range_search_start_ = high->first_range_;
     }
-    auto pos = high_or_low_interval_->uses_.before_begin();
+    auto pos = high->uses_.before_begin();
     for (const UsePosition& use : uses_) {
       UsePosition* new_use = use.Clone(allocator_);
-      pos = high_or_low_interval_->uses_.insert_after(pos, *new_use);
+      pos = high->uses_.insert_after(pos, *new_use);
     }
-
-    auto env_pos = high_or_low_interval_->env_uses_.before_begin();
+    auto env_pos = high->env_uses_.before_begin();
     for (const EnvUsePosition& env_use : env_uses_) {
       EnvUsePosition* new_env_use = env_use.Clone(allocator_);
-      env_pos = high_or_low_interval_->env_uses_.insert_after(env_pos, *new_env_use);
+      env_pos = high->env_uses_.insert_after(env_pos, *new_env_use);
     }
+    high_or_low_interval_ = high;
+    high->high_or_low_interval_ = this;
   }
 
   // Returns whether an interval, when it is non-split, is using
@@ -980,7 +1012,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
                HInstruction* defined_by = nullptr,
                bool is_fixed = false,
                int reg = kNoRegister,
-               bool is_temp = false,
+               int8_t temp_index = kNoTempIndex,
                bool is_high_interval = false)
       : allocator_(allocator),
         first_range_(nullptr),
@@ -996,8 +1028,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
         type_(type),
         register_(reg),
         spill_slot_(kNoSpillSlot),
+        temp_index_(temp_index),
         is_fixed_(is_fixed),
-        is_temp_(is_temp),
         is_high_interval_(is_high_interval) {}
 
   // Searches for a LiveRange that either covers the given position or is the
@@ -1127,17 +1159,20 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // The spill slot allocated to this interval.
   int spill_slot_;
 
+  // The index of the temporary, `kNoTempIndex` if not a temporary.
+  // Currently, we support only 32 core and 32 FP registers. We should never request more
+  // temps than that, so `int8_t` is enough. (Even if we added another register type.)
+  const int8_t temp_index_;
+
   // Whether the interval is for a fixed register.
   const bool is_fixed_;
-
-  // Whether the interval is for a temporary.
-  const bool is_temp_;
 
   // Whether this interval is a synthesized interval for register pair.
   const bool is_high_interval_;
 
   static constexpr int kNoRegister = -1;
   static constexpr int kNoSpillSlot = -1;
+  static constexpr int8_t kNoTempIndex = -1;
 
   friend class RegisterAllocatorTest;
 
@@ -1227,14 +1262,9 @@ class SsaLivenessAnalysis : public ValueObject {
     DCHECK(temp->IsTemp());
     HInstruction* user =
         GetInstructionFromPosition(temp->GetStart() / kLivenessPositionsPerInstruction);
-    DCHECK_EQ(user, temp->GetUses().front().GetUser());
+    DCHECK(user != nullptr);
+    DCHECK_EQ(temp->GetStart(), user->GetLifetimePosition());
     return user;
-  }
-
-  size_t GetTempIndex(LiveInterval* temp) const {
-    // We use the input index to store the index of the temporary in the user's temporary list.
-    DCHECK(temp->IsTemp());
-    return temp->GetUses().front().GetInputIndex();
   }
 
   size_t GetNumberOfSsaValues() const {
