@@ -360,7 +360,7 @@ EOF
   for apex in ${apexes[@]}; do
     apex=$(override_apex_name $apex)
     cat <<EOF >> $apex_xml_file
-    <apex-info moduleName="${apex}" modulePath="/system/apex/${apex}.apex" preinstalledModulePath="/system/apex/${apex}.apex" versionCode="1" versionName="" isFactory="true" isActive="true">
+    <apex-info moduleName="${apex}" modulePath="/system/apex/${apex}.apex" preinstalledModulePath="/system/apex/${apex}.apex" versionCode="1" versionName="" isFactory="true" isActive="true" partition="SYSTEM">
     </apex-info>
 EOF
   done

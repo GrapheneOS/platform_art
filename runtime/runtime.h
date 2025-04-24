@@ -1368,6 +1368,12 @@ class Runtime {
   // SDK version of the running OS.
   // Field's value is equal to `ro.build.version.sdk` system property if it stores a valid integer
   // or 0 (`SdkVersion::kUnset`) otherwise.
+  //
+  // Note that this value does not take into account pre-release SDK codenames. To take into account
+  // pre-release SDK codenames, also check `ro.build.version.codename`.
+  //
+  // For making compile-time decisions, DO NOT rely on this value because it may not be correct in
+  // the Pre-reboot Dexopt case. Instead, use `CompilerOptions::SdkInt`.
   const uint32_t sdk_version_;
 
   // ART counterpart for the compat framework (go/compat-framework).

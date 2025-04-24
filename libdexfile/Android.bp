@@ -173,6 +173,7 @@ art_cc_library {
         // Allow libdexfile_support users to list this as a runtime_libs
         // dependency - see comment for libdexfile_support. It shouldn't be used
         // for any other purpose.
+        "//cts/tests/tests/simpleperf",
         "//external/perfetto",
         "//frameworks/base/services/core/jni",
         "//system/core/debuggerd",
@@ -542,24 +543,15 @@ art_cc_test {
     ],
 }
 
-// For use by external packages allowed to link in static libdexfile_support.
-// This is not allowed in any module that may end up in an APEX or platform
-// image, so visibility is restrictive.
-//
-// TODO(b/169885605): This library brings with it all the exported headers from
-// libdexfile_support_static_defaults into the prebuilt SDK created by
-// art-module-sdk, many of which are transitive dependencies outside ART. Those
-// may conflict with other versions that the caller is using in their build. One
-// way to deal with that is to provide minimal headers without any transitive
-// dependencies on other headers.
+// For use by external packages allowed to link libdexfile statically. Use with
+// libdexfile_static_transitive_defaults. This is not allowed in any module that
+// may end up in an APEX or platform image, so visibility is restrictive.
 cc_library_static {
     name: "libdexfile_static",
     host_supported: true,
     visibility: [
-        // Required for simpleperf, libsimpleperf_record, and libsimpleperf_report
-        // in the NDK.
+        // Required for simpleperf host binaries and tests.
         "//system/extras/simpleperf",
-        "//cts/tests/tests/simpleperf",
     ],
     // Using libdexfile_support_static_defaults will link in external libs like
     // libbase and libz statically as well, which are likely to cause duplicate
@@ -571,9 +563,20 @@ cc_library_static {
     ],
 }
 
+cc_defaults {
+    name: "libdexfile_static_transitive_defaults",
+    defaults_visibility: [
+        "//system/extras/simpleperf",
+    ],
+    // Transitive deps to be added in a later CL.
+}
+
 art_cc_test {
     name: "art_libdexfile_static_tests",
-    defaults: ["art_test_defaults"],
+    defaults: [
+        "art_test_defaults",
+        "libdexfile_static_transitive_defaults",
+    ],
     test_suites: ["general-tests"],
     srcs: [
         "external/dex_file_supp_test.cc",
@@ -583,14 +586,6 @@ art_cc_test {
     ],
     enabled: false,
     target: {
-        android: {
-            // Build static test binary on device, to make sure libdexfile_static can be used in
-            // static simpleperf binary in ndk.
-            static_executable: true,
-            static_libs: [
-                "libc",
-            ],
-        },
         linux: {
             enabled: true,
         },

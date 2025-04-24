@@ -2115,11 +2115,12 @@ static size_t CalculateIndexBssMappingSize(
     const DexFile* dex_file,
     const BitVector& type_indexes,
     const SafeMap<TypeReference, size_t, TypeReferenceValueComparator>& bss_entries) {
-  return CalculateIndexBssMappingSize(
-      dex_file->NumTypeIds(),
-      sizeof(GcRoot<mirror::Class>),
-      type_indexes,
-      [=](uint32_t index) { return bss_entries.Get({dex_file, dex::TypeIndex(index)}); });
+  return CalculateIndexBssMappingSize(dex_file->NumTypeIds(),
+                                      sizeof(GcRoot<mirror::Class>),
+                                      type_indexes,
+                                      [dex_file, &bss_entries](uint32_t index) {
+                                        return bss_entries.Get({dex_file, dex::TypeIndex(index)});
+                                      });
 }
 
 size_t OatWriter::InitIndexBssMappings(size_t offset) {
@@ -2933,12 +2934,13 @@ size_t WriteIndexBssMapping(
     const DexFile* dex_file,
     const BitVector& type_indexes,
     const SafeMap<TypeReference, size_t, TypeReferenceValueComparator>& bss_entries) {
-  return WriteIndexBssMapping(
-      out,
-      dex_file->NumTypeIds(),
-      sizeof(GcRoot<mirror::Class>),
-      type_indexes,
-      [=](uint32_t index) { return bss_entries.Get({dex_file, dex::TypeIndex(index)}); });
+  return WriteIndexBssMapping(out,
+                              dex_file->NumTypeIds(),
+                              sizeof(GcRoot<mirror::Class>),
+                              type_indexes,
+                              [dex_file, &bss_entries](uint32_t index) {
+                                return bss_entries.Get({dex_file, dex::TypeIndex(index)});
+                              });
 }
 
 size_t OatWriter::WriteIndexBssMappingsHelper(OutputStream* out,

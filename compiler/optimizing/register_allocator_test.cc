@@ -635,7 +635,7 @@ TEST_F(RegisterAllocatorTest, ExpectedInRegisterHint) {
 
     // Check that the field gets put in the register expected by its use.
     // Don't use SetInAt because we are overriding an already allocated location.
-    ret->GetLocations()->inputs_[0] = Location::RegisterLocation(2);
+    ret->GetLocations()->Inputs()[0] = Location::RegisterLocation(2);
 
     std::unique_ptr<RegisterAllocator> register_allocator =
         RegisterAllocator::Create(GetScopedAllocator(), &codegen, liveness);
