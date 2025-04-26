@@ -49,7 +49,6 @@
 #include "obj_ptr.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "strstream"
 
 namespace art HIDDEN {
 
