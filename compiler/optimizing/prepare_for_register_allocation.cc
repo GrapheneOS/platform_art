@@ -63,7 +63,7 @@ bool PrepareForRegisterAllocation::Run() {
     // No need to visit the phis.
     for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
          inst_it.Advance()) {
-      inst_it.Current()->Accept(&visitor);
+      visitor.Dispatch(inst_it.Current());
     }
   }
   return true;

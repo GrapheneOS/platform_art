@@ -702,7 +702,7 @@ class HGraphVisualizerPrinter final : public HGraphDelegateVisitor {
     HBasicBlock* block = instruction->GetBlock();
     StartAttributeStream("block") << namer_.GetName(block);
 
-    instruction->Accept(this);
+    Dispatch(instruction);
     if (instruction->HasEnvironment()) {
       StringList envs;
       for (HEnvironment* environment = instruction->GetEnvironment();

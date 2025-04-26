@@ -23,8 +23,6 @@
 
 namespace art {
 
-static constexpr uintptr_t kUintPtrTOne = 1U;
-
 // BitField is a template for encoding and decoding a bit field inside
 // an unsigned machine word.
 template<typename T, size_t kPosition, size_t kSize>
@@ -41,18 +39,20 @@ class BitField {
 
   // Tells whether the provided value fits into the bit field.
   static constexpr bool IsValid(T value) {
-    return (static_cast<uintptr_t>(value) & ~((kUintPtrTOne << size) - 1)) == 0;
+    return (static_cast<uintptr_t>(value) & ~Mask()) == 0;
   }
 
   // Returns a uword mask of the bit field.
   static constexpr uintptr_t Mask() {
-    return (kUintPtrTOne << size) - 1;
+    return (size == sizeof(uintptr_t) * kBitsPerByte)
+        ? static_cast<uintptr_t>(-1)
+        : (static_cast<uintptr_t>(1u) << size) - 1u;
   }
 
   // Returns a uword mask of the bit field which can be applied directly to
   // the raw unshifted bits.
   static constexpr uintptr_t MaskInPlace() {
-    return ((kUintPtrTOne << size) - 1) << position;
+    return Mask() << position;
   }
 
   // Returns the shift count needed to right-shift the bit field to
@@ -74,7 +74,7 @@ class BitField {
 
   // Extracts the bit field from the value.
   static constexpr T Decode(uintptr_t value) {
-    return static_cast<T>((value >> position) & ((kUintPtrTOne << size) - 1));
+    return static_cast<T>((value >> position) & Mask());
   }
 
   // Returns a uword with the bit field value encoded based on the

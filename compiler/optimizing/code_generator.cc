@@ -365,7 +365,7 @@ void CodeGenerator::Compile() {
       }
       DisassemblyScope disassembly_scope(current, *this);
       DCHECK(CheckTypeConsistency(current));
-      current->Accept(instruction_visitor);
+      instruction_visitor->Dispatch(current);
     }
   }
 
@@ -914,7 +914,7 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
   for (HEnvironment* env = instruction->GetEnvironment(); env != nullptr; env = env->GetParent()) {
     env->AllocateLocations(allocator);
   }
-  instruction->Accept(GetLocationBuilder());
+  GetLocationBuilder()->Dispatch(instruction);
   DCHECK(CheckTypeConsistency(instruction));
   LocationSummary* locations = instruction->GetLocations();
   if (!instruction->IsSuspendCheckEntry()) {

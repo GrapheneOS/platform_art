@@ -27,13 +27,25 @@ vars="$(build/soong/soong_ui.bash --dumpvars-mode --vars="OUT_DIR DIST_DIR")"
 eval $vars
 
 HOST_BINARIES=(
-  ${OUT_DIR}/host/linux-x86/bin/dex2oat64
-  ${OUT_DIR}/host/linux-x86/bin/dex2oatd64
-  ${OUT_DIR}/host/linux-x86/bin/dex2oat
-  ${OUT_DIR}/host/linux-x86/bin/dex2oatd
+  ${OUT_DIR}/host/linux-x86/bin/aapt2
+  ${OUT_DIR}/host/linux-x86/bin/apksigner
+  ${OUT_DIR}/host/linux-x86/bin/aprotoc
   ${OUT_DIR}/host/linux-x86/bin/deapexer
   ${OUT_DIR}/host/linux-x86/bin/debugfs_static
+  ${OUT_DIR}/host/linux-x86/bin/derive_classpath
+  ${OUT_DIR}/host/linux-x86/bin/dex2oat
+  ${OUT_DIR}/host/linux-x86/bin/dex2oat64
+  ${OUT_DIR}/host/linux-x86/bin/dex2oatd
+  ${OUT_DIR}/host/linux-x86/bin/dex2oatd64
   ${OUT_DIR}/host/linux-x86/bin/oatdump
+  ${OUT_DIR}/host/linux-x86/bin/profman
+  ${OUT_DIR}/host/linux-x86/bin/soong_zip
+  ${OUT_DIR}/host/linux-x86/bin/zipalign
+  ${OUT_DIR}/host/linux-x86/framework/apksigner.jar
+)
+
+SOURCE_FILES=(
+  system/apex/proto/apex_manifest.proto
 )
 
 # Build statically linked musl binaries for linux-x86 hosts without the
@@ -41,7 +53,7 @@ HOST_BINARIES=(
 build/soong/soong_ui.bash --make-mode USE_HOST_MUSL=true BUILD_HOST_static=true ${HOST_BINARIES[*]}
 # Zip these binaries in a temporary file
 prebuilts/build-tools/linux-x86/bin/soong_zip -o "${DIST_DIR}/temp-host-tools.zip" \
-  -j ${HOST_BINARIES[*]/#/-f }
+  -j ${HOST_BINARIES[*]/#/-f } ${SOURCE_FILES[*]/#/-f }
 
 # Build art_release.zip and copy only art jars in a temporary zip
 build/soong/soong_ui.bash --make-mode dist "${DIST_DIR}/art_release.zip"

@@ -1193,15 +1193,31 @@ inline bool Class::IsAssignableFrom(ObjPtr<Class> src) {
 }
 
 inline uint32_t Class::NumDirectMethods() {
-  return GetVirtualMethodsStartOffset();
+  if (IsProxyClass()) {
+    // Proxy classes have one constructor, and then only virtual methods.
+    return 1;
+  }
+  if (IsArrayClass() || IsPrimitive()) {
+    return 0u;
+  }
+  ClassAccessor accessor(GetDexFile(), GetDexClassDefIndex());
+  return accessor.NumDirectMethods();
 }
 
 inline uint32_t Class::NumDeclaredVirtualMethods() {
-  return GetCopiedMethodsStartOffset() - GetVirtualMethodsStartOffset();
+  if (IsProxyClass()) {
+    // Proxy classes have one constructor, and then only virtual methods.
+    return NumMethods() - 1;
+  }
+  if (IsArrayClass() || IsPrimitive()) {
+    return 0u;
+  }
+  ClassAccessor accessor(GetDexFile(), GetDexClassDefIndex());
+  return accessor.NumVirtualMethods();
 }
 
 inline uint32_t Class::NumVirtualMethods() {
-  return NumMethods() - GetVirtualMethodsStartOffset();
+  return NumMethods() - NumDirectMethods();
 }
 
 inline uint32_t Class::NumFields() {

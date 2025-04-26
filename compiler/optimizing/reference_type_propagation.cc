@@ -124,7 +124,7 @@ ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
 
 void ReferenceTypePropagation::Visit(HInstruction* instruction) {
   RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
-  instruction->Accept(&visitor);
+  visitor.Dispatch(instruction);
 }
 
 void ReferenceTypePropagation::Visit(ArrayRef<HInstruction* const> instructions) {
@@ -136,7 +136,7 @@ void ReferenceTypePropagation::Visit(ArrayRef<HInstruction* const> instructions)
     }
   }
   for (HInstruction* instruction : instructions) {
-    instruction->Accept(&visitor);
+    visitor.Dispatch(instruction);
     // We don't know if the instruction list is ordered in the same way normal
     // visiting would be so we need to process every instruction manually.
     if (RTPVisitor::IsUpdateable(instruction)) {

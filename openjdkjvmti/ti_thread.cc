@@ -340,9 +340,9 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
     // Priority.
     {
-      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_priority;
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_niceness;
       CHECK(f != nullptr);
-      info_ptr->priority = static_cast<jint>(f->GetInt(peer));
+      info_ptr->priority = static_cast<jint>(art::Thread::NicenessToPriority(f->GetInt(peer)));
     }
 
     // Daemon.

@@ -6479,8 +6479,7 @@ void ClassLinker::FixupTemporaryDeclaringClass(ObjPtr<mirror::Class> temp_class,
     }
   }
 
-  DCHECK_EQ(temp_class->NumDirectMethods(), 0u);
-  DCHECK_EQ(temp_class->NumVirtualMethods(), 0u);
+  DCHECK_EQ(temp_class->NumMethods(), 0u);
   for (auto& method : new_class->GetMethods(image_pointer_size_)) {
     if (method.GetDeclaringClass() == temp_class) {
       method.SetDeclaringClass(new_class);

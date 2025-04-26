@@ -205,7 +205,7 @@ void HConstantFoldingVisitor::VisitBinaryOperation(HBinaryOperation* inst) {
     // Already replaced inside TryRemoveBinaryOperationViaSelect.
   } else {
     InstructionWithAbsorbingInputSimplifier simplifier(GetGraph());
-    inst->Accept(&simplifier);
+    simplifier.Dispatch(inst);
   }
 }
 

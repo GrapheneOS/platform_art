@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_THREAD_H_
 #define ART_RUNTIME_THREAD_H_
 
+#include <android-base/properties.h>
+
 #include <atomic>
 #include <bitset>
 #include <cstdint>
@@ -621,12 +623,31 @@ class EXPORT Thread {
   bool HoldsLock(ObjPtr<mirror::Object> object) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
-   * Changes the priority of this thread to match that of the java.lang.Thread object.
+   * Set native thread niceness to match the given Java priority.
    *
    * We map a priority value from 1-10 to Linux "nice" values, where lower
    * numbers indicate higher priority.
+   *
+   * Return the niceness value corresponding to the priority.
    */
-  void SetNativePriority(int newPriority);
+  int SetNativePriority(int newPriority) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  /*
+   * Same thing, but niceness is supplied directly.
+   *
+   * Return 0 on success, or errno.
+   */
+  int SetNativeNiceness(int newNiceness) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  /*
+   * Convert Java priority to Posix niceness using palette information.
+   */
+  static int PriorityToNiceness(int priority) { return GetPriorityMap()[priority]; }
+
+  /*
+   * Convert Posix niceness to the closest Java priority using palette information.
+   */
+  static int NicenessToPriority(int niceness);
 
   /*
    * Returns the priority of this thread by querying the system.
@@ -635,6 +656,11 @@ class EXPORT Thread {
    * Returns a value from 1 to 10 (compatible with java.lang.Thread values).
    */
   int GetNativePriority() const;
+
+  /*
+   * Return Posix niceness instead of Java priority. A very thin wrapper over getpriority().
+   */
+  int GetNativeNiceness() const;
 
   // Guaranteed to be non-zero.
   uint32_t GetThreadId() const {
@@ -1934,6 +1960,8 @@ class EXPORT Thread {
   void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsAotCompiler();
+
+  static int* GetPriorityMap();
 
   void SetCachedThreadName(const char* name);
 

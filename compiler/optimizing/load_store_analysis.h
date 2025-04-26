@@ -458,7 +458,7 @@ class HeapLocationCollector final : public HGraphVisitor {
     }
   }
 
-  void VisitFieldAccess(HFieldAccess* instruction) override {
+  void HandleFieldAccess(HFieldAccess* instruction) {
     HInstruction* ref = instruction->InputAt(0);
     const FieldInfo& field_info = instruction->GetFieldInfo();
     DataType::Type type = field_info.GetFieldType();
@@ -489,22 +489,22 @@ class HeapLocationCollector final : public HGraphVisitor {
 
   void VisitInstanceFieldGet(HInstanceFieldGet* instruction) override {
     CreateReferenceInfoForReferenceType(instruction);
-    VisitFieldAccess(instruction);
+    HandleFieldAccess(instruction);
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) override {
     has_heap_stores_ = true;
-    VisitFieldAccess(instruction);
+    HandleFieldAccess(instruction);
   }
 
   void VisitStaticFieldGet(HStaticFieldGet* instruction) override {
     CreateReferenceInfoForReferenceType(instruction);
-    VisitFieldAccess(instruction);
+    HandleFieldAccess(instruction);
   }
 
   void VisitStaticFieldSet(HStaticFieldSet* instruction) override {
     has_heap_stores_ = true;
-    VisitFieldAccess(instruction);
+    HandleFieldAccess(instruction);
   }
 
   // We intentionally don't collect HUnresolvedInstanceField/HUnresolvedStaticField accesses

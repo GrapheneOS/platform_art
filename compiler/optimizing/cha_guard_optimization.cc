@@ -81,7 +81,7 @@ void CHAGuardVisitor::VisitBasicBlock(HBasicBlock* block) {
   instruction_iterator_ = &it;
   for (; !it.Done(); it.Advance()) {
     DCHECK(it.Current()->IsInBlock());
-    it.Current()->Accept(this);
+    Dispatch(it.Current());
   }
 }
 

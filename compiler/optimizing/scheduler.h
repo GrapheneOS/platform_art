@@ -414,14 +414,10 @@ class SchedulingLatencyVisitor : public HGraphDelegateVisitor {
     UNREACHABLE();
   }
 
-  void Visit(HInstruction* instruction) {
-    instruction->Accept(this);
-  }
-
   void CalculateLatency(SchedulingNode* node) {
     // By default nodes have no internal latency.
     last_visited_internal_latency_ = 0;
-    Visit(node->GetInstruction());
+    Dispatch(node->GetInstruction());
   }
 
   uint32_t GetLastVisitedLatency() const { return last_visited_latency_; }

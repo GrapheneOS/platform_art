@@ -292,7 +292,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
                             current_block_->GetBlockId(),
                             current->GetId()));
     }
-    current->Accept(this);
+    Dispatch(current);
   }
 
   // Visit this block's list of instructions.
@@ -310,7 +310,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
                        current_block_->GetBlockId(),
                        current->GetId()));
     }
-    current->Accept(this);
+    Dispatch(current);
   }
 
   // Ensure that catch blocks are not normal successors, and normal blocks are

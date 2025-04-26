@@ -42,7 +42,7 @@ class InstructionSimplifierX86_64Visitor final : public HGraphVisitor {
     for (HInstructionIteratorPrefetchNext it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
       if (instruction->IsInBlock()) {
-        instruction->Accept(this);
+        Dispatch(instruction);
       }
     }
   }
