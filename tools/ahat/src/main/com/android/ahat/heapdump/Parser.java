@@ -19,11 +19,13 @@ package com.android.ahat.heapdump;
 import com.android.ahat.progress.NullProgress;
 import com.android.ahat.progress.Progress;
 import com.android.ahat.proguard.ProguardMap;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -277,7 +279,7 @@ public class Parser {
 
           case 0x0C:   // HEAP DUMP
           case 0x1C: { // HEAP DUMP SEGMENT
-            int endOfRecord = hprof.tell() + recordLength;
+            long endOfRecord = hprof.tell() + recordLength;
             if (classById == null) {
               classById = new Instances<AhatClassObj>(classes);
             }
@@ -692,18 +694,18 @@ public class Parser {
 
   private static class ClassInstData {
     // The byte position in the hprof file where instance field data starts.
-    public int position;
+    public long position;
 
-    public ClassInstData(int position) {
+    public ClassInstData(long position) {
       this.position = position;
     }
   }
 
   private static class ObjArrayData {
     public int length;          // Number of array elements.
-    public int position;        // Position in hprof file containing element data.
+    public long position; // Position in hprof file containing element data.
 
-    public ObjArrayData(int length, int position) {
+    public ObjArrayData(int length, long position) {
       this.length = length;
       this.position = position;
     }
@@ -906,114 +908,183 @@ public class Parser {
   }
 
   /**
+   * SeekableByteChannel interface for ByteBuffer.
+   */
+  private static class ByteBufferChannel implements SeekableByteChannel {
+    private final ByteBuffer mBuffer;
+
+    public ByteBufferChannel(ByteBuffer buffer) {
+      mBuffer = buffer;
+    }
+
+    @Override
+    public long position() throws IOException {
+      return mBuffer.position();
+    }
+
+    @Override
+    public SeekableByteChannel position(long newPosition) throws IOException {
+      mBuffer.position((int) newPosition);
+      return this;
+    }
+
+    @Override
+    public int read(ByteBuffer dst) throws IOException {
+      int read = 0;
+      while (dst.hasRemaining() && mBuffer.hasRemaining()) {
+        dst.put(mBuffer.get());
+        read++;
+      }
+      return read;
+    }
+
+    @Override
+    public long size() throws IOException {
+      return mBuffer.capacity();
+    }
+
+    @Override
+    public SeekableByteChannel truncate(long size) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int write(ByteBuffer src) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isOpen() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void close() throws IOException {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  /**
    * Wrapper around a ByteBuffer that presents a uniform interface for
    * accessing data from an hprof file.
    */
   private static class HprofBuffer {
     private boolean mIdSize8;
-    private final ByteBuffer mBuffer;
+    private final SeekableByteChannel mChannel;
+    private final ByteBuffer mBuffer = ByteBuffer.allocate(8);
 
     public HprofBuffer(File path) throws IOException {
-      FileChannel channel = FileChannel.open(path.toPath(), StandardOpenOption.READ);
-      mBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-      channel.close();
+      mChannel = FileChannel.open(path.toPath(), StandardOpenOption.READ);
     }
 
     public HprofBuffer(ByteBuffer buffer) {
-      mBuffer = buffer;
+      mChannel = new ByteBufferChannel(buffer);
+    }
+
+    private ByteBuffer read(int num_bytes) throws IOException {
+      int start = mBuffer.capacity() - num_bytes;
+      mBuffer.position(start);
+      while (num_bytes > 0) {
+        num_bytes -= mChannel.read(mBuffer);
+      }
+      mBuffer.position(start);
+      return mBuffer;
     }
 
     public void setIdSize8() {
       mIdSize8 = true;
     }
 
-    public boolean hasRemaining() {
-      return mBuffer.hasRemaining();
+    public boolean hasRemaining() throws IOException {
+      return mChannel.position() < mChannel.size();
     }
 
     /**
      * Returns the size of the file in bytes.
      */
-    public int size() {
-      return mBuffer.capacity();
+    public long size() throws IOException {
+      return mChannel.size();
     }
 
     /**
      * Return the current absolution position in the file.
      */
-    public int tell() {
-      return mBuffer.position();
+    public long tell() throws IOException {
+      return mChannel.position();
     }
 
     /**
      * Seek to the given absolution position in the file.
      */
-    public void seek(int position) {
-      mBuffer.position(position);
+    public void seek(long position) throws IOException {
+      mChannel.position(position);
     }
 
     /**
      * Skip ahead in the file by the given delta bytes. Delta may be negative
      * to skip backwards in the file.
      */
-    public void skip(int delta) {
+    public void skip(long delta) throws IOException {
       seek(tell() + delta);
     }
 
-    public int getU1() {
-      return mBuffer.get() & 0xFF;
+    public int getU1() throws IOException {
+      return read(1).get() & 0xFF;
     }
 
-    public int getU2() {
-      return mBuffer.getShort() & 0xFFFF;
+    public int getU2() throws IOException {
+      return read(2).getShort() & 0xFFFF;
     }
 
-    public int getU4() {
-      return mBuffer.getInt();
+    public int getU4() throws IOException {
+      return read(4).getInt();
     }
 
-    public long getId() {
+    public long getId() throws IOException {
       if (mIdSize8) {
-        return mBuffer.getLong();
+        return read(8).getLong();
       } else {
-        return mBuffer.getInt() & 0xFFFFFFFFL;
+        return read(4).getInt() & 0xFFFFFFFFL;
       }
     }
 
-    public boolean getBool() {
-      return mBuffer.get() != 0;
+    public boolean getBool() throws IOException {
+      return read(1).get() != 0;
     }
 
-    public char getChar() {
-      return mBuffer.getChar();
+    public char getChar() throws IOException {
+      return read(2).getChar();
     }
 
-    public float getFloat() {
-      return mBuffer.getFloat();
+    public float getFloat() throws IOException {
+      return read(4).getFloat();
     }
 
-    public double getDouble() {
-      return mBuffer.getDouble();
+    public double getDouble() throws IOException {
+      return read(8).getDouble();
     }
 
-    public byte getByte() {
-      return mBuffer.get();
+    public byte getByte() throws IOException {
+      return read(1).get();
     }
 
-    public void getBytes(byte[] bytes) {
-      mBuffer.get(bytes);
+    public void getBytes(byte[] bytes) throws IOException {
+      ByteBuffer buf = ByteBuffer.wrap(bytes);
+      while (buf.hasRemaining()) {
+        mChannel.read(buf);
+      }
     }
 
-    public short getShort() {
-      return mBuffer.getShort();
+    public short getShort() throws IOException {
+      return read(2).getShort();
     }
 
-    public int getInt() {
-      return mBuffer.getInt();
+    public int getInt() throws IOException {
+      return read(4).getInt();
     }
 
-    public long getLong() {
-      return mBuffer.getLong();
+    public long getLong() throws IOException {
+      return read(8).getLong();
     }
 
     private static Type[] TYPES = new Type[] {
@@ -1022,7 +1093,7 @@ public class Parser {
         Type.BYTE, Type.SHORT, Type.INT, Type.LONG
     };
 
-    public Type getType() throws HprofFormatException {
+    public Type getType() throws HprofFormatException, IOException {
       int id = getU1();
       Type type = id < TYPES.length ? TYPES[id] : null;
       if (type == null) {
@@ -1031,7 +1102,7 @@ public class Parser {
       return type;
     }
 
-    public Type getPrimitiveType() throws HprofFormatException {
+    public Type getPrimitiveType() throws HprofFormatException, IOException {
       Type type = getType();
       if (type == Type.OBJECT) {
         throw new HprofFormatException("Expected primitive type, but found type 'Object'");
@@ -1043,7 +1114,7 @@ public class Parser {
      * Get a value from the hprof file, using the given instances map to
      * convert instance ids to their corresponding AhatInstance objects.
      */
-    public Value getValue(Type type, Instances instances) {
+    public Value getValue(Type type, Instances instances) throws IOException {
       switch (type) {
         case OBJECT:  return Value.pack(instances.get(getId()));
         case BOOLEAN: return Value.pack(getBool());
@@ -1063,7 +1134,7 @@ public class Parser {
      * DefferredInstanceValues rather than their corresponding AhatInstance
      * objects.
      */
-    public Value getDeferredValue(Type type) {
+    public Value getDeferredValue(Type type) throws IOException {
       switch (type) {
         case OBJECT: return new DeferredInstanceValue(getId());
         case BOOLEAN: return Value.pack(getBool());

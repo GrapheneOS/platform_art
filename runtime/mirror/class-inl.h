@@ -687,7 +687,7 @@ inline void Class::SetFieldsPtr(LengthPrefixedArray<ArtField>* new_fields) {
 }
 
 inline void Class::SetFieldsPtrUnchecked(LengthPrefixedArray<ArtField>* new_fields) {
-  SetFieldPtr<false, true, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Class, fields_), new_fields);
+  SetFieldPtr<false, false, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Class, fields_), new_fields);
 }
 
 inline LengthPrefixedArray<ArtField>* Class::GetFieldsPtrUnchecked() {
@@ -1221,8 +1221,8 @@ inline uint32_t Class::NumVirtualMethods() {
 }
 
 inline uint32_t Class::NumFields() {
-  LengthPrefixedArray<ArtField>* arr = GetFieldsPtrUnchecked();
-  return arr != nullptr ? arr->size() : 0u;
+  DCHECK_NE(GetFieldsPtrUnchecked(), nullptr) << PrettyClass();
+  return GetFieldsPtrUnchecked()->size();
 }
 
 inline bool Class::HasStaticFields() {
@@ -1385,36 +1385,36 @@ inline ImTable* Class::FindSuperImt(PointerSize pointer_size) {
 template <bool kOnlyLookAtIndex>
 ALWAYS_INLINE FLATTEN inline ArtField* Class::FindDeclaredField(uint32_t dex_field_idx) {
   LengthPrefixedArray<ArtField>* array = GetFieldsPtrUnchecked();
-  DCHECK_IMPLIES(array != nullptr, array->size() != 0u);
-  if (array != nullptr) {
-    size_t size = array->size();
-    // The field array is an ordered list of fields where there may be missing
-    // indices. For example, it could be [40, 42], but in 90% of cases cases we have
-    // [40, 41, 42]. The latter is the case we are optimizing for, where for
-    // example `dex_field_idx` is 41, and we can just substract it with the
-    // first field index (40) and directly access the array with that index (1).
-    uint32_t index = dex_field_idx - array->At(0).GetDexFieldIndex();
-    if (index < size) {
-      ArtField& field = array->At(index);
-      if (field.GetDexFieldIndex() == dex_field_idx) {
-        return &field;
-      }
-    } else {
-      index = size;
+  size_t size = array->size();
+  if (size == 0) {
+    return nullptr;
+  }
+  // The field array is an ordered list of fields where there may be missing
+  // indices. For example, it could be [40, 42], but in 90% of cases cases we have
+  // [40, 41, 42]. The latter is the case we are optimizing for, where for
+  // example `dex_field_idx` is 41, and we can just substract it with the
+  // first field index (40) and directly access the array with that index (1).
+  uint32_t index = dex_field_idx - array->At(0).GetDexFieldIndex();
+  if (index < size) {
+    ArtField& field = array->At(index);
+    if (field.GetDexFieldIndex() == dex_field_idx) {
+      return &field;
     }
-    if (kOnlyLookAtIndex) {
-      return nullptr;
-    }
-    // If there is a field, it's down the array. The array is ordered by field
-    // index, so we know we can stop the search if `dex_field_idx` is greater
-    // than the current field's index.
-    for (; index > 0; --index) {
-      ArtField& field = array->At(index - 1);
-      if (field.GetDexFieldIndex() == dex_field_idx) {
-        return &field;
-      } else if (field.GetDexFieldIndex() < dex_field_idx) {
-        break;
-      }
+  } else {
+    index = size;
+  }
+  if (kOnlyLookAtIndex) {
+    return nullptr;
+  }
+  // If there is a field, it's down the array. The array is ordered by field
+  // index, so we know we can stop the search if `dex_field_idx` is greater
+  // than the current field's index.
+  for (; index > 0; --index) {
+    ArtField& field = array->At(index - 1);
+    if (field.GetDexFieldIndex() == dex_field_idx) {
+      return &field;
+    } else if (field.GetDexFieldIndex() < dex_field_idx) {
+      break;
     }
   }
   return nullptr;

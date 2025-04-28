@@ -755,6 +755,14 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
                  mirror::ObjectArray<mirror::Object>::ClassSize(image_pointer_size_))));
   object_array_class->SetComponentType(java_lang_Object.Get());
 
+  // Set the empty field array to the object array class, to be used by other
+  // classes which don't have fields.
+  LinearAlloc* linear_alloc = runtime->GetLinearAlloc();
+  object_array_class->SetFieldsPtrUnchecked(reinterpret_cast<LengthPrefixedArray<ArtField>*>(
+      linear_alloc->Alloc(self,
+                          LengthPrefixedArray<ArtField>::ComputeSize(0),
+                          LinearAllocKind::kNoGCRoots)));
+
   // Setup java.lang.String.
   //
   // We make this class non-movable for the unlikely case where it were to be
@@ -842,7 +850,6 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   object_array_string->SetComponentType(java_lang_String.Get());
   SetClassRoot(ClassRoot::kJavaLangStringArrayClass, object_array_string.Get());
 
-  LinearAlloc* linear_alloc = runtime->GetLinearAlloc();
   // Create runtime resolution and imt conflict methods.
   runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
   runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod(linear_alloc));
@@ -2905,6 +2912,9 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   // Array classes are fully initialized either during single threaded startup,
   // or from a pre-fence visitor, so visibly initialized.
   array_class->SetStatusForPrimitiveOrArray(ClassStatus::kVisiblyInitialized);
+
+  // Arrays have no field.
+  array_class->SetFieldsPtrUnchecked(GetEmptyFieldArray());
 }
 
 void ClassLinker::FinishCoreArrayClassSetup(ClassRoot array_root) {
@@ -3919,7 +3929,7 @@ LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
                                                                LinearAlloc* allocator,
                                                                size_t length) {
   if (length == 0) {
-    return nullptr;
+    return GetEmptyFieldArray();
   }
   // If the ArtField alignment changes, review all uses of LengthPrefixedArray<ArtField>.
   static_assert(alignof(ArtField) == 4, "ArtField alignment is expected to be 4.");
@@ -4408,6 +4418,7 @@ void ClassLinker::LoadClass(Thread* self,
                          dex_class_def,
                          /* parse_hiddenapi_class_data= */ klass->IsBootStrapClassLoaded());
   if (!accessor.HasClassData()) {
+    klass->SetFieldsPtrUnchecked(GetEmptyFieldArray());
     return;
   }
   Runtime* const runtime = Runtime::Current();
@@ -4814,10 +4825,15 @@ void ClassLinker::CreatePrimitiveClass(Thread* self,
                                                ComputeModifiedUtf8Hash(descriptor));
   CHECK(existing == nullptr) << "InitPrimitiveClass(" << type << ") failed";
   SetClassRoot(primitive_root, primitive_class);
+  primitive_class->SetFieldsPtrUnchecked(GetEmptyFieldArray());
 }
 
 inline ObjPtr<mirror::IfTable> ClassLinker::GetArrayIfTable() {
   return GetClassRoot<mirror::ObjectArray<mirror::Object>>(this)->GetIfTable();
+}
+
+inline LengthPrefixedArray<ArtField>* ClassLinker::GetEmptyFieldArray() {
+  return GetClassRoot<mirror::ObjectArray<mirror::Object>>(this)->GetFieldsPtrUnchecked();
 }
 
 // Create an array class (i.e. the class object for the array, not the
@@ -6614,12 +6630,14 @@ bool ClassLinker::LinkClass(Thread* self,
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_new_class =
         hs.NewHandle(mirror::Class::CopyOf(klass, self, class_size, imt, image_pointer_size_));
-    // Set arrays to null since we don't want to have multiple classes with the same ArtField or
+    // Set the fields array to the empty shared array, as we don't expect null
+    // for field array.
+    klass->SetFieldsPtrUnchecked(GetEmptyFieldArray());
+    // Set method array to null since we don't want to have multiple classes with the same
     // ArtMethod array pointers. If this occurs, it causes bugs in remembered sets since the GC
     // may not see any references to the target space and clean the card for a class if another
     // class had the same array pointer.
     klass->SetMethodsPtrUnchecked(nullptr, 0, 0);
-    klass->SetFieldsPtrUnchecked(nullptr);
     if (UNLIKELY(h_new_class == nullptr)) {
       self->AssertPendingOOMException();
       mirror::Class::SetStatus(klass, ClassStatus::kErrorUnresolved, self);

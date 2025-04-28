@@ -1406,11 +1406,9 @@ void ImageWriter::RecordNativeRelocations(ObjPtr<mirror::Class> klass, size_t oa
   }
   ImageInfo& image_info = GetImageInfo(oat_index);
   LengthPrefixedArray<ArtField>* fields = klass->GetFieldsPtr();
-  // Total array length including header.
-  if (fields != nullptr) {
+  if (!NativeRelocationAssigned(fields) && !IsInBootImage(fields)) {
     // Forward the entire array at once.
     size_t offset = image_info.GetBinSlotSize(Bin::kArtField);
-    DCHECK(!IsInBootImage(fields));
     bool inserted =
         native_object_relocations_.insert(std::make_pair(
             fields,
@@ -1418,6 +1416,7 @@ void ImageWriter::RecordNativeRelocations(ObjPtr<mirror::Class> klass, size_t oa
                 oat_index, offset, NativeObjectRelocationType::kArtFieldArray
             })).second;
     CHECK(inserted) << "Field array " << fields << " already forwarded";
+    // Total array length including header.
     const size_t size = LengthPrefixedArray<ArtField>::ComputeSize(fields->size());
     offset += size;
     image_info.IncrementBinSlotSize(Bin::kArtField, size);

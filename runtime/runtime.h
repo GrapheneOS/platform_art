@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "app_info.h"
+#include "base/length_prefixed_array.h"
 #include "base/locks.h"
 #include "base/macros.h"
 #include "base/mem_map.h"

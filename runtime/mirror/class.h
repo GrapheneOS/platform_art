@@ -1037,6 +1037,7 @@ class EXPORT MANAGED Class final : public Object {
 
   // Get fields of the class.
   LengthPrefixedArray<ArtField>* GetFieldsPtr() REQUIRES_SHARED(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtField>* GetFieldsPtrUnchecked() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtField>> GetFields()
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1424,8 +1425,6 @@ class EXPORT MANAGED Class final : public Object {
 
   void CheckObjectAlloc() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Unchecked editions is for root visiting.
-  LengthPrefixedArray<ArtField>* GetFieldsPtrUnchecked() REQUIRES_SHARED(Locks::mutator_lock_);
   IterationRange<StrideIterator<ArtField>> GetFieldsUnchecked()
       REQUIRES_SHARED(Locks::mutator_lock_);
 

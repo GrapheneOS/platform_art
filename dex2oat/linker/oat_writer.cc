@@ -778,6 +778,12 @@ void OatWriter::InitBssAndRelRoData() {
       }
       DCHECK_IMPLIES(!compiled_method->GetPatches().empty(), HasCompiledCode(compiled_method));
       for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+        SafeMap<TypeReference, size_t, TypeReferenceValueComparator>* bss_type_entries = nullptr;
+        bool add_type_entry = false;
+        SafeMap<const DexFile*, BitVector>* bss_references = nullptr;
+        DexFileReference bss_ref(nullptr, dex::kDexNoIndex);
+        size_t number_of_indexes = 0;
+        bool add_bss_reference = false;
         if (patch.GetType() == LinkerPatch::Type::kBootImageRelRo) {
           boot_image_rel_ro_entries_.Overwrite(patch.BootImageOffset(), /* placeholder */ 0u);
         } else if (patch.GetType() == LinkerPatch::Type::kMethodAppImageRelRo) {
@@ -785,42 +791,49 @@ void OatWriter::InitBssAndRelRoData() {
           app_image_rel_ro_method_entries_.Overwrite(target_method, /* placeholder */ 0u);
         } else if (patch.GetType() == LinkerPatch::Type::kMethodBssEntry) {
           MethodReference target_method = patch.TargetMethod();
-          AddBssReference(target_method,
-                          target_method.dex_file->NumMethodIds(),
-                          &bss_method_entry_references_);
           bss_method_entries_.Overwrite(target_method, /* placeholder */ 0u);
+          bss_ref = target_method;
+          number_of_indexes = target_method.dex_file->NumMethodIds();
+          bss_references = &bss_method_entry_references_;
+          add_bss_reference = true;
         } else if (patch.GetType() == LinkerPatch::Type::kTypeAppImageRelRo) {
           app_image_rel_ro_type_entries_.Overwrite(patch.TargetType(), /* placeholder */ 0u);
         } else if (patch.GetType() == LinkerPatch::Type::kTypeBssEntry) {
-          TypeReference target_type = patch.TargetType();
-          AddBssReference(target_type,
-                          target_type.dex_file->NumTypeIds(),
-                          &bss_type_entry_references_);
-          bss_type_entries_.Overwrite(target_type, /* placeholder */ 0u);
+          bss_type_entries = &bss_type_entries_;
+          bss_references = &bss_type_entry_references_;
+          add_type_entry = true;
         } else if (patch.GetType() == LinkerPatch::Type::kPublicTypeBssEntry) {
-          TypeReference target_type = patch.TargetType();
-          AddBssReference(target_type,
-                          target_type.dex_file->NumTypeIds(),
-                          &bss_public_type_entry_references_);
-          bss_public_type_entries_.Overwrite(target_type, /* placeholder */ 0u);
+          bss_type_entries = &bss_public_type_entries_;
+          bss_references = &bss_public_type_entry_references_;
+          add_type_entry = true;
         } else if (patch.GetType() == LinkerPatch::Type::kPackageTypeBssEntry) {
-          TypeReference target_type = patch.TargetType();
-          AddBssReference(target_type,
-                          target_type.dex_file->NumTypeIds(),
-                          &bss_package_type_entry_references_);
-          bss_package_type_entries_.Overwrite(target_type, /* placeholder */ 0u);
+          bss_type_entries = &bss_package_type_entries_;
+          bss_references = &bss_package_type_entry_references_;
+          add_type_entry = true;
         } else if (patch.GetType() == LinkerPatch::Type::kStringBssEntry) {
           StringReference target_string = patch.TargetString();
-          AddBssReference(target_string,
-                          target_string.dex_file->NumStringIds(),
-                          &bss_string_entry_references_);
           bss_string_entries_.Overwrite(target_string, /* placeholder */ 0u);
+          bss_ref = target_string;
+          number_of_indexes = target_string.dex_file->NumStringIds();
+          bss_references = &bss_string_entry_references_;
+          add_bss_reference = true;
         } else if (patch.GetType() == LinkerPatch::Type::kMethodTypeBssEntry) {
           ProtoReference target_proto = patch.TargetProto();
-          AddBssReference(target_proto,
-                          target_proto.dex_file->NumProtoIds(),
-                          &bss_method_type_entry_references_);
           bss_method_type_entries_.Overwrite(target_proto, /* placeholder */ 0u);
+          bss_ref = target_proto;
+          number_of_indexes = target_proto.dex_file->NumProtoIds();
+          bss_references = &bss_method_type_entry_references_;
+          add_bss_reference = true;
+        }
+        if (add_type_entry) {
+          TypeReference target_type = patch.TargetType();
+          bss_type_entries->Overwrite(target_type, /* placeholder */ 0u);
+          bss_ref = target_type;
+          number_of_indexes = target_type.dex_file->NumTypeIds();
+          add_bss_reference = true;
+        }
+        if (add_bss_reference) {
+          AddBssReference(bss_ref, number_of_indexes, bss_references);
         }
       }
     }
