@@ -93,13 +93,14 @@ bool NullPointerHandler::Action([[maybe_unused]] int sig, siginfo_t* info, void*
   return true;
 }
 
+static constexpr uint32_t kSuspendCheckRegister = 21;
+
 // A suspend check is done using the following instruction:
 //      0x...: f94002b5  ldr x21, [x21, #0]
 // To check for a suspend check, we examine the instruction that caused the fault (at PC).
 bool SuspensionHandler::Action([[maybe_unused]] int sig,
                                [[maybe_unused]] siginfo_t* info,
                                void* context) {
-  constexpr uint32_t kSuspendCheckRegister = 21;
   constexpr uint32_t checkinst =
       0xf9400000 | (kSuspendCheckRegister << 5) | (kSuspendCheckRegister << 0);
 
@@ -127,6 +128,22 @@ bool SuspensionHandler::Action([[maybe_unused]] int sig,
   VLOG(signals) << "removed suspend trigger invoking test suspend";
 
   return true;
+}
+
+void FaultManager::SuspendFaster(siginfo_t* info, void* context) {
+  // We need to trigger a suspend check. Since we are in an asynchronous signal handler, we
+  // cannot do so directly. But we can make sure the next suspend check does so, rather than
+  // waiting for the one after that, by clearing kSuspendCheckRegister. This is likely to be
+  // beneficial immediately after a flip, when we are likely to see several signals in a row.
+
+  if (!IsInGeneratedCode(info, context)) {
+    // Suspend trigger register is reserved for the purpose only in ART-generated code.
+    return;
+  }
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(context);
+  mcontext_t* mc = reinterpret_cast<mcontext_t*>(&uc->uc_mcontext);
+  mc->regs[kSuspendCheckRegister] = reinterpret_cast<uintptr_t>(static_cast<void*>(nullptr));
+  VLOG(signals) << "Accelerating suspension";
 }
 
 bool StackOverflowHandler::Action([[maybe_unused]] int sig,

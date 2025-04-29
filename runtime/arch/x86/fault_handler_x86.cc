@@ -368,7 +368,7 @@ bool SuspensionHandler::Action(int, siginfo_t*, void* context) {
     return false;
   }
 
-  // The first instruction can a little bit up the stream due to load hoisting
+  // The first instruction can be a little bit up the stream due to load hoisting
   // in the compiler.
   uint8_t* limit = pc - 100;   // Compiler will hoist to a max of 20 instructions.
   uint8_t* ptr = pc - sizeof(checkinst1);

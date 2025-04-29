@@ -293,7 +293,6 @@ LIBART_PROTECTED
 extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
                                                 ArtMethod* caller,
                                                 const uint16_t* dex_pc_ptr,
-                                                size_t resolve_field_type,
                                                 uint32_t* registers);
 
 static inline void GetFieldInfo(Thread* self,
@@ -314,7 +313,6 @@ static inline void GetFieldInfo(Thread* self,
       tls_value = NterpGetInstanceFieldOffset(self,
                                               shadow_frame.GetMethod(),
                                               dex_pc_ptr,
-                                              resolve_field_type,
                                               shadow_frame.GetVRegAddr(0));
     }
 

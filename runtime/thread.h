@@ -1582,6 +1582,11 @@ class EXPORT Thread {
     tlsPtr_.suspend_trigger.store(reinterpret_cast<uintptr_t*>(&tlsPtr_.suspend_trigger),
                                   std::memory_order_relaxed);
   }
+  // Check the suspend trigger value. This is not the way we normally check for suspension, but
+  // can be used to explicitly propagate the value to the suspend check register.
+  bool IsSuspendTriggerSet() {
+    return tlsPtr_.suspend_trigger.load(std::memory_order_relaxed) == nullptr;
+  }
 
   // Trigger a suspend check by making the suspend_trigger_ TLS value an invalid pointer.
   // The next time a suspend check is done, it will load from the value at this address

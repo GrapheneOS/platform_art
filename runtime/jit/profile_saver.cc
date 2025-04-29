@@ -376,7 +376,6 @@ class ProfileSaver::GetClassesAndMethodsHelper {
   struct ClassRecord {
     dex::TypeIndex type_index;
     uint16_t array_dimension;
-    uint32_t copied_methods_start;
     LengthPrefixedArray<ArtMethod>* methods;
   };
 
@@ -477,8 +476,6 @@ void ProfileSaver::GetClassesAndMethodsHelper::CollectInternal(
         return true;
       }
 
-      // Attribute the array class to the defining dex file of the element class.
-      DCHECK_EQ(klass->GetCopiedMethodsStartOffset(), 0u);
       DCHECK(klass->GetMethodsPtr() == nullptr);
     } else {
       // Non-array class. There is no need to collect primitive types.
@@ -496,12 +493,7 @@ void ProfileSaver::GetClassesAndMethodsHelper::CollectInternal(
 
     const DexFile& dex_file = k->GetDexFile();
     dex::TypeIndex type_index = k->GetDexTypeIndex();
-    uint32_t copied_methods_start = klass->GetCopiedMethodsStartOffset();
     LengthPrefixedArray<ArtMethod>* methods = klass->GetMethodsPtr();
-    if (methods != nullptr) {
-      CHECK_LE(copied_methods_start, methods->size()) << k->PrettyClass();
-    }
-
     DexFileRecords* dex_file_records;
     auto it = dex_file_records_map_.find(&dex_file);
     if (it != dex_file_records_map_.end()) {
@@ -510,8 +502,7 @@ void ProfileSaver::GetClassesAndMethodsHelper::CollectInternal(
       dex_file_records = new (&allocator_) DexFileRecords(&allocator_);
       dex_file_records_map_.insert(std::make_pair(&dex_file, dex_file_records));
     }
-    dex_file_records->class_records.push_back(
-        ClassRecord{type_index, dim, copied_methods_start, methods});
+    dex_file_records->class_records.push_back(ClassRecord{type_index, dim, methods});
     return true;
   });
 }
@@ -547,12 +538,12 @@ void ProfileSaver::GetClassesAndMethodsHelper::CollectClasses(Thread* self) {
         continue;
       }
       const size_t methods_size = methods->size();
-      CHECK_LE(class_record.copied_methods_start, methods_size)
-          << dex_file->PrettyType(class_record.type_index);
-      for (size_t index = class_record.copied_methods_start; index != methods_size; ++index) {
+      for (size_t index = methods_size; index != 0u; --index) {
         // Note: Using `ArtMethod` array with implicit `kRuntimePointerSize`.
-        ArtMethod& method = methods->At(index);
-        CHECK(method.IsCopied()) << dex_file->PrettyType(class_record.type_index);
+        ArtMethod& method = methods->At(index - 1);
+        if (!method.IsCopied()) {
+          break;
+        }
         CHECK(!method.IsNative()) << dex_file->PrettyType(class_record.type_index);
         if (method.IsInvokable()) {
           const DexFile* method_dex_file = method.GetDexFile();
@@ -641,18 +632,21 @@ void ProfileSaver::GetClassesAndMethodsHelper::UpdateProfile(const std::set<std:
         if (ShouldCollectClasses(startup)) {
           profile_info->AddClass(profile_index, class_record.type_index);
         }
-        const size_t num_declared_methods = class_record.copied_methods_start;
         LengthPrefixedArray<ArtMethod>* methods = class_record.methods;
-        for (size_t index = 0; index != num_declared_methods; ++index) {
-          // Note: Using `ArtMethod` array with implicit `kRuntimePointerSize`.
-          ArtMethod& method = methods->At(index);
-          DCHECK(!method.IsCopied());
-          // We do not record native methods. Once we AOT-compile the app,
-          // all native methods shall have their JNI stubs compiled.
-          if (method.IsInvokable() && !method.IsNative()) {
-            ProfileCompilationInfo::MethodHotness::Flag flags = get_method_flags(method);
-            if (flags != 0u) {
-              profile_info->AddMethod(profile_index, method.GetDexMethodIndex(), flags);
+        if (methods != nullptr) {
+          for (size_t index = 0, size = methods->size(); index != size; ++index) {
+            // Note: Using `ArtMethod` array with implicit `kRuntimePointerSize`.
+            ArtMethod& method = methods->At(index);
+            if (method.IsCopied()) {
+              break;
+            }
+            // We do not record native methods. Once we AOT-compile the app,
+            // all native methods shall have their JNI stubs compiled.
+            if (method.IsInvokable() && !method.IsNative()) {
+              ProfileCompilationInfo::MethodHotness::Flag flags = get_method_flags(method);
+              if (flags != 0u) {
+                profile_info->AddMethod(profile_index, method.GetDexMethodIndex(), flags);
+              }
             }
           }
         }

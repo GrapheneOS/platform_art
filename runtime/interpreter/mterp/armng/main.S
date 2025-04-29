@@ -1950,6 +1950,7 @@ END nterp_f2l_doconv
 
 // Entrypoints into runtime.
 NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
+NTERP_TRAMPOLINE nterp_get_instance_field_offset, NterpGetInstanceFieldOffset
 NTERP_TRAMPOLINE nterp_filled_new_array, NterpFilledNewArray
 NTERP_TRAMPOLINE nterp_filled_new_array_range, NterpFilledNewArrayRange
 NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
@@ -1957,20 +1958,6 @@ NTERP_TRAMPOLINE nterp_allocate_object, NterpAllocateObject
 NTERP_TRAMPOLINE nterp_get_method, NterpGetMethod
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 NTERP_TRAMPOLINE nterp_load_object, NterpLoadObject
-
-ENTRY nterp_get_instance_field_offset
-  SETUP_SAVE_REFS_ONLY_FRAME ip
-  INCREASE_FRAME 8
-  str rFP, [sp]
-  bl NterpGetInstanceFieldOffset
-  DECREASE_FRAME 8
-  RESTORE_SAVE_REFS_ONLY_FRAME
-  REFRESH_MARKING_REGISTER
-  ldr ip, [rSELF, #THREAD_EXCEPTION_OFFSET]  @ Get exception field.
-  cmp ip, #0
-  bne nterp_deliver_pending_exception
-  bx lr
-END nterp_get_instance_field_offset
 
 ENTRY nterp_deliver_pending_exception
     DELIVER_PENDING_EXCEPTION

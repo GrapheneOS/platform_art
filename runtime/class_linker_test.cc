@@ -588,7 +588,6 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, class_size_), "classSize");
     addOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_), "clinitThreadId");
     addOffset(OFFSETOF_MEMBER(mirror::Class, component_type_), "componentType");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, copied_methods_offset_), "copiedMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_), "dexCache");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_), "dexClassDefIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_), "dexTypeIndex");
@@ -609,7 +608,6 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
               "referenceInstanceOffsets");
     addOffset(OFFSETOF_MEMBER(mirror::Class, status_), "status");
     addOffset(OFFSETOF_MEMBER(mirror::Class, super_class_), "superClass");
-    addOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_offset_), "virtualMethodsOffset");
     addOffset(OFFSETOF_MEMBER(mirror::Class, vtable_), "vtable");
   }
 };

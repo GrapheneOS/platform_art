@@ -52,7 +52,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field.h"
+#include "mirror/field-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-alloc-inl.h"
@@ -1582,6 +1582,11 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
     ArtField* f = jni::DecodeArtField<kEnableIndexIds>(fid);
+    ObjPtr<mirror::Field> reflect_field =
+        mirror::Field::CreateFromArtField(soa.Self(), f, /*force_resolve=*/ true);
+    if (reflect_field->IsMonotonic()) {
+      LOG(FATAL) << "Can't overwrite value of " << f->PrettyField();
+    }
     NotifySetObjectField(f, nullptr, java_value);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     f->SetObject<false>(f->GetDeclaringClass(), v);
@@ -1616,6 +1621,11 @@ class JNI {
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
   ArtField* f = jni::DecodeArtField<kEnableIndexIds>(fid); \
+  ObjPtr<mirror::Field> reflect_field = \
+    mirror::Field::CreateFromArtField(soa.Self(), f, /*force_resolve=*/ true); \
+  if (reflect_field->IsMonotonic()) { \
+    LOG(FATAL) << "Can't overwrite value of " << f->PrettyField(); \
+  } \
   NotifySetPrimitiveField(f, nullptr, JValue::FromPrimitive<decltype(value)>(value)); \
   f->Set ##fn <false>(f->GetDeclaringClass(), value)
 

@@ -399,7 +399,7 @@ static bool CanAccessFastInternal(ArtField* field, ArtMethod* caller)
     return true;
   }
   return field->IsPublic() &&
-      field->GetDeclaringClass()->IsPublic() &&
+      field->GetDeclaringClass<kWithoutReadBarrier>()->IsPublic() &&
       !(kIsPut && field->IsFinal());
 }
 
@@ -575,11 +575,42 @@ extern "C" size_t NterpGetLocalStaticFieldForSPutObject(mirror::Class* cls,
   return NterpGetLocalStaticFieldInternal(cls, dex_pc_ptr);
 }
 
+// For faster execution, `cls` can be a from-space reference which is OK, as
+// we're only using native fields from that object.
+ALWAYS_INLINE FLATTEN
+static size_t NterpGetLocalInstanceFieldInternal(mirror::Class* cls, const uint16_t* dex_pc_ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension sants("In nterp");
+  const Instruction* inst = Instruction::At(dex_pc_ptr);
+  uint16_t field_index = inst->VRegC_22c();
+  ArtField* resolved_field = cls->FindDeclaredField</*kOnlyLookAtIndex=*/true>(field_index);
+  if (resolved_field != nullptr && !resolved_field->IsStatic() && !resolved_field->IsVolatile()) {
+    return resolved_field->GetOffset().Uint32Value();
+  }
+
+  return -1;
+}
+
+FLATTEN
+extern "C" size_t NterpGetLocalInstanceField(mirror::Class* cls, const uint16_t* dex_pc_ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return NterpGetLocalInstanceFieldInternal(cls, dex_pc_ptr);
+}
+
+FLATTEN
+extern "C" size_t NterpGetLocalInstanceFieldForIPutObject(mirror::Class* cls,
+                                                          const uint16_t* dex_pc_ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (cls->HasTypeChecksFailure()) {
+    return -1;
+  }
+  return NterpGetLocalInstanceFieldInternal(cls, dex_pc_ptr);
+}
+
 LIBART_PROTECTED
 extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
                                                 ArtMethod* caller,
                                                 const uint16_t* dex_pc_ptr,
-                                                size_t resolve_field_type,  // Resolve if not zero
                                                 uint32_t* registers)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
@@ -607,7 +638,7 @@ extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
       caller->GetDeclaringClass()->HasTypeChecksFailure() &&
       resolved_field->ResolveType() == nullptr) {
     DCHECK(self->IsExceptionPending());
-    if (resolve_field_type != 0u) {
+    if (registers[inst->VRegA_22c()] != 0u) {
       return 0;
     }
     self->ClearException();

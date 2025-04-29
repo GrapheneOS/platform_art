@@ -427,12 +427,12 @@ all operations sequentially consistent. There does not appear to be an easy way
 to limit this overhead to just empty checkpoint execution. Thus it appears to be
 better to forego this "optimization".
 
-[^1]: In the most recent versions of ART, compiler-generated code loads through
-    the address at `tlsPtr_.suspend_trigger`. A thread suspension is requested
-    by setting this to null, triggering a `SIGSEGV`, causing that thread to
-    check for GC cooperation requests. The older mechanism instead sets an
-    appropriate `ThreadFlag` entry to request suspension or a checkpoint. Note
-    that the actual checkpoint function value is set, along with the flag, while
-    holding `suspend_count_lock_`. If the target thread notices that a
-    checkpoint is requested, it then acquires the `suspend_count_lock_` to read
-    the checkpoint function.
+[^1]: In the most recent versions of ART on arm64, compiler-generated code loads
+    through the address at `tlsPtr_.suspend_trigger`. A thread suspension is
+    requested by setting this to null, triggering a `SIGSEGV`, causing that
+    thread to check for GC cooperation requests. The older mechanism instead
+    sets an appropriate `ThreadFlag` entry to request suspension or a
+    checkpoint. Note that the actual checkpoint function value is set, along
+    with the flag, while holding `suspend_count_lock_`. If the target thread
+    notices that a checkpoint is requested, it then acquires the
+    `suspend_count_lock_` to read the checkpoint function.

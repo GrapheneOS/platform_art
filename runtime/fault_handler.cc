@@ -268,6 +268,17 @@ bool FaultManager::HandleSigsysFault(int sig, siginfo_t* info, void* context) {
   return false;
 }
 
+static inline void MaybeSuspendFaster([[maybe_unused]] FaultManager* fm,
+                                      [[maybe_unused]] siginfo_t* info,
+                                      [[maybe_unused]] void* context) {
+#ifdef __aarch64__
+  Thread* self = Thread::Current();
+  if (self != nullptr && self->IsSuspendTriggerSet()) {
+    fm->SuspendFaster(info, context);
+  }
+#endif
+}
+
 bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, [[maybe_unused]] void* context) {
   DCHECK_EQ(sig, SIGBUS);
   if (VLOG_IS_ON(signals)) {
@@ -279,9 +290,9 @@ bool FaultManager::HandleSigbusFault(int sig, siginfo_t* info, [[maybe_unused]] 
   raise(SIGBUS);
 #endif
   if (mark_compact_->SigbusHandler(info)) {
+    MaybeSuspendFaster(this, info, context);
     return true;
   }
-
   // Set a breakpoint in this function to catch unhandled signals.
   art_sigbus_fault();
   return false;

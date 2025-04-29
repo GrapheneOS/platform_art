@@ -342,10 +342,22 @@ ALWAYS_INLINE inline static void SetFieldValue(ObjPtr<mirror::Object> o,
 
 ALWAYS_INLINE inline static bool ThrowIAEIfFieldIsNotOverwritable(ObjPtr<mirror::Field> field)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!field->IsMonotonic()) {
+  // Write-protected fields can be modified via System.setIn/setOut/setErr methods only.
+  // However, before Android C, reflection and JNI APIs were allowed to modify them.
+  if (field->IsWriteProtected()) {
+    // See Field::IsMonotonic.
+    uint32_t target_sdk_version = Runtime::Current()->GetTargetSdkVersion();
+    if (IsSdkVersionSetAndAtMost(target_sdk_version, SdkVersion::kB)) {
+      return false;
+    }
+
+    uint32_t sdk_version = Runtime::Current()->GetSdkVersion();
+    if (IsSdkVersionSetAndAtMost(sdk_version, SdkVersion::kB)) {
+      return false;
+    }
+  } else if (!field->IsMonotonic()) {
     return false;
   }
-
   ThrowIllegalAccessException(
           StringPrintf("Cannot set %s field %s of class %s",
               PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),

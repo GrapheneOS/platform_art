@@ -195,10 +195,22 @@
    .endif
 
 %def op_iget_slow_path(load, wide, is_object):
+   ldr     r0, [sp]
+   ldr     r1, [r0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tst     r1, #ART_METHOD_IS_OBSOLETE_FLAG
+   bne     .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalStaticFieldInternal`.
+   ldr     r0, [r0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     r1, rPC
+   bl      NterpGetLocalInstanceField
+   cmp     r0, #0
+   bge     .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     r0, rSELF
    ldr     r1, [sp]
    mov     r2, rPC
-   mov     r3, #0
+   mov     r3, rFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    cmp     r0, #0
@@ -278,14 +290,26 @@
    GOTO_OPCODE ip
 
 %def op_iput_slow_path(store, wide, is_object):
+   ldr     r0, [sp]
+   ldr     r1, [r0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tst     r1, #ART_METHOD_IS_OBSOLETE_FLAG
+   bne     .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalStaticFieldInternal`.
+   ldr     r0, [r0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     r1, rPC
+   .if $is_object
+   bl      NterpGetLocalInstanceFieldForIPutObject
+   .else
+   bl      NterpGetLocalInstanceField
+   .endif
+   cmp     r0, #0
+   bge     .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     r0, rSELF
    ldr     r1, [sp]
    mov     r2, rPC
-   .if $is_object
-   mov     r3, r4
-   .else
-   mov     r3, #0
-   .endif
+   mov     r3, rFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    .if $is_object

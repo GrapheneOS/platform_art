@@ -84,6 +84,14 @@ class FaultManager {
   // Called in the context of a signal handler.
   bool IsInGeneratedCode(siginfo_t* siginfo, void *context) NO_THREAD_SAFETY_ANALYSIS;
 
+#ifdef __aarch64__
+  // Update context to cause pending thread suspension request to be recognized
+  // more quickly upon return from signal handler, if that is possible.
+  void SuspendFaster(siginfo_t* info, void* context);
+#else
+  void SuspendFaster(siginfo_t*, void*) {}
+#endif
+
  private:
   struct GeneratedCodeRange {
     std::atomic<GeneratedCodeRange*> next;

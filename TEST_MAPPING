@@ -5955,10 +5955,5 @@
     {
       "name": "libnativeloader_test"
     }
-  ],
-  "avf-presubmit": [
-    {
-      "name": "ComposHostTestCases"
-    }
   ]
 }

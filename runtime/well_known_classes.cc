@@ -142,6 +142,9 @@ ArtField* WellKnownClasses::java_lang_ref_Reference_disableIntrinsic;
 ArtField* WellKnownClasses::java_lang_ref_Reference_slowPathEnabled;
 ArtField* WellKnownClasses::java_lang_ClassLoader_parent;
 ArtField* WellKnownClasses::java_lang_Object_shadowKlass;
+ArtField* WellKnownClasses::java_lang_System_in;
+ArtField* WellKnownClasses::java_lang_System_out;
+ArtField* WellKnownClasses::java_lang_System_err;
 ArtField* WellKnownClasses::java_lang_String_EMPTY;
 ArtField* WellKnownClasses::java_lang_Thread_parkBlocker;
 ArtField* WellKnownClasses::java_lang_Thread_daemon;
@@ -854,7 +857,15 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       j_l_cl.Get(), /*is_static=*/ false, "parent", "Ljava/lang/ClassLoader;");
 
   java_lang_String_EMPTY =
-      CacheField(j_l_String, /*is_static=*/true, "EMPTY", "Ljava/lang/String;");
+      CacheField(j_l_String, /*is_static=*/ true, "EMPTY", "Ljava/lang/String;");
+
+  java_lang_System_in =
+      CacheField(ToClass(java_lang_System), /*is_static=*/ true, "in", "Ljava/io/InputStream;");
+  java_lang_System_out =
+      CacheField(ToClass(java_lang_System), /*is_static=*/ true, "out", "Ljava/io/PrintStream;");
+  java_lang_System_err =
+      CacheField(ToClass(java_lang_System), /*is_static=*/ true, "err", "Ljava/io/PrintStream;");
+
   java_lang_Thread_parkBlocker =
       CacheField(j_l_Thread.Get(), /*is_static=*/ false, "parkBlocker", "Ljava/lang/Object;");
   java_lang_Thread_daemon = CacheField(j_l_Thread.Get(), /*is_static=*/ false, "daemon", "Z");
@@ -1057,6 +1068,9 @@ void WellKnownClasses::Clear() {
   java_lang_ClassLoader_parent = nullptr;
   java_lang_Object_shadowKlass = nullptr;
   java_lang_String_EMPTY = nullptr;
+  java_lang_System_in = nullptr;
+  java_lang_System_out = nullptr;
+  java_lang_System_err = nullptr;
   java_lang_Thread_parkBlocker = nullptr;
   java_lang_Thread_daemon = nullptr;
   java_lang_Thread_group = nullptr;

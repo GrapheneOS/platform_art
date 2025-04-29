@@ -189,11 +189,20 @@
    .endif
 
 %def op_iget_slow_path(volatile_load, maybe_extend, wide, is_object):
+   ldr     x0, [sp]
+   ldr     w1, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tbnz    w1, #ART_METHOD_IS_OBSOLETE_FLAG_BIT, .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalInstanceFieldInternal`.
+   ldr     w0, [x0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     x1, xPC
+   bl      NterpGetLocalInstanceField
+   tbz     w0, #31, .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
-   mov     x3, #0
-   mov     x4, xFP
+   mov     x3, xFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    // Zero extension (nterp_get_instance_field_offset returns uint32_t) of the return value is
@@ -268,15 +277,24 @@
    GOTO_OPCODE ip
 
 %def op_iput_slow_path(volatile_store, wide, is_object):
+   ldr     x0, [sp]
+   ldr     w1, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+   tbnz    w1, #ART_METHOD_IS_OBSOLETE_FLAG_BIT, .L${opcode}_slow_path_continue
+   // We don't do a read barrier for faster execution.
+   // See comment in `NterpGetLocalInstanceFieldInternal`.
+   ldr     w0, [x0, ART_METHOD_DECLARING_CLASS_OFFSET]
+   mov     x1, xPC
+   .if $is_object
+   bl      NterpGetLocalInstanceFieldForIPutObject
+   .else
+   bl      NterpGetLocalInstanceField
+   .endif
+   tbz     w0, #31, .L${opcode}_resume
+.L${opcode}_slow_path_continue:
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
-   .if $is_object
-   mov     x3, x26
-   .else
-   mov     x3, #0
-   .endif
-   mov     x4, xFP
+   mov     x3, xFP
    EXPORT_PC
    bl      nterp_get_instance_field_offset
    // Zero extension (nterp_get_instance_field_offset returns uint32_t) of the return value is

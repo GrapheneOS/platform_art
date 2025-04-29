@@ -3797,10 +3797,10 @@ void Thread::DumpFromGdb() const {
   std::string str(ss.str());
   // log to stderr for debugging command line processes
   std::cerr << str;
-#ifdef ART_TARGET_ANDROID
-  // log to logcat for debugging frameworks processes
-  LOG(INFO) << str;
-#endif
+  if (kIsTargetAndroid) {
+    // log to logcat for debugging frameworks processes
+    LOG(INFO) << str;
+  }
 }
 
 // Explicitly instantiate 32 and 64bit thread offset dumping support.
@@ -4922,8 +4922,13 @@ static bool canSetPriority = true;
 // that in Zygote, and making it desirable (for risk minimization, at least) to actually call it
 // when expected.
 inline bool NeedSWorkaround() {
-  static bool needed = (android::base::GetIntProperty("ro.build.version.sdk", 0) <= 32);
-  return needed;
+  if (kIsTargetAndroid) {
+    static bool needed = (android::base::GetIntProperty("ro.build.version.sdk", 0) <= 32);
+    return needed;
+  } else {
+    // Priority setting is often restricted on host. Just fake it, as for S.
+    return true;
+  }
 }
 
 // Return an int array result, so that result[i] is the native priority, really
@@ -4940,26 +4945,43 @@ int* Thread::GetPriorityMap() {
   // Java behavior should be consistent. This is similar to what happens when framework code
   // alters thread priorities externally, so we should be OK.
   static int traditional_priority_map[] = {0 /*unused*/, 19, 16, 13, 10, 0, -2, -4, -5, -6, -8};
+  const char* failure_msg = nullptr;
 
   if (NeedSWorkaround()) {
+    static bool warned = false;
+    if (!warned) {
+      LOG(WARNING) << "Using default priority map due to SDK version";
+      warned = true;
+    }
     return traditional_priority_map;
   }
-  std::call_once(priorityMapInitialized, [&pm = priorityMap]() {
-    pm[0] = 0;
+  std::call_once(priorityMapInitialized, [&pm = priorityMap, &failure_msg]() {
+  // CHECKs in this function should be avoided. Dump calls will invoke this recursively.
+#define CHECK_DEFERRED_ABORT(pred, msg) \
+  if (!(pred)) {                        \
+    failure_msg = (msg);                \
+    return;                             \
+  }
+    pm[0] = 5;  // Unused after initialization, but causes us to use a reasonable map if
+                // PaletteSchedSetPriority always fails.
+    bool need_fake = false;  // Saw an anomaly requiring us to fake the map?
 #ifdef PALETTE_ADDED_MAP_PRIORITY
     // TODO(b/389104950): Reenable this and remove #else once aosp/3355710 and aosp/3312350
     // are submitted.
     bool success = true;
+    bool saw_nonzero = true;  // Do we map to nonzero values?
+                              // PaletteMapPriority always yields nontrivial mapping.
     for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
       palette_status_t result = PaletteMapPriority(p, &pm[p]);
       if (result == PALETTE_STATUS_NOT_SUPPORTED) {
         success = false;
         break;
       }
-      CHECK(result == PALETTE_STATUS_OK);
+      CHECK_DEFERRED_ABORT(result == PALETTE_STATUS_OK, "Bad PALLETTE_STATUS");
     }
 #else
     constexpr bool success = false;
+    bool saw_nonzero;  // Initialized below.
 #endif
     if (!success) {
       // Discover the map the hard way.
@@ -4967,41 +4989,54 @@ int* Thread::GetPriorityMap() {
       bool map_consistent;
       errno = 0;
       int orig_niceness = getpriority(PRIO_PROCESS, 0 /* self */);
-      CHECK(orig_niceness != -1 || errno == 0);
+      CHECK_DEFERRED_ABORT(orig_niceness != -1 || errno == 0, "getpriority() failed");
       constexpr int kMaxIters = 10;
       int iters = 0;
       do {
         map_consistent = true;
         ++iters;
-        CHECK(iters <= kMaxIters);
+        saw_nonzero = false;
+        CHECK_DEFERRED_ABORT(iters <= kMaxIters, "iters > kMaxIters");
         for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
           int ret = PaletteSchedSetPriority(me, p);
           if (ret == PALETTE_STATUS_OK) {
             errno = 0;
             pm[p] = getpriority(PRIO_PROCESS, 0 /* self */);
-            CHECK(pm[p] != -1 || errno == 0);
-            LOG(INFO) << "Niceness[" << p << "] = " << pm[p];
-#ifdef ART_TARGET_ANDROID
-            // The map should be strictly monotonically decreasing.
-            if (p > kMinThreadPriority && pm[p] >= pm[p - 1]) {
-              // Maybe somebody else mucked with our priority? Start over.
-              map_consistent = false;
-              break;
+            // If we always get zeroes, we're dealing with a fake, and need to fake a consistent
+            // result here. We assume that pm[kMinThreadPriority] is never zero unless we're
+            // dealing with a fake. That would imply the lowest priority background threads run at
+            // normal niceness.
+            if (!saw_nonzero && pm[p] != 0) {
+              if (p == kMinThreadPriority) {
+                saw_nonzero = true;
+              } else {
+                // pm[kMinThreadPriority] was zero, which is assumed to be wrong.
+                // Force a complete pass with checking.
+                map_consistent = false;
+                break;
+              }
             }
-#endif
+            CHECK_DEFERRED_ABORT(pm[p] != -1 || errno == 0, "2nd getpriority() failed");
+            LOG(INFO) << "Niceness[" << p << "] = " << pm[p];
+            if (saw_nonzero) {
+              // With a non-fake PaletteSchedSetPriority the map should be strictly monotonically
+              // decreasing.
+              if (p > kMinThreadPriority && pm[p] >= pm[p - 1]) {
+                // Maybe somebody else mucked with our priority? Start over.
+                map_consistent = false;
+                break;
+              }
+            }
           } else {
-            canSetPriority = false;
-            LOG(WARNING) << "Cannot set priority to " << p;
-            // Fake the map with something plausible.
-            pm[p] = pm[p - 1] - 1;
+            need_fake = true;
+            break;
           }
         }
-      } while (!map_consistent);
+      } while (!map_consistent && !need_fake);
       int ret = setpriority(PRIO_PROCESS, static_cast<id_t>(me), orig_niceness);
-      CHECK_EQ(ret, 0);
+      CHECK_DEFERRED_ABORT(ret == 0, "setpriority() failed");
     }
-#ifndef ART_TARGET_ANDROID
-    if (pm[kMinThreadPriority] == 0 && pm[kMaxThreadPriority] == 0) {
+    if (!saw_nonzero || need_fake) {
       // Palette calls don't impact getpriority(), as with the traditional
       // PaletteSetSchedPriority fake on host.
       canSetPriority = false;
@@ -5012,7 +5047,6 @@ int* Thread::GetPriorityMap() {
         pm[p] = 5 - p;
       }
     }
-#endif
     std::ostringstream priority_map_string;
     for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
       if (p != kMinThreadPriority) {
@@ -5021,7 +5055,15 @@ int* Thread::GetPriorityMap() {
       priority_map_string << priorityMap[p];
     }
     LOG(INFO) << "Priority-to-niceness mapping: " << priority_map_string.str();
+#undef CHECK_DEFERRED_ABORT
   });
+  if (failure_msg != nullptr) {
+    // Calls to GetPriorityMap() during dumping must return plausible values.
+    for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
+      priorityMap[p] = 5 - p;
+    }
+    LOG(FATAL) << failure_msg;
+  }
   return priorityMap;
 }
 

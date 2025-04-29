@@ -5026,12 +5026,6 @@ ObjPtr<mirror::Class> ClassLinker::InsertClass(std::string_view descriptor,
     class_table->InsertWithHash(klass, hash);
     WriteBarrierOnClassLoaderLocked(class_loader, klass);
   }
-  if (kIsDebugBuild) {
-    // Test that copied methods correctly can find their holder.
-    for (ArtMethod& method : klass->GetCopiedMethods(image_pointer_size_)) {
-      CHECK_EQ(GetHoldingClassOfCopiedMethod(&method), klass);
-    }
-  }
   return nullptr;
 }
 

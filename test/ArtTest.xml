@@ -14,14 +14,12 @@
      limitations under the License.
 -->
 <configuration description="ART generic test runner">
-    <option name="test-suite-tag" value="ArtTest" />
+    <option name="test-suite-tag" value="art-test" />
 
     <target_preparer class="com.android.tradefed.targetprep.InstallApexModuleTargetPreparer" >
         <option name="test-file-name" value="com.android.art.testing.apex" />
     </target_preparer>
 
-    <!--
     <test class="com.android.tradefed.testtype.ArtTest">
     </test>
-    -->
 </configuration>
