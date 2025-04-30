@@ -106,7 +106,9 @@ art_cc_binary {
             // avoids having to bundle host dynamic libs in prebuilts.
             static_libs: ["libprofman_static"],
             stl: "c++_static",
-
+            // libz is a libprofman_static transitive dependency from art_libz_static_defaults,
+            // duplicated here because we cannot import *_static_defaults only for host.
+            shared_libs: ["libz"],
         },
     },
     apex_available: [
@@ -131,11 +133,10 @@ art_cc_binary {
             ],
         },
         host: {
-            // Make the host binary static, except for system libraries. This
-            // avoids having to bundle host dynamic libs in prebuilts.
+            // Comments for host in the profman binary apply here too.
             static_libs: ["libprofmand_static"],
             stl: "c++_static",
-
+            shared_libs: ["libz"],
         },
     },
     apex_available: [

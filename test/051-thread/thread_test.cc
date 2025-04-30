@@ -16,7 +16,13 @@
 
 #include "base/macros.h"
 #include "jni.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
+
+#include <errno.h>
+#include <sstream>
+#include <string.h>
+#include <sys/resource.h>
 
 namespace art {
 
@@ -32,6 +38,50 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportsThreadPriorities(
 #else
   return JNI_FALSE;
 #endif
+}
+
+// Returns a description of Java to Posix priority mapping, and information about how we obtained
+// it. Used only for test failure reporting, and hence a bit sloppy in terms of error checks.
+extern "C" JNIEXPORT jstring JNICALL Java_Main_getPriorityInfo(JNIEnv* env,
+                                                               [[maybe_unused]] jclass clazz) {
+  std::ostringstream result;
+
+  result << "Java priorities mapping: ";
+  for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
+    if (p != kMinThreadPriority) {
+      result << ", ";
+    }
+    result << p << ": " << Thread::PriorityToNiceness(p);
+  }
+  result << ";\nSetpriority effects: ";
+  int32_t me = static_cast<int32_t>(::art::GetTid());
+  int my_niceness = getpriority(PRIO_PROCESS, 0 /* self */);
+  for (int p = -19; p <= 20; p += 3) {
+    if (p != -19) {
+      result << ", ";
+    }
+    int ret = setpriority(PRIO_PROCESS, 0 /* self */, p);
+    result << p << ": ";
+    if (ret == 0) {
+      result << getpriority(PRIO_PROCESS, 0 /* self */);
+    } else {
+      result << "failed:" << strerror(errno);
+    }
+  }
+  // Test whether SetNativePriority has any impact. If not, that suggests that either setpriority
+  // doesn't work in this range, or we've decided that setpriority cannot be relied upon for other
+  // reasons. See `canSetPriority` in thread.cc.
+  {
+    ScopedObjectAccess soa(env);
+    Thread::Current()->SetNativePriority(6);
+  }
+  if (getpriority(PRIO_PROCESS, 0 /* self */) != Thread::PriorityToNiceness(6)) {
+    result << ";\nPriority setting not working";
+  }
+  result << ";\nSDK version is " << android::base::GetIntProperty("ro.build.version.sdk", 0);
+  // Restore priority to something plausible, if possible.
+  setpriority(PRIO_PROCESS, 0 /* self */, my_niceness);
+  return env->NewStringUTF(result.str().c_str());
 }
 
 }  // namespace art

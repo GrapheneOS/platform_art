@@ -124,10 +124,12 @@ cc_defaults {
 
 cc_defaults {
     name: "libdexfile_static_base_defaults",
+    defaults: [
+        "art_liblog_static_defaults",
+        "art_libz_static_defaults",
+    ],
     whole_static_libs: [
         "libbase",
-        "liblog",
-        "libz",
         "libziparchive",
     ],
 }
@@ -554,8 +556,8 @@ cc_library_static {
         "//system/extras/simpleperf",
     ],
     // Using libdexfile_support_static_defaults will link in external libs like
-    // libbase and libz statically as well, which are likely to cause duplicate
-    // copies in the depending module.
+    // libbase statically as well, which are likely to cause duplicate copies in
+    // the depending module.
     // TODO(b/169885605): Avoid exposing symbols from those libs.
     defaults: [
         "art_defaults",
@@ -568,7 +570,21 @@ cc_defaults {
     defaults_visibility: [
         "//system/extras/simpleperf",
     ],
-    // Transitive deps to be added in a later CL.
+    // Take the relevant bits from art_liblog_static_defaults and
+    // art_libz_static_defaults.
+    target: {
+        android: {
+            shared_libs: [
+                "liblog",
+                "libz",
+            ],
+        },
+        not_windows: {
+            shared_libs: [
+                "libz",
+            ],
+        },
+    },
 }
 
 art_cc_test {

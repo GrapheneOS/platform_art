@@ -656,25 +656,25 @@ cc_defaults {
 // where all non-NDK dependencies are static as well.
 cc_defaults {
     name: "art_libunwindstack_static_defaults",
+    defaults: [
+        "art_liblog_static_defaults",
+    ],
     whole_static_libs: [
         "libunwindstack",
         "libbase",
         "liblzma",
-    ],
-    shared_libs: [
-        "liblog",
     ],
 }
 
 cc_defaults {
     name: "libart_static_base_defaults",
     defaults: [
+        "art_liblog_static_defaults",
         "art_libunwindstack_static_defaults",
     ],
     whole_static_libs: [
         "libartpalette",
         "libbase",
-        "liblog",
         "liblz4",
         "liblzma", // libelffile dependency; must be repeated here since it's a static lib.
         "libnativebridge",
@@ -745,8 +745,7 @@ cc_defaults {
 }
 
 // libart-runtime_static_defaults for standalone gtests.
-// Doesn't link libsigchain_fake/libnativeloader (see art_gtest_common_defaults
-// in test/Android.bp for explanation).
+// Doesn't link libsigchain_fake because tests get libsigchain from art_gtest_common_defaults.
 // Uses libart-runtime-for-test instead of libart-runtime.
 cc_defaults {
     name: "libart-runtime-for-test_static_defaults",
@@ -763,9 +762,17 @@ cc_defaults {
     ],
 }
 
+// libart_static_defaults for standalone gtests.
+cc_defaults {
+    name: "libart-for-test_static_defaults",
+    defaults: [
+        "libart-runtime-for-test_static_defaults",
+        "libart-compiler-for-test_static_defaults",
+    ],
+}
+
 // libartd-runtime_static_defaults for gtests.
-// Doesn't link libsigchain_fake/libnativeloader (see art_gtest_common_defaults
-// in test/Android.bp for explanation).
+// Doesn't link libsigchain_fake because tests get libsigchain from art_gtest_common_defaults.
 // Note that `libartd-runtime-for-test` is not required here, because `libartd-runtime`
 // doesn't use LTO.
 cc_defaults {
@@ -780,6 +787,17 @@ cc_defaults {
     whole_static_libs: [
         "libartd-runtime",
         "libelffiled",
+    ],
+}
+
+// libartd_static_defaults for gtests.
+cc_defaults {
+    name: "libartd-for-test_static_defaults",
+    defaults: [
+        "libartd-runtime-for-test_static_defaults",
+        // Note that something like `libartd-compiler-for-test_static_defaults`
+        // is not required here, because `libartd-compiler` doesn't use LTO.
+        "libartd-compiler_static_defaults",
     ],
 }
 
@@ -952,8 +970,9 @@ art_cc_library {
     ],
 }
 
-art_cc_defaults {
+cc_defaults {
     name: "libart-runtime-gtest-defaults",
+    defaults: ["libart-gtest-defaults"],
     target: {
         host: {
             cflags: [
@@ -969,30 +988,58 @@ art_cc_defaults {
         "common_runtime_test.cc",
         "dexopt_test.cc",
     ],
-    static_libs: [
+    shared_libs: [ // Since we're building static libs we're only using the headers from these.
+        "libdexfile",
         "libprocinfo",
+        "libprofile",
+        "libziparchive",
     ],
     header_libs: [
+        "libart_headers",
         "libnativehelper_header_only",
     ],
 }
 
-art_cc_library_static {
+cc_library_static {
     name: "libart-runtime-gtest",
     defaults: [
         "libart-runtime-gtest-defaults",
-        "libart-gtest-defaults",
-        "libart-runtime-for-test_static_defaults",
     ],
 }
 
-art_cc_library_static {
+cc_defaults {
+    name: "libart-runtime-gtest_static_defaults",
+    defaults: [
+        "libart-runtime-for-test_static_defaults",
+        "libdexfile_static_defaults",
+        "libprofile_static_defaults",
+    ],
+    whole_static_libs: [
+        "libart-runtime-gtest",
+        "libprocinfo",
+        "libziparchive",
+    ],
+}
+
+cc_library_static {
     name: "libartd-runtime-gtest",
     defaults: [
         "art_debug_defaults",
         "libart-runtime-gtest-defaults",
-        "libart-gtest-defaults",
+    ],
+}
+
+cc_defaults {
+    name: "libartd-runtime-gtest_static_defaults",
+    defaults: [
         "libartd-runtime-for-test_static_defaults",
+        "libdexfiled_static_defaults",
+        "libprofiled_static_defaults",
+    ],
+    whole_static_libs: [
+        "libartd-runtime-gtest",
+        "libprocinfo",
+        "libziparchive",
     ],
 }
 

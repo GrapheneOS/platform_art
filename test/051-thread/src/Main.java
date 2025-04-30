@@ -151,14 +151,15 @@ public class Main {
         if (supportsThreadPriorities() && (t1.getNativePriority() != Thread.MAX_PRIORITY)) {
             System.out.print("thread priority for t1 was " + t1.getNativePriority() +
                 " [expected Thread.MAX_PRIORITY]\n");
+            System.out.println(getPriorityInfo());
         }
-
         PriorityStoringThread t2 = new PriorityStoringThread(true);
         t2.start();
         t2.join();
         if (supportsThreadPriorities() && (t2.getNativePriority() != Thread.MAX_PRIORITY)) {
             System.out.print("thread priority for t2 was " + t2.getNativePriority() +
                 " [expected Thread.MAX_PRIORITY]\n");
+            System.out.println(getPriorityInfo());
         }
 
         System.out.print("testThreadPriorities finished\n");
@@ -209,6 +210,7 @@ public class Main {
 
     private static native int getNativePriority();
     private static native boolean supportsThreadPriorities();
+    private static native String getPriorityInfo();
 
     static class PriorityStoringThread extends Thread {
         private final boolean setPriority;

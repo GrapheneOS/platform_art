@@ -188,9 +188,6 @@ struct EXPORT WellKnownClasses {
   static ArtField* java_lang_ClassLoader_parent;
   static ArtField* java_lang_Object_shadowKlass;
   static ArtField* java_lang_String_EMPTY;
-  static ArtField* java_lang_System_in;
-  static ArtField* java_lang_System_out;
-  static ArtField* java_lang_System_err;
   static ArtField* java_lang_Thread_parkBlocker;
   static ArtField* java_lang_Thread_daemon;
   static ArtField* java_lang_Thread_group;

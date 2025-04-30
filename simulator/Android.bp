@@ -49,6 +49,53 @@ cc_defaults {
     header_libs: ["libart_simulator_headers"],
 }
 
+cc_defaults {
+    name: "libart_simulator_static_base_defaults",
+    defaults: [
+        // Ideally this defaults should only be added for host, but Soong
+        // doesn't support that. This is good enough - in the worst case it adds
+        // some unnecessary dependencies.
+        "art_liblog_static_defaults",
+    ],
+    target: {
+        host: {
+            whole_static_libs: [
+                "libbase",
+            ],
+        },
+    },
+}
+
+cc_defaults {
+    name: "libart-simulator-for-test_static_defaults",
+    defaults: [
+        // See comment in libart_simulator_static_base_defaults.
+        "libart-for-test_static_defaults",
+        "libart_simulator_static_base_defaults",
+        "libartbase_static_defaults",
+    ],
+    target: {
+        host: {
+            whole_static_libs: ["libart-simulator"],
+        },
+    },
+}
+
+cc_defaults {
+    name: "libartd-simulator-for-test_static_defaults",
+    defaults: [
+        // See comment in libart_simulator_static_base_defaults.
+        "libartd-for-test_static_defaults",
+        "libart_simulator_static_base_defaults",
+        "libartbased_static_defaults",
+    ],
+    target: {
+        host: {
+            whole_static_libs: ["libartd-simulator"],
+        },
+    },
+}
+
 art_cc_library {
     name: "libart-simulator",
     defaults: ["libart_simulator_defaults"],
@@ -96,6 +143,13 @@ cc_defaults {
 art_cc_library_static {
     name: "libart-simulator-container",
     defaults: ["libart_simulator_container_defaults"],
+    target: {
+        host: {
+            runtime_libs: [
+                "libart-simulator",
+            ],
+        },
+    },
 }
 
 art_cc_library_static {
@@ -104,4 +158,11 @@ art_cc_library_static {
         "art_debug_defaults",
         "libart_simulator_container_defaults",
     ],
+    target: {
+        host: {
+            runtime_libs: [
+                "libartd-simulator",
+            ],
+        },
+    },
 }

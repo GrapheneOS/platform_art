@@ -148,10 +148,17 @@ TEST_F(OatFileTest, DlOpenLoad) {
   if (!error_msg.empty()) {
     // If a valid oat file was returned but there was an error message, then dlopen failed
     // but the backup ART ELF loader successfully loaded the oat file.
-    // The only expected reason for this is a bug in glibc that prevents loading dynamic
-    // shared objects with a read-only dynamic section:
-    // https://sourceware.org/bugzilla/show_bug.cgi?id=28340.
-    ASSERT_TRUE(error_msg == "DlOpen does not support read-only .dynamic section.") << error_msg;
+    // There are a few expected reasons for this:
+    //   - a bug in glibc that prevents loading dynamic shared objects with a read-only dynamic
+    //     section https://sourceware.org/bugzilla/show_bug.cgi?id=28340.
+    //   - glibc >= 2.41 fails to dlopen shared objects that don't have GNU_STACK segment,
+    //     see https://lists.gnu.org/archive/html/info-gnu/2025-01/msg00014.html
+    ASSERT_TRUE(
+        error_msg == "DlOpen does not support read-only .dynamic section." ||
+        error_msg ==
+            "Failed to dlopen '" + oat_location + "': " + oat_location +
+                ": cannot enable executable stack as shared object requires: Invalid argument")
+        << error_msg;
     GTEST_SKIP() << error_msg;
   }
 #else

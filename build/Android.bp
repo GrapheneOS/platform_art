@@ -303,6 +303,40 @@ cc_defaults {
     },
 }
 
+// Add a dependency on liblog suitable for use in *_static_defaults.
+cc_defaults {
+    name: "art_liblog_static_defaults",
+    target: {
+        android: {
+            shared_libs: ["liblog"],
+        },
+        not_windows: {
+            whole_static_libs: ["liblog"],
+        },
+        windows: {
+            whole_static_libs: ["liblog"],
+        },
+    },
+}
+
+// Add a dependency on libz suitable for use in *_static_defaults.
+cc_defaults {
+    name: "art_libz_static_defaults",
+    target: {
+        android: {
+            shared_libs: ["libz"],
+        },
+        // Link libz dynamically on host to avoid odr-violation errors in ASAN
+        // builds, because the LLVM runtime may load libz-host.so dynamically.
+        not_windows: {
+            shared_libs: ["libz"],
+        },
+        windows: {
+            whole_static_libs: ["libz"],
+        },
+    },
+}
+
 // A version of conscrypt only for enabling the "-hostdex" version to test ART on host.
 java_library {
     // We need our own name to not clash with the conscrypt library.

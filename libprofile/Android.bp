@@ -76,9 +76,11 @@ cc_defaults {
 
 cc_defaults {
     name: "libprofile_static_base_defaults",
+    defaults: [
+        "art_libz_static_defaults",
+    ],
     whole_static_libs: [
         "libbase",
-        "libz",
         "libziparchive",
     ],
 }

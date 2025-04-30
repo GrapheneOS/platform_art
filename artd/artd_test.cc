@@ -66,7 +66,7 @@
 #include "gtest/gtest.h"
 #include "oat/oat_file.h"
 #include "path_utils.h"
-#include "profile/profile_compilation_info.cc"
+#include "profile/profile_compilation_info.h"
 #include "profman/profman_result.h"
 #include "testing.h"
 #include "tools/binder_utils.h"

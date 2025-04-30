@@ -22,7 +22,6 @@
 #include "arch/x86/registers_x86.h"
 #include "base/macros.h"
 #include "code_simulator.h"
-#include "code_simulator_container.h"
 #include "common_compiler_test.h"
 #include "graph_checker.h"
 #include "prepare_for_register_allocation.h"
@@ -184,13 +183,13 @@ static bool CanExecuteOnHardware(const CodeGenerator& codegen) {
 }
 
 static bool CanExecuteISA(InstructionSet target_isa) {
-  CodeSimulatorContainer simulator(target_isa);
-  return DoesHardwareSupportISA(target_isa) || simulator.CanSimulate();
+  std::unique_ptr<CodeSimulator> simulator(CreateCodeSimulator(target_isa));
+  return DoesHardwareSupportISA(target_isa) || bool(simulator);
 }
 
 static bool CanExecute(const CodeGenerator& codegen) {
-  CodeSimulatorContainer simulator(codegen.GetInstructionSet());
-  return CanExecuteOnHardware(codegen) || simulator.CanSimulate();
+  std::unique_ptr<CodeSimulator> simulator(CreateCodeSimulator(codegen.GetInstructionSet()));
+  return CanExecuteOnHardware(codegen) || bool(simulator);
 }
 
 template <typename Expected>
@@ -222,9 +221,9 @@ static void VerifyGeneratedCode(const CodeGenerator& codegen,
   ASSERT_TRUE(CanExecute(codegen)) << "Target isa is not executable.";
 
   // Verify on simulator.
-  CodeSimulatorContainer simulator(codegen.GetInstructionSet());
-  if (simulator.CanSimulate()) {
-    Expected result = SimulatorExecute<Expected>(simulator.Get(), f);
+  std::unique_ptr<CodeSimulator> simulator(CreateCodeSimulator(codegen.GetInstructionSet()));
+  if (simulator) {
+    Expected result = SimulatorExecute<Expected>(simulator.get(), f);
     if (has_result) {
       ASSERT_EQ(expected, result);
     }

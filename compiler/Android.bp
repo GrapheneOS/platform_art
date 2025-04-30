@@ -402,35 +402,57 @@ cc_library_headers {
     ],
 }
 
-// Properties common to `libart-compiler-gtest` and `libartd-compiler-gtest`.
-art_cc_defaults {
-    name: "libart-compiler-gtest-common",
+cc_defaults {
+    name: "libart-compiler-gtest-defaults",
+    defaults: ["libart-gtest-defaults"],
     srcs: [
         "common_compiler_test.cc",
     ],
     header_libs: [
         "libart_headers",
+        "libnativehelper_header_only",
+    ],
+    shared_libs: [ // Since we're building static libs we're only using the headers from these.
+        "libdexfile",
     ],
 }
 
-art_cc_library_static {
+cc_library_static {
     name: "libart-compiler-gtest",
     defaults: [
-        "libart-gtest-defaults",
-        "libart-compiler-gtest-common",
-        "libart-compiler-for-test_static_defaults",
+        "libart-compiler-gtest-defaults",
     ],
 }
 
-art_cc_library_static {
+cc_defaults {
+    name: "libart-compiler-gtest_static_defaults",
+    defaults: [
+        "libart-compiler-for-test_static_defaults",
+        "libdexfile_static_defaults",
+    ],
+    whole_static_libs: [
+        "libart-compiler-gtest",
+    ],
+}
+
+cc_library_static {
     name: "libartd-compiler-gtest",
     defaults: [
         "art_debug_defaults",
-        "libart-gtest-defaults",
-        "libart-compiler-gtest-common",
-        // Note that `libartd-compiler-for-test` is not required here, because
-        // `libartd-compiler` doesn't use LTO.
+        "libart-compiler-gtest-defaults",
+    ],
+}
+
+cc_defaults {
+    name: "libartd-compiler-gtest_static_defaults",
+    defaults: [
+        "libdexfiled_static_defaults",
+        // Note that something like `libartd-compiler-for-test_static_defaults`
+        // is not required here, because `libartd-compiler` doesn't use LTO.
         "libartd-compiler_static_defaults",
+    ],
+    whole_static_libs: [
+        "libartd-compiler-gtest",
     ],
 }
 
@@ -537,9 +559,6 @@ art_cc_defaults {
 
     target: {
         host: {
-            shared_libs: [
-                "libartd-simulator",
-            ],
             required: ["art_boot_images"],
         },
     },
@@ -552,9 +571,7 @@ art_cc_test {
     defaults: [
         "art_gtest_defaults",
         "art_compiler_tests_defaults",
-    ],
-    static_libs: [
-        "libartd-simulator-container",
+        "libartd-simulator-for-test_static_defaults",
     ],
 }
 
@@ -564,11 +581,9 @@ art_cc_test {
     defaults: [
         "art_standalone_gtest_defaults",
         "art_compiler_tests_defaults",
+        "libart-simulator-for-test_static_defaults",
     ],
     data: [":generate-boot-image"],
-    static_libs: [
-        "libart-simulator-container",
-    ],
     test_config: "art_standalone_compiler_tests.xml",
 }
 

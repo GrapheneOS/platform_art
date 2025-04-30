@@ -102,12 +102,13 @@ gensrcs {
 
 cc_defaults {
     name: "libart-dex2oat_static_base_defaults",
+    defaults: [
+        "art_liblog_static_defaults",
+        "art_libz_static_defaults",
+    ],
     whole_static_libs: [
         "libbase",
-        "libcrypto_static", // Not FIPS tested - for SHA-1 checksumming of build ID only.
-        "liblog",
         "liblz4",
-        "libz",
     ],
 }
 
@@ -133,6 +134,18 @@ cc_defaults {
     defaults: [
         "libart-dex2oat_static_base_defaults",
         "libart_static_defaults",
+        "libprofile_static_defaults",
+    ],
+    whole_static_libs: [
+        "libart-dex2oat",
+    ],
+}
+
+cc_defaults {
+    name: "libart-dex2oat-for-test_static_defaults",
+    defaults: [
+        "libart-dex2oat_static_base_defaults",
+        "libart-for-test_static_defaults",
         "libprofile_static_defaults",
     ],
     whole_static_libs: [
@@ -180,6 +193,18 @@ cc_defaults {
     defaults: [
         "libart-dex2oat_static_base_defaults",
         "libartd_static_defaults",
+        "libprofiled_static_defaults",
+    ],
+    whole_static_libs: [
+        "libartd-dex2oat",
+    ],
+}
+
+cc_defaults {
+    name: "libartd-dex2oat-for-test_static_defaults",
+    defaults: [
+        "libart-dex2oat_static_base_defaults",
+        "libartd-for-test_static_defaults",
         "libprofiled_static_defaults",
     ],
     whole_static_libs: [
@@ -279,6 +304,9 @@ art_cc_binary {
             // it'd get overridden by the load hook even when it uses
             // PrependProperties.
             compile_multilib: "64",
+            // libz is a libdex2oat_static transitive dependency from art_libz_static_defaults,
+            // duplicated here because we cannot import *_static_defaults only for host.
+            shared_libs: ["libz"],
         },
     },
 
@@ -323,12 +351,13 @@ art_cc_binary {
             ],
         },
         host: {
-            // Comments for host in dex2oat apply here too.
+            // Comments for host in the dex2oat binary apply here too.
             static_libs: [
                 "libdex2oatd_static",
             ],
             stl: "c++_static",
             compile_multilib: "64",
+            shared_libs: ["libz"],
         },
     },
 
@@ -345,6 +374,11 @@ cc_defaults {
         "dex2oat-defaults",
     ],
     target: {
+        host: {
+            // libz is normally linked dynamically on host in
+            // art_libz_static_defaults, so need to bring it in statically here.
+            static_libs: ["libz"],
+        },
         darwin: {
             enabled: false,
         },
@@ -376,35 +410,6 @@ art_cc_binary {
     ],
     static_libs: [
         "libdex2oatd_static",
-    ],
-}
-
-art_cc_library_static {
-    name: "libart-dex2oat-gtest",
-    defaults: ["libart-gtest-defaults"],
-    srcs: [
-        "common_compiler_driver_test.cc",
-        "common_transaction_test.cc",
-    ],
-    static_libs: [
-        "libart-dex2oat",
-        "libart-gtest",
-    ],
-}
-
-art_cc_library_static {
-    name: "libartd-dex2oat-gtest",
-    defaults: [
-        "art_debug_defaults",
-        "libart-gtest-defaults",
-    ],
-    srcs: [
-        "common_compiler_driver_test.cc",
-        "common_transaction_test.cc",
-    ],
-    static_libs: [
-        "libartd-dex2oat",
-        "libartd-gtest",
     ],
 }
 
@@ -452,6 +457,8 @@ art_cc_defaults {
         "linker/arm64/relative_patcher_arm64_test.cc",
     ],
     srcs: [
+        "common_compiler_driver_test.cc",
+        "common_transaction_test.cc",
         "dex2oat_test.cc",
         "dex2oat_vdex_test.cc",
         "dex2oat_image_test.cc",
@@ -514,7 +521,6 @@ art_cc_defaults {
     static_libs: [
         "libelf",
         "libgmock",
-        "liblz4", // libart(d)-dex2oat dependency; must be repeated here since it's a static lib.
     ],
 }
 
@@ -525,11 +531,7 @@ art_cc_test {
     defaults: [
         "art_gtest_defaults",
         "art_dex2oat_tests_defaults",
-    ],
-    static_libs: [
-        "libartd-dex2oat",
-        "libartd-dex2oat-gtest",
-        "libvixld",
+        "libartd-dex2oat-for-test_static_defaults",
     ],
 }
 
@@ -539,13 +541,9 @@ art_cc_test {
     defaults: [
         "art_standalone_gtest_defaults",
         "art_dex2oat_tests_defaults",
+        "libart-dex2oat-for-test_static_defaults",
     ],
     data: [":generate-boot-image"],
-    static_libs: [
-        "libart-dex2oat",
-        "libart-dex2oat-gtest",
-        "libvixl",
-    ],
     test_config: "art_standalone_dex2oat_tests.xml",
 }
 

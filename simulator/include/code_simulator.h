@@ -39,7 +39,12 @@ class CodeSimulator {
   DISALLOW_COPY_AND_ASSIGN(CodeSimulator);
 };
 
+// libart(d)-simulator is only included as a dependency on device targets.
+#ifndef ART_TARGET
 extern "C" CodeSimulator* CreateCodeSimulator(InstructionSet target_isa);
+#else
+[[maybe_unused]] static CodeSimulator* CreateCodeSimulator(InstructionSet) { return nullptr; }
+#endif
 
 }  // namespace art
 

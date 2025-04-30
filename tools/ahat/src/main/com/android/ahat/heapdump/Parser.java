@@ -971,23 +971,26 @@ public class Parser {
   private static class HprofBuffer {
     private boolean mIdSize8;
     private final SeekableByteChannel mChannel;
-    private final ByteBuffer mBuffer = ByteBuffer.allocate(8);
+    private final ByteBuffer mBuffer = ByteBuffer.allocate(1024);
+    private long mBufferStartPosition = 0;
 
     public HprofBuffer(File path) throws IOException {
       mChannel = FileChannel.open(path.toPath(), StandardOpenOption.READ);
+      mBuffer.flip();
     }
 
     public HprofBuffer(ByteBuffer buffer) {
       mChannel = new ByteBufferChannel(buffer);
+      mBuffer.flip();
     }
 
     private ByteBuffer read(int num_bytes) throws IOException {
-      int start = mBuffer.capacity() - num_bytes;
-      mBuffer.position(start);
-      while (num_bytes > 0) {
-        num_bytes -= mChannel.read(mBuffer);
+      while (num_bytes > mBuffer.remaining()) {
+        mBufferStartPosition = mChannel.position() - mBuffer.remaining();
+        mBuffer.compact();
+        mChannel.read(mBuffer);
+        mBuffer.flip();
       }
-      mBuffer.position(start);
       return mBuffer;
     }
 
@@ -996,7 +999,7 @@ public class Parser {
     }
 
     public boolean hasRemaining() throws IOException {
-      return mChannel.position() < mChannel.size();
+      return mBuffer.hasRemaining() || mChannel.position() < mChannel.size();
     }
 
     /**
@@ -1010,7 +1013,7 @@ public class Parser {
      * Return the current absolution position in the file.
      */
     public long tell() throws IOException {
-      return mChannel.position();
+      return mBufferStartPosition + mBuffer.position();
     }
 
     /**
@@ -1018,6 +1021,9 @@ public class Parser {
      */
     public void seek(long position) throws IOException {
       mChannel.position(position);
+      mBuffer.clear();
+      mBuffer.flip();
+      mBufferStartPosition = position;
     }
 
     /**
@@ -1069,10 +1075,19 @@ public class Parser {
     }
 
     public void getBytes(byte[] bytes) throws IOException {
+      if (mBuffer.remaining() >= bytes.length) {
+        mBuffer.get(bytes);
+        return;
+      }
+
       ByteBuffer buf = ByteBuffer.wrap(bytes);
+      buf.put(mBuffer);
       while (buf.hasRemaining()) {
         mChannel.read(buf);
       }
+      mBuffer.clear();
+      mBuffer.flip();
+      mBufferStartPosition = mChannel.position();
     }
 
     public short getShort() throws IOException {

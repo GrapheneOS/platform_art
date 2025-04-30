@@ -232,8 +232,10 @@ target_config = {
 
     # ASAN (host) configurations.
 
-    # These configurations need detect_leaks=0 to work in non-setup environments like build bots,
-    # as our build tools leak. b/37751350
+    # These configurations need detect_leaks=0 to work in non-setup environments
+    # like build bots, as our build tools leak. It gets overridden in
+    # Android.gtest.mk to enable leak detection again during the test runs.
+    # b/37751350
 
     'art-gtest-asan': {
         'make' : 'test-art-host-gtest',

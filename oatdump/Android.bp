@@ -75,6 +75,9 @@ art_cc_binary {
             // Make the host binary static, except for system libraries.
             static_libs: ["liboatdump_static"],
             stl: "c++_static",
+            // libz is a libdex2oat_static transitive dependency from art_libz_static_defaults,
+            // duplicated here because we cannot import *_static_defaults only for host.
+            shared_libs: ["libz"],
         },
     },
 
@@ -126,9 +129,10 @@ art_cc_binary {
             ],
         },
         host: {
-            // Make the host binary static, except for system libraries.
+            // Comments for host in the oatdump binary apply here too.
             static_libs: ["liboatdumpd_static"],
             stl: "c++_static",
+            shared_libs: ["libz"],
         },
     },
 
@@ -145,6 +149,11 @@ cc_defaults {
         "oatdump-defaults",
     ],
     target: {
+        host: {
+            // libz is normally linked dynamically on host in
+            // art_libz_static_defaults, so need to bring it in statically here.
+            static_libs: ["libz"],
+        },
         darwin: {
             enabled: false,
         },

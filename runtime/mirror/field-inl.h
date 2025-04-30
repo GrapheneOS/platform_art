@@ -25,7 +25,6 @@
 #include "object-inl.h"
 #include "base/sdk_version.h"
 #include "runtime.h"
-#include "well_known_classes.h"
 
 namespace art HIDDEN {
 
@@ -47,11 +46,6 @@ inline bool Field::IsMonotonic() REQUIRES_SHARED(Locks::mutator_lock_) {
     return true;
   }
 
-  // Write-protected fields are `static final`, but can be modified nevertheless.
-  if (IsWriteProtected()) {
-    return false;
-  }
-
   // Before and on Android B any field could be overwritten using reflection with final fields in
   // record classes being the only exception. For compatibility purposes allow apps targeting B
   // or an older release to overwrite such fields.
@@ -67,16 +61,6 @@ inline bool Field::IsMonotonic() REQUIRES_SHARED(Locks::mutator_lock_) {
   }
 
   return IsStatic() && IsFinal();
-}
-
-inline bool Field::IsWriteProtected() {
-  ArtField* art_field = GetArtField();
-  if (art_field == WellKnownClasses::java_lang_System_in ||
-      art_field == WellKnownClasses::java_lang_System_out ||
-      art_field == WellKnownClasses::java_lang_System_err) {
-    return true;
-  }
-  return false;
 }
 
 inline Primitive::Type Field::GetTypeAsPrimitiveType() {

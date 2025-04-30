@@ -260,9 +260,14 @@ else
 # (with the x86-64 ABI, as this allows symbolization of both x86 and x86-64). We don't do this in
 # general as it loses all the color output, and we have our own symbolization step when not running
 # under ASAN.
+# TODO(b/413709861): detect_odr_violation=1 added to work around ODR violation
+# in the runtime: It loads libopenjdk(d).so using dlopen, which depends on
+# libopenjdkjvm(d).so, which depends on libartbase(d).so and libart(d).so, which
+# are also statically linked into gtests.
 $$(gtest_output): $$(gtest_exe) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$(NAME)) && set -o pipefail && \
-		ASAN_OPTIONS=detect_leaks=1 timeout --foreground -k 180s 3600s \
+		ASAN_OPTIONS=detect_leaks=1:detect_odr_violation=1 \
+			timeout --foreground -k 180s 3600s \
 			$(HOST_OUT_EXECUTABLES)/signal_dumper -s 15 \
 				$$< --gtest_output=xml:$$@ 2>&1 | tee $$<.tmp.out >&2 && \
 		{ $$(call ART_TEST_PASSED,$$(NAME)) ; rm $$<.tmp.out ; }) || \

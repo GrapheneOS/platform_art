@@ -108,9 +108,6 @@ art_cc_test {
     shared_libs: [
         "libartservice",
         "libarttools",
-        "libbase",
-        "libdexfile",
-        "libprofile",
     ],
 }
 
@@ -125,9 +122,6 @@ art_cc_test {
     static_libs: [
         "libartservice",
         "libarttools",
-        "libbase",
-        "libdexfile",
-        "libprofile",
     ],
     test_config_template: "art_standalone_artd_tests.xml",
 }
