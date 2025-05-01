@@ -80,7 +80,13 @@ class HInstructionBuilder : public ValueObject {
   ScopedArenaVector<HInstruction*>* GetLocalsForWithAllocation(
       HBasicBlock* block, ScopedArenaVector<HInstruction*>* locals, const size_t vregs);
   HInstruction* ValueOfLocalAt(HBasicBlock* block, size_t local);
+
+  template <bool kCanBeRef = true, bool kCanBeFp = true>
   HInstruction* LoadLocal(uint32_t register_index, DataType::Type type) const;
+
+  template <DataType::Type kType>
+  HInstruction* LoadLocal(uint32_t register_index) const;
+
   HInstruction* LoadNullCheckedLocal(uint32_t register_index, uint32_t dex_pc);
   void UpdateLocal(uint32_t register_index, HInstruction* instruction);
 
@@ -132,7 +138,7 @@ class HInstructionBuilder : public ValueObject {
                           bool second_is_lit,
                           bool is_div);
 
-  template <DataType::Type type>
+  template <DataType::Type kType>
   void BuildMove(uint32_t dest_reg, uint32_t src_reg);
 
   void BuildReturn(const Instruction& instruction, DataType::Type type, uint32_t dex_pc);

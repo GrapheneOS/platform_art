@@ -334,6 +334,14 @@ cc_defaults {
         windows: {
             whole_static_libs: ["libz"],
         },
+        // art/tools/build-linux-x86-host-tools.sh uses BUILD_HOST_static=true
+        // to build static binaries, which means we need to use static libz
+        // there. We cannot target static binaries here, so let's target musl
+        // instead, because that script uses musl and we don't use it anywhere
+        // else.
+        linux_musl: {
+            whole_static_libs: ["libz"],
+        },
     },
 }
 

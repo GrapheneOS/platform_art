@@ -311,7 +311,7 @@ void HInstructionBuilder::InitializeInstruction(HInstruction* instruction) {
 }
 
 HInstruction* HInstructionBuilder::LoadNullCheckedLocal(uint32_t register_index, uint32_t dex_pc) {
-  HInstruction* ref = LoadLocal(register_index, DataType::Type::kReference);
+  HInstruction* ref = LoadLocal<DataType::Type::kReference>(register_index);
   if (!ref->CanBeNull()) {
     return ref;
   }
@@ -570,21 +570,33 @@ ArenaBitVector* HInstructionBuilder::FindNativeDebugInfoLocations() {
   return locations;
 }
 
+template <bool kCanBeRef, bool kCanBeFp>
+ALWAYS_INLINE inline
 HInstruction* HInstructionBuilder::LoadLocal(uint32_t reg_number, DataType::Type type) const {
   HInstruction* value = (*current_locals_)[reg_number];
   DCHECK(value != nullptr);
 
   // If the operation requests a specific type, we make sure its input is of that type.
-  if (type != value->GetType()) {
-    if (DataType::IsFloatingPointType(type)) {
+  DCHECK_IMPLIES(type == DataType::Type::kReference, kCanBeRef);
+  DCHECK_IMPLIES(DataType::IsFloatingPointType(type), kCanBeFp);
+  if ((kCanBeRef || kCanBeFp) && type != value->GetType()) {
+    if (kCanBeFp && DataType::IsFloatingPointType(type)) {
       value = ssa_builder_->GetFloatOrDoubleEquivalent(value, type);
-    } else if (type == DataType::Type::kReference) {
+    } else if (kCanBeRef && type == DataType::Type::kReference) {
       value = ssa_builder_->GetReferenceTypeEquivalent(value);
     }
     DCHECK(value != nullptr);
   }
 
   return value;
+}
+
+template <DataType::Type kType>
+ALWAYS_INLINE inline
+HInstruction* HInstructionBuilder::LoadLocal(uint32_t reg_number) const {
+  static constexpr bool kCanBeRef = kType == DataType::Type::kReference;
+  static constexpr bool kCanBeFp = DataType::IsFloatingPointType(kType);
+  return LoadLocal<kCanBeRef, kCanBeFp>(reg_number, kType);
 }
 
 void HInstructionBuilder::UpdateLocal(uint32_t reg_number, HInstruction* stored_value) {
@@ -673,14 +685,13 @@ template<typename T, bool kCompareWithZero>
 void HInstructionBuilder::If_21_22t(const Instruction& instruction, uint32_t dex_pc) {
   DCHECK_EQ(kCompareWithZero ? Instruction::Format::k21t : Instruction::Format::k22t,
             Instruction::FormatOf(instruction.Opcode()));
-  HInstruction* value = LoadLocal(
-      kCompareWithZero ? instruction.VRegA_21t() : instruction.VRegA_22t(),
-      DataType::Type::kInt32);
+  HInstruction* value = LoadLocal<DataType::Type::kInt32>(
+      kCompareWithZero ? instruction.VRegA_21t() : instruction.VRegA_22t());
   T* comparison = nullptr;
   if (kCompareWithZero) {
     comparison = new (allocator_) T(value, graph_->GetIntConstant(0), dex_pc);
   } else {
-    HInstruction* second = LoadLocal(instruction.VRegB_22t(), DataType::Type::kInt32);
+    HInstruction* second = LoadLocal<DataType::Type::kInt32>(instruction.VRegB_22t());
     comparison = new (allocator_) T(value, second, dex_pc);
   }
   AppendInstruction(comparison);
@@ -705,7 +716,10 @@ template<typename T>
 void HInstructionBuilder::Unop_12x(const Instruction& instruction,
                                    DataType::Type type,
                                    uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_12x(), type);
+  // Unary operations are never on references. Unary ones complement is always integral.
+  static constexpr bool kCanBeRef = false;
+  static constexpr bool kCanBeFp = !std::is_same_v<T, HNot>;
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_12x(), type);
   AppendInstruction(new (allocator_) T(type, first, dex_pc));
   UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
 }
@@ -714,7 +728,10 @@ void HInstructionBuilder::Conversion_12x(const Instruction& instruction,
                                          DataType::Type input_type,
                                          DataType::Type result_type,
                                          uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_12x(), input_type);
+  // Conversion are never on references.
+  static constexpr bool kCanBeRef = false;
+  static constexpr bool kCanBeFp = true;
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_12x(), input_type);
   AppendInstruction(new (allocator_) HTypeConversion(result_type, first, dex_pc));
   UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
 }
@@ -723,8 +740,12 @@ template<typename T>
 void HInstructionBuilder::Binop_23x(const Instruction& instruction,
                                     DataType::Type type,
                                     uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_23x(), type);
-  HInstruction* second = LoadLocal(instruction.VRegC_23x(), type);
+  // Binary operations are never on references. Bitwise operations are always integral.
+  static constexpr bool kCanBeRef = false;
+  static constexpr bool kCanBeFp =
+      !(std::is_same_v<T, HAnd> || std::is_same_v<T, HOr> || std::is_same_v<T, HXor>);
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_23x(), type);
+  HInstruction* second = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegC_23x(), type);
   AppendInstruction(new (allocator_) T(type, first, second, dex_pc));
   UpdateLocal(instruction.VRegA_23x(), current_block_->GetLastInstruction());
 }
@@ -733,8 +754,12 @@ template<typename T>
 void HInstructionBuilder::Binop_23x_shift(const Instruction& instruction,
                                           DataType::Type type,
                                           uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_23x(), type);
-  HInstruction* second = LoadLocal(instruction.VRegC_23x(), DataType::Type::kInt32);
+  // Shifts are always integral.
+  static constexpr bool kCanBeFp = false;
+  static constexpr bool kCanBeRef = false;
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_23x(), type);
+  HInstruction* second =
+      LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegC_23x(), DataType::Type::kInt32);
   AppendInstruction(new (allocator_) T(type, first, second, dex_pc));
   UpdateLocal(instruction.VRegA_23x(), current_block_->GetLastInstruction());
 }
@@ -743,8 +768,11 @@ void HInstructionBuilder::Binop_23x_cmp(const Instruction& instruction,
                                         DataType::Type type,
                                         ComparisonBias bias,
                                         uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_23x(), type);
-  HInstruction* second = LoadLocal(instruction.VRegC_23x(), type);
+  // There is no three-way compare for references.
+  static constexpr bool kCanBeRef = false;
+  static constexpr bool kCanBeFp = true;
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_23x(), type);
+  HInstruction* second = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegC_23x(), type);
   AppendInstruction(new (allocator_) HCompare(type, first, second, bias, dex_pc));
   UpdateLocal(instruction.VRegA_23x(), current_block_->GetLastInstruction());
 }
@@ -753,8 +781,12 @@ template<typename T>
 void HInstructionBuilder::Binop_12x_shift(const Instruction& instruction,
                                           DataType::Type type,
                                           uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegA_12x(), type);
-  HInstruction* second = LoadLocal(instruction.VRegB_12x(), DataType::Type::kInt32);
+  // Shifts are always integral.
+  static constexpr bool kCanBeFp = false;
+  static constexpr bool kCanBeRef = false;
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegA_12x(), type);
+  HInstruction* second =
+      LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_12x(), DataType::Type::kInt32);
   AppendInstruction(new (allocator_) T(type, first, second, dex_pc));
   UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
 }
@@ -763,15 +795,19 @@ template<typename T>
 void HInstructionBuilder::Binop_12x(const Instruction& instruction,
                                     DataType::Type type,
                                     uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegA_12x(), type);
-  HInstruction* second = LoadLocal(instruction.VRegB_12x(), type);
+  // Binary operations are never on references. Bitwise operations are always integral.
+  static constexpr bool kCanBeRef = false;
+  static constexpr bool kCanBeFp =
+      !(std::is_same_v<T, HAnd> || std::is_same_v<T, HOr> || std::is_same_v<T, HXor>);
+  HInstruction* first = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegA_12x(), type);
+  HInstruction* second = LoadLocal<kCanBeRef, kCanBeFp>(instruction.VRegB_12x(), type);
   AppendInstruction(new (allocator_) T(type, first, second, dex_pc));
   UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
 }
 
 template<typename T>
 void HInstructionBuilder::Binop_22s(const Instruction& instruction, bool reverse, uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_22s(), DataType::Type::kInt32);
+  HInstruction* first = LoadLocal<DataType::Type::kInt32>(instruction.VRegB_22s());
   HInstruction* second = graph_->GetIntConstant(instruction.VRegC_22s());
   if (reverse) {
     std::swap(first, second);
@@ -782,7 +818,7 @@ void HInstructionBuilder::Binop_22s(const Instruction& instruction, bool reverse
 
 template<typename T>
 void HInstructionBuilder::Binop_22b(const Instruction& instruction, bool reverse, uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegB_22b(), DataType::Type::kInt32);
+  HInstruction* first = LoadLocal<DataType::Type::kInt32>(instruction.VRegB_22b());
   HInstruction* second = graph_->GetIntConstant(instruction.VRegC_22b());
   if (reverse) {
     std::swap(first, second);
@@ -817,7 +853,7 @@ static bool IsFallthroughInstruction(const Instruction& instruction,
 }
 
 void HInstructionBuilder::BuildSwitch(const Instruction& instruction, uint32_t dex_pc) {
-  HInstruction* value = LoadLocal(instruction.VRegA_31t(), DataType::Type::kInt32);
+  HInstruction* value = LoadLocal<DataType::Type::kInt32>(instruction.VRegA_31t());
   DexSwitchTable table(instruction, dex_pc);
 
   if (table.GetNumEntries() == 0) {
@@ -843,22 +879,22 @@ void HInstructionBuilder::BuildSwitch(const Instruction& instruction, uint32_t d
   current_block_ = nullptr;
 }
 
-template <DataType::Type type>
+template <DataType::Type kType>
 ALWAYS_INLINE inline void HInstructionBuilder::BuildMove(uint32_t dest_reg, uint32_t src_reg) {
   // The verifier has no notion of a null type, so a move-object of constant 0
   // will lead to the same constant 0 in the destination register. To mimic
   // this behavior, we just pretend we haven't seen a type change (int to reference)
   // for the 0 constant and phis. We rely on our type propagation to eventually get the
   // types correct.
-  constexpr bool is_reference = type == DataType::Type::kReference;
-  HInstruction* value = is_reference ? (*current_locals_)[src_reg] : /* not needed */ nullptr;
-  if (is_reference && value->IsIntConstant()) {
+  static constexpr bool kIsReference = kType == DataType::Type::kReference;
+  HInstruction* value = kIsReference ? (*current_locals_)[src_reg] : /* not needed */ nullptr;
+  if (kIsReference && value->IsIntConstant()) {
     DCHECK_EQ(value->AsIntConstant()->GetValue(), 0);
-  } else if (is_reference && value->IsPhi()) {
+  } else if (kIsReference && value->IsPhi()) {
     DCHECK(value->GetType() == DataType::Type::kInt32 ||
            value->GetType() == DataType::Type::kReference);
   } else {
-    value = LoadLocal(src_reg, type);
+    value = LoadLocal<kType>(src_reg);
   }
   UpdateLocal(dest_reg, value);
 }
@@ -1885,7 +1921,7 @@ bool HInstructionBuilder::SetupInvokeArguments(HInstruction* invoke,
       if (receiver_arg != ReceiverArg::kIgnored) {
         uint32_t obj_reg = operands.GetOperand(0u);
         HInstruction* arg = (receiver_arg == ReceiverArg::kPlainArg)
-            ? LoadLocal(obj_reg, DataType::Type::kReference)
+            ? LoadLocal<DataType::Type::kReference>(obj_reg)
             : LoadNullCheckedLocal(obj_reg, invoke->GetDexPc());
         if (receiver_arg != ReceiverArg::kNullCheckedOnly) {
           invoke->SetRawInputAt(0u, arg);
@@ -2191,7 +2227,7 @@ bool HInstructionBuilder::HandleStringInit(HInvoke* invoke,
   // This is a StringFactory call, not an actual String constructor. Its result
   // replaces the empty String pre-allocated by NewInstance.
   uint32_t orig_this_reg = operands.GetOperand(0);
-  HInstruction* arg_this = LoadLocal(orig_this_reg, DataType::Type::kReference);
+  HInstruction* arg_this = LoadLocal<DataType::Type::kReference>(orig_this_reg);
 
   // Replacing the NewInstance might render it redundant. Keep a list of these
   // to be visited once it is clear whether it has remaining uses.
@@ -2237,7 +2273,7 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
   // is unresolved. In that case, we rely on the runtime to perform various
   // checks first, followed by a null check.
   HInstruction* object = (resolved_field == nullptr)
-      ? LoadLocal(obj_reg, DataType::Type::kReference)
+      ? LoadLocal<DataType::Type::kReference>(obj_reg)
       : LoadNullCheckedLocal(obj_reg, dex_pc);
 
   DataType::Type field_type = GetFieldAccessType(*dex_file_, field_index);
@@ -2472,7 +2508,7 @@ void HInstructionBuilder::BuildCheckedDivRem(uint16_t out_vreg,
                                              bool is_div) {
   DCHECK(type == DataType::Type::kInt32 || type == DataType::Type::kInt64);
 
-  HInstruction* first = LoadLocal(first_vreg, type);
+  HInstruction* first = LoadLocal</*kCanBeRef=*/ false, /*kCanBeFp=*/ false>(first_vreg, type);
   HInstruction* second = nullptr;
   if (second_is_constant) {
     if (type == DataType::Type::kInt32) {
@@ -2481,7 +2517,7 @@ void HInstructionBuilder::BuildCheckedDivRem(uint16_t out_vreg,
       second = graph_->GetLongConstant(second_vreg_or_constant);
     }
   } else {
-    second = LoadLocal(second_vreg_or_constant, type);
+    second = LoadLocal</*kCanBeRef=*/ false, /*kCanBeFp=*/ false>(second_vreg_or_constant, type);
   }
 
   if (!second_is_constant ||
@@ -2510,11 +2546,14 @@ void HInstructionBuilder::BuildArrayAccess(const Instruction& instruction,
   HInstruction* object = LoadNullCheckedLocal(array_reg, dex_pc);
   HInstruction* length = new (allocator_) HArrayLength(object, dex_pc);
   AppendInstruction(length);
-  HInstruction* index = LoadLocal(index_reg, DataType::Type::kInt32);
+  HInstruction* index = LoadLocal<DataType::Type::kInt32>(index_reg);
   index = new (allocator_) HBoundsCheck(index, length, dex_pc);
   AppendInstruction(index);
   if (is_put) {
-    HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type);
+    // The `anticipated_type` can be a reference but it is never floating-point.
+    static constexpr bool kCanBeRef = true;
+    static constexpr bool kCanBeFp = false;
+    HInstruction* value = LoadLocal<kCanBeRef, kCanBeFp>(source_or_dest_reg, anticipated_type);
     // TODO: Insert a type check node if the type is Object.
     HArraySet* aset = new (allocator_) HArraySet(object, index, value, anticipated_type, dex_pc);
     ssa_builder_->MaybeAddAmbiguousArraySet(aset);
@@ -2877,7 +2916,7 @@ void HInstructionBuilder::BuildTypeCheck(const Instruction& instruction,
                                          uint8_t reference,
                                          dex::TypeIndex type_index,
                                          uint32_t dex_pc) {
-  HInstruction* object = LoadLocal(reference, DataType::Type::kReference);
+  HInstruction* object = LoadLocal<DataType::Type::kReference>(reference);
   bool is_instance_of = instruction.Opcode() == Instruction::INSTANCE_OF;
 
   BuildTypeCheck(is_instance_of, object, type_index, dex_pc);
@@ -3710,7 +3749,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     case Instruction::NEW_ARRAY: {
       dex::TypeIndex type_index(instruction.VRegC_22c());
-      HInstruction* length = LoadLocal(instruction.VRegB_22c(), DataType::Type::kInt32);
+      HInstruction* length = LoadLocal<DataType::Type::kInt32>(instruction.VRegB_22c());
       HNewArray* new_array = BuildNewArray(dex_pc, type_index, length);
 
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
@@ -3896,7 +3935,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
     case Instruction::THROW: {
-      HInstruction* exception = LoadLocal(instruction.VRegA_11x(), DataType::Type::kReference);
+      HInstruction* exception = LoadLocal<DataType::Type::kReference>(instruction.VRegA_11x());
       AppendInstruction(new (allocator_) HThrow(exception, dex_pc));
       // We finished building this block. Set the current block to null to avoid
       // adding dead instructions to it.
@@ -3921,7 +3960,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     case Instruction::MONITOR_ENTER: {
       AppendInstruction(new (allocator_) HMonitorOperation(
-          LoadLocal(instruction.VRegA_11x(), DataType::Type::kReference),
+          LoadLocal<DataType::Type::kReference>(instruction.VRegA_11x()),
           HMonitorOperation::OperationKind::kEnter,
           dex_pc));
       graph_->SetHasMonitorOperations(true);
@@ -3930,7 +3969,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     case Instruction::MONITOR_EXIT: {
       AppendInstruction(new (allocator_) HMonitorOperation(
-          LoadLocal(instruction.VRegA_11x(), DataType::Type::kReference),
+          LoadLocal<DataType::Type::kReference>(instruction.VRegA_11x()),
           HMonitorOperation::OperationKind::kExit,
           dex_pc));
       graph_->SetHasMonitorOperations(true);

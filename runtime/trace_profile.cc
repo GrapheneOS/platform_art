@@ -62,6 +62,9 @@ static constexpr size_t kAlwaysOnTraceHeaderSize = 12;
 static constexpr size_t kAlwaysOnMethodInfoHeaderSize = 11;
 static constexpr size_t kAlwaysOnThreadInfoHeaderSize = 7;
 
+// Default duration for long-running method traces, currently 2 seconds (an arbitrary value)
+static constexpr uint64_t kDefaultTraceDurationNs = 2 * 1000 * 1000 * 1000;
+
 bool TraceProfiler::profile_in_progress_ = false;
 
 TraceData* TraceProfiler::trace_data_ = nullptr;
@@ -270,6 +273,11 @@ void TraceProfiler::Start(LowOverheadTraceType trace_type, uint64_t trace_durati
   Thread* self = Thread::Current();
   uint64_t new_end_time = 0;
   bool add_trace_end_task = false;
+
+  if (trace_duration_ns == 0 && trace_type == LowOverheadTraceType::kLongRunningMethods) {
+    trace_duration_ns = kDefaultTraceDurationNs;
+  }
+
   {
     MutexLock mu(self, *Locks::trace_lock_);
     if (Trace::IsTracingEnabledLocked()) {

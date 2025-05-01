@@ -122,11 +122,11 @@ class DataType {
     }
   }
 
-  static bool IsFloatingPointType(Type type) {
+  static constexpr bool IsFloatingPointType(Type type) {
     return type == Type::kFloat32 || type == Type::kFloat64;
   }
 
-  static bool IsIntegralType(Type type) {
+  static constexpr bool IsIntegralType(Type type) {
     // The Java language does not allow treating boolean as an integral type but
     // our bit representation makes it safe.
     switch (type) {
@@ -145,19 +145,19 @@ class DataType {
     }
   }
 
-  static bool IsIntOrLongType(Type type) {
+  static constexpr bool IsIntOrLongType(Type type) {
     return type == Type::kInt32 || type == Type::kInt64;
   }
 
-  static bool Is64BitType(Type type) {
+  static constexpr bool Is64BitType(Type type) {
     return type == Type::kUint64 || type == Type::kInt64 || type == Type::kFloat64;
   }
 
-  static bool Is8BitType(Type type) {
+  static constexpr bool Is8BitType(Type type) {
     return type == Type::kInt8 || type == Type::kUint8 || type == Type::kBool;
   }
 
-  static bool IsUnsignedType(Type type) {
+  static constexpr bool IsUnsignedType(Type type) {
     return type == Type::kBool || type == Type::kUint8 || type == Type::kUint16 ||
         type == Type::kUint32 || type == Type::kUint64;
   }
@@ -181,7 +181,7 @@ class DataType {
     }
   }
 
-  static int64_t MinValueOfIntegralType(Type type) {
+  static constexpr int64_t MinValueOfIntegralType(Type type) {
     switch (type) {
       case Type::kBool:
         return std::numeric_limits<bool>::min();
@@ -207,7 +207,7 @@ class DataType {
     return 0;
   }
 
-  static int64_t MaxValueOfIntegralType(Type type) {
+  static constexpr int64_t MaxValueOfIntegralType(Type type) {
     switch (type) {
       case Type::kBool:
         return std::numeric_limits<bool>::max();
@@ -242,7 +242,7 @@ class DataType {
         Size(result_type) > Size(input_type);
   }
 
-  static Type ToSigned(Type type) {
+  static constexpr Type ToSigned(Type type) {
     switch (type) {
       case Type::kUint8:
         return Type::kInt8;
@@ -257,7 +257,7 @@ class DataType {
     }
   }
 
-  static Type ToUnsigned(Type type) {
+  static constexpr Type ToUnsigned(Type type) {
     switch (type) {
       case Type::kInt8:
         return Type::kUint8;
