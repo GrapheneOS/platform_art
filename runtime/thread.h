@@ -655,10 +655,12 @@ class EXPORT Thread {
    *
    * Returns a value from 1 to 10 (compatible with java.lang.Thread values).
    */
-  int GetNativePriority() const;
+  int GetNativePriority() const { return NicenessToPriority(GetNativeNiceness()); }
 
   /*
-   * Return Posix niceness instead of Java priority. A very thin wrapper over getpriority().
+   * Return Posix niceness instead of Java priority. A very thin wrapper over getpriority().  May
+   * be inconsistent with PaletteSchedSetPriority, especially if that doesn't actually adjust
+   * priorities.
    */
   int GetNativeNiceness() const;
 

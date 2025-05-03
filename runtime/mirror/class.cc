@@ -417,14 +417,9 @@ void Class::DumpClass(std::ostream& os, int flags) {
   } else {
     os << "  vtable (" << NumVirtualMethods() << " entries, "
         << (super != nullptr ? super->NumVirtualMethods() : 0) << " in super):\n";
-    for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-      os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
-          GetVirtualMethodDuringLinking(i, image_pointer_size)).c_str());
-    }
-    os << "  direct methods (" << NumDirectMethods() << " entries):\n";
-    for (size_t i = 0; i < NumDirectMethods(); ++i) {
-      os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
-          GetDirectMethod(i, image_pointer_size)).c_str());
+    size_t index = 0;
+    for (ArtMethod& method : GetDeclaredMethods(image_pointer_size)) {
+      os << StringPrintf("    %2zd: %s\n", index++, method.PrettyMethod().c_str());
     }
     if (NumFields() > 0) {
       os << "  fields (" << NumFields() << " entries):\n";

@@ -144,22 +144,24 @@ public class Main {
     private static void testThreadPriorities() throws Exception {
         System.out.print("testThreadPriorities starting\n");
 
-        PriorityStoringThread t1 = new PriorityStoringThread(false);
-        t1.setPriority(Thread.MAX_PRIORITY);
-        t1.start();
-        t1.join();
-        if (supportsThreadPriorities() && (t1.getNativePriority() != Thread.MAX_PRIORITY)) {
-            System.out.print("thread priority for t1 was " + t1.getNativePriority() +
-                " [expected Thread.MAX_PRIORITY]\n");
-            System.out.println(getPriorityInfo());
-        }
-        PriorityStoringThread t2 = new PriorityStoringThread(true);
-        t2.start();
-        t2.join();
-        if (supportsThreadPriorities() && (t2.getNativePriority() != Thread.MAX_PRIORITY)) {
-            System.out.print("thread priority for t2 was " + t2.getNativePriority() +
-                " [expected Thread.MAX_PRIORITY]\n");
-            System.out.println(getPriorityInfo());
+        if (supportsThreadPriorities()) {
+          PriorityStoringThread t1 = new PriorityStoringThread(false);
+          t1.setPriority(Thread.MAX_PRIORITY);
+          t1.start();
+          t1.join();
+          if (t1.getNativePriority() != Thread.MAX_PRIORITY) {
+              System.out.print("thread priority for t1 was " + t1.getNativePriority() +
+                  " [expected Thread.MAX_PRIORITY]\n");
+              System.out.println(getPriorityInfo());
+          }
+          PriorityStoringThread t2 = new PriorityStoringThread(true);
+          t2.start();
+          t2.join();
+          if (t2.getNativePriority() != Thread.MAX_PRIORITY) {
+              System.out.print("thread priority for t2 was " + t2.getNativePriority() +
+                  " [expected Thread.MAX_PRIORITY]\n");
+              System.out.println(getPriorityInfo());
+          }
         }
 
         System.out.print("testThreadPriorities finished\n");

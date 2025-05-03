@@ -33,11 +33,25 @@ extern "C" JNIEXPORT jint JNICALL Java_Main_getNativePriority(JNIEnv* env,
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportsThreadPriorities(
     [[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz) {
-#if defined(ART_TARGET_ANDROID)
-  return JNI_TRUE;
-#else
-  return JNI_FALSE;
-#endif
+  int my_niceness = getpriority(PRIO_PROCESS, 0 /* self */);
+  int my_priority = Thread::NicenessToPriority(my_niceness);
+  int new_priority = (my_priority == kMaxThreadPriority ? my_priority - 2 : my_priority + 1);
+  {
+    ScopedObjectAccess soa(env);
+    Thread::Current()->SetNativePriority(new_priority);
+  }
+  int new_niceness = getpriority(PRIO_PROCESS, 0 /* self */);
+  {
+    ScopedObjectAccess soa(env);
+    Thread::Current()->SetNativePriority(my_priority);
+  }
+  if (new_niceness == my_niceness) {
+    // Had no effect.
+    return JNI_FALSE;
+  } else {
+    // Assum3e it did the right thing.
+    return JNI_TRUE;
+  }
 }
 
 // Returns a description of Java to Posix priority mapping, and information about how we obtained
@@ -56,8 +70,8 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_getPriorityInfo(JNIEnv* env,
   result << ";\nSetpriority effects: ";
   int32_t me = static_cast<int32_t>(::art::GetTid());
   int my_niceness = getpriority(PRIO_PROCESS, 0 /* self */);
-  for (int p = -19; p <= 20; p += 3) {
-    if (p != -19) {
+  for (int p = -20; p <= 19; p += 3) {
+    if (p != -20) {
       result << ", ";
     }
     int ret = setpriority(PRIO_PROCESS, 0 /* self */, p);
@@ -70,7 +84,8 @@ extern "C" JNIEXPORT jstring JNICALL Java_Main_getPriorityInfo(JNIEnv* env,
   }
   // Test whether SetNativePriority has any impact. If not, that suggests that either setpriority
   // doesn't work in this range, or we've decided that setpriority cannot be relied upon for other
-  // reasons. See `canSetPriority` in thread.cc.
+  // reasons. See `canSetPriority` in thread.cc. Intentionally slightly different from
+  // supportsThreadPriorities test, so that we have a chance of detecting inconsistencies.
   {
     ScopedObjectAccess soa(env);
     Thread::Current()->SetNativePriority(6);

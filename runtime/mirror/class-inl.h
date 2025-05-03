@@ -216,23 +216,12 @@ inline uint32_t Class::NumMethods(LengthPrefixedArray<ArtMethod>* methods) {
   return (methods == nullptr) ? 0 : methods->size();
 }
 
-inline ArtMethod* Class::GetDirectMethodUnchecked(size_t i, PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  return &GetDirectMethodsSliceUnchecked(pointer_size)[i];
-}
-
-inline ArtMethod* Class::GetDirectMethod(size_t i, PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  return &GetDirectMethodsSlice(pointer_size)[i];
-}
-
 inline void Class::SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
                                  uint32_t num_direct,
                                  uint32_t num_virtual) {
   DCHECK(GetMethodsPtr() == nullptr);
   SetMethodsPtrUnchecked(new_methods, num_direct, num_virtual);
 }
-
 
 inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_methods,
                                           [[maybe_unused]] uint32_t num_direct,

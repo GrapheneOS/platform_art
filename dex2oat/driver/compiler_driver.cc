@@ -1315,7 +1315,7 @@ static void MaybeAddToImageClasses(Thread* self,
       DCHECK(interface != nullptr);
       MaybeAddToImageClasses(self, interface, image_classes);
     }
-    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
+    for (auto& m : klass->GetCopiedMethods(pointer_size)) {
       MaybeAddToImageClasses(self, m.GetDeclaringClass(), image_classes);
     }
     if (klass->IsArrayClass()) {

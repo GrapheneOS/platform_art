@@ -1560,7 +1560,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object>(o)));
   Handle<mirror::Class> c(hs.NewHandle(obj->GetClass()));
   // Need a method as a referrer
-  ArtMethod* m = c->GetDirectMethod(0, kRuntimePointerSize);
+  ArtMethod* m = &c->GetMethods(kRuntimePointerSize)[0];
 
   // Play with it...
 

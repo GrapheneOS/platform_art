@@ -2082,10 +2082,19 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
           : "<null>";
     }
   } else if (thread != nullptr) {
+    // This produces niceness translated to a Java priority, which may not match the cached Java
+    // priority, and may have no relation to real scheduling priority if this was bumped to
+    // real-time priority. Except in the palette-fake case, this is always what it did, so change
+    // seems risky.
     priority = thread->GetNativePriority();
   } else {
-    palette_status_t status = PaletteSchedGetPriority(tid, &priority);
-    CHECK(status == PALETTE_STATUS_OK || status == PALETTE_STATUS_CHECK_ERRNO);
+    errno = 0;
+    int niceness = getpriority(PRIO_PROCESS, static_cast<id_t>(tid));
+    if (niceness == -1 && errno != 0) {
+      priority = -1;  // A recognizably bogus value.
+    } else {
+      priority = NicenessToPriority(niceness);
+    }
   }
 
   std::string scheduler_group_name(GetSchedulerGroupName(tid));
@@ -4913,27 +4922,38 @@ void Thread::ClearAllInterpreterCaches() {
 
 static_assert(kMinThreadPriority >= 0);
 
-static int priorityMap[kMaxThreadPriority + 1];
-static std::once_flag priorityMapInitialized;
+// Use PaletteSchedSetPriority on host for testing. This should set canSetPriority to false,
+// but not crash.
+static constexpr bool kUseFakeOnHost = false;
 
-static bool canSetPriority = true;
+static bool canSetPriority = true;  // If false, we skip attempting to set OS priority.
 
 // Android S, does more than setting niceness in PaletteSchedSetPriority, making it unsafe to use
 // that in Zygote, and making it desirable (for risk minimization, at least) to actually call it
 // when expected.
 inline bool NeedSWorkaround() {
-  if (kIsTargetAndroid) {
-    static bool needed = (android::base::GetIntProperty("ro.build.version.sdk", 0) <= 32);
-    return needed;
-  } else {
-    // Priority setting is often restricted on host. Just fake it, as for S.
-    return true;
-  }
+  static bool needSWorkaround = false;
+  static std::once_flag sWorkaroundInitialized;
+  std::call_once(sWorkaroundInitialized, []() {
+    if (kIsTargetAndroid) {
+      if (android::base::GetIntProperty("ro.build.version.sdk", 0) <= 32) {
+        needSWorkaround = true;
+      }
+    } else if (!kUseFakeOnHost) {
+      // Priority setting is often restricted on host. Just fake it, as for S.
+      // TODO: Fuchsia may require attention here.
+      needSWorkaround = true;
+      canSetPriority = false;
+    }
+  });
+  return needSWorkaround;
 }
 
 // Return an int array result, so that result[i] is the native priority, really
 // "niceness" corresponding to Java priority i. result[0] is unused.
 int* Thread::GetPriorityMap() {
+  static int priorityMap[kMaxThreadPriority + 1];
+  static std::once_flag priorityMapInitialized;
   // For Android S, PaletteSchedSetPriority is unsafe in the zygote, since it leaves a file
   // descriptor open, which must crash zygote. We could possibly postpone discovering the map, but
   // that adds a few dozen system calls in each child. We instead simply assume the historical map
@@ -4962,15 +4982,13 @@ int* Thread::GetPriorityMap() {
     failure_msg = (msg);                \
     return;                             \
   }
-    pm[0] = 5;  // Unused after initialization, but causes us to use a reasonable map if
-                // PaletteSchedSetPriority always fails.
     bool need_fake = false;  // Saw an anomaly requiring us to fake the map?
 #ifdef PALETTE_ADDED_MAP_PRIORITY
     // TODO(b/389104950): Reenable this and remove #else once aosp/3355710 and aosp/3312350
     // are submitted.
     bool success = true;
-    bool saw_nonzero = true;  // Do we map to nonzero values?
-                              // PaletteMapPriority always yields nontrivial mapping.
+    bool saw_difference = true;  // Do we map to different niceness values?
+                                 // PaletteMapPriority always yields nontrivial mapping.
     for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
       palette_status_t result = PaletteMapPriority(p, &pm[p]);
       if (result == PALETTE_STATUS_NOT_SUPPORTED) {
@@ -4981,7 +4999,7 @@ int* Thread::GetPriorityMap() {
     }
 #else
     constexpr bool success = false;
-    bool saw_nonzero;  // Initialized below.
+    bool saw_difference;  // Initialized below.
 #endif
     if (!success) {
       // Discover the map the hard way.
@@ -4995,30 +5013,28 @@ int* Thread::GetPriorityMap() {
       do {
         map_consistent = true;
         ++iters;
-        saw_nonzero = false;
+        saw_difference = false;
         CHECK_DEFERRED_ABORT(iters <= kMaxIters, "iters > kMaxIters");
         for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
           int ret = PaletteSchedSetPriority(me, p);
           if (ret == PALETTE_STATUS_OK) {
             errno = 0;
             pm[p] = getpriority(PRIO_PROCESS, 0 /* self */);
-            // If we always get zeroes, we're dealing with a fake, and need to fake a consistent
-            // result here. We assume that pm[kMinThreadPriority] is never zero unless we're
-            // dealing with a fake. That would imply the lowest priority background threads run at
-            // normal niceness.
-            if (!saw_nonzero && pm[p] != 0) {
-              if (p == kMinThreadPriority) {
-                saw_nonzero = true;
+            // If we always get the same value, we're dealing with a fake, and need to fake a
+            // consistent result here.
+            if (!saw_difference && pm[p] != pm[kMinThreadPriority]) {
+              if (p == kMinThreadPriority + 1) {
+                saw_difference = true;
               } else {
-                // pm[kMinThreadPriority] was zero, which is assumed to be wrong.
+                // We saw several identical values, which is wrong.
                 // Force a complete pass with checking.
                 map_consistent = false;
                 break;
               }
             }
             CHECK_DEFERRED_ABORT(pm[p] != -1 || errno == 0, "2nd getpriority() failed");
-            LOG(INFO) << "Niceness[" << p << "] = " << pm[p];
-            if (saw_nonzero) {
+            VLOG(threads) << "Niceness[" << p << "] = " << pm[p];
+            if (saw_difference) {
               // With a non-fake PaletteSchedSetPriority the map should be strictly monotonically
               // decreasing.
               if (p > kMinThreadPriority && pm[p] >= pm[p - 1]) {
@@ -5036,7 +5052,7 @@ int* Thread::GetPriorityMap() {
       int ret = setpriority(PRIO_PROCESS, static_cast<id_t>(me), orig_niceness);
       CHECK_DEFERRED_ABORT(ret == 0, "setpriority() failed");
     }
-    if (!saw_nonzero || need_fake) {
+    if (!saw_difference || need_fake) {
       // Palette calls don't impact getpriority(), as with the traditional
       // PaletteSetSchedPriority fake on host.
       canSetPriority = false;
@@ -5095,6 +5111,7 @@ int Thread::SetNativeNiceness(int niceness) {
     return 0;
   }
   LOG(WARNING) << "Cannot set niceness to " << niceness;
+  // TODO: With PaletteMapPriority we may want to do more here.
   return errno;
 }
 
@@ -5107,17 +5124,16 @@ int Thread::GetNativeNiceness() const {
 
 int Thread::SetNativePriority(int new_priority) {
   int n = PriorityToNiceness(new_priority);
-  if (UNLIKELY(NeedSWorkaround())) {
-    palette_status_t status = PaletteSchedSetPriority(GetTid(), new_priority);
-    CHECK(status == PALETTE_STATUS_OK || status == PALETTE_STATUS_CHECK_ERRNO);
-  }
-  if (LIKELY(canSetPriority)) {
-    SetNativeNiceness(n);
+  if (canSetPriority) {
+    if (UNLIKELY(NeedSWorkaround())) {
+      palette_status_t status = PaletteSchedSetPriority(GetTid(), new_priority);
+      CHECK(status == PALETTE_STATUS_OK || status == PALETTE_STATUS_CHECK_ERRNO);
+    } else {
+      SetNativeNiceness(n);
+    }
   }
   return n;
 }
-
-int Thread::GetNativePriority() const { return NicenessToPriority(GetNativeNiceness()); }
 
 void Thread::AbortInThis(const std::string& message) {
   std::string thread_name;

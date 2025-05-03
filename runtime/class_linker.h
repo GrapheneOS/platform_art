@@ -1389,7 +1389,6 @@ class ClassLinker {
                           ArtMethod* imt_conflict_method,
                           ObjPtr<mirror::Class> klass,
                           bool create_conflict_tables,
-                          bool ignore_copied_methods,
                           /*out*/bool* new_conflict,
                           /*out*/ArtMethod** imt) REQUIRES_SHARED(Locks::mutator_lock_);
 

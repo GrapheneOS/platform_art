@@ -3798,9 +3798,10 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
                   klass->GetDirectMethods(pointer_size).end(),
                   [](const ArtMethod& m) { return m.IsCriticalNative(); })) {
     // Store registered @CriticalNative methods, if any, to JNI entrypoints.
-    // Direct methods are a contiguous chunk of memory, so use the ordering of the map.
-    ArtMethod* first_method = klass->GetDirectMethod(0u, pointer_size);
-    ArtMethod* last_method = klass->GetDirectMethod(num_direct_methods - 1u, pointer_size);
+    // Methods are a contiguous chunk of memory, so use the ordering of the map.
+    ArraySlice<ArtMethod> methods = klass->GetMethods(pointer_size);
+    ArtMethod* first_method = &methods[0];
+    ArtMethod* last_method = &methods[methods.size() - 1u];
     MutexLock lock(self, critical_native_code_with_clinit_check_lock_);
     auto lb = critical_native_code_with_clinit_check_.lower_bound(first_method);
     while (lb != critical_native_code_with_clinit_check_.end() && lb->first <= last_method) {
@@ -3817,18 +3818,17 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
 
   instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
   bool enable_boot_jni_stub = !runtime->IsJavaDebuggable();
-  for (size_t method_index = 0; method_index < num_direct_methods; ++method_index) {
-    ArtMethod* method = klass->GetDirectMethod(method_index, pointer_size);
-    if (method->NeedsClinitCheckBeforeCall()) {
-      const void* quick_code = instrumentation->GetCodeForInvoke(method);
-      if (method->IsNative() && IsQuickGenericJniStub(quick_code) && enable_boot_jni_stub) {
-        const void* boot_jni_stub = FindBootJniStub(method);
+  for (ArtMethod& method : klass->GetMethods(pointer_size)) {
+    if (method.NeedsClinitCheckBeforeCall()) {
+      const void* quick_code = instrumentation->GetCodeForInvoke(&method);
+      if (method.IsNative() && IsQuickGenericJniStub(quick_code) && enable_boot_jni_stub) {
+        const void* boot_jni_stub = FindBootJniStub(&method);
         if (boot_jni_stub != nullptr) {
           // Use boot JNI stub if found.
           quick_code = boot_jni_stub;
         }
       }
-      instrumentation->UpdateMethodsCode(method, quick_code);
+      instrumentation->UpdateMethodsCode(&method, quick_code);
     }
   }
   // Ignore virtual methods on the iterator.
@@ -5606,7 +5606,7 @@ ObjPtr<mirror::Class> ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRun
   temp_klass->SetMethodsPtr(proxy_class_methods, num_direct_methods, num_virtual_methods);
 
   // Create the single direct method.
-  CreateProxyConstructor(temp_klass, temp_klass->GetDirectMethodUnchecked(0, image_pointer_size_));
+  CreateProxyConstructor(temp_klass, &temp_klass->GetMethods(image_pointer_size_)[0]);
 
   // Create virtual method using specified prototypes.
   // TODO These should really use the iterators.
@@ -5678,7 +5678,7 @@ ObjPtr<mirror::Class> ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRun
 
   // Consistency checks.
   if (kIsDebugBuild) {
-    CheckProxyConstructor(klass->GetDirectMethod(0, image_pointer_size_));
+    CheckProxyConstructor(&klass->GetMethods(image_pointer_size_)[0]);
 
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       auto* virtual_method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
@@ -6983,7 +6983,6 @@ void ClassLinker::FillIMTAndConflictTables(ObjPtr<mirror::Class> klass) {
                        conflict_method,
                        klass,
                        /*create_conflict_tables=*/true,
-                       /*ignore_copied_methods=*/false,
                        &new_conflict,
                        &imt_data[0]);
   }
@@ -7045,7 +7044,6 @@ void ClassLinker::FillIMTFromIfTable(ObjPtr<mirror::IfTable> if_table,
                                      ArtMethod* imt_conflict_method,
                                      ObjPtr<mirror::Class> klass,
                                      bool create_conflict_tables,
-                                     bool ignore_copied_methods,
                                      /*out*/bool* new_conflict,
                                      /*out*/ArtMethod** imt) {
   uint32_t conflict_counts[ImTable::kSize] = {};
@@ -7069,9 +7067,6 @@ void ClassLinker::FillIMTFromIfTable(ObjPtr<mirror::IfTable> if_table,
     for (size_t j = 0; j < method_array_count; ++j) {
       ArtMethod* implementation_method =
           method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_);
-      if (ignore_copied_methods && implementation_method->IsCopied()) {
-        continue;
-      }
       DCHECK(implementation_method != nullptr);
       // Miranda methods cannot be used to implement an interface method, but they are safe to put
       // in the IMT since their entrypoint is the interface trampoline. If we put any copied methods
@@ -7127,9 +7122,6 @@ void ClassLinker::FillIMTFromIfTable(ObjPtr<mirror::IfTable> if_table,
       for (size_t j = 0; j < method_array_count; ++j) {
         ArtMethod* implementation_method =
             method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_);
-        if (ignore_copied_methods && implementation_method->IsCopied()) {
-          continue;
-        }
         DCHECK(implementation_method != nullptr);
         ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size_);
         const uint32_t imt_index = interface_method->GetImtIndex();
@@ -9160,7 +9152,6 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
                                             runtime_->GetImtConflictMethod(),
                                             klass.Get(),
                                             /*create_conflict_tables=*/false,
-                                            /*ignore_copied_methods=*/false,
                                             out_new_conflict,
                                             out_imt);
         }
