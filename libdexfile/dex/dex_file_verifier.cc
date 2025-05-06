@@ -3212,12 +3212,14 @@ bool DexFileVerifier::CheckInterClassDataItem() {
   uint32_t defining_class = FindFirstClassDataDefiner(accessor);
   DCHECK(IsUint<16>(defining_class) || defining_class == kDexNoIndex) << defining_class;
   if (defining_class == kDexNoIndex) {
-    return true;  // Empty definitions are OK (but useless) and could be shared by multiple classes.
+    // Empty definitions are OK and could be shared by multiple classes.
+    ptr_ = accessor.ptr_pos_;  // Move over the empty `class_data_item`.
+    return true;
   }
   if (!defined_classes_[defining_class]) {
-      // Should really have a class definition for this class data item.
-      ErrorStringPrintf("Could not find declaring class for non-empty class data item.");
-      return false;
+    // Should really have a class definition for this class data item.
+    ErrorStringPrintf("Could not find declaring class for non-empty class data item.");
+    return false;
   }
   const dex::TypeIndex class_type_index(defining_class);
   const dex::ClassDef& class_def = dex_file_->GetClassDef(defined_class_indexes_[defining_class]);

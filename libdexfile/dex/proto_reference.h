@@ -88,4 +88,10 @@ struct ProtoReferenceValueComparator {
 
 }  // namespace art
 
+namespace std {
+// Defer to DexFileReference's hash.
+template <>
+struct hash<art::ProtoReference> : std::hash<art::DexFileReference> {};
+}  // namespace std
+
 #endif  // ART_LIBDEXFILE_DEX_PROTO_REFERENCE_H_

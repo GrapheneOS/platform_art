@@ -75,4 +75,10 @@ struct MethodReferenceValueComparator {
 
 }  // namespace art
 
+namespace std {
+// Defer to DexFileReference's hash.
+template <>
+struct hash<art::MethodReference> : std::hash<art::DexFileReference> {};
+}  // namespace std
+
 #endif  // ART_LIBDEXFILE_DEX_METHOD_REFERENCE_H_

@@ -68,4 +68,10 @@ struct StringReferenceValueComparator {
 
 }  // namespace art
 
+namespace std {
+// Defer to DexFileReference's hash.
+template <>
+struct hash<art::StringReference> : std::hash<art::DexFileReference> {};
+}  // namespace std
+
 #endif  // ART_LIBDEXFILE_DEX_STRING_REFERENCE_H_
