@@ -290,6 +290,62 @@ class OatWriter::OatClass {
   DISALLOW_COPY_AND_ASSIGN(OatClass);
 };
 
+// CompiledMethod + metadata required to do ordered method layout.
+//
+// See also OrderedMethodVisitor.
+struct OatWriter::OrderedMethodData {
+  uint32_t hotness_bits;
+  OatClass* oat_class;
+  CompiledMethod* compiled_method;
+  MethodReference method_reference;
+  size_t method_offsets_index;
+
+  size_t class_def_index;
+  uint32_t access_flags;
+  const dex::CodeItem* code_item;
+
+  // A value of -1 denotes missing debug info
+  static constexpr size_t kDebugInfoIdxInvalid = static_cast<size_t>(-1);
+  // Index into writer_->method_info_
+  size_t debug_info_idx;
+
+  bool HasDebugInfo() const {
+    return debug_info_idx != kDebugInfoIdxInvalid;
+  }
+
+  // Bin each method according to the profile flags.
+  //
+  // Groups by e.g.
+  //  -- startup and hot and poststartup
+  //  -- startup and hot
+  //  -- startup and post-startup
+  //  -- startup
+  //  -- hot and post-startup
+  //  -- hot
+  //  -- post-startup
+  //  -- not hot at all
+  //
+  // (See MethodHotness enum definition for up-to-date binning order.)
+  bool operator<(const OrderedMethodData& other) const {
+    if (kOatWriterForceOatCodeLayout) {
+      // Development flag: Override default behavior by sorting by name.
+
+      std::string name = method_reference.PrettyMethod();
+      std::string other_name = other.method_reference.PrettyMethod();
+      return name < other_name;
+    }
+
+    // Use the profile's method hotness to determine sort order, with startup
+    // methods appearing first.
+    if (hotness_bits > other.hotness_bits) {
+      return true;
+    }
+
+    // Default: retain the original order.
+    return false;
+  }
+};
+
 class OatWriter::OatDexFile {
  public:
   explicit OatDexFile(std::unique_ptr<const DexFile> dex_file);
@@ -938,62 +994,6 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
  private:
   dchecked_vector<CompiledMethod*> compiled_methods_;
   size_t compiled_methods_with_code_;
-};
-
-// CompiledMethod + metadata required to do ordered method layout.
-//
-// See also OrderedMethodVisitor.
-struct OatWriter::OrderedMethodData {
-  uint32_t hotness_bits;
-  OatClass* oat_class;
-  CompiledMethod* compiled_method;
-  MethodReference method_reference;
-  size_t method_offsets_index;
-
-  size_t class_def_index;
-  uint32_t access_flags;
-  const dex::CodeItem* code_item;
-
-  // A value of -1 denotes missing debug info
-  static constexpr size_t kDebugInfoIdxInvalid = static_cast<size_t>(-1);
-  // Index into writer_->method_info_
-  size_t debug_info_idx;
-
-  bool HasDebugInfo() const {
-    return debug_info_idx != kDebugInfoIdxInvalid;
-  }
-
-  // Bin each method according to the profile flags.
-  //
-  // Groups by e.g.
-  //  -- startup and hot and poststartup
-  //  -- startup and hot
-  //  -- startup and post-startup
-  //  -- startup
-  //  -- hot and post-startup
-  //  -- hot
-  //  -- post-startup
-  //  -- not hot at all
-  //
-  // (See MethodHotness enum definition for up-to-date binning order.)
-  bool operator<(const OrderedMethodData& other) const {
-    if (kOatWriterForceOatCodeLayout) {
-      // Development flag: Override default behavior by sorting by name.
-
-      std::string name = method_reference.PrettyMethod();
-      std::string other_name = other.method_reference.PrettyMethod();
-      return name < other_name;
-    }
-
-    // Use the profile's method hotness to determine sort order, with startup
-    // methods appearing first.
-    if (hotness_bits > other.hotness_bits) {
-      return true;
-    }
-
-    // Default: retain the original order.
-    return false;
-  }
 };
 
 // Given a queue of CompiledMethod in some total order,

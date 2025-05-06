@@ -16,6 +16,8 @@
 
 #include "jni_binder.h"
 
+#include <algorithm>
+
 #include <dlfcn.h>
 #include <inttypes.h>
 #include <stdio.h>
