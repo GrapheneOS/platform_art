@@ -1013,8 +1013,8 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
 // visit each one in that order.
 class OatWriter::OrderedMethodVisitor {
  public:
-  explicit OrderedMethodVisitor(OrderedMethodList ordered_methods)
-      : ordered_methods_(std::move(ordered_methods)) {
+  explicit OrderedMethodVisitor(ArrayRef<const OrderedMethodData> ordered_methods)
+      : ordered_methods_(ordered_methods) {
   }
 
   virtual ~OrderedMethodVisitor() {}
@@ -1050,14 +1050,10 @@ class OatWriter::OrderedMethodVisitor {
   // Return false to indicate the overall `Visit` has failed.
   virtual bool VisitComplete() = 0;
 
-  OrderedMethodList ReleaseOrderedMethods() {
-    return std::move(ordered_methods_);
-  }
-
  private:
   // List of compiled methods, sorted by the order defined in OrderedMethodData.
   // Methods can be inserted more than once in case of duplicated methods.
-  OrderedMethodList ordered_methods_;
+  ArrayRef<const OrderedMethodData> ordered_methods_;
 };
 
 // Visit every compiled method in order to determine its order within the OAT file.
@@ -1163,7 +1159,7 @@ class OatWriter::LayoutCodeMethodVisitor final : public OatDexMethodVisitor {
     return true;
   }
 
-  OrderedMethodList ReleaseOrderedMethods() {
+  std::vector<OrderedMethodData> ReleaseOrderedMethods() {
     if (kOatWriterForceOatCodeLayout || writer_->profile_compilation_info_ != nullptr) {
       // Sort by the method ordering criteria (in OrderedMethodData).
       // Since most methods will have the same ordering criteria,
@@ -1188,7 +1184,7 @@ class OatWriter::LayoutCodeMethodVisitor final : public OatDexMethodVisitor {
 
   // List of compiled methods, later to be sorted by order defined in OrderedMethodData.
   // Methods can be inserted more than once in case of duplicated methods.
-  OrderedMethodList ordered_methods_;
+  std::vector<OrderedMethodData> ordered_methods_;
 };
 
 // Given a method order, reserve the offsets for each CompiledMethod in the OAT file.
@@ -1196,11 +1192,11 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
  public:
   LayoutReserveOffsetCodeMethodVisitor(OatWriter* writer,
                                        size_t offset,
-                                       OrderedMethodList ordered_methods)
+                                       ArrayRef<const OrderedMethodData> ordered_methods)
       : LayoutReserveOffsetCodeMethodVisitor(writer,
                                              offset,
                                              writer->GetCompilerOptions(),
-                                             std::move(ordered_methods)) {
+                                             ordered_methods) {
   }
 
   bool VisitComplete() override {
@@ -1332,8 +1328,8 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
   LayoutReserveOffsetCodeMethodVisitor(OatWriter* writer,
                                        size_t offset,
                                        const CompilerOptions& compiler_options,
-                                       OrderedMethodList ordered_methods)
-      : OrderedMethodVisitor(std::move(ordered_methods)),
+                                       ArrayRef<const OrderedMethodData> ordered_methods)
+      : OrderedMethodVisitor(ordered_methods),
         writer_(writer),
         offset_(offset),
         relative_patcher_(writer->relative_patcher_),
@@ -1595,8 +1591,8 @@ class OatWriter::WriteCodeMethodVisitor : public OrderedMethodVisitor {
                          OutputStream* out,
                          const size_t file_offset,
                          size_t relative_offset,
-                         OrderedMethodList ordered_methods)
-      : OrderedMethodVisitor(std::move(ordered_methods)),
+                         ArrayRef<const OrderedMethodData> ordered_methods)
+      : OrderedMethodVisitor(ordered_methods),
         writer_(writer),
         offset_(relative_offset),
         dex_file_(nullptr),
@@ -1625,13 +1621,9 @@ class OatWriter::WriteCodeMethodVisitor : public OrderedMethodVisitor {
 
     // Ordered method visiting is only for compiled methods.
     DCHECK(writer_->MayHaveCompiledMethods());
-
-    if (writer_->GetCompilerOptions().IsAotCompilationEnabled()) {
-      // Only need to set the dex cache if we have compilation. Other modes might have unloaded it.
-      if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
-        dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
-        DCHECK(dex_cache_ != nullptr);
-      }
+    if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
+      dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
+      DCHECK(dex_cache_ != nullptr);
     }
   }
 
@@ -2437,24 +2429,22 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
     success = VisitDexMethods(&layout_code_visitor);
     DCHECK(success);
 
+    // Save the method order because the WriteCodeMethodVisitor will need this
+    // order again.
+    DCHECK(ordered_methods_.empty());
+    ordered_methods_ = layout_code_visitor.ReleaseOrderedMethods();
+
     LayoutReserveOffsetCodeMethodVisitor layout_reserve_code_visitor(
         this,
         offset,
-        layout_code_visitor.ReleaseOrderedMethods());
+        ArrayRef<const OrderedMethodData>(ordered_methods_));
     success = layout_reserve_code_visitor.Visit();
     DCHECK(success);
     offset = layout_reserve_code_visitor.GetOffset();
 
-    // Save the method order because the WriteCodeMethodVisitor will need this
-    // order again.
-    DCHECK(ordered_methods_ == nullptr);
-    ordered_methods_.reset(
-        new OrderedMethodList(
-            layout_reserve_code_visitor.ReleaseOrderedMethods()));
-
     if (kOatWriterDebugOatCodeLayout) {
       LOG(INFO) << "IniatOatCodeDexFiles: method order: ";
-      for (const OrderedMethodData& ordered_method : *ordered_methods_) {
+      for (const OrderedMethodData& ordered_method : ordered_methods_) {
         std::string pretty_name = ordered_method.method_reference.PrettyMethod();
         LOG(INFO) << pretty_name
                   << "@ offset "
@@ -3284,14 +3274,11 @@ size_t OatWriter::WriteCodeDexFiles(OutputStream* out,
     return relative_offset;
   }
   ScopedObjectAccess soa(Thread::Current());
-  DCHECK(ordered_methods_ != nullptr);
-  std::unique_ptr<OrderedMethodList> ordered_methods_ptr =
-      std::move(ordered_methods_);
   WriteCodeMethodVisitor visitor(this,
                                  out,
                                  file_offset,
                                  relative_offset,
-                                 std::move(*ordered_methods_ptr));
+                                 ArrayRef<const OrderedMethodData>(ordered_methods_));
   if (UNLIKELY(!visitor.Visit())) {
     return 0;
   }

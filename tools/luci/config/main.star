@@ -302,7 +302,7 @@ def add_builder(mode,
         "repo_root": REPO_ROOT,
     }
 
-    experiments = {"art.superproject": 0} if mode == "qemu" else {}
+    experiments = {"art.superproject": 1}
 
     ci_builder(name=name,
                category="|".join(category.split("|")[:-1]),

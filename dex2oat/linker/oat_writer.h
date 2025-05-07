@@ -644,12 +644,10 @@ class OatWriter {
   // Profile info used to generate new layout of files.
   ProfileCompilationInfo* profile_compilation_info_;
 
-  using OrderedMethodList = std::vector<OrderedMethodData>;
-
   // List of compiled methods, sorted by the order defined in OrderedMethodData.
   // Methods can be inserted more than once in case of duplicated methods.
   // This pointer is only non-null after InitOatCodeDexFiles succeeds.
-  std::unique_ptr<OrderedMethodList> ordered_methods_;
+  std::vector<OrderedMethodData> ordered_methods_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };

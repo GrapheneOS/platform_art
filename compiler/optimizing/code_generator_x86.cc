@@ -5998,9 +5998,8 @@ void LocationsBuilderX86::HandleFieldGet(HInstruction* instruction, const FieldI
   LocationSummary* locations = LocationSummary::Create(
       allocator_,
       instruction,
-      // FIXME: The following condition should be `object_field_get_with_read_barrier`.
-      codegen_->EmitReadBarrier() ? LocationSummary::kCallOnSlowPath
-                                  : LocationSummary::kNoCall);
+      object_field_get_with_read_barrier ? LocationSummary::kCallOnSlowPath
+                                         : LocationSummary::kNoCall);
   if (object_field_get_with_read_barrier && kUseBakerReadBarrier) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   }
