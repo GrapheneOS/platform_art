@@ -431,6 +431,13 @@ class OptimizingUnitTestHelper {
     return block;
   }
 
+  HBasicBlock* AddExitBlock() {
+    HBasicBlock* block = AddNewBlock();
+    MakeExit(block);
+    graph_->SetExitBlock(block);
+    return block;
+  }
+
   // Run GraphChecker with all checks.
   //
   // Return: the status whether the run is successful.

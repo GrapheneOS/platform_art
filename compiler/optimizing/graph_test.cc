@@ -31,7 +31,6 @@ class GraphTest : public OptimizingUnitTest {
   HBasicBlock* CreateGotoBlock(HGraph* graph);
   HBasicBlock* CreateEntryBlock(HGraph* graph);
   HBasicBlock* CreateReturnBlock(HGraph* graph);
-  HBasicBlock* CreateExitBlock(HGraph* graph);
 };
 
 HBasicBlock* GraphTest::CreateIfBlock(HGraph* graph) {
@@ -64,14 +63,6 @@ HBasicBlock* GraphTest::CreateReturnBlock(HGraph* graph) {
   return block;
 }
 
-HBasicBlock* GraphTest::CreateExitBlock(HGraph* graph) {
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  MakeExit(block);
-  return block;
-}
-
-
 // Test that the successors of an if block stay consistent after a SimplifyCFG.
 // This test sets the false block to be the return block.
 TEST_F(GraphTest, IfSuccessorSimpleJoinBlock1) {
@@ -80,7 +71,7 @@ TEST_F(GraphTest, IfSuccessorSimpleJoinBlock1) {
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* if_true = CreateGotoBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
-  HBasicBlock* exit_block = CreateExitBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(if_true);
@@ -112,7 +103,7 @@ TEST_F(GraphTest, IfSuccessorSimpleJoinBlock2) {
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* if_false = CreateGotoBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
-  HBasicBlock* exit_block = CreateExitBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(return_block);
@@ -143,7 +134,7 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges1) {
   HBasicBlock* entry_block = CreateEntryBlock(graph);
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
-  HBasicBlock* exit_block = CreateExitBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(if_block);
@@ -175,7 +166,7 @@ TEST_F(GraphTest, IfSuccessorMultipleBackEdges2) {
   HBasicBlock* entry_block = CreateEntryBlock(graph);
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
-  HBasicBlock* exit_block = CreateExitBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(return_block);
@@ -209,6 +200,7 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders1) {
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* loop_block = CreateGotoBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(first_if_block);
   first_if_block->AddSuccessor(if_block);
@@ -216,7 +208,7 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders1) {
   loop_block->AddSuccessor(loop_block);
   if_block->AddSuccessor(loop_block);
   if_block->AddSuccessor(return_block);
-
+  return_block->AddSuccessor(exit_block);
 
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), loop_block);
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), return_block);
@@ -245,6 +237,7 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders2) {
   HBasicBlock* if_block = CreateIfBlock(graph);
   HBasicBlock* loop_block = CreateGotoBlock(graph);
   HBasicBlock* return_block = CreateReturnBlock(graph);
+  HBasicBlock* exit_block = AddExitBlock();
 
   entry_block->AddSuccessor(first_if_block);
   first_if_block->AddSuccessor(if_block);
@@ -252,6 +245,7 @@ TEST_F(GraphTest, IfSuccessorMultiplePreHeaders2) {
   loop_block->AddSuccessor(loop_block);
   if_block->AddSuccessor(return_block);
   if_block->AddSuccessor(loop_block);
+  return_block->AddSuccessor(exit_block);
 
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfTrueSuccessor(), return_block);
   ASSERT_EQ(if_block->GetLastInstruction()->AsIf()->IfFalseSuccessor(), loop_block);

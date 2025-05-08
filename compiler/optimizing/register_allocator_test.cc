@@ -47,10 +47,10 @@ class RegisterAllocatorTest : public CommonCompilerTest, public OptimizingUnitTe
 
   // Helper functions that make use of the OptimizingUnitTest's members.
   bool Check(const std::vector<uint16_t>& data);
-  HGraph* BuildIfElseWithPhi(HPhi** phi, HInstruction** input1, HInstruction** input2);
-  HGraph* BuildFieldReturn(HInstruction** field, HInstruction** ret);
-  HGraph* BuildTwoSubs(HInstruction** first_sub, HInstruction** second_sub);
-  HGraph* BuildDiv(HInstruction** div);
+  void BuildIfElseWithPhi(HPhi** phi, HInstruction** input1, HInstruction** input2);
+  void BuildFieldReturn(HInstruction** field, HInstruction** ret);
+  void BuildTwoSubs(HInstruction** first_sub, HInstruction** second_sub);
+  void BuildDiv(HInstruction** div);
 
   bool ValidateIntervals(const ScopedArenaVector<LiveInterval*>& intervals,
                          const CodeGenerator& codegen) {
@@ -471,45 +471,22 @@ TEST_F(RegisterAllocatorTest, FreeUntilSpecialFirst) {
   TestFreeUntil(/*special_first=*/ true);
 }
 
-HGraph* RegisterAllocatorTest::BuildIfElseWithPhi(HPhi** phi,
-                                                  HInstruction** input1,
-                                                  HInstruction** input2) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->SetEntryBlock(entry);
+void RegisterAllocatorTest::BuildIfElseWithPhi(HPhi** phi,
+                                               HInstruction** input1,
+                                               HInstruction** input2) {
+  HBasicBlock* join = InitEntryMainExitGraph();
+  auto [if_block, then, else_] = CreateDiamondPattern(join);
   HInstruction* parameter = MakeParam(DataType::Type::kReference);
-
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  entry->AddSuccessor(block);
-
-  HInstruction* test = MakeIFieldGet(block, parameter, DataType::Type::kBool, MemberOffset(22));
-  MakeIf(block, test);
-
-  HBasicBlock* then = new (GetAllocator()) HBasicBlock(graph);
-  HBasicBlock* else_ = new (GetAllocator()) HBasicBlock(graph);
-  HBasicBlock* join = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(then);
-  graph->AddBlock(else_);
-  graph->AddBlock(join);
-
-  block->AddSuccessor(then);
-  block->AddSuccessor(else_);
-  then->AddSuccessor(join);
-  else_->AddSuccessor(join);
-  MakeGoto(then);
-  MakeGoto(else_);
+  HInstruction* test = MakeIFieldGet(if_block, parameter, DataType::Type::kBool, MemberOffset(22));
+  MakeIf(if_block, test);
 
   *input1 = MakeIFieldGet(then, parameter, DataType::Type::kInt32, MemberOffset(42));
   *input2 = MakeIFieldGet(else_, parameter, DataType::Type::kInt32, MemberOffset(42));
-
   *phi = MakePhi(join, {*input1, *input2});
-  MakeExit(join);
+  MakeReturn(join, *phi);
 
-  graph->BuildDominatorTree();
-  graph->AnalyzeLoops();
-  return graph;
+  graph_->BuildDominatorTree();
+  graph_->AnalyzeLoops();
 }
 
 TEST_F(RegisterAllocatorTest, PhiHint) {
@@ -517,9 +494,9 @@ TEST_F(RegisterAllocatorTest, PhiHint) {
   HInstruction *input1, *input2;
 
   {
-    HGraph* graph = BuildIfElseWithPhi(&phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildIfElseWithPhi(&phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // Check that the register allocator is deterministic.
@@ -533,9 +510,9 @@ TEST_F(RegisterAllocatorTest, PhiHint) {
   }
 
   {
-    HGraph* graph = BuildIfElseWithPhi(&phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildIfElseWithPhi(&phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // Set the phi to a specific register, and check that the inputs get allocated
@@ -551,9 +528,9 @@ TEST_F(RegisterAllocatorTest, PhiHint) {
   }
 
   {
-    HGraph* graph = BuildIfElseWithPhi(&phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildIfElseWithPhi(&phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // Set input1 to a specific register, and check that the phi and other input get allocated
@@ -569,9 +546,9 @@ TEST_F(RegisterAllocatorTest, PhiHint) {
   }
 
   {
-    HGraph* graph = BuildIfElseWithPhi(&phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildIfElseWithPhi(&phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // Set input2 to a specific register, and check that the phi and other input get allocated
@@ -587,36 +564,23 @@ TEST_F(RegisterAllocatorTest, PhiHint) {
   }
 }
 
-HGraph* RegisterAllocatorTest::BuildFieldReturn(HInstruction** field, HInstruction** ret) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->SetEntryBlock(entry);
+void RegisterAllocatorTest::BuildFieldReturn(HInstruction** field, HInstruction** ret) {
+  HBasicBlock* block = InitEntryMainExitGraph();
   HInstruction* parameter = MakeParam(DataType::Type::kReference);
-
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  entry->AddSuccessor(block);
 
   *field = MakeIFieldGet(block, parameter, DataType::Type::kInt32, MemberOffset(42));
   *ret = MakeReturn(block, *field);
 
-  HBasicBlock* exit = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(exit);
-  block->AddSuccessor(exit);
-  MakeExit(exit);
-
-  graph->BuildDominatorTree();
-  return graph;
+  graph_->BuildDominatorTree();
 }
 
 TEST_F(RegisterAllocatorTest, ExpectedInRegisterHint) {
   HInstruction *field, *ret;
 
   {
-    HGraph* graph = BuildFieldReturn(&field, &ret);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildFieldReturn(&field, &ret);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     std::unique_ptr<RegisterAllocator> register_allocator =
@@ -628,9 +592,9 @@ TEST_F(RegisterAllocatorTest, ExpectedInRegisterHint) {
   }
 
   {
-    HGraph* graph = BuildFieldReturn(&field, &ret);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildFieldReturn(&field, &ret);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // Check that the field gets put in the register expected by its use.
@@ -645,38 +609,28 @@ TEST_F(RegisterAllocatorTest, ExpectedInRegisterHint) {
   }
 }
 
-HGraph* RegisterAllocatorTest::BuildTwoSubs(HInstruction** first_sub, HInstruction** second_sub) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->SetEntryBlock(entry);
+void RegisterAllocatorTest::BuildTwoSubs(HInstruction** first_sub, HInstruction** second_sub) {
+  HBasicBlock* block = InitEntryMainExitGraph();
   HInstruction* parameter = MakeParam(DataType::Type::kInt32);
-
-  HInstruction* constant1 = graph->GetIntConstant(1);
-  HInstruction* constant2 = graph->GetIntConstant(2);
-
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  entry->AddSuccessor(block);
+  HInstruction* constant1 = graph_->GetIntConstant(1);
+  HInstruction* constant2 = graph_->GetIntConstant(2);
 
   *first_sub = new (GetAllocator()) HSub(DataType::Type::kInt32, parameter, constant1);
   block->AddInstruction(*first_sub);
   *second_sub = new (GetAllocator()) HSub(DataType::Type::kInt32, *first_sub, constant2);
   block->AddInstruction(*second_sub);
+  MakeReturn(block, *second_sub);
 
-  MakeExit(block);
-
-  graph->BuildDominatorTree();
-  return graph;
+  graph_->BuildDominatorTree();
 }
 
 TEST_F(RegisterAllocatorTest, SameAsFirstInputHint) {
   HInstruction *first_sub, *second_sub;
 
   {
-    HGraph* graph = BuildTwoSubs(&first_sub, &second_sub);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildTwoSubs(&first_sub, &second_sub);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     std::unique_ptr<RegisterAllocator> register_allocator =
@@ -689,9 +643,9 @@ TEST_F(RegisterAllocatorTest, SameAsFirstInputHint) {
   }
 
   {
-    HGraph* graph = BuildTwoSubs(&first_sub, &second_sub);
-    x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-    SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+    BuildTwoSubs(&first_sub, &second_sub);
+    x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+    SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
     liveness.Analyze();
 
     // check that both adds get the same register.
@@ -709,33 +663,24 @@ TEST_F(RegisterAllocatorTest, SameAsFirstInputHint) {
   }
 }
 
-HGraph* RegisterAllocatorTest::BuildDiv(HInstruction** div) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
-  graph->SetEntryBlock(entry);
+void RegisterAllocatorTest::BuildDiv(HInstruction** div) {
+  HBasicBlock* block = InitEntryMainExitGraph();
   HInstruction* first = MakeParam(DataType::Type::kInt32);
   HInstruction* second = MakeParam(DataType::Type::kInt32);
-
-  HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(block);
-  entry->AddSuccessor(block);
 
   *div = new (GetAllocator()) HDiv(
       DataType::Type::kInt32, first, second, 0);  // don't care about dex_pc.
   block->AddInstruction(*div);
+  MakeReturn(block, *div);
 
-  MakeExit(block);
-
-  graph->BuildDominatorTree();
-  return graph;
+  graph_->BuildDominatorTree();
 }
 
 TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
   HInstruction *div;
-  HGraph* graph = BuildDiv(&div);
-  x86::CodeGeneratorX86 codegen(graph, *compiler_options_);
-  SsaLivenessAnalysis liveness(graph, &codegen, GetScopedAllocator());
+  BuildDiv(&div);
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
   liveness.Analyze();
 
   std::unique_ptr<RegisterAllocator> register_allocator =

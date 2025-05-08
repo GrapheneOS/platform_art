@@ -98,11 +98,10 @@ TEST_F(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
   HBoundsCheck* bounds_check5 = MakeBoundsCheck(block5, parameter2, array_length);
   MakeArraySet(block5, null_check, bounds_check5, constant_1, DataType::Type::kInt32);
 
-  HBasicBlock* exit = AddNewBlock();
+  HBasicBlock* exit = AddExitBlock();
   block2->AddSuccessor(exit);
   block4->AddSuccessor(exit);
   block5->AddSuccessor(exit);
-  MakeExit(exit);
 
   block1->AddSuccessor(block3);  // True successor
   block1->AddSuccessor(block2);  // False successor
@@ -149,13 +148,16 @@ TEST_F(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   HBoundsCheck* bounds_check = MakeBoundsCheck(block3, add, array_length);
   MakeArraySet(block3, null_check, bounds_check, constant_1, DataType::Type::kInt32);
 
-  HBasicBlock* exit = AddNewBlock();
-  MakeExit(exit);
-  block1->AddSuccessor(exit);    // true successor
-  block1->AddSuccessor(block2);  // false successor
-  block2->AddSuccessor(exit);    // true successor
-  block2->AddSuccessor(block3);  // false successor
-  block3->AddSuccessor(exit);
+  HBasicBlock* return_block = AddNewBlock();
+  MakeReturnVoid(return_block);
+  HBasicBlock* exit = AddExitBlock();
+  return_block->AddSuccessor(exit);
+
+  block1->AddSuccessor(return_block);  // true successor
+  block1->AddSuccessor(block2);        // false successor
+  block2->AddSuccessor(return_block);  // true successor
+  block2->AddSuccessor(block3);        // false successor
+  block3->AddSuccessor(return_block);
 
   RunBCE();
 
@@ -196,13 +198,16 @@ TEST_F(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   HBoundsCheck* bounds_check = MakeBoundsCheck(block3, sub2, array_length);
   MakeArraySet(block3, null_check, bounds_check, constant_1, DataType::Type::kInt32);
 
-  HBasicBlock* exit = AddNewBlock();
-  MakeExit(exit);
-  block1->AddSuccessor(exit);    // true successor
-  block1->AddSuccessor(block2);  // false successor
-  block2->AddSuccessor(exit);    // true successor
-  block2->AddSuccessor(block3);  // false successor
-  block3->AddSuccessor(exit);
+  HBasicBlock* return_block = AddNewBlock();
+  MakeReturnVoid(return_block);
+  HBasicBlock* exit = AddExitBlock();
+  return_block->AddSuccessor(exit);
+
+  block1->AddSuccessor(return_block);  // true successor
+  block1->AddSuccessor(block2);        // false successor
+  block2->AddSuccessor(return_block);  // true successor
+  block2->AddSuccessor(block3);        // false successor
+  block3->AddSuccessor(return_block);
 
   RunBCE();
 

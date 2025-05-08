@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include "base/globals.h"
+#include "optimizing/nodes.h"
 #include "optimizing_unit_test.h"
 
 namespace art HIDDEN {
@@ -27,31 +28,29 @@ namespace riscv64 {
 class InstructionSimplifierRiscv64Test : public OptimizingUnitTest {};
 
 TEST_F(InstructionSimplifierRiscv64Test, SimplifyShiftAdd) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = AddNewBlock();
-  graph->SetEntryBlock(entry);
-  graph->BuildDominatorTree();
+  HBasicBlock* block = InitEntryMainExitGraphWithReturnVoid();
+  graph_->BuildDominatorTree();
 
   HInstruction* param0 = MakeParam(DataType::Type::kInt64);
   HInstruction* param1 = MakeParam(DataType::Type::kInt64);
-  HInstruction* c0 = graph->GetIntConstant(0);
-  HInstruction* c1 = graph->GetIntConstant(1);
-  HInstruction* c2 = graph->GetIntConstant(2);
-  HInstruction* c3 = graph->GetIntConstant(3);
-  HInstruction* c4 = graph->GetIntConstant(4);
+  HInstruction* c0 = graph_->GetIntConstant(0);
+  HInstruction* c1 = graph_->GetIntConstant(1);
+  HInstruction* c2 = graph_->GetIntConstant(2);
+  HInstruction* c3 = graph_->GetIntConstant(3);
+  HInstruction* c4 = graph_->GetIntConstant(4);
 
-  HInstruction* shl0 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c0);
-  HInstruction* add_shl0 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl0);
-  HInstruction* shl1 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c1);
-  HInstruction* add_shl1 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl1);
-  HInstruction* shl2 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c2);
-  HInstruction* add_shl2 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl2);
-  HInstruction* shl3 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c3);
-  HInstruction* add_shl3 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl3);
-  HInstruction* shl4 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c4);
-  HInstruction* add_shl4 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl4);
+  HInstruction* shl0 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c0);
+  HInstruction* add_shl0 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl0);
+  HInstruction* shl1 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c1);
+  HInstruction* add_shl1 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl1);
+  HInstruction* shl2 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c2);
+  HInstruction* add_shl2 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl2);
+  HInstruction* shl3 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c3);
+  HInstruction* add_shl3 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl3);
+  HInstruction* shl4 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c4);
+  HInstruction* add_shl4 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl4);
 
-  InstructionSimplifierRiscv64 simplifier(graph, /*stats=*/ nullptr);
+  InstructionSimplifierRiscv64 simplifier(graph_, /*stats=*/ nullptr);
   simplifier.Run();
 
   EXPECT_FALSE(add_shl0->GetBlock() == nullptr);
@@ -62,23 +61,21 @@ TEST_F(InstructionSimplifierRiscv64Test, SimplifyShiftAdd) {
 }
 
 TEST_F(InstructionSimplifierRiscv64Test, SimplifyShiftAddReusedShift) {
-  HGraph* graph = CreateGraph();
-  HBasicBlock* entry = AddNewBlock();
-  graph->SetEntryBlock(entry);
-  graph->BuildDominatorTree();
+  HBasicBlock* block = InitEntryMainExitGraphWithReturnVoid();
+  graph_->BuildDominatorTree();
 
   HInstruction* param0 = MakeParam(DataType::Type::kInt64);
   HInstruction* param1 = MakeParam(DataType::Type::kInt64);
   HInstruction* param2 = MakeParam(DataType::Type::kInt64);
   HInstruction* param3 = MakeParam(DataType::Type::kInt64);
-  HInstruction* c1 = graph->GetIntConstant(1);
+  HInstruction* c1 = graph_->GetIntConstant(1);
 
-  HInstruction* shl1 = MakeBinOp<HShl>(entry, DataType::Type::kInt64, param0, c1);
-  HInstruction* add1 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param1, shl1);
-  HInstruction* add2 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param2, shl1);
-  HInstruction* add3 = MakeBinOp<HAdd>(entry, DataType::Type::kInt64, param3, shl1);
+  HInstruction* shl1 = MakeBinOp<HShl>(block, DataType::Type::kInt64, param0, c1);
+  HInstruction* add1 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param1, shl1);
+  HInstruction* add2 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param2, shl1);
+  HInstruction* add3 = MakeBinOp<HAdd>(block, DataType::Type::kInt64, param3, shl1);
 
-  InstructionSimplifierRiscv64 simplifier(graph, /*stats=*/ nullptr);
+  InstructionSimplifierRiscv64 simplifier(graph_, /*stats=*/ nullptr);
   simplifier.Run();
 
   EXPECT_TRUE(shl1->GetBlock() == nullptr);

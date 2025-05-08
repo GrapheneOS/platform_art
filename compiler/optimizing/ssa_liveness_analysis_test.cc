@@ -62,7 +62,8 @@ TEST_F(SsaLivenessAnalysisTest, TestReturnArg) {
 
   HBasicBlock* block = CreateSuccessor(entry_);
   MakeReturn(block, arg);
-  MakeExit(block);
+  HBasicBlock* exit = AddExitBlock();
+  block->AddSuccessor(exit);
 
   graph_->BuildDominatorTree();
   SsaLivenessAnalysis ssa_analysis(graph_, codegen_.get(), GetScopedAllocator());
@@ -88,6 +89,8 @@ TEST_F(SsaLivenessAnalysisTest, TestAput) {
   HInstruction* length = MakeArrayLength(block, array);
   HInstruction* bounds_check = MakeBoundsCheck(block, index, length, /*env=*/ args);
   MakeArraySet(block, array, index, value, DataType::Type::kInt32);
+  HBasicBlock* exit = AddExitBlock();
+  block->AddSuccessor(exit);
 
   graph_->BuildDominatorTree();
   SsaLivenessAnalysis ssa_analysis(graph_, codegen_.get(), GetScopedAllocator());
@@ -135,6 +138,8 @@ TEST_F(SsaLivenessAnalysisTest, TestDeoptimize) {
   block->AddInstruction(deoptimize);
   ManuallyBuildEnvFor(deoptimize, /*env=*/ args);
   MakeArraySet(block, array, index, value, DataType::Type::kInt32);
+  HBasicBlock* exit = AddExitBlock();
+  block->AddSuccessor(exit);
 
   graph_->BuildDominatorTree();
   SsaLivenessAnalysis ssa_analysis(graph_, codegen_.get(), GetScopedAllocator());
