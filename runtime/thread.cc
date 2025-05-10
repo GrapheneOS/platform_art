@@ -4983,9 +4983,6 @@ int* Thread::GetPriorityMap() {
     return;                             \
   }
     bool need_fake = false;  // Saw an anomaly requiring us to fake the map?
-#ifdef PALETTE_ADDED_MAP_PRIORITY
-    // TODO(b/389104950): Reenable this and remove #else once aosp/3355710 and aosp/3312350
-    // are submitted.
     bool success = true;
     bool saw_difference = true;  // Do we map to different niceness values?
                                  // PaletteMapPriority always yields nontrivial mapping.
@@ -4997,10 +4994,6 @@ int* Thread::GetPriorityMap() {
       }
       CHECK_DEFERRED_ABORT(result == PALETTE_STATUS_OK, "Bad PALLETTE_STATUS");
     }
-#else
-    constexpr bool success = false;
-    bool saw_difference;  // Initialized below.
-#endif
     if (!success) {
       // Discover the map the hard way.
       int32_t me = static_cast<int32_t>(::art::GetTid());
@@ -5015,15 +5008,17 @@ int* Thread::GetPriorityMap() {
         ++iters;
         saw_difference = false;
         CHECK_DEFERRED_ABORT(iters <= kMaxIters, "iters > kMaxIters");
-        for (int p = kMinThreadPriority; p <= kMaxThreadPriority; ++p) {
+        // Start checking from higher priorities, since that is most likely to fail, and we may
+        // have trouble undoing the damage if we don't detect the problem immediately.
+        for (int p = kMaxThreadPriority; p >= kMinThreadPriority; --p) {
           int ret = PaletteSchedSetPriority(me, p);
           if (ret == PALETTE_STATUS_OK) {
             errno = 0;
             pm[p] = getpriority(PRIO_PROCESS, 0 /* self */);
             // If we always get the same value, we're dealing with a fake, and need to fake a
             // consistent result here.
-            if (!saw_difference && pm[p] != pm[kMinThreadPriority]) {
-              if (p == kMinThreadPriority + 1) {
+            if (!saw_difference && pm[p] != pm[kMaxThreadPriority]) {
+              if (p == kMaxThreadPriority - 1) {
                 saw_difference = true;
               } else {
                 // We saw several identical values, which is wrong.
@@ -5037,7 +5032,7 @@ int* Thread::GetPriorityMap() {
             if (saw_difference) {
               // With a non-fake PaletteSchedSetPriority the map should be strictly monotonically
               // decreasing.
-              if (p > kMinThreadPriority && pm[p] >= pm[p - 1]) {
+              if (p < kMaxThreadPriority && pm[p] <= pm[p + 1]) {
                 // Maybe somebody else mucked with our priority? Start over.
                 map_consistent = false;
                 break;

@@ -77,8 +77,7 @@
   /*         internal unstable API. */                                                        \
   M(PaletteSetTaskProfiles, int32_t tid, const char* const profiles[], size_t profiles_len)   \
                                                                                               \
-  /* Methods in version 4 API, corresponding to SDK level 36. */                              \
-                                                                                              \
+  /* Introduced in version 4 API, corresponding to SDK level 36. */                           \
   /* Retrieves the debug store as a string. */                                                \
   /* */                                                                                       \
   /* This function retrieves debug information stored in a predefined debug store. */         \
@@ -92,6 +91,16 @@
   /*                 up to max_size characters. */                                            \
   /* @return PALETTE_STATUS_OK if the call succeeded. */                                      \
   /*          PALETTE_STATUS_INVALID_ARGUMENT if the pointer is a nullptr or max_size is 0 */ \
-  M(PaletteDebugStoreGetString, char* result, size_t max_size)
+  M(PaletteDebugStoreGetString, char* result, size_t max_size)                                \
+                                                                                              \
+  /* Introduced in version 5 API, corresponding to SDK level 36.1. */                         \
+  /* Retrieve the nice value (as used by Posix setpriority()) corresponding to a managed */   \
+  /* (Java) thread priority. */                                                               \
+  /* */                                                                                       \
+  /* @param managed_priority  The Java priority for which we want the niceness value. */      \
+  /* @param result  A pointer to an int in which to store the niceness result. */             \
+  /* @return PALETTE_STATUS_OK if the call succeeded. */                                      \
+  /*         PALETTE_STATUS_INVALID_ARGUMENT if the argument is not a valid Java priority. */ \
+  M(PaletteMapPriority, int32_t managed_priority, /*out*/ int* result)
 
 #endif  // ART_LIBARTPALETTE_INCLUDE_PALETTE_PALETTE_METHOD_LIST_H_

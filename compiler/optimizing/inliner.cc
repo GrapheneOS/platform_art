@@ -1600,6 +1600,21 @@ bool HInliner::IsInliningEncouraged(const HInvoke* invoke_instruction,
     return false;
   }
 
+  // The heuristic below tries to prevent inline attempts where the graph is built but discarded
+  // later due to its size being over the budget. A rough estimate of method size (`HInstruction`
+  // count) is 2/3 of code item size (it is not always true - a large code item may result in just
+  // a few `HInstruction`s, but experiments show such methods are relatively rare). We use factor
+  // 3/4 rather than 2/3 as the experiments show that it results in approximately the same number
+  // of prevented-successful inline attempts, but higher prevented-failed attempts.
+  size_t estimated_size = (accessor.InsnsSizeInCodeUnits() * 3u) / 4u;
+  if (estimated_size > inlining_budget_) {
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedCodeItem)
+        << "Method " << method->PrettyMethod()
+        << " is not inlined because its estimated size based on code item exceeds inlining budget: "
+        << estimated_size << " > " << inlining_budget_;
+    return false;
+  }
+
   return true;
 }
 

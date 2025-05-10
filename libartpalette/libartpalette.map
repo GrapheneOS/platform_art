@@ -57,3 +57,10 @@ LIBARTPALETTE_4 { # introduced=36
     # --- VERSION 04 API ---
     PaletteDebugStoreGetString; # apex
 } LIBARTPALETTE_3;
+
+LIBARTPALETTE_5 { # introduced=37
+# Also available in 36.1
+  global:
+    # --- VERSION 05 API ---
+    PaletteMapPriority; # apex
+} LIBARTPALETTE_4;
