@@ -292,10 +292,7 @@ inline mirror::Object* Heap::AllocLargeObject(Thread* self,
   auto klass_wrapper = hs.NewHandleWrapper(klass);
   mirror::Object* obj = AllocObjectWithAllocator<kInstrumented, false, PreFenceVisitor>
                         (self, *klass, byte_count, kAllocatorTypeLOS, pre_fence_visitor);
-  // Java Heap Profiler check and sample allocation.
-  if (GetHeapSampler().IsEnabled()) {
-    JHPCheckNonTlabSampleAllocation(self, obj, byte_count);
-  }
+  ReportAllocationForJavaHeapProf(obj, byte_count);
   return obj;
 }
 
@@ -480,6 +477,12 @@ inline bool Heap::ShouldConcurrentGCForJava(size_t new_num_bytes_allocated) {
   // threshold. By not considering native allocation here, we (a) ensure that Java heap bounds are
   // maintained, and (b) reduce the cost of the check here.
   return new_num_bytes_allocated >= concurrent_start_bytes_;
+}
+
+inline void Heap::ReportAllocationForJavaHeapProf(mirror::Object* obj, size_t alloc_size) {
+  if (heap_sampler_.IsEnabled()) {
+    heap_sampler_.ReportAllocation(obj, alloc_size);
+  }
 }
 
 }  // namespace gc

@@ -806,7 +806,7 @@ Heap::Heap(size_t initial_size,
     InitPerfettoJavaHeapProf();
   } else {
     // Disable the Java Heap Profiler.
-    GetHeapSampler().DisableHeapSampler();
+    heap_sampler_.DisableHeapSampler();
   }
 
   instrumentation::Instrumentation* const instrumentation = runtime->GetInstrumentation();
@@ -4308,9 +4308,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
     CheckGCForNative(Thread::ForEnv(env));
   }
   // Heap profiler treats this as a Java allocation with a null object.
-  if (GetHeapSampler().IsEnabled()) {
-    JHPCheckNonTlabSampleAllocation(Thread::Current(), nullptr, bytes);
-  }
+  ReportAllocationForJavaHeapProf(nullptr, bytes);
 }
 
 void Heap::RegisterNativeFree(JNIEnv*, size_t bytes) {
@@ -4460,39 +4458,6 @@ void Heap::InitPerfettoJavaHeapProf() {
   VLOG(heap) << "Java Heap Profiler Initialized";
 }
 
-void Heap::JHPCheckNonTlabSampleAllocation(Thread* self, mirror::Object* obj, size_t alloc_size) {
-  bool take_sample = false;
-  size_t bytes_until_sample = 0;
-  HeapSampler& prof_heap_sampler = GetHeapSampler();
-  // An allocation occurred, sample it, even if non-Tlab.
-  // In case take_sample is already set from the previous GetSampleOffset
-  // because we tried the Tlab allocation first, we will not use this value.
-  // A new value is generated below. Also bytes_until_sample will be updated.
-  // Note that we are not using the return value from the GetSampleOffset in
-  // the NonTlab case here.
-  prof_heap_sampler.GetSampleOffset(
-      alloc_size, self->GetTlabPosOffset(), &take_sample, &bytes_until_sample);
-  prof_heap_sampler.SetBytesUntilSample(bytes_until_sample);
-  if (take_sample) {
-    prof_heap_sampler.ReportSample(obj, alloc_size);
-  }
-  VLOG(heap) << "JHP:NonTlab Non-moving or Large Allocation or RegisterNativeAllocation";
-}
-
-size_t Heap::JHPCalculateNextTlabSize(Thread* self,
-                                      size_t jhp_def_tlab_size,
-                                      size_t alloc_size,
-                                      bool* take_sample,
-                                      size_t* bytes_until_sample) {
-  size_t next_sample_point = GetHeapSampler().GetSampleOffset(
-      alloc_size, self->GetTlabPosOffset(), take_sample, bytes_until_sample);
-  return std::min(next_sample_point, jhp_def_tlab_size);
-}
-
-void Heap::AdjustSampleOffset(size_t adjustment) {
-  GetHeapSampler().AdjustSampleOffset(adjustment);
-}
-
 void Heap::CheckGcStressMode(Thread* self, ObjPtr<mirror::Object>* obj) {
   DCHECK(gc_stress_mode_);
   auto* const runtime = Runtime::Current();
@@ -4583,19 +4548,14 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
                                        size_t* usable_size,
                                        size_t* bytes_tl_bulk_allocated) {
   mirror::Object* ret = nullptr;
-  bool take_sample = false;
-  size_t bytes_until_sample = 0;
-  bool jhp_enabled = GetHeapSampler().IsEnabled();
+  size_t pre_tlab_size = self->TlabSize();
 
   if (kUsePartialTlabs && alloc_size <= self->TlabRemainingCapacity()) {
     DCHECK_GT(alloc_size, self->TlabSize());
     // There is enough space if we grow the TLAB. Lets do that. This increases the
     // TLAB bytes.
     const size_t min_expand_size = alloc_size - self->TlabSize();
-    size_t next_tlab_size =
-        jhp_enabled ? JHPCalculateNextTlabSize(
-                          self, kPartialTlabSize, alloc_size, &take_sample, &bytes_until_sample) :
-                      kPartialTlabSize;
+    size_t next_tlab_size = heap_sampler_.NextTlabSize(kPartialTlabSize);
     const size_t expand_bytes = std::max(
         min_expand_size,
         std::min(self->TlabRemainingCapacity() - self->TlabSize(), next_tlab_size));
@@ -4611,11 +4571,8 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
     // TODO: for large allocations, which are rare, maybe we should allocate
     // that object and return. There is no need to revoke the current TLAB,
     // particularly if it's mostly unutilized.
-    size_t next_tlab_size = RoundDown(alloc_size + kDefaultTLABSize, gPageSize) - alloc_size;
-    if (jhp_enabled) {
-      next_tlab_size = JHPCalculateNextTlabSize(
-          self, next_tlab_size, alloc_size, &take_sample, &bytes_until_sample);
-    }
+    size_t next_tlab_size = heap_sampler_.NextTlabSize(
+        RoundDown(alloc_size + kDefaultTLABSize, gPageSize) - alloc_size);
     const size_t new_tlab_size = alloc_size + next_tlab_size;
     if (UNLIKELY(IsOutOfMemoryOnAllocation(allocator_type, new_tlab_size, grow))) {
       return nullptr;
@@ -4625,9 +4582,6 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
     if (!bump_pointer_space_->AllocNewTlab(self, new_tlab_size, bytes_tl_bulk_allocated)) {
       return nullptr;
     }
-    if (jhp_enabled) {
-      VLOG(heap) << "JHP:kAllocatorTypeTLAB, New Tlab bytes allocated= " << new_tlab_size;
-    }
   } else {
     DCHECK(allocator_type == kAllocatorTypeRegionTLAB);
     DCHECK(region_space_ != nullptr);
@@ -4636,12 +4590,8 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
       if (LIKELY(!IsOutOfMemoryOnAllocation(allocator_type,
                                             space::RegionSpace::kRegionSize,
                                             grow))) {
-        size_t next_pr_tlab_size =
-            kUsePartialTlabs ? kPartialTlabSize : gc::space::RegionSpace::kRegionSize;
-        if (jhp_enabled) {
-          next_pr_tlab_size = JHPCalculateNextTlabSize(
-              self, next_pr_tlab_size, alloc_size, &take_sample, &bytes_until_sample);
-        }
+        size_t next_pr_tlab_size = heap_sampler_.NextTlabSize(
+            kUsePartialTlabs ? kPartialTlabSize : gc::space::RegionSpace::kRegionSize);
         const size_t new_tlab_size = kUsePartialTlabs
             ? std::max(alloc_size, next_pr_tlab_size)
             : next_pr_tlab_size;
@@ -4652,9 +4602,7 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
                                                       bytes_allocated,
                                                       usable_size,
                                                       bytes_tl_bulk_allocated);
-          if (jhp_enabled) {
-            JHPCheckNonTlabSampleAllocation(self, ret, alloc_size);
-          }
+          ReportAllocationForJavaHeapProf(ret, alloc_size);
           return ret;
         }
         // Fall-through to using the TLAB below.
@@ -4665,9 +4613,7 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
                                                       bytes_allocated,
                                                       usable_size,
                                                       bytes_tl_bulk_allocated);
-          if (jhp_enabled) {
-            JHPCheckNonTlabSampleAllocation(self, ret, alloc_size);
-          }
+          ReportAllocationForJavaHeapProf(ret, alloc_size);
           return ret;
         }
         // Neither tlab or non-tlab works. Give up.
@@ -4680,9 +4626,7 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
                                                     bytes_allocated,
                                                     usable_size,
                                                     bytes_tl_bulk_allocated);
-        if (jhp_enabled) {
-          JHPCheckNonTlabSampleAllocation(self, ret, alloc_size);
-        }
+        ReportAllocationForJavaHeapProf(ret, alloc_size);
         return ret;
       }
       return nullptr;
@@ -4697,13 +4641,9 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
   // JavaHeapProfiler: Send the thread information about this allocation in case a sample is
   // requested.
   // This is the fallthrough from both the if and else if above cases => Cases that use TLAB.
-  if (jhp_enabled) {
-    if (take_sample) {
-      GetHeapSampler().ReportSample(ret, alloc_size);
-      // Update the bytes_until_sample now that the allocation is already done.
-      GetHeapSampler().SetBytesUntilSample(bytes_until_sample);
-    }
-    VLOG(heap) << "JHP:Fallthrough Tlab allocation";
+  if (heap_sampler_.IsEnabled()) {
+    size_t post_tlab_size = self->TlabSize();
+    heap_sampler_.ReportTlabAllocation(ret, alloc_size, pre_tlab_size, post_tlab_size);
   }
 
   return ret;

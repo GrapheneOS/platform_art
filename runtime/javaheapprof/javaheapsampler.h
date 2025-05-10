@@ -26,22 +26,10 @@ namespace art HIDDEN {
 
 class HeapSampler {
  public:
-  HeapSampler() : rng_(/*seed=*/std::minstd_rand::default_seed),
-                  geo_dist_(1.0 / /*expected value=4KB*/ 4096),
-                  geo_dist_rng_lock_("Heap Sampler RNG Geometric Dist lock",
-                                     art::LockLevel::kGenericBottomLock) {}
+  HeapSampler()
+      : rng_(/*seed=*/std::minstd_rand::default_seed),
+        rng_lock_("Heap Sampler RNG lock", art::LockLevel::kGenericBottomLock) {}
 
-  // Set the bytes until sample.
-  void SetBytesUntilSample(size_t bytes) {
-    *GetBytesUntilSample() = bytes;
-  }
-  // Get the bytes until sample.
-  size_t* GetBytesUntilSample() {
-    // Initialization should happen only once the first time the function is called.
-    // However there will always be a slot allocated for it at thread creation.
-    thread_local size_t bytes_until_sample = 0;
-    return &bytes_until_sample;
-  }
   void SetHeapID(uint32_t heap_id) {
     perfetto_heap_id_ = heap_id;
   }
@@ -51,47 +39,57 @@ class HeapSampler {
   void DisableHeapSampler() {
     enabled_.store(false, std::memory_order_release);
   }
-  // Report a sample to Perfetto.
-  void ReportSample(art::mirror::Object* obj, size_t allocation_size);
-  // Check whether we should take a sample or not at this allocation, and return the
-  // number of bytes from current pos to the next sample to use in the expand Tlab
-  // calculation.
-  // Update state of both take_sample and temp_bytes_until_sample.
-  // tlab_used = pos - start
-  // Note: we do not update bytes until sample here. It will be saved after the allocation
-  // happens. This function can be called before the actual allocation happens.
-  size_t GetSampleOffset(size_t alloc_size,
-                         size_t tlab_used,
-                         bool* take_sample,
-                         size_t* temp_bytes_until_sample) REQUIRES(!geo_dist_rng_lock_);
-  // Adjust the sample offset value with the adjustment usually (pos - start)
-  // of new Tlab after Reset.
-  void AdjustSampleOffset(size_t adjustment);
+
+  // Reports an allocation of the given size to perfetto.  This should be
+  // called for all allocations. Sampling is done internally to reduce the
+  // performance overhead based on the sampling interval.
+  EXPORT void ReportAllocation(art::mirror::Object* obj, size_t allocation_size);
+
+  // Report a tlab allocation. This will adjust the allocation size based on
+  // the number of bytes allocated in the thread local buffer since the last
+  // sample was reported.
+  // The allocation_size should be the size of the object being allocated.
+  // pre_tlab_size should be the TlabSize() before the allocation, and
+  // post_tlab_size should be the TlabSize() after the allocation.
+  void ReportTlabAllocation(art::mirror::Object* obj,
+                            size_t allocation_size,
+                            size_t pre_tlab_size,
+                            size_t post_tlab_size);
+
+  // Computes and records the next TLAB allocation size to use based on the
+  // given target size. If profiling is enabled, the size is chosen randomly
+  // based on the current sampling interval, otherwise the target is returned
+  // directly.
+  size_t NextTlabSize(size_t target) REQUIRES(!rng_lock_) {
+    return IsEnabled() ? NextRandomTlabSize(target) : target;
+  }
+
+  // Computes and records the next TLAB allocation size to use based on the
+  // given target size, assuming profiling is enabled. The size is chosen
+  // randomly based on the current sampling interval.
+  size_t NextRandomTlabSize(size_t target) REQUIRES(!rng_lock_);
+
   // Is heap sampler enabled?
   bool IsEnabled() { return enabled_.load(std::memory_order_acquire); }
   // Set the sampling interval.
-  void SetSamplingInterval(int sampling_interval) REQUIRES(!geo_dist_rng_lock_);
+  void SetSamplingInterval(size_t sampling_interval);
   // Return the sampling interval.
-  int GetSamplingInterval();
+  size_t GetSamplingInterval();
 
  private:
-  size_t NextGeoDistRandSample() REQUIRES(!geo_dist_rng_lock_);
-  // Choose, save, and return the number of bytes until the next sample,
-  // possibly decreasing sample intervals by sample_adj_bytes.
-  size_t PickAndAdjustNextSample(size_t sample_adj_bytes = 0) REQUIRES(!geo_dist_rng_lock_);
+  // The number of bytes remaining in the thread local buffer that we have not
+  // sampled yet.
+  static thread_local size_t tlab_unsampled_bytes_;
 
   std::atomic<bool> enabled_{false};
   // Default sampling interval is 4kb.
-  // Writes guarded by geo_dist_rng_lock_.
-  std::atomic<int> p_sampling_interval_{4 * 1024};
+  std::atomic<size_t> p_sampling_interval_{4 * 1024};
   uint32_t perfetto_heap_id_ = 0;
   // std random number generator.
-  std::minstd_rand rng_ GUARDED_BY(geo_dist_rng_lock_);  // Holds the state
-  // std geometric distribution
-  std::geometric_distribution</*result_type=*/size_t> geo_dist_ GUARDED_BY(geo_dist_rng_lock_);
-  // Multiple threads can access the geometric distribution and the random number
-  // generator concurrently and thus geo_dist_rng_lock_ is used for thread safety.
-  art::Mutex geo_dist_rng_lock_;
+  std::minstd_rand rng_ GUARDED_BY(rng_lock_);  // Holds the state
+  // Multiple threads can access the random number generator concurrently and
+  // thus rng_lock_ is used for thread safety.
+  art::Mutex rng_lock_;
 };
 
 }  // namespace art

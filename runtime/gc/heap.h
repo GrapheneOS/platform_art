@@ -280,10 +280,7 @@ class Heap {
                                                                   num_bytes,
                                                                   GetCurrentNonMovingAllocator(),
                                                                   pre_fence_visitor);
-    // Java Heap Profiler check and sample allocation.
-    if (GetHeapSampler().IsEnabled()) {
-      JHPCheckNonTlabSampleAllocation(self, obj, num_bytes);
-    }
+    ReportAllocationForJavaHeapProf(obj, num_bytes);
     return obj;
   }
 
@@ -912,26 +909,8 @@ class Heap {
   }
   uint64_t GetPreOomeGcCount() const;
 
-  // Perfetto Art Heap Profiler Support.
-  HeapSampler& GetHeapSampler() {
-    return heap_sampler_;
-  }
-
   void InitPerfettoJavaHeapProf();
-  // In NonTlab case: Check whether we should report a sample allocation and if so report it.
-  // Also update state (bytes_until_sample).
-  // By calling JHPCheckNonTlabSampleAllocation from different functions for Large allocations and
-  // non-moving allocations we are able to use the stack to identify these allocations separately.
-  EXPORT void JHPCheckNonTlabSampleAllocation(Thread* self, mirror::Object* ret, size_t alloc_size);
-  // In Tlab case: Calculate the next tlab size (location of next sample point) and whether
-  // a sample should be taken.
-  size_t JHPCalculateNextTlabSize(Thread* self,
-                                  size_t jhp_def_tlab_size,
-                                  size_t alloc_size,
-                                  bool* take_sample,
-                                  size_t* bytes_until_sample);
-  // Reduce the number of bytes to the next sample position by this adjustment.
-  void AdjustSampleOffset(size_t adjustment);
+  ALWAYS_INLINE void ReportAllocationForJavaHeapProf(mirror::Object* obj, size_t alloc_size);
 
   // Allocation tracking support
   // Callers to this function use double-checked locking to ensure safety on allocation_records_
