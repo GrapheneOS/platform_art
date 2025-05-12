@@ -1293,10 +1293,11 @@ static void InitializeObjectVirtualMethodHashes(ObjPtr<mirror::Class> java_lang_
                                                 PointerSize pointer_size,
                                                 /*out*/ ArrayRef<uint32_t> virtual_method_hashes)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArraySlice<ArtMethod> virtual_methods = java_lang_Object->GetVirtualMethods(pointer_size);
-  DCHECK_EQ(virtual_method_hashes.size(), virtual_methods.size());
-  for (size_t i = 0; i != virtual_method_hashes.size(); ++i) {
-    virtual_method_hashes[i] = ComputeMethodHash(&virtual_methods[i]);
+  ArraySlice<ArtMethod> methods = java_lang_Object->GetMethods(pointer_size);
+  for (size_t i = 0, j = 0; i != methods.size(); ++i) {
+    if (methods[i].IsVirtual()) {
+      virtual_method_hashes[j++] = ComputeMethodHash(&methods[i]);
+    }
   }
 }
 
@@ -3794,9 +3795,12 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
     return;
   }
   PointerSize pointer_size = image_pointer_size_;
-  if (std::any_of(klass->GetDirectMethods(pointer_size).begin(),
-                  klass->GetDirectMethods(pointer_size).end(),
-                  [](const ArtMethod& m) { return m.IsCriticalNative(); })) {
+  if (std::any_of(klass->GetMethods(pointer_size).begin(),
+                  klass->GetMethods(pointer_size).end(),
+                  [](const ArtMethod& m) {
+                    DCHECK_IMPLIES(m.IsCriticalNative(), m.IsStatic());
+                    return m.IsCriticalNative();
+                  })) {
     // Store registered @CriticalNative methods, if any, to JNI entrypoints.
     // Methods are a contiguous chunk of memory, so use the ordering of the map.
     ArraySlice<ArtMethod> methods = klass->GetMethods(pointer_size);
@@ -7425,12 +7429,12 @@ void CheckClassOwnsVTableEntries(Thread* self,
                    << " has an unexpected method index for its spot in the vtable for class"
                    << klass->PrettyClass();
     }
-    ArraySlice<ArtMethod> virtuals = klass->GetVirtualMethodsSliceUnchecked(pointer_size);
+    ArraySlice<ArtMethod> methods = klass->GetMethodsSliceUnchecked(pointer_size);
     auto is_same_method = [m] (const ArtMethod& meth) {
       return &meth == m;
     };
     if (!((super_vtable_length > i && superclass->GetVTableEntry(i, pointer_size) == m) ||
-          std::find_if(virtuals.begin(), virtuals.end(), is_same_method) != virtuals.end())) {
+          std::find_if(methods.begin(), methods.end(), is_same_method) != methods.end())) {
       LOG(WARNING) << m->PrettyMethod() << " does not seem to be owned by current class "
                    << klass->PrettyClass() << " or any of its superclasses!";
     }
@@ -8156,13 +8160,15 @@ class ClassLinker::LinkMethodsHelper {
         REQUIRES_SHARED(Locks::mutator_lock_) {
       for (size_t i = begin; i != end; ++i) {
         ObjPtr<mirror::Class> current_iface = iftable->GetInterface(i);
-        for (ArtMethod& current_method : current_iface->GetDeclaredVirtualMethods(kPointerSize)) {
-          if (MethodSignatureEquals(&current_method, interface_method)) {
-            // Check if the i'th interface is a subtype of this one.
-            if (current_iface->Implements(iface)) {
-              return true;
+        for (ArtMethod& current_method : current_iface->GetDeclaredMethods(kPointerSize)) {
+          if (current_method.IsVirtual()) {
+            if (MethodSignatureEquals(&current_method, interface_method)) {
+              // Check if the i'th interface is a subtype of this one.
+              if (current_iface->Implements(iface)) {
+                return true;
+              }
+              break;
             }
-            break;
           }
         }
       }
@@ -9204,15 +9210,18 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
 
     // Store new virtual methods in the new vtable.
     ArrayRef<uint32_t> same_signature_vtable_lists = same_signature_vtable_lists_;
-    for (ArtMethod& virtual_method : klass->GetVirtualMethodsSliceUnchecked(kPointerSize)) {
-      uint32_t vtable_index = virtual_method.GetMethodIndexDuringLinking();
-      vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
+    for (ArtMethod& method : klass->GetMethodsSliceUnchecked(kPointerSize)) {
+      if (!method.IsVirtual()) {
+        continue;
+      }
+      uint32_t vtable_index = method.GetMethodIndexDuringLinking();
+      vtable->SetElementPtrSize(vtable_index, &method, kPointerSize);
       if (UNLIKELY(vtable_index < same_signature_vtable_lists.size())) {
         // We may override more than one method according to JLS, see b/211854716.
         while (same_signature_vtable_lists[vtable_index] != dex::kDexNoIndex) {
           DCHECK_LT(same_signature_vtable_lists[vtable_index], vtable_index);
           vtable_index = same_signature_vtable_lists[vtable_index];
-          vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
+          vtable->SetElementPtrSize(vtable_index, &method, kPointerSize);
           if (kIsDebugBuild) {
             ArtMethod* current_method = super_class->GetVTableEntry(vtable_index, kPointerSize);
             DCHECK(klass->CanAccessMember(current_method->GetDeclaringClass(),
@@ -11277,7 +11286,7 @@ class ClassLinker::FindVirtualMethodHolderVisitor : public ClassVisitor {
         pointer_size_(pointer_size) {}
 
   bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) override {
-    if (klass->GetVirtualMethodsSliceUnchecked(pointer_size_).Contains(method_)) {
+    if (klass->GetMethodsSliceUnchecked(pointer_size_).Contains(method_)) {
       holder_ = klass;
     }
     // Return false to stop searching if holder_ is not null.

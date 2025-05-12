@@ -444,7 +444,7 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
   }
   size_t constructor_count = 0;
   // Two pass approach for speed.
-  for (auto& m : h_klass->GetDirectMethods(kRuntimePointerSize)) {
+  for (auto& m : h_klass->GetMethods(kRuntimePointerSize)) {
     constructor_count += MethodMatchesConstructor(&m, public_only, hiddenapi_context) ? 1u : 0u;
   }
   auto h_constructors = hs.NewHandle(mirror::ObjectArray<mirror::Constructor>::Alloc(
@@ -454,7 +454,7 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
     return nullptr;
   }
   constructor_count = 0;
-  for (auto& m : h_klass->GetDirectMethods(kRuntimePointerSize)) {
+  for (auto& m : h_klass->GetMethods(kRuntimePointerSize)) {
     if (MethodMatchesConstructor(&m, public_only, hiddenapi_context)) {
       DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
       DCHECK(!Runtime::Current()->IsActiveTransaction());

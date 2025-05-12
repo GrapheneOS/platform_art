@@ -2850,12 +2850,13 @@ void Redefiner::ClassRedefinition::UpdateClassStructurally(const RedefinitionDat
           replacement_classes_iter.begin(),
           replacement_classes_iter.end(),
           [&](art::ObjPtr<art::mirror::Class> cand) REQUIRES(art::Locks::mutator_lock_) {
-            auto direct_methods = cand->GetDirectMethods(art::kRuntimePointerSize);
-            return std::find_if(direct_methods.begin(),
-                                direct_methods.end(),
-                                [&](art::ArtMethod& m) REQUIRES(art::Locks::mutator_lock_) {
-                                  return UNLIKELY(m.HasSameNameAndSignature(field_or_method));
-                                }) != direct_methods.end();
+            auto methods = cand->GetMethods(art::kRuntimePointerSize);
+            return std::any_of(methods.begin(),
+                               methods.end(),
+                               [&](art::ArtMethod& m) REQUIRES(art::Locks::mutator_lock_) {
+                                 return !m.IsVirtual() &&
+                                        UNLIKELY(m.HasSameNameAndSignature(field_or_method));
+                               });
           });
     } else {
       auto pred = [&](art::ArtField& f) REQUIRES(art::Locks::mutator_lock_) {

@@ -220,6 +220,11 @@ class EXPORT ArtMethod final {
     return (access_flags & direct) != 0;
   }
 
+  bool IsVirtual() const {
+    uint32_t access_flags = GetAccessFlags();
+    return !IsDirect(access_flags) && !IsStatic(access_flags);
+  }
+
   // Returns true if the method is declared synchronized.
   bool IsSynchronized() const {
     return IsSynchronized(GetAccessFlags());

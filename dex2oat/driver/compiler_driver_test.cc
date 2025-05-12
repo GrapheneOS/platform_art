@@ -247,15 +247,17 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
 
     const auto pointer_size = class_linker->GetImagePointerSize();
     size_t number_of_compiled_methods = 0;
-    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
-      std::string name = m.PrettyMethod(true);
-      const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
-      ASSERT_NE(code, nullptr);
-      if (expected_methods.find(name) != expected_methods.end()) {
-        number_of_compiled_methods++;
-        EXPECT_FALSE(class_linker->IsQuickToInterpreterBridge(code));
-      } else {
-        EXPECT_TRUE(class_linker->IsQuickToInterpreterBridge(code));
+    for (auto& m : klass->GetMethods(pointer_size)) {
+      if (m.IsVirtual()) {
+        std::string name = m.PrettyMethod(true);
+        const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
+        ASSERT_NE(code, nullptr);
+        if (expected_methods.find(name) != expected_methods.end()) {
+          number_of_compiled_methods++;
+          EXPECT_FALSE(class_linker->IsQuickToInterpreterBridge(code));
+        } else {
+          EXPECT_TRUE(class_linker->IsQuickToInterpreterBridge(code));
+        }
       }
     }
     EXPECT_EQ(expected_methods.size(), number_of_compiled_methods);

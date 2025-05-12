@@ -545,9 +545,11 @@ void ClassHierarchyAnalysis::InitSingleImplementationFlag(Handle<mirror::Class> 
 void ClassHierarchyAnalysis::UpdateAfterLoadingOf(Handle<mirror::Class> klass) {
   PointerSize image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   if (klass->IsInterface()) {
-    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(image_pointer_size)) {
-      DCHECK(method.IsAbstract() || method.IsDefault());
-      InitSingleImplementationFlag(klass, &method, image_pointer_size);
+    for (ArtMethod& method : klass->GetDeclaredMethods(image_pointer_size)) {
+      if (method.IsVirtual()) {
+        DCHECK(method.IsAbstract() || method.IsDefault());
+        InitSingleImplementationFlag(klass, &method, image_pointer_size);
+      }
     }
     return;
   }

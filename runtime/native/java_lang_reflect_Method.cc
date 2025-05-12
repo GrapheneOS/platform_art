@@ -48,16 +48,8 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->GetDeclaringClass()->IsProxyClass()) {
     ObjPtr<mirror::Class> klass = method->GetDeclaringClass();
-    int throws_index = -1;
-    size_t i = 0;
-    for (const auto& m : klass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
-      if (&m == method) {
-        throws_index = i;
-        break;
-      }
-      ++i;
-    }
-    CHECK_NE(throws_index, -1);
+    size_t throws_index = klass->GetProxyThrowsIndex(method);
+    DCHECK_NE(throws_index, static_cast<size_t>(-1));
     StackHandleScope<1u> hs(soa.Self());
     Handle<mirror::ObjectArray<mirror::Class>> declared_exceptions =
         hs.NewHandle(klass->GetProxyThrows()->Get(throws_index));

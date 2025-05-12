@@ -183,6 +183,10 @@ inline LengthPrefixedArray<ArtMethod>* Class::GetMethodsPtr() {
 template<VerifyObjectFlags kVerifyFlags>
 inline ArraySlice<ArtMethod> Class::GetMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
+  return GetMethodsSliceUnchecked(pointer_size);
+}
+
+inline ArraySlice<ArtMethod> Class::GetMethodsSliceUnchecked(PointerSize pointer_size) {
   LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
   return GetMethodsSliceRangeUnchecked(methods, pointer_size, 0, NumMethods(methods));
 }

@@ -515,7 +515,7 @@ bool Class::IsThrowableClass() {
 }
 
 template <typename SignatureType>
-static inline ArtMethod* FindInterfaceMethodWithSignature(ObjPtr<Class> klass,
+inline ArtMethod* Class::FindInterfaceMethodWithSignature(ObjPtr<Class> klass,
                                                           std::string_view name,
                                                           const SignatureType& signature,
                                                           PointerSize pointer_size)
@@ -2330,6 +2330,20 @@ ArtMethod* Class::FindAccessibleInterfaceMethod(ArtMethod* implementation_method
     }
   }
   return nullptr;
+}
+
+size_t Class::GetProxyThrowsIndex(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  CHECK(IsProxyClass());
+  size_t i = 0;
+  for (const auto& m : GetDeclaredMethods(kRuntimePointerSize)) {
+    if (m.IsVirtual()) {
+      if (&m == method) {
+        return i;
+      }
+      ++i;
+    }
+  }
+  return static_cast<size_t>(-1);
 }
 
 

@@ -725,9 +725,6 @@ class EXPORT MANAGED Class final : public Object {
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
   void SetDexCache(ObjPtr<DexCache> new_dex_cache) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethods(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetMethodsPtr()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -746,10 +743,6 @@ class EXPORT MANAGED Class final : public Object {
   void SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_methods,
                               uint32_t num_direct,
                               uint32_t num_virtual)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetVirtualMethodUnchecked(size_t i, PointerSize pointer_size)
@@ -786,26 +779,10 @@ class EXPORT MANAGED Class final : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethods(
-        PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSlice(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethods(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethods(
-      PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the number of non-inherited virtual methods (sum of declared and copied methods).
@@ -1327,17 +1304,10 @@ class EXPORT MANAGED Class final : public Object {
     return static_cast<size_t>(pointer_size);
   }
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(PointerSize pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethodsSliceUnchecked(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSliceUnchecked(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(
-      PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSliceUnchecked(PointerSize pointer_size)
@@ -1394,7 +1364,48 @@ class EXPORT MANAGED Class final : public Object {
   // See b/259501764.
   bool CheckIsVisibleWithTargetSdk(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  size_t GetProxyThrowsIndex(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(
+      PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethods(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethods(
+        PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethods(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <typename SignatureType>
+  static ArtMethod* FindInterfaceMethodWithSignature(ObjPtr<Class> klass,
+                                                     std::string_view name,
+                                                     const SignatureType& signature,
+                                                     PointerSize pointer_size)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
   template <typename T, VerifyObjectFlags kVerifyFlags, typename Visitor>
   void FixupNativePointer(
       Class* dest, PointerSize pointer_size, const Visitor& visitor, MemberOffset member_offset)

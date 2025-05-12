@@ -58,7 +58,7 @@ prebuilts/build-tools/linux-x86/bin/soong_zip -o "${DIST_DIR}/temp-host-tools.zi
 # Build art_release.zip and copy only art jars in a temporary zip
 build/soong/soong_ui.bash --make-mode dist "${DIST_DIR}/art_release.zip"
 prebuilts/build-tools/linux-x86/bin/zip2zip -i "${DIST_DIR}/art_release.zip" \
-  -o "${DIST_DIR}/temp-art-jars.zip" "bootjars/*"
+  -o "${DIST_DIR}/temp-art-jars.zip" "bootjars/*" "licenses/*/*"
 
 # Merge both temporary zips into output zip
 prebuilts/build-tools/linux-x86/bin/merge_zips "${DIST_DIR}/art-host-tools-linux-x86.zip" \

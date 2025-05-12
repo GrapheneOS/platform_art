@@ -296,8 +296,8 @@ class ProfileAssistantTest : public CommonRuntimeTest, public ProfileTestHelper 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const auto pointer_size = class_linker->GetImagePointerSize();
     ArtMethod* method = nullptr;
-    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
-      if (name == m.GetName()) {
+    for (auto& m : klass->GetMethods(pointer_size)) {
+      if (m.IsVirtual() && name == m.GetName()) {
         EXPECT_TRUE(method == nullptr);
         method = &m;
       }

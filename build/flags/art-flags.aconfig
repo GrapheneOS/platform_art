@@ -120,3 +120,12 @@ flag {
   is_fixed_read_only: true
   is_exported: false
 }
+
+flag {
+  name: "enforce_permitted_subclasses_checks"
+  namespace: "core_libraries"
+  description: "Flag to enable enforcement of the sealed classes annotations"
+  bug: "416480439"
+  is_fixed_read_only: true
+  is_exported: false
+}

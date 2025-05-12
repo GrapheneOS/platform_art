@@ -57,8 +57,10 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
 
     const auto pointer_size = class_linker->GetImagePointerSize();
     std::vector<ArtMethod*> methods;
-    for (auto& m : klass->GetVirtualMethods(pointer_size)) {
-      methods.push_back(&m);
+    for (auto& m : klass->GetMethods(pointer_size)) {
+      if (m.IsVirtual()) {
+        methods.push_back(&m);
+      }
     }
     return methods;
   }

@@ -220,10 +220,12 @@ bool AotClassLinker::CanReferenceInBootImageExtensionOrAppImage(
     PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     ObjPtr<mirror::Class> k = klass;
     while (!heap->ObjectIsInBootImageSpace(k)) {
-      for (auto& m : k->GetVirtualMethods(pointer_size)) {
-        ObjPtr<mirror::Class> declaring_class = m.GetDeclaringClass();
-        CHECK(heap->ObjectIsInBootImageSpace(declaring_class) ||
-              can_reference_dex_cache(declaring_class->GetDexCache()));
+      for (auto& m : k->GetMethods(pointer_size)) {
+        if (m.IsVirtual()) {
+          ObjPtr<mirror::Class> declaring_class = m.GetDeclaringClass();
+          CHECK(heap->ObjectIsInBootImageSpace(declaring_class) ||
+                can_reference_dex_cache(declaring_class->GetDexCache()));
+        }
       }
       k = k->GetSuperClass();
     }

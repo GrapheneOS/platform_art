@@ -2908,7 +2908,10 @@ class IMTDumper {
       std::string iface_name;
       std::cerr << "  " << iface->GetDescriptor(&iface_name) << std::endl;
 
-      for (ArtMethod& iface_method : iface->GetVirtualMethods(pointer_size)) {
+      for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
+        if (!iface_method.IsVirtual()) {
+          continue;
+        }
         uint32_t class_hash, name_hash, signature_hash;
         ImTable::GetImtHashComponents(*iface_method.GetDexFile(),
                                       iface_method.GetDexMethodIndex(),

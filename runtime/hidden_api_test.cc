@@ -656,8 +656,9 @@ TEST_F(HiddenApiTest, CheckMemberSignatureForProxyClass) {
 
   // Find the "method" virtual method.
   ArtMethod* method = nullptr;
-  for (auto& m : proxyClass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
-    if (strcmp("method", m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName()) == 0) {
+  for (auto& m : proxyClass->GetDeclaredMethods(kRuntimePointerSize)) {
+    if (m.IsVirtual() &&
+        strcmp("method", m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName()) == 0) {
       method = &m;
       break;
     }

@@ -145,16 +145,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa,
         ObjPtr<mirror::Object> rcvr = soa.Decode<mirror::Object>(rcvr_jobj);
         ObjPtr<mirror::Class> proxy_class = rcvr->GetClass();
         ObjPtr<mirror::Method> interface_method = soa.Decode<mirror::Method>(interface_method_jobj);
-        ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
+        ArtMethod* proxy_method = proxy_class->FindVirtualMethodForInterface(
             interface_method->GetArtMethod(), kRuntimePointerSize);
-        auto virtual_methods = proxy_class->GetVirtualMethodsSlice(kRuntimePointerSize);
-        size_t num_virtuals = proxy_class->NumVirtualMethods();
-        size_t method_size = ArtMethod::Size(kRuntimePointerSize);
-        // Rely on the fact that the methods are contiguous to determine the index of the method in
-        // the slice.
-        int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
-            reinterpret_cast<uintptr_t>(&virtual_methods[0])) / method_size;
-        CHECK_LT(throws_index, static_cast<int>(num_virtuals));
+        int throws_index = proxy_class->GetProxyThrowsIndex(proxy_method);
         ObjPtr<mirror::ObjectArray<mirror::Class>> declared_exceptions =
             proxy_class->GetProxyThrows()->Get(throws_index);
         ObjPtr<mirror::Class> exception_class = exception->GetClass();

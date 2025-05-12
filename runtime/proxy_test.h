@@ -95,10 +95,12 @@ inline ObjPtr<mirror::Class> GenerateProxyClass(ScopedObjectAccess& soa,
           mirror::Method::CreateFromArtMethod<kRuntimePointerSize>(soa.Self(), method)));
   // Now adds all interfaces virtual methods.
   for (Handle<mirror::Class> interface : interfaces) {
-    for (auto& m : interface->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
-      soa.Env()->SetObjectArrayElement(
-          proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-              mirror::Method::CreateFromArtMethod<kRuntimePointerSize>(soa.Self(), &m)));
+    for (auto& m : interface->GetDeclaredMethods(kRuntimePointerSize)) {
+      if (m.IsVirtual()) {
+        soa.Env()->SetObjectArrayElement(
+            proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
+                mirror::Method::CreateFromArtMethod<kRuntimePointerSize>(soa.Self(), &m)));
+      }
     }
   }
   CHECK_EQ(array_index, methods_count);

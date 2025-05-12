@@ -279,11 +279,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
                                                klass->GetDescriptor(&temp2)));
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
-      // Check that all methods are direct and either static (<clinit> or a regular static method),
-      // or private.
-      for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
-        EXPECT_TRUE(m.IsStatic() || m.IsPrivate());
-        EXPECT_TRUE(m.IsDirect());
+      for (ArtMethod& m : klass->GetMethods(kRuntimePointerSize)) {
+        EXPECT_TRUE(m.IsStatic() || m.IsPrivate() || m.IsVirtual());
       }
     } else {
       if (!klass->IsSynthetic()) {
@@ -318,15 +315,9 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(klass->IsPrimitive());
     EXPECT_TRUE(klass->CanAccess(klass.Get()));
 
-    for (ArtMethod& method : klass->GetDirectMethods(kRuntimePointerSize)) {
+    for (ArtMethod& method : klass->GetDeclaredMethods(kRuntimePointerSize)) {
       AssertMethod(&method);
-      EXPECT_TRUE(method.IsDirect());
-      EXPECT_OBJ_PTR_EQ(klass.Get(), method.GetDeclaringClass());
-    }
-
-    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
-      AssertMethod(&method);
-      EXPECT_FALSE(method.IsDirect());
+      EXPECT_NE(method.IsVirtual(), method.IsDirect());
       EXPECT_OBJ_PTR_EQ(klass.Get(), method.GetDeclaringClass());
     }
 

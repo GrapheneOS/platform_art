@@ -480,19 +480,23 @@ TEST_F(OatTest, WriteRead) {
              oat_class.GetType()) << descriptor;
 
     size_t method_index = 0;
-    for (auto& m : klass->GetDirectMethods(pointer_size)) {
-      CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
-      ++method_index;
-    }
     size_t visited_virtuals = 0;
-    // TODO We should also check copied methods in this test.
-    for (auto& m : klass->GetDeclaredVirtualMethods(pointer_size)) {
-      if (!klass->IsInterface()) {
-        EXPECT_FALSE(m.IsCopied());
+    for (auto& m : klass->GetMethods(pointer_size)) {
+      if (!m.IsVirtual()) {
+        CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
+        ++method_index;
       }
-      CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
-      ++method_index;
-      ++visited_virtuals;
+    }
+    // TODO We should also check copied methods in this test.
+    for (auto& m : klass->GetDeclaredMethods(pointer_size)) {
+      if (m.IsVirtual()) {
+        if (!klass->IsInterface()) {
+          EXPECT_FALSE(m.IsCopied());
+        }
+        CheckMethod(&m, oat_class.GetOatMethod(method_index), dex_file);
+        ++method_index;
+        ++visited_virtuals;
+      }
     }
     EXPECT_EQ(visited_virtuals, num_virtual_methods);
   }

@@ -87,7 +87,7 @@ ArtMethod* ArtMethod::GetNonObsoleteMethod() {
   }
   DCHECK_EQ(kRuntimePointerSize, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   if (IsDirect()) {
-    return &GetDeclaringClass()->GetDirectMethodsSlice(kRuntimePointerSize)[GetMethodIndex()];
+    return &GetDeclaringClass()->GetMethodsSlice(kRuntimePointerSize)[GetMethodIndex()];
   } else {
     return GetDeclaringClass()->GetVTableEntry(GetMethodIndex(), kRuntimePointerSize);
   }
@@ -279,7 +279,10 @@ ArtMethod* ArtMethod::FindOverriddenMethod(PointerSize pointer_size) {
       ObjPtr<mirror::IfTable> iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == nullptr; i++) {
         ObjPtr<mirror::Class> interface = iftable->GetInterface(i);
-        for (ArtMethod& interface_method : interface->GetVirtualMethods(pointer_size)) {
+        for (ArtMethod& interface_method : interface->GetMethods(pointer_size)) {
+          if (!interface_method.IsVirtual()) {
+            continue;
+          }
           if (HasSameNameAndSignature(interface_method.GetInterfaceMethodIfProxy(pointer_size))) {
             result = &interface_method;
             break;
@@ -533,13 +536,15 @@ static const OatFile::OatMethod FindOatMethodFor(ArtMethod* method,
     // Compute the oat_method_index by search for its position in the declared virtual methods.
     oat_method_index = declaring_class->NumDirectMethods();
     bool found_virtual = false;
-    for (ArtMethod& art_method : declaring_class->GetVirtualMethods(pointer_size)) {
-      // Check method index instead of identity in case of duplicate method definitions.
-      if (method->GetDexMethodIndex() == art_method.GetDexMethodIndex()) {
-        found_virtual = true;
-        break;
+    for (ArtMethod& art_method : declaring_class->GetMethods(pointer_size)) {
+      if (art_method.IsVirtual()) {
+        // Check method index instead of identity in case of duplicate method definitions.
+        if (method->GetDexMethodIndex() == art_method.GetDexMethodIndex()) {
+          found_virtual = true;
+          break;
+        }
+        oat_method_index++;
       }
-      oat_method_index++;
     }
     CHECK(found_virtual) << "Didn't find oat method index for virtual method: "
                          << method->PrettyMethod();
