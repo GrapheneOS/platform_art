@@ -311,30 +311,34 @@ static bool UpdateDominatorOfSuccessor(HBasicBlock* block, HBasicBlock* successo
 
 void HGraph::ComputeDominanceInformation() {
   DCHECK(reverse_post_order_.empty());
-  reverse_post_order_.reserve(blocks_.size());
+  const size_t size = blocks_.size();
+  reverse_post_order_.reserve(size);
   reverse_post_order_.push_back(entry_block_);
 
-  // Allocate memory from local ScopedArenaAllocator.
-  ScopedArenaAllocator allocator(GetArenaStack());
-  // Number of visits of a given node, indexed by block id.
-  ScopedArenaVector<size_t> visits(blocks_.size(), 0u, allocator.Adapter(kArenaAllocGraphBuilder));
-  // Number of successors visited from a given node, indexed by block id.
-  ScopedArenaVector<size_t> successors_visited(blocks_.size(),
-                                               0u,
-                                               allocator.Adapter(kArenaAllocGraphBuilder));
-  // Nodes for which we need to visit successors.
-  ScopedArenaVector<HBasicBlock*> worklist(allocator.Adapter(kArenaAllocGraphBuilder));
-  constexpr size_t kDefaultWorklistSize = 8;
-  worklist.reserve(kDefaultWorklistSize);
-  worklist.push_back(entry_block_);
+  {
+    // Allocate memory from local ScopedArenaAllocator.
+    ScopedArenaAllocator allocator(GetArenaStack());
+    // Number of visits of a given node, indexed by block id.
+    ScopedArenaVector<size_t> visits(size, 0u, allocator.Adapter(kArenaAllocGraphBuilder));
+    // Number of successors visited from a given node, indexed by block id.
+    ScopedArenaVector<size_t> successors_visited(
+        size, 0u, allocator.Adapter(kArenaAllocGraphBuilder));
+    // Nodes for which we need to visit successors.
+    ScopedArenaVector<HBasicBlock*> worklist(allocator.Adapter(kArenaAllocGraphBuilder));
+    worklist.reserve(size);
+    worklist.push_back(entry_block_);
 
-  while (!worklist.empty()) {
-    HBasicBlock* current = worklist.back();
-    uint32_t current_id = current->GetBlockId();
-    if (successors_visited[current_id] == current->GetSuccessors().size()) {
-      worklist.pop_back();
-    } else {
+    // Cached for the check below.
+    HBasicBlock* exit = GetExitBlock();
+
+    while (!worklist.empty()) {
+      HBasicBlock* current = worklist.back();
+      uint32_t current_id = current->GetBlockId();
+      DCHECK_LT(successors_visited[current_id], current->GetSuccessors().size());
       HBasicBlock* successor = current->GetSuccessors()[successors_visited[current_id]++];
+      if (successors_visited[current_id] == current->GetSuccessors().size()) {
+        worklist.pop_back();
+      }
       UpdateDominatorOfSuccessor(current, successor);
 
       // Once all the forward edges have been visited, we know the immediate
@@ -342,7 +346,11 @@ void HGraph::ComputeDominanceInformation() {
       if (++visits[successor->GetBlockId()] ==
           successor->GetPredecessors().size() - successor->NumberOfBackEdges()) {
         reverse_post_order_.push_back(successor);
-        worklist.push_back(successor);
+        // The exit block is the only one with no successors. Will be encountered only one time per
+        // graph, at the end.
+        if (LIKELY(successor != exit)) {
+          worklist.push_back(successor);
+        }
       }
     }
   }
@@ -414,15 +422,6 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
       info->AddBackEdge(new_block);
     }
   }
-}
-
-HBasicBlock* HGraph::SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* successor) {
-  HBasicBlock* new_block = SplitEdge(block, successor);
-  // In the RPO we have {... , block, ... , successor}. We want to insert `new_block` right after
-  // `block` to have a consistent RPO without recomputing the whole graph's RPO.
-  reverse_post_order_.insert(
-      reverse_post_order_.begin() + IndexOfElement(reverse_post_order_, block) + 1, new_block);
-  return new_block;
 }
 
 // Reorder phi inputs to match reordering of the block's predecessors.
@@ -1468,21 +1467,21 @@ void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
       return;
     }
     HGraph* graph = GetBlock()->GetGraph();
-    visited_blocks = ArenaBitVector::CreateFixedSize(
-        graph->GetAllocator(), graph->GetBlocks().size(), kArenaAllocMisc);
+    const size_t size = graph->GetBlocks().size();
+    visited_blocks = ArenaBitVector::CreateFixedSize(graph->GetAllocator(), size, kArenaAllocMisc);
     ScopedArenaAllocator allocator(graph->GetArenaStack());
-    ScopedArenaQueue<const HBasicBlock*> worklist(allocator.Adapter(kArenaAllocMisc));
-    worklist.push(dominator_block);
+    ScopedArenaVector<const HBasicBlock*> worklist(allocator.Adapter(kArenaAllocMisc));
+    worklist.reserve(size);
+    worklist.push_back(dominator_block);
+    visited_blocks.SetBit(dominator_block->GetBlockId());
 
     while (!worklist.empty()) {
-      const HBasicBlock* current = worklist.front();
-      worklist.pop();
-      visited_blocks.SetBit(current->GetBlockId());
+      const HBasicBlock* current = worklist.back();
+      worklist.pop_back();
       for (HBasicBlock* dominated : current->GetDominatedBlocks()) {
-        if (visited_blocks.IsBitSet(dominated->GetBlockId())) {
-          continue;
-        }
-        worklist.push(dominated);
+        DCHECK(!visited_blocks.IsBitSet(dominated->GetBlockId()));
+        visited_blocks.SetBit(dominated->GetBlockId());
+        worklist.push_back(dominated);
       }
     }
   };
@@ -2126,9 +2125,7 @@ void HInstruction::MoveBeforeFirstUserAndOutOfLoops() {
   MoveBefore(insert_pos);
 }
 
-HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor, bool require_graph_not_in_ssa_form) {
-  DCHECK_IMPLIES(require_graph_not_in_ssa_form, !graph_->IsInSsaForm())
-      << "Support for SSA form not implemented.";
+HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   DCHECK_EQ(cursor->GetBlock(), this);
 
   HBasicBlock* new_block =

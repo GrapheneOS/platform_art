@@ -291,10 +291,7 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
     // We split the block at the throwing instruction, and the instructions after the throwing
     // instructions will be disconnected from the graph after `block` points to the exit.
     // `RemoveDeadBlocks` will take care of removing this new block and its instructions.
-    // Even though `SplitBefore` doesn't guarantee the graph to remain in SSA form, it is fine
-    // since we do not break it.
-    HBasicBlock* new_block = block->SplitBefore(throwing_invoke->GetNext(),
-                                                /* require_graph_not_in_ssa_form= */ false);
+    HBasicBlock* new_block = block->SplitBefore(throwing_invoke->GetNext());
     DCHECK_EQ(block->GetSingleSuccessor(), new_block);
     block->ReplaceSuccessor(new_block, exit);
 

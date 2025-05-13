@@ -163,16 +163,13 @@ void ClassHierarchyAnalysis::ResetSingleImplementationInHierarchy(ObjPtr<mirror:
   for (size_t i = 0; i < ifcount; ++i) {
     ObjPtr<mirror::Class> interface =
         iftable->GetInterface<kDefaultVerifyFlags, kWithoutReadBarrier>(i);
-    for (size_t j = 0,
-         count = iftable->GetMethodArrayCount<kDefaultVerifyFlags, kWithoutReadBarrier>(i);
-         j < count;
-         ++j) {
-      ArtMethod* method = interface->GetVirtualMethod(j, pointer_size);
-      if (method->HasSingleImplementation() &&
-          alloc->ContainsUnsafe(method->GetSingleImplementation(pointer_size)) &&
-          !method->IsDefault()) {
+    for (ArtMethod& interface_method : interface->GetDeclaredMethods(pointer_size)) {
+      if (interface_method.IsVirtual() &&
+          interface_method.HasSingleImplementation() &&
+          alloc->ContainsUnsafe(interface_method.GetSingleImplementation(pointer_size)) &&
+          !interface_method.IsDefault()) {
         // Do like there was no single implementation defined previously for this method.
-        method->SetSingleImplementation(nullptr, pointer_size);
+        interface_method.SetSingleImplementation(nullptr, pointer_size);
       }
     }
   }
@@ -598,14 +595,16 @@ void ClassHierarchyAnalysis::UpdateAfterLoadingOf(Handle<mirror::Class> klass) {
     const size_t ifcount = klass->GetIfTableCount();
     for (size_t i = 0; i < ifcount; ++i) {
       ObjPtr<mirror::Class> interface = iftable->GetInterface(i);
-      for (size_t j = 0, count = iftable->GetMethodArrayCount(i); j < count; ++j) {
-        ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size);
+      for (ArtMethod& interface_method : interface->GetDeclaredMethods(image_pointer_size)) {
+        if (!interface_method.IsVirtual()) {
+          continue;
+        }
         ObjPtr<mirror::PointerArray> method_array = iftable->GetMethodArray(i);
-        ArtMethod* implementation_method =
-            method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size);
+        ArtMethod* implementation_method = method_array->GetElementPtrSize<ArtMethod*>(
+            interface_method.GetMethodIndex(), image_pointer_size);
         DCHECK(implementation_method != nullptr) << klass->PrettyClass();
         CheckInterfaceMethodSingleImplementationInfo(klass,
-                                                     interface_method,
+                                                     &interface_method,
                                                      implementation_method,
                                                      invalidated_single_impl_methods,
                                                      image_pointer_size);

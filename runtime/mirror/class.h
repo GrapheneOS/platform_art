@@ -745,9 +745,6 @@ class EXPORT MANAGED Class final : public Object {
                               uint32_t num_virtual)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArtMethod* GetVirtualMethodUnchecked(size_t i, PointerSize pointer_size)
-        REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Returns the number of static, private, and constructor methods.
   ALWAYS_INLINE uint32_t NumDirectMethods() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -799,10 +796,6 @@ class EXPORT MANAGED Class final : public Object {
 
   ALWAYS_INLINE uint32_t NumMethods() REQUIRES_SHARED(Locks::mutator_lock_);
   static ALWAYS_INLINE uint32_t NumMethods(LengthPrefixedArray<ArtMethod>* methods)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ArtMethod* GetVirtualMethod(size_t i, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size)

@@ -2522,12 +2522,13 @@ class InitializeClassVisitor : public CompilationVisitor {
       for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
         super_klass.Assign(klass->GetIfTable()->GetInterface(i));
         if (klass->GetClassLoader() != super_klass->GetClassLoader()) {
-          uint32_t num_methods = super_klass->NumVirtualMethods();
-          for (uint32_t j = 0; j < num_methods; ++j) {
+          for (ArtMethod& super_m : super_klass->GetMethods(pointer_size)) {
+            if (!super_m.IsVirtual()) {
+              continue;
+            }
             ArtMethod* m = klass->GetIfTable()->GetMethodArray(i)->GetElementPtrSize<ArtMethod*>(
-                j, pointer_size);
-            ArtMethod* super_m = super_klass->GetVirtualMethod(j, pointer_size);
-            if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, super_m)) {
+                super_m.GetMethodIndex(), pointer_size);
+            if (!ResolveTypesOfMethods(self, m) || !ResolveTypesOfMethods(self, &super_m)) {
               return false;
             }
           }

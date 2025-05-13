@@ -341,10 +341,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
 
-  // Splits the edge between `block` and `successor` and then updates the graph's RPO to keep
-  // consistency without recomputing the whole graph.
-  HBasicBlock* SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* successor);
-
   void OrderLoopHeaderPredecessors(HBasicBlock* header);
 
   // Transform a loop into a format with a single preheader.
@@ -1089,7 +1085,7 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
   // graph, create a Goto at the end of the former block and will create an edge
   // between the blocks. It will not, however, update the reverse post order or
   // loop and try/catch information.
-  HBasicBlock* SplitBefore(HInstruction* cursor, bool require_graph_not_in_ssa_form = true);
+  HBasicBlock* SplitBefore(HInstruction* cursor);
 
   // Split the block into two blocks just before `cursor`. Returns the newly
   // created block. Note that this method just updates raw block information,

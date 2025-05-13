@@ -545,23 +545,23 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Handle<Class> klass2 = hs.NewHandle(FindClass("LProtoCompare2;", class_loader_2));
   ASSERT_TRUE(klass2 != nullptr);
 
-  ArtMethod* m1_1 = klass1->GetVirtualMethod(0, kRuntimePointerSize);
-  EXPECT_STREQ(m1_1->GetName(), "m1");
-  ArtMethod* m2_1 = klass1->GetVirtualMethod(1, kRuntimePointerSize);
-  EXPECT_STREQ(m2_1->GetName(), "m2");
-  ArtMethod* m3_1 = klass1->GetVirtualMethod(2, kRuntimePointerSize);
-  EXPECT_STREQ(m3_1->GetName(), "m3");
-  ArtMethod* m4_1 = klass1->GetVirtualMethod(3, kRuntimePointerSize);
-  EXPECT_STREQ(m4_1->GetName(), "m4");
+  ArtMethod& m1_1 = klass1->GetMethods(kRuntimePointerSize)[1];
+  EXPECT_STREQ(m1_1.GetName(), "m1");
+  ArtMethod& m2_1 = klass1->GetMethods(kRuntimePointerSize)[2];
+  EXPECT_STREQ(m2_1.GetName(), "m2");
+  ArtMethod& m3_1 = klass1->GetMethods(kRuntimePointerSize)[3];
+  EXPECT_STREQ(m3_1.GetName(), "m3");
+  ArtMethod& m4_1 = klass1->GetMethods(kRuntimePointerSize)[4];
+  EXPECT_STREQ(m4_1.GetName(), "m4");
 
-  ArtMethod* m1_2 = klass2->GetVirtualMethod(0, kRuntimePointerSize);
-  EXPECT_STREQ(m1_2->GetName(), "m1");
-  ArtMethod* m2_2 = klass2->GetVirtualMethod(1, kRuntimePointerSize);
-  EXPECT_STREQ(m2_2->GetName(), "m2");
-  ArtMethod* m3_2 = klass2->GetVirtualMethod(2, kRuntimePointerSize);
-  EXPECT_STREQ(m3_2->GetName(), "m3");
-  ArtMethod* m4_2 = klass2->GetVirtualMethod(3, kRuntimePointerSize);
-  EXPECT_STREQ(m4_2->GetName(), "m4");
+  ArtMethod& m1_2 = klass2->GetMethods(kRuntimePointerSize)[1];
+  EXPECT_STREQ(m1_2.GetName(), "m1");
+  ArtMethod& m2_2 = klass2->GetMethods(kRuntimePointerSize)[2];
+  EXPECT_STREQ(m2_2.GetName(), "m2");
+  ArtMethod& m3_2 = klass2->GetMethods(kRuntimePointerSize)[3];
+  EXPECT_STREQ(m3_2.GetName(), "m3");
+  ArtMethod& m4_2 = klass2->GetMethods(kRuntimePointerSize)[4];
+  EXPECT_STREQ(m4_2.GetName(), "m4");
 }
 
 TEST_F(ObjectTest, StringHashCode) {

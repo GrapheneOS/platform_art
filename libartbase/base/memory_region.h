@@ -36,11 +36,9 @@ namespace art {
 // of the region.
 class MemoryRegion final : public ValueObject {
  public:
-  struct ContentEquals {
-    constexpr bool operator()(const MemoryRegion& lhs, const MemoryRegion& rhs) const {
-      return lhs.size() == rhs.size() && memcmp(lhs.begin(), rhs.begin(), lhs.size()) == 0;
-    }
-  };
+  constexpr bool operator==(const MemoryRegion& other) const {
+    return size() == other.size() && memcmp(begin(), other.begin(), size()) == 0;
+  }
 
   MemoryRegion() : pointer_(nullptr), size_(0) {}
   MemoryRegion(void* pointer_in, uintptr_t size_in) : pointer_(pointer_in), size_(size_in) {}

@@ -291,6 +291,7 @@ class BitTableBuilderBase {
   explicit BitTableBuilderBase(ScopedArenaAllocator* allocator)
       : rows_(allocator->Adapter(kArenaAllocBitTableBuilder)),
         dedup_(8, allocator->Adapter(kArenaAllocBitTableBuilder)) {
+    rows_.reserve(8);
   }
 
   Entry& operator[](size_t row) { return rows_[row]; }
@@ -387,7 +388,7 @@ class BitTableBuilderBase {
   }
 
  protected:
-  ScopedArenaDeque<Entry> rows_;
+  ScopedArenaVector<Entry> rows_;
   ScopedArenaUnorderedMultimap<uint32_t, uint32_t> dedup_;  // Hash -> row index.
 };
 
@@ -404,6 +405,7 @@ class BitmapTableBuilder {
       : allocator_(allocator),
         rows_(allocator->Adapter(kArenaAllocBitTableBuilder)),
         dedup_(8, allocator_->Adapter(kArenaAllocBitTableBuilder)) {
+    rows_.reserve(8);
   }
 
   MemoryRegion operator[](size_t row) { return rows_[row]; }
@@ -423,7 +425,7 @@ class BitmapTableBuilder {
     // Check if we have already added identical bitmap.
     auto range = dedup_.equal_range(hash);
     for (auto it = range.first; it != range.second; ++it) {
-      if (MemoryRegion::ContentEquals()(region, rows_[it->second])) {
+      if (region == rows_[it->second]) {
         return it->second;
       }
     }
@@ -479,7 +481,7 @@ class BitmapTableBuilder {
 
  private:
   ScopedArenaAllocator* const allocator_;
-  ScopedArenaDeque<MemoryRegion> rows_;
+  ScopedArenaVector<MemoryRegion> rows_;
   ScopedArenaUnorderedMultimap<uint32_t, uint32_t> dedup_;  // Hash -> row index.
   size_t max_num_bits_ = 0u;
 };

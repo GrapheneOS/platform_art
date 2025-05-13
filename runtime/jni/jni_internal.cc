@@ -36,6 +36,7 @@
 #include "class_linker-inl.h"
 #include "class_root-inl.h"
 #include "dex/dex_file-inl.h"
+#include "dex/primitive.h"
 #include "dex/utf-inl.h"
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
@@ -52,7 +53,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field.h"
+#include "mirror/field-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-alloc-inl.h"
@@ -1582,6 +1583,19 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
     ArtField* f = jni::DecodeArtField<kEnableIndexIds>(fid);
+    ObjPtr<mirror::Field> reflect_field =
+        mirror::Field::CreateFromArtField(soa.Self(), f, /*force_resolve=*/ true);
+    // Android Studio needs to be able to overwrite newly introduced fields in class redefinition
+    // process.
+    if (Runtime::Current()->IsJavaDebuggableAtInit() &&
+        reflect_field->IsMonotonic() &&
+        !f->GetObject(f->GetDeclaringClass()).IsNull()) {
+      LOG(FATAL) << "Can't overwrite value of already initialized " << f->PrettyField();
+    } else {
+      if (reflect_field->IsMonotonic()) {
+        LOG(FATAL) << "Can't overwrite value of " << f->PrettyField();
+      }
+    }
     NotifySetObjectField(f, nullptr, java_value);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     f->SetObject<false>(f->GetDeclaringClass(), v);
@@ -1612,10 +1626,52 @@ class JNI {
   ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   f->Set ##fn <false>(o, value)
 
+  static bool IsZero(ArtField* f) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(f->IsStatic());
+
+    switch (f->GetTypeAsPrimitiveType()) {
+      case Primitive::Type::kPrimBoolean:
+        return f->GetBoolean(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimByte:
+        return f->GetByte(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimChar:
+        return f->GetChar(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimShort:
+        return f->GetShort(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimInt:
+        return f->GetInt(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimLong:
+        return f->GetLong(f->GetDeclaringClass()) == 0;
+      case Primitive::kPrimFloat:
+        return f->GetFloat(f->GetDeclaringClass()) == 0.0f;
+      case Primitive::kPrimDouble:
+        return f->GetDouble(f->GetDeclaringClass()) == 0.0;
+      case Primitive::kPrimVoid:
+      case Primitive::kPrimNot:
+        LOG(FATAL) << f->PrettyField()
+                   << " expected to be primitive, but is "
+                   << f->GetTypeAsPrimitiveType();
+        UNREACHABLE();
+    }
+  }
+
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
   ArtField* f = jni::DecodeArtField<kEnableIndexIds>(fid); \
+  ObjPtr<mirror::Field> reflect_field = \
+    mirror::Field::CreateFromArtField(soa.Self(), f, /*force_resolve=*/ true); \
+  /* Android Studio needs to be able to overwrite newly introduced fields in class redefinition */ \
+  /* process. */ \
+  if (Runtime::Current()->IsJavaDebuggableAtInit()) { \
+    if (reflect_field->IsMonotonic() && !IsZero(f)) { \
+      LOG(FATAL) << "Can't overwrite value of already initialized " << f->PrettyField(); \
+    } \
+  } else { \
+    if (reflect_field->IsMonotonic()) { \
+      LOG(FATAL) << "Can't overwrite value of " << f->PrettyField(); \
+    } \
+  } \
   NotifySetPrimitiveField(f, nullptr, JValue::FromPrimitive<decltype(value)>(value)); \
   f->Set ##fn <false>(f->GetDeclaringClass(), value)
 

@@ -235,22 +235,10 @@ inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_me
                     static_cast<uint64_t>(reinterpret_cast<uintptr_t>(new_methods)));
 }
 
-template<VerifyObjectFlags kVerifyFlags>
-inline ArtMethod* Class::GetVirtualMethod(size_t i, PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>())
-      << Class::PrettyClass() << " status=" << GetStatus();
-  return GetVirtualMethodUnchecked(i, pointer_size);
-}
-
 inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   DCHECK(IsLoaded() || IsErroneous());
-  return GetVirtualMethodUnchecked(i, pointer_size);
-}
-
-inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
+  DCHECK(!IsResolved());
   return &GetVirtualMethodsSliceUnchecked(pointer_size)[i];
 }
 
