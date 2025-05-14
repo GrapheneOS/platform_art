@@ -40,7 +40,7 @@ cc_defaults {
         "base/flags.cc",
         "base/hex_dump.cc",
         "base/logging.cc",
-        "base/malloc_arena_pool.cc",
+        "base/calloc_arena_pool.cc",
         "base/membarrier.cc",
         "base/memfd.cc",
         "base/memory_region.cc",

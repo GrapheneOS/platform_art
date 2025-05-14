@@ -19,7 +19,7 @@
 #include "art_method.h"
 #include "base/arena_bit_vector.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "stack_map_stream.h"
 
 #include "gtest/gtest.h"
@@ -49,7 +49,7 @@ using Kind = DexRegisterLocation::Kind;
 constexpr static uint32_t kPcAlign = GetInstructionSetInstructionAlignment(kRuntimeISA);
 
 TEST(StackMapTest, Test1) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -108,7 +108,7 @@ TEST(StackMapTest, Test1) {
 }
 
 TEST(StackMapTest, Test2) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -307,7 +307,7 @@ TEST(StackMapTest, Test2) {
 }
 
 TEST(StackMapTest, TestDeduplicateInlineInfoDexRegisterMap) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -375,7 +375,7 @@ TEST(StackMapTest, TestDeduplicateInlineInfoDexRegisterMap) {
 }
 
 TEST(StackMapTest, TestNonLiveDexRegisters) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -428,7 +428,7 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
 }
 
 TEST(StackMapTest, TestShareDexRegisterMap) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -489,7 +489,7 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
 }
 
 TEST(StackMapTest, TestNoDexRegisterMap) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -539,7 +539,7 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
 }
 
 TEST(StackMapTest, InlineTest) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
@@ -734,7 +734,7 @@ TEST(StackMapTest, PackedNativePcTest) {
 }
 
 TEST(StackMapTest, TestDeduplicateStackMask) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);

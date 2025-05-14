@@ -47,7 +47,7 @@
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/logging.h"  // For VLOG.
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/os.h"
 #include "base/safe_map.h"
 #include "base/scoped_flock.h"

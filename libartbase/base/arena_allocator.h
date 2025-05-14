@@ -213,7 +213,7 @@ class Arena {
   uint8_t* memory_;
   size_t size_;
   Arena* next_;
-  friend class MallocArenaPool;
+  friend class CallocArenaPool;
   friend class MemMapArenaPool;
   friend class ArenaAllocator;
   friend class ArenaStack;

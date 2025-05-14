@@ -22,7 +22,7 @@
 
 #include "base/bit_utils.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/stl_util.h"
 #include "jni_macro_assembler_x86_64.h"
 #include "utils/assembler_test.h"
@@ -31,7 +31,7 @@
 namespace art HIDDEN {
 
 TEST(AssemblerX86_64, CreateBuffer) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
   AssemblerBuffer buffer(&allocator);
   AssemblerBuffer::EnsureCapacity ensured(&buffer);

@@ -27,7 +27,7 @@
 
 #include "base/macros.h"
 #include "base/indenter.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/scoped_arena_allocator.h"
 #include "builder.h"
 #include "common_compiler_test.h"
@@ -139,7 +139,7 @@ class ArenaPoolAndAllocator {
   ScopedArenaAllocator* GetScopedAllocator() { return &scoped_allocator_; }
 
  private:
-  MallocArenaPool pool_;
+  CallocArenaPool pool_;
   ArenaAllocator allocator_;
   ArenaStack arena_stack_;
   ScopedArenaAllocator scoped_allocator_;

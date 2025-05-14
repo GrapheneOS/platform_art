@@ -16,7 +16,7 @@
 
 #include "base/arena_allocator.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 
@@ -182,7 +182,7 @@ TYPED_TEST_CASE(ParallelMoveTest, ParallelMoveResolverTestTypes);
 
 
 TYPED_TEST(ParallelMoveTest, Dependency) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {
@@ -209,7 +209,7 @@ TYPED_TEST(ParallelMoveTest, Dependency) {
 }
 
 TYPED_TEST(ParallelMoveTest, Cycle) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {
@@ -259,7 +259,7 @@ TYPED_TEST(ParallelMoveTest, Cycle) {
 }
 
 TYPED_TEST(ParallelMoveTest, ConstantLast) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
   TypeParam resolver(&allocator);
   HParallelMove* moves = new (&allocator) HParallelMove(&allocator);
@@ -278,7 +278,7 @@ TYPED_TEST(ParallelMoveTest, ConstantLast) {
 }
 
 TYPED_TEST(ParallelMoveTest, Pairs) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {
@@ -455,7 +455,7 @@ TYPED_TEST(ParallelMoveTest, Pairs) {
 }
 
 TYPED_TEST(ParallelMoveTest, MultiCycles) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {
@@ -553,7 +553,7 @@ TYPED_TEST(ParallelMoveTest, MultiCycles) {
 
 // Test that we do 64bits moves before 32bits moves.
 TYPED_TEST(ParallelMoveTest, CyclesWith64BitsMoves) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {
@@ -612,7 +612,7 @@ TYPED_TEST(ParallelMoveTest, CyclesWith64BitsMoves) {
 }
 
 TYPED_TEST(ParallelMoveTest, CyclesWith64BitsMoves2) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
 
   {

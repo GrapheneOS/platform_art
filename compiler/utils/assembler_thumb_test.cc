@@ -31,7 +31,7 @@
 
 #include "base/hex_dump.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "common_runtime_test.h"
 
 namespace art HIDDEN {
@@ -88,7 +88,7 @@ class ArmVIXLAssemblerTest : public AssemblerTestBase {
 
 #define __ assembler.
 
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator;
   ArmVIXLJNIMacroAssembler assembler;
 };

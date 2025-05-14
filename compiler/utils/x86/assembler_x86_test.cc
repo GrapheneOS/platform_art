@@ -18,14 +18,14 @@
 
 #include "base/arena_allocator.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/stl_util.h"
 #include "utils/assembler_test.h"
 
 namespace art HIDDEN {
 
 TEST(AssemblerX86, CreateBuffer) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
   AssemblerBuffer buffer(&allocator);
   AssemblerBuffer::EnsureCapacity ensured(&buffer);

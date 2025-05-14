@@ -32,7 +32,7 @@
 #include "utils/assembler_test_base.h"
 
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 
 namespace art HIDDEN {
 namespace riscv64 {
@@ -73,7 +73,7 @@ class JniMacroAssemblerRiscv64Test : public AssemblerTestBase {
   static const size_t kWordSize = 4u;
   static const size_t kDoubleWordSize = 8u;
 
-  MallocArenaPool pool_;
+  CallocArenaPool pool_;
   ArenaAllocator allocator_;
   Riscv64JNIMacroAssembler assembler_;
 };

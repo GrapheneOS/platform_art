@@ -17,7 +17,7 @@
 #include "trampoline_compiler.h"
 
 #include "base/arena_allocator.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "jni/jni_env_ext.h"
 
 #ifdef ART_ENABLE_CODEGEN_arm
@@ -200,7 +200,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
 std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet isa,
                                                                EntryPointCallingConvention abi,
                                                                ThreadOffset64 offset) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
   switch (isa) {
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -226,7 +226,7 @@ std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet is
 std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(InstructionSet isa,
                                                                EntryPointCallingConvention abi,
                                                                ThreadOffset32 offset) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaAllocator allocator(&pool);
   switch (isa) {
 #ifdef ART_ENABLE_CODEGEN_arm

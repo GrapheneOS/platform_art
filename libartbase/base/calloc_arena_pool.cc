@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include "malloc_arena_pool.h"
-
+#include "calloc_arena_pool.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -28,10 +27,10 @@
 
 namespace art {
 
-class MallocArena final : public Arena {
+class CallocArena final : public Arena {
  public:
-  explicit MallocArena(size_t size = arena_allocator::kArenaDefaultSize);
-  virtual ~MallocArena();
+  explicit CallocArena(size_t size = arena_allocator::kArenaDefaultSize);
+  virtual ~CallocArena();
  private:
   static constexpr size_t RequiredOverallocation() {
     return (alignof(std::max_align_t) < ArenaAllocator::kArenaAlignment)
@@ -42,7 +41,7 @@ class MallocArena final : public Arena {
   uint8_t* unaligned_memory_;
 };
 
-MallocArena::MallocArena(size_t size) {
+CallocArena::CallocArena(size_t size) {
   // We need to guarantee kArenaAlignment aligned allocation for the new arena.
   // TODO: Use std::aligned_alloc() when it becomes available with C++17.
   constexpr size_t overallocation = RequiredOverallocation();
@@ -64,7 +63,7 @@ MallocArena::MallocArena(size_t size) {
   size_ = size;
 }
 
-MallocArena::~MallocArena() {
+CallocArena::~CallocArena() {
   constexpr size_t overallocation = RequiredOverallocation();
   if (overallocation != 0u && kRunningOnMemoryTool) {
     size_t head = memory_ - unaligned_memory_;
@@ -82,14 +81,14 @@ void Arena::Reset() {
   }
 }
 
-MallocArenaPool::MallocArenaPool() : free_arenas_(nullptr) {
+CallocArenaPool::CallocArenaPool() : free_arenas_(nullptr) {
 }
 
-MallocArenaPool::~MallocArenaPool() {
+CallocArenaPool::~CallocArenaPool() {
   ReclaimMemory();
 }
 
-void MallocArenaPool::ReclaimMemory() {
+void CallocArenaPool::ReclaimMemory() {
   while (free_arenas_ != nullptr) {
     Arena* arena = free_arenas_;
     free_arenas_ = free_arenas_->next_;
@@ -97,12 +96,12 @@ void MallocArenaPool::ReclaimMemory() {
   }
 }
 
-void MallocArenaPool::LockReclaimMemory() {
+void CallocArenaPool::LockReclaimMemory() {
   std::lock_guard<std::mutex> lock(lock_);
   ReclaimMemory();
 }
 
-Arena* MallocArenaPool::AllocArena(size_t size) {
+Arena* CallocArenaPool::AllocArena(size_t size) {
   Arena* ret = nullptr;
   {
     std::lock_guard<std::mutex> lock(lock_);
@@ -128,17 +127,17 @@ Arena* MallocArenaPool::AllocArena(size_t size) {
     }
   }
   if (ret == nullptr) {
-    ret = new MallocArena(size);
+    ret = new CallocArena(size);
   }
   ret->Reset();
   return ret;
 }
 
-void MallocArenaPool::TrimMaps() {
+void CallocArenaPool::TrimMaps() {
   // Nop, because there is no way to do madvise here.
 }
 
-size_t MallocArenaPool::GetBytesAllocated() const {
+size_t CallocArenaPool::GetBytesAllocated() const {
   size_t total = 0;
   std::lock_guard<std::mutex> lock(lock_);
   for (Arena* arena = free_arenas_; arena != nullptr; arena = arena->next_) {
@@ -147,7 +146,7 @@ size_t MallocArenaPool::GetBytesAllocated() const {
   return total;
 }
 
-void MallocArenaPool::FreeArenaChain(Arena* first) {
+void CallocArenaPool::FreeArenaChain(Arena* first) {
   if (kRunningOnMemoryTool) {
     for (Arena* arena = first; arena != nullptr; arena = arena->next_) {
       MEMORY_TOOL_MAKE_UNDEFINED(arena->memory_, arena->bytes_allocated_);

@@ -42,7 +42,7 @@ class CallocAllocator final : public Allocator {
   DISALLOW_COPY_AND_ASSIGN(CallocAllocator);
 };
 
-CallocAllocator g_malloc_allocator;
+CallocAllocator g_calloc_allocator;
 
 class NoopAllocator final : public Allocator {
  public:
@@ -65,7 +65,7 @@ class NoopAllocator final : public Allocator {
 NoopAllocator g_noop_allocator;
 
 Allocator* Allocator::GetCallocAllocator() {
-  return &g_malloc_allocator;
+  return &g_calloc_allocator;
 }
 
 Allocator* Allocator::GetNoopAllocator() {

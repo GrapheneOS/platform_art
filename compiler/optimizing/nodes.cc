@@ -28,7 +28,7 @@
 #include "base/bit_vector.h"
 #include "base/iteration_range.h"
 #include "base/logging.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
@@ -1253,7 +1253,7 @@ std::ostream& HInstruction::Dump(std::ostream& os, bool dump_args) {
   HGraphVisualizer::DumpInstruction(&os, graph, this);
   if (dump_args) {
     // Allocate memory from local ScopedArenaAllocator.
-    std::optional<MallocArenaPool> local_arena_pool;
+    std::optional<CallocArenaPool> local_arena_pool;
     std::optional<ArenaStack> local_arena_stack;
     if (UNLIKELY(graph == nullptr)) {
       local_arena_pool.emplace();

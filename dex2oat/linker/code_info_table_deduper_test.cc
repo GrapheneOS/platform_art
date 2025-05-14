@@ -19,7 +19,7 @@
 #include "code_info_table_deduper.h"
 
 #include "arch/instruction_set.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "optimizing/stack_map_stream.h"
@@ -31,7 +31,7 @@ TEST(StackMapTest, TestDedupeBitTables) {
   constexpr static uint32_t kPcAlign = GetInstructionSetInstructionAlignment(kRuntimeISA);
   using Kind = DexRegisterLocation::Kind;
 
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);

@@ -24,7 +24,7 @@
 #include "base/callee_save_type.h"
 #include "base/leb128.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/pointer_size.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
@@ -78,7 +78,7 @@ class ExceptionTest : public CommonRuntimeTest {
     const uint32_t native_pc_offset = 4u;
     CHECK_ALIGNED_PARAM(native_pc_offset, GetInstructionSetInstructionAlignment(kRuntimeISA));
 
-    MallocArenaPool pool;
+    CallocArenaPool pool;
     ArenaStack arena_stack(&pool);
     ScopedArenaAllocator allocator(&arena_stack);
     StackMapStream stack_maps(&allocator, kRuntimeISA);

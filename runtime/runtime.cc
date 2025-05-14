@@ -58,7 +58,7 @@
 #include "base/dumpable.h"
 #include "base/file_utils.h"
 #include "base/flags.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/mem_map_arena_pool.h"
 #include "base/memory_tool.h"
 #include "base/mutex.h"
@@ -1887,8 +1887,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // can't be trimmed as easily.
   const bool use_malloc = IsAotCompiler();
   if (use_malloc) {
-    arena_pool_.reset(new MallocArenaPool());
-    jit_arena_pool_.reset(new MallocArenaPool());
+    arena_pool_.reset(new CallocArenaPool());
+    jit_arena_pool_.reset(new CallocArenaPool());
   } else {
     arena_pool_.reset(new MemMapArenaPool(/* low_4gb= */ false));
     jit_arena_pool_.reset(new MemMapArenaPool(/* low_4gb= */ false, "CompilerMetadata"));

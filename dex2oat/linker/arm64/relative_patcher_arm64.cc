@@ -20,7 +20,6 @@
 #include "arch/arm64/instruction_set_features_arm64.h"
 #include "art_method.h"
 #include "base/bit_utils.h"
-#include "base/malloc_arena_pool.h"
 #include "driver/compiled_method-inl.h"
 #include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"

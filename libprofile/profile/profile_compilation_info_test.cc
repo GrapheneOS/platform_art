@@ -233,7 +233,7 @@ class ProfileCompilationInfoTest : public CommonArtTest, public ProfileTestHelpe
   static constexpr int kProfileMagicSize = 4;
   static constexpr int kProfileVersionSize = 4;
 
-  MallocArenaPool pool_;
+  CallocArenaPool pool_;
   std::unique_ptr<ArenaAllocator> allocator_;
 
   const DexFile* dex1;

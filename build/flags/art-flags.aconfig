@@ -48,6 +48,19 @@ flag {
   is_exported: true
 }
 
+# Flag for better spill slot reuse in the register allocator.
+flag {
+  name: "reg_alloc_spill_slot_reuse"
+  namespace: "art_performance"
+  description: "Flag to control spill slot reuse in register allocator"
+  bug: "264678256"
+  is_fixed_read_only: true
+  is_exported: false
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
 # TODO(b/352723620): Ramp this fully, then add tests with it.
 flag {
   name: "test"

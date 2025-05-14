@@ -21,7 +21,6 @@
 #include "arch/arm/asm_support_arm.h"
 #include "art_method.h"
 #include "base/bit_utils.h"
-#include "base/malloc_arena_pool.h"
 #include "driver/compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "linker/linker_patch.h"

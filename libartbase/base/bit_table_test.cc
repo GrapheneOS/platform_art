@@ -22,12 +22,12 @@
 
 #include "base/arena_allocator.h"
 #include "base/bit_utils.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 
 namespace art {
 
 TEST(BitTableTest, TestEmptyTable) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -43,7 +43,7 @@ TEST(BitTableTest, TestEmptyTable) {
 }
 
 TEST(BitTableTest, TestSingleColumnTable) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -69,7 +69,7 @@ TEST(BitTableTest, TestSingleColumnTable) {
 }
 
 TEST(BitTableTest, TestUnalignedTable) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -89,7 +89,7 @@ TEST(BitTableTest, TestUnalignedTable) {
 }
 
 TEST(BitTableTest, TestBigTable) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -120,7 +120,7 @@ TEST(BitTableTest, TestBigTable) {
 }
 
 TEST(BitTableTest, TestDedup) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -135,7 +135,7 @@ TEST(BitTableTest, TestDedup) {
 }
 
 TEST(BitTableTest, TestBitmapTable) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
 
@@ -165,7 +165,7 @@ TEST(BitTableTest, TestBitmapTable) {
 }
 
 TEST(BitTableTest, TestCollisions) {
-  MallocArenaPool pool;
+  CallocArenaPool pool;
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   FNVHash<MemoryRegion> hasher;

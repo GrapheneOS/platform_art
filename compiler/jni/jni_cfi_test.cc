@@ -20,7 +20,7 @@
 #include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/pointer_size.h"
 #include "cfi_test.h"
 #include "gtest/gtest.h"
@@ -60,7 +60,7 @@ class JNICFITest : public CFITest {
     const bool is_synchronized = false;
     const char* shorty = "IIFII";
 
-    MallocArenaPool pool;
+    CallocArenaPool pool;
     ArenaAllocator allocator(&pool);
 
     std::unique_ptr<JniCallingConvention> jni_conv(

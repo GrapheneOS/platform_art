@@ -1850,6 +1850,7 @@ java.util.ImmutableCollections$SetN$SetNIterator
 java.util.ImmutableCollections$SetN
 java.util.ImmutableCollections$SubList
 java.util.ImmutableCollections-IA
+java.util.ImmutableCollections
 java.util.InputMismatchException
 java.util.Iterator
 java.util.JumboEnumSet$EnumSetIterator

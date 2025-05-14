@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_LIBARTBASE_BASE_MALLOC_ARENA_POOL_H_
-#define ART_LIBARTBASE_BASE_MALLOC_ARENA_POOL_H_
+#ifndef ART_LIBARTBASE_BASE_CALLOC_ARENA_POOL_H_
+#define ART_LIBARTBASE_BASE_CALLOC_ARENA_POOL_H_
 
 #include <mutex>
 
@@ -23,10 +23,10 @@
 
 namespace art {
 
-class MallocArenaPool final : public ArenaPool {
+class CallocArenaPool final : public ArenaPool {
  public:
-  MallocArenaPool();
-  ~MallocArenaPool();
+  CallocArenaPool();
+  ~CallocArenaPool();
   Arena* AllocArena(size_t size) override;
   void FreeArenaChain(Arena* first) override;
   size_t GetBytesAllocated() const override;
@@ -40,9 +40,9 @@ class MallocArenaPool final : public ArenaPool {
   // Use a std::mutex here as Arenas are at the bottom of the lock hierarchy when malloc is used.
   mutable std::mutex lock_;
 
-  DISALLOW_COPY_AND_ASSIGN(MallocArenaPool);
+  DISALLOW_COPY_AND_ASSIGN(CallocArenaPool);
 };
 
 }  // namespace art
 
-#endif  // ART_LIBARTBASE_BASE_MALLOC_ARENA_POOL_H_
+#endif  // ART_LIBARTBASE_BASE_CALLOC_ARENA_POOL_H_

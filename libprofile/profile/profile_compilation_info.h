@@ -30,7 +30,7 @@
 #include "base/bit_memory_region.h"
 #include "base/hash_map.h"
 #include "base/hash_set.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "base/mem_map.h"
 #include "base/safe_map.h"
 #include "dex/dex_file-inl.h"
@@ -1074,7 +1074,7 @@ class ProfileCompilationInfo {
   friend class ProfileAssistantTest;
   friend class Dex2oatLayoutTest;
 
-  MallocArenaPool default_arena_pool_;
+  CallocArenaPool default_arena_pool_;
   ArenaAllocator allocator_;
 
   // Vector containing the actual profile info.

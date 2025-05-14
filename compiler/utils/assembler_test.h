@@ -28,7 +28,7 @@
 
 #include "base/array_ref.h"
 #include "base/macros.h"
-#include "base/malloc_arena_pool.h"
+#include "base/calloc_arena_pool.h"
 #include "assembler_test_base.h"
 #include "common_runtime_test.h"  // For ScratchFile
 
@@ -1647,7 +1647,7 @@ class AssemblerTest : public AssemblerTestBase {
 
   static constexpr size_t kWarnManyCombinationsThreshold = 500;
 
-  MallocArenaPool pool_;
+  CallocArenaPool pool_;
   std::unique_ptr<ArenaAllocator> allocator_;
   std::unique_ptr<Ass> assembler_;
 
