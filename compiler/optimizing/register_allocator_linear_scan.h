@@ -48,13 +48,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
 
   bool Validate(bool log_fatal_on_failure) override;
 
-  size_t GetNumberOfSpillSlots() const {
-    return int_spill_slots_.size()
-        + long_spill_slots_.size()
-        + float_spill_slots_.size()
-        + double_spill_slots_.size()
-        + catch_phi_spill_slots_;
-  }
+  size_t GetNumberOfSpillSlots() const;
 
  private:
   class LinearScan;
@@ -121,10 +115,11 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // are typed to avoid (1) doing moves and swaps between two different kinds
   // of registers, and (2) swapping between a single stack slot and a double
   // stack slot. This simplifies the parallel move resolver.
-  ScopedArenaVector<size_t> int_spill_slots_;
-  ScopedArenaVector<size_t> long_spill_slots_;
-  ScopedArenaVector<size_t> float_spill_slots_;
-  ScopedArenaVector<size_t> double_spill_slots_;
+  struct SpillSlotData;
+  ScopedArenaVector<SpillSlotData> int_spill_slots_;
+  ScopedArenaVector<SpillSlotData> long_spill_slots_;
+  ScopedArenaVector<SpillSlotData> float_spill_slots_;
+  ScopedArenaVector<SpillSlotData> double_spill_slots_;
 
   // Spill slots allocated to catch phis. This category is special-cased because
   // (1) slots are allocated prior to linear scan and in reverse linear order,

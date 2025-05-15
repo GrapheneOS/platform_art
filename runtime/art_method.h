@@ -200,6 +200,14 @@ class EXPORT ArtMethod final {
   static bool IsConstructor(uint32_t access_flags) {
     return (access_flags & kAccConstructor) != 0;
   }
+  // Returns true if the method is an instance constructor according to access flags.
+  bool IsInstanceConstructor() const {
+    return IsInstanceConstructor(GetAccessFlags());
+  }
+
+  static bool IsInstanceConstructor(uint32_t access_flags) {
+    return IsConstructor(access_flags) && !IsStatic(access_flags);
+  }
 
   // Returns true if the method is a class initializer according to access flags.
   bool IsClassInitializer() const {

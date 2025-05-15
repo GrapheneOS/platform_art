@@ -464,13 +464,34 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     }
   }
 
-  bool HasSpillSlot() const { return spill_slot_ != kNoSpillSlot; }
+  bool HasSpillSlot() const {
+    static_assert(kNoSpillSlot == -1);
+    return spill_slot_or_hint_ >= 0;
+  }
   void SetSpillSlot(int slot) {
     DCHECK(!IsFixed());
     DCHECK(!IsTemp());
-    spill_slot_ = slot;
+    spill_slot_or_hint_ = slot;
+    DCHECK(HasSpillSlot());
   }
-  int GetSpillSlot() const { return spill_slot_; }
+  int GetSpillSlot() const { return spill_slot_or_hint_; }
+
+  bool HasSpillSlotOrHint() const {
+    return spill_slot_or_hint_ != kNoSpillSlot;
+  }
+  bool HasSpillSlotHint() const {
+    return spill_slot_or_hint_ < kNoSpillSlot;
+  }
+  void SetSpillSlotHint(int hint) {
+    static_assert(kNoSpillSlot == -1);
+    DCHECK(!HasSpillSlotOrHint());
+    DCHECK_GE(hint, 0);
+    spill_slot_or_hint_ = -2 - hint;
+  }
+  int GetSpillSlotHint() const {
+    DCHECK(HasSpillSlotOrHint());
+    return HasSpillSlot() ? GetSpillSlot() : -(spill_slot_or_hint_ + 2);
+  }
 
   void SetFrom(size_t from) {
     if (first_range_ != nullptr) {
@@ -1006,6 +1027,16 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     return false;
   }
 
+  void SetHintPhiInterval(LiveInterval* hint_phi_interval) {
+    DCHECK(hint_phi_interval->GetDefinedBy() != nullptr);
+    DCHECK(hint_phi_interval->GetDefinedBy()->IsPhi());
+    hint_phi_interval_ = hint_phi_interval;
+  }
+
+  LiveInterval* GetHintPhiInterval() {
+    return hint_phi_interval_;
+  }
+
  private:
   LiveInterval(ScopedArenaAllocator* allocator,
                DataType::Type type,
@@ -1025,9 +1056,10 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
         parent_(this),
         defined_by_(defined_by),
         high_or_low_interval_(nullptr),
-        type_(type),
+        hint_phi_interval_(nullptr),
         register_(reg),
-        spill_slot_(kNoSpillSlot),
+        spill_slot_or_hint_(kNoSpillSlot),
+        type_(type),
         temp_index_(temp_index),
         is_fixed_(is_fixed),
         is_high_interval_(is_high_interval) {}
@@ -1150,14 +1182,21 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   // `is_high_interval_` tells whether this holds the low or the high.
   LiveInterval* high_or_low_interval_;
 
-  // The instruction type this interval corresponds to.
-  const DataType::Type type_;
+  // If the last use of the instruction is a Phi, keep a record of that Phi's interval
+  // for hints, except if the Phi is a loop Phi in an irreducible loop.
+  LiveInterval* hint_phi_interval_;
 
   // The register allocated to this interval.
   int register_;
 
-  // The spill slot allocated to this interval.
-  int spill_slot_;
+  // The spill slot allocated to this interval, or a spill slot hint, `kNoSpillSlot` if neither.
+  //
+  // Values >= 0 represent an actual spill slot, -1 is reserved for `kNoSpillSlot`
+  // and values <= -2 encode a non-negative spill slot hint as `-2 - hint`.
+  int spill_slot_or_hint_;
+
+  // The instruction type this interval corresponds to.
+  const DataType::Type type_;
 
   // The index of the temporary, `kNoTempIndex` if not a temporary.
   // Currently, we support only 32 core and 32 FP registers. We should never request more

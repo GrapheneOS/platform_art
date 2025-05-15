@@ -107,19 +107,6 @@ inline ObjPtr<DexCache> Class::GetDexCache() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSlice(PointerSize pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous()) << GetStatus();
-  return GetDirectMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSliceUnchecked(PointerSize pointer_size) {
-  return GetMethodsSliceRangeUnchecked(GetMethodsPtr(),
-                                       pointer_size,
-                                       /* start_offset= */ 0u,
-                                       NumDirectMethods());
-}
-
-template<VerifyObjectFlags kVerifyFlags>
 inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous()) << GetStatus();
   return GetDeclaredMethodsSliceUnchecked(pointer_size);
@@ -130,34 +117,6 @@ inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSliceUnchecked(PointerSize
                                        pointer_size,
                                        /* start_offset= */ 0u,
                                        NumDeclaredMethods());
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSlice(PointerSize pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous()) << GetStatus();
-  return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSliceUnchecked(
-    PointerSize pointer_size) {
-  return GetMethodsSliceRangeUnchecked(GetMethodsPtr(),
-                                       pointer_size,
-                                       NumDirectMethods(),
-                                       NumDeclaredMethods());
-}
-
-template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSlice(PointerSize pointer_size) {
-  DCHECK(IsLoaded() || IsErroneous());
-  return GetVirtualMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSliceUnchecked(PointerSize pointer_size) {
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return GetMethodsSliceRangeUnchecked(methods,
-                                       pointer_size,
-                                       NumDirectMethods(),
-                                       NumMethods(methods));
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -239,7 +198,11 @@ inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, PointerSize poi
   CheckPointerSize(pointer_size);
   DCHECK(IsLoaded() || IsErroneous());
   DCHECK(!IsResolved());
-  return &GetVirtualMethodsSliceUnchecked(pointer_size)[i];
+  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
+  return &GetMethodsSliceRangeUnchecked(methods,
+                                       pointer_size,
+                                       NumDirectMethods(),
+                                       NumMethods(methods))[i];
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
@@ -1026,29 +989,14 @@ inline uint32_t Class::NumDirectInterfaces() {
   }
 }
 
-inline ArraySlice<ArtMethod> Class::GetDirectMethods(PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  return GetDirectMethodsSliceUnchecked(pointer_size);
-}
-
 inline ArraySlice<ArtMethod> Class::GetDeclaredMethods(PointerSize pointer_size) {
   return GetDeclaredMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethods(PointerSize pointer_size) {
-  return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size);
-}
-
-inline ArraySlice<ArtMethod> Class::GetVirtualMethods(PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  return GetVirtualMethodsSliceUnchecked(pointer_size);
 }
 
 inline ArraySlice<ArtMethod> Class::GetCopiedMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return GetCopiedMethodsSliceUnchecked(pointer_size);
 }
-
 
 inline ArraySlice<ArtMethod> Class::GetMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);

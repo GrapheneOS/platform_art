@@ -788,7 +788,9 @@ class OptimizingUnitTestHelper {
                  DataType::Type result_type,
                  HInstruction* input,
                  uint32_t dex_pc = kNoDexPc) {
-    static_assert(std::is_base_of_v<HUnaryOperation, Type>);
+    static_assert(std::is_base_of_v<HUnaryOperation, Type> ||
+                  // TODO: Make `HTypeConversion` inherit `HUnaryOperation`.
+                  std::is_same_v<HTypeConversion, Type>);
     Type* insn = new (GetAllocator()) Type(result_type, input, dex_pc);
     AddOrInsertInstruction(block, insn);
     return insn;

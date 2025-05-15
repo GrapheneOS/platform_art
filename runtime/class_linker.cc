@@ -8530,14 +8530,17 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
   // so use vtable indexes from implementation methods from the superclass method array.
   for (size_t i = 0; i != super_ifcount; ++i) {
     ObjPtr<mirror::PointerArray> method_array = iftable->GetMethodArrayOrNull(i);
+    DCHECK(method_array == klass->GetSuperClass()->GetIfTable()->GetMethodArrayOrNull(i));
     if (method_array == nullptr) {
       continue;
     }
     ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
     // First loop has method array shared with the super class.
     size_t j = 0;
-    for (; j != iface->NumDeclaredMethods(); ++j) {
-      ArtMethod& interface_method = iface->GetDeclaredMethods(kPointerSize)[j];
+    auto methods = iface->GetDeclaredMethods(kPointerSize);
+    size_t num_methods = methods.size();
+    for (; j != num_methods; ++j) {
+      ArtMethod& interface_method = methods[j];
       if (!interface_method.IsVirtual()) {
         continue;
       }
@@ -8578,8 +8581,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
       }
     }
     // Second loop (if non-empty) has method array different from the superclass.
-    for (; j != iface->NumDeclaredMethods(); ++j) {
-      ArtMethod& interface_method = iface->GetDeclaredMethods(kPointerSize)[j];
+    for (; j != num_methods; ++j) {
+      ArtMethod& interface_method = methods[j];
       if (!interface_method.IsVirtual()) {
         continue;
       }

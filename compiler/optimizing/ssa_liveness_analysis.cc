@@ -18,6 +18,7 @@
 
 #include "base/bit_vector-inl.h"
 #include "code_generator.h"
+#include "com_android_art_flags.h"
 #include "linear_order.h"
 #include "nodes.h"
 
@@ -193,6 +194,14 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
              phi_it.Advance()) {
           HInstruction* phi = phi_it.Current();
           HInstruction* input = phi->InputAt(phi_input_index);
+          if (com::android::art::flags::reg_alloc_spill_slot_reuse() &&
+              input->GetLiveInterval()->GetUses().empty()) {
+            // If the `input` has no recorded uses yet, the `phi` use shall be its last use
+            // (we visit blocks in reverse linear order) and the `input` dies at the end of
+            // the `block`. Record the `phi` interval as a hint to try using the same spill
+            // slot in order to avoid excessive moves if both `input` and `phi` get spilled.
+            input->GetLiveInterval()->SetHintPhiInterval(phi->GetLiveInterval());
+          }
           input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
           // A phi input whose last user is the phi dies at the end of the predecessor block,
           // and not at the phi's lifetime position.

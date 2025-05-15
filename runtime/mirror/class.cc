@@ -538,8 +538,10 @@ inline ArtMethod* Class::FindInterfaceMethodWithSignature(ObjPtr<Class> klass,
   ObjPtr<IfTable> iftable = klass->GetIfTable();
   for (int32_t i = 0, iftable_count = iftable->Count(); i < iftable_count; ++i) {
     ObjPtr<Class> iface = iftable->GetInterface(i);
-    for (ArtMethod& method : iface->GetVirtualMethodsSlice(pointer_size)) {
-      if (method.GetNameView() == name && method.GetSignature() == signature) {
+    for (ArtMethod& method : iface->GetMethodsSlice(pointer_size)) {
+      if (method.IsVirtual() &&
+          method.GetNameView() == name &&
+          method.GetSignature() == signature) {
         return &method;
       }
     }
@@ -931,9 +933,10 @@ ArtMethod* Class::FindClassMethod(ObjPtr<DexCache> dex_cache,
 ArtMethod* Class::FindConstructor(std::string_view signature, PointerSize pointer_size) {
   // Internal helper, never called on proxy classes. We can skip GetInterfaceMethodIfProxy().
   DCHECK(!IsProxyClass());
-  std::string_view name("<init>");
-  for (ArtMethod& method : GetDirectMethodsSliceUnchecked(pointer_size)) {
-    if (method.GetName() == name && method.GetSignature() == signature) {
+  for (ArtMethod& method : GetDeclaredMethodsSliceUnchecked(pointer_size)) {
+    DCHECK_IMPLIES(method.IsConstructor(), !method.IsVirtual());
+    if (method.IsInstanceConstructor() && method.GetSignature() == signature) {
+      DCHECK(method.GetName() == std::string_view("<init>"));
       return &method;
     }
   }
@@ -941,20 +944,24 @@ ArtMethod* Class::FindConstructor(std::string_view signature, PointerSize pointe
 }
 
 ArtMethod* Class::FindDeclaredDirectMethodByName(std::string_view name, PointerSize pointer_size) {
-  for (auto& method : GetDirectMethods(pointer_size)) {
-    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
-    if (name == np_method->GetName()) {
-      return &method;
+  for (auto& method : GetDeclaredMethods(pointer_size)) {
+    if (!method.IsVirtual()) {
+      ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+      if (name == np_method->GetName()) {
+        return &method;
+      }
     }
   }
   return nullptr;
 }
 
 ArtMethod* Class::FindDeclaredVirtualMethodByName(std::string_view name, PointerSize pointer_size) {
-  for (auto& method : GetVirtualMethods(pointer_size)) {
-    ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
-    if (name == np_method->GetName()) {
-      return &method;
+  for (auto& method : GetMethods(pointer_size)) {
+    if (method.IsVirtual()) {
+      ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
+      if (name == np_method->GetName()) {
+        return &method;
+      }
     }
   }
   return nullptr;
@@ -966,8 +973,8 @@ ArtMethod* Class::FindVirtualMethodForInterfaceSuper(ArtMethod* method, PointerS
   // Check if we have one defined on this interface first. This includes searching copied ones to
   // get any conflict methods. Conflict methods are copied into each subtype from the supertype. We
   // don't do any indirect method checks here.
-  for (ArtMethod& iface_method : GetVirtualMethods(pointer_size)) {
-    if (method->HasSameNameAndSignature(&iface_method)) {
+  for (ArtMethod& iface_method : GetMethods(pointer_size)) {
+    if (iface_method.IsVirtual() && method->HasSameNameAndSignature(&iface_method)) {
       return &iface_method;
     }
   }
@@ -990,7 +997,10 @@ ArtMethod* Class::FindVirtualMethodForInterfaceSuper(ArtMethod* method, PointerS
     iface.Assign(iftable->GetInterface(k));
     // Iterate through every declared method on this interface. Each direct method's name/signature
     // is unique so the order of the inner loop doesn't matter.
-    for (auto& method_iter : iface->GetDeclaredVirtualMethods(pointer_size)) {
+    for (auto& method_iter : iface->GetDeclaredMethods(pointer_size)) {
+      if (!method_iter.IsVirtual()) {
+        continue;
+      }
       ArtMethod* current_method = &method_iter;
       if (current_method->HasSameNameAndSignature(method)) {
         if (current_method->IsDefault()) {
@@ -1026,7 +1036,7 @@ ArtMethod* Class::FindVirtualMethodForInterfaceSuper(ArtMethod* method, PointerS
 }
 
 ArtMethod* Class::FindClassInitializer(PointerSize pointer_size) {
-  for (ArtMethod& method : GetDirectMethods(pointer_size)) {
+  for (ArtMethod& method : GetDeclaredMethods(pointer_size)) {
     if (method.IsClassInitializer()) {
       DCHECK_STREQ(method.GetName(), "<clinit>");
       DCHECK_STREQ(method.GetSignature().ToString().c_str(), "()V");
@@ -1861,17 +1871,16 @@ uint32_t Class::UpdateHashForProxyClass(uint32_t hash, ObjPtr<mirror::Class> pro
 // TODO: Move this to java_lang_Class.cc?
 ArtMethod* Class::GetDeclaredConstructor(
     Thread* self, Handle<ObjectArray<Class>> args, PointerSize pointer_size) {
-  for (auto& m : GetDirectMethods(pointer_size)) {
-    // Skip <clinit> which is a static constructor, as well as non constructors.
-    if (m.IsStatic() || !m.IsConstructor()) {
-      continue;
-    }
-    // May cause thread suspension and exceptions.
-    if (m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->EqualParameters(args)) {
-      return &m;
-    }
-    if (UNLIKELY(self->IsExceptionPending())) {
-      return nullptr;
+  for (auto& m : GetDeclaredMethods(pointer_size)) {
+    if (m.IsInstanceConstructor()) {
+      // May cause thread suspension and exceptions.
+      if (m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->EqualParameters(args)) {
+        DCHECK(!self->IsExceptionPending());
+        return &m;
+      }
+      if (UNLIKELY(self->IsExceptionPending())) {
+        return nullptr;
+      }
     }
   }
   return nullptr;
@@ -1953,8 +1962,8 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
   constexpr hiddenapi::AccessMethod access_method = hiddenapi::AccessMethod::kCheckWithPolicy;
   ArtMethod* result = nullptr;
   bool result_hidden = false;
-  for (auto& m : h_klass->GetDeclaredVirtualMethods(kPointerSize)) {
-    if (m.IsMiranda()) {
+  for (auto& m : h_klass->GetDeclaredMethods(kPointerSize)) {
+    if (!m.IsVirtual() || m.IsMiranda()) {
       continue;
     }
     ArtMethod* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
@@ -1986,9 +1995,8 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
     DCHECK(!result->IsDirect());
     DCHECK(result->IsSynthetic());
   } else {
-    for (auto& m : h_klass->GetDirectMethods(kPointerSize)) {
-      auto modifiers = m.GetAccessFlags();
-      if ((modifiers & kAccConstructor) != 0) {
+    for (auto& m : h_klass->GetDeclaredMethods(kPointerSize)) {
+      if (m.IsVirtual() || m.IsConstructor()) {
         continue;
       }
       ArtMethod* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
@@ -2305,8 +2313,9 @@ ArtMethod* Class::FindAccessibleInterfaceMethod(ArtMethod* implementation_method
   if (IsInterface()) {  // Interface class doesn't resolve methods into the iftable.
     for (int32_t i = 0, iftable_count = iftable->Count(); i < iftable_count; ++i) {
       ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
-      for (ArtMethod& interface_method : iface->GetVirtualMethodsSlice(pointer_size)) {
-        if (implementation_method->HasSameNameAndSignature(&interface_method) &&
+      for (ArtMethod& interface_method : iface->GetMethodsSlice(pointer_size)) {
+        if (interface_method.IsVirtual() &&
+            implementation_method->HasSameNameAndSignature(&interface_method) &&
             IsInterfaceMethodAccessible(&interface_method)) {
           return &interface_method;
         }
@@ -2318,12 +2327,13 @@ ArtMethod* Class::FindAccessibleInterfaceMethod(ArtMethod* implementation_method
       if (methods == nullptr) {
         continue;
       }
-      for (size_t j = 0, count = iftable->GetMethodArrayCount(i); j < count; ++j) {
-        if (implementation_method == methods->GetElementPtrSize<ArtMethod*>(j, pointer_size)) {
-          ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
-          ArtMethod* interface_method = &iface->GetVirtualMethodsSlice(pointer_size)[j];
-          if (IsInterfaceMethodAccessible(interface_method)) {
-            return interface_method;
+      ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
+      for (ArtMethod& m : iface->GetDeclaredMethods(pointer_size)) {
+        if (m.IsVirtual() &&
+            methods->GetElementPtrSize<ArtMethod*>(m.GetMethodIndex(), pointer_size)
+                == implementation_method) {
+          if (IsInterfaceMethodAccessible(&m)) {
+            return &m;
           }
         }
       }

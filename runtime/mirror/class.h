@@ -1360,38 +1360,6 @@ class EXPORT MANAGED Class final : public Object {
   size_t GetProxyThrowsIndex(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(
-      PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethods(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethods(
-        PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethods(PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   template <typename SignatureType>
   static ArtMethod* FindInterfaceMethodWithSignature(ObjPtr<Class> klass,
                                                      std::string_view name,

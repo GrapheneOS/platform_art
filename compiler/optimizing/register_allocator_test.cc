@@ -22,6 +22,7 @@
 #include "builder.h"
 #include "code_generator.h"
 #include "code_generator_x86.h"
+#include "com_android_art_flags.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_types.h"
 #include "dex/dex_instruction.h"
@@ -780,6 +781,86 @@ void RegisterAllocatorTest::TestSpillInactive() {
 
 TEST_F(RegisterAllocatorTest, SpillInactive) {
   TestSpillInactive();
+}
+
+TEST_F(RegisterAllocatorTest, ReuseSpillSlots) {
+  if (!com::android::art::flags::reg_alloc_spill_slot_reuse()) {
+    GTEST_SKIP() << "Improved spill slot reuse disabled.";
+  }
+  HBasicBlock* return_block = InitEntryMainExitGraph();
+  auto [start, left, right] = CreateDiamondPattern(return_block);
+  HInstruction* obj = MakeParam(DataType::Type::kReference);
+  HInstruction* cond = MakeIFieldGet(start, obj, DataType::Type::kBool, MemberOffset(32));
+  MakeIf(start, cond);
+
+  // Load two values from fields. Both shall be used as Phi inputs later.
+  HInstruction* left_get1 = MakeIFieldGet(left, obj, DataType::Type::kInt32, MemberOffset(36));
+  HInstruction* left_get2 = MakeIFieldGet(left, obj, DataType::Type::kInt32, MemberOffset(40));
+  // Convert one of the values to `Int64` to spill the loaded values.
+  HInstruction* left_conv1 = MakeUnOp<HTypeConversion>(left, DataType::Type::kInt64, left_get1);
+  // Convert the `Int64` value back to `Int32`. x86 codegen uses EAX and EDX for conversion
+  // which is not a normal pair, so avoid using this odd explicit pair for a Phi.
+  HInstruction* left_conv2 = MakeUnOp<HTypeConversion>(left, DataType::Type::kInt32, left_conv1);
+
+  // Repeat the sequence from `left` block in the `right` block (with different offsets). Without
+  // spill slot hints, spill slots should be assigned the same way as in the `left` block.
+  HInstruction* right_get1 = MakeIFieldGet(right, obj, DataType::Type::kInt32, MemberOffset(44));
+  HInstruction* right_get2 = MakeIFieldGet(right, obj, DataType::Type::kInt32, MemberOffset(48));
+  HInstruction* right_conv1 = MakeUnOp<HTypeConversion>(right, DataType::Type::kInt64, right_get1);
+  HInstruction* right_conv2 = MakeUnOp<HTypeConversion>(right, DataType::Type::kInt32, right_conv1);
+
+  // Add Phis that tie the first field load in `left` to the second field load in `right` and
+  // vice versa, to check that the hints can align the spill slots assigned to inputs.
+  HPhi* phi1 = MakePhi(return_block, {left_get1, right_get2});
+  HPhi* phi2 = MakePhi(return_block, {left_get2, right_get1});
+
+  // Add some instructions that use the `phi1`, `phi2` and even the converted values
+  // to derive some return value.
+  HPhi* phi_conv = MakePhi(return_block, {left_conv2, right_conv2});
+  HMin* min1 = MakeBinOp<HMin>(return_block, DataType::Type::kInt32, phi1, phi2);
+  HMin* min2 = MakeBinOp<HMin>(return_block, DataType::Type::kInt32, min1, phi_conv);
+  MakeReturn(return_block, min2);
+
+  graph_->ComputeDominanceInformation();
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
+  liveness.Analyze();
+
+  // Set just two registers available to make it easy to force spills.
+  // Choose EAX and EDX which are used by type conversion from Int32 to Int64, so that
+  // we can use the type conversion to spill all live intervals wherever we want.
+  // Note that the `obj` parameter comes in the blocked ECX which works fine for the test.
+  bool* blocked_registers = codegen.GetBlockedCoreRegisters();
+  std::fill_n(blocked_registers, codegen.GetNumberOfCoreRegisters(), true);
+  blocked_registers[x86::EAX] = blocked_registers[x86::EDX] = false;
+
+  std::unique_ptr<RegisterAllocator> register_allocator =
+      RegisterAllocator::Create(GetScopedAllocator(), &codegen, liveness);
+  register_allocator->AllocateRegisters();
+
+  // Field loads would be spilled even without using spill slot hints.
+  ASSERT_TRUE(left_get1->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(left_get2->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(right_get1->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(right_get2->GetLiveInterval()->HasSpillSlot());
+
+  // Input spill slots are aligned thanks to the spill slot hints.
+  EXPECT_EQ(left_get1->GetLiveInterval()->GetSpillSlot(),
+            right_get2->GetLiveInterval()->GetSpillSlot());
+  EXPECT_EQ(left_get2->GetLiveInterval()->GetSpillSlot(),
+            right_get1->GetLiveInterval()->GetSpillSlot());
+
+  // Check that `phi1` and `phi2` use the spill slots used by their inputs.
+  EXPECT_TRUE(phi1->GetLiveInterval()->HasSpillSlot());
+  EXPECT_EQ(left_get1->GetLiveInterval()->GetSpillSlot(), phi1->GetLiveInterval()->GetSpillSlot());
+  EXPECT_TRUE(phi2->GetLiveInterval()->HasSpillSlot());
+  EXPECT_EQ(left_get2->GetLiveInterval()->GetSpillSlot(), phi2->GetLiveInterval()->GetSpillSlot());
+
+  // Check that `phi1` and `phi2` are split and don't have a register in the first sibling.
+  EXPECT_TRUE(phi1->GetLiveInterval()->GetNextSibling() != nullptr);
+  EXPECT_TRUE(!phi1->GetLiveInterval()->HasRegister());
+  EXPECT_TRUE(phi2->GetLiveInterval()->GetNextSibling() != nullptr);
+  EXPECT_TRUE(!phi2->GetLiveInterval()->HasRegister());
 }
 
 }  // namespace art
