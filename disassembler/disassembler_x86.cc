@@ -97,6 +97,8 @@ static void DumpAnyReg(std::ostream& os, uint8_t rex, size_t reg,
     DumpReg0(os, rex, reg, byte_operand, size_override);
   } else if (reg_file == SSE) {
     os << "xmm" << reg;
+  } else if (reg_file == AVX) {
+    os << "ymm" << reg;
   } else {
     os << "mm" << reg;
   }
@@ -281,6 +283,8 @@ static constexpr uint8_t kNops[][10] = {
 }
 
 size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) {
+  const InstructionContext ctxt(this, instr);
+  instr = ctxt.shadow_instr_;
   size_t nop_size = DumpNops(os, instr);
   if (nop_size != 0u) {
     return nop_size;
@@ -352,7 +356,10 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool no_ops = false;
   RegFile src_reg_file = GPR;
   RegFile dst_reg_file = GPR;
-
+  bool needs_vex = false;  // To detect VEX only instructions
+  bool has_3_operands = false;
+  bool width_qualified = false;
+  bool vex_operand_is_dest = false;
 
   switch (*instr) {
 #define DISASSEMBLER_ENTRY(opname, \
@@ -455,9 +462,11 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x10: case 0x11:
         if (prefix[0] == 0xF2) {
           opcode1 = "movsd";
+          has_3_operands = ctxt.hasVex() && ((instr[1] & 0xC0) == 0xC0);
           prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
           opcode1 = "movss";
+          has_3_operands = ctxt.hasVex() && ((instr[1] & 0xC0) == 0xC0);
           prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[2] == 0x66) {
           opcode1 = "movupd";
@@ -578,6 +587,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x01:
               opcode1 = "phaddw";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -585,8 +595,36 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x02:
               opcode1 = "phaddd";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
+            case 0x18:
+              opcode1 = "broadcastss";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0x19:
+              opcode1 = "broadcastsd";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0x1C:
+              opcode1 = "pabsb";
+              width_qualified = has_modrm = load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
+            case 0x1D:
+              opcode1 = "pabsw";
+              width_qualified = has_modrm = load = true;
+              src_reg_file = dst_reg_file = SSE;
+              break;
+            case 0x1E:
+              opcode1 = "pabsd";
+              width_qualified = has_modrm = load = true;
               src_reg_file = dst_reg_file = SSE;
               break;
             case 0x29:
@@ -599,13 +637,14 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x37:
               opcode1 = "pcmpgtq";
               prefix[2] = 0;
-              has_modrm = true;
-              load = true;
+              has_3_operands = ctxt.hasVex();
+              width_qualified = has_modrm = load = true;
               src_reg_file = dst_reg_file = SSE;
               break;
             case 0x38:
               opcode1 = "pminsb";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -613,6 +652,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x39:
               opcode1 = "pminsd";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -620,6 +660,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3A:
               opcode1 = "pminuw";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -627,6 +668,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3B:
               opcode1 = "pminud";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -634,6 +676,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3C:
               opcode1 = "pmaxsb";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -641,6 +684,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3D:
               opcode1 = "pmaxsd";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -648,6 +692,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3E:
               opcode1 = "pmaxuw";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -655,6 +700,7 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x3F:
               opcode1 = "pmaxud";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
@@ -662,9 +708,39 @@ DISASSEMBLER_ENTRY(cmp,
             case 0x40:
               opcode1 = "pmulld";
               prefix[2] = 0;
+              has_3_operands = ctxt.hasVex();
               has_modrm = true;
               load = true;
               src_reg_file = dst_reg_file = SSE;
+              break;
+            case 0x58:
+              opcode1 = "pbroadcastd";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0x59:
+              opcode1 = "pbroadcastq";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0x78:
+              opcode1 = "pbroadcastb";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0x79:
+              opcode1 = "pbroadcastw";
+              needs_vex = has_modrm = load = true;
+              dst_reg_file = AVX;
+              src_reg_file = SSE;
+              break;
+            case 0xA9:
+              opcode1 = ((rex & REX_W) != 0) ? "fmadd213sd" : "fmadd213ss";
+              width_qualified = has_3_operands = needs_vex = has_modrm = load = true;
+              dst_reg_file = src_reg_file = SSE;
               break;
             default:
               opcode_tmp = StringPrintf("unknown opcode '0F 38 %02X'", *instr);
@@ -679,6 +755,12 @@ DISASSEMBLER_ENTRY(cmp,
         instr++;
         if (prefix[2] == 0x66) {
           switch (*instr) {
+            case 0x01:
+              opcode1 = "permpd";
+              width_qualified = needs_vex = has_modrm = load = true;
+              dst_reg_file = src_reg_file = AVX;
+              immediate_bytes = 1;
+              break;
             case 0x0A:
               opcode1 = "roundss";
               prefix[2] = 0;
@@ -756,6 +838,7 @@ DISASSEMBLER_ENTRY(cmp,
           case 0x5F: opcode1 = "max"; break;
           default: LOG(FATAL) << "Unreachable"; UNREACHABLE();
         }
+        has_3_operands = ctxt.hasVex();
         if (prefix[2] == 0x66) {
           opcode2 = "pd";
           prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
@@ -814,6 +897,7 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           src_reg_file = dst_reg_file = MMX;
         }
+        has_3_operands = ctxt.hasVex();
         switch (*instr) {
           case 0x60: opcode1 = "punpcklbw"; break;
           case 0x61: opcode1 = "punpcklwd"; break;
@@ -852,7 +936,8 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           dst_reg_file = MMX;
         }
-        opcode1 = "movd";
+        opcode1 = ((rex & REX_W) != 0) ? "movq" : "movd";
+        width_qualified = true;
         load = true;
         has_modrm = true;
         break;
@@ -903,6 +988,7 @@ DISASSEMBLER_ENTRY(cmp,
             "unknown-71", "unknown-71", "psrlw", "unknown-71",
             "psraw",      "unknown-71", "psllw", "unknown-71"};
         modrm_opcodes = x71_opcodes;
+        has_3_operands = vex_operand_is_dest = ctxt.hasVex();
         reg_is_opcode = true;
         has_modrm = true;
         store = true;
@@ -919,6 +1005,7 @@ DISASSEMBLER_ENTRY(cmp,
             "unknown-72", "unknown-72", "psrld", "unknown-72",
             "psrad",      "unknown-72", "pslld", "unknown-72"};
         modrm_opcodes = x72_opcodes;
+        has_3_operands = vex_operand_is_dest = ctxt.hasVex();
         reg_is_opcode = true;
         has_modrm = true;
         store = true;
@@ -935,6 +1022,7 @@ DISASSEMBLER_ENTRY(cmp,
             "unknown-73", "unknown-73", "psrlq", "psrldq",
             "unknown-73", "unknown-73", "psllq", "unknown-73"};
         modrm_opcodes = x73_opcodes;
+        has_3_operands = vex_operand_is_dest = ctxt.hasVex();
         reg_is_opcode = true;
         has_modrm = true;
         store = true;
@@ -954,9 +1042,14 @@ DISASSEMBLER_ENTRY(cmp,
           case 0x75: opcode1 = "pcmpeqw"; break;
           case 0x76: opcode1 = "pcmpeqd"; break;
         }
+        has_3_operands = ctxt.hasVex();
         prefix[2] = 0;
         has_modrm = true;
         load = true;
+        break;
+      case 0x77:
+        needs_vex = true;
+        opcode1 = "zeroupper";
         break;
       case 0x7C:
         if (prefix[0] == 0xF2) {
@@ -981,7 +1074,8 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           src_reg_file = MMX;
         }
-        opcode1 = "movd";
+        opcode1 = ((rex & REX_W) != 0) ? "movq" : "movd";
+        width_qualified = true;
         has_modrm = true;
         store = true;
         break;
@@ -1181,6 +1275,7 @@ DISASSEMBLER_ENTRY(cmp,
           src_reg_file = dst_reg_file = MMX;
         }
         opcode1 = "paddq";
+        has_3_operands = ctxt.hasVex();
         prefix[2] = 0;
         has_modrm = true;
         load = true;
@@ -1193,6 +1288,7 @@ DISASSEMBLER_ENTRY(cmp,
           src_reg_file = dst_reg_file = MMX;
         }
         opcode1 = "pand";
+        has_3_operands = ctxt.hasVex();
         prefix[2] = 0;
         has_modrm = true;
         load = true;
@@ -1201,6 +1297,7 @@ DISASSEMBLER_ENTRY(cmp,
         if (prefix[2] == 0x66) {
           opcode1 = "pmullw";
           prefix[2] = 0;
+          has_3_operands = ctxt.hasVex();
           has_modrm = true;
           load = true;
           src_reg_file = dst_reg_file = SSE;
@@ -1215,6 +1312,7 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xDC:
       case 0xDD:
       case 0xDE:
+      case 0xDF:
       case 0xE0:
       case 0xE3:
       case 0xE8:
@@ -1229,6 +1327,7 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           src_reg_file = dst_reg_file = MMX;
         }
+        has_3_operands = ctxt.hasVex();
         switch (*instr) {
           case 0xD8: opcode1 = "psubusb"; break;
           case 0xD9: opcode1 = "psubusw"; break;
@@ -1236,6 +1335,7 @@ DISASSEMBLER_ENTRY(cmp,
           case 0xDC: opcode1 = "paddusb"; break;
           case 0xDD: opcode1 = "paddusw"; break;
           case 0xDE: opcode1 = "pmaxub"; break;
+          case 0xDF: opcode1 = "pandn"; break;
           case 0xE0: opcode1 = "pavgb"; break;
           case 0xE3: opcode1 = "pavgw"; break;
           case 0xE8: opcode1 = "psubsb"; break;
@@ -1258,6 +1358,7 @@ DISASSEMBLER_ENTRY(cmp,
         }
         opcode1 = "por";
         prefix[2] = 0;
+        has_3_operands = ctxt.hasVex();
         has_modrm = true;
         load = true;
         break;
@@ -1269,11 +1370,13 @@ DISASSEMBLER_ENTRY(cmp,
           src_reg_file = dst_reg_file = MMX;
         }
         opcode1 = "pxor";
+        has_3_operands = ctxt.hasVex();
         prefix[2] = 0;
         has_modrm = true;
         load = true;
         break;
       case 0xF4:
+      case 0xF5:
       case 0xF6:
       case 0xF8:
       case 0xF9:
@@ -1290,6 +1393,7 @@ DISASSEMBLER_ENTRY(cmp,
         }
         switch (*instr) {
           case 0xF4: opcode1 = "pmuludq"; break;
+          case 0xF5: opcode1 = "pmaddwd"; break;
           case 0xF6: opcode1 = "psadbw"; break;
           case 0xF8: opcode1 = "psubb"; break;
           case 0xF9: opcode1 = "psubw"; break;
@@ -1299,6 +1403,7 @@ DISASSEMBLER_ENTRY(cmp,
           case 0xFD: opcode1 = "paddw"; break;
           case 0xFE: opcode1 = "paddd"; break;
         }
+        has_3_operands = ctxt.hasVex();
         prefix[2] = 0;
         has_modrm = true;
         load = true;
@@ -1496,6 +1601,25 @@ DISASSEMBLER_ENTRY(cmp,
     opcode1 = opcode_tmp.c_str();
     break;
   }
+
+  if (needs_vex && !ctxt.hasVex()) {
+    opcode_tmp = StringPrintf("unknown opcode '%02X', may be missing VEX prefix", *instr);
+    opcode1 = opcode_tmp.c_str();
+  }
+
+  // If it needs vex, then we know the exact register types before hand
+  if (!needs_vex && ctxt.hasVex() && ctxt.vex_.vector_length_ == 1) {
+    if (src_reg_file == MMX) {
+      src_reg_file = SSE;
+    } else if (src_reg_file == SSE) {
+      src_reg_file = AVX;
+    }
+    if (dst_reg_file == MMX) {
+      dst_reg_file = SSE;
+    } else if (dst_reg_file == SSE) {
+      dst_reg_file = AVX;
+    }
+  }
   std::ostringstream args;
   // We force the REX prefix to be available for 64-bit target
   // in order to dump addr (base/index) registers correctly.
@@ -1522,18 +1646,26 @@ DISASSEMBLER_ENTRY(cmp,
       opcode3 = modrm_opcodes[reg_or_opcode];
     }
 
-    // Add opcode suffixes to indicate size.
-    if (byte_operand) {
-      opcode4 = "b";
-    } else if ((rex & REX_W) != 0) {
-      opcode4 = "q";
-    } else if (prefix[2] == 0x66) {
-      opcode4 = "w";
+    // Not applicable for vex only opcodes and opcodes with
+    // fully qualified widths, ex: vpbroadcastb, vpabsb
+    if (!needs_vex && !width_qualified) {
+      // Add opcode suffixes to indicate size.
+      if (byte_operand) {
+        opcode4 = "b";
+      } else if ((rex & REX_W) != 0) {
+        opcode4 = "q";
+      } else if (prefix[2] == 0x66) {
+        opcode4 = "w";
+      }
     }
 
     if (load) {
       if (!reg_is_opcode) {
         DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2], dst_reg_file);
+        args << ", ";
+      }
+      if (has_3_operands) {
+        DumpAnyReg(args, 0, ctxt.vex_.operand_, false, 0, dst_reg_file);
         args << ", ";
       }
       DumpSegmentOverride(args, prefix[1]);
@@ -1542,7 +1674,17 @@ DISASSEMBLER_ENTRY(cmp,
     } else {
       DCHECK(store);
       DumpSegmentOverride(args, prefix[1]);
-      args << address;
+      if (vex_operand_is_dest) {
+        DCHECK(has_3_operands);
+        DumpAnyReg(args, 0, ctxt.vex_.operand_, false, 0, dst_reg_file);
+        args << ", " << address;
+      } else {
+        args << address;
+        if (has_3_operands) {
+          args << ", ";
+          DumpAnyReg(args, 0, ctxt.vex_.operand_, false, 0, dst_reg_file);
+        }
+      }
       if (!reg_is_opcode) {
         args << ", ";
         DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2], src_reg_file);
@@ -1608,12 +1750,151 @@ DISASSEMBLER_ENTRY(cmp,
     case 0: prefix_str = ""; break;
     default: LOG(FATAL) << "Unreachable"; UNREACHABLE();
   }
-  os << FormatInstructionPointer(begin_instr)
-     << StringPrintf(": %22s    \t%-7s%s%s%s%s%s ", DumpCodeHex(begin_instr, instr).c_str(),
-                     prefix_str, opcode0, opcode1, opcode2, opcode3, opcode4)
+  opcode0 = ctxt.hasVex() ? "v" : opcode0;
+  // We may be decoding from a shadow buffer, make adjustments to read from orig buffer
+  size_t actual_bytes_read =
+      (instr - begin_instr - (ctxt.vex_.shadow_prefix_length_ - ctxt.vex_.prefix_length_));
+  const uint8_t* orig_instr_end = ctxt.orig_instr_ + actual_bytes_read;
+  os << FormatInstructionPointer(ctxt.orig_instr_)
+     << StringPrintf(": %22s    \t%-7s%s%s%s%s%s",
+                     DumpCodeHex(ctxt.orig_instr_, orig_instr_end).c_str(),
+                     prefix_str,
+                     opcode0,
+                     opcode1,
+                     opcode2,
+                     opcode3,
+                     opcode4)
+     << (args.view().empty() ? "" : " ")
      << args.str() << '\n';
-    return instr - begin_instr;
+  return actual_bytes_read;
 }  // NOLINT(readability/fn_size)
+
+DisassemblerX86::InstructionContext::InstructionContext(DisassemblerX86* disass,
+                                                        const uint8_t* instr) {
+  disassembler_ = disass;
+  orig_instr_ = instr;
+  shadow_instr_ = instr;
+  // The existing disassembler understands REX prefix
+  // In order to reuse all existing code, interpret the VEX Prefix here,
+  // and generate byte sequence as if it were emitted with a REX prefix.
+  // Later when we enable EVEX ISA we should use similar strategy.
+  if (vex_.ConvertToRex(instr,
+                        disassembler_->GetDisassemblerOptions()->end_address_,
+                        /*out*/ &shadow_instr_buffer_[0])) {
+    shadow_instr_ = shadow_instr_buffer_;
+    has_vex_ = true;
+  }
+}
+
+bool DisassemblerX86::InstructionContext::VexPrefix::ConvertToRex(const uint8_t* instr,
+                                                                  const uint8_t* instr_end,
+                                                                  /*out*/ uint8_t* decode_buffer) {
+  if (*instr != TWO_BYTE_VEX && *instr != THREE_BYTE_VEX) {
+    prefix_length_ = 0;
+    shadow_prefix_length_ = 0;
+    vector_length_ = 0;
+    operand_ = 0;
+    return false;
+  }
+  DCHECK_GT(instr_end - instr, 2);
+  memset(decode_buffer, 0, kMaxInstructionLength + 1);
+  uint8_t byte_zero = instr[0], byte_one = instr[1], byte_two = 0;
+  uint8_t pp = 0, rex = 0, mm1 = 0, mm2 = 0;
+  instr += 2;
+
+  if (byte_zero == TWO_BYTE_VEX) {
+    prefix_length_ = 2;
+    // Emit REX prefix if required
+    // Extract REX.R [7] bit
+    // Note that in VEX prefix R is stored as 1's complement
+    if (((byte_one >> 7) & 1) == 0) {
+      rex = 0x44;  // REX.0R00
+    }
+    // VEX_M is assumed as SET_VEX_M_0F for 2-byte VEX
+    mm1 = 0x0F;
+    // Extract the VEX_PP [1:0] bits as prefix
+    pp = (byte_one & 0x03);
+    // Extract VEX_L [2] bit
+    vector_length_ = (byte_one >> 2) & 0x01;
+    // Extract operand [6:3] bits is operand stored as 1's complement
+    operand_ = (~(byte_one >> 3) & 0x0F);
+  } else {
+    prefix_length_ = 3;
+    byte_two = *instr;
+    instr++;
+    // Emit REX prefix if required
+    // Extract REX.RXB [7:5] bits
+    // Note that in VEX prefix R is stored as 1's complement
+    if ((byte_one & 0xE0) != 0xE0) {
+      rex = 0x40;
+      rex |= (~(byte_one >> 5) & 0x07);
+    }
+    // Extract the VEX_M [4:0] bits
+    switch (byte_one & 0x0F) {
+      case 0x01:  // SET_VEX_M_0F
+        mm1 = 0x0F;
+        break;
+      case 0x02:  // SET_VEX_M_0F_38
+        mm1 = 0x0F;
+        mm2 = 0x38;
+        break;
+      case 0x03:  // SET_VEX_M_0F_3A
+        mm1 = 0x0F;
+        mm2 = 0x3A;
+        break;
+      default:
+        break;
+    }
+    // Extract the REX.W [7] bit
+    if ((byte_two & 0x80) != 0) {
+      rex |= 0x48;
+    }
+    // Extract the VEX_PP [1:0] bits as prefix
+    pp = (byte_two & 0x03);
+    // Extract VEX_L [2] bit
+    vector_length_ = (byte_two >> 2) & 0x01;
+    // Extract operand [6:3] bits is operand stored as 1's complement
+    operand_ = (~(byte_two >> 3) & 0x0F);
+  }
+
+  // Decode the pp prefix
+  switch (pp) {
+    case 0x01:  // SET_VEX_PP_66
+      pp = 0x66;
+      break;
+    case 0x02:  // SET_VEX_PP_F3
+      pp = 0xF3;
+      break;
+    case 0x03:  // SET_VEX_PP_F2
+      pp = 0xF2;
+      break;
+    default:  // SET_VEX_PP_NONE
+      pp = 0;
+      break;
+  }
+
+  // Resultant byte sequence to pass on
+  // pp rex mm1 mm2 instr
+  int idx = 0;
+  if (pp != 0) {
+    decode_buffer[idx++] = pp;
+  }
+  if (rex != 0) {
+    decode_buffer[idx++] = rex;
+  }
+  if (mm1 != 0) {
+    decode_buffer[idx++] = mm1;
+  }
+  if (mm2 != 0) {
+    decode_buffer[idx++] = mm2;
+  }
+  shadow_prefix_length_ = idx;
+  // Fill the remaining buffer
+  for (; idx < kMaxInstructionLength && instr < instr_end; ++instr) {
+    decode_buffer[idx++] = *instr;
+  }
+  return true;
+}
 
 }  // namespace x86
 }  // namespace art

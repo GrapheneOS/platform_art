@@ -64,6 +64,9 @@ static_assert(ProfileCompilationInfo::kIndividualInlineCacheSize ==
 // At what priority to schedule the saver threads. 9 is the lowest foreground priority on device.
 static constexpr int kProfileSaverPthreadPriority = 9;
 
+// The valid window time for responding to profile delay signal.
+static constexpr uint64_t kProfileDelaySignalValidWindowMs = 2000;
+
 static void SetProfileSaverThreadPriority(pthread_t thread, int priority) {
 #if defined(ART_TARGET_ANDROID)
   int result = setpriority(PRIO_PROCESS, pthread_gettid_np(thread), priority);
@@ -104,7 +107,8 @@ ProfileSaver::ProfileSaver(const ProfileSaverOptions& options, jit::JitCodeCache
       total_ns_of_work_(0),
       total_number_of_hot_spikes_(0),
       total_number_of_wake_ups_(0),
-      options_(options) {
+      options_(options),
+      notify_delay_time_(0) {
   DCHECK(options_.IsEnabled());
 }
 
@@ -122,6 +126,16 @@ void ProfileSaver::NotifyStartupCompleted() {
   }
   MutexLock mu2(self, instance_->wait_lock_);
   instance_->period_condition_.Signal(self);
+}
+
+void ProfileSaver::NotifyDelayProfileSaving() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::profiler_lock_);
+  if (instance_ == nullptr || instance_->shutting_down_) {
+    return;
+  }
+  instance_->notify_delay_time_.store(MilliTime(), std::memory_order_relaxed);
+  VLOG(profiler) << "Profile saving might be delayed";
 }
 
 void ProfileSaver::Run() {
@@ -184,10 +198,26 @@ void ProfileSaver::Run() {
     // a reasonable margin).
     uint64_t min_save_period_ns = MsToNs(force_first_save ? options_.GetMinFirstSaveMs() :
                                                                   options_.GetMinSavePeriodMs());
-    while (min_save_period_ns * 0.9 > sleep_time) {
+    // When the delay signal is valid (the notification delay time is within
+    // kProfileDelaySignalValidWindowMs), period_condition_.TimedWait is used to wait for
+    // the remaining window time to delay the processing of the profile. When there are multiple
+    // consecutive delays, the maximum sleep time does not exceed min_save_period_ns * 2.
+    // When profiling the boot class path, the delay mechanism is always disabled to ensure the
+    // profile collection is not impacted.
+    do {
+      uint64_t time_since_notify = MilliTime() - notify_delay_time_.load(std::memory_order_relaxed);
+      bool should_delay = !options_.GetProfileBootClassPath() &&
+                          (time_since_notify < kProfileDelaySignalValidWindowMs);
+
+      if (min_save_period_ns * 0.9 <= sleep_time &&
+          !(should_delay && min_save_period_ns * 2 > sleep_time)) {
+        break;
+      }
+      uint64_t wait_time = should_delay ? kProfileDelaySignalValidWindowMs - time_since_notify
+                                        : NsToMs(min_save_period_ns - sleep_time);
       {
         MutexLock mu(self, wait_lock_);
-        period_condition_.TimedWait(self, NsToMs(min_save_period_ns - sleep_time), 0);
+        period_condition_.TimedWait(self, wait_time, 0);
         sleep_time = NanoTime() - sleep_start;
       }
       // Check if the thread was woken up for shutdown.
@@ -195,7 +225,8 @@ void ProfileSaver::Run() {
         break;
       }
       total_number_of_wake_ups_++;
-    }
+    } while (true);
+
     total_ms_of_sleep_ += NsToMs(NanoTime() - sleep_start);
 
     if (ShuttingDown(self)) {

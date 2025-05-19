@@ -31,7 +31,7 @@
 #define SET_VEX_M_0F_3A 0x03
 #define SET_VEX_W       0x80
 #define SET_VEX_L_128   0x00
-#define SET_VEL_L_256   0x04
+#define SET_VEX_L_256   0x04
 #define SET_VEX_PP_NONE 0x00
 #define SET_VEX_PP_66   0x01
 #define SET_VEX_PP_F3   0x02

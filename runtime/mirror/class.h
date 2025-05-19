@@ -798,9 +798,6 @@ class EXPORT MANAGED Class final : public Object {
   static ALWAYS_INLINE uint32_t NumMethods(LengthPrefixedArray<ArtMethod>* methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE ObjPtr<PointerArray> GetVTable() REQUIRES_SHARED(Locks::mutator_lock_);

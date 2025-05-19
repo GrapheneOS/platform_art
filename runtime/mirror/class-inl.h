@@ -194,17 +194,6 @@ inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_me
                     static_cast<uint64_t>(reinterpret_cast<uintptr_t>(new_methods)));
 }
 
-inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size) {
-  CheckPointerSize(pointer_size);
-  DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(!IsResolved());
-  LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
-  return &GetMethodsSliceRangeUnchecked(methods,
-                                       pointer_size,
-                                       NumDirectMethods(),
-                                       NumMethods(methods))[i];
-}
-
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<PointerArray> Class::GetVTable() {
   DCHECK(IsLoaded<kVerifyFlags>() || IsErroneous<kVerifyFlags>());

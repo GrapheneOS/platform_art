@@ -171,41 +171,10 @@ jvmtiError ArtClassDefinition::InitFirstLoad(const char* descriptor,
 }
 
 jvmtiError ArtClassDefinition::Init(const art::DexFile& dex_file) {
-  if (dex_file.IsCompactDexFile()) {
-    std::string error_msg;
-    std::vector<std::unique_ptr<const art::DexFile>> dex_files;
-    art::ArtDexFileLoader dex_file_loader(dex_file.GetLocation());
-    if (!dex_file_loader.Open(/* verify= */ false,
-                              /* verify_checksum= */ false,
-                              &error_msg,
-                              &dex_files)) {
-      return ERR(INTERNAL);
-    }
-    const std::vector<const art::OatDexFile*>& oat_dex_files =
-        dex_file.GetOatDexFile()->GetOatFile()->GetOatDexFiles();
-    const art::DexFile* original_dex_file = nullptr;
-    for (uint32_t i = 0; i < oat_dex_files.size(); ++i) {
-      if (dex_file.GetOatDexFile() == oat_dex_files[i]) {
-        original_dex_file = dex_files[i].get();
-        break;
-      }
-    }
-    // Keep the dex_data alive.
-    dex_data_memory_.resize(original_dex_file->SizeIncludingSharedData());
-    memcpy(dex_data_memory_.data(), original_dex_file->Begin(), dex_data_memory_.size());
-    dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
-
-    // In case dex_data gets re-used for redefinition, keep the dex file live
-    // with current_dex_memory.
-    current_dex_memory_.resize(dex_data_.size());
-    memcpy(current_dex_memory_.data(), dex_data_.data(), current_dex_memory_.size());
-    current_dex_file_ = art::ArrayRef<const unsigned char>(current_dex_memory_);
-  } else {
-    // Dex file will always stay live, use it directly.
-    dex_data_ =
-        art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.SizeIncludingSharedData());
-    current_dex_file_ = dex_data_;
-  }
+  // Dex file will always stay live, use it directly.
+  dex_data_ =
+      art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.SizeIncludingSharedData());
+  current_dex_file_ = dex_data_;
   return OK;
 }
 

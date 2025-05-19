@@ -652,8 +652,6 @@ class DexFileEditor final {
  public:
   // Add dex file to copy to output (possibly several files for multi-dex).
   void Add(const DexFile* dex, const std::vector<uint8_t>&& hiddenapi_data) {
-    // We do not support non-standard dex encodings, e.g. compact dex.
-    CHECK(dex->IsStandardDexFile());
     inputs_.emplace_back(dex, std::move(hiddenapi_data));
   }
 

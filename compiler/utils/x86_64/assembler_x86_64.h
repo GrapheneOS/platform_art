@@ -494,6 +494,9 @@ class X86_64Assembler final : public Assembler {
   void movss(XmmRegister dst, const Address& src);
   void movss(const Address& dst, XmmRegister src);
   void movss(XmmRegister dst, XmmRegister src);
+  void vmovss(XmmRegister dst, const Address& src);
+  void vmovss(const Address& dst, XmmRegister src);
+  void vmovss(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void movsxd(CpuRegister dst, CpuRegister src);
   void movsxd(CpuRegister dst, const Address& src);
@@ -502,6 +505,11 @@ class X86_64Assembler final : public Assembler {
   void movq(CpuRegister dst, XmmRegister src);
   void movd(XmmRegister dst, CpuRegister src);
   void movd(CpuRegister dst, XmmRegister src);
+
+  void vmovq(XmmRegister dst, CpuRegister src);
+  void vmovq(CpuRegister dst, XmmRegister src);
+  void vmovd(XmmRegister dst, CpuRegister src);
+  void vmovd(CpuRegister dst, XmmRegister src);
 
   void addss(XmmRegister dst, XmmRegister src);
   void addss(XmmRegister dst, const Address& src);
@@ -517,15 +525,10 @@ class X86_64Assembler final : public Assembler {
   void mulps(XmmRegister dst, XmmRegister src);
   void divps(XmmRegister dst, XmmRegister src);
 
-  void vmulps(XmmRegister dst, XmmRegister src1, XmmRegister src2);
-  void vmulpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
-  void vdivps(XmmRegister dst, XmmRegister src1, XmmRegister src2);
-  void vdivpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
-
   void vaddps(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
   void vsubps(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
-  void vsubpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
-  void vaddpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
+  void vmulps(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vdivps(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void vfmadd213ss(XmmRegister accumulator, XmmRegister left, XmmRegister right);
   void vfmadd213sd(XmmRegister accumulator, XmmRegister left, XmmRegister right);
@@ -545,6 +548,9 @@ class X86_64Assembler final : public Assembler {
   void movsd(XmmRegister dst, const Address& src);
   void movsd(const Address& dst, XmmRegister src);
   void movsd(XmmRegister dst, XmmRegister src);
+  void vmovsd(XmmRegister dst, const Address& src);
+  void vmovsd(const Address& dst, XmmRegister src);
+  void vmovsd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void addsd(XmmRegister dst, XmmRegister src);
   void addsd(XmmRegister dst, const Address& src);
@@ -559,6 +565,11 @@ class X86_64Assembler final : public Assembler {
   void subpd(XmmRegister dst, XmmRegister src);
   void mulpd(XmmRegister dst, XmmRegister src);
   void divpd(XmmRegister dst, XmmRegister src);
+
+  void vaddpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
+  void vsubpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
+  void vmulpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vdivpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void movdqa(XmmRegister dst, XmmRegister src);     // move
   void movdqa(XmmRegister dst, const Address& src);  // load aligned
@@ -576,23 +587,23 @@ class X86_64Assembler final : public Assembler {
   void psubb(XmmRegister dst, XmmRegister src);
 
   void vpaddb(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
-  void vpaddw(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
+  void vpsubb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void paddw(XmmRegister dst, XmmRegister src);
   void psubw(XmmRegister dst, XmmRegister src);
   void pmullw(XmmRegister dst, XmmRegister src);
-  void vpmullw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
-  void vpsubb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpaddw(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
   void vpsubw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
-  void vpsubd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmullw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void paddd(XmmRegister dst, XmmRegister src);
   void psubd(XmmRegister dst, XmmRegister src);
   void pmulld(XmmRegister dst, XmmRegister src);
-  void vpmulld(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void vpaddd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpsubd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmulld(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void paddq(XmmRegister dst, XmmRegister src);
   void psubq(XmmRegister dst, XmmRegister src);
@@ -608,6 +619,15 @@ class X86_64Assembler final : public Assembler {
   void psubsb(XmmRegister dst, XmmRegister src);
   void psubusw(XmmRegister dst, XmmRegister src);
   void psubsw(XmmRegister dst, XmmRegister src);
+
+  void vpaddusb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpaddsb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpaddusw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpaddsw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpsubusb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpsubsb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpsubusw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpsubsw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void cvtsi2ss(XmmRegister dst, CpuRegister src);  // Note: this is the r/m32 version.
   void cvtsi2ss(XmmRegister dst, CpuRegister src, bool is64bit);
@@ -630,6 +650,7 @@ class X86_64Assembler final : public Assembler {
   void cvttsd2si(CpuRegister dst, XmmRegister src, bool is64bit);
 
   void cvtdq2ps(XmmRegister dst, XmmRegister src);
+  void vcvtdq2ps(XmmRegister dst, XmmRegister src);
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
   void comiss(XmmRegister a, XmmRegister b);
@@ -681,11 +702,15 @@ class X86_64Assembler final : public Assembler {
 
   void pavgb(XmmRegister dst, XmmRegister src);  // no addr variant (for now)
   void pavgw(XmmRegister dst, XmmRegister src);
+  void vpavgb(XmmRegister dst, XmmRegister src1, XmmRegister src2);  // no addr variant (for now)
+  void vpavgw(XmmRegister dst, XmmRegister src, XmmRegister src2);
+
   void psadbw(XmmRegister dst, XmmRegister src);
   void pmaddwd(XmmRegister dst, XmmRegister src);
   void vpmaddwd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
   void phaddw(XmmRegister dst, XmmRegister src);
   void phaddd(XmmRegister dst, XmmRegister src);
+  void vphaddd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
   void haddps(XmmRegister dst, XmmRegister src);
   void haddpd(XmmRegister dst, XmmRegister src);
   void phsubw(XmmRegister dst, XmmRegister src);
@@ -712,24 +737,59 @@ class X86_64Assembler final : public Assembler {
   void minpd(XmmRegister dst, XmmRegister src);
   void maxpd(XmmRegister dst, XmmRegister src);
 
+  void vpminsb(XmmRegister dst, XmmRegister src1, XmmRegister src2);  // no addr variant (for now)
+  void vpmaxsb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpminsw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmaxsw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpminsd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmaxsd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+
+  void vpminub(XmmRegister dst, XmmRegister src1, XmmRegister src2);  // no addr variant (for now)
+  void vpmaxub(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpminuw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmaxuw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpminud(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vpmaxud(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+
+  void vminps(XmmRegister dst, XmmRegister src1, XmmRegister src2);  // no addr variant (for now)
+  void vmaxps(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vminpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+  void vmaxpd(XmmRegister dst, XmmRegister src1, XmmRegister src2);
+
   void pcmpeqb(XmmRegister dst, XmmRegister src);
   void pcmpeqw(XmmRegister dst, XmmRegister src);
   void pcmpeqd(XmmRegister dst, XmmRegister src);
   void pcmpeqq(XmmRegister dst, XmmRegister src);
+  void vpcmpeqb(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void pcmpgtb(XmmRegister dst, XmmRegister src);
   void pcmpgtw(XmmRegister dst, XmmRegister src);
   void pcmpgtd(XmmRegister dst, XmmRegister src);
   void pcmpgtq(XmmRegister dst, XmmRegister src);  // SSE4.2
+  void vpcmpgtq(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void shufpd(XmmRegister dst, XmmRegister src, const Immediate& imm);
   void shufps(XmmRegister dst, XmmRegister src, const Immediate& imm);
   void pshufd(XmmRegister dst, XmmRegister src, const Immediate& imm);
+  void vbroadcastss(XmmRegister dst, XmmRegister src);
+  void vbroadcastsd(XmmRegister dst, XmmRegister src);
+  void vpbroadcastb(XmmRegister dst, XmmRegister src);
+  void vpbroadcastw(XmmRegister dst, XmmRegister src);
+  void vpbroadcastd(XmmRegister dst, XmmRegister src);
+  void vpbroadcastq(XmmRegister dst, XmmRegister src);
+
+  void pabsb(XmmRegister dst, XmmRegister src);
+  void pabsw(XmmRegister dst, XmmRegister src);
+  void pabsd(XmmRegister dst, XmmRegister src);
+  void vpabsb(XmmRegister dst, XmmRegister src);
+  void vpabsw(XmmRegister dst, XmmRegister src);
+  void vpabsd(XmmRegister dst, XmmRegister src);
 
   void punpcklbw(XmmRegister dst, XmmRegister src);
   void punpcklwd(XmmRegister dst, XmmRegister src);
   void punpckldq(XmmRegister dst, XmmRegister src);
   void punpcklqdq(XmmRegister dst, XmmRegister src);
+  void vpunpcklbw(XmmRegister dst, XmmRegister src1, XmmRegister src2);
 
   void punpckhbw(XmmRegister dst, XmmRegister src);
   void punpckhwd(XmmRegister dst, XmmRegister src);
@@ -739,15 +799,25 @@ class X86_64Assembler final : public Assembler {
   void psllw(XmmRegister reg, const Immediate& shift_count);
   void pslld(XmmRegister reg, const Immediate& shift_count);
   void psllq(XmmRegister reg, const Immediate& shift_count);
+  void vpsllw(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+  void vpslld(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+  void vpsllq(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
 
   void psraw(XmmRegister reg, const Immediate& shift_count);
   void psrad(XmmRegister reg, const Immediate& shift_count);
   // no psraq
+  void vpsraw(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+  void vpsrad(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
 
   void psrlw(XmmRegister reg, const Immediate& shift_count);
   void psrld(XmmRegister reg, const Immediate& shift_count);
   void psrlq(XmmRegister reg, const Immediate& shift_count);
   void psrldq(XmmRegister reg, const Immediate& shift_count);
+  void vpsrlw(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+  void vpsrld(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+  void vpsrlq(XmmRegister dst, XmmRegister src, const Immediate& shift_count);
+
+  void vpermpd(XmmRegister dst, XmmRegister src, const Immediate& indices);
 
   void flds(const Address& src);
   void fstps(const Address& dst);
@@ -989,6 +1059,8 @@ class X86_64Assembler final : public Assembler {
 
   void ud2();
 
+  void vzeroupper();
+
   //
   // Macros for High-level operations.
   //
@@ -1110,7 +1182,8 @@ class X86_64Assembler final : public Assembler {
     }
   }
 
-  bool CpuHasAVXorAVX2FeatureFlag();
+  bool CpuHasAVXFeatureFlag();
+  bool CpuHasAVX2FeatureFlag();
 
  private:
   void EmitUint8(uint8_t value);
@@ -1156,6 +1229,7 @@ class X86_64Assembler final : public Assembler {
   void EmitRex64(XmmRegister dst, const Operand& operand);
   void EmitRex64(XmmRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, XmmRegister src);
+  void EmitRex64(XmmRegister dst, XmmRegister src);
 
   // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
   // `normalize_both` parameter controls if the REX prefix is checked only for the `src` register
@@ -1191,6 +1265,25 @@ class X86_64Assembler final : public Assembler {
                                        uint8_t opcode,
                                        int vex_pp,
                                        bool is_commutative = false);
+
+  void EmitVecMoveCpuFpu(XmmRegister fp_reg, CpuRegister cpu_reg, bool is64bit, uint8_t opcode);
+  void EmitVecMergeFPRegs(XmmRegister dst, XmmRegister src1, XmmRegister src2, uint8_t vex_pp);
+
+  void EmitVecMinMaxOperation(XmmRegister dst,
+                              XmmRegister src1,
+                              XmmRegister src2,
+                              uint8_t vex_pp,
+                              bool is_vex_3byte,
+                              uint8_t opcode,
+                              bool is_commutative = false);
+
+  void EmitVecShiftOperation(XmmRegister dst,
+                             XmmRegister src,
+                             const Immediate& shift_count,
+                             uint8_t opcode,
+                             uint8_t operand_byte);
+
+  void EmitVecBroadcastInstruction(XmmRegister dst, XmmRegister src, uint8_t opcode);
 
   // Helper function to emit a shorter variant of XCHG if at least one operand is RAX/EAX/AX.
   bool try_xchg_rax(CpuRegister dst,

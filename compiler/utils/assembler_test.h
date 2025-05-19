@@ -34,6 +34,10 @@
 
 namespace art HIDDEN {
 
+typedef void (*DriverFnPtr)(const std::vector<uint8_t>& art_code,
+                            const std::string& assembly_text,
+                            const std::string& test_name);
+
 // Helper for a constexpr string length.
 constexpr size_t ConstexprStrLen(char const* str, size_t count = 0) {
   return ('\0' == str[0]) ? count : ConstexprStrLen(str+1, count+1);
@@ -70,6 +74,13 @@ class AssemblerTest : public AssemblerTestBase {
   // This driver assumes the assembler has already been called.
   void DriverStr(const std::string& assembly_string, const std::string& test_name) {
     DriverWrapper(assembly_string, test_name);
+  }
+
+  // Since it's a string arg, the driver assumes assembler is already called.
+  void CustomDriverStr(DriverFnPtr custom_driver,
+                       const std::string& assembly_string,
+                       const std::string& test_name) {
+    DriverWrapper(assembly_string, test_name, custom_driver);
   }
 
   //
@@ -214,9 +225,8 @@ class AssemblerTest : public AssemblerTestBase {
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
         for (int64_t imm : imms) {
-          ImmType new_imm = CreateImmediate(imm);
           if (f != nullptr) {
-            (assembler_.get()->*f)(reg1, reg2, new_imm * multiplier + bias);
+            (assembler_.get()->*f)(reg1, reg2, CreateImmediate(imm * multiplier + bias));
           }
           std::string base = fmt;
 
@@ -769,6 +779,42 @@ class AssemblerTest : public AssemblerTestBase {
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         &AssemblerTest::GetVecRegName,
         fmt);
+  }
+
+  // Repeats over addresses and vec-registers provided by fixture.
+  std::string RepeatAV(void (Ass::*f)(const Addr&, VecReg), const std::string& fmt) {
+    return RepeatAV(f, GetAddresses(), fmt);
+  }
+
+  // Variant that takes explicit vector of address
+  // (to test restricted addressing modes set).
+  std::string RepeatAV(void (Ass::*f)(const Addr&, VecReg),
+                       const std::vector<Addr>& a,
+                       const std::string& fmt) {
+    return RepeatTemplatedMemReg<Addr, VecReg>(f,
+                                               a,
+                                               GetVectorRegisters(),
+                                               &AssemblerTest::GetAddrName,
+                                               &AssemblerTest::GetVecRegName,
+                                               fmt);
+  }
+
+  // Repeats over vec-registers and addresses provided by fixture.
+  std::string RepeatVA(void (Ass::*f)(VecReg, const Addr&), const std::string& fmt) {
+    return RepeatVA(f, GetAddresses(), fmt);
+  }
+
+  // Variant that takes explicit vector of address
+  // (to test restricted addressing modes set).
+  std::string RepeatVA(void (Ass::*f)(VecReg, const Addr&),
+                       const std::vector<Addr>& a,
+                       const std::string& fmt) {
+    return RepeatTemplatedRegMem<VecReg, Addr>(f,
+                                               GetVectorRegisters(),
+                                               a,
+                                               &AssemblerTest::GetVecRegName,
+                                               &AssemblerTest::GetAddrName,
+                                               fmt);
   }
 
   template <typename ImmType>
@@ -1635,14 +1681,20 @@ class AssemblerTest : public AssemblerTestBase {
   // Override this to pad the code with NOPs to a certain size if needed.
   virtual void Pad([[maybe_unused]] std::vector<uint8_t>& data) {}
 
-  void DriverWrapper(const std::string& assembly_text, const std::string& test_name) {
+  void DriverWrapper(const std::string& assembly_text,
+                     const std::string& test_name,
+                     DriverFnPtr custom_driver = nullptr) {
     assembler_->FinalizeCode();
     size_t cs = assembler_->CodeSize();
     std::unique_ptr<std::vector<uint8_t>> data(new std::vector<uint8_t>(cs));
     MemoryRegion code(&(*data)[0], data->size());
     assembler_->CopyInstructions(code);
     Pad(*data);
-    Driver(*data, assembly_text, test_name);
+    if (custom_driver != nullptr) {
+      (*custom_driver)(*data, assembly_text, test_name);
+    } else {
+      Driver(*data, assembly_text, test_name);
+    }
   }
 
   static constexpr size_t kWarnManyCombinationsThreshold = 500;

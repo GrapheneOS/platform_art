@@ -2333,9 +2333,6 @@ void OatDexFile::InitializeTypeLookupTable() {
       if (StandardDexFile::IsMagicValid(dex_header->magic_)) {
         dex_data -= dex_header->HeaderOffset();
       }
-      if (CompactDexFile::IsMagicValid(dex_header->magic_)) {
-        dex_data += dex_header->data_off_;
-      }
       lookup_table_ = TypeLookupTable::Open(dex_data, lookup_table_data_, num_class_defs);
     }
   }

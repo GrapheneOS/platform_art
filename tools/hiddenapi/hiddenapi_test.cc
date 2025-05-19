@@ -123,9 +123,6 @@ class HiddenApiTest : public CommonRuntimeTest {
     if (dex_file.get() == nullptr) {
       LOG(FATAL) << "Open failed for '" << file.GetFilename() << "' " << error_msg;
       UNREACHABLE();
-    } else if (!dex_file->IsStandardDexFile()) {
-      LOG(FATAL) << "Expected a standard dex file '" << file.GetFilename() << "'";
-      UNREACHABLE();
     }
 
     return dex_file;

@@ -62,6 +62,9 @@ class ProfileSaver {
   // Notify that startup has completed.
   static void NotifyStartupCompleted() REQUIRES(!Locks::profiler_lock_, !instance_->wait_lock_);
 
+  // Notify to delay the profile saving.
+  static void NotifyDelayProfileSaving() REQUIRES(!Locks::profiler_lock_);
+
  private:
   // Helper classes for collecting classes and methods.
   class GetClassesAndMethodsHelper;
@@ -178,6 +181,12 @@ class ProfileSaver {
   uint64_t total_number_of_wake_ups_;
 
   const ProfileSaverOptions options_;
+
+  // Notification time for delayed profile saving in milliseconds (ms).
+  // It is used in two functions: NotifyDelayProfileSaving and ProfileSaver::Run. The former is
+  // protected by profiler_lock_, while the latter releases the profiler_lock_ at the beginning of
+  // the function. Therefore, it is defined as an atomic variable.
+  std::atomic<uint64_t> notify_delay_time_;
 
   friend class ProfileSaverTest;
   friend class ProfileSaverForBootTest;

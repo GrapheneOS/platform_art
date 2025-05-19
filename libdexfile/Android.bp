@@ -33,8 +33,6 @@ cc_defaults {
     ],
     srcs: [
         "dex/art_dex_file_loader.cc",
-        "dex/compact_dex_file.cc",
-        "dex/compact_offset_table.cc",
         "dex/descriptors_names.cc",
         "dex/dex_file.cc",
         "dex/dex_file_exception_helpers.cc",
@@ -294,8 +292,6 @@ art_cc_defaults {
         "dex/art_dex_file_loader_test.cc",
         "dex/class_accessor_test.cc",
         "dex/code_item_accessors_test.cc",
-        "dex/compact_dex_file_test.cc",
-        "dex/compact_offset_table_test.cc",
         "dex/descriptors_names_test.cc",
         "dex/dex_file_loader_test.cc",
         "dex/dex_file_verifier_test.cc",

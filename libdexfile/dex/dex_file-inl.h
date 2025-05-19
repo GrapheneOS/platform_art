@@ -24,7 +24,6 @@
 #include "base/leb128.h"
 #include "base/utils.h"
 #include "class_iterator.h"
-#include "compact_dex_file.h"
 #include "dex_instruction_iterator.h"
 #include "invoke_type.h"
 #include "signature.h"
@@ -547,13 +546,7 @@ bool DexFile::DecodeDebugPositionInfo(const uint8_t* stream,
   }
 }
 
-inline const CompactDexFile* DexFile::AsCompactDexFile() const {
-  DCHECK(IsCompactDexFile());
-  return down_cast<const CompactDexFile*>(this);
-}
-
 inline const StandardDexFile* DexFile::AsStandardDexFile() const {
-  DCHECK(IsStandardDexFile());
   return down_cast<const StandardDexFile*>(this);
 }
 

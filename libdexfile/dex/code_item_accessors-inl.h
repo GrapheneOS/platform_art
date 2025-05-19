@@ -20,7 +20,6 @@
 #include "code_item_accessors.h"
 
 #include "base/iteration_range.h"
-#include "compact_dex_file.h"
 #include "dex_file-inl.h"
 #include "dex_instruction_iterator.h"
 #include "standard_dex_file.h"
@@ -35,19 +34,6 @@ inline void CodeItemInstructionAccessor::Init(uint32_t insns_size_in_code_units,
 }
 
 template <>
-inline void CodeItemInstructionAccessor::Init<CompactDexFile::CodeItem>(
-    const CompactDexFile::CodeItem& code_item) {
-  uint32_t insns_size_in_code_units;
-  code_item.DecodeFields</*kDecodeOnlyInstructionCount*/ true>(
-      &insns_size_in_code_units,
-      /*registers_size*/ nullptr,
-      /*ins_size*/ nullptr,
-      /*outs_size*/ nullptr,
-      /*tries_size*/ nullptr);
-  Init(insns_size_in_code_units, code_item.insns_);
-}
-
-template <>
 inline void CodeItemInstructionAccessor::Init<StandardDexFile::CodeItem>(
     const StandardDexFile::CodeItem& code_item) {
   Init(code_item.insns_size_in_code_units_, code_item.insns_);
@@ -57,12 +43,7 @@ inline void CodeItemInstructionAccessor::Init(const DexFile& dex_file,
                                               const dex::CodeItem* code_item) {
   if (code_item != nullptr) {
     DCHECK(dex_file.IsInDataSection(code_item));
-    if (dex_file.IsCompactDexFile()) {
-      Init(down_cast<const CompactDexFile::CodeItem&>(*code_item));
-    } else {
-      DCHECK(dex_file.IsStandardDexFile());
-      Init(down_cast<const StandardDexFile::CodeItem&>(*code_item));
-    }
+    Init(down_cast<const StandardDexFile::CodeItem&>(*code_item));
   }
 }
 
@@ -89,18 +70,6 @@ inline IterationRange<DexInstructionIterator> CodeItemInstructionAccessor::Instr
 }
 
 template <>
-inline void CodeItemDataAccessor::Init<CompactDexFile::CodeItem>(
-    const CompactDexFile::CodeItem& code_item) {
-  uint32_t insns_size_in_code_units;
-  code_item.DecodeFields</*kDecodeOnlyInstructionCount*/ false>(&insns_size_in_code_units,
-                                                                &registers_size_,
-                                                                &ins_size_,
-                                                                &outs_size_,
-                                                                &tries_size_);
-  CodeItemInstructionAccessor::Init(insns_size_in_code_units, code_item.insns_);
-}
-
-template <>
 inline void CodeItemDataAccessor::Init<StandardDexFile::CodeItem>(
     const StandardDexFile::CodeItem& code_item) {
   CodeItemInstructionAccessor::Init(code_item);
@@ -110,15 +79,10 @@ inline void CodeItemDataAccessor::Init<StandardDexFile::CodeItem>(
   tries_size_ = code_item.tries_size_;
 }
 
-inline void CodeItemDataAccessor::Init(const DexFile& dex_file,
+inline void CodeItemDataAccessor::Init([[maybe_unused]] const DexFile& dex_file,
                                        const dex::CodeItem* code_item) {
   if (code_item != nullptr) {
-    if (dex_file.IsCompactDexFile()) {
-      Init(down_cast<const CompactDexFile::CodeItem&>(*code_item));
-    } else {
-      DCHECK(dex_file.IsStandardDexFile());
-      Init(down_cast<const StandardDexFile::CodeItem&>(*code_item));
-    }
+    Init(down_cast<const StandardDexFile::CodeItem&>(*code_item));
   }
 }
 
@@ -168,15 +132,6 @@ inline const void* CodeItemDataAccessor::CodeItemDataEnd() const {
 }
 
 template <>
-inline void CodeItemDebugInfoAccessor::Init<CompactDexFile::CodeItem>(
-    const CompactDexFile::CodeItem& code_item,
-    uint32_t dex_method_index) {
-  debug_info_offset_ = down_cast<const CompactDexFile*>(dex_file_)->GetDebugInfoOffset(
-      dex_method_index);
-  CodeItemDataAccessor::Init(code_item);
-}
-
-template <>
 inline void CodeItemDebugInfoAccessor::Init<StandardDexFile::CodeItem>(
     const StandardDexFile::CodeItem& code_item, [[maybe_unused]] uint32_t dex_method_index) {
   debug_info_offset_ = code_item.debug_info_off_;
@@ -190,12 +145,7 @@ inline void CodeItemDebugInfoAccessor::Init(const DexFile& dex_file,
   if (code_item == nullptr) {
     return;
   }
-  if (dex_file.IsCompactDexFile()) {
-    Init(down_cast<const CompactDexFile::CodeItem&>(*code_item), dex_method_index);
-  } else {
-    DCHECK(dex_file.IsStandardDexFile());
-    Init(down_cast<const StandardDexFile::CodeItem&>(*code_item), dex_method_index);
-  }
+  Init(down_cast<const StandardDexFile::CodeItem&>(*code_item), dex_method_index);
 }
 
 template<typename NewLocalVisitor>

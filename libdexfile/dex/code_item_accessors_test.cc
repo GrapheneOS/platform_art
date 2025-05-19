@@ -28,23 +28,13 @@ namespace art {
 
 class CodeItemAccessorsTest : public ::testing::Test {};
 
-std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8_t>* data) {
+std::unique_ptr<const DexFile> CreateFakeDex(std::vector<uint8_t>* data) {
   data->resize(MemMap::GetPageSize());
-  if (compact_dex) {
-    CompactDexFile::Header* header =
-        const_cast<CompactDexFile::Header*>(CompactDexFile::Header::At(data->data()));
-    CompactDexFile::WriteMagic(header->magic_.data());
-    CompactDexFile::WriteCurrentVersion(header->magic_.data());
-    header->data_off_ = 0;
-    header->data_size_ = data->size();
-    header->file_size_ = data->size();
-  } else {
-    auto* header = reinterpret_cast<DexFile::Header*>(data->data());
-    StandardDexFile::WriteMagic(data->data());
-    StandardDexFile::WriteCurrentVersion(data->data());
-    header->header_size_ = sizeof(*header);
-    header->file_size_ = data->size();
-  }
+  auto* header = reinterpret_cast<DexFile::Header*>(data->data());
+  StandardDexFile::WriteMagic(data->data());
+  StandardDexFile::WriteCurrentVersion(data->data());
+  header->header_size_ = sizeof(*header);
+  header->file_size_ = data->size();
   DexFileLoader dex_file_loader(data->data(), data->size(), "location");
   std::string error_msg;
   std::unique_ptr<const DexFile> dex(dex_file_loader.Open(/*location_checksum=*/123,
@@ -58,8 +48,7 @@ std::unique_ptr<const DexFile> CreateFakeDex(bool compact_dex, std::vector<uint8
 
 TEST(CodeItemAccessorsTest, TestDexInstructionsAccessor) {
   std::vector<uint8_t> standard_dex_data;
-  std::unique_ptr<const DexFile> standard_dex(CreateFakeDex(/*compact_dex=*/false,
-                                                            &standard_dex_data));
+  std::unique_ptr<const DexFile> standard_dex(CreateFakeDex(&standard_dex_data));
   ASSERT_TRUE(standard_dex != nullptr);
   static constexpr uint16_t kRegisterSize = 2;
   static constexpr uint16_t kInsSize = 1;

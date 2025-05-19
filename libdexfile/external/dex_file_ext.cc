@@ -164,19 +164,7 @@ ADexFile_Error ADexFile_create(const void* _Nonnull address,
 
   uint32_t dex_size = header->file_size_;  // Size of "one dex file" excluding any shared data.
   uint32_t full_size = dex_size;           // Includes referenced shared data past the end of dex.
-  if (art::CompactDexFile::IsMagicValid(header->magic_)) {
-    // Compact dex files store the data section separately so that it can be shared.
-    // Therefore we need to extend the read memory range to include it.
-    // TODO: This might be wasteful as we might read data in between as well.
-    //       In practice, this should be fine, as such sharing only happens on disk.
-    uint32_t computed_file_size;
-    if (__builtin_add_overflow(header->data_off_, header->data_size_, &computed_file_size)) {
-      return ADEXFILE_ERROR_INVALID_HEADER;
-    }
-    if (computed_file_size > full_size) {
-      full_size = computed_file_size;
-    }
-  } else if (art::StandardDexFile::IsMagicValid(header->magic_)) {
+  if (art::StandardDexFile::IsMagicValid(header->magic_)) {
     full_size = header->ContainerSize() - header->HeaderOffset();
   } else {
     return ADEXFILE_ERROR_INVALID_HEADER;
@@ -199,7 +187,7 @@ ADexFile_Error ADexFile_create(const void* _Nonnull address,
                                                                 /*verify_checksum=*/false,
                                                                 &error_msg);
   if (dex_file == nullptr) {
-    LOG(ERROR) << "Can not open dex file " << loc_str << ": " << error_msg;
+    LOG(ERROR) << error_msg;
     return ADEXFILE_ERROR_INVALID_DEX;
   }
 
@@ -218,18 +206,6 @@ size_t ADexFile_findMethodAtOffset(ADexFile* self,
   const art::DexFile* dex_file = self->dex_file_.get();
   if (!dex_file->IsInDataSection(dex_file->Begin() + dex_offset)) {
     return 0;  // The DEX offset is not within the bytecode of this dex file.
-  }
-
-  if (dex_file->IsCompactDexFile()) {
-    // The data section of compact dex files might be shared.
-    // Check the subrange unique to this compact dex.
-    const art::CompactDexFile::Header& cdex_header =
-        dex_file->AsCompactDexFile()->GetHeader();
-    uint32_t begin = cdex_header.data_off_ + cdex_header.OwnedDataBegin();
-    uint32_t end = cdex_header.data_off_ + cdex_header.OwnedDataEnd();
-    if (dex_offset < begin || dex_offset >= end) {
-      return 0;  // The DEX offset is not within the bytecode of this dex file.
-    }
   }
 
   ADexFile_Method info;

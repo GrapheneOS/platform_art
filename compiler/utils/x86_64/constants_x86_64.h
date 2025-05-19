@@ -51,8 +51,12 @@ std::ostream& operator<<(std::ostream& os, const CpuRegister& reg);
 
 class XmmRegister {
  public:
-  explicit constexpr XmmRegister(FloatRegister r) : reg_(r) {}
-  explicit constexpr XmmRegister(int r) : reg_(FloatRegister(r)) {}
+  constexpr XmmRegister(FloatRegister r, size_t vector_length)
+      : reg_(r), vector_length_(vector_length) {}
+  constexpr XmmRegister(int r, size_t vector_length)
+      : XmmRegister(FloatRegister(r), vector_length) {}
+  explicit constexpr XmmRegister(FloatRegister r) : XmmRegister(r, 0) {}
+  explicit constexpr XmmRegister(int r) : XmmRegister(FloatRegister(r), 0) {}
   constexpr FloatRegister AsFloatRegister() const {
     return reg_;
   }
@@ -65,8 +69,18 @@ class XmmRegister {
   bool operator==(const XmmRegister& other) const {
     return reg_ == other.reg_;
   }
+  size_t GetVecLen() const { return vector_length_; }
+  bool IsYMM() const {
+    return vector_length_ == 32;  // 256-bit
+  }
+
  private:
   const FloatRegister reg_;
+  // TODO: Since the valid values for vector_length is a limited set 16/32,
+  //       consider using an enum. This enum may have to be arch agnostic
+  //       and visible to Locations, as the register object will eventually be
+  //       created there.
+  const size_t vector_length_;
 };
 std::ostream& operator<<(std::ostream& os, const XmmRegister& reg);
 

@@ -2345,10 +2345,6 @@ bool ClassLinker::AddImageSpace(gc::space::ImageSpace* space,
       }, space->Begin(), image_pointer_size_);
     }
 
-    for (auto dex_cache : dex_caches.Iterate<mirror::DexCache>()) {
-      CHECK(!dex_cache->GetDexFile()->IsCompactDexFile());
-    }
-
     ScopedTrace trace("AppImage:UpdateCodeItemAndNterp");
     bool can_use_nterp = interpreter::CanRuntimeUseNterp();
     uint16_t hotness_threshold = runtime->GetJITOptions()->GetWarmupThreshold();
@@ -4417,7 +4413,6 @@ void ClassLinker::LoadClass(Thread* self,
                             const DexFile& dex_file,
                             const dex::ClassDef& dex_class_def,
                             Handle<mirror::Class> klass) {
-  CHECK(!dex_file.IsCompactDexFile());
   ClassAccessor accessor(dex_file,
                          dex_class_def,
                          /* parse_hiddenapi_class_data= */ klass->IsBootStrapClassLoaded());
@@ -7883,9 +7878,11 @@ class ClassLinker::LinkMethodsHelper {
 
     // NO_THREAD_SAFETY_ANALYSIS: This is called from unannotated `HashSet<>` functions.
     size_t operator()(uint32_t index) const NO_THREAD_SAFETY_ANALYSIS {
-      DCHECK_LT(index, klass_->NumDeclaredVirtualMethods());
-      ArtMethod* method = klass_->GetVirtualMethodDuringLinking(index, kPointerSize);
-      return ComputeMethodHash(method->GetInterfaceMethodIfProxy(kPointerSize));
+      DCHECK_LT(index, klass_->NumMethods());
+      ArtMethod& method = klass_->GetMethods(kPointerSize)[index];
+      DCHECK(method.IsVirtual());
+      DCHECK(!method.IsCopied());
+      return ComputeMethodHash(method.GetInterfaceMethodIfProxy(kPointerSize));
     }
 
    private:
@@ -7900,15 +7897,17 @@ class ClassLinker::LinkMethodsHelper {
 
     // NO_THREAD_SAFETY_ANALYSIS: This is called from unannotated `HashSet<>` functions.
     bool operator()(uint32_t lhs_index, ArtMethod* rhs) const NO_THREAD_SAFETY_ANALYSIS {
-      DCHECK_LT(lhs_index, klass_->NumDeclaredVirtualMethods());
-      ArtMethod* lhs = klass_->GetVirtualMethodDuringLinking(lhs_index, kPointerSize);
-      return MethodSignatureEquals(lhs->GetInterfaceMethodIfProxy(kPointerSize), rhs);
+      DCHECK_LT(lhs_index, klass_->NumMethods());
+      ArtMethod& lhs = klass_->GetMethods(kPointerSize)[lhs_index];
+      DCHECK(lhs.IsVirtual());
+      DCHECK(!lhs.IsCopied());
+      return MethodSignatureEquals(lhs.GetInterfaceMethodIfProxy(kPointerSize), rhs);
     }
 
     // NO_THREAD_SAFETY_ANALYSIS: This is called from unannotated `HashSet<>` functions.
     bool operator()(uint32_t lhs_index, uint32_t rhs_index) const NO_THREAD_SAFETY_ANALYSIS {
-      DCHECK_LT(lhs_index, klass_->NumDeclaredVirtualMethods());
-      DCHECK_LT(rhs_index, klass_->NumDeclaredVirtualMethods());
+      DCHECK_LT(lhs_index, klass_->NumMethods());
+      DCHECK_LT(rhs_index, klass_->NumMethods());
       return lhs_index == rhs_index;
     }
 
@@ -8718,7 +8717,7 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
   static constexpr size_t kMaxStackBuferSize = 256;
   const size_t declared_virtuals_buffer_size = num_virtual_methods * 3;
   const size_t super_vtable_buffer_size = super_vtable_length * 3;
-  const size_t bit_vector_size = BitVector::BitsToWords(num_virtual_methods);
+  const size_t bit_vector_size = BitVector::BitsToWords(klass->NumMethods());
   const size_t total_size =
       declared_virtuals_buffer_size + super_vtable_buffer_size + bit_vector_size;
 
@@ -8753,14 +8752,17 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
   // super vtable (which is only lazy populated in case of interface overriding,
   // see below). This makes sure that we pay the performance price only on that
   // class, and not on its subclasses (except in the case of interface overriding, see below).
-  for (size_t i = 0; i != num_virtual_methods; ++i) {
-    ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
-    DCHECK(!virtual_method->IsStatic()) << virtual_method->PrettyMethod();
-    ArtMethod* signature_method = UNLIKELY(is_proxy_class)
-        ? virtual_method->GetInterfaceMethodForProxyUnchecked(kPointerSize)
-        : virtual_method;
-    size_t hash = ComputeMethodHash(signature_method);
-    declared_virtual_signatures.PutWithHash(i, hash);
+  size_t index = 0;
+  for (ArtMethod& method : klass->GetMethods(kPointerSize)) {
+    DCHECK(!method.IsCopied());
+    if (method.IsVirtual()) {
+      ArtMethod* signature_method = UNLIKELY(is_proxy_class)
+          ? method.GetInterfaceMethodForProxyUnchecked(kPointerSize)
+          : &method;
+      size_t hash = ComputeMethodHash(signature_method);
+      declared_virtual_signatures.PutWithHash(index, hash);
+    }
+    ++index;
   }
 
   // Loop through each super vtable method and see if they are overridden by a method we added to
@@ -8782,11 +8784,13 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
     if (it == declared_virtual_signatures.end()) {
       continue;
     }
-    ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(*it, kPointerSize);
+    ArtMethod& virtual_method = klass->GetMethods(kPointerSize)[*it];
+    DCHECK(virtual_method.IsVirtual());
+    DCHECK(!virtual_method.IsCopied());
     if (super_method->IsFinal()) {
       sants.reset();
       ThrowLinkageError(klass, "Method %s overrides final method in class %s",
-                        virtual_method->PrettyMethod().c_str(),
+                        virtual_method.PrettyMethod().c_str(),
                         super_method->GetDeclaringClassDescriptor());
       return 0u;
     }
@@ -8800,23 +8804,25 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
         std::fill_n(same_signature_vtable_lists.data(), super_vtable_length, dex::kDexNoIndex);
         same_signature_vtable_lists_ = same_signature_vtable_lists;
       }
-      same_signature_vtable_lists[j] = virtual_method->GetMethodIndexDuringLinking();
+      same_signature_vtable_lists[j] = virtual_method.GetMethodIndexDuringLinking();
     } else {
       initialized_methods.SetBit(*it);
     }
 
     // We arbitrarily set to the largest index. This is also expected when
     // iterating over the `same_signature_vtable_lists_`.
-    virtual_method->SetMethodIndex(j);
+    virtual_method.SetMethodIndex(j);
   }
 
   // Add the non-overridden methods at the end.
-  for (size_t i = 0; i < num_virtual_methods; ++i) {
-    if (!initialized_methods.IsBitSet(i)) {
-      ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
-      local_method->SetMethodIndex(vtable_length);
-      vtable_length++;
+  index = 0;
+  for (ArtMethod& m : klass->GetMethods(kPointerSize)) {
+    DCHECK(!m.IsCopied());
+    if (m.IsVirtual() && !initialized_methods.IsBitSet(index)) {
+      m.SetMethodIndex(vtable_length);
+      ++vtable_length;
     }
+    ++index;
   }
 
   // A lazily constructed super vtable set, which we only populate in the less
@@ -8855,10 +8861,12 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
       ArtMethod* vtable_method = nullptr;
       auto it1 = declared_virtual_signatures.FindWithHash(&interface_method, hash);
       if (it1 != declared_virtual_signatures.end()) {
-        ArtMethod* found_method = klass->GetVirtualMethodDuringLinking(*it1, kPointerSize);
+        ArtMethod& found_method = klass->GetMethods(kPointerSize)[*it1];
+        DCHECK(found_method.IsVirtual());
+        DCHECK(!found_method.IsCopied());
         // For interface overriding, we only look at public methods.
-        if (found_method->IsPublic()) {
-          vtable_method = found_method;
+        if (found_method.IsPublic()) {
+          vtable_method = &found_method;
         }
       } else {
         // This situation should be rare (a superclass implements a method
@@ -8971,11 +8979,14 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FindCopiedMethodsForInterface
       declared_virtuals_buffer_ptr,
       declared_virtuals_buffer_size,
       allocator_.Adapter());
-  for (size_t i = 0; i != num_virtual_methods; ++i) {
-    ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
-    DCHECK(!virtual_method->IsStatic()) << virtual_method->PrettyMethod();
-    size_t hash = ComputeMethodHash(virtual_method);
-    declared_virtual_signatures.PutWithHash(i, hash);
+  size_t index = 0;
+  for (ArtMethod& method : klass->GetMethods(kPointerSize)) {
+    DCHECK(!method.IsCopied());
+    if (method.IsVirtual()) {
+      size_t hash = ComputeMethodHash(&method);
+      declared_virtual_signatures.PutWithHash(index, hash);
+    }
+    ++index;
   }
 
   // We do not create miranda methods for interface classes, so we do not need to track
@@ -9002,7 +9013,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FindCopiedMethodsForInterface
       if (it1 != declared_virtual_signatures.end()) {
         // Virtual methods in interfaces are always public.
         // This is checked by the `DexFileVerifier`.
-        DCHECK(klass->GetVirtualMethodDuringLinking(*it1, kPointerSize)->IsPublic());
+        DCHECK(klass->GetDeclaredMethods(kPointerSize)[*it1].IsPublic());
         continue;  // This default method is masked by a method declared in this interface.
       }
 
@@ -9061,10 +9072,15 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     }
     // Assign each method an interface table index and set the default flag.
     bool has_defaults = false;
-    for (size_t i = 0; i < num_virtual_methods; ++i) {
-      ArtMethod* m = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
-      m->SetMethodIndex(i);
-      uint32_t access_flags = m->GetAccessFlags();
+    size_t index = 0;
+    for (ArtMethod& method : klass->GetMethods(kPointerSize)) {
+      DCHECK(!method.IsCopied());
+      if (!method.IsVirtual()) {
+        continue;
+      }
+      method.SetMethodIndex(index);
+      ++index;
+      uint32_t access_flags = method.GetAccessFlags();
       DCHECK(!ArtMethod::IsDefault(access_flags));
       DCHECK_EQ(!ArtMethod::IsAbstract(access_flags), ArtMethod::IsInvokable(access_flags));
       if (ArtMethod::IsInvokable(access_flags)) {
@@ -9075,24 +9091,24 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
         // currently running CTS tests for default methods with dex file version 035 which
         // does not support default methods. So, we limit this to native methods. b/157718952
         if (ArtMethod::IsNative(access_flags)) {
-          DCHECK(!m->GetDexFile()->SupportsDefaultMethods());
+          DCHECK(!method.GetDexFile()->SupportsDefaultMethods());
           ThrowClassFormatError(klass.Get(),
                                 "Dex file does not support default method '%s'",
-                                m->PrettyMethod().c_str());
+                                method.PrettyMethod().c_str());
           return false;
         }
         if (!ArtMethod::IsPublic(access_flags)) {
           // The verifier should have caught the non-public method for dex version 37.
           // Just warn and skip it since this is from before default-methods so we don't
           // really need to care that it has code.
-          LOG(WARNING) << "Default interface method " << m->PrettyMethod() << " is not public! "
+          LOG(WARNING) << "Default interface method " << method.PrettyMethod() << " is not public! "
                        << "This will be a fatal error in subsequent versions of android. "
                        << "Continuing anyway.";
         }
         static_assert((kAccDefault & kAccIntrinsicBits) != 0);
-        DCHECK(!m->IsIntrinsic()) << "Adding kAccDefault to an intrinsic would be a mistake as it "
-                                  << "overlaps with kAccIntrinsicBits.";
-        m->SetAccessFlags(access_flags | kAccDefault);
+        DCHECK(!method.IsIntrinsic()) << "Adding kAccDefault to an intrinsic would be a "
+                                      << "mistake as it overlaps with kAccIntrinsicBits.";
+        method.SetAccessFlags(access_flags | kAccDefault);
         has_defaults = true;
       }
     }
@@ -9300,11 +9316,15 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectMethods(
     self->AssertPendingOOMException();
     return false;
   }
-  for (size_t i = 0; i < mirror::Object::kVTableLength; ++i) {
-    ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
-    vtable->SetElementPtrSize(i, virtual_method, kPointerSize);
-    virtual_method->SetMethodIndex(i);
+  size_t index = 0;
+  for (ArtMethod& m : klass->GetMethods(kPointerSize)) {
+    if (m.IsVirtual()) {
+      vtable->SetElementPtrSize(index, &m, kPointerSize);
+      m.SetMethodIndex(index);
+      ++index;
+    }
   }
+  DCHECK_EQ(index, mirror::Object::kVTableLength);
   klass->SetVTable(vtable);
   InitializeObjectVirtualMethodHashes(
       klass.Get(),

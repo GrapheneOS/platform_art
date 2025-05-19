@@ -23,6 +23,7 @@
 
 #include "android-base/stringprintf.h"
 #include "base/bit_utils.h"
+#include "base/casts.h"
 #include "base/file_magic.h"
 #include "base/mem_map.h"
 #include "base/os.h"
@@ -30,7 +31,6 @@
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
 #include "base/zip_archive.h"
-#include "compact_dex_file.h"
 #include "dex_file.h"
 #include "dex_file_verifier.h"
 #include "standard_dex_file.h"
@@ -573,10 +573,6 @@ bool DexFileLoader::OpenFromZipEntry(const ZipArchive& zip_archive,
                                                          error_msg,
                                                          error_code);
     if (dex_file == nullptr) {
-      return false;
-    }
-    if (dex_file->IsCompactDexFile()) {
-      *error_msg = StringPrintf("Can not open compact dex file from zip '%s'", location.c_str());
       return false;
     }
     CHECK(dex_file->IsReadOnly()) << multidex_location;

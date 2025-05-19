@@ -20,6 +20,7 @@
 #include <random>
 
 #include "bit_utils.h"
+#include "casts.h"
 #include "common_art_test.h"
 #include "logging.h"
 #include "memory_tool.h"

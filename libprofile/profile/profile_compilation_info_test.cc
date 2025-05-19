@@ -21,7 +21,6 @@
 #include "base/arena_allocator.h"
 #include "base/common_art_test.h"
 #include "base/unix_file/fd_file.h"
-#include "dex/compact_dex_file.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_loader.h"
 #include "dex/method_reference.h"

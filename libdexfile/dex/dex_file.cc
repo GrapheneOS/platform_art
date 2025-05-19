@@ -34,7 +34,6 @@
 #include "base/pointer_size.h"
 #include "base/stl_util.h"
 #include "class_accessor-inl.h"
-#include "compact_dex_file.h"
 #include "descriptors_names.h"
 #include "dex_file-inl.h"
 #include "standard_dex_file.h"
@@ -103,9 +102,6 @@ uint32_t DexFile::Header::GetExpectedHeaderSize() const {
 }
 
 bool DexFile::Header::HasDexContainer() const {
-  if (CompactDexFile::IsMagicValid(magic_.data())) {
-    return false;
-  }
   DCHECK_EQ(header_size_, GetExpectedHeaderSize());
   return header_size_ >= sizeof(HeaderV41);
 }
@@ -140,12 +136,6 @@ ALWAYS_INLINE const T* DexFile::GetSection(const uint32_t* offset, DexFileContai
   if (size < sizeof(Header)) {
     return nullptr;  // Invalid dex file.
   }
-  // Compact dex is inconsistent: section offsets are relative to the
-  // header as opposed to the data section like all other its offsets.
-  if (CompactDexFile::IsMagicValid(begin_)) {
-    const uint8_t* data = reinterpret_cast<const uint8_t*>(header_);
-    return reinterpret_cast<const T*>(data + *offset);
-  }
   return reinterpret_cast<const T*>(data_.data() + *offset);
 }
 
@@ -153,8 +143,7 @@ DexFile::DexFile(const uint8_t* base,
                  const std::string& location,
                  uint32_t location_checksum,
                  const OatDexFile* oat_dex_file,
-                 std::shared_ptr<DexFileContainer> container,
-                 bool is_compact_dex)
+                 std::shared_ptr<DexFileContainer> container)
     : begin_(base),
       data_(GetDataRange(base, container.get())),
       location_(location),
@@ -173,7 +162,6 @@ DexFile::DexFile(const uint8_t* base,
       hiddenapi_class_data_(nullptr),
       oat_dex_file_(oat_dex_file),
       container_(std::move(container)),
-      is_compact_dex_(is_compact_dex),
       hiddenapi_domain_(hiddenapi::Domain::kApplication) {
   CHECK(begin_ != nullptr) << GetLocation();
   // Check base (=header) alignment.
@@ -207,15 +195,13 @@ bool DexFile::Init(std::string* error_msg) {
   if (!CheckMagicAndVersion(error_msg)) {
     return false;
   }
-  if (!IsCompactDexFile()) {
-    uint32_t expected_header_size = header_->GetExpectedHeaderSize();
-    if (header_->header_size_ != expected_header_size) {
-      *error_msg = StringPrintf("Unable to open '%s' : Header size is %u but %u was expected",
-                                location_.c_str(),
-                                header_->header_size_,
-                                expected_header_size);
-      return false;
-    }
+  uint32_t expected_header_size = header_->GetExpectedHeaderSize();
+  if (header_->header_size_ != expected_header_size) {
+    *error_msg = StringPrintf("Unable to open '%s' : Header size is %u but %u was expected",
+                              location_.c_str(),
+                              header_->header_size_,
+                              expected_header_size);
+    return false;
   }
   if (container_size < header_->file_size_) {
     *error_msg = StringPrintf("Unable to open '%s' : File size is %zu but the header expects %u",
@@ -267,16 +253,6 @@ ArrayRef<const uint8_t> DexFile::GetDataRange(const uint8_t* data, DexFileContai
     } else {
       size = header->file_size_;
     }
-  } else if (size >= sizeof(CompactDexFile::Header) && CompactDexFile::IsMagicValid(data)) {
-    auto header = reinterpret_cast<const CompactDexFile::Header*>(data);
-    // TODO: Remove. This is a hack. See comment of the Data method.
-    ArrayRef<const uint8_t> separate_data = container->Data();
-    if (separate_data.size() > 0) {
-      return separate_data;
-    }
-    // Shared compact dex data is located at the end after all dex files.
-    data += std::min<size_t>(header->data_off_, size);
-    size = header->data_size_;
   }
   // The returned range is guaranteed to be in bounds of the container memory.
   return {data, std::min<size_t>(size, container->End() - data)};

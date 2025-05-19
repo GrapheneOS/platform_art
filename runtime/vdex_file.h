@@ -27,7 +27,6 @@
 #include "base/mem_map.h"
 #include "base/os.h"
 #include "class_status.h"
-#include "dex/compact_offset_table.h"
 #include "dex/dex_file.h"
 #include "handle.h"
 

@@ -125,8 +125,7 @@ class StandardDexFile : public DexFile {
                 location,
                 location_checksum,
                 oat_dex_file,
-                std::move(container),
-                /*is_compact_dex*/ false) {}
+                std::move(container)) {}
 
   friend class DexFileLoader;
   friend class DexFileVerifierTest;
