@@ -863,4 +863,58 @@ TEST_F(RegisterAllocatorTest, ReuseSpillSlots) {
   EXPECT_TRUE(!phi2->GetLiveInterval()->HasRegister());
 }
 
+TEST_F(RegisterAllocatorTest, ReuseSpillSlotGaps) {
+  if (!com::android::art::flags::reg_alloc_spill_slot_reuse()) {
+    GTEST_SKIP() << "Improved spill slot reuse disabled.";
+  }
+  HBasicBlock* return_block = InitEntryMainExitGraph();
+  auto [pre_header, header, body] = CreateWhileLoop(return_block);
+
+  HInstruction* const0 = graph_->GetIntConstant(0);
+  HInstruction* const10 = graph_->GetIntConstant(10);
+
+  HPhi* phi1 = MakePhi(header, {const0, /* placeholder */ const0});
+  HNeg* neg1 = MakeUnOp<HNeg>(body, DataType::Type::kInt32, phi1);
+  phi1->ReplaceInput(neg1, 1u);  // Update back-edge input.
+
+  HPhi* phi2 = MakePhi(header, {const0, /* placeholder */ const0});
+  HNeg* neg2 = MakeUnOp<HNeg>(body, DataType::Type::kInt32, phi2);
+  phi2->ReplaceInput(neg2, 1u);  // Update back-edge input.
+
+  // Loop variable and condition. This is added after `neg1` and `neg2` to spill both.
+  HPhi* phi = MakePhi(header, {const0, /* placeholder */ const0});
+  HNeg* neg = MakeUnOp<HNeg>(body, DataType::Type::kInt32, phi);
+  phi->ReplaceInput(neg, 1u);  // Update back-edge input.
+  HCondition* cond = MakeCondition(header, kCondGE, phi, const10);
+  MakeIf(header, cond);
+
+  // Add an environment use of `phi1` and a normal use of `phi2`.
+  HCondition* deopt_cond = MakeCondition(header, kCondLT, phi, const0);
+  HDeoptimize* deopt = new (GetAllocator()) HDeoptimize(
+      GetAllocator(), deopt_cond, DeoptimizationKind::kDebugging, /*dex_pc=*/ 0u);
+  AddOrInsertInstruction(return_block, deopt);
+  ManuallyBuildEnvFor(deopt, {phi1});
+  HReturn* ret = MakeReturn(return_block, phi2);
+
+  graph_->BuildDominatorTree();
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
+  liveness.Analyze();
+
+  // Set just one register available to make all intervals compete for the same.
+  bool* blocked_registers = codegen.GetBlockedCoreRegisters();
+  std::fill_n(blocked_registers + 1, codegen.GetNumberOfCoreRegisters() - 1, true);
+
+  std::unique_ptr<RegisterAllocator> register_allocator =
+      RegisterAllocator::Create(GetScopedAllocator(), &codegen, liveness);
+  register_allocator->AllocateRegisters();
+
+  ASSERT_TRUE(phi1->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(neg1->GetLiveInterval()->HasSpillSlot());
+  EXPECT_EQ(phi1->GetLiveInterval()->GetSpillSlot(), neg1->GetLiveInterval()->GetSpillSlot());
+  ASSERT_TRUE(phi2->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(neg2->GetLiveInterval()->HasSpillSlot());
+  EXPECT_EQ(phi2->GetLiveInterval()->GetSpillSlot(), neg2->GetLiveInterval()->GetSpillSlot());
+}
+
 }  // namespace art

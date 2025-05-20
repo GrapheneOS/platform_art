@@ -812,23 +812,15 @@ static std::tuple<bool, ArtMethod*> FindDeclaredClassMethod(ObjPtr<mirror::Class
     return method_id.name_idx_;
   };
 
-  // Use binary search in the sorted direct methods, then in the sorted virtual methods.
-  uint32_t num_direct_methods = klass->NumDirectMethods();
+  // Use binary search in the sorted methods.
   uint32_t num_declared_methods = dchecked_integral_cast<uint32_t>(declared_methods.size());
-  DCHECK_LE(num_direct_methods, num_declared_methods);
-  const uint32_t ranges[2][2] = {
-     {0u, num_direct_methods},                   // Declared direct methods.
-     {num_direct_methods, num_declared_methods}  // Declared virtual methods.
-  };
-  for (const uint32_t (&range)[2] : ranges) {
-    auto [success, mid] =
-        ClassMemberBinarySearch(range[0], range[1], name_cmp, signature_cmp, get_name_idx);
-    if (success) {
-      return {true, &declared_methods[mid]};
-    }
+  auto [success, mid] =
+      ClassMemberBinarySearch(0, num_declared_methods, name_cmp, signature_cmp, get_name_idx);
+  if (success) {
+    return {true, &declared_methods[mid]};
   }
 
-  // Did not find a declared method in either slice.
+  // Did not find a declared method.
   return {false, nullptr};
 }
 

@@ -4325,6 +4325,13 @@ void ClassLinker::LoadClassHelper::Load(const ClassAccessor& accessor,
               return lhs.dex_field_index < rhs.dex_field_index;
             });
 
+  // Sort the methods by dex methods index to facilitate fast lookups.
+  std::sort(methods.begin(),
+            methods.end(),
+            [](ArtMethodData& lhs, ArtMethodData& rhs) {
+              return lhs.dex_method_index < rhs.dex_method_index;
+            });
+
   fields_ = fields;
   methods_ = methods;
   num_direct_methods_ = accessor.NumDirectMethods();

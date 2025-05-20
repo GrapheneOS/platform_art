@@ -23,6 +23,7 @@
 
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
+#include "base/casts.h"
 
 #define TWO_BYTE_VEX    0xC5
 #define THREE_BYTE_VEX  0xC4
@@ -257,7 +258,7 @@ std::string DisassemblerX86::DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64,
 }
 
 size_t DisassemblerX86::DumpNops(std::ostream& os, const uint8_t* instr) {
-static constexpr uint8_t kNops[][10] = {
+  static constexpr uint8_t kNops[][10] = {
       { },
       { 0x90 },
       { 0x66, 0x90 },
@@ -271,11 +272,16 @@ static constexpr uint8_t kNops[][10] = {
       { 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 }
   };
 
+  size_t available = dchecked_integral_cast<size_t>(GetDisassemblerOptions()->end_address_ - instr);
+  DCHECK_NE(available, 0u);
   for (size_t i = 1; i < arraysize(kNops); ++i) {
     if (memcmp(instr, kNops[i], i) == 0) {
       os << FormatInstructionPointer(instr)
          << StringPrintf(": %22s    \t       nop \n", DumpCodeHex(instr, instr + i).c_str());
       return i;
+    }
+    if (i == available) {
+      break;  // Not enough data to compare longer sequences.
     }
   }
 
@@ -283,13 +289,13 @@ static constexpr uint8_t kNops[][10] = {
 }
 
 size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) {
-  const InstructionContext ctxt(this, instr);
-  instr = ctxt.shadow_instr_;
   size_t nop_size = DumpNops(os, instr);
   if (nop_size != 0u) {
     return nop_size;
   }
 
+  const InstructionContext ctxt(this, instr);
+  instr = ctxt.shadow_instr_;
   const uint8_t* begin_instr = instr;
   bool have_prefixes = true;
   uint8_t prefix[4] = {0, 0, 0, 0};

@@ -163,17 +163,18 @@ class AssemblerX86_64Test : public AssemblerTest<x86_64::X86_64Assembler,
     ASSERT_NE(ref_assembly_text.length(), 0U) << "Empty assembly";
     std::string art_disassembly;
     MemoryRegion code_mem(const_cast<uint8_t*>(&art_code[0]), art_code.size());
-    x86::DisassemblerX86* disasm = static_cast<art::x86::DisassemblerX86*>(
-        Disassembler::Create(InstructionSet::kX86_64,
-                             new DisassemblerOptions(false,
-                                                     code_mem.begin(),
-                                                     code_mem.end(),
-                                                     /* can_read_literals = */ true,
-                                                     &Thread::DumpThreadOffset<PointerSize::k64>)));
+    std::unique_ptr<x86::DisassemblerX86> disasm(static_cast<art::x86::DisassemblerX86*>(
+        Disassembler::Create(
+            InstructionSet::kX86_64,
+            new DisassemblerOptions(/* absolute_addresses= */ false,
+                                    code_mem.begin(),
+                                    code_mem.end(),
+                                    /* can_read_literals = */ true,
+                                    &Thread::DumpThreadOffset<PointerSize::k64>))));
     size_t length = 0;
     std::stringstream sstream;
     for (const uint8_t* cur = code_mem.begin(); cur < code_mem.end(); cur += length) {
-      length = (disasm)->Dump(sstream, cur);
+      length = disasm->Dump(sstream, cur);
       // ART dumps disassembly in this format
       // Address: Hexbytes \t%-7s<prefix> opcode ....
       // Extract just the disassembly and compress spaces

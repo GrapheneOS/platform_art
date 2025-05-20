@@ -1057,31 +1057,43 @@ bool MarkCompact::MoveIoctlKernelCheck() {
     // MOVE ioctl isn't available before 6.1 even on target devices.
     DCHECK(IsKernelVersionAtLeast(6, 1));
     static bool safe_to_use_move = [&]() {
+      // Handle the case of no lts in the release by initializing to 0.
+      int major, minor, lts = 0;
+      struct utsname uts;
+      int ret = uname(&uts);
+      DCHECK_EQ(ret, 0);
+      DCHECK_EQ(strcmp(uts.sysname, "Linux"), 0);
+      ret = sscanf(uts.release, "%d.%d.%d:", &major, &minor, &lts);
+      CHECK_GE(ret, 2);
+      CHECK_GE(major, 6);
       if (kIsTargetAndroid) {
-        if (!IsKernelVersionAtLeast(6, 7)) {
+        if (std::make_pair(major, minor) <= std::make_pair(6, 6)) {
           // Special mode added in 6.1 and 6.6 kernels to confirm that MOVE
           // ioctl bug-fixes are in the kernel. On these kernels on devices, the
           // ioctl should succeed with this additional mode. If it fails then we
-          // don't use MOVE ioctl (See: https://r.android.com/3533441).
-          bool success = move_ioctl(1ull << 63);
+          // don't use MOVE ioctl (See: https://r.android.com/3533441 and
+          // https://r.android.com/413428616).
+          size_t bit_shift;
+          switch (minor) {
+            case 1:
+              bit_shift = 62;
+              break;
+            case 6:
+              bit_shift = 63;
+              break;
+            default:
+              UNREACHABLE();
+          }
+          bool success = move_ioctl(1ull << bit_shift);
           if (!success) {
             // The ioctl should fail only because the kernel doesn't have the
             // bug-fixes and therefore the additional mode is not recognized.
-            DCHECK_EQ(errno, EINVAL);
+            CHECK_EQ(errno, EINVAL);
           }
           return success;
         }
         return true;
       } else {
-        // Handle the case of no lts in the release by initializing to 0.
-        int major, minor, lts = 0;
-        struct utsname uts;
-        int ret = uname(&uts);
-        DCHECK_EQ(ret, 0);
-        DCHECK_EQ(strcmp(uts.sysname, "Linux"), 0);
-        ret = sscanf(uts.release, "%d.%d.%d:", &major, &minor, &lts);
-        DCHECK_GE(ret, 2);
-        DCHECK_GE(major, 6);
         return major > 6 || minor > 13 || (minor == 13 && lts > 7) || (minor == 12 && lts > 19);
       }
     }();

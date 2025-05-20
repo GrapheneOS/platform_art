@@ -115,7 +115,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // are typed to avoid (1) doing moves and swaps between two different kinds
   // of registers, and (2) swapping between a single stack slot and a double
   // stack slot. This simplifies the parallel move resolver.
-  struct SpillSlotData;
+  class SpillSlotData;
   ScopedArenaVector<SpillSlotData> int_spill_slots_;
   ScopedArenaVector<SpillSlotData> long_spill_slots_;
   ScopedArenaVector<SpillSlotData> float_spill_slots_;

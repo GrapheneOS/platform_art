@@ -43,8 +43,106 @@ static bool IsLowOfUnalignedPairInterval(LiveInterval* low) {
   return GetHighForLowRegister(low->GetRegister()) != low->GetHighInterval()->GetRegister();
 }
 
-struct RegisterAllocatorLinearScan::SpillSlotData {
-  size_t end = 0u;
+class RegisterAllocatorLinearScan::SpillSlotData {
+ public:
+  SpillSlotData(LiveInterval* interval, size_t end)
+      : end_(end),
+        gap_start_(interval->GetFirstRange()->GetEnd()),
+        interval_(interval),
+        range_(interval->GetFirstRange()) {
+    DCHECK_EQ(end, interval->GetLastSibling()->GetEnd());
+  }
+
+  size_t GetEnd() const {
+    return end_;
+  }
+
+  // Determine if the spill slot can be used for another interval `parent`.
+  // Returns `true` if the spill slot can be reused, `false` otherwise.
+  // The `parent`'s `start` and `end` are passed as arguments as a performance optimization.
+  //
+  // This is a heuristic which does not find all spill slot reuse opportunities. For that,
+  // we would need to keep track of all lifetime positions used for the spill slot, either as
+  // a bit mask, or as a list of all intervals using it, and that could take a lot of memory.
+  //
+  // Instead, we keep only the `interval_` with the longest lifetime (ending at `end_`) and
+  // the `gap_start_`, the earlier position that can be reused. When we reuse the slot for
+  // another interval that falls within `[gap_start_, end_)` and does not overlap the current
+  // `interval_`'s lifetime, we update `gap_start_` to the end of that interval.
+  bool CanUseFor(LiveInterval* parent, size_t start, size_t end) {
+    DCHECK(!parent->IsSplit());
+    DCHECK_EQ(start, parent->GetStart());
+    DCHECK_EQ(end, parent->GetLastSibling()->GetEnd());
+    // Check if the spill slot use has ended at the `start` position.
+    if (start >= end_) {
+      return true;
+    }
+    // Check if the `parent` interval can fit in the gap.
+    if (start < gap_start_ || end > end_) {
+      return false;
+    }
+    // Update search start position based on `gap_start_`.
+    while (gap_start_ >= interval_->GetEnd()) {
+      if (interval_->GetNextSibling() == nullptr) {
+        return true;  // The entire range `[gap_start_, end_)` can be used.
+      }
+      interval_ = interval_->GetNextSibling();
+      range_ = interval_->GetFirstRange();
+    }
+    while (gap_start_ >= range_->GetEnd()) {
+      range_ = range_->GetNext();
+      DCHECK(range_ != nullptr);
+    }
+    // Check if there are any overlapping ranges.
+    // This is similar to `LiveInterval::FirstIntersectionWith()` but covers sibling intervals.
+    auto move_to_next_range = [](LiveInterval*& interval, LiveRange*& range) ALWAYS_INLINE {
+      range = range->GetNext();
+      if (range == nullptr) {
+        if (interval->GetNextSibling() == nullptr) {
+          return false;
+        }
+        interval = interval->GetNextSibling();
+        range = interval->GetFirstRange();
+      }
+      return true;
+    };
+    LiveInterval* interval = interval_;
+    LiveRange* range = range_;
+    LiveInterval* other_interval = parent;
+    LiveRange* other_range = parent->GetFirstRange();
+    while (true) {
+      if (range->IsBefore(*other_range)) {
+        if (!move_to_next_range(interval, range)) {
+          return true;  // No more ranges to check.
+        }
+      } else if (other_range->IsBefore(*range)) {
+        if (!move_to_next_range(other_interval, other_range)) {
+          return true;  // No more ranges to check.
+        }
+      } else {
+        DCHECK(range->IntersectsWith(*other_range));
+        return false;
+      }
+    }
+  }
+
+  void UseFor(LiveInterval* interval, size_t end) {
+    DCHECK_EQ(end, interval->GetLastSibling()->GetEnd());
+    if (end > end_) {
+      DCHECK_GE(interval->GetParent()->GetStart(), end_);
+      *this = SpillSlotData(interval, end);
+    } else {
+      DCHECK(CanUseFor(interval->GetParent(), interval->GetParent()->GetStart(), end));
+      DCHECK_GT(end, gap_start_);
+      gap_start_ = end;
+    }
+  }
+
+ private:
+  size_t end_;
+  size_t gap_start_;
+  LiveInterval* interval_;
+  LiveRange* range_;
 };
 
 class RegisterAllocatorLinearScan::LinearScan {
@@ -946,20 +1044,21 @@ bool RegisterAllocatorLinearScan::LinearScan::TryUsingSpillSlotHint(LiveInterval
   DCHECK_LE(hint + number_of_spill_slots_needed, spill_slots->size());
   DCHECK(current->GetParent() == current);
   size_t start = current->GetStart();
+  DCHECK(current->GetLastSibling() == current);
+  size_t end = current->GetEnd();
   ArrayRef<SpillSlotData> range =
       ArrayRef<SpillSlotData>(*spill_slots).SubArray(hint, number_of_spill_slots_needed);
   if (std::any_of(range.begin(),
                   range.end(),
-                  [=](const SpillSlotData& data) { return data.end > start; })) {
+                  [=](const SpillSlotData& data) { return data.GetEnd() > start; })) {
     return false;
   }
 
   // Use the spill slots and split the `current` interval if there is any register use.
-  DCHECK(current->GetLastSibling() == current);
-  size_t end = current->GetEnd();
+  SpillSlotData new_data(current, end);
   for (SpillSlotData& data : range) {
-    DCHECK_LE(data.end, start);
-    data.end = end;
+    DCHECK_LE(data.GetEnd(), start);
+    data = new_data;
   }
   current->SetSpillSlot(hint);
   size_t first_register_use = current->FirstRegisterUse();
@@ -1486,6 +1585,7 @@ void RegisterAllocatorLinearScan::LinearScan::AllocateSpillSlotFor(LiveInterval*
   ScopedArenaVector<SpillSlotData>* spill_slots = GetSpillSlotsForType(interval->GetType());
   size_t number_of_spill_slots_needed = parent->NumberOfSpillSlotsNeeded();
   size_t start = parent->GetStart();
+  size_t end = interval->GetLastSibling()->GetEnd();
   size_t slot = 0;
   bool used_hint = false;
 
@@ -1498,11 +1598,15 @@ void RegisterAllocatorLinearScan::LinearScan::AllocateSpillSlotFor(LiveInterval*
     if (hint_phi_interval != nullptr && hint_phi_interval->HasSpillSlotOrHint()) {
       size_t hint = hint_phi_interval->GetSpillSlotHint();
       DCHECK_LE(hint + number_of_spill_slots_needed, spill_slots->size());
-      ArrayRef<const SpillSlotData> range =
-          ArrayRef<const SpillSlotData>(*spill_slots).SubArray(hint, number_of_spill_slots_needed);
+      ArrayRef<SpillSlotData> range =
+          ArrayRef<SpillSlotData>(*spill_slots).SubArray(hint, number_of_spill_slots_needed);
       if (std::all_of(range.begin(),
                       range.end(),
-                      [=](const SpillSlotData& data) { return data.end <= start; })) {
+                      [=](SpillSlotData& data) { return data.CanUseFor(parent, start, end); })) {
+        // Update slots and use the hint.
+        for (SpillSlotData& data : range) {
+          data.UseFor(interval, end);
+        }
         used_hint = true;
         slot = hint;
       }
@@ -1514,7 +1618,7 @@ void RegisterAllocatorLinearScan::LinearScan::AllocateSpillSlotFor(LiveInterval*
     for (size_t e = spill_slots->size(); slot < e; ++slot) {
       bool found = true;
       for (size_t s = slot, u = std::min(slot + number_of_spill_slots_needed, e); s < u; s++) {
-        if ((*spill_slots)[s].end > start) {
+        if ((*spill_slots)[s].GetEnd() > start) {
           found = false;  // failure
           break;
         }
@@ -1525,16 +1629,20 @@ void RegisterAllocatorLinearScan::LinearScan::AllocateSpillSlotFor(LiveInterval*
     }
 
     // Need new spill slots?
-    size_t upper = slot + number_of_spill_slots_needed;
-    if (upper > spill_slots->size()) {
-      spill_slots->resize(upper);
+    SpillSlotData new_data(interval, end);
+    size_t num_old_slots = spill_slots->size() - slot;
+    if (num_old_slots < number_of_spill_slots_needed) {
+      spill_slots->resize(slot + number_of_spill_slots_needed, new_data);
+      // Update only old slots below.
+      number_of_spill_slots_needed = num_old_slots;
     }
-  }
 
-  // Set slots to end.
-  size_t end = interval->GetLastSibling()->GetEnd();
-  for (size_t s : Range(slot, slot + number_of_spill_slots_needed)) {
-    (*spill_slots)[s].end = end;
+    // Set slots to end.
+    for (size_t s : Range(slot, slot + number_of_spill_slots_needed)) {
+      SpillSlotData& data = (*spill_slots)[s];
+      DCHECK_LE(data.GetEnd(), start);
+      data = new_data;
+    }
   }
 
   // Note that the exact spill slot location will be computed when we resolve,
