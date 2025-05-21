@@ -24,7 +24,7 @@
 #include "ti-agent/scoped_utf_chars.h"
 
 #ifdef ART_TARGET_ANDROID
-#include "nativeloader/dlext_namespaces.h"
+#include <bionic/dlext_namespaces.h>
 #endif
 
 namespace art {

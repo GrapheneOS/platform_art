@@ -948,7 +948,7 @@ ArtMethod* Class::FindDeclaredDirectMethodByName(std::string_view name, PointerS
 }
 
 ArtMethod* Class::FindDeclaredVirtualMethodByName(std::string_view name, PointerSize pointer_size) {
-  for (auto& method : GetMethods(pointer_size)) {
+  for (auto& method : GetDeclaredMethods(pointer_size)) {
     if (method.IsVirtual()) {
       ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(pointer_size);
       if (name == np_method->GetName()) {

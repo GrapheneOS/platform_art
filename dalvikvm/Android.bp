@@ -40,9 +40,6 @@ art_cc_binary {
     ],
     target: {
         android: {
-            header_libs: [
-                "libnativeloader-headers",
-            ],
             shared_libs: [
                 "libsigchain",
                 "libdl_android",

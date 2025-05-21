@@ -16,6 +16,7 @@
 
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.function.Predicate;
 
 class Main {
   private static boolean z = true;
@@ -175,10 +176,20 @@ class Main {
       }
     };
 
+    // Filter out methods that D8 or R8 may generate for internal use.
+    Predicate<Method> filterGenerated = new Predicate<Method>() {
+      public boolean test(Method m) {
+        String name = m.getName();
+        return !name.startsWith("lambda$") && !name.startsWith("$r8$");
+      }
+    };
+
     // Sort the return values by their string values since the order is undefined by the spec.
     System.out.println(Arrays.toString(sort(String.class.getDeclaredConstructors(), comp)));
     System.out.println(Arrays.toString(sort(String.class.getDeclaredFields(), comp)));
-    System.out.println(Arrays.toString(sort(String.class.getDeclaredMethods(), comp)));
+    System.out.println(Arrays.toString(
+            sort(Arrays.stream(String.class.getDeclaredMethods()).filter(filterGenerated).toArray(),
+                    comp)));
 
     System.out.println(Arrays.toString(Main.class.getInterfaces()));
     System.out.println(Arrays.toString(String.class.getInterfaces()));

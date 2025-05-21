@@ -97,7 +97,7 @@
 // dlopen_ext support from bionic.
 #ifdef ART_TARGET_ANDROID
 #include "android/dlext.h"
-#include "nativeloader/dlext_namespaces.h"
+#include "bionic/dlext_namespaces.h"
 #endif
 
 namespace art HIDDEN {

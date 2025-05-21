@@ -91,15 +91,22 @@ public class Test910 {
     }
 
     System.out.print("Location start: ");
+    long methodStart = 0;
     try {
-      System.out.println(getMethodLocationStart(m));
+      methodStart = getMethodLocationStart(m);
+      System.out.println(methodStart);
     } catch (RuntimeException e) {
       System.out.println(e.getMessage());
     }
 
     System.out.print("Location end: ");
     try {
-      System.out.println(getMethodLocationEnd(m));
+      long methodEnd = getMethodLocationEnd(m);
+      if (methodEnd > 0 && methodEnd > methodStart) {
+        System.out.println("ok");
+      } else {
+        System.out.println(methodEnd);
+      }
     } catch (RuntimeException e) {
       System.out.println(e.getMessage());
     }

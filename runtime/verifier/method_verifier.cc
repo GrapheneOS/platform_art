@@ -284,20 +284,20 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
                                        uint16_t inst_data);
 
   /* Ensure that the register index is valid for this code item. */
-  bool CheckRegisterIndex(uint32_t idx) {
-    if (UNLIKELY(idx >= code_item_accessor_.RegistersSize())) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register index out of range (" << idx << " >= "
-                                        << code_item_accessor_.RegistersSize() << ")";
+  ALWAYS_INLINE bool CheckRegisterIndex(uint32_t idx) {
+    uint32_t registers_size = code_item_accessor_.RegistersSize();
+    if (UNLIKELY(idx >= registers_size)) {
+      FailBadRegisterIndex(idx, registers_size);
       return false;
     }
     return true;
   }
 
   /* Ensure that the wide register index is valid for this code item. */
-  bool CheckWideRegisterIndex(uint32_t idx) {
-    if (UNLIKELY(idx + 1 >= code_item_accessor_.RegistersSize())) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register index out of range (" << idx
-                                        << "+1 >= " << code_item_accessor_.RegistersSize() << ")";
+  ALWAYS_INLINE bool CheckWideRegisterIndex(uint32_t idx) {
+    uint32_t registers_size = code_item_accessor_.RegistersSize();
+    if (UNLIKELY(idx + 1 >= registers_size)) {
+      FailBadWideRegisterIndex(idx, registers_size);
       return false;
     }
     return true;
@@ -305,11 +305,10 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
 
   // Perform static checks on an instruction referencing a CallSite. All we do here is ensure that
   // the call site index is in the valid range.
-  bool CheckCallSiteIndex(uint32_t idx) {
+  ALWAYS_INLINE bool CheckCallSiteIndex(uint32_t idx) {
     uint32_t limit = dex_file_->NumCallSiteIds();
     if (UNLIKELY(idx >= limit)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad call site index " << idx << " (max "
-                                        << limit << ")";
+      FailBadCallSiteIndex(idx, limit);
       return false;
     }
     return true;
@@ -400,11 +399,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
     std::pair<char, char> permitted = kPermittedDescriptors[opcode - kMinFieldAccessOpcode];
     const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_idx);
     if (UNLIKELY(descriptor[0] != permitted.first && descriptor[0] != permitted.second)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-          << "expected field " << dex_file_->PrettyField(field_idx)
-          << " to have type descritor starting with '" << permitted.first
-          << (permitted.second != permitted.first ? std::string("' or '") + permitted.second : "")
-          << "' but found '" << descriptor[0] << "' in " << opcode;
+      FailBadFieldDescriptor(field_idx, permitted.first, permitted.second, descriptor[0], opcode);
       return false;
     }
     return true;
@@ -422,7 +417,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
 
   // Perform static checks on an instruction referencing a constant method handle. All we do here
   // is ensure that the method index is in the valid range.
-  bool CheckMethodHandleIndex(uint32_t idx) {
+  ALWAYS_INLINE bool CheckMethodHandleIndex(uint32_t idx) {
     if (UNLIKELY(idx >= dex_file_->NumMethodHandles())) {
       FailBadMethodHandleIndex(idx);
       return false;
@@ -432,7 +427,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
 
   // Perform static checks on a prototype indexing instruction. All we do here is ensure that the
   // prototype index is in the valid range.
-  bool CheckPrototypeIndex(uint32_t idx) {
+  ALWAYS_INLINE bool CheckPrototypeIndex(uint32_t idx) {
     if (UNLIKELY(idx >= dex_file_->NumProtoIds())) {
       FailBadPrototypeIndex(idx);
       return false;
@@ -441,7 +436,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   }
 
   /* Ensure that the string index is in the valid range. */
-  bool CheckStringIndex(uint32_t idx) {
+  ALWAYS_INLINE bool CheckStringIndex(uint32_t idx) {
     if (UNLIKELY(idx >= dex_file_->NumStringIds())) {
       FailBadStringIndex(idx);
       return false;
@@ -451,7 +446,7 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
 
   // Perform static checks on an instruction that takes a class constant. Ensure that the class
   // index is in the valid range.
-  bool CheckTypeIndex(dex::TypeIndex idx) {
+  ALWAYS_INLINE bool CheckTypeIndex(dex::TypeIndex idx) {
     if (UNLIKELY(idx.index_ >= dex_file_->GetHeader().type_ids_size_)) {
       FailBadTypeIndex(idx);
       return false;
@@ -538,13 +533,12 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   // Check the register indices used in a "vararg/range" instruction, such as invoke-virtual/range
   // or filled-new-array/range.
   // - vA holds word count, vC holds index of first reg.
-  bool CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
-    uint16_t registers_size = code_item_accessor_.RegistersSize();
+  ALWAYS_INLINE bool CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
+    uint32_t registers_size = code_item_accessor_.RegistersSize();
     // vA/vC are unsigned 8-bit/16-bit quantities for /range instructions, so there's no risk of
     // integer overflow when adding them here.
     if (UNLIKELY(vA + vC > registers_size)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index " << vA << "+" << vC
-                                        << " in range invoke (> " << registers_size << ")";
+      FailBadVarArgsRangeRegs(vA, vC, registers_size);
       return false;
     }
     return true;
@@ -712,9 +706,29 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
     return Instruction::MOVE_RESULT <= opcode && opcode <= Instruction::MOVE_EXCEPTION;
   }
 
+  NO_INLINE void FailBadRegisterIndex(uint32_t idx, uint32_t registers_size) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register index out of range (" << idx << " >= "
+                                        << registers_size << ")";
+  }
+
+  NO_INLINE void FailBadWideRegisterIndex(uint32_t idx, uint32_t registers_size) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register index out of range (" << idx
+                                      << "+1 >= " << registers_size << ")";
+  }
+
+  NO_INLINE void FailBadCallSiteIndex(uint32_t idx, uint32_t limit) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad call site index " << idx << " (max "
+                                      << limit << ")";
+  }
+
   NO_INLINE void FailInvalidArgCount(const Instruction* inst, uint32_t arg_count) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "invalid arg count (" << arg_count << ") in " << inst->Name();
+  }
+
+  NO_INLINE void FailBadVarArgsRangeRegs(uint32_t vA, uint32_t vC, uint32_t registers_size) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index " << vA << "+" << vC
+                                      << " in range invoke (> " << registers_size << ")";
   }
 
   NO_INLINE void FailUnexpectedOpcode(const Instruction* inst) {
@@ -724,6 +738,18 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   NO_INLINE void FailBadFieldIndex(uint32_t field_idx) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "bad field index " << field_idx << " (max " << dex_file_->NumFieldIds() << ")";
+  }
+
+  NO_INLINE void FailBadFieldDescriptor(uint32_t field_idx,
+                                        char permitted1,
+                                        char permitted2,
+                                        char descriptor,
+                                        Instruction::Code opcode) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "expected field " << dex_file_->PrettyField(field_idx)
+        << " to have type descriptor starting with '" << permitted1
+        << (permitted2 != permitted1 ? std::string("' or '") + permitted1 : "")
+        << "' but found '" << descriptor << "' in " << opcode;
   }
 
   NO_INLINE void FailBadMethodIndex(uint32_t method_idx) {
@@ -749,6 +775,10 @@ class MethodVerifierImpl : public ::art::verifier::MethodVerifier {
   NO_INLINE void FailBadTypeIndex(dex::TypeIndex idx) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "bad type index " << idx.index_ << " (max " << dex_file_->NumTypeIds() << ")";
+  }
+
+  NO_INLINE void FailBadNewInstanceDescriptor(std::string_view descriptor) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't call new-instance on type '" << descriptor << "'";
   }
 
   NO_INLINE void FailBadNewArrayNotArray(const char* descriptor) {
@@ -2086,7 +2116,7 @@ inline bool MethodVerifierImpl::CheckNewInstance(dex::TypeIndex idx) {
   // We don't need the actual class, just a pointer to the class name.
   const std::string_view descriptor = dex_file_->GetTypeDescriptorView(idx);
   if (UNLIKELY(descriptor[0] != 'L')) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't call new-instance on type '" << descriptor << "'";
+    FailBadNewInstanceDescriptor(descriptor);
     return false;
   } else if (UNLIKELY(descriptor == "Ljava/lang/Class;")) {
     // An unlikely new instance on Class is not allowed.

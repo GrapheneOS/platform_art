@@ -32,7 +32,7 @@
 #include <log/log.h>
 
 #ifdef ART_TARGET_ANDROID
-#include "nativeloader/dlext_namespaces.h"
+#include <bionic/dlext_namespaces.h>
 #endif
 
 namespace android {

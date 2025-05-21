@@ -21,7 +21,7 @@
 
 #include "arena_object.h"
 #include "base/arena_allocator.h"
-#include "bit_vector.h"
+#include "bit_vector-inl.h"
 
 namespace art {
 

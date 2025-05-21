@@ -37,8 +37,8 @@
 #include "android-base/result.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
+#include "bionic/dlext_namespaces.h"
 #include "nativehelper/scoped_utf_chars.h"
-#include "nativeloader/dlext_namespaces.h"
 #include "public_libraries.h"
 #include "utils.h"
 

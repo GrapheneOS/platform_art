@@ -364,13 +364,17 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasSingleImplementation(JNIEnv* 
                                                                         jclass,
                                                                         jclass cls,
                                                                         jstring method_name) {
-  ArtMethod* method = nullptr;
   ScopedObjectAccess soa(Thread::Current());
   ScopedUtfChars chars(env, method_name);
   CHECK(chars.c_str() != nullptr);
-  method = soa.Decode<mirror::Class>(cls)->FindDeclaredVirtualMethodByName(
-      chars.c_str(), kRuntimePointerSize);
-  return method->HasSingleImplementation();
+  for (ArtMethod& method : soa.Decode<mirror::Class>(cls)->GetMethods(kRuntimePointerSize)) {
+    if (method.IsVirtual() && method.GetName() == std::string_view(chars.c_str())) {
+      ArtMethod* const np_method = method.GetInterfaceMethodIfProxy(kRuntimePointerSize);
+      return np_method->HasSingleImplementation();
+    }
+  }
+  LOG(FATAL) << "Should have found a method: " << std::string(chars.c_str());
+  return false;
 }
 
 extern "C" JNIEXPORT int JNICALL Java_Main_getHotnessCounter(JNIEnv* env,

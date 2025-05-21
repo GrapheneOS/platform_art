@@ -28,7 +28,7 @@
 #include <log/log.h>
 #include <nativebridge/native_bridge.h>
 
-#include "nativeloader/dlext_namespaces.h"
+#include <bionic/dlext_namespaces.h>
 
 using android::base::Error;
 

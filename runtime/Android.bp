@@ -109,9 +109,6 @@ cc_defaults {
     host_supported: true,
     target: {
         android: {
-            header_libs: [
-                "libnativeloader-headers", // For dlext_namespaces.h
-            ],
             shared_libs: [
                 "libdl_android",
                 "libstatspull", // for pulled atoms

@@ -42,9 +42,9 @@
 #ifdef ART_TARGET_ANDROID
 #include "android-modules-utils/sdk_level.h"
 #include "android/api-level.h"
+#include <bionic/dlext_namespaces.h>
 #include "library_namespaces.h"
 #include "log/log.h"
-#include "nativeloader/dlext_namespaces.h"
 #endif
 
 namespace android {

@@ -62,9 +62,6 @@ art_cc_library {
 
     target: {
         android: {
-            header_libs: [
-                "libnativeloader-headers", // For dlext_namespaces.h
-            ],
             shared_libs: ["libdl_android"],
         },
     },

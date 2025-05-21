@@ -4,7 +4,7 @@ class java.lang.Object
 Max locals: 3
 Argument size: 1
 Location start: 0
-Location end: 39
+Location end: ok
 Is native: false
 Is obsolete: false
 Is synthetic: false
@@ -52,7 +52,7 @@ class art.Test910$NestedSynthetic
 Max locals: 1
 Argument size: 0
 Location start: 0
-Location end: 2
+Location end: ok
 Is native: false
 Is obsolete: false
 Is synthetic: true
