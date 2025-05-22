@@ -25,11 +25,60 @@
 #include "android-base/macros.h"
 #include "android-base/stringprintf.h"
 
+#include "assume_value_options.h"
 #include "base/macros.h"
 #include "cmdline_parser.h"
+#include "com_android_art_flags.h"
 #include "compiler_options.h"
 
 namespace art HIDDEN {
+
+template <>
+struct CmdlineType<AssumeValueOptions> : CmdlineTypeParser<AssumeValueOptions> {
+  Result Parse(const std::string& args) {
+    assert(false && "Use AppendValues() for an AssumeValueOptions type");
+    return Result::Failure("Unconditional failure: AssumeValueOptions must be appended: " + args);
+  }
+
+  Result ParseAndAppend(const std::string& args, AssumeValueOptions& assume_value_options) {
+    std::vector<std::string> args_parts;
+    Split(args, ':', &args_parts);
+    if (args_parts.size() != 2) {
+      return Result::Failure(std::string("Invalid --assume-value option: '") + args + "'");
+    }
+
+    static constexpr std::string_view kMemberDelimiter("->");
+    std::string_view signature(args_parts[0]);
+    size_t delimiter_pos = signature.find(kMemberDelimiter);
+    if (delimiter_pos == std::string::npos) {
+      return Result::Failure(std::string("Invalid --assume-value signature: '") + args + "'");
+    }
+    std::string_view class_descriptor = signature.substr(0, delimiter_pos);
+    std::string_view member_name = signature.substr(delimiter_pos + kMemberDelimiter.size());
+
+    // TODO(b/204924812): Make this generic on the predefined and/or provided type.
+    const auto parsed_value = ParseNumeric<uint32_t>(args_parts[1]);
+    if (!parsed_value.IsSuccess()) {
+      return Result::Failure(std::string("Invalid --assume-value value: '") + args + "'");
+    }
+
+    if (!com::android::art::flags::compile_sdk_int_constant()) {
+      // Feature disabled, silently ignore setting the value. Note that if we ever add additional
+      // support beyond for more assumed values beyond SDK_INT, this will need to be adjusted.
+      return Result::SuccessNoValue();
+    }
+
+    if (!assume_value_options.MaybeSetAssumedValue(
+            class_descriptor, member_name, parsed_value.GetValue())) {
+      return Result::Failure(std::string("Invalid --assume-value assignment: '") + args + "'");
+    }
+
+    return Result::SuccessNoValue();
+  }
+
+  static const char* Name() { return "AssumeValueOptions"; }
+  static const char* DescribeType() { return "Lfoo/bar/Baz;->field:value"; }
+};
 
 template <>
 struct CmdlineType<CompilerFilter::Filter> : CmdlineTypeParser<CompilerFilter::Filter> {
@@ -104,6 +153,8 @@ inline bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string
   if (map.Exists(Base::DumpStats)) {
     options->dump_stats_ = true;
   }
+
+  map.AssignIfExists(Base::AssumeValueOpts, &options->assume_value_options_);
 
   return true;
 }
@@ -238,6 +289,14 @@ NO_INLINE void AddCompilerOptionsArgumentParserOptions(Builder& b) {
           .template WithType<unsigned int>()
           .WithHelp("Maximum solid block size for compressed images.")
           .IntoKey(Map::MaxImageBlockSize)
+
+      .Define("--assume-value=_")
+          .template WithType<AssumeValueOptions>()
+          .AppendValues()
+          .WithHelp("Optional assumed value for compiling a given field.\n"
+                    "E.g.: --assume-value=Landroid/os/Build$VERSION;->SDK_INT:23")
+          .IntoKey(Map::AssumeValueOpts)
+
       // Obsolete flags
       .Ignore({
         "--num-dex-methods=_",

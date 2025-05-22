@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "assume_value_options.h"
 #include "base/compiler_filter.h"
 #include "base/macros.h"
 #include "base/variant_map.h"

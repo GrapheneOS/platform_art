@@ -91,6 +91,10 @@ class OatFileAssistant {
     // respect to the class loader context.
     kOatContextOutOfDate,
 
+    // kOatAssumedValuesOutOfDate - The assumed compiler values in the oat file
+    // are of date with respect to the current runtime.
+    kOatAssumedValuesOutOfDate,
+
     // kOatUpToDate - The oat file is completely up to date with respect to
     // the dex file and boot image.
     kOatUpToDate,

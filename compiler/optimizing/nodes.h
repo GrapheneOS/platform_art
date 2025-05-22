@@ -48,6 +48,7 @@
 #include "handle_cache.h"
 #include "intrinsics_enum.h"
 #include "locations.h"
+#include "loop_information.h"
 #include "mirror/class.h"
 #include "mirror/method_type.h"
 #include "offsets.h"
@@ -689,127 +690,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
 
-class HLoopInformation final : public ArenaObject<kArenaAllocLoopInfo> {
- public:
-  HLoopInformation(HBasicBlock* header, HGraph* graph)
-      : header_(header),
-        suspend_check_(nullptr),
-        irreducible_(false),
-        contains_irreducible_loop_(false),
-        back_edges_(graph->GetAllocator()->Adapter(kArenaAllocLoopInfoBackEdges)),
-        // Make bit vector growable, as the number of blocks may change.
-        blocks_(graph->GetAllocator(),
-                graph->GetBlocks().size(),
-                true,
-                kArenaAllocLoopInfoBackEdges) {
-    back_edges_.reserve(kDefaultNumberOfBackEdges);
-  }
-
-  bool IsIrreducible() const { return irreducible_; }
-  bool ContainsIrreducibleLoop() const { return contains_irreducible_loop_; }
-
-  void Dump(std::ostream& os);
-
-  HBasicBlock* GetHeader() const {
-    return header_;
-  }
-
-  void SetHeader(HBasicBlock* block) {
-    header_ = block;
-  }
-
-  HSuspendCheck* GetSuspendCheck() const { return suspend_check_; }
-  void SetSuspendCheck(HSuspendCheck* check) { suspend_check_ = check; }
-  bool HasSuspendCheck() const { return suspend_check_ != nullptr; }
-
-  void AddBackEdge(HBasicBlock* back_edge) {
-    back_edges_.push_back(back_edge);
-  }
-
-  void RemoveBackEdge(HBasicBlock* back_edge) {
-    RemoveElement(back_edges_, back_edge);
-  }
-
-  bool IsBackEdge(const HBasicBlock& block) const {
-    return ContainsElement(back_edges_, &block);
-  }
-
-  size_t NumberOfBackEdges() const {
-    return back_edges_.size();
-  }
-
-  HBasicBlock* GetPreHeader() const;
-
-  const ArenaVector<HBasicBlock*>& GetBackEdges() const {
-    return back_edges_;
-  }
-
-  // Returns the lifetime position of the back edge that has the
-  // greatest lifetime position.
-  size_t GetLifetimeEnd() const;
-
-  void ReplaceBackEdge(HBasicBlock* existing, HBasicBlock* new_back_edge) {
-    ReplaceElement(back_edges_, existing, new_back_edge);
-  }
-
-  // Finds blocks that are part of this loop.
-  void Populate();
-
-  // Updates blocks population of the loop and all of its outer' ones recursively after the
-  // population of the inner loop is updated.
-  void PopulateInnerLoopUpwards(HLoopInformation* inner_loop);
-
-  // Returns whether this loop information contains `block`.
-  // Note that this loop information *must* be populated before entering this function.
-  bool Contains(const HBasicBlock& block) const;
-
-  // Returns whether this loop information is an inner loop of `other`.
-  // Note that `other` *must* be populated before entering this function.
-  bool IsIn(const HLoopInformation& other) const;
-
-  // Returns true if instruction is not defined within this loop.
-  bool IsDefinedOutOfTheLoop(HInstruction* instruction) const;
-
-  const ArenaBitVector& GetBlocks() const { return blocks_; }
-
-  void Add(HBasicBlock* block);
-  void Remove(HBasicBlock* block);
-
-  void ClearAllBlocks() {
-    blocks_.ClearAllBits();
-  }
-
-  bool HasBackEdgeNotDominatedByHeader() const;
-
-  bool IsPopulated() const {
-    return blocks_.GetHighestBitSet() != -1;
-  }
-
-  bool DominatesAllBackEdges(HBasicBlock* block);
-
-  bool HasExitEdge() const;
-
-  // Resets back edge and blocks-in-loop data.
-  void ResetBasicBlockData() {
-    back_edges_.clear();
-    ClearAllBlocks();
-  }
-
- private:
-  // Internal recursive implementation of `Populate`.
-  void PopulateRecursive(HBasicBlock* block);
-  void PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBitVector* finalized);
-
-  HBasicBlock* header_;
-  HSuspendCheck* suspend_check_;
-  bool irreducible_;
-  bool contains_irreducible_loop_;
-  ArenaVector<HBasicBlock*> back_edges_;
-  ArenaBitVector blocks_;
-
-  DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
-};
-
 // Stores try/catch information for basic blocks.
 // Note that HGraph is constructed so that catch blocks cannot simultaneously
 // be try blocks.
@@ -937,26 +817,6 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
            && (loop_info == nullptr || !loop_info->IsBackEdge(*this));
   }
 
-  void AddBackEdge(HBasicBlock* back_edge) {
-    if (loop_information_ == nullptr) {
-      loop_information_ = new (graph_->GetAllocator()) HLoopInformation(this, graph_);
-    }
-    DCHECK_EQ(loop_information_->GetHeader(), this);
-    loop_information_->AddBackEdge(back_edge);
-  }
-
-  // Registers a back edge; if the block was not a loop header before the call associates a newly
-  // created loop info with it.
-  //
-  // Used in SuperblockCloner to preserve LoopInformation object instead of reseting loop
-  // info for all blocks during back edges recalculation.
-  void AddBackEdgeWhileUpdating(HBasicBlock* back_edge) {
-    if (loop_information_ == nullptr || loop_information_->GetHeader() != this) {
-      loop_information_ = new (graph_->GetAllocator()) HLoopInformation(this, graph_);
-    }
-    loop_information_->AddBackEdge(back_edge);
-  }
-
   HGraph* GetGraph() const { return graph_; }
   void SetGraph(HGraph* graph) { graph_ = graph; }
 
@@ -977,10 +837,6 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
   }
 
   void ClearDominanceInformation();
-
-  int NumberOfBackEdges() const {
-    return IsLoopHeader() ? loop_information_->NumberOfBackEdges() : 0;
-  }
 
   HInstruction* GetFirstInstruction() const { return instructions_.first_instruction_; }
   HInstruction* GetLastInstruction() const { return instructions_.last_instruction_; }
@@ -1174,26 +1030,6 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
 
   HLoopInformation* GetLoopInformation() const {
     return loop_information_;
-  }
-
-  // Set the loop_information_ on this block. Overrides the current
-  // loop_information if it is an outer loop of the passed loop information.
-  // Note that this method is called while creating the loop information.
-  void SetInLoop(HLoopInformation* info) {
-    if (IsLoopHeader()) {
-      // Nothing to do. This just means `info` is an outer loop.
-    } else if (!IsInLoop()) {
-      loop_information_ = info;
-    } else if (loop_information_->Contains(*info->GetHeader())) {
-      // Block is currently part of an outer loop. Make it part of this inner loop.
-      // Note that a non loop header having a loop information means this loop information
-      // has already been populated
-      loop_information_ = info;
-    } else {
-      // Block is part of an inner loop. Do not update the loop information.
-      // Note that we cannot do the check `info->Contains(loop_information_)->GetHeader()`
-      // at this point, because this method is being called while populating `info`.
-    }
   }
 
   // Raw update of the loop information.

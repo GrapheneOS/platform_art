@@ -64,7 +64,12 @@ fi
 
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
 libcore_tests_classpath="core-tests core-ojtests jsr166-tests mockito-target"
-common_targets="vogar apache-harmony-jdwp-tests-hostdex ${libcore_tests_classpath}"
+libjdwp_tests_classpath="apache-harmony-jdwp-tests-hostdex"
+common_targets="vogar ${libjdwp_tests_classpath} ${libcore_tests_classpath}"
+# Add classpath for libjdwp tests.
+for jar in ${libjdwp_tests_classpath} ; do
+  common_targets="$common_targets out/host/common/obj/JAVA_LIBRARIES/${jar}_intermediates/classes.jar"
+done
 # Add classpath for libcore tests.
 for jar in ${libcore_tests_classpath} ; do
   common_targets="$common_targets out/target/common/obj/JAVA_LIBRARIES/${jar}_intermediates/classes.jar"

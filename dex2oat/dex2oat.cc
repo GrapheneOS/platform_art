@@ -974,6 +974,10 @@ class Dex2Oat final {
     key_value_store_->Put(OatHeader::kCompilerFilter,
                           CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
     key_value_store_->Put(OatHeader::kConcurrentCopying, compiler_options_->EmitReadBarrier());
+    if (compiler_options_->GetAssumeValueOptions().HasValidSdkInt()) {
+      key_value_store_->Put(OatHeader::kAssumeValueSdkIntKey,
+                            std::to_string(compiler_options_->GetAssumeValueOptions().SdkInt()));
+    }
     if (invocation_file_.get() != -1) {
       std::ostringstream oss;
       for (int i = 0; i < argc; ++i) {

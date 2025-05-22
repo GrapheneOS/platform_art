@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "assume_value_options.h"
 #include "base/compiler_filter.h"
 #include "base/globals.h"
 #include "base/hash_set.h"
@@ -383,6 +384,9 @@ class CompilerOptions final {
   // which at runtime we will need to dirty after initialization.
   EXPORT bool ShouldCompileWithClinitCheck(ArtMethod* method) const;
 
+  const AssumeValueOptions& GetAssumeValueOptions() const { return assume_value_options_; }
+  AssumeValueOptions& GetAssumeValueOptions() { return assume_value_options_; }
+
  private:
   EXPORT bool ParseDumpInitFailures(const std::string& option, std::string* error_msg);
 
@@ -485,6 +489,8 @@ class CompilerOptions final {
   // Passing pass names which are not recognized by the compiler will result in
   // compiler-dependant behavior.
   const std::vector<std::string>* passes_to_run_;
+
+  AssumeValueOptions assume_value_options_;
 
   friend class Dex2Oat;
   friend class CommonCompilerDriverTest;

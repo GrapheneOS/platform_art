@@ -136,6 +136,7 @@ art_cc_defaults {
     srcs: [
         "debug/elf_debug_writer.cc",
         "dex/inline_method_analyser.cc",
+        "driver/assume_value_options.cc",
         "driver/compiler_options.cc",
         "driver/dex_compilation_unit.cc",
         "jit/jit_compiler.cc",
@@ -174,6 +175,7 @@ art_cc_defaults {
         "optimizing/load_store_elimination.cc",
         "optimizing/locations.cc",
         "optimizing/loop_analysis.cc",
+        "optimizing/loop_information.cc",
         "optimizing/loop_optimization.cc",
         "optimizing/nodes.cc",
         "optimizing/nodes_vector.cc",

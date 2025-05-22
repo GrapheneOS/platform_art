@@ -269,7 +269,13 @@ void SuperblockCloner::FindBackEdgesLocal(HBasicBlock* entry_block, ArenaBitVect
 
       if (visiting.IsBitSet(successor_id)) {
         DCHECK(ContainsElement(worklist, successor));
-        successor->AddBackEdgeWhileUpdating(current);
+        // Register a back edge; if the `successor` was not a loop header, or if its loop info
+        // points to the cloned source loop header, associate a newly created loop info with it.
+        if (successor->GetLoopInformation() == nullptr ||
+            successor->GetLoopInformation()->GetHeader() != successor) {
+          successor->SetLoopInformation(new (arena_) HLoopInformation(successor, graph_));
+        }
+        successor->GetLoopInformation()->AddBackEdge(current);
       } else if (!visited.IsBitSet(successor_id)) {
         visited.SetBit(successor_id);
         visiting.SetBit(successor_id);

@@ -47,8 +47,8 @@ std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 class EXPORT PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: Add a virtual_thread_flags field to art::Thread.
-  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '6', '0', '\0'}};
+  // Last oat version changed reason: Add assume-value-sdk-int header key.
+  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '6', '1', '\0'}};
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
@@ -61,6 +61,9 @@ class EXPORT PACKED(4) OatHeader {
   static constexpr const char* kConcurrentCopying = "concurrent-copying";
   static constexpr const char* kCompilationReasonKey = "compilation-reason";
   static constexpr const char* kRequiresImage = "requires-image";
+  // Note: If we add support for additional assumed values, we should generalize this key to support
+  // repeated descriptor:value pairings.
+  static constexpr const char* kAssumeValueSdkIntKey = "assume-value-sdk-int";
 
   // Fields listed here are key value store fields that are deterministic across hosts and devices,
   // meaning they should have exactly the same value when the oat file is generated on different
@@ -72,7 +75,7 @@ class EXPORT PACKED(4) OatHeader {
   // excluded from the oat checksum computation. This makes the oat checksum deterministic across
   // hosts and devices, which is important for Cloud Compilation, where we generate an oat file on a
   // host and use it on a device.
-  static constexpr std::array<std::string_view, 9> kDeterministicFields{
+  static constexpr std::array<std::string_view, 10> kDeterministicFields{
       kDebuggableKey,
       kNativeDebuggableKey,
       kCompilerFilter,
@@ -82,6 +85,7 @@ class EXPORT PACKED(4) OatHeader {
       kConcurrentCopying,
       kCompilationReasonKey,
       kRequiresImage,
+      kAssumeValueSdkIntKey
   };
 
   static constexpr std::array<std::pair<std::string_view, size_t>, 2>
@@ -186,6 +190,8 @@ class EXPORT PACKED(4) OatHeader {
   CompilerFilter::Filter GetCompilerFilter() const;
   bool IsConcurrentCopying() const;
   bool RequiresImage() const;
+  bool HasAssumeValueSdkInt() const;
+  uint32_t GetAssumeValueSdkInt() const;
 
   const uint8_t* GetOatAddress(StubType type) const;
 

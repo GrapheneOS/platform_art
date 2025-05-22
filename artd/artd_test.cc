@@ -1025,6 +1025,7 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
                                     Not(Contains(Flag("-Xmx", _))),
                                     Not(Contains("--compile-individually")),
                                     Not(Contains(Flag("--image-format=", _))),
+                                    Not(Contains(Flag("--assume-value=", _))),
                                     Not(Contains("--force-jit-zygote")),
                                     Not(Contains(Flag("--boot-image=", _))))),
                   _,
@@ -1056,6 +1057,7 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.boot-image")).WillOnce(Return("boot-image"));
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-flags"))
       .WillOnce(Return("--flag1 --flag2  --flag3"));
+  EXPECT_CALL(*mock_props_, GetProperty("ro.build.version.sdk")).WillOnce(Return("77"));
 
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
@@ -1076,6 +1078,8 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
                                     Contains(Flag("--image-format=", "imgfmt")),
                                     Not(Contains("--force-jit-zygote")),
                                     Contains(Flag("--boot-image=", "boot-image")),
+                                    Contains(Flag("--assume-value=",
+                                                  "Landroid/os/Build$VERSION;->SDK_INT:77")),
                                     Contains("--flag1"),
                                     Contains("--flag2"),
                                     Contains("--flag3"))),
@@ -2965,6 +2969,8 @@ TEST_F(ArtdTest, BuildSystemProperties) {
 
 class ArtdPreRebootTest : public ArtdTest {
  protected:
+  static constexpr const char* kDefaultBuildVersionSdk = "35";
+
   void SetUp() override {
     ArtdTest::SetUp();
 
@@ -2982,7 +2988,7 @@ class ArtdPreRebootTest : public ArtdTest {
 
     ON_CALL(*mock_pre_reboot_build_props_, GetProperty).WillByDefault(Return(""));
     ON_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.build.version.sdk"))
-        .WillByDefault(Return("35"));
+        .WillByDefault(Return(kDefaultBuildVersionSdk));
     ON_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.build.version.codename"))
         .WillByDefault(Return("Baklava"));
     ON_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.build.version.known_codenames"))
@@ -3042,7 +3048,8 @@ TEST_F(ArtdPreRebootTest, preRebootInit) {
                                     AllOf(Contains(art_root_ + "/bin/art_exec"),
                                           Contains("--drop-capabilities")),
                                     AllOf(Contains("/apex/com.android.sdkext/bin/derive_classpath"),
-                                          Contains(Flag("--override-device-sdk-version=", "35")),
+                                          Contains(Flag("--override-device-sdk-version=",
+                                                        kDefaultBuildVersionSdk)),
                                           Contains(Flag("--override-device-codename=", "Baklava")),
                                           Contains(Flag("--override-device-known-codenames=",
                                                         "VanillaIceCream,Baklava")))),
@@ -3204,13 +3211,21 @@ TEST_F(ArtdPreRebootTest, preRebootInitCancelled) {
 
 TEST_F(ArtdPreRebootTest, dexopt) {
   std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  std::string assume_value_sdk_int =
+      std::string("Landroid/os/Build$VERSION;->SDK_INT:") + kDefaultBuildVersionSdk;
 
   dexopt_options_.generateAppImage = true;
 
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
-          WhenSplitBy("--", _, Contains(Flag("--profile-file-fd=", FdOf(profile_file)))), _, _))
+          WhenSplitBy(
+              "--",
+              _,
+              AllOf(Contains(Flag("--profile-file-fd=", FdOf(profile_file))),
+                    Contains(Flag("--assume-value=", assume_value_sdk_int)))),
+          _,
+          _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
                       WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),

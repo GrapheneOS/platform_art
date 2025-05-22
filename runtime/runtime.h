@@ -1194,6 +1194,9 @@ class Runtime {
 
   void DCheckNoTransactionCheckAllowed();
 
+  // Only used for testing.
+  void SetSdkVersion(uint32_t version) { sdk_version_ = version; }
+
   // Don't use EXPORT ("default" visibility), because quick_entrypoints_x86.o
   // refers to this symbol and it can't link with R_386_PC32 relocation.
   // A pointer to the active runtime or null.
@@ -1375,7 +1378,7 @@ class Runtime {
   //
   // For making compile-time decisions, DO NOT rely on this value because it may not be correct in
   // the Pre-reboot Dexopt case. Instead, use `CompilerOptions::SdkInt`.
-  const uint32_t sdk_version_;
+  uint32_t sdk_version_;
 
   // ART counterpart for the compat framework (go/compat-framework).
   CompatFramework compat_framework_;
