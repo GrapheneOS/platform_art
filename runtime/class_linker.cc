@@ -9931,12 +9931,13 @@ class RecordAnnotationVisitor final : public annotations::AnnotationVisitor {
 
   bool IsRecordAnnotationFound() { return count_ != 0; }
 
-  annotations::VisitorStatus VisitAnnotation(const char* descriptor, uint8_t visibility) override {
+  annotations::VisitorStatus VisitAnnotation(const char* descriptor,
+                                             DexFile::DexVisibility visibility) override {
     if (has_error_) {
       return annotations::VisitorStatus::kVisitBreak;
     }
 
-    if (visibility != DexFile::kDexVisibilitySystem) {
+    if (visibility != DexFile::DexVisibility::kSystem) {
       return annotations::VisitorStatus::kVisitNext;
     }
 

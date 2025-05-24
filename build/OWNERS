@@ -1,0 +1,2 @@
+# Soong plugin owned by Soong team.
+per-file Android.bp,*.go,go.mod,go.work,go.work.sum = file:platform/build/soong:/OWNERS

@@ -745,11 +745,11 @@ static void dumpAnnotationSetItem(const DexFile* pDexFile, const dex::Annotation
       continue;
     }
     fputs("  ", gOutFile);
-    switch (annotation->visibility_) {
-      case DexFile::kDexVisibilityBuild:   fputs("VISIBILITY_BUILD ",   gOutFile); break;
-      case DexFile::kDexVisibilityRuntime: fputs("VISIBILITY_RUNTIME ", gOutFile); break;
-      case DexFile::kDexVisibilitySystem:  fputs("VISIBILITY_SYSTEM ",  gOutFile); break;
-      default:                             fputs("VISIBILITY_UNKNOWN ", gOutFile); break;
+    switch (static_cast<DexFile::DexVisibility>(annotation->visibility_)) {
+      case DexFile::DexVisibility::kBuild:   fputs("VISIBILITY_BUILD ",   gOutFile); break;
+      case DexFile::DexVisibility::kRuntime: fputs("VISIBILITY_RUNTIME ", gOutFile); break;
+      case DexFile::DexVisibility::kSystem:  fputs("VISIBILITY_SYSTEM ",  gOutFile); break;
+      default:                               fputs("VISIBILITY_UNKNOWN ", gOutFile); break;
     }  // switch
     // Decode raw bytes in annotation.
     const u1* rData = annotation->annotation_;

@@ -133,7 +133,6 @@ cc_test {
         "NativeBridge2Signal_test.cpp",
         "NativeBridgeVersion_test.cpp",
         "NeedsNativeBridge_test.cpp",
-        "PreInitializeNativeBridge_test.cpp",
         "PreInitializeNativeBridgeFail2_test.cpp",
         "ReSetupNativeBridge_test.cpp",
         "UnavailableNativeBridge_test.cpp",

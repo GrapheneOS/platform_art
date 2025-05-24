@@ -2060,10 +2060,10 @@ bool DexFileVerifier::CheckIntraAnnotationItem() {
 
   // Check visibility
   uint8_t visibility = *(ptr_++);
-  switch (visibility) {
-    case DexFile::kDexVisibilityBuild:
-    case DexFile::kDexVisibilityRuntime:
-    case DexFile::kDexVisibilitySystem:
+  switch (static_cast<DexFile::DexVisibility>(visibility)) {
+    case DexFile::DexVisibility::kBuild:
+    case DexFile::DexVisibility::kRuntime:
+    case DexFile::DexVisibility::kSystem:
       break;
     default:
       ErrorStringPrintf("Bad annotation visibility: %x", visibility);
@@ -3488,14 +3488,12 @@ bool DexFileVerifier::CheckInterSection() {
 
   const dex::MapList* map = OffsetToPtr<dex::MapList>(header_->map_off_);
   const dex::MapItem* item = map->list_;
-  uint32_t count = map->size_;
 
   // Cross check the items listed in the map.
-  for (; count != 0u; --count) {
+  for (uint32_t count = map->size_; count != 0u; --count) {
     uint32_t section_offset = item->offset_;
     uint32_t section_count = item->size_;
     DexFile::MapItemType type = static_cast<DexFile::MapItemType>(item->type_);
-    bool found = false;
 
     if (type == DexFile::kDexTypeClassDataItem) {
       FindStringRangesForMethodNames();
@@ -3510,7 +3508,6 @@ bool DexFileVerifier::CheckInterSection() {
       case DexFile::kDexTypeDebugInfoItem:
       case DexFile::kDexTypeAnnotationItem:
       case DexFile::kDexTypeEncodedArrayItem:
-        found = true;
         break;
       case DexFile::kDexTypeStringIdItem:
       case DexFile::kDexTypeTypeIdItem:
@@ -3528,14 +3525,11 @@ bool DexFileVerifier::CheckInterSection() {
         if (!CheckInterSectionIterate(section_offset, section_count, type)) {
           return false;
         }
-        found = true;
         break;
       }
-    }
-
-    if (!found) {
-      ErrorStringPrintf("Unknown map item type %x", item->type_);
-      return false;
+      default:
+        ErrorStringPrintf("Unknown map item type %x", item->type_);
+        return false;
     }
 
     item++;

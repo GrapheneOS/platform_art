@@ -228,11 +228,13 @@ class DexFile {
   };
 
   // Annotation constants.
-  enum {
-    kDexVisibilityBuild         = 0x00,     /* annotation visibility */
-    kDexVisibilityRuntime       = 0x01,
-    kDexVisibilitySystem        = 0x02,
+  enum class DexVisibility : uint8_t {
+    kBuild         = 0x00,
+    kRuntime       = 0x01,
+    kSystem        = 0x02,
+  };
 
+  enum {
     kDexAnnotationByte          = 0x00,
     kDexAnnotationShort         = 0x02,
     kDexAnnotationChar          = 0x03,

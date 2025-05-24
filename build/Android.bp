@@ -13,6 +13,7 @@ bootstrap_go_package {
     pkgPath: "android/soong/art",
     deps: [
         "blueprint",
+        "blueprint-gobtools",
         "blueprint-pathtools",
         "blueprint-proptools",
         "soong",
@@ -22,6 +23,7 @@ bootstrap_go_package {
     ],
     srcs: [
         "art.go",
+        "art_gob_enc.go",
         "codegen.go",
         "makevars.go",
     ],

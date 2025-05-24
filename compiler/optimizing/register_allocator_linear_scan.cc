@@ -1044,8 +1044,7 @@ bool RegisterAllocatorLinearScan::LinearScan::TryUsingSpillSlotHint(LiveInterval
   DCHECK_LE(hint + number_of_spill_slots_needed, spill_slots->size());
   DCHECK(current->GetParent() == current);
   size_t start = current->GetStart();
-  DCHECK(current->GetLastSibling() == current);
-  size_t end = current->GetEnd();
+  size_t end = current->GetLastSibling()->GetEnd();
   ArrayRef<SpillSlotData> range =
       ArrayRef<SpillSlotData>(*spill_slots).SubArray(hint, number_of_spill_slots_needed);
   if (std::any_of(range.begin(),

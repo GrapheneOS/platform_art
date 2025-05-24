@@ -917,4 +917,88 @@ TEST_F(RegisterAllocatorTest, ReuseSpillSlotGaps) {
   EXPECT_EQ(phi2->GetLiveInterval()->GetSpillSlot(), neg2->GetLiveInterval()->GetSpillSlot());
 }
 
+// Regression test for wrongly assuming that a Phi interval with a spill slot hint
+// is not split when checking if the spill slot can be used. Indeed, it can be split
+// and we must use the sibling to determine the lifetime end.
+TEST_F(RegisterAllocatorTest, ReuseSpillSlotsUnavailableWithSplitPhiInterval) {
+  if (!com::android::art::flags::reg_alloc_spill_slot_reuse()) {
+    GTEST_SKIP() << "Improved spill slot reuse disabled.";
+  }
+  HBasicBlock* return_block = InitEntryMainExitGraph();
+  auto [start, left, right] = CreateDiamondPattern(return_block);
+  HInstruction* const0 = graph_->GetIntConstant(0);
+  HInstruction* obj = MakeParam(DataType::Type::kReference);
+  HInstruction* cond = MakeIFieldGet(start, obj, DataType::Type::kBool, MemberOffset(32));
+  MakeIf(start, cond);
+
+  // Add a load followed by `HNeg`, so that the loaded value is spilled.
+  HInstruction* left_get = MakeIFieldGet(left, obj, DataType::Type::kInt32, MemberOffset(36));
+  HNeg* left_neg = MakeUnOp<HNeg>(left, DataType::Type::kInt32, left_get);
+
+  // Repeat the sequence from `left` block in the `right` block (with a different offset).
+  HInstruction* right_get = MakeIFieldGet(right, obj, DataType::Type::kInt32, MemberOffset(40));
+  HNeg* right_neg = MakeUnOp<HNeg>(right, DataType::Type::kInt32, right_get);
+
+  // Phis shall be processed in the order in which they are inserted.
+  // The first Phi shall initially be allocated the only available register.
+  HPhi* phi1 = MakePhi(return_block, {const0, right_neg});
+  // The second Phi has no register use, so it shall be spilled.
+  // The spill slot used by `left_get` and `right_get` shall be reused for this unrelated Phi.
+  HPhi* phi2 = MakePhi(return_block, {left_neg, const0});
+  // The third Phi has a hint that would put it to the same spill slot as both of its inputs
+  // if it was not already taken by `phi2`. But the spill slot is no longer available, so we
+  // try to allocate a register. Since `get_phi`'s first register use is before the `phi1`'s
+  // first register use, we allocate the register for `get_phi` and re-insert `phi1` to the
+  // unhandled intervals. However, since the last use of `get_phi` is after the `invoke`
+  // which blocks the register, `get_phi`'s interval shall be split in the process.
+  HPhi* get_phi = MakePhi(return_block, {left_get, right_get});
+  // The fourth Phi has an earlier register use than `get_phi`, so it shall be allocated
+  // the register and `get_phi`'s interval shall be re-inserted to unhandled intervals.
+  HPhi* neg_phi = MakePhi(return_block, {left_neg, right_neg});
+  // Then we shall re-process `phi1`, assigning the next spill slot.
+  // Then we shall re-process `get_phi` and try to assign the hint slot where we previously
+  // wrongly assumed that it has no sibling and triggered a `DCHECK()`.
+
+  // Add a register use for the `neg_phi`.
+  HNeg* neg_neg = MakeUnOp<HNeg>(return_block, DataType::Type::kInt32, neg_phi);
+  // Add a register use for the `get_phi`.
+  // Use `HSub` which can have the second operand on the stack for x86.
+  HSub* sub1 = MakeBinOp<HSub>(return_block, DataType::Type::kInt32, get_phi, neg_neg);
+  // Add an invoke that forces the `get_phi` interval to be split when initially allocated.
+  HInvoke* invoke = MakeInvokeStatic(return_block, DataType::Type::kVoid, {}, {});
+  // Add another register use for the `get_phi` after the `invoke`.
+  HSub* sub2 = MakeBinOp<HSub>(return_block, DataType::Type::kInt32, get_phi, sub1);
+
+  // Add some instructions that use all the values to derive some return value.
+  HSub* sub3 = MakeBinOp<HSub>(return_block, DataType::Type::kInt32, sub2, phi1);
+  HSub* sub4 = MakeBinOp<HSub>(return_block, DataType::Type::kInt32, sub3, phi2);
+  MakeReturn(return_block, sub4);
+
+  graph_->ComputeDominanceInformation();
+  x86::CodeGeneratorX86 codegen(graph_, *compiler_options_);
+  SsaLivenessAnalysis liveness(graph_, &codegen, GetScopedAllocator());
+  liveness.Analyze();
+
+  // Set just one register available to make all intervals compete for the same.
+  // Note that the `obj` parameter comes in the blocked ECX which works fine for the test.
+  bool* blocked_registers = codegen.GetBlockedCoreRegisters();
+  std::fill_n(blocked_registers + 1, codegen.GetNumberOfCoreRegisters() - 1, true);
+
+  std::unique_ptr<RegisterAllocator> register_allocator =
+      RegisterAllocator::Create(GetScopedAllocator(), &codegen, liveness);
+  register_allocator->AllocateRegisters();
+
+  ASSERT_TRUE(left_get->GetLiveInterval()->HasSpillSlot());
+  ASSERT_TRUE(right_get->GetLiveInterval()->HasSpillSlot());
+  ASSERT_EQ(left_get->GetLiveInterval()->GetSpillSlot(),
+            right_get->GetLiveInterval()->GetSpillSlot());
+
+  ASSERT_TRUE(phi2->GetLiveInterval()->HasSpillSlot());
+  ASSERT_EQ(left_get->GetLiveInterval()->GetSpillSlot(), phi2->GetLiveInterval()->GetSpillSlot());
+
+  ASSERT_TRUE(get_phi->GetLiveInterval()->HasSpillSlot());
+  ASSERT_NE(left_get->GetLiveInterval()->GetSpillSlot(),
+            get_phi->GetLiveInterval()->GetSpillSlot());
+}
+
 }  // namespace art

@@ -76,7 +76,7 @@ EXPORT ObjPtr<mirror::ObjectArray<mirror::String>> GetSignatureAnnotationForMeth
 // side effect.
 bool IsMethodAnnotationPresent(ArtMethod* method,
                                Handle<mirror::Class> annotation_class,
-                               uint32_t visibility = DexFile::kDexVisibilityRuntime)
+                               DexFile::DexVisibility visibility = DexFile::DexVisibility::kRuntime)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Check whether a method from the `dex_file` with the given `method_index`
@@ -195,7 +195,8 @@ enum class VisitorStatus : uint8_t { kVisitBreak, kVisitNext, kVisitInner };
 class AnnotationVisitor {
  public:
   virtual ~AnnotationVisitor() {}
-  virtual VisitorStatus VisitAnnotation(const char* annotation_descriptor, uint8_t visibility) = 0;
+  virtual VisitorStatus VisitAnnotation(const char* annotation_descriptor,
+                                        DexFile::DexVisibility visibility) = 0;
   virtual VisitorStatus VisitAnnotationElement(const char* element_name,
                                                uint8_t type,
                                                const JValue& value) = 0;

@@ -27,8 +27,11 @@ import (
 	"android/soong/cc/config"
 )
 
+//go:generate go run ../../build/blueprint/gobtools/codegen/gob_gen.go
+
 var supportedArches = []string{"arm", "arm64", "riscv64", "x86", "x86_64"}
 
+// @auto-generate: gob
 type testInstallInfo struct {
 	Testcases map[string]string
 	TestMap   map[string][]string
