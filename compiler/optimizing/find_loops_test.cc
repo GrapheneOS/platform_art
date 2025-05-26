@@ -111,10 +111,10 @@ static void TestBlock(HGraph* graph,
 
   if (blocks_in_loop != nullptr) {
     HLoopInformation* info = block->GetLoopInformation();
-    const BitVector& blocks = info->GetBlocks();
-    ASSERT_EQ(blocks.NumSetBits(), number_of_blocks);
+    const BitVector& block_mask = info->GetBlockMask();
+    ASSERT_EQ(block_mask.NumSetBits(), number_of_blocks);
     for (size_t i = 0; i < number_of_blocks; ++i) {
-      ASSERT_TRUE(blocks.IsBitSet(blocks_in_loop[i]));
+      ASSERT_TRUE(block_mask.IsBitSet(blocks_in_loop[i]));
     }
   } else {
     ASSERT_FALSE(block->IsLoopHeader());

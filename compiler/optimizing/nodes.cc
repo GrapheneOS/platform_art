@@ -2207,8 +2207,8 @@ void HBasicBlock::DisconnectAndDelete() {
     // was their dominator.
     // Note that we do not remove `this` from `loop_info` as it is unreachable.
     DCHECK(!loop_info->IsIrreducible());
-    DCHECK_EQ(loop_info->GetBlocks().NumSetBits(), 1u);
-    DCHECK_EQ(static_cast<uint32_t>(loop_info->GetBlocks().GetHighestBitSet()), GetBlockId());
+    DCHECK_EQ(loop_info->GetBlockMask().NumSetBits(), 1u);
+    DCHECK_EQ(static_cast<uint32_t>(loop_info->GetBlockMask().GetHighestBitSet()), GetBlockId());
     loop_update_start = loop_info->GetPreHeader();
   }
 

@@ -113,7 +113,7 @@ TEST_F(SuperblockClonerTest, CloneBasicBlocks) {
   HInstructionMap hir_map(std::less<HInstruction*>(), arena->Adapter(kArenaAllocSuperblockCloner));
 
   HLoopInformation* loop_info = header->GetLoopInformation();
-  orig_bb_set.Union(&loop_info->GetBlocks());
+  orig_bb_set.Union(&loop_info->GetBlockMask());
 
   SuperblockCloner cloner(graph_,
                           &orig_bb_set,
@@ -190,7 +190,7 @@ TEST_F(SuperblockClonerTest, AdjustControlFlowInfo) {
       arena, graph_->GetBlocks().size(), false, kArenaAllocSuperblockCloner);
 
   HLoopInformation* loop_info = header->GetLoopInformation();
-  orig_bb_set.Union(&loop_info->GetBlocks());
+  orig_bb_set.Union(&loop_info->GetBlockMask());
 
   SuperblockCloner cloner(graph_,
                           &orig_bb_set,
@@ -501,7 +501,7 @@ TEST_F(SuperblockClonerTest, FastCaseCheck) {
 
   ArenaBitVector orig_bb_set(
       arena, graph_->GetBlocks().size(), false, kArenaAllocSuperblockCloner);
-  orig_bb_set.Union(&loop_info->GetBlocks());
+  orig_bb_set.Union(&loop_info->GetBlockMask());
 
   HEdgeSet remap_orig_internal(graph_->GetAllocator()->Adapter(kArenaAllocSuperblockCloner));
   HEdgeSet remap_copy_internal(graph_->GetAllocator()->Adapter(kArenaAllocSuperblockCloner));

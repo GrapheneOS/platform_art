@@ -451,7 +451,7 @@ void SuperblockCloner::FindAndSetLocalAreaForAdjustments() {
 
   if (outer_loop_ != nullptr) {
     // Save the loop population info as it will be changed later.
-    outer_loop_bb_set_.Copy(&outer_loop_->GetBlocks());
+    outer_loop_bb_set_.Copy(&outer_loop_->GetBlockMask());
   }
 }
 
@@ -882,7 +882,7 @@ bool SuperblockCloner::IsFastCase() const {
   }
 
   // Check that orig_bb_set_ corresponds to loop peeling/unrolling.
-  if (common_loop_info == nullptr || !orig_bb_set_.SameBitsSet(&common_loop_info->GetBlocks())) {
+  if (common_loop_info == nullptr || !orig_bb_set_.SameBitsSet(&common_loop_info->GetBlockMask())) {
     return false;
   }
 

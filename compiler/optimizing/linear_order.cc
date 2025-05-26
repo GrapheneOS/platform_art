@@ -61,7 +61,7 @@ static bool IsLinearOrderWellFormed(const HGraph* graph, ArrayRef<HBasicBlock*> 
       continue;
     }
     HLoopInformation* loop = header->GetLoopInformation();
-    size_t num_blocks = loop->GetBlocks().NumSetBits();
+    size_t num_blocks = loop->GetBlockMask().NumSetBits();
     size_t found_blocks = 0u;
     for (HBasicBlock* block : linear_order) {
       if (loop->Contains(*block)) {

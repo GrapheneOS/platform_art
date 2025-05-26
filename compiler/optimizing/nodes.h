@@ -8338,7 +8338,7 @@ class CloneAndReplaceInstructionVisitor final : public HGraphDelegateVisitor {
 class HBlocksInLoopIterator final : public ValueObject {
  public:
   explicit HBlocksInLoopIterator(const HLoopInformation& info)
-      : blocks_in_loop_(info.GetBlocks()),
+      : blocks_in_loop_(info.GetBlockMask()),
         blocks_(info.GetHeader()->GetGraph()->GetBlocks()),
         index_(0) {
     if (!blocks_in_loop_.IsBitSet(index_)) {
@@ -8371,7 +8371,7 @@ class HBlocksInLoopIterator final : public ValueObject {
 class HBlocksInLoopReversePostOrderIterator final : public ValueObject {
  public:
   explicit HBlocksInLoopReversePostOrderIterator(const HLoopInformation& info)
-      : blocks_in_loop_(info.GetBlocks()),
+      : blocks_in_loop_(info.GetBlockMask()),
         blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
         index_(0) {
     if (!blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {
@@ -8403,7 +8403,7 @@ class HBlocksInLoopReversePostOrderIterator final : public ValueObject {
 class HBlocksInLoopPostOrderIterator final : public ValueObject {
  public:
   explicit HBlocksInLoopPostOrderIterator(const HLoopInformation& info)
-      : blocks_in_loop_(info.GetBlocks()),
+      : blocks_in_loop_(info.GetBlockMask()),
         blocks_(info.GetHeader()->GetGraph()->GetReversePostOrder()),
         index_(blocks_.size() - 1) {
     if (!blocks_in_loop_.IsBitSet(blocks_[index_]->GetBlockId())) {

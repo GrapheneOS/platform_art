@@ -374,7 +374,8 @@ class LoopClonerHelper : public ValueObject {
                    SuperblockCloner::HInstructionMap* hir_map,
                    InductionVarRange* induction_range) :
       loop_info_(info),
-      cloner_(info->GetHeader()->GetGraph(), &info->GetBlocks(), bb_map, hir_map, induction_range) {
+      cloner_(
+          info->GetHeader()->GetGraph(), &info->GetBlockMask(), bb_map, hir_map, induction_range) {
     // For now do transformations only for natural loops.
     DCHECK(!info->IsIrreducible());
   }

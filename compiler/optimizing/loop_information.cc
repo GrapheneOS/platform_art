@@ -28,10 +28,10 @@ HLoopInformation::HLoopInformation(HBasicBlock* header, HGraph* graph)
       contains_irreducible_loop_(false),
       back_edges_(graph->GetAllocator()->Adapter(kArenaAllocLoopInfoBackEdges)),
       // Make bit vector growable, as the number of blocks may change.
-      blocks_(graph->GetAllocator(),
-              graph->GetBlocks().size(),
-              /*expandable=*/ true,
-              kArenaAllocLoopInfoBackEdges) {
+      block_mask_(graph->GetAllocator(),
+                  graph->GetBlocks().size(),
+                  /*expandable=*/ true,
+                  kArenaAllocLoopInfoBackEdges) {
   back_edges_.reserve(kDefaultNumberOfBackEdges);
 }
 
@@ -44,25 +44,25 @@ void HLoopInformation::Dump(std::ostream& os) {
   for (HBasicBlock* block : header_->GetPredecessors()) {
     os << "predecessor: " << block->GetBlockId() << std::endl;
   }
-  for (uint32_t idx : blocks_.Indexes()) {
+  for (uint32_t idx : block_mask_.Indexes()) {
     os << "  in loop: " << idx << std::endl;
   }
 }
 
 void HLoopInformation::Add(HBasicBlock* block) {
-  blocks_.SetBit(block->GetBlockId());
+  block_mask_.SetBit(block->GetBlockId());
 }
 
 void HLoopInformation::Remove(HBasicBlock* block) {
-  blocks_.ClearBit(block->GetBlockId());
+  block_mask_.ClearBit(block->GetBlockId());
 }
 
 void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
-  if (blocks_.IsBitSet(block->GetBlockId())) {
+  if (block_mask_.IsBitSet(block->GetBlockId())) {
     return;
   }
 
-  blocks_.SetBit(block->GetBlockId());
+  block_mask_.SetBit(block->GetBlockId());
   MarkInLoop(block);
   if (block->IsLoopHeader()) {
     // We're visiting loops in post-order, so inner loops must have been
@@ -95,9 +95,9 @@ void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBit
     // yet.
     HBasicBlock* pre_header = block->GetPredecessors()[0];
     PopulateIrreducibleRecursive(pre_header, finalized);
-    if (blocks_.IsBitSet(pre_header->GetBlockId())) {
+    if (block_mask_.IsBitSet(pre_header->GetBlockId())) {
       MarkInLoop(block);
-      blocks_.SetBit(block_id);
+      block_mask_.SetBit(block_id);
       finalized->SetBit(block_id);
       is_finalized = true;
 
@@ -111,9 +111,9 @@ void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBit
     // block is also part of this loop.
     for (HBasicBlock* predecessor : block->GetPredecessors()) {
       PopulateIrreducibleRecursive(predecessor, finalized);
-      if (!is_finalized && blocks_.IsBitSet(predecessor->GetBlockId())) {
+      if (!is_finalized && block_mask_.IsBitSet(predecessor->GetBlockId())) {
         MarkInLoop(block);
-        blocks_.SetBit(block_id);
+        block_mask_.SetBit(block_id);
         finalized->SetBit(block_id);
         is_finalized = true;
       }
@@ -127,14 +127,14 @@ void HLoopInformation::PopulateIrreducibleRecursive(HBasicBlock* block, ArenaBit
 }
 
 void HLoopInformation::Populate() {
-  DCHECK_EQ(blocks_.NumSetBits(), 0u) << "Loop information has already been populated";
+  DCHECK_EQ(block_mask_.NumSetBits(), 0u) << "Loop information has already been populated";
   // Populate this loop: starting with the back edge, recursively add predecessors
   // that are not already part of that loop. Set the header as part of the loop
   // to end the recursion.
   // This is a recursive implementation of the algorithm described in
   // "Advanced Compiler Design & Implementation" (Muchnick) p192.
   HGraph* graph = header_->GetGraph();
-  blocks_.SetBit(header_->GetBlockId());
+  block_mask_.SetBit(header_->GetBlockId());
   MarkInLoop(header_);
 
   bool is_irreducible_loop = HasBackEdgeNotDominatedByHeader();
@@ -185,7 +185,7 @@ void HLoopInformation::Populate() {
 
 void HLoopInformation::PopulateInnerLoopUpwards(HLoopInformation* inner_loop) {
   DCHECK(inner_loop->GetPreHeader()->GetLoopInformation() == this);
-  blocks_.Union(&inner_loop->blocks_);
+  block_mask_.Union(&inner_loop->block_mask_);
   HLoopInformation* outer_loop = GetPreHeader()->GetLoopInformation();
   if (outer_loop != nullptr) {
     outer_loop->PopulateInnerLoopUpwards(this);
@@ -199,15 +199,15 @@ HBasicBlock* HLoopInformation::GetPreHeader() const {
 }
 
 bool HLoopInformation::Contains(const HBasicBlock& block) const {
-  return blocks_.IsBitSet(block.GetBlockId());
+  return block_mask_.IsBitSet(block.GetBlockId());
 }
 
 bool HLoopInformation::IsIn(const HLoopInformation& other) const {
-  return other.blocks_.IsBitSet(header_->GetBlockId());
+  return other.block_mask_.IsBitSet(header_->GetBlockId());
 }
 
 bool HLoopInformation::IsDefinedOutOfTheLoop(HInstruction* instruction) const {
-  return !blocks_.IsBitSet(instruction->GetBlock()->GetBlockId());
+  return !block_mask_.IsBitSet(instruction->GetBlock()->GetBlockId());
 }
 
 size_t HLoopInformation::GetLifetimeEnd() const {

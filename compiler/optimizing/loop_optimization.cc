@@ -492,12 +492,12 @@ static bool HasLoopDiamondStructure(HLoopInformation* loop_info) {
     return false;
   }
 
-  DCHECK_EQ(loop_info->GetBlocks().NumSetBits(), 5u);
+  DCHECK_EQ(loop_info->GetBlockMask().NumSetBits(), 5u);
   return true;
 }
 
 static bool IsPredicatedLoopControlFlowSupported(HLoopInformation* loop_info) {
-  size_t num_of_blocks = loop_info->GetBlocks().NumSetBits();
+  size_t num_of_blocks = loop_info->GetBlockMask().NumSetBits();
   return num_of_blocks == 2 || HasLoopDiamondStructure(loop_info);
 }
 
@@ -896,7 +896,7 @@ bool HLoopOptimization::TryOptimizeInnerLoopFinite(LoopNode* node) {
   // a trivial loop (just iterating once). Replace subsequent index uses, if any,
   // with the last value and remove the loop, possibly after unrolling its body.
   HPhi* main_phi = nullptr;
-  size_t num_of_blocks = header->GetLoopInformation()->GetBlocks().NumSetBits();
+  size_t num_of_blocks = header->GetLoopInformation()->GetBlockMask().NumSetBits();
 
   if (num_of_blocks == 2 && TrySetSimpleLoopHeader(header, &main_phi)) {
     bool is_empty = IsEmptyBody(body);
@@ -952,7 +952,7 @@ bool HLoopOptimization::TryVectorizePredicated(LoopNode* node,
   //
   // TODO: Support array disambiguation tests for CF loops.
   if (NeedsArrayRefsDisambiguationTest() &&
-      node->loop_info->GetBlocks().NumSetBits() != 2) {
+      node->loop_info->GetBlockMask().NumSetBits() != 2) {
     return false;
   }
 
@@ -968,7 +968,7 @@ bool HLoopOptimization::TryVectorizedTraditional(LoopNode* node,
                                                  HPhi* main_phi,
                                                  int64_t trip_count) {
   HBasicBlock* header = node->loop_info->GetHeader();
-  size_t num_of_blocks = header->GetLoopInformation()->GetBlocks().NumSetBits();
+  size_t num_of_blocks = header->GetLoopInformation()->GetBlockMask().NumSetBits();
 
   if (num_of_blocks != 2 || !ShouldVectorizeCommon(node, main_phi, trip_count)) {
     return false;
@@ -3171,7 +3171,7 @@ void HLoopOptimization::InitPredicateInfoMap(LoopNode* node,
   // would just exit the loop then.
   header_info->SetControlFlowInfo(loop_main_pred, loop_main_pred);
 
-  size_t blocks_in_loop = header->GetLoopInformation()->GetBlocks().NumSetBits();
+  size_t blocks_in_loop = header->GetLoopInformation()->GetBlockMask().NumSetBits();
   if (blocks_in_loop == 2) {
     for (HBasicBlock* successor : header->GetSuccessors()) {
       if (loop_info->Contains(*successor)) {

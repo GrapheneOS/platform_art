@@ -953,7 +953,7 @@ void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
     }
   }
 
-  const ArenaBitVector& loop_blocks = loop_information->GetBlocks();
+  const ArenaBitVector& loop_blocks = loop_information->GetBlockMask();
 
   // Ensure back edges belong to the loop.
   if (loop_information->NumberOfBackEdges() == 0) {
@@ -982,7 +982,7 @@ void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
   // If this is a nested loop, ensure the outer loops contain a superset of the blocks.
   for (HLoopInformationOutwardIterator it(*loop_header); !it.Done(); it.Advance()) {
     HLoopInformation* outer_info = it.Current();
-    if (!loop_blocks.IsSubsetOf(&outer_info->GetBlocks())) {
+    if (!loop_blocks.IsSubsetOf(&outer_info->GetBlockMask())) {
       AddError(StringPrintf("Blocks of loop defined by header %d are not a subset of blocks of "
                             "an outer loop defined by header %d.",
                             id,
