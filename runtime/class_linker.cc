@@ -758,10 +758,22 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Set the empty field array to the object array class, to be used by other
   // classes which don't have fields.
   LinearAlloc* linear_alloc = runtime->GetLinearAlloc();
-  object_array_class->SetFieldsPtrUnchecked(reinterpret_cast<LengthPrefixedArray<ArtField>*>(
-      linear_alloc->Alloc(self,
-                          LengthPrefixedArray<ArtField>::ComputeSize(0),
-                          LinearAllocKind::kNoGCRoots)));
+  auto* empty_field_array = linear_alloc->Alloc(
+      self,
+      LengthPrefixedArray<ArtField>::ComputeSize(0),
+      LinearAllocKind::kNoGCRoots);
+  object_array_class->SetFieldsPtr(
+      reinterpret_cast<LengthPrefixedArray<ArtField>*>(empty_field_array));
+  size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
+  size_t method_size = ArtMethod::Size(image_pointer_size_);
+  auto* empty_method_array = linear_alloc->Alloc(
+      self,
+      LengthPrefixedArray<ArtMethod>::ComputeSize(0, method_size, method_alignment),
+      LinearAllocKind::kNoGCRoots);
+  object_array_class->SetMethodsPtr(
+      reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(empty_method_array),
+      /* num_direct= */ 0u,
+      /* num_virtual= */ 0u);
 
   // Setup java.lang.String.
   //
@@ -2878,7 +2890,6 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   array_class->PopulateEmbeddedVTable(image_pointer_size_);
   ImTable* object_imt = java_lang_Object->GetImt(image_pointer_size_);
   array_class->SetImt(object_imt, image_pointer_size_);
-  DCHECK_EQ(array_class->NumMethods(), 0u);
 
   // don't need to set new_class->SetObjectSize(..)
   // because Object::SizeOf delegates to Array::SizeOf
@@ -2910,8 +2921,10 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   // or from a pre-fence visitor, so visibly initialized.
   array_class->SetStatusForPrimitiveOrArray(ClassStatus::kVisiblyInitialized);
 
-  // Arrays have no field.
+  // Arrays have no field and no method.
   array_class->SetFieldsPtrUnchecked(GetEmptyFieldArray());
+  array_class->SetMethodsPtrUnchecked(GetEmptyMethodArray(), 0, 0);
+  DCHECK_EQ(array_class->NumMethods(), 0u);
 }
 
 void ClassLinker::FinishCoreArrayClassSetup(ClassRoot array_root) {
@@ -3945,7 +3958,7 @@ LengthPrefixedArray<ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self,
                                                                  LinearAlloc* allocator,
                                                                  size_t length) {
   if (length == 0) {
-    return nullptr;
+    return GetEmptyMethodArray();
   }
   const size_t method_alignment = ArtMethod::Alignment(image_pointer_size_);
   const size_t method_size = ArtMethod::Size(image_pointer_size_);
@@ -4425,6 +4438,7 @@ void ClassLinker::LoadClass(Thread* self,
                          /* parse_hiddenapi_class_data= */ klass->IsBootStrapClassLoaded());
   if (!accessor.HasClassData()) {
     klass->SetFieldsPtrUnchecked(GetEmptyFieldArray());
+    klass->SetMethodsPtrUnchecked(GetEmptyMethodArray(), 0, 0);
     return;
   }
   Runtime* const runtime = Runtime::Current();
@@ -4822,7 +4836,6 @@ void ClassLinker::CreatePrimitiveClass(Thread* self,
   primitive_class->SetAccessFlagsDuringLinking(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetIfTable(GetClassRoot<mirror::Object>(this)->GetIfTable());
-  DCHECK_EQ(primitive_class->NumMethods(), 0u);
   // Primitive classes are initialized during single threaded startup, so visibly initialized.
   primitive_class->SetStatusForPrimitiveOrArray(ClassStatus::kVisiblyInitialized);
   std::string_view descriptor(Primitive::Descriptor(type));
@@ -4832,6 +4845,8 @@ void ClassLinker::CreatePrimitiveClass(Thread* self,
   CHECK(existing == nullptr) << "InitPrimitiveClass(" << type << ") failed";
   SetClassRoot(primitive_root, primitive_class);
   primitive_class->SetFieldsPtrUnchecked(GetEmptyFieldArray());
+  primitive_class->SetMethodsPtrUnchecked(GetEmptyMethodArray(), 0, 0);
+  DCHECK_EQ(primitive_class->NumMethods(), 0u);
 }
 
 inline ObjPtr<mirror::IfTable> ClassLinker::GetArrayIfTable() {
@@ -4839,7 +4854,15 @@ inline ObjPtr<mirror::IfTable> ClassLinker::GetArrayIfTable() {
 }
 
 inline LengthPrefixedArray<ArtField>* ClassLinker::GetEmptyFieldArray() {
-  return GetClassRoot<mirror::ObjectArray<mirror::Object>>(this)->GetFieldsPtrUnchecked();
+  // No need for a read barrier, as the array is a constant.
+  return GetClassRoot<mirror::ObjectArray<mirror::Object>, kWithoutReadBarrier>(this)
+      ->GetFieldsPtrUnchecked();
+}
+
+inline LengthPrefixedArray<ArtMethod>* ClassLinker::GetEmptyMethodArray() {
+  // No need for a read barrier, as the array is a constant.
+  return GetClassRoot<mirror::ObjectArray<mirror::Object>, kWithoutReadBarrier>(this)
+      ->GetMethodsPtr();
 }
 
 // Create an array class (i.e. the class object for the array, not the
@@ -6637,11 +6660,8 @@ bool ClassLinker::LinkClass(Thread* self,
     // Set the fields array to the empty shared array, as we don't expect null
     // for field array.
     klass->SetFieldsPtrUnchecked(GetEmptyFieldArray());
-    // Set method array to null since we don't want to have multiple classes with the same
-    // ArtMethod array pointers. If this occurs, it causes bugs in remembered sets since the GC
-    // may not see any references to the target space and clean the card for a class if another
-    // class had the same array pointer.
-    klass->SetMethodsPtrUnchecked(nullptr, 0, 0);
+    // Set method array to the empty shared array.
+    klass->SetMethodsPtrUnchecked(GetEmptyMethodArray(), 0, 0);
     if (UNLIKELY(h_new_class == nullptr)) {
       self->AssertPendingOOMException();
       mirror::Class::SetStatus(klass, ClassStatus::kErrorUnresolved, self);
@@ -7714,11 +7734,12 @@ class ClassLinker::LinkMethodsHelper {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ClobberOldMethods(LengthPrefixedArray<ArtMethod>* old_methods,
-                         LengthPrefixedArray<ArtMethod>* methods) {
+                         LengthPrefixedArray<ArtMethod>* methods)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild && old_methods != nullptr) {
       CHECK(methods != nullptr);
       // Put some random garbage in old methods to help find stale pointers.
-      if (methods != old_methods) {
+      if (methods != old_methods && old_methods != class_linker_->GetEmptyMethodArray()) {
         // Need to make sure the GC is not running since it could be scanning the methods we are
         // about to overwrite.
         ScopedThreadStateChange tsc(self_, ThreadState::kSuspended);
@@ -8329,6 +8350,9 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods(ObjPtr<mirror:
 
   // Attempt to realloc to save RAM if possible.
   LengthPrefixedArray<ArtMethod>* old_methods = klass->GetMethodsPtr();
+  if (old_methods == class_linker_->GetEmptyMethodArray()) {
+    old_methods = nullptr;
+  }
   // The Realloced virtual methods aren't visible from the class roots, so there is no issue
   // where GCs could attempt to mark stale pointers due to memcpy. And since we overwrite the
   // realloced memory with out->CopyFrom, we are guaranteed to have objects in the to space since
@@ -8512,8 +8536,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
       // the implementation method is already in the superclass, only for new methods.
       // For simplicity, use the entire method array including direct methods.
       LengthPrefixedArray<ArtMethod>* const new_methods = klass->GetMethodsPtr();
-      if (new_methods != nullptr) {
-        DCHECK_NE(new_methods->size(), 0u);
+      if (new_methods->size() != 0u) {
         imt_methods_begin =
             reinterpret_cast<uintptr_t>(&new_methods->At(0, kMethodSize, kMethodAlignment));
         imt_methods_size = new_methods->size() * kMethodSize;

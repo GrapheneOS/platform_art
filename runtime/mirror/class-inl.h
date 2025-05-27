@@ -172,11 +172,12 @@ inline ArraySlice<ArtMethod> Class::GetMethodsSliceRangeUnchecked(
 }
 
 inline uint32_t Class::NumMethods() {
+  DCHECK_NE(GetMethodsPtr(), nullptr) << PrettyClass();
   return NumMethods(GetMethodsPtr());
 }
 
 inline uint32_t Class::NumMethods(LengthPrefixedArray<ArtMethod>* methods) {
-  return (methods == nullptr) ? 0 : methods->size();
+  return methods->size();
 }
 
 inline void Class::SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
@@ -190,8 +191,8 @@ inline void Class::SetMethodsPtrUnchecked(LengthPrefixedArray<ArtMethod>* new_me
                                           [[maybe_unused]] uint32_t num_direct,
                                           [[maybe_unused]] uint32_t num_virtual) {
   DCHECK_LE(num_direct + num_virtual, (new_methods == nullptr) ? 0 : new_methods->size());
-  SetField64<false>(OFFSET_OF_OBJECT_MEMBER(Class, methods_),
-                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(new_methods)));
+  SetField64<false, false>(OFFSET_OF_OBJECT_MEMBER(Class, methods_),
+                           static_cast<uint64_t>(reinterpret_cast<uintptr_t>(new_methods)));
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>

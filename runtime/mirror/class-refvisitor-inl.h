@@ -80,9 +80,12 @@ void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
           << GetStatus() << field->GetDeclaringClass()->PrettyClass() << " != " << PrettyClass();
     }
   });
-  // Don't use VisitMethods because we don't want to hit the class-ext methods twice.
-  for (ArtMethod& method : GetMethods(pointer_size)) {
-    method.VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
+  // The method array may be null when the class isn't resolved yet.
+  if (GetMethodsPtr() != nullptr) {
+    // Don't use VisitMethods because we don't want to hit the class-ext methods twice.
+    for (ArtMethod& method : GetMethods(pointer_size)) {
+      method.VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
+    }
   }
   ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
   if (!ext.IsNull()) {

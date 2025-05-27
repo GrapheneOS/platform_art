@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "loop_information.h"
+#include "loop_information-inl.h"
 
 #include "base/bit_vector-inl.h"
 #include "nodes.h"
@@ -239,9 +239,8 @@ bool HLoopInformation::DominatesAllBackEdges(HBasicBlock* block) {
 
 bool HLoopInformation::HasExitEdge() const {
   // Determine if this loop has at least one exit edge.
-  HBlocksInLoopReversePostOrderIterator it_loop(*this);
-  for (; !it_loop.Done(); it_loop.Advance()) {
-    for (HBasicBlock* successor : it_loop.Current()->GetSuccessors()) {
+  for (HBasicBlock* block : GetBlocks()) {
+    for (HBasicBlock* successor : block->GetSuccessors()) {
       if (!Contains(*successor)) {
         return true;
       }

@@ -507,7 +507,7 @@ void ProfileSaver::GetClassesAndMethodsHelper::CollectInternal(
         return true;
       }
 
-      DCHECK(klass->GetMethodsPtr() == nullptr);
+      DCHECK_EQ(klass->NumMethods(), 0u);
     } else {
       // Non-array class. There is no need to collect primitive types.
       DCHECK(kBootClassLoader || !k->IsPrimitive());
@@ -650,7 +650,7 @@ void ProfileSaver::GetClassesAndMethodsHelper::UpdateProfile(const std::set<std:
     for (const ClassRecord& class_record : dex_file_records->class_records) {
       if (class_record.array_dimension != 0u) {
         DCHECK(ShouldCollectClasses(startup));
-        DCHECK(class_record.methods == nullptr);  // No methods to process.
+        DCHECK_EQ(class_record.methods->size(), 0u);  // No methods to process.
         array_class_descriptor.assign(class_record.array_dimension, '[');
         array_class_descriptor += dex_file->GetTypeDescriptorView(class_record.type_index);
         dex::TypeIndex type_index =

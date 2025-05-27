@@ -16,6 +16,7 @@
 
 #include "licm.h"
 
+#include "loop_information-inl.h"
 #include "side_effects_analysis.h"
 
 namespace art HIDDEN {
@@ -112,8 +113,7 @@ bool LICM::Run() {
     SideEffects loop_effects = side_effects.GetLoopEffects(block);
     HBasicBlock* pre_header = loop_info->GetPreHeader();
 
-    for (HBlocksInLoopIterator it_loop(*loop_info); !it_loop.Done(); it_loop.Advance()) {
-      HBasicBlock* inner = it_loop.Current();
+    for (HBasicBlock* inner : loop_info->GetBlocks()) {
       DCHECK(inner->IsInLoop());
       if (inner->GetLoopInformation() != loop_info) {
         // Thanks to post order visit, inner loops were already visited.

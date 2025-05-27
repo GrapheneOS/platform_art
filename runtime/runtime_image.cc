@@ -886,22 +886,23 @@ class RuntimeImageHelper {
                         uint32_t class_image_address,
                         bool is_class_initialized)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    size_t number_of_methods = cls->NumMethods();
-    if (number_of_methods == 0) {
+    LengthPrefixedArray<ArtMethod>* cur_methods = cls->GetMethodsPtr();
+    if (HasNativeRelocation(cur_methods) || IsInBootImage(cur_methods)) {
       return;
     }
-
+    size_t number_of_methods = cls->NumMethods();
+    DCHECK_NE(number_of_methods, 0u);
     size_t size = LengthPrefixedArray<ArtMethod>::ComputeSize(number_of_methods);
     size_t offset = art_methods_.size();
     art_methods_.resize(offset + size);
     auto* dest_array =
         reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(art_methods_.data() + offset);
     memcpy(dest_array, cls->GetMethodsPtr(), size);
-    native_relocations_.Put(cls->GetMethodsPtr(),
+    native_relocations_.Put(cur_methods,
                             std::make_pair(NativeRelocationKind::kArtMethodArray, offset));
 
     for (size_t i = 0; i != number_of_methods; ++i) {
-      ArtMethod* method = &cls->GetMethodsPtr()->At(i);
+      ArtMethod* method = &cur_methods->At(i);
       ArtMethod* copy = &dest_array->At(i);
 
       // Update the class pointer.

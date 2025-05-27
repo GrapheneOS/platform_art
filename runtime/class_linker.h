@@ -1394,6 +1394,7 @@ class ClassLinker {
 
   ObjPtr<mirror::IfTable> GetArrayIfTable() REQUIRES_SHARED(Locks::mutator_lock_);
   LengthPrefixedArray<ArtField>* GetEmptyFieldArray() REQUIRES_SHARED(Locks::mutator_lock_);
+  LengthPrefixedArray<ArtMethod>* GetEmptyMethodArray() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool OpenAndInitImageDexFiles(const gc::space::ImageSpace* space,
                                 Handle<mirror::ClassLoader> class_loader,

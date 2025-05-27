@@ -22,6 +22,7 @@
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "induction_var_range.h"
+#include "loop_information-inl.h"
 #include "nodes.h"
 #include "side_effects_analysis.h"
 
@@ -1717,9 +1718,9 @@ class BCEVisitor final : public HGraphVisitor {
     }
     // First time early-exit analysis for this loop. Since analysis requires scanning
     // the full loop-body, results of the analysis is stored for subsequent queries.
-    HBlocksInLoopReversePostOrderIterator it_loop(*loop);
-    for (it_loop.Advance(); !it_loop.Done(); it_loop.Advance()) {
-      for (HBasicBlock* successor : it_loop.Current()->GetSuccessors()) {
+    auto loop_blocks = loop->GetBlocksReversePostOrder();
+    for (auto loop_it = ++loop_blocks.begin(), end = loop_blocks.end(); loop_it != end; ++loop_it) {
+      for (HBasicBlock* successor : (*loop_it)->GetSuccessors()) {
         if (!loop->Contains(*successor)) {
           early_exit_loop_.Put(loop_id, true);
           return true;

@@ -19,6 +19,7 @@
 #include "base/bit_vector-inl.h"
 #include "code_generator.h"
 #include "induction_var_range.h"
+#include "loop_information-inl.h"
 
 namespace art HIDDEN {
 
@@ -27,11 +28,7 @@ void LoopAnalysis::CalculateLoopBasicProperties(HLoopInformation* loop_info,
                                                 int64_t trip_count) {
   analysis_results->trip_count_ = trip_count;
 
-  for (HBlocksInLoopIterator block_it(*loop_info);
-       !block_it.Done();
-       block_it.Advance()) {
-    HBasicBlock* block = block_it.Current();
-
+  for (HBasicBlock* block : loop_info->GetBlocks()) {
     // Check whether one of the successor is loop exit.
     for (HBasicBlock* successor : block->GetSuccessors()) {
       if (!loop_info->Contains(*successor)) {
@@ -358,11 +355,9 @@ class X86_64LoopHelper : public ArchDefaultLoopHelper {
 
 uint32_t X86_64LoopHelper::GetUnrollingFactor(HLoopInformation* loop_info,
                                               HBasicBlock* header) const {
-  uint32_t num_inst = 0, num_inst_header = 0, num_inst_loop_body = 0;
-  for (HBlocksInLoopIterator it(*loop_info); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
-    DCHECK(block);
-    num_inst = 0;
+  uint32_t num_inst_header = 0, num_inst_loop_body = 0;
+  for (HBasicBlock* block : loop_info->GetBlocks()) {
+    uint32_t num_inst = 0;
 
     for (HInstructionIteratorPrefetchNext it1(block->GetInstructions()); !it1.Done();
          it1.Advance()) {

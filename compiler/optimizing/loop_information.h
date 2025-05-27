@@ -127,6 +127,10 @@ class HLoopInformation final : public ArenaObject<kArenaAllocLoopInfo> {
     ClearAllBlocks();
   }
 
+  auto GetBlocks() const;  // In block id order.
+  auto GetBlocksPostOrder() const;
+  auto GetBlocksReversePostOrder() const;
+
  private:
   // Internal recursive implementation of `Populate`.
   void PopulateRecursive(HBasicBlock* block);

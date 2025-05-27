@@ -1422,9 +1422,10 @@ void ImageWriter::RecordNativeRelocations(ObjPtr<mirror::Class> klass, size_t oa
     image_info.IncrementBinSlotSize(Bin::kArtField, size);
     DCHECK_EQ(offset, image_info.GetBinSlotSize(Bin::kArtField));
   }
-  // Visit and assign offsets for methods.
-  size_t num_methods = klass->NumMethods();
-  if (num_methods != 0) {
+  LengthPrefixedArray<ArtMethod>* array = klass->GetMethodsPtr();
+  if (!NativeRelocationAssigned(array) && !IsInBootImage(array)) {
+    // Visit and assign offsets for methods.
+    size_t num_methods = klass->NumMethods();
     bool any_dirty = false;
     for (auto& m : klass->GetMethods(target_ptr_size_)) {
       if (WillMethodBeDirty(&m)) {
@@ -1442,7 +1443,6 @@ void ImageWriter::RecordNativeRelocations(ObjPtr<mirror::Class> klass, size_t oa
     const size_t header_size = LengthPrefixedArray<ArtMethod>::ComputeSize(0,
                                                                            method_size,
                                                                            method_alignment);
-    LengthPrefixedArray<ArtMethod>* array = klass->GetMethodsPtr();
     size_t offset = image_info.GetBinSlotSize(bin_type);
     DCHECK(!IsInBootImage(array));
     bool inserted =

@@ -24,6 +24,7 @@
 #include "code_generator.h"
 #include "driver/compiler_options.h"
 #include "linear_order.h"
+#include "loop_information-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/string.h"
 
@@ -71,9 +72,9 @@ static bool IsGotoBlock(HBasicBlock* block, /*out*/ HBasicBlock** succ) {
 
 // Detect an early exit loop.
 static bool IsEarlyExit(HLoopInformation* loop_info) {
-  HBlocksInLoopReversePostOrderIterator it_loop(*loop_info);
-  for (it_loop.Advance(); !it_loop.Done(); it_loop.Advance()) {
-    for (HBasicBlock* successor : it_loop.Current()->GetSuccessors()) {
+  auto loop_blocks = loop_info->GetBlocksReversePostOrder();
+  for (auto loop_it = ++loop_blocks.begin(), end = loop_blocks.end(); loop_it != end; ++loop_it) {
+    for (HBasicBlock* successor : (*loop_it)->GetSuccessors()) {
       if (!loop_info->Contains(*successor)) {
         return true;
       }
@@ -721,8 +722,7 @@ void HLoopOptimization::CalculateAndSetTryCatchKind(LoopNode* node) {
     }
   }
 
-  for (HBlocksInLoopIterator it_loop(*node->loop_info); !it_loop.Done(); it_loop.Advance()) {
-    HBasicBlock* block = it_loop.Current();
+  for (HBasicBlock* block : node->loop_info->GetBlocks()) {
     if (block->GetTryCatchInformation() != nullptr) {
       node->try_catch_kind = LoopNode::TryCatchKind::kHasTryCatch;
       return;
@@ -809,8 +809,13 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
 
 void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   // Iterate over all basic blocks in the loop-body.
-  for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  //
+  // Note that when we remove blocks, the corresponding bit in the loop information's
+  // block mask shall be cleared. The underlying bit vector iterator shall then skip
+  // such cleared bits because it looks at the bit vector storage and does not cache
+  // the bits, not even the currently processed word. This is rather error prone as
+  // future optimizations of the iterator could break this code.
+  for (HBasicBlock* block : node->loop_info->GetBlocks()) {
     // Remove dead instructions from the loop-body.
     RemoveDeadInstructions(block->GetPhis());
     RemoveDeadInstructions(block->GetInstructions());
@@ -851,11 +856,7 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
 // In that case returns single exit basic block (outside the loop); otherwise nullptr.
 static HBasicBlock* GetInnerLoopFiniteSingleExit(HLoopInformation* loop_info) {
   HBasicBlock* exit = nullptr;
-  for (HBlocksInLoopIterator block_it(*loop_info);
-       !block_it.Done();
-       block_it.Advance()) {
-    HBasicBlock* block = block_it.Current();
-
+  for (HBasicBlock* block : loop_info->GetBlocks()) {
     // Check whether one of the successor is loop exit.
     for (HBasicBlock* successor : block->GetSuccessors()) {
       if (!loop_info->Contains(*successor)) {
@@ -1143,11 +1144,7 @@ bool HLoopOptimization::CanVectorizeDataFlow(LoopNode* node,
   vector_runtime_test_b_ = nullptr;
 
   // Traverse the data flow of the loop, in the original program order.
-  for (HBlocksInLoopReversePostOrderIterator block_it(*header->GetLoopInformation());
-       !block_it.Done();
-       block_it.Advance()) {
-    HBasicBlock* block = block_it.Current();
-
+  for (HBasicBlock* block : header->GetLoopInformation()->GetBlocksReversePostOrder()) {
     if (block == header) {
       // The header is of a certain structure (TrySetSimpleLoopHeader) and doesn't need to be
       // processed here.
@@ -1536,10 +1533,12 @@ void HLoopOptimization::FinalizeVectorization(LoopNode* node) {
   }
 
   // Remove the original loop.
-  for (HBlocksInLoopPostOrderIterator it_loop(*node->loop_info);
-       !it_loop.Done();
-       it_loop.Advance()) {
-    HBasicBlock* cur_block = it_loop.Current();
+  auto loop_blocks = node->loop_info->GetBlocksPostOrder();
+  for (auto it = loop_blocks.begin(), end = loop_blocks.end(); it != end;) {
+    HBasicBlock* cur_block = *it;
+    // Advance the iterator early to avoid potential issues with iterator validity when
+    // removing the block below and clearing the corresponding bit in the loop's block mask.
+    ++it;
     if (cur_block == node->loop_info->GetHeader()) {
       continue;
     }
@@ -1634,11 +1633,7 @@ void HLoopOptimization::GenerateNewLoopPredicated(LoopNode* node,
   InitPredicateInfoMap(node, pred_while);
 
   // Assign governing predicates for instructions in the loop; the traversal order doesn't matter.
-  for (HBlocksInLoopIterator block_it(*node->loop_info);
-       !block_it.Done();
-       block_it.Advance()) {
-    HBasicBlock* cur_block = block_it.Current();
-
+  for (HBasicBlock* cur_block : node->loop_info->GetBlocks()) {
     for (HInstructionIteratorPrefetchNext it(cur_block->GetInstructions()); !it.Done();
          it.Advance()) {
       auto i = vector_map_->find(it.Current());
@@ -1678,11 +1673,7 @@ void HLoopOptimization::GenerateNewLoopBodyOnce(LoopNode* node,
   HLoopInformation* loop_info = node->loop_info;
 
   // Traverse the data flow of the loop, in the original program order.
-  for (HBlocksInLoopReversePostOrderIterator block_it(*loop_info);
-      !block_it.Done();
-      block_it.Advance()) {
-    HBasicBlock* cur_block = block_it.Current();
-
+  for (HBasicBlock* cur_block : loop_info->GetBlocksReversePostOrder()) {
     if (cur_block == loop_info->GetHeader()) {
       continue;
     }
@@ -1696,11 +1687,7 @@ void HLoopOptimization::GenerateNewLoopBodyOnce(LoopNode* node,
 
   // Generate body from the instruction map, in the original program order.
   HEnvironment* env = vector_header_->GetFirstInstruction()->GetEnvironment();
-  for (HBlocksInLoopReversePostOrderIterator block_it(*loop_info);
-        !block_it.Done();
-        block_it.Advance()) {
-    HBasicBlock* cur_block = block_it.Current();
-
+  for (HBasicBlock* cur_block : loop_info->GetBlocksReversePostOrder()) {
     if (cur_block == loop_info->GetHeader()) {
       continue;
     }
@@ -3152,10 +3139,7 @@ void HLoopOptimization::PreparePredicateInfoMap(LoopNode* node) {
 
   DCHECK(IsPredicatedLoopControlFlowSupported(loop_info));
 
-  for (HBlocksInLoopIterator block_it(*loop_info);
-      !block_it.Done();
-      block_it.Advance()) {
-    HBasicBlock* cur_block = block_it.Current();
+  for (HBasicBlock* cur_block : loop_info->GetBlocks()) {
     BlockPredicateInfo* pred_info = new (loop_allocator_) BlockPredicateInfo();
 
     predicate_info_map_->Put(cur_block, pred_info);

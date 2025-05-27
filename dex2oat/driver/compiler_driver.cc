@@ -949,7 +949,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
     }
     // Filter out classes without methods.
     // These include primitive types and array types which have no dex file.
-    if (c->GetMethodsPtr() == nullptr) {
+    if (c->GetMethodsPtr()->size() == 0u) {
       return true;
     }
     auto it = dex_file_records_.find(&c->GetDexFile());
