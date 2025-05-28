@@ -16,6 +16,8 @@
 
 #include "cha_guard_optimization.h"
 
+#include "nodes.h"
+
 namespace art HIDDEN {
 
 // Note we can only do CHA guard elimination/motion in a single pass, since

@@ -141,7 +141,7 @@ const char* OptimizationPassName(OptimizationPass pass) {
 
 #define X(x) if (pass_name == OptimizationPassName((x))) return (x)
 
-OptimizationPass OptimizationPassByName(const std::string& pass_name) {
+OptimizationPass OptimizationPassByName(std::string_view pass_name) {
   X(OptimizationPass::kBoundsCheckElimination);
   X(OptimizationPass::kCHAGuardOptimization);
   X(OptimizationPass::kCodeSinking);

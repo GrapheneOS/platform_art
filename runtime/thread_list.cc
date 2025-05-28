@@ -798,6 +798,7 @@ std::optional<std::string> ThreadList::WaitForSuspendBarrier(AtomicInteger* barr
     wait_multiplier = attempt_of_4 == 4 ? 2 * avg_wait_multiplier - 1 : avg_wait_multiplier;
     timeout_ns *= wait_multiplier;
   }
+  DCHECK_LE(attempt_of_4, 4);
   bool collect_state = (t != 0 && (attempt_of_4 == 0 || attempt_of_4 == 4));
   int32_t cur_val = barrier->load(std::memory_order_acquire);
   if (cur_val <= 0) {

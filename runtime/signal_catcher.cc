@@ -16,6 +16,10 @@
 
 #include "signal_catcher.h"
 
+#ifdef ART_TARGET_ANDROID
+#include <android/api-level.h>
+#endif
+
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
 #include <fcntl.h>
@@ -162,10 +166,46 @@ void SignalCatcher::HandleSigQuit() {
   sigquit_nanotime_ = std::nullopt;
 }
 
+void SignalCatcher::HandleMultiplexedSigUsr1(siginfo_t* info) {
+  if (info->si_code != SI_QUEUE) {
+    // If this signal is not generated from sigqueue, fallback to forcing a GC trigger.
+    HandleSigUsr1();
+    return;
+  }
+  // Use the signal's tag to call the correct handler.
+  uint8_t tag = std::bit_cast<uintptr_t>(info->si_value) & 0xFu;
+  switch (tag) {
+    case 0:
+      HandleLongMethodTracing(info);
+      break;
+    default:
+      LOG(WARNING) << "SIGUSR1 received via sigqueue with unknown tag: " << static_cast<int>(tag);
+      break;
+  }
+}
+
 void SignalCatcher::HandleSigUsr1() {
   LOG(INFO) << "SIGUSR1 forcing GC (no HPROF) and profile save";
   Runtime::Current()->GetHeap()->CollectGarbage(/* clear_soft_references= */ false);
   ProfileSaver::ForceProcessProfiles();
+}
+
+void SignalCatcher::HandleLongMethodTracing(siginfo_t* info) {
+  if (info == nullptr) {
+    // The signaler didn't attach a duration, treat this case as a no-op.
+    return;
+  }
+
+  // Extract duration from the signal info
+  // si_value.sival_int contains the integer passed with the signal
+  // This value represent the trace duration in ms
+  // It is safe to ignore the tag here as we durations that are divisible by 16
+  uint64_t duration_ms = static_cast<uint64_t>(info->si_value.sival_int);
+
+  LOG(INFO) << "Received SIGUSR1 signal with long method tracing tag, enabling long method tracing"
+            << " for duration :" << duration_ms << " millis";
+  // Start the long method tracing with the specified duration (in nanoseconds)
+  TraceProfiler::StartTraceLongRunningMethods(duration_ms * 1000000ULL);
 }
 
 int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals, siginfo_t* info) {
@@ -222,7 +262,11 @@ void* SignalCatcher::Run(void* arg) {
       signal_catcher->HandleSigQuit();
       break;
     case SIGUSR1:
-      signal_catcher->HandleSigUsr1();
+      if (kIsTargetAndroid && art_flags::always_enable_profile_code()) {
+        signal_catcher->HandleMultiplexedSigUsr1(&info);
+      } else {
+        signal_catcher->HandleSigUsr1();
+      }
       break;
     default:
       LOG(ERROR) << "Unexpected signal %d" << signal_number;

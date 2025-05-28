@@ -137,12 +137,7 @@ class InductionVarRange {
    * Incrementally updates induction information for just the given loop.
    */
   void ReVisit(const HLoopInformation* loop) {
-    induction_analysis_->induction_.erase(loop);
-    for (HInstructionIteratorPrefetchNext it(loop->GetHeader()->GetPhis()); !it.Done();
-         it.Advance()) {
-      induction_analysis_->cycles_.erase(it.Current()->AsPhi());
-    }
-    induction_analysis_->VisitLoop(loop);
+    induction_analysis_->ReVisitLoop(loop);
   }
 
   /**

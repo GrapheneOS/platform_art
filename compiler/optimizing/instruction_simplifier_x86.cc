@@ -14,8 +14,10 @@
  */
 
 #include "instruction_simplifier_x86.h"
-#include "instruction_simplifier_x86_shared.h"
+
 #include "code_generator_x86.h"
+#include "instruction_simplifier_x86_shared.h"
+#include "nodes.h"
 
 namespace art HIDDEN {
 

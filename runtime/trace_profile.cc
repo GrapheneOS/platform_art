@@ -232,6 +232,53 @@ void DumpThreadMethodInfo(const std::unordered_map<size_t, std::string>& traced_
     os.write(method_line.c_str(), method_line_length);
   }
 }
+
+std::string Base64Encode(std::string_view input) {
+  // Encoding alphabet, see RFC4648 "Table 1: The Base 64 Alphabet"
+  static constexpr char kTable[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz"
+      "0123456789+/";
+  // 6 bits: 0b00111111
+  static constexpr int kBase64Mask = 0x3F;
+  std::string encoded_string;
+  // The output size is roughly 4/3 the input size.
+  encoded_string.reserve(((input.size() + 2) / 3) * 4);
+
+  std::uint32_t accumulator = 0;
+  // Tracks available bits. Starts at -6 because we need 6 bits for a usual-path extraction.
+  int bits_in_temp = -6;
+
+  for (unsigned char c : input) {
+    accumulator = (accumulator << 8) | c;
+    bits_in_temp += 8;
+
+    // While enough bits are available (>= 6) to extract a Base64 character
+    while (bits_in_temp >= 0) {
+      // Extract the most significant 6 available bits
+      encoded_string.push_back(kTable[(accumulator >> bits_in_temp) & kBase64Mask]);
+      bits_in_temp -= 6;
+    }
+  }
+
+  // Handle any remaining bits
+  // note that the remaining bits equal 6 + bits_in_temp, so, for instance,
+  // a bits_in_temp with the value -2 means 4 bits left, and that the only possible
+  // values of bits_in_temp at this points are -6, -4 and -2 (ie, 0, 2 or 4 bits remain)
+  if (bits_in_temp > -6) {
+    // This shifts the remaining bits to the MSB side of the 6-bit chunk,
+    // effectively padding with zeros on the right as per RFC 4648.
+    encoded_string.push_back(kTable[(accumulator << (-bits_in_temp)) & kBase64Mask]);
+  }
+
+  // Add padding characters to make the size a multiple of 4, per the RFC.
+  while (encoded_string.size() % 4 != 0) {
+    encoded_string.push_back('=');
+  }
+
+  return encoded_string;
+}
+
 }  // namespace
 
 class TraceStopTask : public gc::HeapTask {
@@ -658,7 +705,7 @@ std::string TraceProfiler::GetLongRunningMethodsString() {
 
   std::ostringstream os;
   Dump(std::unique_ptr<File>(), os);
-  return os.str();
+  return Base64Encode(os.view());
 }
 
 void TraceDumpCheckpoint::Run(Thread* thread) {

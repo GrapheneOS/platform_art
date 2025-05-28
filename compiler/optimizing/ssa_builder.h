@@ -21,7 +21,6 @@
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "nodes.h"
-#include "optimization.h"
 
 namespace art HIDDEN {
 

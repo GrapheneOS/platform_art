@@ -18,7 +18,6 @@
 #define ART_COMPILER_OPTIMIZING_PC_RELATIVE_FIXUPS_X86_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
 
 namespace art HIDDEN {

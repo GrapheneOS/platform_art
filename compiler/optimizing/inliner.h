@@ -26,11 +26,21 @@
 
 namespace art HIDDEN {
 
+class ArtMethod;
 class CodeGenerator;
+class CodeItemDataAccessor;
 class DexCompilationUnit;
+template <class T> class Handle;
+class HBasicBlock;
+class HEnvironment;
 class HGraph;
+class HInstanceFieldGet;
+class HInstanceFieldSet;
+class HInstruction;
 class HInvoke;
 class OptimizingCompilerStats;
+class ReferenceTypeInfo;
+template <size_t kNumReferences> class StackHandleScope;
 
 class HInliner : public HOptimization {
  public:

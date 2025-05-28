@@ -157,6 +157,7 @@ class HInductionVarAnalysis : public HOptimization {
 
   // Methods for analysis.
   void VisitLoop(const HLoopInformation* loop);
+  void ReVisitLoop(const HLoopInformation* loop);
   size_t TryVisitNodes(const HLoopInformation* loop,
                        HInstruction* start_instruction,
                        size_t global_depth,

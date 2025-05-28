@@ -60,9 +60,12 @@
 #include "base/macros.h"
 #include "base/scoped_arena_containers.h"
 #include "optimization.h"
-#include "optimizing/nodes.h"
 
 namespace art HIDDEN {
+
+class HBasicBlock;
+class HInstruction;
+class HSelect;
 
 class HControlFlowSimplifier : public HOptimization {
  public:

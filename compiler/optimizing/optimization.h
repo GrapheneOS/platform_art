@@ -17,15 +17,19 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 
+#include <string_view>
+
+#include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimizing_compiler_stats.h"
 
 namespace art HIDDEN {
 
 class CodeGenerator;
 class DexCompilationUnit;
+class HGraph;
+class OptimizingCompilerStats;
 
 /**
  * Abstraction to implement an optimization pass.
@@ -114,7 +118,7 @@ enum class OptimizationPass {
 const char* OptimizationPassName(OptimizationPass pass);
 
 // Lookup optimization pass by name.
-OptimizationPass OptimizationPassByName(const std::string& pass_name);
+OptimizationPass OptimizationPassByName(std::string_view pass_name);
 
 // Optimization definition consisting of an optimization pass
 // an optional alternative name (nullptr denotes default), and

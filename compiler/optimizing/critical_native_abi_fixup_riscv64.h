@@ -18,7 +18,6 @@
 #define ART_COMPILER_OPTIMIZING_CRITICAL_NATIVE_ABI_FIXUP_RISCV64_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
 
 namespace art HIDDEN {

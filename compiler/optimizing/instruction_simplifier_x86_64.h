@@ -17,7 +17,6 @@
 #define ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_X86_64_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
 
 namespace art HIDDEN {

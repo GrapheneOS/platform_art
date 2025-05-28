@@ -90,6 +90,7 @@ class ThreadList {
 
   // Suspend a thread using a peer, typically used by the debugger. Returns the thread on success,
   // else null. The peer is used to identify the thread to avoid races with the thread terminating.
+  // Aborts on timeout.
   EXPORT Thread* SuspendThreadByPeer(jobject peer, SuspendReason reason)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
@@ -98,8 +99,9 @@ class ThreadList {
   // Suspend a thread using its thread id, typically used by lock/monitor inflation. Returns the
   // thread on success else null. The thread id is used to identify the thread to avoid races with
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
-  // thread, that may be terminating. 'attempt_of_4' is zero if this is the only
-  // attempt, or 1..4 to try 4 times with fractional timeouts.
+  // thread, that may be terminating. 'attempt_of_4' is zero if this is the only attempt, or 1..4
+  // to try 4 times with fractional timeouts. Aborts on timeout during the final attempt, but not
+  // if thread exited in the meantime.
   // TODO: Reconsider the use of thread_id, now that we have ThreadExitFlag.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, SuspendReason reason, int attempt_of_4 = 0)
       REQUIRES(!Locks::mutator_lock_,
@@ -279,7 +281,8 @@ class ThreadList {
   // the caller guarantees that *thread is valid until that is released.  We "release the mutator
   // lock", by switching to self_state.  'attempt_of_4' is 0 if we only attempt once, and 1..4 if
   // we are going to try 4 times with a quarter of the full timeout. 'func_name' is used only to
-  // identify ourselves for logging.
+  // identify ourselves for logging. Aborts if we time out on the final (attempt_of_4 is 0 or 4)
+  // attempt.
   bool SuspendThread(Thread* self,
                      Thread* thread,
                      SuspendReason reason,

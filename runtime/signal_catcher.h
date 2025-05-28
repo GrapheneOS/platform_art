@@ -50,6 +50,8 @@ class SignalCatcher {
   static void* Run(void* arg) NO_THREAD_SAFETY_ANALYSIS;
 
   void HandleSigUsr1();
+  void HandleMultiplexedSigUsr1(siginfo_t* info);
+  void HandleLongMethodTracing(siginfo_t* info);
   void Output(const std::string& s);
   void SetHaltFlag(bool new_value) REQUIRES(!lock_);
   bool ShouldHalt() REQUIRES(!lock_);

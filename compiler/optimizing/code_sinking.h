@@ -18,10 +18,11 @@
 #define ART_COMPILER_OPTIMIZING_CODE_SINKING_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
 
 namespace art HIDDEN {
+
+class HBasicBlock;
 
 /**
  * Optimization pass to move instructions into uncommon branches,

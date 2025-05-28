@@ -18,13 +18,13 @@
 #define ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
-#include "optimizing_compiler_stats.h"
 
 namespace art HIDDEN {
 
 class CodeGenerator;
+class HBinaryOperation;
+class HSub;
 
 /**
  * Implements optimizations specific to each instruction.

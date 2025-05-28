@@ -18,11 +18,12 @@
 #define ART_COMPILER_OPTIMIZING_DEAD_CODE_ELIMINATION_H_
 
 #include "base/macros.h"
-#include "nodes.h"
 #include "optimization.h"
-#include "optimizing_compiler_stats.h"
 
 namespace art HIDDEN {
+
+class HBasicBlock;
+class TryBelongingInformation;
 
 /**
  * Optimization pass performing dead code elimination (removal of

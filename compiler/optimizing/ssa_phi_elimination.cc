@@ -20,6 +20,7 @@
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "base/bit_vector-inl.h"
+#include "nodes.h"
 
 namespace art HIDDEN {
 

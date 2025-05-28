@@ -272,6 +272,14 @@ void HInductionVarAnalysis::VisitLoop(const HLoopInformation* loop) {
   VisitControl(loop);
 }
 
+void HInductionVarAnalysis::ReVisitLoop(const HLoopInformation* loop) {
+  induction_.erase(loop);
+  for (HInstructionIterator it(loop->GetHeader()->GetPhis()); !it.Done(); it.Advance()) {
+    cycles_.erase(it.Current()->AsPhi());
+  }
+  VisitLoop(loop);
+}
+
 size_t HInductionVarAnalysis::TryVisitNodes(
     const HLoopInformation* loop,
     HInstruction* start_instruction,

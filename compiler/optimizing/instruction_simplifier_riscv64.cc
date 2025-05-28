@@ -17,6 +17,7 @@
 #include "instruction_simplifier_riscv64.h"
 
 #include "instruction_simplifier.h"
+#include "nodes.h"
 
 namespace art HIDDEN {
 
