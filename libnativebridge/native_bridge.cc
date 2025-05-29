@@ -36,11 +36,6 @@
 
 namespace android {
 
-#ifdef __APPLE__
-template <typename T>
-void UNUSED(const T&) {}
-#endif
-
 extern "C" {
 
 void* OpenSystemLibrary(const char* path, int flags) {
@@ -111,7 +106,7 @@ static const char* GetNativeBridgeStateString(NativeBridgeState state) {
 }
 
 // Current state of the native bridge.
-static NativeBridgeState state = NativeBridgeState::kNotSetup;
+static NativeBridgeState g_state = NativeBridgeState::kNotSetup;
 
 // The version of NativeBridge implementation.
 // Different Nativebridge interface needs the service of different version of
@@ -137,18 +132,18 @@ enum NativeBridgeImplementationVersion {
 };
 
 // Whether we had an error at some point.
-static bool had_error = false;
+static bool g_had_error = false;
 
 // Handle of the loaded library.
-static void* native_bridge_handle = nullptr;
+static void* g_native_bridge_handle = nullptr;
 // Pointer to the callbacks. Available as soon as LoadNativeBridge succeeds, but only initialized
 // later.
-static const NativeBridgeCallbacks* callbacks = nullptr;
+static const NativeBridgeCallbacks* g_callbacks = nullptr;
 // Callbacks provided by the environment to the bridge. Passed to LoadNativeBridge.
-static const NativeBridgeRuntimeCallbacks* runtime_callbacks = nullptr;
+static const NativeBridgeRuntimeCallbacks* g_runtime_callbacks = nullptr;
 
 // The app's code cache directory.
-static char* app_code_cache_dir = nullptr;
+static char* g_app_code_cache_dir = nullptr;
 
 // Code cache directory (relative to the application private directory)
 // Ideally we'd like to call into framework to retrieve this name. However that's considered an
@@ -168,9 +163,9 @@ static bool CharacterAllowed(char c, bool first) {
 }
 
 static void ReleaseAppCodeCacheDir() {
-  if (app_code_cache_dir != nullptr) {
-    delete[] app_code_cache_dir;
-    app_code_cache_dir = nullptr;
+  if (g_app_code_cache_dir != nullptr) {
+    delete[] g_app_code_cache_dir;
+    g_app_code_cache_dir = nullptr;
   }
 }
 
@@ -211,21 +206,21 @@ bool NativeBridgeNameAcceptable(const char* nb_library_filename) {
 static bool isCompatibleWith(const uint32_t version) {
   // Libnativebridge is now designed to be forward-compatible. So only "0" is an unsupported
   // version.
-  if (callbacks == nullptr || callbacks->version == 0 || version == 0) {
+  if (g_callbacks == nullptr || g_callbacks->version == 0 || version == 0) {
     return false;
   }
 
   // If this is a v2+ bridge, it may not be forwards- or backwards-compatible. Check.
-  if (callbacks->version >= SIGNAL_VERSION) {
-    return callbacks->isCompatibleWith(version);
+  if (g_callbacks->version >= SIGNAL_VERSION) {
+    return g_callbacks->isCompatibleWith(version);
   }
 
   return true;
 }
 
 static void CloseNativeBridge(bool with_error) {
-  state = NativeBridgeState::kClosed;
-  had_error |= with_error;
+  g_state = NativeBridgeState::kClosed;
+  g_had_error |= with_error;
   ReleaseAppCodeCacheDir();
 }
 
@@ -234,14 +229,14 @@ bool LoadNativeBridge(const char* nb_library_filename,
   // We expect only one place that calls LoadNativeBridge: Runtime::Init. At that point we are not
   // multi-threaded, so we do not need locking here.
 
-  if (state != NativeBridgeState::kNotSetup) {
+  if (g_state != NativeBridgeState::kNotSetup) {
     // Setup has been called before. Ignore this call.
     if (nb_library_filename != nullptr) {  // Avoids some log-spam for dalvikvm.
       ALOGW("Called LoadNativeBridge for an already set up native bridge. State is %s.",
-            GetNativeBridgeStateString(state));
+            GetNativeBridgeStateString(g_state));
     }
     // Note: counts as an error, even though the bridge may be functional.
-    had_error = true;
+    g_had_error = true;
     return false;
   }
 
@@ -259,16 +254,18 @@ bool LoadNativeBridge(const char* nb_library_filename,
       void* handle = OpenSystemLibrary(nb_library_filename, RTLD_LAZY);
 
       if (handle != nullptr) {
-        callbacks = reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle,
-                                                                   kNativeBridgeInterfaceSymbol));
-        if (callbacks != nullptr) {
+        g_callbacks =
+            reinterpret_cast<NativeBridgeCallbacks*>(dlsym(handle, kNativeBridgeInterfaceSymbol));
+        if (g_callbacks != nullptr) {
           if (isCompatibleWith(NAMESPACE_VERSION)) {
             // Store the handle for later.
-            native_bridge_handle = handle;
+            g_native_bridge_handle = handle;
           } else {
             ALOGW("Unsupported native bridge API in %s (is version %d not compatible with %d)",
-                  nb_library_filename, callbacks->version, NAMESPACE_VERSION);
-            callbacks = nullptr;
+                  nb_library_filename,
+                  g_callbacks->version,
+                  NAMESPACE_VERSION);
+            g_callbacks = nullptr;
             dlclose(handle);
           }
         } else {
@@ -282,14 +279,14 @@ bool LoadNativeBridge(const char* nb_library_filename,
 
       // Two failure conditions: could not find library (dlopen failed), or could not find native
       // bridge interface (dlsym failed). Both are an error and close the native bridge.
-      if (callbacks == nullptr) {
+      if (g_callbacks == nullptr) {
         CloseNativeBridge(true);
       } else {
-        runtime_callbacks = runtime_cbs;
-        state = NativeBridgeState::kOpened;
+        g_runtime_callbacks = runtime_cbs;
+        g_state = NativeBridgeState::kOpened;
       }
     }
-    return state == NativeBridgeState::kOpened;
+    return g_state == NativeBridgeState::kOpened;
   }
 }
 
@@ -303,7 +300,7 @@ bool NeedsNativeBridge(const char* instruction_set) {
 
 bool PreInitializeNativeBridge(const char* app_data_dir_in,
                                [[maybe_unused]] const char* instruction_set) {
-  if (state != NativeBridgeState::kOpened) {
+  if (g_state != NativeBridgeState::kOpened) {
     ALOGE("Invalid state: native bridge is expected to be opened.");
     CloseNativeBridge(true);
     return false;
@@ -313,45 +310,25 @@ bool PreInitializeNativeBridge(const char* app_data_dir_in,
     // Create the path to the application code cache directory.
     // The memory will be release after Initialization or when the native bridge is closed.
     const size_t len = strlen(app_data_dir_in) + strlen(kCodeCacheDir) + 2;  // '\0' + '/'
-    app_code_cache_dir = new char[len];
-    snprintf(app_code_cache_dir, len, "%s/%s", app_data_dir_in, kCodeCacheDir);
+    g_app_code_cache_dir = new char[len];
+    snprintf(g_app_code_cache_dir, len, "%s/%s", app_data_dir_in, kCodeCacheDir);
   } else {
     ALOGW("Application private directory isn't available.");
-    app_code_cache_dir = nullptr;
+    g_app_code_cache_dir = nullptr;
   }
 
-  state = NativeBridgeState::kPreInitialized;
+  g_state = NativeBridgeState::kPreInitialized;
   return true;
 }
 
 void PreZygoteForkNativeBridge() {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(PRE_ZYGOTE_FORK_VERSION)) {
-      return callbacks->preZygoteFork();
+      return g_callbacks->preZygoteFork();
     } else {
       ALOGE("not compatible with version %d, preZygoteFork() isn't invoked",
             PRE_ZYGOTE_FORK_VERSION);
     }
-  }
-}
-
-static void SetCpuAbi(JNIEnv* env, jclass build_class, const char* field, const char* value) {
-  if (value != nullptr) {
-    jfieldID field_id = env->GetStaticFieldID(build_class, field, "Ljava/lang/String;");
-    if (field_id == nullptr) {
-      env->ExceptionClear();
-      ALOGW("Could not find %s field.", field);
-      return;
-    }
-
-    jstring str = env->NewStringUTF(value);
-    if (str == nullptr) {
-      env->ExceptionClear();
-      ALOGW("Could not create string %s.", value);
-      return;
-    }
-
-    env->SetStaticObjectField(build_class, field_id, str);
   }
 }
 
@@ -376,20 +353,6 @@ static void SetupEnvironment(const NativeBridgeCallbacks* cbs, JNIEnv* env, cons
     ALOGW("Out of memory while setting up app environment.");
     env->ExceptionClear();
     return;
-  }
-
-  // Reset CPU_ABI & CPU_ABI2 to values required by the apps running with native bridge.
-  if (env_values->cpu_abi != nullptr || env_values->cpu_abi2 != nullptr ||
-      env_values->abi_count >= 0) {
-    jclass bclass_id = env->FindClass("android/os/Build");
-    if (bclass_id != nullptr) {
-      SetCpuAbi(env, bclass_id, "CPU_ABI", env_values->cpu_abi);
-      SetCpuAbi(env, bclass_id, "CPU_ABI2", env_values->cpu_abi2);
-    } else {
-      // For example in a host test environment.
-      env->ExceptionClear();
-      ALOGW("Could not find Build class.");
-    }
   }
 
   if (env_values->os_arch != nullptr) {
@@ -419,58 +382,56 @@ bool InitializeNativeBridge(JNIEnv* env, const char* instruction_set) {
   // We expect only one place that calls InitializeNativeBridge: Runtime::DidForkFromZygote. At that
   // point we are not multi-threaded, so we do not need locking here.
 
-  if (state == NativeBridgeState::kPreInitialized) {
-    if (app_code_cache_dir != nullptr) {
-      // Check for code cache: if it doesn't exist try to create it.
-      struct stat st;
-      if (stat(app_code_cache_dir, &st) == -1) {
-        if (errno == ENOENT) {
-          if (mkdir(app_code_cache_dir, S_IRWXU | S_IRWXG | S_IXOTH) == -1) {
-            ALOGW("Cannot create code cache directory %s: %s.",
-                  app_code_cache_dir, strerror(errno));
-            ReleaseAppCodeCacheDir();
-          }
-        } else {
-          ALOGW("Cannot stat code cache directory %s: %s.",
-                app_code_cache_dir, strerror(errno));
+  if (g_state != NativeBridgeState::kPreInitialized) {
+    CloseNativeBridge(true);
+    return false;
+  }
+
+  if (g_app_code_cache_dir != nullptr) {
+    // Check for code cache: if it doesn't exist try to create it.
+    struct stat st;
+    if (stat(g_app_code_cache_dir, &st) == -1) {
+      if (errno == ENOENT) {
+        if (mkdir(g_app_code_cache_dir, S_IRWXU | S_IRWXG | S_IXOTH) == -1) {
+          ALOGW(
+              "Cannot create code cache directory %s: %s.", g_app_code_cache_dir, strerror(errno));
           ReleaseAppCodeCacheDir();
         }
-      } else if (!S_ISDIR(st.st_mode)) {
-        ALOGW("Code cache is not a directory %s.", app_code_cache_dir);
-        ReleaseAppCodeCacheDir();
-      }
-    }
-
-    // If we're still PreInitialized (didn't fail the code cache checks) try to initialize.
-    if (state == NativeBridgeState::kPreInitialized) {
-      if (callbacks->initialize(runtime_callbacks, app_code_cache_dir, instruction_set)) {
-        SetupEnvironment(callbacks, env, instruction_set);
-        state = NativeBridgeState::kInitialized;
-        // We no longer need the code cache path, release the memory.
-        ReleaseAppCodeCacheDir();
       } else {
-        // Unload the library.
-        dlclose(native_bridge_handle);
-        CloseNativeBridge(true);
+        ALOGW("Cannot stat code cache directory %s: %s.", g_app_code_cache_dir, strerror(errno));
+        ReleaseAppCodeCacheDir();
       }
+    } else if (!S_ISDIR(st.st_mode)) {
+      ALOGW("Code cache is not a directory %s.", g_app_code_cache_dir);
+      ReleaseAppCodeCacheDir();
     }
+  }
+
+  if (g_callbacks->initialize(g_runtime_callbacks, g_app_code_cache_dir, instruction_set)) {
+    // TODO(b/419835068): SetupEnvironment is likely not needed anymore and can be removed.
+    SetupEnvironment(g_callbacks, env, instruction_set);
+    g_state = NativeBridgeState::kInitialized;
+    // We no longer need the code cache path, release the memory.
+    ReleaseAppCodeCacheDir();
   } else {
+    // Unload the library.
+    dlclose(g_native_bridge_handle);
     CloseNativeBridge(true);
   }
 
-  return state == NativeBridgeState::kInitialized;
+  return g_state == NativeBridgeState::kInitialized;
 }
 
 void UnloadNativeBridge() {
   // We expect only one place that calls UnloadNativeBridge: Runtime::DidForkFromZygote. At that
   // point we are not multi-threaded, so we do not need locking here.
 
-  switch (state) {
+  switch (g_state) {
     case NativeBridgeState::kOpened:
     case NativeBridgeState::kPreInitialized:
     case NativeBridgeState::kInitialized:
       // Unload.
-      dlclose(native_bridge_handle);
+      dlclose(g_native_bridge_handle);
       CloseNativeBridge(false);
       break;
 
@@ -486,24 +447,24 @@ void UnloadNativeBridge() {
 }
 
 bool NativeBridgeError() {
-  return had_error;
+  return g_had_error;
 }
 
 bool NativeBridgeAvailable() {
-  return state == NativeBridgeState::kOpened
-      || state == NativeBridgeState::kPreInitialized
-      || state == NativeBridgeState::kInitialized;
+  return g_state == NativeBridgeState::kOpened ||
+         g_state == NativeBridgeState::kPreInitialized ||
+         g_state == NativeBridgeState::kInitialized;
 }
 
 bool NativeBridgeInitialized() {
   // Calls of this are supposed to happen in a state where the native bridge is stable, i.e., after
   // Runtime::DidForkFromZygote. In that case we do not need a lock.
-  return state == NativeBridgeState::kInitialized;
+  return g_state == NativeBridgeState::kInitialized;
 }
 
 void* NativeBridgeLoadLibrary(const char* libpath, int flag) {
   if (NativeBridgeInitialized()) {
-    return callbacks->loadLibrary(libpath, flag);
+    return g_callbacks->loadLibrary(libpath, flag);
   }
   return nullptr;
 }
@@ -521,15 +482,15 @@ void* NativeBridgeGetTrampoline2(
 
   // For version 1 isCompatibleWith is always true, even though the extensions
   // are not supported, so we need to handle it separately.
-  if (callbacks != nullptr && callbacks->version == DEFAULT_VERSION) {
-    return callbacks->getTrampoline(handle, name, shorty, len);
+  if (g_callbacks != nullptr && g_callbacks->version == DEFAULT_VERSION) {
+    return g_callbacks->getTrampoline(handle, name, shorty, len);
   }
 
   if (isCompatibleWith(CRITICAL_NATIVE_SUPPORT_VERSION)) {
-    return callbacks->getTrampolineWithJNICallType(handle, name, shorty, len, jni_call_type);
+    return g_callbacks->getTrampolineWithJNICallType(handle, name, shorty, len, jni_call_type);
   }
 
-  return callbacks->getTrampoline(handle, name, shorty, len);
+  return g_callbacks->getTrampoline(handle, name, shorty, len);
 }
 
 void* NativeBridgeGetTrampolineForFunctionPointer(const void* method,
@@ -541,7 +502,7 @@ void* NativeBridgeGetTrampolineForFunctionPointer(const void* method,
   }
 
   if (isCompatibleWith(CRITICAL_NATIVE_SUPPORT_VERSION)) {
-    return callbacks->getTrampolineForFunctionPointer(method, shorty, len, jni_call_type);
+    return g_callbacks->getTrampolineForFunctionPointer(method, shorty, len, jni_call_type);
   } else {
     ALOGE("not compatible with version %d, getTrampolineFnPtrWithJNICallType() isn't invoked",
           CRITICAL_NATIVE_SUPPORT_VERSION);
@@ -551,14 +512,14 @@ void* NativeBridgeGetTrampolineForFunctionPointer(const void* method,
 
 bool NativeBridgeIsSupported(const char* libpath) {
   if (NativeBridgeInitialized()) {
-    return callbacks->isSupported(libpath);
+    return g_callbacks->isSupported(libpath);
   }
   return false;
 }
 
 uint32_t NativeBridgeGetVersion() {
   if (NativeBridgeAvailable()) {
-    return callbacks->version;
+    return g_callbacks->version;
   }
   return 0;
 }
@@ -566,7 +527,7 @@ uint32_t NativeBridgeGetVersion() {
 NativeBridgeSignalHandlerFn NativeBridgeGetSignalHandler(int signal) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(SIGNAL_VERSION)) {
-      return callbacks->getSignalHandler(signal);
+      return g_callbacks->getSignalHandler(signal);
     } else {
       ALOGE("not compatible with version %d, cannot get signal handler", SIGNAL_VERSION);
     }
@@ -577,7 +538,7 @@ NativeBridgeSignalHandlerFn NativeBridgeGetSignalHandler(int signal) {
 int NativeBridgeUnloadLibrary(void* handle) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->unloadLibrary(handle);
+      return g_callbacks->unloadLibrary(handle);
     } else {
       ALOGE("not compatible with version %d, cannot unload library", NAMESPACE_VERSION);
     }
@@ -588,7 +549,7 @@ int NativeBridgeUnloadLibrary(void* handle) {
 const char* NativeBridgeGetError() {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->getError();
+      return g_callbacks->getError();
     } else {
       return "native bridge implementation is not compatible with version 3, cannot get message";
     }
@@ -599,7 +560,7 @@ const char* NativeBridgeGetError() {
 bool NativeBridgeIsPathSupported(const char* path) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->isPathSupported(path);
+      return g_callbacks->isPathSupported(path);
     } else {
       ALOGE("not compatible with version %d, cannot check via library path", NAMESPACE_VERSION);
     }
@@ -615,12 +576,12 @@ native_bridge_namespace_t* NativeBridgeCreateNamespace(const char* name,
                                                        native_bridge_namespace_t* parent_ns) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->createNamespace(name,
-                                        ld_library_path,
-                                        default_library_path,
-                                        type,
-                                        permitted_when_isolated_path,
-                                        parent_ns);
+      return g_callbacks->createNamespace(name,
+                                          ld_library_path,
+                                          default_library_path,
+                                          type,
+                                          permitted_when_isolated_path,
+                                          parent_ns);
     } else {
       ALOGE("not compatible with version %d, cannot create namespace %s", NAMESPACE_VERSION, name);
     }
@@ -633,7 +594,7 @@ bool NativeBridgeLinkNamespaces(native_bridge_namespace_t* from, native_bridge_n
                                 const char* shared_libs_sonames) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->linkNamespaces(from, to, shared_libs_sonames);
+      return g_callbacks->linkNamespaces(from, to, shared_libs_sonames);
     } else {
       ALOGE("not compatible with version %d, cannot init namespace", NAMESPACE_VERSION);
     }
@@ -648,13 +609,13 @@ native_bridge_namespace_t* NativeBridgeGetExportedNamespace(const char* name) {
   }
 
   if (isCompatibleWith(RUNTIME_NAMESPACE_VERSION)) {
-    return callbacks->getExportedNamespace(name);
+    return g_callbacks->getExportedNamespace(name);
   }
 
-  // sphal is vendor namespace name -> use v4 callback in the case NB callbacks
+  // sphal is vendor namespace name -> use v4 callback in the case NB g_callbacks
   // are not compatible with v5
   if (isCompatibleWith(VENDOR_NAMESPACE_VERSION) && name != nullptr && strcmp("sphal", name) == 0) {
-    return callbacks->getVendorNamespace();
+    return g_callbacks->getVendorNamespace();
   }
 
   return nullptr;
@@ -663,7 +624,7 @@ native_bridge_namespace_t* NativeBridgeGetExportedNamespace(const char* name) {
 void* NativeBridgeLoadLibraryExt(const char* libpath, int flag, native_bridge_namespace_t* ns) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(NAMESPACE_VERSION)) {
-      return callbacks->loadLibraryExt(libpath, flag, ns);
+      return g_callbacks->loadLibraryExt(libpath, flag, ns);
     } else {
       ALOGE("not compatible with version %d, cannot load library in namespace", NAMESPACE_VERSION);
     }
@@ -674,7 +635,7 @@ void* NativeBridgeLoadLibraryExt(const char* libpath, int flag, native_bridge_na
 bool NativeBridgeIsNativeBridgeFunctionPointer(const void* method) {
   if (NativeBridgeInitialized()) {
     if (isCompatibleWith(IDENTIFY_NATIVELY_BRIDGED_FUNCTION_POINTERS_VERSION)) {
-      return callbacks->isNativeBridgeFunctionPointer(method);
+      return g_callbacks->isNativeBridgeFunctionPointer(method);
     } else {
       ALOGW("not compatible with version %d, unable to call isNativeBridgeFunctionPointer",
             IDENTIFY_NATIVELY_BRIDGED_FUNCTION_POINTERS_VERSION);

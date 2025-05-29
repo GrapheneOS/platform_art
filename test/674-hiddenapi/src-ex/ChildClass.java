@@ -17,6 +17,8 @@
 import dalvik.system.VMRuntime;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.function.Consumer;
 
 public class ChildClass {
@@ -316,19 +318,25 @@ public class ChildClass {
       if (!Reflection.canGetField(klass, name)) {
         throwAccessException(klass, name, true, "Field.getInt()");
       }
-      if (!Reflection.canSetField(klass, name)) {
+      if (!isUnmodifiable(klass, name) && !Reflection.canSetField(klass, name)) {
         throwAccessException(klass, name, true, "Field.setInt()");
       }
       if (!JNI.canGetField(klass, name, isStatic)) {
         throwAccessException(klass, name, true, "getIntField");
       }
-      if (!JNI.canSetField(klass, name, isStatic)) {
+      if (!isUnmodifiable(klass, name) && !JNI.canSetField(klass, name, isStatic)) {
         throwAccessException(klass, name, true, "setIntField");
       }
     }
 
     // Test that callbacks are invoked correctly.
     checkMemberCallback(klass, name, isPublic, true /* isField */, invokesMemberCallback);
+  }
+
+  private static final boolean isUnmodifiable(Class<?> klass, String fieldName) throws Exception {
+    Field field = klass.getDeclaredField(fieldName);
+
+    return Modifier.isFinal(field.getModifiers()) && Modifier.isStatic(field.getModifiers());
   }
 
   private static void checkMethod(Class<?> klass, String name, boolean isStatic,
