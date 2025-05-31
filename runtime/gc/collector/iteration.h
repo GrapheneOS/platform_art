@@ -46,6 +46,7 @@ class Iteration {
   uint64_t GetDurationNs() const {
     return duration_ns_;
   }
+  uint64_t GetThreadCpuTimeNs() const { return thread_cpu_time_ns_; }
   int64_t GetFreedBytes() const {
     return freed_.bytes;
   }
@@ -90,9 +91,12 @@ class Iteration {
     duration_ns_ = duration;
   }
 
+  void SetThreadCpuTimeNs(uint64_t time) { thread_cpu_time_ns_ = time; }
+
   GcCause gc_cause_;
   bool clear_soft_references_;
   uint64_t duration_ns_;
+  uint64_t thread_cpu_time_ns_;
   uint64_t app_slow_path_duration_ms_;
   uint64_t bytes_scanned_;
   TimingLogger timings_;

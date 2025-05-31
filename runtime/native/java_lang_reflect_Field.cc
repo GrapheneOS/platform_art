@@ -557,13 +557,6 @@ static jboolean Field_isAnnotationPresentNative(JNIEnv* env,
   return annotations::IsFieldAnnotationPresent(field, klass);
 }
 
-static jboolean Field_isMonotonic0(JNIEnv* env, jobject javaField) {
-  ScopedObjectAccess soa(env);
-  ObjPtr<mirror::Field> f = soa.Decode<mirror::Field>(javaField);
-
-  return f->IsMonotonic();
-}
-
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Field, get,        "(Ljava/lang/Object;)Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(Field, getBoolean, "(Ljava/lang/Object;)Z"),
@@ -581,7 +574,6 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Field, getNameInternal, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Field, getShort,   "(Ljava/lang/Object;)S"),
   FAST_NATIVE_METHOD(Field, isAnnotationPresentNative, "(Ljava/lang/Class;)Z"),
-  NATIVE_METHOD(Field,      isMonotonic0, "()Z"),
   FAST_NATIVE_METHOD(Field, set,        "(Ljava/lang/Object;Ljava/lang/Object;)V"),
   FAST_NATIVE_METHOD(Field, setBoolean, "(Ljava/lang/Object;Z)V"),
   FAST_NATIVE_METHOD(Field, setByte,    "(Ljava/lang/Object;B)V"),

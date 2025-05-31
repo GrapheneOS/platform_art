@@ -20,6 +20,8 @@ import java.lang.reflect.Field;
 
 public class Main {
 
+    private static final boolean DALVIK_RUN = "Dalvik".equals(System.getProperty("java.vm.name"));
+
     public static class ValueHolder {
         public boolean m_z = false;
         public byte m_b = 0;
@@ -959,20 +961,25 @@ public class Main {
                 MethodHandles.lookup().unreflectSetter(f).invokeExact(v, 'A');
                 assertEquals('A', (char) MethodHandles.lookup().unreflectGetter(f).invokeExact(v));
             }
-            {
+            if (DALVIK_RUN) {
                 // public static final field test
+                // for JVM it is not possible to get the unreflected setter for a static final
+                // field, see b/242985782
                 Field f = ValueHolder.class.getDeclaredField("s_fi");
                 try {
                     MethodHandles.lookup().unreflectSetter(f);
                     fail();
                 } catch (IllegalAccessException expected) {}
-                int actual = (int) MethodHandles.lookup().unreflectGetter(f).invokeExact();
-                assertEquals(ValueHolder.s_fi, actual);
+                MethodHandles.lookup().unreflectGetter(f);
                 f.setAccessible(true);
-                try {
-                    MethodHandles.lookup().unreflectSetter(f);
-                    fail();
-                } catch (IllegalAccessException expected) {}
+                int savedValue = (int) MethodHandles.lookup().unreflectGetter(f).invokeExact();
+                int newValue = savedValue + 1;
+                MethodHandles.lookup().unreflectSetter(f).invokeExact(newValue);
+                assertEquals(newValue, (int) MethodHandles.lookup().unreflectGetter(f).invokeExact()
+                );
+                MethodHandles.lookup().unreflectSetter(f).invokeExact(savedValue);
+                assertEquals(savedValue, (int) MethodHandles.lookup().unreflectGetter(f).invokeExact()
+                );
                 f.setAccessible(false);
                 try {
                     MethodHandles.lookup().unreflectSetter(f);
@@ -1008,7 +1015,10 @@ public class Main {
                     fail();
                 } catch (IllegalAccessException expected) {}
             }
-            {
+            if (DALVIK_RUN) {
+                // private static final field test
+                // for JVM it is not possible to get the unreflected setter for a static final
+                // field, see b/242985782
                 Field f = ValueHolder.class.getDeclaredField("s_fz");  // private static final field
                 try {
                     MethodHandles.lookup().unreflectSetter(f);
@@ -1019,11 +1029,12 @@ public class Main {
                     fail();
                 } catch (IllegalAccessException expected) {}
                 f.setAccessible(true);
-                try {
-                    MethodHandles.lookup().unreflectSetter(f);
-                    fail();
-                } catch (IllegalAccessException expected) {}
+                // Setter is okay despite being final because field isAccessible().
+                MethodHandles.lookup().unreflectSetter(f).invokeExact(false);
                 assertEquals(false, (boolean) MethodHandles.lookup().unreflectGetter(f).invokeExact()
+                );
+                MethodHandles.lookup().unreflectSetter(f).invokeExact(true);
+                assertEquals(true, (boolean) MethodHandles.lookup().unreflectGetter(f).invokeExact()
                 );
                 f.setAccessible(false);
                 try {
