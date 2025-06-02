@@ -393,17 +393,20 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Resets the dexopt state of the package as if the package is newly installed without cloud
-     * dexopt artifacts (SDM files).
+     * Resets the dexopt state of the package as if the package is newly installed, but without any
+     * compilation. Clears current profiles and reference profiles. External profiles (e.g., cloud
+     * profiles and embedded profiles) are kept for future dexopt, but not used this time.
      *
-     * More specifically,
-     * - It clears current profiles, reference profiles, and all dexopt artifacts (including cloud
-     *   dexopt artifacts).
-     * - If there is an external profile (e.g., a cloud profile), the reference profile will be
-     *   re-created from that profile, and dexopt artifacts will be regenerated for that profile.
+     * For primary dex files, all dexopt optimizations except compilation (such as verification) are
+     * still performed, meaning dexopt artifacts are regenerated if necessary. In the current
+     * version, this is equivalent to dexopt with the compiler filter set to "verify"
      *
-     * For secondary dex files, it clears all profiles and dexopt artifacts without regeneration
-     * because secondary dex files are supposed to be unknown at install time.
+     * For secondary dex files, no dexopt optimizations are performed, meaning dexopt artifacts are
+     * deleted without regeneration, because secondary dex files are supposed to be unknown at
+     * install time.
+     *
+     * One of the use cases of this method is for app developers to get a baseline for measuring
+     * performance improvements from compilation.
      *
      * @hide
      */
@@ -414,9 +417,8 @@ public final class ArtManagerLocal {
         // We must delete the artifacts for primary dex files beforehand rather than relying on
         // `dexoptPackage` to replace them because:
         // - If dexopt is not needed after the deletion, then we shouldn't run dexopt at all. For
-        //   example, when we have a DM file that contains a VDEX file but doesn't contain a cloud
-        //   profile, this happens. Note that this is more about correctness rather than
-        //   performance.
+        //   example, when we have a DM file that contains a VDEX file, this happens. Note that this
+        //   is more about correctness rather than performance.
         // - We don't want the existing artifacts to affect dexopt. For example, the existing VDEX
         //   file should not be an input VDEX.
         //
@@ -427,8 +429,10 @@ public final class ArtManagerLocal {
         clearAppProfiles(snapshot, packageName);
 
         // Re-generate artifacts for primary dex files if needed.
-        return dexoptPackage(snapshot, packageName,
-                new DexoptParams.Builder(ReasonMapping.REASON_INSTALL).build(), cancellationSignal);
+        var dexoptParams = new DexoptParams.Builder(ReasonMapping.REASON_INSTALL)
+                                   .setCompilerFilter("verify")
+                                   .build();
+        return dexoptPackage(snapshot, packageName, dexoptParams, cancellationSignal);
     }
 
     /**

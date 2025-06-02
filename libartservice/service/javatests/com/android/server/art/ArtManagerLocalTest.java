@@ -559,8 +559,11 @@ public class ArtManagerLocalTest {
         var result = DexoptResult.create();
         var cancellationSignal = new CancellationSignal();
 
-        when(mDexoptHelper.dexopt(
-                     any(), deepEq(List.of(PKG_NAME_1)), any(), same(cancellationSignal), any()))
+        var dexoptParams = new DexoptParams.Builder(ReasonMapping.REASON_INSTALL)
+                                   .setCompilerFilter("verify")
+                                   .build();
+        when(mDexoptHelper.dexopt(any(), deepEq(List.of(PKG_NAME_1)), deepEq(dexoptParams),
+                     same(cancellationSignal), any()))
                 .thenReturn(result);
 
         assertThat(mArtManagerLocal.resetDexoptStatus(mSnapshot, PKG_NAME_1, cancellationSignal))
