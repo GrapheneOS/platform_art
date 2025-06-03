@@ -1377,7 +1377,8 @@ class Runtime {
   // pre-release SDK codenames, also check `ro.build.version.codename`.
   //
   // For making compile-time decisions, DO NOT rely on this value because it may not be correct in
-  // the Pre-reboot Dexopt case. Instead, use `CompilerOptions::SdkInt`.
+  // the Pre-reboot Dexopt case. Instead, use `AssumeValueOptions::SdkInt`-related properties as
+  // provided by `CompilerOptions`.
   uint32_t sdk_version_;
 
   // ART counterpart for the compat framework (go/compat-framework).

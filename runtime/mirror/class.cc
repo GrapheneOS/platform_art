@@ -1556,6 +1556,7 @@ void Class::PopulateEmbeddedVTable(PointerSize pointer_size) {
   CHECK(table != nullptr) << PrettyClass();
   const size_t table_length = table->GetLength();
   SetEmbeddedVTableLength(table_length);
+  AddRemoveClassFlags(kClassFlagHasEmbeddedVTable);
   for (size_t i = 0; i < table_length; i++) {
     SetEmbeddedVTableEntry(i, table->GetElementPtrSize<ArtMethod*>(i, pointer_size), pointer_size);
   }
@@ -1670,6 +1671,9 @@ void Class::PopulateReferenceOffsetBitmap() {
       }
       ref_offsets = -overflow_bitmap_word_idx | kVisitReferencesSlowpathMask;
     }
+  }
+  if ((GetClassFlags() & ~kClassFlagStaticRefInfo) == 0 && ref_offsets != 0) {
+    AddRemoveClassFlags(kClassFlagNormal);
   }
   SetReferenceInstanceOffsets(ref_offsets);
 }

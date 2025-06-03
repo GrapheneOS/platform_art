@@ -24,12 +24,16 @@
 namespace art HIDDEN {
 namespace mirror {
 
+// Reserved for CMC MOVE ioctl implementation. We don't want to have 0x0 as
+// class-flags for any object.
+static constexpr uint32_t kClassFlagReservedForCMC = 0x00000000;
+
 // Normal instance with at least one ref field other than the class.
-static constexpr uint32_t kClassFlagNormal             = 0x00000000;
+static constexpr uint32_t kClassFlagNormal = 0x00000001;
 
 // Only normal objects which have no reference fields, e.g. string or primitive array or normal
 // class instance with no fields other than klass.
-static constexpr uint32_t kClassFlagNoReferenceFields  = 0x00000001;
+static constexpr uint32_t kClassFlagNoReferenceFields = 0x00000002;
 
 // Class is java.lang.String.class.
 static constexpr uint32_t kClassFlagString             = 0x00000004;
@@ -64,6 +68,12 @@ static constexpr uint32_t kClassFlagRecord             = 0x00000800;
 // Class is a primitive array class.
 static constexpr uint32_t kClassFlagPrimitiveArray = 0x00001000;
 
+// Class has non-zero static references. Needed for CMC GC compaction phase.
+static constexpr uint32_t kClassFlagHasStaticRefs = 0x00002000;
+
+// Class has embedded vtable, which maybe 0 length. Needed for CMC GC compaction phase.
+static constexpr uint32_t kClassFlagHasEmbeddedVTable = 0x00004000;
+
 // NOTE: The most significant 2 bits are used to store the component size shift
 // for arrays (both primitive and object). See Primitive::ComponentSizeShift()
 // for size shift of different types.
@@ -76,6 +86,9 @@ static constexpr uint32_t kClassFlagReference =
     kClassFlagWeakReference |
     kClassFlagFinalizerReference |
     kClassFlagPhantomReference;
+
+static constexpr uint32_t kClassFlagStaticRefInfo =
+    kClassFlagHasStaticRefs | kClassFlagHasEmbeddedVTable;
 
 }  // namespace mirror
 }  // namespace art

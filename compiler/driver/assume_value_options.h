@@ -40,7 +40,6 @@ class AssumeValueSignature {
  private:
   friend class art::AssumeValueOptions;
 
-  AssumeValueSignature() = delete;
   constexpr AssumeValueSignature(std::string_view class_descriptor, std::string_view member_name)
       : class_descriptor_(class_descriptor), member_name_(member_name) {}
 

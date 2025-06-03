@@ -39,6 +39,7 @@
 #include "intrinsic_objects.h"
 #include "intrinsics.h"
 #include "intrinsics_list.h"
+#include "loop_information-inl.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ssa_builder.h"
@@ -414,7 +415,7 @@ void HGraph::ComputeDominanceInformation() {
 }
 
 HBasicBlock* HGraph::SplitEdge(HBasicBlock* block, HBasicBlock* successor) {
-  HBasicBlock* new_block = new (allocator_) HBasicBlock(this, successor->GetDexPc());
+  HBasicBlock* new_block = HBasicBlock::Create(allocator_, this, successor->GetDexPc());
   AddBlock(new_block);
   // Use `InsertBetween` to ensure the predecessor index and successor index of
   // `block` and `successor` are preserved.
@@ -512,7 +513,7 @@ static void FixControlForNewSinglePreheader(HBasicBlock* header, HBasicBlock* ne
 void HGraph::TransformLoopToSinglePreheaderFormat(HBasicBlock* header) {
   HLoopInformation* loop_info = header->GetLoopInformation();
 
-  HBasicBlock* preheader = new (allocator_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* preheader = HBasicBlock::Create(allocator_, this, header->GetDexPc());
   AddBlock(preheader);
   preheader->AddInstruction(new (allocator_) HGoto(header->GetDexPc()));
 
@@ -1926,7 +1927,7 @@ HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
   DCHECK_EQ(cursor->GetBlock(), this);
 
   HBasicBlock* new_block =
-      new (GetGraph()->GetAllocator()) HBasicBlock(GetGraph(), cursor->GetDexPc());
+      HBasicBlock::Create(GetGraph()->GetAllocator(), GetGraph(), cursor->GetDexPc());
   new_block->instructions_.first_instruction_ = cursor;
   new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
   instructions_.last_instruction_ = cursor->previous_;
@@ -1955,7 +1956,8 @@ HBasicBlock* HBasicBlock::CreateImmediateDominator() {
   DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
   DCHECK(!IsCatchBlock()) << "Support for updating try/catch information not implemented.";
 
-  HBasicBlock* new_block = new (GetGraph()->GetAllocator()) HBasicBlock(GetGraph(), GetDexPc());
+  HBasicBlock* new_block =
+      HBasicBlock::Create(GetGraph()->GetAllocator(), GetGraph(), GetDexPc());
 
   for (HBasicBlock* predecessor : GetPredecessors()) {
     predecessor->successors_[predecessor->GetSuccessorIndexOf(this)] = new_block;
@@ -1972,7 +1974,7 @@ HBasicBlock* HBasicBlock::SplitBeforeForInlining(HInstruction* cursor) {
   DCHECK_EQ(cursor->GetBlock(), this);
 
   HBasicBlock* new_block =
-      new (GetGraph()->GetAllocator()) HBasicBlock(GetGraph(), cursor->GetDexPc());
+      HBasicBlock::Create(GetGraph()->GetAllocator(), GetGraph(), cursor->GetDexPc());
   new_block->instructions_.first_instruction_ = cursor;
   new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
   instructions_.last_instruction_ = cursor->previous_;
@@ -2004,7 +2006,8 @@ HBasicBlock* HBasicBlock::SplitAfterForInlining(HInstruction* cursor) {
   DCHECK_NE(instructions_.last_instruction_, cursor);
   DCHECK_EQ(cursor->GetBlock(), this);
 
-  HBasicBlock* new_block = new (GetGraph()->GetAllocator()) HBasicBlock(GetGraph(), GetDexPc());
+  HBasicBlock* new_block =
+      HBasicBlock::Create(GetGraph()->GetAllocator(), GetGraph(), GetDexPc());
   new_block->instructions_.first_instruction_ = cursor->GetNext();
   new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
   cursor->next_->previous_ = nullptr;
@@ -2832,10 +2835,10 @@ void HGraph::TransformLoopHeaderForBCE(HBasicBlock* header) {
   HBasicBlock* old_pre_header = header->GetDominator();
 
   // Need extra block to avoid critical edge.
-  HBasicBlock* if_block = new (allocator_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* true_block = new (allocator_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* false_block = new (allocator_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* new_pre_header = new (allocator_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* if_block = HBasicBlock::Create(allocator_, this, header->GetDexPc());
+  HBasicBlock* true_block = HBasicBlock::Create(allocator_, this, header->GetDexPc());
+  HBasicBlock* false_block = HBasicBlock::Create(allocator_, this, header->GetDexPc());
+  HBasicBlock* new_pre_header = HBasicBlock::Create(allocator_, this, header->GetDexPc());
   AddBlock(if_block);
   AddBlock(true_block);
   AddBlock(false_block);
@@ -2892,9 +2895,9 @@ HBasicBlock* HGraph::TransformLoopForVectorization(HBasicBlock* header,
   HLoopInformation* loop = header->GetLoopInformation();
 
   // Add new loop blocks.
-  HBasicBlock* new_pre_header = new (allocator_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* new_header = new (allocator_) HBasicBlock(this, header->GetDexPc());
-  HBasicBlock* new_body = new (allocator_) HBasicBlock(this, header->GetDexPc());
+  HBasicBlock* new_pre_header = HBasicBlock::Create(allocator_, this, header->GetDexPc());
+  HBasicBlock* new_header = HBasicBlock::Create(allocator_, this, header->GetDexPc());
+  HBasicBlock* new_body = HBasicBlock::Create(allocator_, this, header->GetDexPc());
   AddBlock(new_pre_header);
   AddBlock(new_header);
   AddBlock(new_body);

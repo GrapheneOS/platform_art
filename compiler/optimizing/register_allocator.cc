@@ -24,6 +24,7 @@
 #include "base/bit_utils_iterator.h"
 #include "base/bit_vector-inl.h"
 #include "code_generator.h"
+#include "loop_information-inl.h"
 #include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 

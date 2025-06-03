@@ -39,7 +39,10 @@ inline uint32_t Array::ClassSize(PointerSize pointer_size) {
 
 template <VerifyObjectFlags kVerifyFlags>
 inline size_t Array::SizeOf(size_t component_size_shift) {
-  int32_t component_count = GetLength<kVerifyFlags>();
+  return SizeOf(component_size_shift, GetLength<kVerifyFlags>());
+}
+
+inline size_t Array::SizeOf(size_t component_size_shift, int32_t component_count) {
   // This is safe from overflow because the array was already allocated.
   size_t header_size = DataOffset(1U << component_size_shift).SizeValue();
   size_t data_size = component_count << component_size_shift;

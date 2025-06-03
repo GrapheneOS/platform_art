@@ -220,7 +220,6 @@ inline mirror::Object* MarkCompact::UpdateRef(mirror::Object* obj,
                  << " from_ref=" << from_ref
                  << " offset=" << offset
                  << " obj=" << obj
-                 << " obj-validity=" << IsValidObject(obj)
                  << " from-space=" << static_cast<void*>(from_space_begin_)
                  << " bitmap= " << moving_space_bitmap_->DumpMemAround(old_ref)
                  << " from_ref "

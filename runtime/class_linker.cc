@@ -706,7 +706,8 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   Handle<mirror::Class> java_lang_Class(hs.NewHandle(ObjPtr<mirror::Class>::DownCast(
       heap->AllocNonMovableObject(self, nullptr, class_class_size, VoidFunctor()))));
   CHECK(java_lang_Class != nullptr);
-  java_lang_Class->SetClassFlags(mirror::kClassFlagClass);
+  java_lang_Class->AddRemoveClassFlags(mirror::kClassFlagClass |
+                                       mirror::kClassFlagHasEmbeddedVTable);
   java_lang_Class->SetClass(java_lang_Class.Get());
   if (kUseBakerReadBarrier) {
     java_lang_Class->AssertReadBarrierState();
@@ -1057,17 +1058,13 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK_EQ(java_lang_ref_Reference->GetClassSize(),
            mirror::Reference::ClassSize(image_pointer_size_));
   class_root = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
-  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
-  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagFinalizerReference);
+  class_root->AddRemoveClassFlags(mirror::kClassFlagFinalizerReference, mirror::kClassFlagNormal);
   class_root = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
-  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
-  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagPhantomReference);
+  class_root->AddRemoveClassFlags(mirror::kClassFlagPhantomReference, mirror::kClassFlagNormal);
   class_root = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
-  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
-  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagSoftReference);
+  class_root->AddRemoveClassFlags(mirror::kClassFlagSoftReference, mirror::kClassFlagNormal);
   class_root = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
-  CHECK_EQ(class_root->GetClassFlags(), mirror::kClassFlagNormal);
-  class_root->SetClassFlags(class_root->GetClassFlags() | mirror::kClassFlagWeakReference);
+  class_root->AddRemoveClassFlags(mirror::kClassFlagWeakReference, mirror::kClassFlagNormal);
 
   // Setup the ClassLoader, verifying the object_size_.
   class_root = FindSystemClass(self, "Ljava/lang/ClassLoader;");
@@ -1454,7 +1451,8 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(
       ObjPtr<mirror::ObjectArray<mirror::Class>>::DownCast(
           image_header.GetImageRoot(ImageHeader::kClassRoots)));
-  DCHECK_EQ(GetClassRoot<mirror::Class>(this)->GetClassFlags(), mirror::kClassFlagClass);
+  DCHECK_EQ(GetClassRoot<mirror::Class>(this)->GetClassFlags() & ~mirror::kClassFlagStaticRefInfo,
+            mirror::kClassFlagClass);
 
   DCHECK_EQ(GetClassRoot<mirror::Object>(this)->GetObjectSize(), sizeof(mirror::Object));
   ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects =
@@ -2884,7 +2882,7 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   class_flags |= component_type->IsPrimitive()
                      ? (mirror::kClassFlagNoReferenceFields | mirror::kClassFlagPrimitiveArray)
                      : mirror::kClassFlagObjectArray;
-  array_class->SetClassFlags(class_flags);
+  array_class->AddRemoveClassFlags(class_flags);
   array_class->SetClassLoader(component_type->GetClassLoader());
   array_class->SetStatusForPrimitiveOrArray(ClassStatus::kLoaded);
   array_class->PopulateEmbeddedVTable(image_pointer_size_);
@@ -6826,7 +6824,7 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
     klass->SetFinalizable();
   }
 
-  // Inherit class loader flag form super class.
+  // Inherit class loader flag from super class.
   if (super->IsClassLoaderClass()) {
     klass->SetClassLoaderClass();
   }
@@ -6835,7 +6833,7 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
   uint32_t reference_flags = (super->GetClassFlags() & mirror::kClassFlagReference);
   if (reference_flags != 0) {
     CHECK_EQ(klass->GetClassFlags(), 0u);
-    klass->SetClassFlags(klass->GetClassFlags() | reference_flags);
+    klass->AddRemoveClassFlags(reference_flags);
   }
   // Disallow custom direct subclasses of java.lang.ref.Reference.
   if (init_done_ && super == GetClassRoot<mirror::Reference>(this)) {
@@ -9806,7 +9804,7 @@ bool ClassLinker::LinkFieldsHelper::LinkFields(ClassLinker* class_linker,
       // super_class is null iff the class is java.lang.Object.
       if (super_class == nullptr ||
           (super_class->GetClassFlags() & mirror::kClassFlagNoReferenceFields) != 0) {
-        klass->SetClassFlags(klass->GetClassFlags() | mirror::kClassFlagNoReferenceFields);
+        klass->AddRemoveClassFlags(mirror::kClassFlagNoReferenceFields);
       }
     }
     if (kIsDebugBuild) {

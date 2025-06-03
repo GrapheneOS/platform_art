@@ -21,6 +21,8 @@
 
 namespace art HIDDEN {
 
+static const int kDefaultNumberOfBackEdges = 1;
+
 HLoopInformation::HLoopInformation(HBasicBlock* header, HGraph* graph)
     : header_(header),
       suspend_check_(nullptr),

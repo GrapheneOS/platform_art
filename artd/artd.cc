@@ -129,6 +129,7 @@ using ::android::base::Error;
 using ::android::base::Join;
 using ::android::base::make_scope_guard;
 using ::android::base::ParseInt;
+using ::android::base::ParseUint;
 using ::android::base::ReadFileToString;
 using ::android::base::Result;
 using ::android::base::Split;
@@ -1739,6 +1740,7 @@ Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
                 .boot_class_path = *OR_RETURN(GetBootClassPath()),
                 .boot_class_path_locations = *OR_RETURN(GetBootClassPath()),
                 .deny_art_apex_data_files = DenyArtApexDataFiles(),
+                .sdk_version = GetSdkVersion(),
             }));
     std::string error_msg;
     if (!ofa_context_->FetchAll(&error_msg)) {
@@ -1831,6 +1833,28 @@ bool Artd::DenyArtApexDataFilesLocked() {
   return cached_deny_art_apex_data_files_.value();
 }
 
+uint32_t Artd::GetSdkVersion() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+  return GetSdkVersionLocked();
+}
+
+uint32_t Artd::GetSdkVersionLocked() {
+  if (!cached_sdk_version_.has_value()) {
+    const std::string sdk_version_str =
+        pre_reboot_build_props_ != nullptr
+            ? pre_reboot_build_props_->GetOrEmpty("ro.build.version.sdk")
+            : props_->GetOrEmpty("ro.build.version.sdk");
+
+    uint32_t sdk_version = static_cast<uint32_t>(SdkVersion::kUnset);
+    if (!sdk_version_str.empty() && !ParseUint(sdk_version_str, &sdk_version)) {
+      LOG(WARNING) << "Failed to parse the build version SDK: " << sdk_version_str;
+    }
+    cached_sdk_version_ = sdk_version;
+  }
+
+  return cached_sdk_version_.value();
+}
+
 Result<std::string> Artd::GetProfman() { return BuildArtBinPath("profman"); }
 
 Result<CmdlineBuilder> Artd::GetArtExecCmdlineBuilder() {
@@ -1909,16 +1933,12 @@ void Artd::AddCompilerConfigFlags(const std::string& instruction_set,
       .AddRuntime("-Xtarget-sdk-version:%d", dexopt_options.targetSdkVersion)
       .AddRuntimeIf(dexopt_options.hiddenApiPolicyEnabled, "-Xhidden-api-policy:enabled");
 
-  // Fetch the appropriate build version based on the target execution environment.
-  const std::string build_version_sdk =
-      pre_reboot_build_props_ != nullptr
-          ? pre_reboot_build_props_->GetOrEmpty("ro.build.version.sdk")
-          : props_->GetOrEmpty("ro.build.version.sdk");
-  if (!build_version_sdk.empty()) {
+  const uint32_t sdk_version = GetSdkVersion();
+  if (sdk_version != static_cast<uint32_t>(SdkVersion::kUnset)) {
     // TODO(b/204924812): Reuse the appropriate SDK_INT signature from
     // AssumeValueOptions to generate the correctly formatted argument.
     constexpr const char* kSdkIntSignature = "Landroid/os/Build$VERSION;->SDK_INT";
-    args.Add(ART_FORMAT("--assume-value={}:{}", kSdkIntSignature, build_version_sdk));
+    args.Add(ART_FORMAT("--assume-value={}:{}", kSdkIntSignature, sdk_version));
   }
 }
 

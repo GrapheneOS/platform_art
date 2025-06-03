@@ -420,27 +420,21 @@ TEST_F(CodegenTest, NonMaterializedCondition) {
   for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     HGraph* graph = CreateGraph();
 
-    HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-    graph->AddBlock(entry);
+    HBasicBlock* entry = AddNewBlock();
     graph->SetEntryBlock(entry);
     MakeGoto(entry);
 
-    HBasicBlock* first_block = new (GetAllocator()) HBasicBlock(graph);
-    graph->AddBlock(first_block);
+    HBasicBlock* first_block = AddNewBlock();
     entry->AddSuccessor(first_block);
     HIntConstant* constant0 = graph->GetIntConstant(0);
     HIntConstant* constant1 = graph->GetIntConstant(1);
     HInstruction* equal = MakeCondition(first_block, kCondEQ, constant0, constant0);
     MakeIf(first_block, equal);
 
-    HBasicBlock* then_block = new (GetAllocator()) HBasicBlock(graph);
-    HBasicBlock* else_block = new (GetAllocator()) HBasicBlock(graph);
-    HBasicBlock* exit_block = new (GetAllocator()) HBasicBlock(graph);
-    graph->SetExitBlock(exit_block);
+    HBasicBlock* then_block = AddNewBlock();
+    HBasicBlock* else_block = AddNewBlock();
+    HBasicBlock* exit_block = AddExitBlock();
 
-    graph->AddBlock(then_block);
-    graph->AddBlock(else_block);
-    graph->AddBlock(exit_block);
     first_block->AddSuccessor(then_block);
     first_block->AddSuccessor(else_block);
     then_block->AddSuccessor(exit_block);
@@ -479,28 +473,14 @@ TEST_F(CodegenTest, MaterializedCondition1) {
     int rhs[] = {2, 1, 2, -1, 0xabc};
 
     for (size_t i = 0; i < arraysize(lhs); i++) {
-      HGraph* graph = CreateGraph();
+      HBasicBlock* code_block = InitEntryMainExitGraph();
 
-      HBasicBlock* entry_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(entry_block);
-      graph->SetEntryBlock(entry_block);
-      MakeGoto(entry_block);
-      HBasicBlock* code_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(code_block);
-      HBasicBlock* exit_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(exit_block);
-      MakeExit(exit_block);
-
-      entry_block->AddSuccessor(code_block);
-      code_block->AddSuccessor(exit_block);
-      graph->SetExitBlock(exit_block);
-
-      HIntConstant* cst_lhs = graph->GetIntConstant(lhs[i]);
-      HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);
+      HIntConstant* cst_lhs = graph_->GetIntConstant(lhs[i]);
+      HIntConstant* cst_rhs = graph_->GetIntConstant(rhs[i]);
       HInstruction* cmp_lt = MakeCondition(code_block, kCondLT, cst_lhs, cst_rhs);
       MakeReturn(code_block, cmp_lt);
 
-      graph->BuildDominatorTree();
+      graph_->BuildDominatorTree();
       auto hook_before_codegen = [](HGraph* graph_in) {
         HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors()[0];
         HParallelMove* move =
@@ -509,7 +489,7 @@ TEST_F(CodegenTest, MaterializedCondition1) {
       };
       std::unique_ptr<CompilerOptions> compiler_options =
           CommonCompilerTest::CreateCompilerOptions(target_config.GetInstructionSet(), "default");
-      RunCode(target_config, *compiler_options, graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+      RunCode(target_config, *compiler_options, graph_, hook_before_codegen, true, lhs[i] < rhs[i]);
     }
   }
 }
@@ -528,19 +508,14 @@ TEST_F(CodegenTest, MaterializedCondition2) {
     for (size_t i = 0; i < arraysize(lhs); i++) {
       HGraph* graph = CreateGraph();
 
-      HBasicBlock* entry_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(entry_block);
+      HBasicBlock* entry_block = AddNewBlock();
       graph->SetEntryBlock(entry_block);
       MakeGoto(entry_block);
 
-      HBasicBlock* if_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(if_block);
-      HBasicBlock* if_true_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(if_true_block);
-      HBasicBlock* if_false_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(if_false_block);
-      HBasicBlock* exit_block = new (GetAllocator()) HBasicBlock(graph);
-      graph->AddBlock(exit_block);
+      HBasicBlock* if_block = AddNewBlock();
+      HBasicBlock* if_true_block = AddNewBlock();
+      HBasicBlock* if_false_block = AddNewBlock();
+      HBasicBlock* exit_block = AddExitBlock();
       MakeExit(exit_block);
 
       graph->SetEntryBlock(entry_block);
@@ -549,7 +524,6 @@ TEST_F(CodegenTest, MaterializedCondition2) {
       if_block->AddSuccessor(if_false_block);
       if_true_block->AddSuccessor(exit_block);
       if_false_block->AddSuccessor(exit_block);
-      graph->SetExitBlock(exit_block);
 
       HIntConstant* cst_lhs = graph->GetIntConstant(lhs[i]);
       HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);

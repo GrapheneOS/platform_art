@@ -101,10 +101,8 @@ class LoopOptimizationTest : public LoopOptimizationTestBase {
 
   /** Adds a loop nest at given position before successor. */
   HBasicBlock* AddLoop(HBasicBlock* position, HBasicBlock* successor) {
-    HBasicBlock* header = new (GetAllocator()) HBasicBlock(graph_);
-    HBasicBlock* body = new (GetAllocator()) HBasicBlock(graph_);
-    graph_->AddBlock(header);
-    graph_->AddBlock(body);
+    HBasicBlock* header = AddNewBlock();
+    HBasicBlock* body = AddNewBlock();
     // Control flow.
     position->ReplaceSuccessor(successor, header);
     header->AddSuccessor(body);
@@ -317,10 +315,8 @@ TEST_F(LoopOptimizationTest, LoopNestWithSequence) {
 // This is a test for nodes.cc functionality - HGraph::SimplifyLoop.
 TEST_F(LoopOptimizationTest, SimplifyLoopReoderPredecessors) {
   // Can't use AddLoop as we want special order for blocks predecessors.
-  HBasicBlock* header = new (GetAllocator()) HBasicBlock(graph_);
-  HBasicBlock* body = new (GetAllocator()) HBasicBlock(graph_);
-  graph_->AddBlock(header);
-  graph_->AddBlock(body);
+  HBasicBlock* header = AddNewBlock();
+  HBasicBlock* body = AddNewBlock();
 
   // Control flow: make a loop back edge first in the list of predecessors.
   entry_block_->RemoveSuccessor(return_block_);
@@ -366,13 +362,9 @@ TEST_F(LoopOptimizationTest, SimplifyLoopSinglePreheader) {
       new (GetAllocator()) HSuspendCheck(), header->GetLastInstruction());
 
   // Insert an if construct before the loop so it will have two preheaders.
-  HBasicBlock* if_block = new (GetAllocator()) HBasicBlock(graph_);
-  HBasicBlock* preheader0 = new (GetAllocator()) HBasicBlock(graph_);
-  HBasicBlock* preheader1 = new (GetAllocator()) HBasicBlock(graph_);
-
-  graph_->AddBlock(if_block);
-  graph_->AddBlock(preheader0);
-  graph_->AddBlock(preheader1);
+  HBasicBlock* if_block = AddNewBlock();
+  HBasicBlock* preheader0 = AddNewBlock();
+  HBasicBlock* preheader1 = AddNewBlock();
 
   // Fix successors/predecessors.
   entry_block_->ReplaceSuccessor(header, if_block);

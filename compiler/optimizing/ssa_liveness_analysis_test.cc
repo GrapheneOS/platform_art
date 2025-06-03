@@ -37,16 +37,14 @@ class SsaLivenessAnalysisTest : public OptimizingUnitTest {
     codegen_ = CodeGenerator::Create(graph_, *compiler_options_);
     CHECK(codegen_ != nullptr);
     // Create entry block.
-    entry_ = new (GetAllocator()) HBasicBlock(graph_);
-    graph_->AddBlock(entry_);
+    entry_ = AddNewBlock();
     graph_->SetEntryBlock(entry_);
   }
 
  protected:
   HBasicBlock* CreateSuccessor(HBasicBlock* block) {
     HGraph* graph = block->GetGraph();
-    HBasicBlock* successor = new (GetAllocator()) HBasicBlock(graph);
-    graph->AddBlock(successor);
+    HBasicBlock* successor = AddNewBlock();
     block->AddSuccessor(successor);
     return successor;
   }

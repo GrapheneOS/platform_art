@@ -660,19 +660,8 @@ class EXPORT MANAGED LOCKABLE Object {
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor,
             typename JavaLangRefVisitor = VoidFunctor>
-  void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
-      NO_THREAD_SAFETY_ANALYSIS;
-  // VisitReferences version for compaction. It is invoked with from-space
-  // object so that portions of the object, like klass and length (for arrays),
-  // can be accessed without causing cascading faults.
-  template <bool kFetchObjSize = true,
-            bool kVisitNativeRoots = false,
-            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-            ReadBarrierOption kReadBarrierOption = kWithFromSpaceBarrier,
-            typename Visitor>
-  size_t VisitRefsForCompaction(const Visitor& visitor,
-                                MemberOffset begin,
-                                MemberOffset end) NO_THREAD_SAFETY_ANALYSIS;
+  void VisitReferences(const Visitor& visitor,
+                       const JavaLangRefVisitor& ref_visitor) NO_THREAD_SAFETY_ANALYSIS;
 
   ArtField* FindFieldByOffset(MemberOffset offset) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -700,6 +689,12 @@ class EXPORT MANAGED LOCKABLE Object {
                                 size_t num_bytes)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
+  void VisitInstanceFieldsReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor) HOT_ATTR
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  protected:
   // Accessors for non-Java type fields
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
@@ -724,12 +719,6 @@ class EXPORT MANAGED LOCKABLE Object {
       return reinterpret_cast64<T>(v);
     }
   }
-
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
-            typename Visitor>
-  void VisitInstanceFieldsReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor) HOT_ATTR
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   template <bool kAllowInflation>

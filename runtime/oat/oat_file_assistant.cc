@@ -525,13 +525,11 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
     return kOatContextOutOfDate;
   }
 
-  Runtime* runtime = Runtime::Current();
-  if (runtime != nullptr &&
-      file.GetOatHeader().HasAssumeValueSdkInt() &&
-      runtime->GetSdkVersion() != file.GetOatHeader().GetAssumeValueSdkInt()) {
+  if (file.GetOatHeader().HasAssumeValueSdkInt() &&
+      file.GetOatHeader().GetAssumeValueSdkInt() != GetRuntimeOptions().sdk_version) {
     *error_msg = ART_FORMAT("Assumed value mismatch for SDK_INT (compiled='{}', runtime='{}')",
                             file.GetOatHeader().GetAssumeValueSdkInt(),
-                            runtime->GetSdkVersion());
+                            GetRuntimeOptions().sdk_version);
     return kOatAssumedValuesOutOfDate;
   }
 

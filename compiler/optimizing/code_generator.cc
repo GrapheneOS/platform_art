@@ -247,10 +247,18 @@ bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) con
   return GetNextBlockToEmit() == FirstNonEmptyBlock(next);
 }
 
+// Returns true if the `block` emits nothing but a jump.
+inline bool IsSingleJump(HBasicBlock* block) {
+  HLoopInformation* loop_info = block->GetLoopInformation();
+  return (block->IsSingleGoto() || block->IsSingleTryBoundary())
+         // Back edges generate a suspend check.
+         && (loop_info == nullptr || !loop_info->IsBackEdge(*block));
+}
+
 HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
   for (size_t i = current_block_index_ + 1; i < block_order_->size(); ++i) {
     HBasicBlock* block = (*block_order_)[i];
-    if (!block->IsSingleJump()) {
+    if (!IsSingleJump(block)) {
       return block;
     }
   }
@@ -258,7 +266,7 @@ HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
 }
 
 HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
-  while (block->IsSingleJump()) {
+  while (IsSingleJump(block)) {
     block = block->GetSuccessors()[0];
   }
   return block;
@@ -343,7 +351,9 @@ void CodeGenerator::Compile() {
     // Don't generate code for an empty block. Its predecessors will branch to its successor
     // directly. Also, the label of that block will not be emitted, so this helps catch
     // errors where we reference that label.
-    if (block->IsSingleJump()) continue;
+    if (IsSingleJump(block)) {
+      continue;
+    }
     Bind(block);
     // This ensures that we have correct native line mapping for all native instructions.
     // It is necessary to make stepping over a statement work. Otherwise, any initial

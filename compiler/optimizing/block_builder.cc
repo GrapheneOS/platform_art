@@ -48,7 +48,7 @@ HBasicBlock* HBasicBlockBuilder::MaybeCreateBlockAt(uint32_t semantic_dex_pc,
                                                     uint32_t store_dex_pc) {
   HBasicBlock* block = branch_targets_[store_dex_pc];
   if (block == nullptr) {
-    block = new (allocator_) HBasicBlock(graph_, semantic_dex_pc);
+    block = HBasicBlock::Create(allocator_, graph_, semantic_dex_pc);
     branch_targets_[store_dex_pc] = block;
   }
   DCHECK_EQ(block->GetDexPc(), semantic_dex_pc);
@@ -323,7 +323,7 @@ void HBasicBlockBuilder::InsertTryBoundaryBlocks() {
       HBasicBlock* catch_block = GetBlockAt(address);
       bool is_try_block = (try_block_info.find(catch_block->GetBlockId()) != try_block_info.end());
       if (is_try_block || MightHaveLiveNormalPredecessors(catch_block)) {
-        HBasicBlock* new_catch_block = new (allocator_) HBasicBlock(graph_, address);
+        HBasicBlock* new_catch_block = HBasicBlock::Create(allocator_, graph_, address);
         new_catch_block->AddInstruction(new (allocator_) HGoto(address));
         new_catch_block->AddSuccessor(catch_block);
         graph_->AddBlock(new_catch_block);
@@ -414,7 +414,7 @@ void HBasicBlockBuilder::InsertSynthesizedLoopsForOsr() {
   // Insert synthesized loops before the collected blocks.
   for (uint32_t block_id : targets) {
     HBasicBlock* block = graph_->GetBlocks()[block_id];
-    HBasicBlock* loop_block = new (allocator_) HBasicBlock(graph_, block->GetDexPc());
+    HBasicBlock* loop_block = HBasicBlock::Create(allocator_, graph_, block->GetDexPc());
     graph_->AddBlock(loop_block);
     while (!block->GetPredecessors().empty()) {
       block->GetPredecessors()[0]->ReplaceSuccessor(block, loop_block);
@@ -431,8 +431,8 @@ bool HBasicBlockBuilder::Build() {
   DCHECK(code_item_accessor_.HasCodeItem());
   DCHECK(graph_->GetBlocks().empty());
 
-  graph_->SetEntryBlock(new (allocator_) HBasicBlock(graph_, kNoDexPc));
-  graph_->SetExitBlock(new (allocator_) HBasicBlock(graph_, kNoDexPc));
+  graph_->SetEntryBlock(HBasicBlock::Create(allocator_, graph_, kNoDexPc));
+  graph_->SetExitBlock(HBasicBlock::Create(allocator_, graph_, kNoDexPc));
 
   // TODO(dbrazdil): Do CreateBranchTargets and ConnectBasicBlocks in one pass.
   if (!CreateBranchTargets()) {
@@ -454,8 +454,8 @@ void HBasicBlockBuilder::BuildIntrinsic() {
   DCHECK(graph_->GetBlocks().empty());
 
   // Create blocks.
-  HBasicBlock* entry_block = new (allocator_) HBasicBlock(graph_, kNoDexPc);
-  HBasicBlock* exit_block = new (allocator_) HBasicBlock(graph_, kNoDexPc);
+  HBasicBlock* entry_block = HBasicBlock::Create(allocator_, graph_, kNoDexPc);
+  HBasicBlock* exit_block = HBasicBlock::Create(allocator_, graph_, kNoDexPc);
   HBasicBlock* body = MaybeCreateBlockAt(/* semantic_dex_pc= */ kNoDexPc, /* store_dex_pc= */ 0u);
 
   // Add blocks to the graph.

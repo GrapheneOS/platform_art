@@ -47,8 +47,8 @@ std::ostream& operator<<(std::ostream& stream, StubType stub_type);
 class EXPORT PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: Add assume-value-sdk-int header key.
-  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '6', '1', '\0'}};
+  // Last oat version changed reason: class_flags changes required for using MOVE ioctl.
+  static constexpr std::array<uint8_t, 4> kOatVersion{{'2', '6', '2', '\0'}};
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";

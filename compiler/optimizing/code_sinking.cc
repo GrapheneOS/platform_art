@@ -601,7 +601,7 @@ void CodeSinking::ReturnSinking() {
 
   // `new_block` will coalesce the Return instructions into Phi+Return, or the ReturnVoid
   // instructions into a ReturnVoid.
-  HBasicBlock* new_block = new (graph_->GetAllocator()) HBasicBlock(graph_, exit->GetDexPc());
+  HBasicBlock* new_block = HBasicBlock::Create(graph_->GetAllocator(), graph_, exit->GetDexPc());
   if (saw_return) {
     HPhi* new_phi = nullptr;
     for (size_t i = 0; i < exit->GetPredecessors().size(); /*++i in loop*/) {

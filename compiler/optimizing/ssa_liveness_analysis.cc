@@ -21,6 +21,7 @@
 #include "code_generator.h"
 #include "com_android_art_flags.h"
 #include "linear_order.h"
+#include "loop_information-inl.h"
 #include "nodes.h"
 
 namespace art HIDDEN {
@@ -810,9 +811,7 @@ void LiveInterval::AddBackEdgeUses(const HBasicBlock& block_at_use) {
   // we need to add subsequent entries after the last inserted entry.
   const UsePositionList::iterator old_begin = uses_.begin();
   UsePositionList::iterator insert_pos = uses_.before_begin();
-  for (HLoopInformationOutwardIterator it(block_at_use);
-       !it.Done();
-       it.Advance()) {
+  for (HLoopInformationOutwardIterator it(block_at_use); !it.Done(); it.Advance()) {
     HLoopInformation* current = it.Current();
     if (GetDefinedBy()->GetLifetimePosition() >= current->GetHeader()->GetLifetimeStart()) {
       // This interval is defined in the loop. We can stop going outward.

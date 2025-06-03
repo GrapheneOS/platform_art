@@ -163,8 +163,7 @@ TEST_F(NodeTest, RemoveInstruction) {
  */
 TEST_F(NodeTest, InsertInstruction) {
   HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
+  HBasicBlock* entry = AddNewBlock();
   graph->SetEntryBlock(entry);
   HInstruction* parameter1 = MakeParam(DataType::Type::kReference);
   HInstruction* parameter2 = MakeParam(DataType::Type::kReference);
@@ -184,8 +183,7 @@ TEST_F(NodeTest, InsertInstruction) {
  */
 TEST_F(NodeTest, AddInstruction) {
   HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
+  HBasicBlock* entry = AddNewBlock();
   graph->SetEntryBlock(entry);
   HInstruction* parameter = MakeParam(DataType::Type::kReference);
 
@@ -229,8 +227,7 @@ TEST_F(NodeTest, InsertDuplicateInstructionAt) {
 
 TEST_F(NodeTest, ParentEnvironment) {
   HGraph* graph = CreateGraph();
-  HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph);
-  graph->AddBlock(entry);
+  HBasicBlock* entry = AddNewBlock();
   graph->SetEntryBlock(entry);
   HInstruction* parameter1 = MakeParam(DataType::Type::kReference);
   HInstruction* with_environment = MakeNullCheck(entry, parameter1, /*env=*/ {parameter1});

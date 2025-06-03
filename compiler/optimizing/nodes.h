@@ -94,7 +94,6 @@ static const int kDefaultNumberOfSuccessors = 2;
 static const int kDefaultNumberOfPredecessors = 2;
 static const int kDefaultNumberOfExceptionalPredecessors = 0;
 static const int kDefaultNumberOfDominatedBlocks = 1;
-static const int kDefaultNumberOfBackEdges = 1;
 
 // The maximum (meaningful) distance (31) that can be used in an integer shift/rotate operation.
 static constexpr int32_t kMaxIntShiftDistance = 0x1f;
@@ -756,21 +755,8 @@ static constexpr uint32_t kInvalidBlockId = static_cast<uint32_t>(-1);
 
 class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
  public:
-  explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
-      : graph_(graph),
-        predecessors_(graph->GetAllocator()->Adapter(kArenaAllocPredecessors)),
-        successors_(graph->GetAllocator()->Adapter(kArenaAllocSuccessors)),
-        loop_information_(nullptr),
-        dominator_(nullptr),
-        dominated_blocks_(graph->GetAllocator()->Adapter(kArenaAllocDominated)),
-        block_id_(kInvalidBlockId),
-        dex_pc_(dex_pc),
-        lifetime_start_(kNoLifetime),
-        lifetime_end_(kNoLifetime),
-        try_catch_information_(nullptr) {
-    predecessors_.reserve(kDefaultNumberOfPredecessors);
-    successors_.reserve(kDefaultNumberOfSuccessors);
-    dominated_blocks_.reserve(kDefaultNumberOfDominatedBlocks);
+  static HBasicBlock* Create(ArenaAllocator* allocator, HGraph* graph, uint32_t dex_pc = kNoDexPc) {
+    return new (allocator) HBasicBlock(allocator, graph, dex_pc);
   }
 
   const ArenaVector<HBasicBlock*>& GetPredecessors() const {
@@ -808,14 +794,6 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
   bool IsSingleReturn() const;
   bool IsSingleReturnOrReturnVoidAllowingPhis() const;
   bool IsSingleTryBoundary() const;
-
-  // Returns true if this block emits nothing but a jump.
-  bool IsSingleJump() const {
-    HLoopInformation* loop_info = GetLoopInformation();
-    return (IsSingleGoto() || IsSingleTryBoundary())
-           // Back edges generate a suspend check.
-           && (loop_info == nullptr || !loop_info->IsBackEdge(*this));
-  }
 
   HGraph* GetGraph() const { return graph_; }
   void SetGraph(HGraph* graph) { graph_ = graph; }
@@ -1076,6 +1054,23 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
   bool HasSinglePhi() const;
 
  private:
+  HBasicBlock(ArenaAllocator* allocator, HGraph* graph, uint32_t dex_pc)
+      : graph_(graph),
+        predecessors_(allocator->Adapter(kArenaAllocPredecessors)),
+        successors_(allocator->Adapter(kArenaAllocSuccessors)),
+        loop_information_(nullptr),
+        dominator_(nullptr),
+        dominated_blocks_(allocator->Adapter(kArenaAllocDominated)),
+        block_id_(kInvalidBlockId),
+        dex_pc_(dex_pc),
+        lifetime_start_(kNoLifetime),
+        lifetime_end_(kNoLifetime),
+        try_catch_information_(nullptr) {
+    predecessors_.reserve(kDefaultNumberOfPredecessors);
+    successors_.reserve(kDefaultNumberOfSuccessors);
+    dominated_blocks_.reserve(kDefaultNumberOfDominatedBlocks);
+  }
+
   HGraph* graph_;
   ArenaVector<HBasicBlock*> predecessors_;
   ArenaVector<HBasicBlock*> successors_;
@@ -1097,31 +1092,6 @@ class HBasicBlock final : public ArenaObject<kArenaAllocBasicBlock> {
   friend class OptimizingUnitTestHelper;
 
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
-};
-
-// Iterates over the LoopInformation of all loops which contain 'block'
-// from the innermost to the outermost.
-class HLoopInformationOutwardIterator final : public ValueObject {
- public:
-  explicit HLoopInformationOutwardIterator(const HBasicBlock& block)
-      : current_(block.GetLoopInformation()) {}
-
-  bool Done() const { return current_ == nullptr; }
-
-  void Advance() {
-    DCHECK(!Done());
-    current_ = current_->GetPreHeader()->GetLoopInformation();
-  }
-
-  HLoopInformation* Current() const {
-    DCHECK(!Done());
-    return current_;
-  }
-
- private:
-  HLoopInformation* current_;
-
-  DISALLOW_COPY_AND_ASSIGN(HLoopInformationOutwardIterator);
 };
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_SCALAR_COMMON(M)                  \
@@ -1949,9 +1919,6 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   bool IsInBlock() const { return block_ != nullptr; }
   bool IsInLoop() const { return block_->IsInLoop(); }
   bool IsLoopHeaderPhi() const { return IsPhi() && block_->IsLoopHeader(); }
-  bool IsIrreducibleLoopHeaderPhi() const {
-    return IsLoopHeaderPhi() && GetBlock()->GetLoopInformation()->IsIrreducible();
-  }
 
   virtual ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() = 0;
 

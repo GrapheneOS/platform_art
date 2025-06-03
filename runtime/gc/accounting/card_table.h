@@ -140,16 +140,16 @@ class CardTable {
               uint8_t* scan_end,
               const Visitor& visitor,
               const ModifyVisitor& mod_visitor,
-              const uint8_t minimum_age) REQUIRES(Locks::heap_bitmap_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+              const uint8_t minimum_age)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   template <bool kClearCard, typename Visitor>
   size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap,
               uint8_t* scan_begin,
               uint8_t* scan_end,
               const Visitor& visitor,
-              const uint8_t minimum_age = kCardDirty) REQUIRES(Locks::heap_bitmap_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+              const uint8_t minimum_age = kCardDirty)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     return Scan<kClearCard>(bitmap, scan_begin, scan_end, visitor, VoidFunctor(), minimum_age);
   }
 

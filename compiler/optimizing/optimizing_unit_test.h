@@ -155,7 +155,7 @@ class AdjacencyListGraph {
       const std::string_view exit_name,
       const std::vector<Edge>& adj) : graph_(graph) {
     auto create_block = [&]() {
-      HBasicBlock* blk = new (alloc) HBasicBlock(graph_);
+      HBasicBlock* blk = HBasicBlock::Create(alloc, graph_);
       graph_->AddBlock(blk);
       return blk;
     };
@@ -426,7 +426,7 @@ class OptimizingUnitTestHelper {
   }
 
   HBasicBlock* AddNewBlock() {
-    HBasicBlock* block = new (GetAllocator()) HBasicBlock(graph_);
+    HBasicBlock* block = HBasicBlock::Create(GetAllocator(), graph_);
     graph_->AddBlock(block);
     return block;
   }

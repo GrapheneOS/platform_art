@@ -50,7 +50,7 @@ template<VerifyObjectFlags kVerifyFlags>
 inline uint32_t Class::GetObjectSize() {
   // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
   DCHECK((!IsVariableSize<kVerifyFlags>())) << "class=" << PrettyTypeOf();
-  return GetField32(ObjectSizeOffset());
+  return GetObjectSizeUnchecked<kVerifyFlags>();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -608,7 +608,7 @@ inline ArtField* Class::GetField(uint32_t i) {
 template<VerifyObjectFlags kVerifyFlags>
 inline uint32_t Class::GetReferenceInstanceOffsets() {
   DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
-  return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_instance_offsets_));
+  return GetReferenceInstanceOffsetsUnchecked<kVerifyFlags>();
 }
 
 inline void Class::SetClinitThreadId(pid_t new_clinit_thread_id) {
@@ -956,9 +956,12 @@ inline void Class::SetAccessFlags(uint32_t new_access_flags) {
   }
 }
 
-inline void Class::SetClassFlags(uint32_t new_flags) {
-  SetField32</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
-      OFFSET_OF_OBJECT_MEMBER(Class, class_flags_), new_flags);
+inline void Class::AddRemoveClassFlags(uint32_t new_flags, uint32_t clear_flags) {
+  DCHECK_EQ(new_flags & clear_flags, 0u);
+  uint32_t flags = GetClassFlags();
+  flags &= ~clear_flags;
+  flags |= new_flags;
+  SetField32</*kTransactionActive=*/false, /*kCheckTransaction=*/false>(ClassFlagsOffset(), flags);
 }
 
 inline uint32_t Class::NumDirectInterfaces() {

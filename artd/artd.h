@@ -328,6 +328,9 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   bool DenyArtApexDataFiles() EXCLUDES(cache_mu_);
   bool DenyArtApexDataFilesLocked() REQUIRES(cache_mu_);
 
+  uint32_t GetSdkVersion() EXCLUDES(cache_mu_);
+  uint32_t GetSdkVersionLocked() REQUIRES(cache_mu_);
+
   android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                                int timeout_sec,
                                                const ExecCallbacks& callbacks = ExecCallbacks(),
@@ -381,6 +384,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   std::optional<bool> cached_use_jit_zygote_ GUARDED_BY(cache_mu_);
   std::optional<std::string> cached_user_defined_boot_image_locations_ GUARDED_BY(cache_mu_);
   std::optional<bool> cached_deny_art_apex_data_files_ GUARDED_BY(cache_mu_);
+  std::optional<uint32_t> cached_sdk_version_ GUARDED_BY(cache_mu_);
 
   std::mutex ofa_context_mu_;
   std::unique_ptr<OatFileAssistantContext> ofa_context_ GUARDED_BY(ofa_context_mu_);

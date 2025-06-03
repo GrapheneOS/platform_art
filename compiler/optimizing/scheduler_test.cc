@@ -72,10 +72,8 @@ class SchedulerTest : public CommonCompilerTest, public OptimizingUnitTestHelper
 
   // Build scheduling graph, and run target specific scheduling on it.
   void TestBuildDependencyGraphAndSchedule(HScheduler* scheduler) {
-    HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph_);
-    HBasicBlock* block1 = new (GetAllocator()) HBasicBlock(graph_);
-    graph_->AddBlock(entry);
-    graph_->AddBlock(block1);
+    HBasicBlock* entry = AddNewBlock();
+    HBasicBlock* block1 = AddNewBlock();
     graph_->SetEntryBlock(entry);
 
     // entry:
@@ -182,10 +180,8 @@ class SchedulerTest : public CommonCompilerTest, public OptimizingUnitTestHelper
   }
 
   void TestDependencyGraphOnAliasingArrayAccesses(HScheduler* scheduler) {
-    HBasicBlock* entry = new (GetAllocator()) HBasicBlock(graph_);
-    HBasicBlock* block1 = new (GetAllocator()) HBasicBlock(graph_);
-    graph_->AddBlock(entry);
-    graph_->AddBlock(block1);
+    HBasicBlock* entry = AddNewBlock();
+    HBasicBlock* block1 = AddNewBlock();
     graph_->SetEntryBlock(entry);
 
     HInstruction* arr = MakeParam(DataType::Type::kReference);

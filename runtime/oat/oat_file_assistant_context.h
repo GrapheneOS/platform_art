@@ -24,6 +24,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/macros.h"
+#include "base/sdk_version.h"
 #include "runtime.h"
 
 namespace art HIDDEN {
@@ -48,6 +49,8 @@ class OatFileAssistantContext {
     std::optional<ArrayRef<File>> boot_class_path_files = {};
     // Optional. See `-Xdeny-art-apex-data-files`.
     const bool deny_art_apex_data_files = false;
+    // Optional. Determined from the context's `ro.build.version.sdk` sysprop.
+    const uint32_t sdk_version = static_cast<uint32_t>(SdkVersion::kUnset);
   };
 
   // Information about a boot image.

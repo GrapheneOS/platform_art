@@ -24,6 +24,7 @@
 #include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "base/value_object.h"
 #include "base/stl_util.h"
 
 namespace art HIDDEN {
@@ -148,6 +149,27 @@ class HLoopInformation final : public ArenaObject<kArenaAllocLoopInfo> {
   ArenaBitVector block_mask_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
+};
+
+// Iterates over the LoopInformation of all loops which contain 'block'
+// from the innermost to the outermost.
+class HLoopInformationOutwardIterator final : public ValueObject {
+ public:
+  explicit HLoopInformationOutwardIterator(const HBasicBlock& block);
+
+  bool Done() const { return current_ == nullptr; }
+
+  void Advance();
+
+  HLoopInformation* Current() const {
+    DCHECK(!Done());
+    return current_;
+  }
+
+ private:
+  HLoopInformation* current_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLoopInformationOutwardIterator);
 };
 
 }  // namespace art

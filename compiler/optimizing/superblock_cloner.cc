@@ -992,7 +992,7 @@ void SuperblockCloner::CleanUp() {
 
 HBasicBlock* SuperblockCloner::CloneBasicBlock(const HBasicBlock* orig_block) {
   HGraph* graph = orig_block->GetGraph();
-  HBasicBlock* copy_block = new (arena_) HBasicBlock(graph, orig_block->GetDexPc());
+  HBasicBlock* copy_block = HBasicBlock::Create(arena_, graph, orig_block->GetDexPc());
   graph->AddBlock(copy_block);
 
   // Clone all the phis and add them to the map.

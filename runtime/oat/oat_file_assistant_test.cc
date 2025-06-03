@@ -201,6 +201,7 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
                                              runtime_->GetBootClassPathFiles() :
                                              std::optional<ArrayRef<File>>(),
                 .deny_art_apex_data_files = runtime_->DenyArtApexDataFiles(),
+                .sdk_version = runtime_->GetSdkVersion(),
             }));
   }
 
@@ -1415,46 +1416,53 @@ TEST_P(OatFileAssistantTest, LongDexExtension) {
 }
 
 // Case: Mismatch between assumed values for SDK_INT and runtime SDK_INT.
-// Expect: kOatAssumedValuesOutOfDate when there is 1) valid runtime, and 2) feature flag enabled.
+// Expect: kOatAssumedValuesOutOfDate when 1) mismatched SDK versions, and 2) feature flag enabled.
 TEST_P(OatFileAssistantTest, AssumedValuesOutOfDate) {
   std::string dex_location = GetScratchDir() + "/AssumedValuesOutOfDate.jar";
   std::string odex_location = GetOdexDir() + "/AssumedValuesOutOfDate.odex";
   Copy(GetDexSrc1(), dex_location);
 
-  SetRuntimeSdkVersion(77);
   GenerateOdexForTest(dex_location,
                       odex_location,
                       CompilerFilter::kSpeed,
                       /*compilation_reason=*/nullptr,
                       /*extra_args=*/{"--assume-value=Landroid/os/Build$VERSION;->SDK_INT:76"});
 
-  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+  // Ensure both unset and differing runtime SDK versions yield out-of-date dexopt status.
+  for (uint32_t runtime_sdk_version : {static_cast<uint32_t>(SdkVersion::kUnset), 77u}) {
+    SCOPED_TRACE("Runtime SDK version: " + std::to_string(runtime_sdk_version));
+    // Override the runtime SDK version and recreate the OFA context to reflect this.
+    SetRuntimeSdkVersion(runtime_sdk_version);
+    ofa_context_ = CreateOatFileAssistantContext();
 
-  OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
-  if (with_runtime_ && com::android::art::flags::compile_sdk_int_constant()) {
-    // When the runtime SDK_INT (77) differs from the compiled SDK_INT (76), reject the ODEX file.
-    // Note that the VDEX remains usable.
-    EXPECT_EQ(OatFileAssistant::kOatAssumedValuesOutOfDate, oat_file_assistant.OdexFileStatus());
-    EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
-    VerifyGetDexOptNeededDefault(&oat_file_assistant,
-                                 CompilerFilter::kSpeed,
-                                 /*expected_dexopt_needed=*/true,
-                                 /*expected_is_vdex_usable=*/true,
-                                 /*expected_location=*/OatFileAssistant::kLocationOdex,
-                                 /*expected_legacy_result=*/-OatFileAssistant::kDex2OatForFilter);
-  } else {
-    // Otherwise, when assumed values for SDK_INT are disabled, or no runtime exists, ODEX
-    // compilation and loading are not affected.
-    EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
-    EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
-    VerifyGetDexOptNeededDefault(&oat_file_assistant,
-                                 CompilerFilter::kSpeed,
-                                 /*expected_dexopt_needed=*/false,
-                                 /*expected_is_vdex_usable=*/true,
-                                 /*expected_location=*/OatFileAssistant::kLocationOdex,
-                                 /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
-    EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
-              oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+    auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+    OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
+    if (com::android::art::flags::compile_sdk_int_constant()) {
+      // When the runtime SDK_INT differs from the compiled SDK_INT, reject the ODEX file.
+      // Note that the VDEX remains usable.
+      EXPECT_EQ(OatFileAssistant::kOatAssumedValuesOutOfDate, oat_file_assistant.OdexFileStatus());
+      EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
+      VerifyGetDexOptNeededDefault(&oat_file_assistant,
+                                   CompilerFilter::kSpeed,
+                                   /*expected_dexopt_needed=*/true,
+                                   /*expected_is_vdex_usable=*/true,
+                                   /*expected_location=*/OatFileAssistant::kLocationOdex,
+                                   /*expected_legacy_result=*/-OatFileAssistant::kDex2OatForFilter);
+    } else {
+      // Otherwise, when assumed values for SDK_INT are disabled, ODEX compilation and loading are
+      // not affected.
+      EXPECT_EQ(OatFileAssistant::kOatUpToDate, oat_file_assistant.OdexFileStatus());
+      EXPECT_EQ(OatFileAssistant::kOatCannotOpen, oat_file_assistant.OatFileStatus());
+      VerifyGetDexOptNeededDefault(&oat_file_assistant,
+                                   CompilerFilter::kSpeed,
+                                   /*expected_dexopt_needed=*/false,
+                                   /*expected_is_vdex_usable=*/true,
+                                   /*expected_location=*/OatFileAssistant::kLocationOdex,
+                                   /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
+      EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+                oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+    }
   }
 }
 

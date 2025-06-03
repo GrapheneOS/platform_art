@@ -45,6 +45,14 @@ inline auto HLoopInformation::GetBlocksReversePostOrder() const {
                 [this](HBasicBlock* block) { return block_mask_.IsBitSet(block->GetBlockId()); });
 }
 
+inline HLoopInformationOutwardIterator::HLoopInformationOutwardIterator(const HBasicBlock& block)
+    : current_(block.GetLoopInformation()) {}
+
+inline void HLoopInformationOutwardIterator::Advance() {
+  DCHECK(!Done());
+  current_ = current_->GetPreHeader()->GetLoopInformation();
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_LOOP_INFORMATION_INL_H_

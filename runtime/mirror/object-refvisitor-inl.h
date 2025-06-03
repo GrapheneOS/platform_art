@@ -70,7 +70,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
   visitor(this, ClassOffset(), /* is_static= */ false);
   ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
   const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
-  if (LIKELY(class_flags == kClassFlagNormal) || class_flags == kClassFlagRecord) {
+  if (LIKELY((class_flags & (kClassFlagNormal | kClassFlagRecord)) != 0)) {
     CheckNormalClass<kVerifyFlags>(klass);
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();
     VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
@@ -83,7 +83,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
   }
 
   DCHECK(!klass->IsStringClass<kVerifyFlags>());
-  if (class_flags == kClassFlagClass) {
+  if ((class_flags & kClassFlagClass) != 0) {
     DCHECK(klass->IsClassClass<kVerifyFlags>());
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();
     ObjPtr<Class> as_klass = AsClass<kVerifyNone>();
@@ -104,7 +104,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
     return;
   }
 
-  if (class_flags == kClassFlagDexCache) {
+  if ((class_flags & kClassFlagDexCache) != 0) {
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();
     DCHECK(klass->IsDexCacheClass<kVerifyFlags>());
     ObjPtr<mirror::DexCache> const dex_cache = AsDexCache<kVerifyFlags, kReadBarrierOption>();
@@ -114,7 +114,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
     return;
   }
 
-  if (class_flags == kClassFlagClassLoader) {
+  if ((class_flags & kClassFlagClassLoader) != 0) {
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();
     DCHECK(klass->IsClassLoaderClass<kVerifyFlags>());
     ObjPtr<mirror::ClassLoader> const class_loader =
@@ -127,79 +127,6 @@ inline void Object::VisitReferences(const Visitor& visitor,
 
   LOG(FATAL) << "Unexpected class flags: " << std::hex << class_flags
             << " for " << klass->PrettyClass();
-}
-
-// Could be called with from-space address of the object as we access klass and
-// length (in case of arrays/strings) and we don't want to cause cascading faults.
-template <bool kFetchObjSize,
-          bool kVisitNativeRoots,
-          VerifyObjectFlags kVerifyFlags,
-          ReadBarrierOption kReadBarrierOption,
-          typename Visitor>
-inline size_t Object::VisitRefsForCompaction(const Visitor& visitor,
-                                             MemberOffset begin,
-                                             MemberOffset end) {
-  constexpr VerifyObjectFlags kSizeOfFlags = RemoveThisFlags(kVerifyFlags);
-  size_t size;
-  // We want to continue using pre-compact klass to avoid cascading faults.
-  ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
-  DCHECK(klass != nullptr) << "obj=" << this;
-  const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
-  if (LIKELY(class_flags == kClassFlagNormal) || class_flags == kClassFlagRecord) {
-    CheckNormalClass<kVerifyFlags>(klass);
-    VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
-    size = kFetchObjSize ? klass->GetObjectSize<kSizeOfFlags>() : 0;
-  } else if ((class_flags & kClassFlagNoReferenceFields) != 0) {
-    if ((class_flags & kClassFlagString) != 0) {
-      size = kFetchObjSize ? static_cast<String*>(this)->SizeOf<kSizeOfFlags>() : 0;
-    } else if ((class_flags & kClassFlagPrimitiveArray) != 0) {
-      ObjPtr<Array> arr = ObjPtr<Array>::DownCast(this);
-      size = kFetchObjSize ?
-                 arr->SizeOf<kSizeOfFlags>(class_flags >> kArrayComponentSizeShiftShift) :
-                 0;
-    } else {
-      // Only possibility left is of a normal klass instance with no references.
-      size = kFetchObjSize ? klass->GetObjectSize<kSizeOfFlags>() : 0;
-    }
-  } else if (class_flags == kClassFlagClass) {
-    DCHECK(klass->IsClassClass<kVerifyFlags>());
-    ObjPtr<Class> as_klass = ObjPtr<Class>::DownCast(this);
-    as_klass->VisitReferences<kVisitNativeRoots, kVerifyFlags, kReadBarrierOption>(klass,
-                                                                                   visitor);
-    size = kFetchObjSize ? as_klass->SizeOf<kSizeOfFlags>() : 0;
-  } else if ((class_flags & kClassFlagObjectArray) != 0) {
-    ObjPtr<ObjectArray<Object>> obj_arr = ObjPtr<ObjectArray<Object>>::DownCast(this);
-    obj_arr->VisitReferences(visitor, begin, end);
-    size = kFetchObjSize ?
-               obj_arr->SizeOf<kSizeOfFlags>(class_flags >> kArrayComponentSizeShiftShift) :
-               0;
-  } else if ((class_flags & kClassFlagReference) != 0) {
-    VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
-    // Visit referent also as this is about updating the reference only.
-    // There is no reference processing happening here.
-    visitor(this, mirror::Reference::ReferentOffset(), /* is_static= */ false);
-    size = kFetchObjSize ? klass->GetObjectSize<kSizeOfFlags>() : 0;
-  } else if (class_flags == kClassFlagDexCache) {
-    DCHECK(klass->IsDexCacheClass<kVerifyFlags>());
-    ObjPtr<DexCache> const dex_cache = ObjPtr<DexCache>::DownCast(this);
-    dex_cache->VisitReferences<kVisitNativeRoots,
-                               kVerifyFlags,
-                               kReadBarrierOption>(klass, visitor);
-    size = kFetchObjSize ? klass->GetObjectSize<kSizeOfFlags>() : 0;
-  } else if (class_flags == kClassFlagClassLoader) {
-    DCHECK(klass->IsClassLoaderClass<kVerifyFlags>());
-    ObjPtr<ClassLoader> const class_loader = ObjPtr<ClassLoader>::DownCast(this);
-    class_loader->VisitReferences<kVisitNativeRoots,
-                                  kVerifyFlags,
-                                  kReadBarrierOption>(klass, visitor);
-    size = kFetchObjSize ? klass->GetObjectSize<kSizeOfFlags>() : 0;
-  } else {
-    LOG(FATAL) << "Unexpected class flags: " << std::hex << class_flags
-               << " for " << klass->PrettyClass();
-    size = -1;
-  }
-  visitor(this, ClassOffset(), /* is_static= */ false);
-  return size;
 }
 
 }  // namespace mirror

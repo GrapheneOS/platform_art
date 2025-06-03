@@ -74,19 +74,24 @@ class MANAGED String final : public Object {
     return &value_compressed_[0];
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  size_t SizeOf() REQUIRES_SHARED(Locks::mutator_lock_) {
+  static size_t SizeOf(int32_t count) {
     size_t size = sizeof(String);
-    if (IsCompressed()) {
-      size += (sizeof(uint8_t) * GetLength<kVerifyFlags>());
+    int32_t len = GetLengthFromCount(count);
+    if (kUseStringCompression && IsCompressed(count)) {
+      size += sizeof(uint8_t) * len;
     } else {
-      size += (sizeof(uint16_t) * GetLength<kVerifyFlags>());
+      size += sizeof(uint16_t) * len;
     }
     // String.equals() intrinsics assume zero-padding up to kObjectAlignment,
     // so make sure the zero-padding is actually copied around if GC compaction
     // chooses to copy only SizeOf() bytes.
     // http://b/23528461
     return RoundUp(size, kObjectAlignment);
+  }
+
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  size_t SizeOf() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return SizeOf(GetCount<kVerifyFlags>());
   }
 
   // Taking out the first/uppermost bit because it is not part of actual length value

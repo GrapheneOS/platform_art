@@ -60,6 +60,7 @@ OatFileAssistantContext::OatFileAssistantContext(Runtime* runtime)
                                            runtime->GetBootClassPathFiles() :
                                            std::optional<ArrayRef<File>>(),
               .deny_art_apex_data_files = runtime->DenyArtApexDataFiles(),
+              .sdk_version = runtime->GetSdkVersion(),
           })) {
   // Fetch boot image info from the runtime.
   std::vector<BootImageInfo>& boot_image_info_list =

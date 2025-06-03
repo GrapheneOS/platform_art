@@ -28,6 +28,7 @@
 #include "code_generator.h"
 #include "handle.h"
 #include "intrinsics.h"
+#include "loop_information-inl.h"
 #include "mirror/class.h"
 #include "nodes.h"
 #include "obj_ptr-inl.h"

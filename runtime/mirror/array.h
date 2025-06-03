@@ -59,8 +59,11 @@ class MANAGED Array : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
+  static size_t SizeOf(size_t component_size_shift, int32_t component_count);
+
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   size_t SizeOf(size_t component_size_shift) REQUIRES_SHARED(Locks::mutator_lock_);
+
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
   size_t SizeOf() REQUIRES_SHARED(Locks::mutator_lock_);

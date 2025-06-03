@@ -26,32 +26,19 @@ namespace art HIDDEN {
  */
 class NodesVectorTest : public OptimizingUnitTest {
  public:
-  NodesVectorTest()
-      : graph_(CreateGraph()) {
-    BuildGraph();
-  }
-
-  ~NodesVectorTest() { }
-
-  void BuildGraph() {
+  NodesVectorTest() {
+    CreateGraph();
     graph_->SetNumberOfVRegs(1);
-    entry_block_ = new (GetAllocator()) HBasicBlock(graph_);
-    exit_block_ = new (GetAllocator()) HBasicBlock(graph_);
-    graph_->AddBlock(entry_block_);
-    graph_->AddBlock(exit_block_);
-    graph_->SetEntryBlock(entry_block_);
-    graph_->SetExitBlock(exit_block_);
+    graph_->SetEntryBlock(AddNewBlock());
+    AddExitBlock();
     int8_parameter_ = MakeParam(DataType::Type::kInt8);
     int16_parameter_ = MakeParam(DataType::Type::kInt16);
     int32_parameter_ = MakeParam(DataType::Type::kInt32);
   }
 
+  ~NodesVectorTest() { }
+
   // General building fields.
-  HGraph* graph_;
-
-  HBasicBlock* entry_block_;
-  HBasicBlock* exit_block_;
-
   HInstruction* int8_parameter_;
   HInstruction* int16_parameter_;
   HInstruction* int32_parameter_;

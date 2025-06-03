@@ -1,1 +1,2 @@
-Test stressing read barriers for CC GC.
+Test stressing read barriers for CC GC. In case of CMC GC, stresses MOVE ioctl
+based compaction.

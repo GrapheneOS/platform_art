@@ -186,13 +186,11 @@ class MarkCompact final : public GarbageCollector {
   mirror::Object* IsMarked(mirror::Object* obj) override
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
-  mirror::Object* GetFromSpaceAddrFromBarrier(mirror::Object* old_ref) {
+  mirror::Object* GetFromSpaceAddrFromBarrier(mirror::Object* old_ref) const {
     CHECK(compacting_);
-    if (HasAddress(old_ref)) {
-      return GetFromSpaceAddr(old_ref);
-    }
-    return old_ref;
+    return GetFromAddrAllSpaces(old_ref);
   }
+
   // Called from Heap::PostForkChildAction() for non-zygote processes and from
   // PrepareForCompaction() for zygote processes. Returns true if uffd was
   // created or was already done.
@@ -302,21 +300,37 @@ class MarkCompact final : public GarbageCollector {
     }
   };
 
-  static bool HasAddress(mirror::Object* obj, uint8_t* begin, uint8_t* end) {
-    uint8_t* ptr = reinterpret_cast<uint8_t*>(obj);
-    return ptr >= begin && ptr < end;
+  static bool HasAddress(uint8_t* addr, uint8_t* begin, uint8_t* end) {
+    return addr >= begin && addr < end;
   }
 
-  bool HasAddress(mirror::Object* obj) const {
+  static bool HasAddress(void* obj, uint8_t* begin, uint8_t* end) {
+    return HasAddress(reinterpret_cast<uint8_t*>(obj), begin, end);
+  }
+
+  bool HasAddress(void* obj) const {
     return HasAddress(obj, moving_space_begin_, moving_space_end_);
   }
   // For a given object address in pre-compact space, return the corresponding
   // address in the from-space, where heap pages are relocated in the compaction
   // pause.
-  mirror::Object* GetFromSpaceAddr(mirror::Object* obj) const {
+  template <typename T>
+  T* GetFromSpaceAddr(T* obj) const {
     DCHECK(HasAddress(obj)) << " obj=" << obj;
-    return reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(obj)
-                                             + from_space_slide_diff_);
+    return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(obj) + from_space_slide_diff_);
+  }
+
+  mirror::Object* GetFromAddrAllSpaces(mirror::Object* old_ref) const {
+    if (HasAddress(old_ref)) {
+      return GetFromSpaceAddr(old_ref);
+    }
+    return old_ref;
+  }
+
+  template <typename T>
+  inline T* GetToSpaceAddr(T* addr) const {
+    DCHECK(from_space_map_.HasAddress(addr));
+    return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(addr) - from_space_slide_diff_);
   }
 
   inline bool IsOnAllocStack(mirror::Object* ref)
@@ -326,14 +340,11 @@ class MarkCompact final : public GarbageCollector {
   template <typename Callback>
   void VerifyObject(mirror::Object* ref, Callback& callback) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  // Check if the obj is within heap and has a klass which is likely to be valid
-  // mirror::Class.
-  bool IsValidObject(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
   void InitializePhase();
   void FinishPhase(bool performed_compaction)
       REQUIRES(!Locks::mutator_lock_, !Locks::heap_bitmap_lock_, !lock_);
   void MarkingPhase() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);
-  void CompactionPhase() REQUIRES_SHARED(Locks::mutator_lock_);
+  void CompactionPhase() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);
 
   void SweepSystemWeaks(Thread* self, Runtime* runtime, const bool paused)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -397,7 +408,7 @@ class MarkCompact final : public GarbageCollector {
   // Updates GC-roots and protects heap so that during the concurrent
   // compaction phase we can receive faults and compact the corresponding pages
   // on the fly.
-  void CompactionPause() REQUIRES(Locks::mutator_lock_);
+  void CompactionPause() REQUIRES(Locks::mutator_lock_, !Locks::heap_bitmap_lock_);
   // Compute offsets (in chunk_info_vec_) and other data structures required
   // during concurrent compaction. Also determines a black-dense region at the
   // beginning of the moving space which is not compacted. Returns false if
@@ -415,11 +426,13 @@ class MarkCompact final : public GarbageCollector {
                    uint32_t offset,
                    uint8_t* addr,
                    uint8_t* to_space_addr,
-                   bool needs_memset_zero) REQUIRES_SHARED(Locks::mutator_lock_);
+                   bool needs_memset_zero)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Compact the bump-pointer space. Pass page that should be used as buffer for
   // userfaultfd.
   template <int kMode>
-  void CompactMovingSpace(uint8_t* page) REQUIRES_SHARED(Locks::mutator_lock_);
+  void CompactMovingSpace(uint8_t* page)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Compact the given page as per func and change its state. Also map/copy the
   // page, if required. Returns true if the page was compacted, else false.
@@ -429,18 +442,20 @@ class MarkCompact final : public GarbageCollector {
                                                      uint8_t* page,
                                                      bool map_immediately,
                                                      CompactionFn func)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Update all the objects in the given non-moving page. 'first' object
-  // could have started in some preceding page.
-  template <bool kSetupForGenerational>
+  // could have started in some preceding page. 'kObjInBlackDense' is true when
+  // called for black-dense/old-gen pages, and false when called for non-moving
+  // space pages.
+  template <bool kSetupForGenerational, bool kObjInBlackDense>
   void UpdateNonMovingPage(mirror::Object* first,
                            uint8_t* page,
                            ptrdiff_t from_space_diff,
                            accounting::ContinuousSpaceBitmap* bitmap)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Update all the references in the non-moving space.
-  void UpdateNonMovingSpace() REQUIRES_SHARED(Locks::mutator_lock_);
+  void UpdateNonMovingSpace() REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // For all the pages in non-moving space, find the first object that overlaps
   // with the pages' start address, and store in first_objs_non_moving_space_ array.
@@ -474,7 +489,8 @@ class MarkCompact final : public GarbageCollector {
                       uint32_t first_chunk_size,
                       uint8_t* const pre_compact_page,
                       uint8_t* dest,
-                      bool needs_memset_zero) REQUIRES_SHARED(Locks::mutator_lock_);
+                      bool needs_memset_zero)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Perform reference-processing and the likes before sweeping the non-movable
   // spaces.
@@ -711,6 +727,63 @@ class MarkCompact final : public GarbageCollector {
   // as well as seccomp filter point of view.
   bool MoveIoctlKernelCheck();
 
+  // Returns class-size of 'klass'. If kHandleZeroReads == true, then it checks
+  // for 0 class-size, which can happen if, during compaction, the page
+  // containing klass' size gets moved to the to-space and we are reading from a
+  // shared zero-page. In that case, we read class-size from 'moved_klass'.
+  template <bool kHandleZeroReads, VerifyObjectFlags kVerifyFlags>
+  size_t GetClassSize(mirror::Class* klass, mirror::Class* moved_klass)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Moves the from-space 'page' to to-space. If the move operation is already
+  // in-progress by another thread, then it waits until the page's status
+  // changes to 'mapped'.
+  void MoveBlackDensePageForUpdate(uint8_t* page)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+
+  // Updates references in the given object-array in [begin, end) range by
+  // calling the visitor. Returns length of the array. If kHandleZeroReads ==
+  // true, then makes sure it is reading the correct length and not 0 from a
+  // shared zero-page because the containing page has been moved to to-space.
+  template <bool kHandleZeroReads, VerifyObjectFlags kVerifyFlags, typename Visitor>
+  int32_t UpdateObjArrayReferences(mirror::ObjectArray<mirror::Object>* arr,
+                                   Visitor& visitor,
+                                   MemberOffset begin,
+                                   MemberOffset end)
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  // Updates static references in the given klass by calling visitor on each of
+  // them. If kHandleZeroReads == true, then makes sure that the static
+  // references' offset and count is not incorrectly read to be 0 from shared
+  // zero-page in from space.
+  template <bool kHandleZeroReads, VerifyObjectFlags kVerifyFlags, typename Visitor>
+  void UpdateStaticFieldsReferences(mirror::Class* klass, Visitor& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+
+  // Updates obj's instance references by calling visitor on each of them. Makes
+  // sure that if the klass is in black-dense region then it's not incorrectly
+  // assuming instance-reference bitmap to be 0 due to shared zero-page.
+  template <VerifyObjectFlags kVerifyFlags, typename Visitor>
+  void UpdateInstanceFieldsReferences(mirror::Object* obj,
+                                      mirror::Class* to_klass,
+                                      mirror::Class* klass,
+                                      const Visitor& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+
+  // Updates references in 'obj' by calling 'visitor' on each reference during
+  // compaction. Returns object-size, if kFetchObjSize == true. If
+  // kObjInBlackDense == true, then it takes extra precautions when reading
+  // fields from 'obj' in case a part of it is on a page which has already moved
+  // to to-space.
+  template <bool kFetchObjSize,
+            bool kObjInBlackDense,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            typename Visitor>
+  size_t UpdateRefsForCompaction(mirror::Object* obj,
+                                 const Visitor& visitor,
+                                 MemberOffset begin,
+                                 MemberOffset end)
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
   // Vector to hold thread-local overflow arrays (and the number of entries in
   // there) of gc-roots found during mutator-stack scanning in marking phase.
   std::vector<std::pair<StackReference<mirror::Object>*, size_t>>* overflow_arrays_
@@ -852,10 +925,6 @@ class MarkCompact final : public GarbageCollector {
   // First object for every page. It could be greater than the page's start
   // address, or null if the page is empty.
   ObjReference* first_objs_non_moving_space_;
-
-  // Cache (from_space_begin_ - bump_pointer_space_->Begin()) so that we can
-  // compute from-space address of a given pre-comapct address efficiently.
-  ptrdiff_t from_space_slide_diff_;
   uint8_t* from_space_begin_;
 
   // The moving space markers are ordered as follows:
@@ -882,6 +951,9 @@ class MarkCompact final : public GarbageCollector {
   bool compacting_;
   // Mark bits for main space
   accounting::ContinuousSpaceBitmap* const moving_space_bitmap_;
+  // Cache (from_space_begin_ - bump_pointer_space_->Begin()) so that we can
+  // compute from-space address of a given pre-comapct address efficiently.
+  ptrdiff_t from_space_slide_diff_;
   // Cached values of moving-space range to optimize checking if reference
   // belongs to moving-space or not. May get updated if and when heap is clamped.
   uint8_t* const moving_space_begin_;
