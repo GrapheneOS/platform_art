@@ -46,6 +46,7 @@
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_cache.h"
+#include "instruction_list.h"
 #include "intrinsics_enum.h"
 #include "locations.h"
 #include "loop_information.h"
@@ -152,53 +153,6 @@ template <typename T>
 static inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
   return static_cast<typename std::make_unsigned<T>::type>(x);
 }
-
-class HInstructionList final : public ValueObject {
- public:
-  HInstructionList() : first_instruction_(nullptr), last_instruction_(nullptr) {}
-
-  void AddInstruction(HInstruction* instruction);
-  void RemoveInstruction(HInstruction* instruction);
-
-  // Insert `instruction` before/after an existing instruction `cursor`.
-  void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
-  void InsertInstructionAfter(HInstruction* instruction, HInstruction* cursor);
-
-  // Return true if this list contains `instruction`.
-  bool Contains(HInstruction* instruction) const;
-
-  // Return true if `instruction1` is found before `instruction2` in
-  // this instruction list and false otherwise.  Abort if none
-  // of these instructions is found.
-  bool FoundBefore(const HInstruction* instruction1,
-                   const HInstruction* instruction2) const;
-
-  bool IsEmpty() const { return first_instruction_ == nullptr; }
-  void Clear() { first_instruction_ = last_instruction_ = nullptr; }
-
-  // Update the block of all instructions to be `block`.
-  void SetBlockOfInstructions(HBasicBlock* block) const;
-
-  void AddAfter(HInstruction* cursor, const HInstructionList& instruction_list);
-  void AddBefore(HInstruction* cursor, const HInstructionList& instruction_list);
-  void Add(const HInstructionList& instruction_list);
-
-  // Return the number of instructions in the list. This is an expensive operation.
-  size_t CountSize() const;
-
- private:
-  HInstruction* first_instruction_;
-  HInstruction* last_instruction_;
-
-  friend class HBasicBlock;
-  friend class HGraph;
-  friend class HInstruction;
-  friend class HInstructionIteratorPrefetchNext;
-  friend class HInstructionIterator;
-  friend class HBackwardInstructionIteratorPrefetchNext;
-
-  DISALLOW_COPY_AND_ASSIGN(HInstructionList);
-};
 
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject<kArenaAllocGraph> {

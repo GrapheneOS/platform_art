@@ -1815,7 +1815,6 @@ size_t MarkCompact::GetClassSize(mirror::Class* klass, mirror::Class* moved_klas
 }
 
 void MarkCompact::MoveBlackDensePageForUpdate(uint8_t* page) {
-  DCHECK(use_move_ioctl_);
   DCHECK_ALIGNED_PARAM(page, gPageSize);
   DCHECK(from_space_map_.HasAddress(page));
   uint8_t* to_page = GetToSpaceAddr(page);

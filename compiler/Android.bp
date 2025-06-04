@@ -166,6 +166,7 @@ art_cc_defaults {
         "optimizing/induction_var_range.cc",
         "optimizing/inliner.cc",
         "optimizing/instruction_builder.cc",
+        "optimizing/instruction_list.cc",
         "optimizing/instruction_simplifier.cc",
         "optimizing/intrinsic_objects.cc",
         "optimizing/intrinsics.cc",
