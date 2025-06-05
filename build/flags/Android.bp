@@ -59,14 +59,19 @@ java_aconfig_library {
         "//apex_available:platform",
         "//apex_available:anyapex",
     ],
+    visibility: [
+        "//art:__subpackages__",
+        "//cts/tests/libcore/vmdebug:__subpackages__",
+        "//libcore:__subpackages__",
+    ],
 }
 
 java_aconfig_library {
     name: "art-aconfig-flags-java-lib-host",
     host_supported: true,
+    device_supported: false,
     aconfig_declarations: "art-aconfig-flags",
     visibility: [
         "//cts/hostsidetests/compilation:__subpackages__",
-        "//cts/tests/libcore/vmdebug:__subpackages__",
     ],
 }

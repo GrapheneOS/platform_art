@@ -3,4 +3,4 @@ Returning bad finalizer: 0xN
 Returning placeholder object: 0xN
 About to null reference.
 Native finalizer looping
-TimeoutException on FinalizerWatchdogDaemon:ReferenceQueueDaemon timed out while targeting libcore.util.NativeAllocationRegistry$CleanerThunk@N(freeFunction = 0xN, nativePtr = 0xN, size = 666)
+TimeoutException on FinalizerWatchdogDaemon:ReferenceQueueDaemon timed out while targeting libcore.util.NativeAllocationRegistry$CleanerThunk@N(CTD)

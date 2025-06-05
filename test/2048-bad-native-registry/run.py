@@ -17,6 +17,8 @@
 
 def run(ctx, args):
   ctx.default_run(args, android_log_tags="*:f", expected_exit_code=2)
+  # Do not compare CleanerThink detail information; it can vary.
+  ctx.run(fr"sed -i 's/freeFunction =.*size = 666/CTD/g' '{args.stdout_file}'")
   # Do not compare addresses, so replace hex numbers with 'N'.
   ctx.run(fr"sed -i 's/0x[0-9a-f][0-9a-f]*/0xN/g' '{args.stdout_file}'")
   ctx.run(fr"sed -i 's/@[0-9a-f][0-9a-f]*/@N/g' '{args.stdout_file}'")

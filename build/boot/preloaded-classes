@@ -21,7 +21,6 @@
 #
 # This file has been derived for mainline phone (and tablet) usage.
 #
-android.app.ActivityThread$AndroidOs
 android.app.AppOpsManager$$ExternalSyntheticLambda4
 android.compat.Compatibility$1
 android.compat.Compatibility$BehaviorChangeDelegate
@@ -29,9 +28,10 @@ android.compat.Compatibility$ChangeConfig
 android.compat.Compatibility
 android.content.ContentCaptureOptions$ContentProtectionOptions$$ExternalSyntheticLambda0
 android.crypto.hpke.HpkeSpi
-android.graphics.ColorSpace$Rgb$$ExternalSyntheticLambda4
-android.graphics.ColorSpace$Rgb$$ExternalSyntheticLambda6
-android.graphics.ColorSpace$Rgb$$ExternalSyntheticLambda9
+android.media.AudioDeviceAttributes
+android.net.TrafficStats$1
+android.os.StrictMode$1
+android.os.StrictMode$4
 android.os.StrictMode$AndroidBlockGuardPolicy
 android.service.notification.StatusBarNotification$$ExternalSyntheticLambda0
 android.system.ErrnoException
@@ -41,6 +41,7 @@ android.system.Int64Ref
 android.system.NetlinkSocketAddress
 android.system.Os
 android.system.OsConstants
+android.system.OsConstantsHolder
 android.system.PacketSocketAddress
 android.system.StructAddrinfo
 android.system.StructCapUserData
@@ -64,7 +65,6 @@ android.system.UnixSocketAddress
 android.system.VmSocketAddress
 android.util.ArrayMap
 android.util.ArraySet
-android.util.IndentingPrintWriter
 android.util.MapCollections$ArrayIterator
 android.util.MapCollections$EntrySet
 android.util.MapCollections$KeySet
@@ -75,7 +75,6 @@ com.android.art.flags.FeatureFlags
 com.android.art.flags.FeatureFlagsImpl
 com.android.art.flags.Flags
 com.android.internal.util.FastPrintWriter
-com.android.internal.util.IndentingPrintWriter
 com.android.libcore.FeatureFlags
 com.android.libcore.FeatureFlagsImpl
 com.android.libcore.Flags
@@ -269,6 +268,7 @@ com.android.org.bouncycastle.asn1.ASN1Null
 com.android.org.bouncycastle.asn1.ASN1NumericString$1
 com.android.org.bouncycastle.asn1.ASN1NumericString
 com.android.org.bouncycastle.asn1.ASN1Object
+com.android.org.bouncycastle.asn1.ASN1ObjectDescriptor$1
 com.android.org.bouncycastle.asn1.ASN1ObjectDescriptor
 com.android.org.bouncycastle.asn1.ASN1ObjectIdentifier$1
 com.android.org.bouncycastle.asn1.ASN1ObjectIdentifier$OidHandle
@@ -308,6 +308,7 @@ com.android.org.bouncycastle.asn1.ASN1VideotexString$1
 com.android.org.bouncycastle.asn1.ASN1VideotexString
 com.android.org.bouncycastle.asn1.ASN1VisibleString$1
 com.android.org.bouncycastle.asn1.ASN1VisibleString
+com.android.org.bouncycastle.asn1.BERBitString
 com.android.org.bouncycastle.asn1.BERBitStringParser
 com.android.org.bouncycastle.asn1.BERFactory
 com.android.org.bouncycastle.asn1.BEROctetString
@@ -318,6 +319,7 @@ com.android.org.bouncycastle.asn1.BERSet
 com.android.org.bouncycastle.asn1.BERSetParser
 com.android.org.bouncycastle.asn1.BERTaggedObject
 com.android.org.bouncycastle.asn1.BERTaggedObjectParser
+com.android.org.bouncycastle.asn1.ConstructedBitStream
 com.android.org.bouncycastle.asn1.ConstructedOctetStream
 com.android.org.bouncycastle.asn1.DERBMPString
 com.android.org.bouncycastle.asn1.DERBitString
@@ -374,6 +376,7 @@ com.android.org.bouncycastle.crypto.CipherParameters
 com.android.org.bouncycastle.crypto.CryptoException
 com.android.org.bouncycastle.crypto.CryptoServiceConstraintsException
 com.android.org.bouncycastle.crypto.CryptoServiceProperties
+com.android.org.bouncycastle.crypto.CryptoServicePurpose
 com.android.org.bouncycastle.crypto.CryptoServicesConstraints
 com.android.org.bouncycastle.crypto.CryptoServicesPermission
 com.android.org.bouncycastle.crypto.CryptoServicesRegistrar$$ExternalSyntheticBackportWithForwarding0
@@ -603,6 +606,10 @@ dalvik.system.VMRuntime$HiddenApiUsageLogger
 dalvik.system.VMRuntime$SdkVersionContainer
 dalvik.system.VMRuntime
 dalvik.system.VMStack
+dalvik.system.VirtualThreadContext
+dalvik.system.VirtualThreadFrame
+dalvik.system.VirtualThreadParkedStates
+dalvik.system.VirtualThreadParkingError
 dalvik.system.ZipPathValidator$1
 dalvik.system.ZipPathValidator$Callback
 dalvik.system.ZipPathValidator
@@ -887,11 +894,13 @@ java.lang.StringUTF16
 java.lang.System$PropertiesWithNonOverrideableDefaults
 java.lang.System
 java.lang.Thread$1
+java.lang.Thread$AllThreadsRecord
 java.lang.Thread$Caches
 java.lang.Thread$State
 java.lang.Thread$ThreadIdentifiers
 java.lang.Thread$UncaughtExceptionHandler
 java.lang.Thread$WeakClassKey
+java.lang.Thread-IA
 java.lang.Thread
 java.lang.ThreadDeath
 java.lang.ThreadGroup
@@ -951,6 +960,8 @@ java.lang.invoke.ByteArrayViewVarHandle
 java.lang.invoke.ByteBufferViewVarHandle
 java.lang.invoke.CallSite
 java.lang.invoke.ConstantCallSite
+java.lang.invoke.DirectMethodHandle$Holder
+java.lang.invoke.DirectMethodHandle$MethodKey
 java.lang.invoke.DirectMethodHandle
 java.lang.invoke.FieldVarHandle
 java.lang.invoke.MethodHandle
@@ -1278,7 +1289,9 @@ java.nio.charset.CoderResult$Cache
 java.nio.charset.CoderResult
 java.nio.charset.CodingErrorAction
 java.nio.charset.IllegalCharsetNameException
+java.nio.charset.MalformedInputException
 java.nio.charset.StandardCharsets
+java.nio.charset.UnmappableCharacterException
 java.nio.charset.UnsupportedCharsetException
 java.nio.charset.spi.CharsetProvider
 java.nio.file.AccessDeniedException
@@ -1291,8 +1304,6 @@ java.nio.file.DirectoryStream
 java.nio.file.FileAlreadyExistsException
 java.nio.file.FileSystem
 java.nio.file.FileSystemException
-java.nio.file.FileSystems$DefaultFileSystemHolder$1
-java.nio.file.FileSystems$DefaultFileSystemHolder
 java.nio.file.FileSystems
 java.nio.file.FileVisitResult
 java.nio.file.FileVisitor
@@ -2098,6 +2109,7 @@ java.util.concurrent.ConcurrentMap
 java.util.concurrent.ConcurrentNavigableMap
 java.util.concurrent.ConcurrentSkipListMap$Index
 java.util.concurrent.ConcurrentSkipListMap$Iter
+java.util.concurrent.ConcurrentSkipListMap$KeyIterator
 java.util.concurrent.ConcurrentSkipListMap$KeySet
 java.util.concurrent.ConcurrentSkipListMap$Node
 java.util.concurrent.ConcurrentSkipListMap$ValueIterator
@@ -2720,6 +2732,7 @@ jdk.internal.math.FormattedFloatingDecimal$1
 jdk.internal.math.FormattedFloatingDecimal$Form
 jdk.internal.math.FormattedFloatingDecimal
 jdk.internal.math.MathUtils
+jdk.internal.misc.CarrierThreadLocal
 jdk.internal.misc.TerminatingThreadLocal$1
 jdk.internal.misc.TerminatingThreadLocal
 jdk.internal.misc.Unsafe
@@ -2746,6 +2759,12 @@ jdk.internal.util.StaticProperty
 jdk.internal.util.StrongReferenceKey
 jdk.internal.util.WeakReferenceKey
 jdk.internal.util.random.RandomSupport
+jdk.internal.vm.SharedThreadContainer
+jdk.internal.vm.StackableScope
+jdk.internal.vm.ThreadContainer
+jdk.internal.vm.ThreadContainers$RootContainer$TrackingRootContainer
+jdk.internal.vm.ThreadContainers$RootContainer
+jdk.internal.vm.ThreadContainers
 libcore.content.type.MimeMap$$ExternalSyntheticLambda0
 libcore.content.type.MimeMap$Builder$Element
 libcore.content.type.MimeMap$Builder
@@ -2999,7 +3018,6 @@ sun.nio.cs.ThreadLocalCoders$Cache
 sun.nio.cs.ThreadLocalCoders
 sun.nio.fs.AbstractBasicFileAttributeView
 sun.nio.fs.AbstractFileSystemProvider
-sun.nio.fs.AbstractPath
 sun.nio.fs.DefaultFileSystemProvider
 sun.nio.fs.DynamicFileAttributeView
 sun.nio.fs.FileOwnerAttributeViewImpl
@@ -3007,6 +3025,7 @@ sun.nio.fs.LinuxFileSystem
 sun.nio.fs.LinuxFileSystemProvider
 sun.nio.fs.NativeBuffer$Deallocator
 sun.nio.fs.NativeBuffer
+sun.nio.fs.NativeBuffers$1
 sun.nio.fs.NativeBuffers
 sun.nio.fs.UnixChannelFactory$1
 sun.nio.fs.UnixChannelFactory$Flags
@@ -3273,6 +3292,8 @@ sun.util.logging.PlatformLogger
 [Lcom.android.org.kxml2.io.KXmlParser$ValueContext;
 [Ldalvik.system.DexPathList$Element;
 [Ldalvik.system.DexPathList$NativeLibraryElement;
+[Ldalvik.system.VirtualThreadFrame;
+[Ljava.io.Closeable;
 [Ljava.io.File$PathStatus;
 [Ljava.io.File;
 [Ljava.io.FileDescriptor;

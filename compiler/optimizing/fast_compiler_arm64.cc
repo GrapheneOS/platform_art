@@ -848,7 +848,14 @@ bool FastCompilerARM64::HandleInvoke(const Instruction& instruction,
     } else if (invoke_type == kVirtual) {
       offset = resolved_method->GetVtableIndex();
     } else if (invoke_type == kInterface) {
-      offset = resolved_method->GetImtIndex();
+      if (resolved_method->GetDeclaringClass()->IsObjectClass()) {
+        // If the resolved method is from j.l.Object, emit a virtual call instead.
+        // The IMT conflict stub only handles interface methods.
+        offset = resolved_method->GetVtableIndex();
+        invoke_type = kVirtual;
+      } else {
+        offset = resolved_method->GetImtIndex();
+      }
     }
 
     if (resolved_method->IsStringConstructor()) {

@@ -326,7 +326,8 @@ class Builder:
                            target_name: str,
                            collected_make_targets: List[str],
                            collected_actions: List[Target],
-                           visited: set[str]):
+                           recursion_stack: set[str],
+                           processed_nodes: set[str]):
         """Recursively collects dependencies, detecting cycles.
 
         Internal helper for collect_targets. Modifies lists in place.
@@ -335,14 +336,21 @@ class Builder:
             target_name: The name of the internal target to collect.
             collected_make_targets: List to store collected make targets.
             collected_actions: List to store collected Target objects with actions.
-            visited: A set of visited target names to detect cycles.
+            recursion_stack: A set of targets in the current traversal path,
+                             used to detect actual cycles.
+            processed_nodes: A set of targets that have already been fully
+                             processed, used to handle shared dependencies
+                             (like diamond dependencies) efficiently.
         """
-        if target_name in visited:
+        if target_name in processed_nodes:
+            return
+
+        # If we encounter a node that is already in our current recursion
+        # stack, we have found a genuine cycle.
+        if target_name in recursion_stack:
             print(f"Error: Cycle detected in internal target dependencies "
                   f"involving '{target_name}'.")
             sys.exit(1)
-
-        visited.add(target_name)
 
         if target_name not in self.targets:
             print(f"Error: Definition error - Internal target '{target_name}' "
@@ -351,13 +359,20 @@ class Builder:
                   f" {self.targets}.")
             sys.exit(1)
 
+        # Add the current target to the recursion stack for this path.
+        recursion_stack.add(target_name)
         target = self.targets[target_name]
 
         for dependency_name in target.dependencies:
             self._collect_recursive(
                 dependency_name, collected_make_targets, collected_actions,
-                visited
+                recursion_stack, processed_nodes
             )
+
+        # After traversing all children, remove from the recursion stack and
+        # mark as fully processed.
+        recursion_stack.remove(target_name)
+        processed_nodes.add(target_name)
 
         collected_make_targets.extend(target.make_targets)
 
@@ -367,7 +382,8 @@ class Builder:
     def collect_targets(self,
                         target_name: str,
                         collected_make_targets: List[str],
-                        collected_actions: List[Target]):
+                        collected_actions: List[Target],
+                        processed_nodes: set[str]):
         """Collects make targets and actions for an internal target.
 
         Handles the top-level call for recursive collection.
@@ -376,21 +392,28 @@ class Builder:
             target_name: The name of the internal target to collect.
             collected_make_targets: List to store collected make targets.
             collected_actions: List to store collected Target objects with actions.
+            processed_nodes: A set of targets already processed in this build.
         """
-        visited = set()
+        # The recursion stack is specific to each top-level traversal.
+        recursion_stack = set()
         self._collect_recursive(target_name, collected_make_targets,
-                                collected_actions, visited)
+                                collected_actions, recursion_stack,
+                                processed_nodes)
 
     def build(self, build_vars: BuildVarsDict):
         """Builds targets based on enabled internal and positional targets."""
         all_make_targets: List[str] = []
         all_actions: List[Target] = []
+        # This set will track all nodes processed during this build run
+        # to avoid redundant work. It's passed through the collectors.
+        processed_nodes_for_build = set()
 
         for internal_target_name in self.enabled_internal_targets:
             if internal_target_name in self.targets:
                 self.collect_targets(internal_target_name,
                                      all_make_targets,
-                                     all_actions)
+                                     all_actions,
+                                     processed_nodes_for_build)
             else:
                 print(f"Error: Enabled internal target "
                       f"'{internal_target_name}' not found in definitions. "

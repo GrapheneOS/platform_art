@@ -777,6 +777,7 @@ inline uint16_t ArtMethod::GetCounter() {
 }
 
 inline uint32_t ArtMethod::GetImtIndex() {
+  DCHECK(GetDeclaringClass()->IsInterface());
   if (LIKELY(IsAbstract())) {
     return imt_index_;
   } else {
