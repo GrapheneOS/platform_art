@@ -55,6 +55,19 @@ RBE_D8_DISABLED_FOR = {
   "979-const-method-handle",  # b/228312861: RBE uses wrong inputs.
 }
 
+TRADEFED_DISABLED = {
+  "2031-zygote-compiled-frame-deopt",
+  "2254-class-value-before-and-after-u",
+  "656-annotation-lookup-generic-jni",
+  "674-hiddenapi",
+  "677-fsi",
+  "677-fsi2",
+  "689-zygote-jit-deopt",
+  "728-imt-conflict-zygote",
+  "817-hiddenapi",
+  "900-hello-plugin",
+}
+
 # Debug option. Report commands that are taking a lot of user CPU time.
 REPORT_SLOW_COMMANDS = False
 
@@ -562,6 +575,9 @@ def create_ci_runner_scripts(out, mode, test_names):
   setup = out / "setup.sh"
   setup_script = create_setup_script(False) + create_setup_script(True)
   setup.write_text("\n".join(setup_script))
+  test_names = list(set(test_names) - TRADEFED_DISABLED)
+  if not test_names:
+    return {}
 
   python = sys.executable
   script = 'art/test/testrunner/testrunner.py'

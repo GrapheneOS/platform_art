@@ -142,9 +142,15 @@ cc_defaults {
             // libdexfile, and dexdump.
             static_libs: [
                 "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+                "libcore-aconfig-flags-native-lib",
             ],
             export_static_lib_headers: [
                 "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+                "libcore-aconfig-flags-native-lib",
             ],
         },
         linux: {
@@ -154,9 +160,15 @@ cc_defaults {
             // libdexfile, and dexdump.
             static_libs: [
                 "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+                "libcore-aconfig-flags-native-lib",
             ],
             export_static_lib_headers: [
                 "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+                "libcore-aconfig-flags-native-lib",
             ],
         },
     },
@@ -187,6 +199,25 @@ cc_defaults {
                 "libcap",
             ],
         },
+        darwin: {
+            whole_static_libs: [
+                "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+            ],
+        },
+        linux: {
+            // TODO(b/350967139): Move art-aconfig-flags-lib to the top level
+            // when aconfig supports windows. Until then it's harder to use
+            // flags in code that needs to build for them, e.g. libartbase,
+            // libdexfile, and dexdump.
+            whole_static_libs: [
+                "art-aconfig-flags-lib",
+                "art-aconfig-native-flags-lib",
+                "libaconfig_storage_read_api_cc",
+            ],
+        },
+
     },
 }
 

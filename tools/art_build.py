@@ -25,6 +25,18 @@ from typing import Callable, Dict, List, Optional
 
 I18N_APEX = "com.android.i18n"
 TZDATA_APEX = "com.android.tzdata"
+CORE_IMG_JARS: List[str] = [
+    'core-oj',
+    'core-libart',
+    'okhttp',
+    'bouncycastle',
+    'apache-xml',
+]
+HOSTDEX_JARS: List[tuple[str, str]] = [
+    ("com.android.conscrypt", "conscrypt"),
+    ("com.android.i18n", "core-icu4j"),
+]
+
 # Define a more specific type for build variables, which are strings.
 BuildVarsDict = Dict[str, str]
 
@@ -53,6 +65,10 @@ def run_subprocess(
     stderr_setting = None
 
     try:
+        # The command is constructed from trusted sources (hardcoded values
+        # or build system variables). With shell=False, this call is not
+        # vulnerable to command injection.
+        # nosemgrep: default-ruleset.python.lang.security.audit.dangerous-subprocess-use-audit
         result = subprocess.run(
             command,
             cwd=cwd,
@@ -220,6 +236,36 @@ def extract_from_apex(apex_name: str, build_vars: BuildVarsDict):
         print(f"No 'etc' directory found in extracted {apex_name}.")
 
 
+def perform_copy(source_path: str, target_path: str) -> None:
+    """
+    Performs a single file copy operation. Overwrites target.
+    Exits the script with status 1 if any error occurs.
+
+    Args:
+        source_path (str): The path to the source file.
+        target_path (str): The path to the target file.
+
+    Returns:
+        None
+    """
+    try:
+        if not os.path.exists(source_path):
+            print(f"  ERROR: Source file not found! ({source_path})",
+                  file=sys.stderr)
+            sys.exit(1)
+
+        target_dir: str = os.path.dirname(target_path)
+        os.makedirs(target_dir, exist_ok=True)
+
+        shutil.copy(source_path, target_path)
+
+    except Exception as e:
+        err_msg = (f"  ERROR: An unexpected error occurred during copy "
+                   f"({source_path} -> {target_path}): {e}")
+        print(err_msg, file=sys.stderr)
+        sys.exit(1)
+
+
 def host_i18n_data_action(build_vars: BuildVarsDict):
     """Custom action to process i18n data."""
     extract_from_apex(I18N_APEX, build_vars)
@@ -228,6 +274,67 @@ def host_i18n_data_action(build_vars: BuildVarsDict):
 def host_tzdata_data_action(build_vars: BuildVarsDict):
     """Custom action to process tzdata data."""
     extract_from_apex(TZDATA_APEX, build_vars)
+
+
+def _get_core_img_jar_source_path(
+    build_vars: BuildVarsDict, jar_basename: str
+) -> str:
+    """
+    Returns the full source path for a given core image JAR.
+    This path is where the build system places JARs for dexpreopting.
+    """
+    out_dir = build_vars.get("OUT_DIR")
+    target_arch = build_vars.get("TARGET_ARCH")
+    # Path corresponds to art/build/Android.common_path.mk variable
+    # CORE_IMG_JAR_DIR.
+    core_img_jar_dir = os.path.join(
+        out_dir, 'soong', f'dexpreopt_{target_arch}', 'dex_artjars_input'
+    )
+    return os.path.join(core_img_jar_dir, f"{jar_basename}.jar")
+
+
+def _get_hostdex_jar_source_path(
+    build_vars: BuildVarsDict, jar_basename: str
+) -> str:
+    """Returns the source path for a given hostdex JAR."""
+    host_out_java_libs = build_vars.get("HOST_OUT_JAVA_LIBRARIES")
+    return os.path.join(host_out_java_libs, f"{jar_basename}-hostdex.jar")
+
+
+def copy_core_img_jars_action(build_vars: BuildVarsDict):
+    """Copies JARs listed in the global CORE_IMG_JARS."""
+    target_base_dir = os.path.join(
+        build_vars.get("HOST_OUT"), 'apex/com.android.art/javalib'
+    )
+
+    for jar_base_name in CORE_IMG_JARS:
+        source: str = _get_core_img_jar_source_path(
+            build_vars, jar_base_name
+        )
+        target: str = os.path.join(target_base_dir, f"{jar_base_name}.jar")
+        perform_copy(source, target)
+
+
+def copy_hostdex_jars_action(build_vars: BuildVarsDict):
+    """Copies hostdex JARs to their respective APEX javalib dirs."""
+    # We can still use the host variant of `conscrypt` and `core-icu4j`
+    # because they don't go into the primary boot image that is used in
+    # host gtests, and hence can't lead to checksum mismatches.
+    host_out = build_vars.get("HOST_OUT")
+    for apex_name, jar_basename in HOSTDEX_JARS:
+        source = _get_hostdex_jar_source_path(build_vars, jar_basename)
+        target = os.path.join(
+            host_out, f'apex/{apex_name}/javalib/{jar_basename}.jar')
+        perform_copy(source, target)
+
+
+def copy_all_host_boot_image_jars_action(build_vars: BuildVarsDict):
+    """
+    Composite action to copy all necessary JARs for the host boot image.
+    This includes CORE_IMG_JARS, conscrypt, and i18n JARs.
+    """
+    copy_core_img_jars_action(build_vars)
+    copy_hostdex_jars_action(build_vars)
 
 
 class Target:
@@ -264,26 +371,54 @@ class Builder:
         self.targets: dict[str, Target] = {}
         self.enabled_internal_targets: List[str] = []
         self.positional_make_targets: List[str] = []
-        self._setup_default_targets()
+        self.build_vars: Optional[BuildVarsDict] = None
 
-    def _setup_default_targets(self):
-        """Defines the built-in internal targets known to this script."""
+    def _get_copy_core_img_make_targets(self) -> List[str]:
+        """
+        Generates the list of make_targets (file paths) for CORE_IMG_JARS.
+        These are the source JARs that the copy_core_img_jars_action will
+        copy. Relies on self.build_vars having been set.
+        """
+        make_targets = []
+        for jar_base_name in CORE_IMG_JARS:
+            source_file_path = _get_core_img_jar_source_path(
+                self.build_vars, jar_base_name
+            )
+            make_targets.append(source_file_path)
+        return make_targets
+
+    def setup_default_targets(self, build_vars: BuildVarsDict):
+        """Defines built-in targets using build_vars and stores build_vars."""
+        self.build_vars = build_vars
+
         # These test_* lists are placeholders; actual dependencies might differ.
         test_art_host_deps = ["dalvikvm", "dexlist"]
-        test_host_core_img_outs = [
-            "core-oj", "core-libart", "okhttp", "bouncycastle", "apache-xml"
-        ]
         test_art_target_deps = [
             "com.android.art.testing", "com.android.conscrypt",
             "com.android.i18n"
         ]
         test_target_core_img_outs = ["core-oj", "core-libart"]
 
+        # HOST_CORE_IMG_OUTS
+        copy_core_img_make_targets = self._get_copy_core_img_make_targets()
+        hostdex_jar_make_targets = [
+            _get_hostdex_jar_source_path(self.build_vars, basename)
+            for _, basename in HOSTDEX_JARS
+        ]
+        all_boot_image_make_targets = (copy_core_img_make_targets +
+                                       hostdex_jar_make_targets)
+        self.add_target(Target(
+            name="host_core_img_outs",
+            action=copy_all_host_boot_image_jars_action,
+            make_targets=all_boot_image_make_targets,
+        ))
+        # HOST_I18N_DATA
         self.add_target(Target(
             name="extract-host-i18n-data",
             action=host_i18n_data_action,
             make_targets=[I18N_APEX, "deapexer", "debugfs", "fsck.erofs"],
         ))
+        # HOST_TZDATA_DATA
         self.add_target(Target(
             name="extract-host-tzdata-data",
             action=host_tzdata_data_action,
@@ -292,12 +427,20 @@ class Builder:
         self.add_target(Target(
             name="build-art-host",
             make_targets=(
-                ["art-script"] + test_art_host_deps + test_host_core_img_outs
+                ["art-script"] + test_art_host_deps
             ),
             dependencies=[
+                "host_core_img_outs",
                 "extract-host-i18n-data",
                 "extract-host-tzdata-data",
             ],
+        ))
+        # build-art-host-gtests depends on build-art-host  and
+        #    $(ART_TEST_HOST_GTEST_DEPENDENCIES)
+        # ART_TEST_HOST_GTEST_DEPENDENCIES := $(HOST_I18N_DATA)
+        self.add_target(Target(
+            name="build-art-host-gtests",
+            dependencies=["build-art-host", "extract-host-i18n-data"],
         ))
         self.add_target(Target(
             name="build-art-target",
@@ -400,8 +543,14 @@ class Builder:
                                 collected_actions, recursion_stack,
                                 processed_nodes)
 
-    def build(self, build_vars: BuildVarsDict):
+    def build(self):
         """Builds targets based on enabled internal and positional targets."""
+        if self.build_vars is None:
+            print("Error: build_vars not set in Builder. "
+                  "setup_default_targets must be called first.",
+                  file=sys.stderr)
+            sys.exit(1)
+
         all_make_targets: List[str] = []
         all_actions: List[Target] = []
         # This set will track all nodes processed during this build run
@@ -471,7 +620,7 @@ class Builder:
         if unique_actions:
             print("Executing post-build actions...")
             for target_obj in unique_actions:
-                target_obj.execute_post_build_action(build_vars)
+                target_obj.execute_post_build_action(self.build_vars)
         else:
             print("No post-build actions to execute.")
 
@@ -506,7 +655,8 @@ def _setup_env_and_get_primary_build_vars(
         sys.exit(1)
 
     vars_to_get_via_dumpvars = [
-        "HOST_OUT", "TARGET_OUT", "TARGET_ARCH", "HOST_OUT_JAVA_LIBRARIES"
+        "OUT_DIR", "HOST_OUT", "TARGET_OUT", "TARGET_ARCH",
+        "HOST_OUT_JAVA_LIBRARIES"
     ]
 
     build_vars_from_dumpvars: BuildVarsDict = get_android_build_vars(
@@ -529,19 +679,14 @@ def parse_command_line_arguments(builder: Builder) -> argparse.ArgumentParser:
     )
     # Arguments for enabling internal targets
     parser.add_argument(
-        "--extract-host-i18n-data",
-        action="store_true",
-        help="Build and extract host i18n data (activates internal target)."
-    )
-    parser.add_argument(
-        "--extract-host-tzdata-data",
-        action="store_true",
-        help="Build and extract host tzdata data (activates internal target)."
-    )
-    parser.add_argument(
         "--build-art-host",
         action="store_true",
         help="Build build-art-host components (activates internal target)."
+    )
+    parser.add_argument(
+        "--build-art-host-gtests",
+        action="store_true",
+        help="Build build-art-host-gtests components (internal target)."
     )
     parser.add_argument(
         "--build-art-target",
@@ -570,12 +715,10 @@ def parse_command_line_arguments(builder: Builder) -> argparse.ArgumentParser:
 
     args = parser.parse_args()
 
-    if args.extract_host_i18n_data:
-        builder.enabled_internal_targets.append("extract-host-i18n-data")
-    if args.extract_host_tzdata_data:
-        builder.enabled_internal_targets.append("extract-host-tzdata-data")
     if args.build_art_host:
         builder.enabled_internal_targets.append("build-art-host")
+    if args.build_art_host_gtests:
+        builder.enabled_internal_targets.append("build-art-host-gtests")
     if args.build_art_target:
         builder.enabled_internal_targets.append("build-art-target")
     if args.build_art:
@@ -593,9 +736,10 @@ def main():
     args = parser.parse_args()
 
     build_vars = _setup_env_and_get_primary_build_vars(args)
+    builder.setup_default_targets(build_vars)
 
     if builder.enabled_internal_targets or builder.positional_make_targets:
-        builder.build(build_vars)
+        builder.build()
     else:
         print("No build targets specified. Printing help:")
         parser.print_help()

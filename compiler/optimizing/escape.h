@@ -110,20 +110,23 @@ void CalculateEscape(HInstruction* reference,
                      NoEscapeCheck& no_escape,
                      /*out*/ bool* is_singleton,
                      /*out*/ bool* is_singleton_and_not_returned,
-                     /*out*/ bool* is_singleton_and_not_deopt_visible);
+                     /*out*/ bool* is_singleton_and_not_deopt_visible,
+                     /*out*/ bool* is_singleton_and_not_read_by_invoke);
 
 inline void CalculateEscape(HInstruction* reference,
                             bool (*no_escape_fn)(HInstruction*, HInstruction*),
                             /*out*/ bool* is_singleton,
                             /*out*/ bool* is_singleton_and_not_returned,
-                            /*out*/ bool* is_singleton_and_not_deopt_visible) {
+                            /*out*/ bool* is_singleton_and_not_deopt_visible,
+                            /*out*/ bool* is_singleton_and_not_read_by_invoke) {
   LambdaNoEscapeCheck esc(no_escape_fn);
   LambdaNoEscapeCheck noop_esc([](HInstruction*, HInstruction*) { return false; });
   CalculateEscape(reference,
                   no_escape_fn == nullptr ? static_cast<NoEscapeCheck&>(noop_esc) : esc,
                   is_singleton,
                   is_singleton_and_not_returned,
-                  is_singleton_and_not_deopt_visible);
+                  is_singleton_and_not_deopt_visible,
+                  is_singleton_and_not_read_by_invoke);
 }
 
 /*

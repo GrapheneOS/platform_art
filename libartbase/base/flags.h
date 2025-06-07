@@ -319,6 +319,8 @@ struct Flags {
 // This is the actual instance of all the flags.
 extern Flags gFlags;
 
+EXPORT bool is_test_rw_flag_enabled();
+
 }  // namespace art
 
 #pragma clang diagnostic pop  // -Wconversion

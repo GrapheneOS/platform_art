@@ -31,6 +31,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
 #include "art_method-inl.h"
+#include "base/flags.h"
 #include "base/pointer_size.h"
 #include "base/sdk_version.h"
 #include "class_linker-inl.h"
@@ -548,6 +549,11 @@ static jlong VMRuntime_getFullGcCount([[maybe_unused]] JNIEnv* env, [[maybe_unus
   return metrics->FullGcCount()->Value();
 }
 
+static jboolean VMRuntime_isArtTestRwFlagEnabled([[maybe_unused]] JNIEnv* env,
+                                                 [[maybe_unused]] jclass klass) {
+  return is_test_rw_flag_enabled();
+}
+
 static JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
     NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -602,6 +608,7 @@ static JNINativeMethod gMethods[] = {
     NATIVE_METHOD(
         VMRuntime, getBaseApkOptimizationInfo, "()Ldalvik/system/DexFile$OptimizationInfo;"),
     NATIVE_METHOD(VMRuntime, getFullGcCount, "()J"),
+    NATIVE_METHOD(VMRuntime, isArtTestRwFlagEnabled, "()Z"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

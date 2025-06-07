@@ -36,9 +36,35 @@ aconfig_declarations {
     ],
 }
 
+// TODO: Remove this temporary measure of an extra .aconfig file for C++ only.
+//   When b/422986526 is implemented, or no exported flag from art-flags.aconfig is used in libcore,
+//     and all flags in art-native-flags.aconfig are fully launched, we can
+//     1) make "libcore-aconfig-flags-lib" into "force-read-only" mode,
+//     2) remove this aconfig_declarations and aconfig file,
+//     3) put all new read-write flags into art-flags.aconfig, and
+//     4) put all new exported flags into libcore.aconfig.
+aconfig_declarations {
+    name: "art-aconfig-native-flags",
+    package: "com.android.art.native.flags",
+    container: "com.android.art",
+    exportable: false,
+    srcs: ["art-native-flags.aconfig"],
+}
+
 cc_aconfig_library {
     name: "art-aconfig-flags-lib",
     aconfig_declarations: "art-aconfig-flags",
+    host_supported: true,
+    min_sdk_version: "31",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+}
+
+cc_aconfig_library {
+    name: "art-aconfig-native-flags-lib",
+    aconfig_declarations: "art-aconfig-native-flags",
     host_supported: true,
     min_sdk_version: "31",
     apex_available: [

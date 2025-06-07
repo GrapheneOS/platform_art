@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import dalvik.system.VMRuntime;
+
 public class Main {
     public static void main(String[] args) {
         // Test a flag in libcore/libcore.aconfig.
@@ -27,6 +29,9 @@ public class Main {
             throw new AssertionError(
                     "The value of com.android.art.flags.test flag is expected to be true.");
         }
+
+        // TODO: Ramp the flag fully and assert the value.
+        isArtTestRwFlagEnabled();
     }
 
     private static boolean isVTrunkStableFlagEnabled() {
@@ -37,5 +42,10 @@ public class Main {
     private static boolean isArtTestFlagEnabled() {
         // The Flags class definition is expected to be in core-libart.jar.
         return com.android.art.flags.Flags.test();
+    }
+
+
+    private static boolean isArtTestRwFlagEnabled() {
+        return VMRuntime.isArtTestRwFlagEnabled();
     }
 }

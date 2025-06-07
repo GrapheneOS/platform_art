@@ -22,6 +22,7 @@
 
 #include "android-base/format.h"
 #include "android-base/macros.h"
+#include "android-base/stringify.h"
 #include "android-base/thread_annotations.h"
 
 // Declare a friend relationship in a class with a test. Used rather that FRIEND_TEST to avoid
@@ -62,10 +63,6 @@ template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
 
 #define ALIGNED(x) __attribute__ ((__aligned__(x)))
 #define PACKED(x) __attribute__ ((__aligned__(x), __packed__))
-
-// Stringify the argument.
-#define QUOTE(x) #x
-#define STRINGIFY(x) QUOTE(x)
 
 // Append tokens after evaluating.
 #define APPEND_TOKENS_AFTER_EVAL_2(a, b) a ## b

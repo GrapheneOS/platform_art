@@ -2959,7 +2959,9 @@ size_t MarkCompact::MoveIoctl(void* dst, void* src, size_t len, bool tolerate_en
                                .len = len,
                                .mode = 0,
                                .move = 0};
+  int iters = 0;
   while (ioctl(uffd_, UFFDIO_MOVE, &uffd_move) != 0) {
+    iters++;
     if (errno == EEXIST) {
       DCHECK_EQ(uffd_move.move, -EEXIST);
       uffd_move.move = gPageSize;
@@ -2977,6 +2979,11 @@ size_t MarkCompact::MoveIoctl(void* dst, void* src, size_t len, bool tolerate_en
       DCHECK_NE(uffd_move.move, 0);
       if (uffd_move.move < 0) {
         uffd_move.move = 0;
+        if (iters == 10) {
+          LOG(FATAL) << __FUNCTION__ << ": repeated ioctls not working with EAGAIN"
+                     << " dst:" << dst << " src:" << src << " len:" << len
+                     << " tolerate_enoent:" << tolerate_enoent;
+        }
       } else {
         break;
       }
@@ -3002,6 +3009,11 @@ size_t MarkCompact::MoveIoctl(void* dst, void* src, size_t len, bool tolerate_en
       size_t expected = 0;
       atomic_src.compare_exchange_strong(expected, 0, std::memory_order_relaxed);
       uffd_move.move = 0;
+      if (iters == 10) {
+        LOG(FATAL) << __FUNCTION__ << ": repeated ioctls not working with EBUSY"
+                   << " dst:" << dst << " src:" << src << " len:" << len
+                   << " tolerate_enoent:" << tolerate_enoent;
+      }
     } else {
       CHECK_EQ(uffd_move.move, -errno);
       LOG(FATAL) << "ioctl_userfaultfd: move failed: " << strerror(errno) << ". src:" << src

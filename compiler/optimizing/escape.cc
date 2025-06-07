@@ -61,6 +61,10 @@ void VisitEscapes(HInstruction* reference, EscapeVisitor& escape_visitor) {
       if (!escape_visitor(user)) {
         return;
       }
+    } else if (user->IsInvoke() && user->GetSideEffects().DoesAnyRead()) {
+      if (!escape_visitor(user)) {
+        return;
+      }
     } else if ((user->IsUnresolvedInstanceFieldGet() && (reference == user->InputAt(0))) ||
                (user->IsUnresolvedInstanceFieldSet() && (reference == user->InputAt(0)))) {
       // The field is accessed in an unresolved way. We mark the object as a non-singleton.
@@ -92,18 +96,21 @@ void CalculateEscape(HInstruction* reference,
                      NoEscapeCheck& no_escape,
                      /*out*/ bool* is_singleton,
                      /*out*/ bool* is_singleton_and_not_returned,
-                     /*out*/ bool* is_singleton_and_not_deopt_visible) {
+                     /*out*/ bool* is_singleton_and_not_deopt_visible,
+                     /*out*/ bool* is_singleton_and_not_read_by_invoke) {
   // For references not allocated in the method, don't assume anything.
   if (!reference->IsNewInstance() && !reference->IsNewArray()) {
     *is_singleton = false;
     *is_singleton_and_not_returned = false;
     *is_singleton_and_not_deopt_visible = false;
+    *is_singleton_and_not_read_by_invoke = false;
     return;
   }
   // Assume the best until proven otherwise.
   *is_singleton = true;
   *is_singleton_and_not_returned = true;
   *is_singleton_and_not_deopt_visible = true;
+  *is_singleton_and_not_read_by_invoke = true;
 
   if (reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable()) {
     // Finalizable reference is treated as being returned in the end.
@@ -126,12 +133,19 @@ void CalculateEscape(HInstruction* reference,
       // value escapes through deopt but might still be singleton. Continue on.
       *is_singleton_and_not_deopt_visible = false;
       return true;
+    } else if (escape->IsInvoke() &&
+               !escape->GetSideEffects().DoesAnyWrite() &&
+               escape->GetSideEffects().DoesAnyRead()) {
+      // value is read by an invocation. Continue on.
+      *is_singleton_and_not_read_by_invoke = false;
+      return true;
     } else {
       // Real escape. All knowledge about what happens to the value lost. We can
       // stop here.
       *is_singleton = false;
       *is_singleton_and_not_returned = false;
       *is_singleton_and_not_deopt_visible = false;
+      *is_singleton_and_not_read_by_invoke = false;
       return false;
     }
   });
@@ -141,12 +155,14 @@ void CalculateEscape(HInstruction* reference,
 bool DoesNotEscape(HInstruction* reference, NoEscapeCheck& no_escape) {
   bool is_singleton = false;
   bool is_singleton_and_not_returned = false;
-  bool is_singleton_and_not_deopt_visible = false;  // not relevant for escape
+  bool is_singleton_and_not_deopt_visible = false;   // not relevant for escape
+  bool is_singleton_and_not_read_by_invoke = false;  // not relevant for escape
   CalculateEscape(reference,
                   no_escape,
                   &is_singleton,
                   &is_singleton_and_not_returned,
-                  &is_singleton_and_not_deopt_visible);
+                  &is_singleton_and_not_deopt_visible,
+                  &is_singleton_and_not_read_by_invoke);
   return is_singleton_and_not_returned;
 }
 

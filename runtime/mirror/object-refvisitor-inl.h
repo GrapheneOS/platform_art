@@ -70,19 +70,22 @@ inline void Object::VisitReferences(const Visitor& visitor,
   visitor(this, ClassOffset(), /* is_static= */ false);
   ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
   const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
-  if (LIKELY((class_flags & (kClassFlagNormal | kClassFlagRecord)) != 0)) {
+  DCHECK_NE(class_flags & (kClassFlagNormal | kClassFlagNoReferenceFields),
+            kClassFlagNormal | kClassFlagNoReferenceFields);
+  if ((class_flags & kClassFlagNoReferenceFields) != 0) {
+    CheckNoReferenceField<kVerifyFlags, kReadBarrierOption>(klass);
+    return;
+  }
+  DCHECK(!klass->IsStringClass<kVerifyFlags>());
+
+  // Record with no references will return from previous if block.
+  if ((class_flags & (kClassFlagNormal | kClassFlagRecord)) != 0) {
     CheckNormalClass<kVerifyFlags>(klass);
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();
     VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
     return;
   }
 
-  if ((class_flags & kClassFlagNoReferenceFields) != 0) {
-    CheckNoReferenceField<kVerifyFlags, kReadBarrierOption>(klass);
-    return;
-  }
-
-  DCHECK(!klass->IsStringClass<kVerifyFlags>());
   if ((class_flags & kClassFlagClass) != 0) {
     DCHECK(klass->IsClassClass<kVerifyFlags>());
     DCHECK(klass->IsInstantiableNonArray()) << klass->PrettyDescriptor();

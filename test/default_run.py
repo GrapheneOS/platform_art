@@ -949,6 +949,8 @@ def default_run(ctx, args, **kwargs):
     skip_reg_exp = fr'#-# #:#:# # # ({skip_tag_set}) [^\n]*\n'
     skip_reg_exp = skip_reg_exp.replace('#', '[0-9.]+').replace(' ', ' +')
     ctx.run(fr"sed -i -z -E 's/{skip_reg_exp}//g' '{args.stderr_file}'")
+    ctx.run(fr"sed -i -E '/^.* E aconfig_cpp_codegen: error: failed to get package map file: failed to open/d' '{args.stderr_file}'")
+    ctx.run(fr"sed -i -E '/^.* E aconfig_cpp_codegen: error: package does not exist, returning flag default value./d' '{args.stderr_file}'")
     if not HAVE_IMAGE:
       message = "(Unable to open file|Could not create image space)"
       ctx.run(fr"sed -i -E '/^.* E dalvikvm(|32|64): .* {message}/d' '{args.stderr_file}'")
