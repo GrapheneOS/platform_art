@@ -318,10 +318,72 @@ static constexpr std::array<uint8_t, 256u> GenerateOpcodeInvokeTypes() {
   return opcode_invoke_types;
 }
 
+ALWAYS_INLINE FLATTEN
+inline bool IsInvokeClassMismatch(ObjPtr<mirror::Class> klass, InvokeType type, ArtMethod* caller)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (type == kInterface && UNLIKELY(!klass->IsInterface())) {
+    return true;
+  }
+
+  if (type == kVirtual && UNLIKELY(klass->IsInterface())) {
+    return true;
+  }
+
+  if (type == kDirect &&
+      UNLIKELY(klass->IsInterface()) &&
+      !caller->GetDexFile()->SupportsDefaultMethods()) {
+    return true;
+  }
+  return false;
+}
+
+ALWAYS_INLINE FLATTEN
+static ArtMethod* FindMethodFast(ArtMethod* caller,
+                                 uint16_t method_index,
+                                 InvokeType type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (caller->IsObsolete()) {
+    return nullptr;
+  }
+
+  ObjPtr<mirror::Class> cls = caller->GetDeclaringClass();
+  const dex::MethodId& method_id = cls->GetDexFile().GetMethodId(method_index);
+
+  // Check within the caller's declaring class.
+  if (cls->GetDexTypeIndex() == method_id.class_idx_) {
+    PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+    ArtMethod* method = nullptr;
+    if (pointer_size == PointerSize::k64) {
+      method = cls->FindDeclaredClassMethod</* kOnlyLookAtIndex= */ false, PointerSize::k64>(
+            method_index);
+    } else {
+      method = cls->FindDeclaredClassMethod</* kOnlyLookAtIndex= */ false, PointerSize::k32>(
+            method_index);
+    }
+    if (caller->SkipAccessChecks()) {
+      return method;
+    }
+    if (method != nullptr &&
+        !IsInvokeClassMismatch(method->GetDeclaringClass<kWithoutReadBarrier>(), type, caller) &&
+        !method->CheckIncompatibleClassChange(type)) {
+      return method;
+    }
+    return nullptr;
+  }
+
+  if (caller->SkipAccessChecks()) {
+    return caller->GetDexCache()->GetResolvedMethod(method_index);
+  }
+
+  return nullptr;
+}
+
 static constexpr std::array<uint8_t, 256u> kOpcodeInvokeTypes = GenerateOpcodeInvokeTypes();
 
 LIBART_PROTECTED FLATTEN
-extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t* dex_pc_ptr)
+extern "C" size_t NterpGetMethod(Thread* self,
+                                 ArtMethod* caller,
+                                 const uint16_t* dex_pc_ptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
@@ -336,13 +398,16 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t
   uint16_t method_index =
       (opcode >= Instruction::INVOKE_VIRTUAL_RANGE) ? inst->VRegB_3rc() : inst->VRegB_35c();
 
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  ArtMethod* resolved_method = caller->SkipAccessChecks()
-      ? class_linker->ResolveMethodId(method_index, caller)
-      : class_linker->ResolveMethodWithChecks(method_index, caller, invoke_type);
+  ArtMethod* resolved_method = FindMethodFast(caller, method_index, invoke_type);
   if (resolved_method == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    return 0;
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+    resolved_method = caller->SkipAccessChecks()
+        ? class_linker->ResolveMethodId(method_index, caller)
+        : class_linker->ResolveMethodWithChecks(method_index, caller, invoke_type);
+    if (resolved_method == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return 0;
+    }
   }
 
   if (invoke_type == kSuper) {

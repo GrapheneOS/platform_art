@@ -656,7 +656,8 @@ bool FastCompilerARM64::EnsureHasFrame() {
                                     GetFramePreservedFPRegisters(),
                                     /* requires_current_method= */ true);
 
-  // Move registers which are currently allocated from caller-saves to callee-saves.
+  // Move registers which are currently allocated from caller-saves to callee-saves,
+  // and adjust the offsets of stack locations.
   for (int i = 0; i < number_of_vregs; ++i) {
     if (vreg_locations_[i].IsRegister()) {
       Location new_location =
@@ -672,6 +673,16 @@ bool FastCompilerARM64::EnsureHasFrame() {
         return false;
       }
       vreg_locations_[i] = new_location;
+    } else if (vreg_locations_[i].IsStackSlot()) {
+      vreg_locations_[i] = Location::StackSlot(vreg_locations_[i].GetStackIndex() + GetFrameSize());
+    } else if (vreg_locations_[i].IsDoubleStackSlot()) {
+      vreg_locations_[i] =
+          Location::DoubleStackSlot(vreg_locations_[i].GetStackIndex() + GetFrameSize());
+    } else if (vreg_locations_[i].IsConstant() || vreg_locations_[i].IsInvalid()) {
+      // Nothing to do.
+    } else {
+      unimplemented_reason_ = "Unhandled location";
+      return false;
     }
   }
 

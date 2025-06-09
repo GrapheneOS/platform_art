@@ -1,0 +1,2 @@
+Regression test for the fast compiler, which used to not adjust stack offsets of
+input parameters after creating a frame.

@@ -148,7 +148,7 @@ struct ExtraJvmtiInterface : public jvmtiInterface_1_ {
       if (res != JVMTI_ERROR_NONE) {
         return res;
       }
-      strcpy(*out, val.c_str());
+      memcpy(*out, val.c_str(), val.size() + 1);
       return JVMTI_ERROR_NONE;
     } else {
       return funcs->original_interface->GetSystemProperty(env, prop, out);
@@ -344,4 +344,3 @@ extern "C" JNIEXPORT void JNICALL Agent_OnUnload(JavaVM* jvm) {
 }
 
 }  // namespace wrapagentproperties
-

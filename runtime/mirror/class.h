@@ -983,6 +983,10 @@ class EXPORT MANAGED Class final : public Object {
                              PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <bool kOnlyLookAtIndex, PointerSize kPointerSize>
+  ArtMethod* FindDeclaredClassMethod(uint32_t dex_method_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   ArtMethod* FindConstructor(std::string_view signature, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

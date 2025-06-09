@@ -48,10 +48,8 @@ import com.android.server.art.model.DexoptParams;
 import com.android.server.art.model.DexoptResult;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.testing.TestingUtils;
-import com.android.server.pm.PackageSetting;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
-import com.android.server.pm.pkg.PackageStateUnserialized;
 
 import org.junit.Before;
 import org.junit.Rule;

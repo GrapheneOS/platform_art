@@ -172,7 +172,7 @@ inline ArraySlice<ArtMethod> Class::GetMethodsSliceRangeUnchecked(
 }
 
 inline uint32_t Class::NumMethods() {
-  DCHECK_NE(GetMethodsPtr(), nullptr) << PrettyClass();
+  DCHECK_NE(GetMethodsPtr(), nullptr);
   return NumMethods(GetMethodsPtr());
 }
 
@@ -1326,7 +1326,52 @@ ALWAYS_INLINE FLATTEN inline ArtField* Class::FindDeclaredField(uint32_t dex_fie
   return nullptr;
 }
 
+template <bool kOnlyLookAtIndex, PointerSize kPointerSize>
+ALWAYS_INLINE FLATTEN inline ArtMethod* Class::FindDeclaredClassMethod(uint32_t dex_method_idx) {
+  LengthPrefixedArray<ArtMethod>* array = GetMethodsPtr();
+  static constexpr size_t kMethodAlignment = ArtMethod::Alignment(kPointerSize);
+  static constexpr size_t kMethodSize = ArtMethod::Size(kPointerSize);
+
+  size_t size = array->size();
+  if (size == 0) {
+    return nullptr;
+  }
+  // The method array is an ordered list of methods where there may be missing
+  // indices. For example, it could be [40, 42], but in 90% of cases cases we have
+  // [40, 41, 42]. The latter is the case we are optimizing for, where for
+  // example `dex_method_idx` is 41, and we can just substract it with the
+  // first method index (40) and directly access the array with that index (1).
+  uint32_t index = dex_method_idx - array->At(0, kMethodSize, kMethodAlignment).GetDexMethodIndex();
+  if (index < size) {
+    ArtMethod& method = array->At(index, kMethodSize, kMethodAlignment);
+    if (!method.IsCopied() && method.GetDexMethodIndex() == dex_method_idx) {
+      return &method;
+    }
+  } else {
+    index = size;
+  }
+  if (kOnlyLookAtIndex) {
+    return nullptr;
+  }
+  // If there is a method, it's down the array. The array is ordered by method
+  // index, so we know we can stop the search if `dex_method_idx` is greater
+  // than the current method's index.
+  for (; index > 0; --index) {
+    ArtMethod& method = array->At(index - 1, kMethodSize, kMethodAlignment);
+    if (method.IsCopied()) {
+      continue;
+    } else if (method.GetDexMethodIndex() == dex_method_idx) {
+      return &method;
+    } else if (method.GetDexMethodIndex() < dex_method_idx) {
+      break;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace mirror
 }  // namespace art
 
 #endif  // ART_RUNTIME_MIRROR_CLASS_INL_H_
+
+

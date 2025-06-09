@@ -576,7 +576,27 @@ ArtMethod* Class::FindInterfaceMethod(std::string_view name,
 ArtMethod* Class::FindInterfaceMethod(ObjPtr<DexCache> dex_cache,
                                       uint32_t dex_method_idx,
                                       PointerSize pointer_size) {
-  // We always search by name and signature, ignoring the type index in the MethodId.
+  // First try to find a declared method by dex_method_idx if we have a dex_cache match.
+  if (GetDexCache() == dex_cache) {
+    ArtMethod* method = nullptr;
+    if (pointer_size == kRuntimePointerSize) {
+      method = FindDeclaredClassMethod</* kOnlyLookAtIndex= */ false, kRuntimePointerSize>(
+          dex_method_idx);
+    } else {
+      constexpr PointerSize kOtherPointerSize =
+          (kRuntimePointerSize == PointerSize::k64) ? PointerSize::k32 : PointerSize::k64;
+      method = FindDeclaredClassMethod</* kOnlyLookAtIndex */ false, kOtherPointerSize>(
+          dex_method_idx);
+    }
+    if (method != nullptr) {
+      // This method is only called for interface classes, except from
+      // `ClassLinker::FindIncompatibleMethod` where we have not found one.
+      DCHECK(IsInterface());
+      return method;
+    }
+  }
+
+  // Otherwise search by name and signature, ignoring the type index in the MethodId.
   const DexFile& dex_file = *dex_cache->GetDexFile();
   const dex::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   std::string_view name = dex_file.GetStringView(method_id.name_idx_);
@@ -777,11 +797,11 @@ std::tuple<bool, uint32_t> ClassMemberBinarySearch(uint32_t begin,
   return {success, mid};
 }
 
-static std::tuple<bool, ArtMethod*> FindDeclaredClassMethod(ObjPtr<mirror::Class> klass,
-                                                            const DexFile& dex_file,
-                                                            std::string_view name,
-                                                            Signature signature,
-                                                            PointerSize pointer_size)
+static std::tuple<bool, ArtMethod*> FindDeclaredClassMethodInternal(ObjPtr<mirror::Class> klass,
+                                                                    const DexFile& dex_file,
+                                                                    std::string_view name,
+                                                                    Signature signature,
+                                                                    PointerSize pointer_size)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(&klass->GetDexFile() == &dex_file);
   DCHECK(!name.empty());
@@ -834,12 +854,18 @@ ArtMethod* Class::FindClassMethod(ObjPtr<DexCache> dex_cache,
   // First try to find a declared method by dex_method_idx if we have a dex_cache match.
   ObjPtr<DexCache> this_dex_cache = GetDexCache();
   if (this_dex_cache == dex_cache) {
-    // Lookup is always performed in the class referenced by the MethodId.
-    DCHECK_EQ(dex_type_idx_, GetDexFile().GetMethodId(dex_method_idx).class_idx_.index_);
-    for (ArtMethod& method : GetDeclaredMethodsSlice(pointer_size)) {
-      if (method.GetDexMethodIndex() == dex_method_idx) {
-        return &method;
-      }
+    ArtMethod* method = nullptr;
+    if (pointer_size == kRuntimePointerSize) {
+      method = FindDeclaredClassMethod</* kOnlyLookAtIndex= */ false, kRuntimePointerSize>(
+          dex_method_idx);
+    } else {
+      constexpr PointerSize kOtherPointerSize =
+          (kRuntimePointerSize == PointerSize::k64) ? PointerSize::k32 : PointerSize::k64;
+      method = FindDeclaredClassMethod</* kOnlyLookAtIndex */ false, kOtherPointerSize>(
+          dex_method_idx);
+    }
+    if (method != nullptr) {
+      return method;
     }
   }
 
@@ -853,7 +879,7 @@ ArtMethod* Class::FindClassMethod(ObjPtr<DexCache> dex_cache,
   if (this_dex_cache != dex_cache && !GetDeclaredMethodsSlice(pointer_size).empty()) {
     DCHECK(name.empty());
     name = dex_file.GetMethodNameView(method_id);
-    auto [success, method] = FindDeclaredClassMethod(
+    auto [success, method] = FindDeclaredClassMethodInternal(
         this, *this_dex_cache->GetDexFile(), name, signature, pointer_size);
     DCHECK_EQ(success, method != nullptr);
     if (success) {
@@ -885,7 +911,7 @@ ArtMethod* Class::FindClassMethod(ObjPtr<DexCache> dex_cache,
       if (name.empty()) {
         name = dex_file.GetMethodNameView(method_id);
       }
-      auto [success, method] = FindDeclaredClassMethod(
+      auto [success, method] = FindDeclaredClassMethodInternal(
           klass, *klass_dex_cache->GetDexFile(), name, signature, pointer_size);
       DCHECK_EQ(success, method != nullptr);
       if (success) {

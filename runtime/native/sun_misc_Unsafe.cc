@@ -251,6 +251,10 @@ static void Unsafe_setMemory(
   memset(reinterpret_cast<void*>(static_cast<uintptr_t>(address)), value, bytes);
 }
 
+static jobject Unsafe_allocateInstance(JNIEnv* env, jobject, jclass c) {
+  return env->AllocObject(c);
+}
+
 static jbyte Unsafe_getByteJ([[maybe_unused]] JNIEnv* env, jobject, jlong address) {
   return *reinterpret_cast<jbyte*>(address);
 }
@@ -577,6 +581,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "(JLjava/lang/Object;JJ)V"),
   FAST_NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "(Ljava/lang/Object;JJJ)V"),
   FAST_NATIVE_METHOD(Unsafe, getBoolean, "(Ljava/lang/Object;J)Z"),
+  NATIVE_METHOD(Unsafe, allocateInstance, "(Ljava/lang/Class;)Ljava/lang/Object;"),
 
   FAST_NATIVE_METHOD(Unsafe, getByte, "(Ljava/lang/Object;J)B"),
   FAST_NATIVE_METHOD(Unsafe, getChar, "(Ljava/lang/Object;J)C"),

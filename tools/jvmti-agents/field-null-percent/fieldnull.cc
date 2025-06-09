@@ -184,8 +184,9 @@ static jint AgentStart(JavaVM* vm, char* options, bool is_onload) {
   CHECK_JVMTI(jvmti->SetEventCallbacks(&cb, sizeof(cb)));
   if (is_onload) {
     unsigned char* ptr = nullptr;
-    CHECK_JVMTI(jvmti->Allocate(strlen(options) + 1, &ptr));
-    strcpy(reinterpret_cast<char*>(ptr), options);
+    size_t opt_len = strlen(options);
+    CHECK_JVMTI(jvmti->Allocate(opt_len + 1, &ptr));
+    memcpy(reinterpret_cast<char*>(ptr), options, opt_len + 1);
     CHECK_JVMTI(jvmti->SetEnvironmentLocalStorage(ptr));
     CHECK_JVMTI(jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, nullptr));
   } else {
@@ -215,4 +216,3 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* jvm,
 }
 
 }  // namespace fieldnull
-
