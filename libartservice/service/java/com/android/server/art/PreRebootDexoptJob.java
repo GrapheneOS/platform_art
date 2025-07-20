@@ -585,11 +585,7 @@ public class PreRebootDexoptJob implements ArtServiceJobInterface {
     }
 
     public boolean isAsyncForOta() {
-        if (android.os.Flags.updateEngineApi()) {
-            return true;
-        }
-        // Legacy flag in Android V.
-        return SystemProperties.getBoolean("dalvik.vm.pr_dexopt_async_for_ota", false /* def */);
+        return false;
     }
 
     @GuardedBy("this")
