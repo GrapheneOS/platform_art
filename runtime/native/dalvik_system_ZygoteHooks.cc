@@ -457,6 +457,16 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
   }
 }
 
+static void ZygoteHooks_nativePostExecSpawn(JNIEnv*, jclass, jint runtime_flags) {
+  Runtime* runtime = Runtime::Current();
+  hiddenapi::EnforcementPolicy api_enforcement_policy =
+      ExtractHiddenApiEnforcementPolicy(&runtime_flags);
+
+  ApplyTestApiEnforcementPolicy(runtime, &runtime_flags);
+
+  ApplyHiddenApiEnforcementPolicy(runtime, api_enforcement_policy);
+}
+
 static void ZygoteHooks_startZygoteNoThreadCreation([[maybe_unused]] JNIEnv* env,
                                                     [[maybe_unused]] jclass klass) {
   Runtime::Current()->SetZygoteNoThreadSection(true);
@@ -485,6 +495,7 @@ static const JNINativeMethod gMethods[] = {
   NATIVE_METHOD(ZygoteHooks, nativePostZygoteFork, "()V"),
   NATIVE_METHOD(ZygoteHooks, nativePostForkSystemServer, "(I)V"),
   NATIVE_METHOD(ZygoteHooks, nativePostForkChild, "(JIZZLjava/lang/String;)V"),
+  NATIVE_METHOD(ZygoteHooks, nativePostExecSpawn, "(I)V"),
   NATIVE_METHOD(ZygoteHooks, nativeZygoteLongSuspendOk, "()Z"),
   NATIVE_METHOD(ZygoteHooks, startZygoteNoThreadCreation, "()V"),
   NATIVE_METHOD(ZygoteHooks, stopZygoteNoThreadCreation, "()V"),
