@@ -161,6 +161,32 @@ enum {
   API_ENFORCEMENT_POLICY_SHIFT = CTZ(HIDDEN_API_ENFORCEMENT_POLICY_MASK),
 };
 
+static hiddenapi::EnforcementPolicy ExtractHiddenApiEnforcementPolicy(jint* runtime_flags) {
+  hiddenapi::EnforcementPolicy api_enforcement_policy = hiddenapi::EnforcementPolicyFromInt(
+      (*runtime_flags & HIDDEN_API_ENFORCEMENT_POLICY_MASK) >> API_ENFORCEMENT_POLICY_SHIFT);
+  *runtime_flags &= ~HIDDEN_API_ENFORCEMENT_POLICY_MASK;
+  return api_enforcement_policy;
+}
+
+static void ApplyTestApiEnforcementPolicy(Runtime* runtime, jint* runtime_flags) {
+  if ((*runtime_flags & DISABLE_TEST_API_ENFORCEMENT_POLICY) != 0u) {
+    runtime->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kDisabled);
+  } else {
+    runtime->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kEnabled);
+  }
+  *runtime_flags &= ~DISABLE_TEST_API_ENFORCEMENT_POLICY;
+}
+
+static void ApplyHiddenApiEnforcementPolicy(Runtime* runtime,
+                                            hiddenapi::EnforcementPolicy api_enforcement_policy) {
+  runtime->SetHiddenApiEnforcementPolicy(api_enforcement_policy);
+  runtime->SetDedupeHiddenApiWarnings(true);
+  if (api_enforcement_policy != hiddenapi::EnforcementPolicy::kDisabled &&
+      runtime->GetHiddenApiEventLogSampleRate() != 0) {
+    std::srand(static_cast<uint32_t>(NanoTime()));
+  }
+}
+
 static uint32_t EnableDebugFeatures(uint32_t runtime_flags) {
   Runtime* const runtime = Runtime::Current();
   if ((runtime_flags & DEBUG_ENABLE_CHECKJNI) != 0) {
@@ -309,7 +335,6 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
   // Our system thread ID, etc, has changed so reset Thread state.
   thread->InitAfterFork();
   runtime_flags = EnableDebugFeatures(runtime_flags);
-  hiddenapi::EnforcementPolicy api_enforcement_policy = hiddenapi::EnforcementPolicy::kDisabled;
 
   Runtime* runtime = Runtime::Current();
 
@@ -323,16 +348,10 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
   }
   runtime_flags &= ~ONLY_USE_TRUSTED_OAT_FILES;
 
-  api_enforcement_policy = hiddenapi::EnforcementPolicyFromInt(
-      (runtime_flags & HIDDEN_API_ENFORCEMENT_POLICY_MASK) >> API_ENFORCEMENT_POLICY_SHIFT);
-  runtime_flags &= ~HIDDEN_API_ENFORCEMENT_POLICY_MASK;
+  hiddenapi::EnforcementPolicy api_enforcement_policy =
+      ExtractHiddenApiEnforcementPolicy(&runtime_flags);
 
-  if ((runtime_flags & DISABLE_TEST_API_ENFORCEMENT_POLICY) != 0u) {
-    runtime->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kDisabled);
-  } else {
-    runtime->SetTestApiEnforcementPolicy(hiddenapi::EnforcementPolicy::kEnabled);
-  }
-  runtime_flags &= ~DISABLE_TEST_API_ENFORCEMENT_POLICY;
+  ApplyTestApiEnforcementPolicy(runtime, &runtime_flags);
 
   bool profile_system_server = (runtime_flags & PROFILE_SYSTEM_SERVER) == PROFILE_SYSTEM_SERVER;
   runtime_flags &= ~PROFILE_SYSTEM_SERVER;
@@ -414,15 +433,10 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
       << "SystemServer should be forked with EnforcementPolicy::kDisable";
   DCHECK(!(is_zygote && do_hidden_api_checks))
       << "Child zygote processes should be forked with EnforcementPolicy::kDisable";
-  runtime->SetHiddenApiEnforcementPolicy(api_enforcement_policy);
-  runtime->SetDedupeHiddenApiWarnings(true);
-  if (api_enforcement_policy != hiddenapi::EnforcementPolicy::kDisabled &&
-      runtime->GetHiddenApiEventLogSampleRate() != 0) {
-    // Hidden API checks are enabled, and we are sampling access for the event log. Initialize the
-    // random seed, to ensure the sampling is actually random. We do this post-fork, as doing it
-    // pre-fork would result in the same sequence for every forked process.
-    std::srand(static_cast<uint32_t>(NanoTime()));
-  }
+  // Hidden API checks are enabled, and we are sampling access for the event log. Initialize the
+  // random seed, to ensure the sampling is actually random. We do this post-fork, as doing it
+  // pre-fork would result in the same sequence for every forked process.
+  ApplyHiddenApiEnforcementPolicy(runtime, api_enforcement_policy);
 
   if (instruction_set != nullptr && !is_system_server) {
     ScopedUtfChars isa_string(env, instruction_set);
