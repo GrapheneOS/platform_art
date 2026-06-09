@@ -650,7 +650,7 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
                             RuntimeArgumentMap* runtime_options) {
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
-      LOG(INFO) << "option[" << i << "]=" << options[i].first;
+      LOG(DEBUG) << "option[" << i << "]=" << options[i].first;
     }
   }
 
