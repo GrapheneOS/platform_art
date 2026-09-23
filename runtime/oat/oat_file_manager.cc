@@ -16,6 +16,7 @@
 
 #include "oat_file_manager.h"
 
+#include <fcntl.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 
@@ -557,7 +558,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     int fd;
     if (!strncmp("/gmscompat_fd_", dex_location, strlen("/gmscompat_fd_")) &&
           sscanf(dex_location, "/gmscompat_fd_%d", &fd) == 1) {
-      fd = dup(fd);
+      fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
       struct stat fd_stat;
       if (fstat(fd, &fd_stat) != 0) {
           LOG(FATAL) << "fstat of " << dex_location << " failed: " << strerror(errno);
